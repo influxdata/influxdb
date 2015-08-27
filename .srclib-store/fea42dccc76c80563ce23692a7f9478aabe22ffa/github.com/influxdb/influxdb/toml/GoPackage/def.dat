@@ -1,0 +1,195 @@
+◊
+*.tomlpackage"toml8R¥{
+        "Exported": true,
+        "PkgName": "toml",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä.£
+
+*DurationDurationtype"toml/toml.go(Á0˝8Rû{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "toml",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ZA
+
+text/plain3Duration is a TOML wrapper type for time.Duration.
+ä
+./Duration˙
+*Duration/MarshalTextMarshalTextfunc"toml/toml.go(î08Rœ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "toml",
+        "Receiver": "Duration",
+        "TypeString": "func() (text []byte, err error)",
+        "UnderlyingTypeString": "func() (text []byte, err error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ZL
+
+text/plain>MarshalText converts a duration to a string for decoding toml
+ä./Duration/MarshalTextø
+*Duration/MarshalText/ddvar"toml/toml.go(ö0§@RÈ{
+        "PkgName": "toml",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/MarshalText/d¥
+*Duration/MarshalText/errerrvar"toml/toml.go(¬0À@Rÿ{
+        "PkgName": "toml",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/MarshalText/err•
+*Duration/MarshalText/texttextvar"toml/toml.go(µ0¿@R∆{
+        "PkgName": "toml",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/MarshalText/text˘
+*Duration/StringStringfunc"toml/toml.go(ˇ0∆8R´{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "toml",
+        "Receiver": "Duration",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/Stringµ
+*Duration/String/ddvar"toml/toml.go(Ö0è@RÈ{
+        "PkgName": "toml",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/String/dÏ
+*Duration/UnmarshalTextUnmarshalTextfunc"toml/toml.go(Ñ0—8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "toml",
+        "Receiver": "*Duration",
+        "TypeString": "func(text []byte) error",
+        "UnderlyingTypeString": "func(text []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ZG
+
+text/plain9UnmarshalText parses a TOML value into a duration value.
+ä./Duration/UnmarshalTextÍ
+*Duration/UnmarshalText/ddvar"toml/toml.go(ä0ï@Rê{
+        "PkgName": "toml",
+        "TypeString": "*github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/toml.Duration",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/UnmarshalText/dª
+!*Duration/UnmarshalText/durationdurationvar"toml/toml.go(∫0Î@RÃ{
+        "PkgName": "toml",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä!./Duration/UnmarshalText/duration∏
+*Duration/UnmarshalText/errerrvar"toml/toml.go(∫0Î@Rÿ{
+        "PkgName": "toml",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/UnmarshalText/err©
+*Duration/UnmarshalText/texttextvar"toml/toml.go(•0∞@R∆{
+        "PkgName": "toml",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Duration/UnmarshalText/text—
+*SizeSizetype"toml/toml.go(Ô0˜8Rò{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "toml",
+        "TypeString": "github.com/influxdb/influxdb/toml.Size",
+        "UnderlyingTypeString": "int",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ZÄ
+
+text/plainrSize represents a TOML parseable file size.
+Users can specify size using "m" for megabytes and "g" for gigabytes.
+ä./Size”
+*Size/UnmarshalTextUnmarshalTextfunc"toml/toml.go(®0Ù8Rº{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "toml",
+        "Receiver": "*Size",
+        "TypeString": "func(text []byte) error",
+        "UnderlyingTypeString": "func(text []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }Z:
+
+text/plain,UnmarshalText parses a byte size from text.
+ä./Size/UnmarshalText±
+"* Size/UnmarshalText/$toml1/suffixsuffixvar"toml/toml.go(∞
+0À
+@R¬{
+        "PkgName": "toml",
+        "TypeString": "byte",
+        "UnderlyingTypeString": "byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä"./Size/UnmarshalText/$toml1/suffix∞
+*Size/UnmarshalText/errerrvar"toml/toml.go(ú	0⁄	@Rÿ{
+        "PkgName": "toml",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Size/UnmarshalText/err°
+*Size/UnmarshalText/lengthlengthvar"toml/toml.go(ˇ0ö	@R¿{
+        "PkgName": "toml",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Size/UnmarshalText/length⁄
+*Size/UnmarshalText/ssvar"toml/toml.go(Æ0µ@Rà{
+        "PkgName": "toml",
+        "TypeString": "*github.com/influxdb/influxdb/toml.Size",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/toml.Size",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Size/UnmarshalText/sü
+*Size/UnmarshalText/sizesizevar"toml/toml.go(ú	0⁄	@Rƒ{
+        "PkgName": "toml",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Size/UnmarshalText/size°
+*Size/UnmarshalText/texttextvar"toml/toml.go(≈0–@R∆{
+        "PkgName": "toml",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }ä./Size/UnmarshalText/text˚
+*maxIntmaxIntconst"toml/toml.go(ç0™R‡{
+        "PkgScope": true,
+        "PkgName": "toml",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/toml"
+      }Z^
+
+text/plainPmaxInt is the largest integer representable by a word (architecture dependent).
+ä./maxInt

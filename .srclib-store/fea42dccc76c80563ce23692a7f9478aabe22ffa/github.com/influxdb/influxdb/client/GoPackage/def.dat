@@ -1,0 +1,1814 @@
+ﬂ
+*.clientpackage"client8R∏{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä.ç
+
+*BatchPointsBatchPointstype"client/influxdb.go(ªj0˛m8R¡{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points,omitempty\\\"\"; Database string \"json:\\\"database,omitempty\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Time time.Time \"json:\\\"time,omitempty\\\"\"; Precision string \"json:\\\"precision,omitempty\\\"\"; WriteConsistency string \"json:\\\"-\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z¯
+
+text/plainÈBatchPoints is used to send batched data in a single write.
+Database and Points are required
+If no retention policy is specified, it will use the databases default retention policy.
+If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
+If time is specified, it will be applied to any point with an empty time.
+Precision can be specified if the time is in epoch format (integer).
+Valid values for Precision are n, u, ms, s, m, and h
+ä./BatchPointsâ
+*BatchPoints/DatabaseDatabasefield"client/influxdb.go(èk0Õk8R®{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/DatabaseÕ
+*BatchPoints/PointsPointsfield"client/influxdb.go(—j0çk8RÚ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "[]github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/client.Point",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/Pointså
+*BatchPoints/Precision	Precisionfield"client/influxdb.go(ém0Õm8R®{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/Precisionû
+*BatchPoints/RetentionPolicyRetentionPolicyfield"client/influxdb.go(œk0îl8R®{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/RetentionPolicyì
+*BatchPoints/TagsTagsfield"client/influxdb.go(ñl0–l8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/Tags´
+*BatchPoints/TimeTimefield"client/influxdb.go(“l0åm8R÷{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/Time˚
+*BatchPoints/UnmarshalJSONUnmarshalJSONfunc"client/influxdb.go(æn0Ìz8R¡{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*BatchPoints",
+        "TypeString": "func(b []byte) error",
+        "UnderlyingTypeString": "func(b []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZI
+
+text/plain;UnmarshalJSON decodes the data into the BatchPoints struct
+ä./BatchPoints/UnmarshalJSONÙ
+5*3BatchPoints/UnmarshalJSON/$influxdb0/$influxdb0/errerrvar"client/influxdb.go(…t0“t@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä5./BatchPoints/UnmarshalJSON/$influxdb0/$influxdb0/errΩ
+4*2BatchPoints/UnmarshalJSON/$influxdb0/$influxdb0/tstsvar"client/influxdb.go(√u0œu@R¯{
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z.
+
+text/plain Convert from epoch to time.Time
+ä4./BatchPoints/UnmarshalJSON/$influxdb0/$influxdb0/tsﬁ
+**(BatchPoints/UnmarshalJSON/$influxdb0/errerrvar"client/influxdb.go(≠t0äx@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä*./BatchPoints/UnmarshalJSON/$influxdb0/errﬁ
+**(BatchPoints/UnmarshalJSON/$influxdb1/errerrvar"client/influxdb.go(Æx0œx@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä*./BatchPoints/UnmarshalJSON/$influxdb1/err∞
+*BatchPoints/UnmarshalJSON/bbvar"client/influxdb.go(„n0În@R {
+        "PkgName": "client",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/UnmarshalJSON/bá
+*BatchPoints/UnmarshalJSON/bpbpvar"client/influxdb.go(ƒn0”n@Rû{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.BatchPoints",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/UnmarshalJSON/bpò
+!*BatchPoints/UnmarshalJSON/epochepochvar"client/influxdb.go(‘q0ßt@R¶{
+        "PkgName": "client",
+        "TypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points\\\"\"; Database string \"json:\\\"database\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time *int64 \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"}",
+        "UnderlyingTypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points\\\"\"; Database string \"json:\\\"database\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time *int64 \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä!./BatchPoints/UnmarshalJSON/epochÔ
+**(BatchPoints/UnmarshalJSON/epoch/DatabaseDatabasefield"client/influxdb.go(ôr0Ãr8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä*./BatchPoints/UnmarshalJSON/epoch/Database≥
+(*&BatchPoints/UnmarshalJSON/epoch/PointsPointsfield"client/influxdb.go(Âq0ñr8R∞{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "[]github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/client.Point",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä(./BatchPoints/UnmarshalJSON/epoch/PointsÚ
++*)BatchPoints/UnmarshalJSON/epoch/Precision	Precisionfield"client/influxdb.go(s0§t8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä+./BatchPoints/UnmarshalJSON/epoch/PrecisionÑ
+1*/BatchPoints/UnmarshalJSON/epoch/RetentionPolicyRetentionPolicyfield"client/influxdb.go(œr0âs8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä1./BatchPoints/UnmarshalJSON/epoch/RetentionPolicy˘
+&*$BatchPoints/UnmarshalJSON/epoch/TagsTagsfield"client/influxdb.go(ås0ªs8R¸{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä&./BatchPoints/UnmarshalJSON/epoch/Tags„
+&*$BatchPoints/UnmarshalJSON/epoch/TimeTimefield"client/influxdb.go(æs0Ìs8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "*int64",
+        "UnderlyingTypeString": "*int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä&./BatchPoints/UnmarshalJSON/epoch/Time°
+"* BatchPoints/UnmarshalJSON/normalnormalvar"client/influxdb.go(˙n0Œq@R¨{
+        "PkgName": "client",
+        "TypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points\\\"\"; Database string \"json:\\\"database\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time time.Time \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"}",
+        "UnderlyingTypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points\\\"\"; Database string \"json:\\\"database\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time time.Time \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä"./BatchPoints/UnmarshalJSON/normalÒ
++*)BatchPoints/UnmarshalJSON/normal/DatabaseDatabasefield"client/influxdb.go(¿o0Ûo8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä+./BatchPoints/UnmarshalJSON/normal/Databaseµ
+)*'BatchPoints/UnmarshalJSON/normal/PointsPointsfield"client/influxdb.go(åo0Ωo8R∞{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "[]github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/client.Point",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä)./BatchPoints/UnmarshalJSON/normal/PointsÙ
+,**BatchPoints/UnmarshalJSON/normal/Precision	Precisionfield"client/influxdb.go(óq0Àq8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä,./BatchPoints/UnmarshalJSON/normal/PrecisionÜ
+2*0BatchPoints/UnmarshalJSON/normal/RetentionPolicyRetentionPolicyfield"client/influxdb.go(ˆo0∞p8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä2./BatchPoints/UnmarshalJSON/normal/RetentionPolicy˚
+'*%BatchPoints/UnmarshalJSON/normal/TagsTagsfield"client/influxdb.go(≥p0‚p8R¸{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä'./BatchPoints/UnmarshalJSON/normal/Tagsì
+'*%BatchPoints/UnmarshalJSON/normal/TimeTimefield"client/influxdb.go(Âp0îq8Rî{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä'./BatchPoints/UnmarshalJSON/normal/Time°
+*BatchPoints/WriteConsistencyWriteConsistencyfield"client/influxdb.go(œm0¸m8R®{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "BatchPoints",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./BatchPoints/WriteConsistencyÉ
+*ClientClienttype"client/influxdb.go(Î0‚8RÖ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "struct{url net/url.URL; username string; password string; httpClient *net/http.Client; userAgent string}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z:
+
+text/plain,Client is used to make calls to the server.
+ä./Client‹
+*Client/AddrAddrfunc"client/influxdb.go(‹{0ï|8RÆ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Client",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Zb
+
+text/plainTAddr provides the current url as a string of the server the client is connected to.
+ä./Client/Addrﬁ
+*Client/Addr/ccvar"client/influxdb.go(‚{0Î{@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Addr/c÷
+*Client/PingPingfunc"client/influxdb.go(Ÿ60œ:8Rﬁ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Client",
+        "TypeString": "func() (time.Duration, string, error)",
+        "UnderlyingTypeString": "func() (time.Duration, string, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z´
+
+text/plainúPing will check to see if the server is up
+Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
+ä./Client/Pingﬁ
+*Client/Ping/ccvar"client/influxdb.go(ﬂ60Ë6@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/c¨
+*Client/Ping/errerrvar"client/influxdb.go(ƒ70˜7@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/err»
+*Client/Ping/nownowvar"client/influxdb.go(ì70§7@R¯{
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/now∞
+*Client/Ping/reqreqvar"client/influxdb.go(ƒ70˜7@R‡{
+        "PkgName": "client",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/reqµ
+*Client/Ping/resprespvar"client/influxdb.go(í90≥9@R‚{
+        "PkgName": "client",
+        "TypeString": "*net/http.Response",
+        "UnderlyingTypeString": "*net/http.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/respã
+*Client/Ping/uuvar"client/influxdb.go(¶70∞7@R¡{
+        "PkgName": "client",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/u¶
+*Client/Ping/versionversionvar"client/influxdb.go(˜90ß:@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Ping/version˛
+*Client/QueryQueryfunc"client/influxdb.go(¨0ü8R‰{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Client",
+        "TypeString": "func(q github.com/influxdb/influxdb/client.Query) (*github.com/influxdb/influxdb/client.Response, error)",
+        "UnderlyingTypeString": "func(q github.com/influxdb/influxdb/client.Query) (*github.com/influxdb/influxdb/client.Response, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZK
+
+text/plain=Query sends a command to the server and returns the Response
+ä./Client/Query‡
+*Client/Query/ccvar"client/influxdb.go(≤0ª@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/cº
+*Client/Query/decdecvar"client/influxdb.go(µ0÷@RÍ{
+        "PkgName": "client",
+        "TypeString": "*encoding/json.Decoder",
+        "UnderlyingTypeString": "*encoding/json.Decoder",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/dec∑
+*Client/Query/decErrdecErrvar"client/influxdb.go(È0à@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/decErrÆ
+*Client/Query/errerrvar"client/influxdb.go(Ô0¢@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/err⁄
+*Client/Query/qqvar"client/influxdb.go(√0 @Ré{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Query",
+        "UnderlyingTypeString": "struct{Command string; Database string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/q≤
+*Client/Query/reqreqvar"client/influxdb.go(Ô0¢@R‡{
+        "PkgName": "client",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/req∑
+*Client/Query/resprespvar"client/influxdb.go(ª0‹@R‚{
+        "PkgName": "client",
+        "TypeString": "*net/http.Response",
+        "UnderlyingTypeString": "*net/http.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/respí
+*Client/Query/responseresponsevar"client/influxdb.go(¢0≥@R±{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/responseç
+*Client/Query/uuvar"client/influxdb.go(‚0Ï@R¡{
+        "PkgName": "client",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/u∫
+*Client/Query/valuesvaluesvar"client/influxdb.go(Å0î@Rﬂ{
+        "PkgName": "client",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Query/values÷
+*Client/SetAuthSetAuthfunc"client/influxdb.go(°0Í8Rƒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Client",
+        "TypeString": "func(u string, p string)",
+        "UnderlyingTypeString": "func(u string, p string)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z=
+
+text/plain/SetAuth will update the username and passwords
+ä./Client/SetAuth‰
+*Client/SetAuth/ccvar"client/influxdb.go(ß0∞@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/SetAuth/cö
+*Client/SetAuth/ppvar"client/influxdb.go(∫0≈@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/SetAuth/pö
+*Client/SetAuth/uuvar"client/influxdb.go(∫0≈@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/SetAuth/uü
+*Client/WriteWritefunc"client/influxdb.go(¯ 0Í+8RÚ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Client",
+        "TypeString": "func(bp github.com/influxdb/influxdb/client.BatchPoints) (*github.com/influxdb/influxdb/client.Response, error)",
+        "UnderlyingTypeString": "func(bp github.com/influxdb/influxdb/client.BatchPoints) (*github.com/influxdb/influxdb/client.Response, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z›
+
+text/plainŒWrite takes BatchPoints and allows for writing of multiple points with defaults
+If successful, error is nil and Response is nil
+If an error occurs, Response may contain additional information if populated.
+ä./Client/Writeú
+I*GClient/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb0/$influxdb0/errerrvar"client/influxdb.go(ü"0Ω"@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }äI./Client/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb0/$influxdb0/errÑ
+G*EClient/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb1/$influxdb0/kkvar"client/influxdb.go(¯ 0Í+@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }äG./Client/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb1/$influxdb0/kÑ
+G*EClient/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb1/$influxdb0/vvvar"client/influxdb.go(¯ 0Í+@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }äG./Client/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb1/$influxdb0/vú
+I*GClient/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb1/$influxdb1/errerrvar"client/influxdb.go(˛#0®$@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }äI./Client/Write/$influxdb0/$influxdb0/$influxdb0/$influxdb1/$influxdb1/err
+3*1Client/Write/$influxdb0/$influxdb0/$influxdb1/errerrvar"client/influxdb.go(⁄$0Ú$@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä3./Client/Write/$influxdb0/$influxdb0/$influxdb1/err»
+*Client/Write/$influxdb0/ppvar"client/influxdb.go(¯ 0Í+@RÊ{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "struct{Measurement string; Tags map[string]string; Time time.Time; Fields map[string]interface{}; Precision string; Raw string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/$influxdb0/p⁄
+(*&Client/Write/$influxdb5/$influxdb0/errerrvar"client/influxdb.go(à+0¶+@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä(./Client/Write/$influxdb5/$influxdb0/errÔ
+*Client/Write/bbvar"client/influxdb.go(ÿ!0Ê!@R£{
+        "PkgName": "client",
+        "TypeString": "bytes.Buffer",
+        "UnderlyingTypeString": "struct{buf []byte; off int; runeBytes [4]byte; bootstrap [64]byte; lastRead bytes.readOp}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/bü
+*Client/Write/bodybodyvar"client/influxdb.go(‚)0à*@R {
+        "PkgName": "client",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/body€
+*Client/Write/bpbpvar"client/influxdb.go(è!0ù!@Rå{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points,omitempty\\\"\"; Database string \"json:\\\"database,omitempty\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Time time.Time \"json:\\\"time,omitempty\\\"\"; Precision string \"json:\\\"precision,omitempty\\\"\"; WriteConsistency string \"json:\\\"-\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/bp‡
+*Client/Write/ccvar"client/influxdb.go(˛ 0á!@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/cÆ
+*Client/Write/errerrvar"client/influxdb.go(ù%0–%@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/err∫
+*Client/Write/paramsparamsvar"client/influxdb.go(å'0•'@Rﬂ{
+        "PkgName": "client",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/params≤
+*Client/Write/reqreqvar"client/influxdb.go(ù%0–%@R‡{
+        "PkgName": "client",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/req∑
+*Client/Write/resprespvar"client/influxdb.go(Ë(0â)@R‚{
+        "PkgName": "client",
+        "TypeString": "*net/http.Response",
+        "UnderlyingTypeString": "*net/http.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/respí
+*Client/Write/responseresponsevar"client/influxdb.go(œ)0‡)@R±{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/responseç
+*Client/Write/uuvar"client/influxdb.go(µ!0ø!@R¡{
+        "PkgName": "client",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/Write/uñ
+*Client/WriteLineProtocolWriteLineProtocolfunc"client/influxdb.go(º-0µ58RÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Client",
+        "TypeString": "func(data string, database string, retentionPolicy string, precision string, writeConsistency string) (*github.com/influxdb/influxdb/client.Response, error)",
+        "UnderlyingTypeString": "func(data string, database string, retentionPolicy string, precision string, writeConsistency string) (*github.com/influxdb/influxdb/client.Response, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z÷
+
+text/plain«WriteLineProtocol takes a string with line returns to delimit each write
+If successful, error is nil and Response is nil
+If an error occurs, Response may contain additional information if populated.
+ä./Client/WriteLineProtocolÚ
+4*2Client/WriteLineProtocol/$influxdb4/$influxdb0/errerrvar"client/influxdb.go(“40Ò4@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä4./Client/WriteLineProtocol/$influxdb4/$influxdb0/err∑
+*Client/WriteLineProtocol/bodybodyvar"client/influxdb.go(∞30÷3@R {
+        "PkgName": "client",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/body¯
+*Client/WriteLineProtocol/ccvar"client/influxdb.go(¬-0À-@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/c∑
+*Client/WriteLineProtocol/datadatavar"client/influxdb.go(ﬂ-0¢.@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/data√
+#*!Client/WriteLineProtocol/databasedatabasevar"client/influxdb.go(ﬂ-0¢.@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä#./Client/WriteLineProtocol/database∆
+*Client/WriteLineProtocol/errerrvar"client/influxdb.go(¯.0™/@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/err“
+!*Client/WriteLineProtocol/paramsparamsvar"client/influxdb.go(Ê00ˇ0@Rﬂ{
+        "PkgName": "client",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä!./Client/WriteLineProtocol/params∆
+$*"Client/WriteLineProtocol/precision	precisionvar"client/influxdb.go(ﬂ-0¢.@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä$./Client/WriteLineProtocol/precision¿
+*Client/WriteLineProtocol/rrvar"client/influxdb.go(Ÿ.0ı.@R‹{
+        "PkgName": "client",
+        "TypeString": "*strings.Reader",
+        "UnderlyingTypeString": "*strings.Reader",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/r 
+*Client/WriteLineProtocol/reqreqvar"client/influxdb.go(¯.0™/@R‡{
+        "PkgName": "client",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/reqœ
+*Client/WriteLineProtocol/resprespvar"client/influxdb.go(∂20◊2@R‚{
+        "PkgName": "client",
+        "TypeString": "*net/http.Response",
+        "UnderlyingTypeString": "*net/http.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/resp™
+#*!Client/WriteLineProtocol/responseresponsevar"client/influxdb.go(ù30Æ3@R±{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä#./Client/WriteLineProtocol/responseÿ
+**(Client/WriteLineProtocol/retentionPolicyretentionPolicyvar"client/influxdb.go(ﬂ-0¢.@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä*./Client/WriteLineProtocol/retentionPolicy•
+*Client/WriteLineProtocol/uuvar"client/influxdb.go(∫.0ƒ.@R¡{
+        "PkgName": "client",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/WriteLineProtocol/u€
++*)Client/WriteLineProtocol/writeConsistencywriteConsistencyvar"client/influxdb.go(ﬂ-0¢.@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä+./Client/WriteLineProtocol/writeConsistency¯
+*Client/httpClient
+httpClientfield"client/influxdb.go(∂0ÕRù{
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Client",
+        "TypeString": "*net/http.Client",
+        "UnderlyingTypeString": "*net/http.Client",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/httpClientﬁ
+*Client/passwordpasswordfield"client/influxdb.go(£0¥Râ{
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/password∆
+*
+Client/urlurlfield"client/influxdb.go(¸0éRÄ{
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Client",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/url·
+*Client/userAgent	userAgentfield"client/influxdb.go(œ0‡Râ{
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/userAgentﬁ
+*Client/usernameusernamefield"client/influxdb.go(ê0°Râ{
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Client/username˜
+*ConfigConfigtype"client/influxdb.go(Æ0°8Rˇ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Config",
+        "UnderlyingTypeString": "struct{URL net/url.URL; Username string; Password string; UserAgent string; Timeout time.Duration}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z≥
+
+text/plain§Config is used to specify what server to connect to.
+URL: The URL of the server connecting to.
+Username/Password are optional.  They will be passed via basic auth if provided.
+UserAgent: If not provided, will default "InfluxDBClient",
+Timeout: If not provided, will default to 0 (no timeout)
+ä./Config˙
+*Config/PasswordPasswordfield"client/influxdb.go(‰0Ù8R£{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Config/Password˝
+*Config/TimeoutTimeoutfield"client/influxdb.go(à0ü8R©{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Config",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Config/Timeout‚
+*
+Config/URLURLfield"client/influxdb.go(ø0–8Rö{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Config",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Config/URL˝
+*Config/UserAgent	UserAgentfield"client/influxdb.go(ˆ0Ü8R£{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Config/UserAgent˙
+*Config/UsernameUsernamefield"client/influxdb.go(“0‚8R£{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Config/UsernameÎ
+*ConsistencyAllConsistencyAllconst"client/influxdb.go(à0°8Rê{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ConsistencyAllÎ
+*ConsistencyAnyConsistencyAnyconst"client/influxdb.go(¡0⁄8Rê{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ConsistencyAnyÎ
+*ConsistencyOneConsistencyOneconst"client/influxdb.go(Ì0Ü8Rê{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ConsistencyOneÙ
+*ConsistencyQuorumConsistencyQuorumconst"client/influxdb.go(£0ø8Rê{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ConsistencyQuorum∫
+*DefaultHostDefaultHostconst"client/influxdb.go(¥0Õ8Rê{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZV
+
+text/plainHDefaultHost is the default host used to connect to an InfluxDB instance
+ä./DefaultHost¥
+*DefaultPortDefaultPortconst"client/influxdb.go(ú0Æ8Rä{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZV
+
+text/plainHDefaultPort is the default port used to connect to an InfluxDB instance
+ä./DefaultPortŒ
+*DefaultTimeoutDefaultTimeoutconst"client/influxdb.go(é0†8Rä{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Zg
+
+text/plainYDefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
+ä./DefaultTimeoutì
+*EpochToTimeEpochToTimefunc"client/influxdb.go(Å}0ΩÅ8Rﬂ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "func(epoch int64, precision string) (time.Time, error)",
+        "UnderlyingTypeString": "func(epoch int64, precision string) (time.Time, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z`
+
+text/plainREpochToTime takes a unix epoch time and uses precision to return back a time.Time
+ä./EpochToTimeû
+*EpochToTime/epochepochvar"client/influxdb.go(í}0ù}@R»{
+        "PkgName": "client",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./EpochToTime/epoch¨
+*EpochToTime/precision	precisionvar"client/influxdb.go(ü}0Ø}@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./EpochToTime/precision¬
+*EpochToTime/ttvar"client/influxdb.go(ˆ}0Å~@R¯{
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./EpochToTime/tˆ
+*	NewClient	NewClientfunc"client/influxdb.go(ª0Ì8R¡{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "func(c github.com/influxdb/influxdb/client.Config) (*github.com/influxdb/influxdb/client.Client, error)",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/client.Config) (*github.com/influxdb/influxdb/client.Client, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Zh
+
+text/plainZNewClient will instantiate and return a connected client to issue commands to the server.
+ä./NewClientê
+*NewClient/ccvar"client/influxdb.go( 0“@R {
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Config",
+        "UnderlyingTypeString": "struct{URL net/url.URL; Username string; Password string; UserAgent string; Timeout time.Duration}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./NewClient/c•
+*NewClient/clientclientvar"client/influxdb.go(Ë0ê@R–{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "struct{url net/url.URL; username string; password string; httpClient *net/http.Client; userAgent string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./NewClient/clientˆ
+*	NewConfig	NewConfigfunc"client/influxdb.go(Ï0µ8R’{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "func() github.com/influxdb/influxdb/client.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/client.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZT
+
+text/plainFNewConfig will create a config to be used in connecting to the client
+ä./NewConfigù
+*ParseConnectionStringParseConnectionStringfunc"client/influxdb.go(Ö0Ù
+8R”{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "func(path string, ssl bool) (net/url.URL, error)",
+        "UnderlyingTypeString": "func(path string, ssl bool) (net/url.URL, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZY
+
+text/plainKParseConnectionString will parse a string to create a valid connection URL
+ä./ParseConnectionStringÊ
+/*-ParseConnectionString/$influxdb0/$influxdb0/eevar"client/influxdb.go(Æ0»@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä/./ParseConnectionString/$influxdb0/$influxdb0/eÿ
+/*-ParseConnectionString/$influxdb0/$influxdb0/hhvar"client/influxdb.go(é0´@RŒ{
+        "PkgName": "client",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä/./ParseConnectionString/$influxdb0/$influxdb0/hŒ
+/*-ParseConnectionString/$influxdb0/$influxdb0/iivar"client/influxdb.go(Æ0»@Rƒ{
+        "PkgName": "client",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä/./ParseConnectionString/$influxdb0/$influxdb0/i±
+*ParseConnectionString/hosthostvar"client/influxdb.go(œ0⁄@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ParseConnectionString/host±
+*ParseConnectionString/pathpathvar"client/influxdb.go(†0´@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ParseConnectionString/path´
+*ParseConnectionString/portportvar"client/influxdb.go(‡0Ë@Rƒ{
+        "PkgName": "client",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ParseConnectionString/port™
+*ParseConnectionString/sslsslvar"client/influxdb.go(≠0µ@R∆{
+        "PkgName": "client",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ParseConnectionString/sslü
+*ParseConnectionString/uuvar"client/influxdb.go(È	0ã
+@R¡{
+        "PkgName": "client",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./ParseConnectionString/uœ
+*PointPointtype"client/influxdb.go(∆M0ÏN8Rõ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "struct{Measurement string; Tags map[string]string; Time time.Time; Fields map[string]interface{}; Precision string; Raw string}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZÚ
+
+text/plain„Point defines the fields that will be written to the database
+Measurement, Time, and Fields are required
+Precision can be specified if the time is in epoch format (integer).
+Valid values for Precision are n, u, ms, s, m, and h
+ä./Pointë
+*Point/FieldsFieldsfield"client/influxdb.go(†N0¬N8R¬{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Point",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/FieldsÏ
+*Point/MarshalJSONMarshalJSONfunc"client/influxdb.go(µP0øU8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Point",
+        "TypeString": "func() ([]byte, error)",
+        "UnderlyingTypeString": "func() ([]byte, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZÕ
+
+text/plainæMarshalJSON will format the time in RFC3339Nano
+Precision is also ignored as it is only used for writing, not reading
+Or another way to say it is we always send back in nanosecond precision
+ä./Point/MarshalJSONË
+*Point/MarshalJSON/ppvar"client/influxdb.go(ªP0√P@Rí{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/MarshalJSON/p‹
+*Point/MarshalJSON/pointpointvar"client/influxdb.go(ÊP0ßT@R˙{
+        "PkgName": "client",
+        "TypeString": "struct{Measurement string \"json:\\\"measurement,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Time string \"json:\\\"time,omitempty\\\"\"; Fields map[string]interface{} \"json:\\\"fields,omitempty\\\"\"; Precision string \"json:\\\"precision,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Measurement string \"json:\\\"measurement,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Time string \"json:\\\"time,omitempty\\\"\"; Fields map[string]interface{} \"json:\\\"fields,omitempty\\\"\"; Precision string \"json:\\\"precision,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/MarshalJSON/point˘
+ *Point/MarshalJSON/point/FieldsFieldsfield"client/influxdb.go(∏R0ÙR8RÜ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä ./Point/MarshalJSON/point/FieldsË
+%*#Point/MarshalJSON/point/MeasurementMeasurementfield"client/influxdb.go(˙P0ªQ8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä%./Point/MarshalJSON/point/Measurement‚
+#*!Point/MarshalJSON/point/Precision	Precisionfield"client/influxdb.go(˜R0∂S8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä#./Point/MarshalJSON/point/PrecisionÈ
+*Point/MarshalJSON/point/TagsTagsfield"client/influxdb.go(æQ0¯Q8R¸{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/MarshalJSON/point/Tags”
+*Point/MarshalJSON/point/TimeTimefield"client/influxdb.go(˚Q0µR8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/MarshalJSON/point/Timeê
+*Point/MarshalStringMarshalStringfunc"client/influxdb.go(¡U0≥V8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Point",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/MarshalStringÏ
+*Point/MarshalString/ppvar"client/influxdb.go(«U0œU@Rí{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/MarshalString/pÄ
+*Point/MeasurementMeasurementfield"client/influxdb.go(÷M0ËM8R¢{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Point",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/Measurement˙
+*Point/Precision	Precisionfield"client/influxdb.go(ƒN0÷N8R¢{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Point",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/PrecisionË
+*	Point/RawRawfield"client/influxdb.go(ÿN0ÍN8R¢{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Point",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/RawÅ
+*
+Point/TagsTagsfield"client/influxdb.go(ÍM0áN8R∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Point",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/Tagsô
+*
+Point/TimeTimefield"client/influxdb.go(âN0ûN8R–{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Point",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/Time„
+*Point/UnmarshalJSONUnmarshalJSONfunc"client/influxdb.go(ÌV0åc8Rª{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Point",
+        "TypeString": "func(b []byte) error",
+        "UnderlyingTypeString": "func(b []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZC
+
+text/plain5UnmarshalJSON decodes the data into the Point struct
+ä./Point/UnmarshalJSONˆ
+/*-Point/UnmarshalJSON/$influxdb0/$influxdb0/decdecvar"client/influxdb.go(ì\0Ω\@RÍ{
+        "PkgName": "client",
+        "TypeString": "*encoding/json.Decoder",
+        "UnderlyingTypeString": "*encoding/json.Decoder",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä/./Point/UnmarshalJSON/$influxdb0/$influxdb0/decË
+/*-Point/UnmarshalJSON/$influxdb0/$influxdb0/errerrvar"client/influxdb.go(á\0ê\@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä/./Point/UnmarshalJSON/$influxdb0/$influxdb0/err’
+.*,Point/UnmarshalJSON/$influxdb0/$influxdb0/tstsvar"client/influxdb.go(‚]0Ó]@R¯{
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZR
+
+text/plainDConvert from epoch to time.Time, but only if Time
+was actually set.
+ä../Point/UnmarshalJSON/$influxdb0/$influxdb0/ts“
+$*"Point/UnmarshalJSON/$influxdb0/errerrvar"client/influxdb.go(Î[0é`@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä$./Point/UnmarshalJSON/$influxdb0/err“
+$*"Point/UnmarshalJSON/$influxdb1/errerrvar"client/influxdb.go(Ô`0âa@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä$./Point/UnmarshalJSON/$influxdb1/err§
+*Point/UnmarshalJSON/bbvar"client/influxdb.go(ãW0ìW@R {
+        "PkgName": "client",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/UnmarshalJSON/b 
+*Point/UnmarshalJSON/decdecvar"client/influxdb.go(Ø`0Ÿ`@RÍ{
+        "PkgName": "client",
+        "TypeString": "*encoding/json.Decoder",
+        "UnderlyingTypeString": "*encoding/json.Decoder",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/UnmarshalJSON/dec¸
+*Point/UnmarshalJSON/epochepochvar"client/influxdb.go(«Y0Â[@Rñ{
+        "PkgName": "client",
+        "TypeString": "struct{Measurement string \"json:\\\"measurement\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time *int64 \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"; Fields map[string]interface{} \"json:\\\"fields\\\"\"}",
+        "UnderlyingTypeString": "struct{Measurement string \"json:\\\"measurement\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time *int64 \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"; Fields map[string]interface{} \"json:\\\"fields\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/UnmarshalJSON/epoch˝
+"* Point/UnmarshalJSON/epoch/FieldsFieldsfield"client/influxdb.go(∞[0‚[8RÜ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä"./Point/UnmarshalJSON/epoch/FieldsÏ
+'*%Point/UnmarshalJSON/epoch/MeasurementMeasurementfield"client/influxdb.go(ÿY0èZ8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä'./Point/UnmarshalJSON/epoch/MeasurementÊ
+%*#Point/UnmarshalJSON/epoch/Precision	Precisionfield"client/influxdb.go(¯Z0≠[8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä%./Point/UnmarshalJSON/epoch/PrecisionÌ
+ *Point/UnmarshalJSON/epoch/TagsTagsfield"client/influxdb.go(íZ0¬Z8R¸{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä ./Point/UnmarshalJSON/epoch/Tags◊
+ *Point/UnmarshalJSON/epoch/TimeTimefield"client/influxdb.go(≈Z0ıZ8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "*int64",
+        "UnderlyingTypeString": "*int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä ./Point/UnmarshalJSON/epoch/TimeÖ
+*Point/UnmarshalJSON/normalnormalvar"client/influxdb.go(¢W0¡Y@Rú{
+        "PkgName": "client",
+        "TypeString": "struct{Measurement string \"json:\\\"measurement\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time time.Time \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"; Fields map[string]interface{} \"json:\\\"fields\\\"\"}",
+        "UnderlyingTypeString": "struct{Measurement string \"json:\\\"measurement\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Time time.Time \"json:\\\"time\\\"\"; Precision string \"json:\\\"precision\\\"\"; Fields map[string]interface{} \"json:\\\"fields\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/UnmarshalJSON/normalˇ
+#*!Point/UnmarshalJSON/normal/FieldsFieldsfield"client/influxdb.go(åY0æY8RÜ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä#./Point/UnmarshalJSON/normal/FieldsÓ
+(*&Point/UnmarshalJSON/normal/MeasurementMeasurementfield"client/influxdb.go(¥W0ÎW8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä(./Point/UnmarshalJSON/normal/MeasurementË
+&*$Point/UnmarshalJSON/normal/Precision	Precisionfield"client/influxdb.go(‘X0âY8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä&./Point/UnmarshalJSON/normal/PrecisionÔ
+!*Point/UnmarshalJSON/normal/TagsTagsfield"client/influxdb.go(ÓW0ûX8R¸{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä!./Point/UnmarshalJSON/normal/Tagsá
+!*Point/UnmarshalJSON/normal/TimeTimefield"client/influxdb.go(°X0—X8Rî{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä!./Point/UnmarshalJSON/normal/TimeÏ
+*Point/UnmarshalJSON/ppvar"client/influxdb.go(ÛV0˚V@Rí{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Point/UnmarshalJSON/pÈ
+*QueryQuerytype"client/influxdb.go(É0µ8R√{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Query",
+        "UnderlyingTypeString": "struct{Command string; Database string}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Ze
+
+text/plainWQuery is used to send a command to the server. Both Command and Database are required.
+ä./QueryÙ
+*Query/CommandCommandfield"client/influxdb.go(ì0¢8R¢{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Query",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Query/Command˜
+*Query/DatabaseDatabasefield"client/influxdb.go(§0≥8R¢{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Query",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Query/DatabaseÔ
+
+*ResponseResponsetype"client/influxdb.go(ŒB0ÇC8RÊ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result; Err error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z?
+
+text/plain1Response represents a list of statement results.
+ä
+./ResponseÉ
+*Response/ErrErrfield"client/influxdb.go(ÛB0ÄC8R∑{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Response",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/Errı
+*Response/ErrorErrorfunc"client/influxdb.go(£J0–K8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "Response",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Zu
+
+text/plaingError returns the first error from any statement.
+Returns nil if no errors occurred on any statements.
+ä./Response/Error¢
+"* Response/Error/$influxdb1/resultresultvar"client/influxdb.go(£J0–K@R≠{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä"./Response/Error/$influxdb1/resultÅ
+*Response/Error/rrvar"client/influxdb.go(©J0≥J@R±{
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/Error/r·
+*Response/MarshalJSONMarshalJSONfunc"client/influxdb.go(≥C0åF8R¬{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Response",
+        "TypeString": "func() ([]byte, error)",
+        "UnderlyingTypeString": "func() ([]byte, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z:
+
+text/plain,MarshalJSON encodes the response into JSON.
+ä./Response/MarshalJSONÙ
+*Response/MarshalJSON/oovar"client/influxdb.go(°D0àE@R÷{
+        "PkgName": "client",
+        "TypeString": "struct{Results []github.com/influxdb/influxdb/client.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z@
+
+text/plain2Define a struct that outputs "error" as a string.
+ä./Response/MarshalJSON/oŒ
+*Response/MarshalJSON/o/ErrErrfield"client/influxdb.go(‹D0ÖE8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/MarshalJSON/o/Err¶
+ *Response/MarshalJSON/o/ResultsResultsfield"client/influxdb.go(ÆD0ŸD8R≤{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "[]github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/client.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä ./Response/MarshalJSON/o/ResultsÙ
+*Response/MarshalJSON/rrvar"client/influxdb.go(πC0ƒC@Rò{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/MarshalJSON/r…
+*Response/ResultsResultsfield"client/influxdb.go(·B0ÒB8RÒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Response",
+        "TypeString": "[]github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/client.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/ResultsÔ
+*Response/UnmarshalJSONUnmarshalJSONfunc"client/influxdb.go(…F0¥I8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Response",
+        "TypeString": "func(b []byte) error",
+        "UnderlyingTypeString": "func(b []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZF
+
+text/plain8UnmarshalJSON decodes the data into the Response struct
+ä./Response/UnmarshalJSON™
+*Response/UnmarshalJSON/bbvar"client/influxdb.go(ÍF0ÚF@R {
+        "PkgName": "client",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/UnmarshalJSON/b–
+*Response/UnmarshalJSON/decdecvar"client/influxdb.go(ÎG0ïH@RÍ{
+        "PkgName": "client",
+        "TypeString": "*encoding/json.Decoder",
+        "UnderlyingTypeString": "*encoding/json.Decoder",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/UnmarshalJSON/dec¬
+*Response/UnmarshalJSON/errerrvar"client/influxdb.go(®H0ΩH@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/UnmarshalJSON/err∂
+*Response/UnmarshalJSON/oovar"client/influxdb.go(ÅG0ËG@R÷{
+        "PkgName": "client",
+        "TypeString": "struct{Results []github.com/influxdb/influxdb/client.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Results []github.com/influxdb/influxdb/client.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/UnmarshalJSON/o“
+*Response/UnmarshalJSON/o/ErrErrfield"client/influxdb.go(ºG0ÂG8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/UnmarshalJSON/o/Err™
+"* Response/UnmarshalJSON/o/ResultsResultsfield"client/influxdb.go(éG0πG8R≤{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "[]github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/client.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä"./Response/UnmarshalJSON/o/Results¯
+*Response/UnmarshalJSON/rrvar"client/influxdb.go(œF0⁄F@Rò{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Response/UnmarshalJSON/rÙ
+*ResultResulttype"client/influxdb.go(•;0€;8R‚{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row; Err error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZN
+
+text/plain@Result represents a resultset returned from a single statement.
+ä./Result˝
+*
+Result/ErrErrfield"client/influxdb.go(Õ;0Ÿ;8Rµ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Result",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/ErrŸ
+*Result/MarshalJSONMarshalJSONfunc"client/influxdb.go(ä<0Ë>8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Result",
+        "TypeString": "func() ([]byte, error)",
+        "UnderlyingTypeString": "func() ([]byte, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z8
+
+text/plain*MarshalJSON encodes the result into JSON.
+ä./Result/MarshalJSONÍ
+*Result/MarshalJSON/oovar"client/influxdb.go(ˆ<0Ê=@R–{
+        "PkgName": "client",
+        "TypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row \"json:\\\"series,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row \"json:\\\"series,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z@
+
+text/plain2Define a struct that outputs "error" as a string.
+ä./Result/MarshalJSON/o 
+*Result/MarshalJSON/o/ErrErrfield"client/influxdb.go(µ=0„=8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/MarshalJSON/o/Errù
+*Result/MarshalJSON/o/SeriesSeriesfield"client/influxdb.go(É=0≤=8R∞{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "[]github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/MarshalJSON/o/SeriesÏ
+*Result/MarshalJSON/rrvar"client/influxdb.go(ê<0ô<@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/MarshalJSON/ræ
+*Result/SeriesSeriesfield"client/influxdb.go(∂;0À;8RÌ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "FieldOfStruct": "Result",
+        "TypeString": "[]github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/SeriesÁ
+*Result/UnmarshalJSONUnmarshalJSONfunc"client/influxdb.go(£?0ìB8Rº{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "Receiver": "*Result",
+        "TypeString": "func(b []byte) error",
+        "UnderlyingTypeString": "func(b []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZD
+
+text/plain6UnmarshalJSON decodes the data into the Result struct
+ä./Result/UnmarshalJSON¶
+*Result/UnmarshalJSON/bbvar"client/influxdb.go(¬?0 ?@R {
+        "PkgName": "client",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/bÃ
+*Result/UnmarshalJSON/decdecvar"client/influxdb.go(Ã@0ˆ@@RÍ{
+        "PkgName": "client",
+        "TypeString": "*encoding/json.Decoder",
+        "UnderlyingTypeString": "*encoding/json.Decoder",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/decæ
+*Result/UnmarshalJSON/errerrvar"client/influxdb.go(âA0ûA@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/err¨
+*Result/UnmarshalJSON/oovar"client/influxdb.go(Ÿ?0…@@R–{
+        "PkgName": "client",
+        "TypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row \"json:\\\"series,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row \"json:\\\"series,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/oŒ
+*Result/UnmarshalJSON/o/ErrErrfield"client/influxdb.go(ò@0∆@8RÊ{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/o/Err°
+*Result/UnmarshalJSON/o/SeriesSeriesfield"client/influxdb.go(Ê?0ï@8R∞{
+        "Exported": true,
+        "PkgName": "client",
+        "TypeString": "[]github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/o/Series
+*Result/UnmarshalJSON/rrvar"client/influxdb.go(©?0≤?@Rî{
+        "PkgName": "client",
+        "TypeString": "*github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./Result/UnmarshalJSON/rÌ
+*SetPrecisionSetPrecisionfunc"client/influxdb.go(¸Å0ºÑ8RÕ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "func(t time.Time, precision string) time.Time",
+        "UnderlyingTypeString": "func(t time.Time, precision string) time.Time",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ZH
+
+text/plain:SetPrecision will round a time to the specified precision
+ä./SetPrecision∞
+*SetPrecision/precision	precisionvar"client/influxdb.go(õÇ0´Ç@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./SetPrecision/precision∆
+*SetPrecision/ttvar"client/influxdb.go(éÇ0ôÇ@R¯{
+        "PkgName": "client",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./SetPrecision/tŸ
+*normalizeFieldsnormalizeFieldsfunc"client/influxdb.go(≤c0∂fRÕ{
+        "PkgScope": true,
+        "PkgName": "client",
+        "TypeString": "func(fields map[string]interface{}) map[string]interface{}",
+        "UnderlyingTypeString": "func(fields map[string]interface{}) map[string]interface{}",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }Z/
+
+text/plain!Remove any notion of json.Number
+ä./normalizeFieldsÜ
+?*=normalizeFields/$influxdb0/$influxdb0/$influxdb0/$influxdb0/eevar"client/influxdb.go(Ûd0áe@R‹{
+        "PkgName": "client",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä?./normalizeFields/$influxdb0/$influxdb0/$influxdb0/$influxdb0/e˘
+@*>normalizeFields/$influxdb0/$influxdb0/$influxdb0/$influxdb0/jvjvvar"client/influxdb.go(Ûd0áe@RÃ{
+        "PkgName": "client",
+        "TypeString": "float64",
+        "UnderlyingTypeString": "float64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä@./normalizeFields/$influxdb0/$influxdb0/$influxdb0/$influxdb0/jv≤
+*normalizeFields/$influxdb0/kkvar"client/influxdb.go(≤c0∂f@R {
+        "PkgName": "client",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./normalizeFields/$influxdb0/kº
+*normalizeFields/$influxdb0/vvvar"client/influxdb.go(≤c0∂f@R‘{
+        "PkgName": "client",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./normalizeFields/$influxdb0/vÀ
+*normalizeFields/fieldsfieldsvar"client/influxdb.go(«c0‰c@RÍ{
+        "PkgName": "client",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./normalizeFields/fields‘
+*normalizeFields/newFields	newFieldsvar"client/influxdb.go(Äd0•d@RÍ{
+        "PkgName": "client",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/client"
+      }ä./normalizeFields/newFields

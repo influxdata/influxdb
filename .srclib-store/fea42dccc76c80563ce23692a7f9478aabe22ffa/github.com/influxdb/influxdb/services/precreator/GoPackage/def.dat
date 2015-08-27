@@ -1,0 +1,478 @@
+¸
+*$service/$service1/cutoffcutoffvar"services/precreator/service.go(ç0ù@Râ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./$service/$service1/cutoffó
+%*#$service_test/$service_test1/cutoffcutoffvar"#services/precreator/service_test.go(Ω0Õ@HRâ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä%./$service_test/$service_test1/cutoffÅ
+*.
+precreatorpackage"services/precreator8R…{
+        "Exported": true,
+        "PkgName": "precreator",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä.¥
+*ConfigConfigtype"services/precreator/config.go(¿0È8Rú{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; CheckInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"check-interval\\\"\"; AdvancePeriod github.com/influxdb/influxdb/toml.Duration \"toml:\\\"advance-period\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ZI
+
+text/plain;Config represents the configuration for shard precreation.
+ä./Config»
+*Config/AdvancePeriodAdvancePeriodfield"services/precreator/config.go(¥0Á8R◊{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Config/AdvancePeriod»
+*Config/CheckIntervalCheckIntervalfield"services/precreator/config.go(ˇ0≤8R◊{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Config/CheckIntervalè
+*Config/EnabledEnabledfield"services/precreator/config.go(—0˝8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Config/Enabledñ
+*DefaultAdvancePeriodDefaultAdvancePeriodconst"services/precreator/config.go(“0˘8Ró{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ZÑ
+
+text/plainvDefaultAdvancePeriod is the default period ahead of the endtime of a shard group
+that its successor group is created.
+ä./DefaultAdvancePeriodÓ
+*DefaultCheckIntervalDefaultCheckIntervalconst"services/precreator/config.go(™0—8Ró{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }Z]
+
+text/plainODefaultCheckInterval is the shard precreation check time if none is specified.
+ä./DefaultCheckInterval≤
+*IsLeader$service230IsLeaderfunc"services/precreator/service.go(Ê0ı@R»{
+        "PkgName": "precreator",
+        "Receiver": "interface{IsLeader() bool; PrecreateShardGroups(cutoff time.Time) error}",
+        "TypeString": "func() bool",
+        "UnderlyingTypeString": "func() bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./IsLeader$service230î
+*	NewConfig	NewConfigfunc"services/precreator/config.go(ú0Õ8RÄ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "func() github.com/influxdb/influxdb/services/precreator.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/precreator.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }Z<
+
+text/plain.NewConfig returns a new Config with defaults.
+ä./NewConfig≠
+*
+NewService
+NewServicefunc"services/precreator/service.go(È0È8Rà{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "func(c github.com/influxdb/influxdb/services/precreator.Config) (*github.com/influxdb/influxdb/services/precreator.Service, error)",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/precreator.Config) (*github.com/influxdb/influxdb/services/precreator.Service, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ZI
+
+text/plain;NewService returns an instance of the precreation service.
+ä./NewServiceª
+*NewService/ccvar"services/precreator/service.go(˘0Å@RÁ{
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; CheckInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"check-interval\\\"\"; AdvancePeriod github.com/influxdb/influxdb/toml.Duration \"toml:\\\"advance-period\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./NewService/c™
+*NewService/ssvar"services/precreator/service.go(ò0÷@R÷{
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "struct{checkInterval time.Duration; advancePeriod time.Duration; Logger *log.Logger; done chan struct{}; wg sync.WaitGroup; MetaStore interface{IsLeader() bool; PrecreateShardGroups(cutoff time.Time) error}}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./NewService/s¯
+!*PrecreateShardGroups$service248PrecreateShardGroupsfunc"services/precreator/service.go(¯0§@RÍ{
+        "PkgName": "precreator",
+        "Receiver": "interface{IsLeader() bool; PrecreateShardGroups(cutoff time.Time) error}",
+        "TypeString": "func(cutoff time.Time) error",
+        "UnderlyingTypeString": "func(cutoff time.Time) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä!./PrecreateShardGroups$service248€
+	*ServiceServicetype"services/precreator/service.go(B0©8Rã{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "struct{checkInterval time.Duration; advancePeriod time.Duration; Logger *log.Logger; done chan struct{}; wg sync.WaitGroup; MetaStore interface{IsLeader() bool; PrecreateShardGroups(cutoff time.Time) error}}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä	./ServiceŒ
+*Service/CloseClosefunc"services/precreator/service.go(÷0’	8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }Z3
+
+text/plain%Close stops the precreation service.
+ä./Service/Closeõ
+*Service/Close/ssvar"services/precreator/service.go(‹0Ê@R¡{
+        "PkgName": "precreator",
+        "TypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/Close/sû
+*Service/LoggerLoggerfield"services/precreator/service.go(è0°8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Service",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/Logger°
+*Service/MetaStore	MetaStorefield"services/precreator/service.go(Œ0ß8Rπ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Service",
+        "TypeString": "interface{IsLeader() bool; PrecreateShardGroups(cutoff time.Time) error}",
+        "UnderlyingTypeString": "interface{IsLeader() bool; PrecreateShardGroups(cutoff time.Time) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/MetaStoreÀ
+*Service/OpenOpenfunc"services/precreator/service.go(ê0¨8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }Z3
+
+text/plain%Open starts the precreation service.
+ä./Service/Openô
+*Service/Open/ssvar"services/precreator/service.go(ñ0†@R¡{
+        "PkgName": "precreator",
+        "TypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/Open/sˇ
+*Service/SetLogger	SetLoggerfunc"services/precreator/service.go(™0Ê8RÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLogger«
+*Service/SetLogger/llvar"services/precreator/service.go(∆0”@RÂ{
+        "PkgName": "precreator",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/SetLogger/l£
+*Service/SetLogger/ssvar"services/precreator/service.go(∞0∫@R¡{
+        "PkgName": "precreator",
+        "TypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/SetLogger/sí
+*Service/advancePeriodadvancePeriodfield"services/precreator/service.go(q0åR°{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Service",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/advancePeriodë
+*Service/checkIntervalcheckIntervalfield"services/precreator/service.go(T0oR°{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Service",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/checkIntervalÄ
+*Service/donedonefield"services/precreator/service.go(§0∂R©{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/doneﬂ
+*Service/precreate	precreatefunc"services/precreator/service.go(µ0ÌR∫{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "*Service",
+        "TypeString": "func(t time.Time) error",
+        "UnderlyingTypeString": "func(t time.Time) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }Z>
+
+text/plain0precreate performs actual resource precreation.
+ä./Service/precreateÈ
+!*Service/precreate/$service0/errerrvar"services/precreator/service.go(í0¡@RÌ{
+        "PkgName": "precreator",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä!./Service/precreate/$service0/err˙
+*Service/precreate/cutoffcutoffvar"services/precreator/service.go(Á0ç@Râ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/precreate/cutoff£
+*Service/precreate/ssvar"services/precreator/service.go(ª0≈@R¡{
+        "PkgName": "precreator",
+        "TypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/precreate/sÎ
+*Service/precreate/ttvar"services/precreator/service.go(—0‹@Râ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/precreate/t›
+*Service/runPrecreationrunPrecreationfunc"services/precreator/service.go(õ
+0ÄRò{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ZO
+
+text/plainArunPrecreation continually checks if resources need precreation.
+ä./Service/runPrecreationØ
+D*BService/runPrecreation/$service0/$service0/$service0/$service1/errerrvar"services/precreator/service.go(´0œ@RÌ{
+        "PkgName": "precreator",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }äD./Service/runPrecreation/$service0/$service0/$service0/$service1/err≠
+*Service/runPrecreation/ssvar"services/precreator/service.go(°
+0´
+@R¡{
+        "PkgName": "precreator",
+        "TypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/runPrecreation/sÆ
+*
+Service/wgwgfield"services/precreator/service.go(∏0ÀR›{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "Service",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Service/wg©
+*Test_ShardPrecreationTest_ShardPrecreationfunc"#services/precreator/service_test.go(a0Œ8HR®{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Test_ShardPrecreationò
+(*&Test_ShardPrecreation/$service_test0/uuvar"#services/precreator/service_test.go(Ñ0è@HRâ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä(./Test_ShardPrecreation/$service_test0/uˆ
+%*#Test_ShardPrecreation/advancePeriodadvancePeriodvar"#services/precreator/service_test.go(µ0’@HR·{
+        "PkgName": "precreator",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä%./Test_ShardPrecreation/advancePeriod‰
+*Test_ShardPrecreation/errerrvar"#services/precreator/service_test.go(≤0∞@HRÌ{
+        "PkgName": "precreator",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Test_ShardPrecreation/err∏
+*Test_ShardPrecreation/msmsvar"#services/precreator/service_test.go(‘0Ø@HRƒ{
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.metaStore",
+        "UnderlyingTypeString": "struct{PrecreateShardGroupsFn func(cutoff time.Time) error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Test_ShardPrecreation/msÄ
+*Test_ShardPrecreation/nownowvar"#services/precreator/service_test.go(ú0≥@HRâ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Test_ShardPrecreation/now∏
+*Test_ShardPrecreation/srvsrvvar"#services/precreator/service_test.go(≤0∞@HR¡{
+        "PkgName": "precreator",
+        "TypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/precreator.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Test_ShardPrecreation/srv”
+*Test_ShardPrecreation/ttvar"#services/precreator/service_test.go(|0à@HR„{
+        "PkgName": "precreator",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./Test_ShardPrecreation/t˜
+*Test_ShardPrecreation/wgwgvar"#services/precreator/service_test.go(∂0«@HRù{
+        "PkgName": "precreator",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }Zd
+
+text/plainVA test metastaore which returns 2 shard groups, only 1 of which requires a successor.
+ä./Test_ShardPrecreation/wgÄ
+*	metaStore	metaStoretype"#services/precreator/service_test.go(ç0÷HRﬂ{
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.metaStore",
+        "UnderlyingTypeString": "struct{PrecreateShardGroupsFn func(cutoff time.Time) error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ZC
+
+text/plain5PointsWriter represents a mock impl of PointsWriter.
+ä./metaStore¨
+*metaStore/IsLeaderIsLeaderfunc"#services/precreator/service_test.go(ÿ0ã	8HRΩ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "metaStore",
+        "TypeString": "func() bool",
+        "UnderlyingTypeString": "func() bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./metaStore/IsLeaderØ
+*metaStore/IsLeader/mmvar"#services/precreator/service_test.go(ﬁ0È@HRƒ{
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.metaStore",
+        "UnderlyingTypeString": "struct{PrecreateShardGroupsFn func(cutoff time.Time) error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä./metaStore/IsLeader/m¯
+ *metaStore/PrecreateShardGroupsPrecreateShardGroupsfunc"#services/precreator/service_test.go(ç	0ˇ	8HRÂ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "Receiver": "metaStore",
+        "TypeString": "func(timestamp time.Time) error",
+        "UnderlyingTypeString": "func(timestamp time.Time) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä ./metaStore/PrecreateShardGroups«
+"* metaStore/PrecreateShardGroups/mmvar"#services/precreator/service_test.go(ì	0û	@HRƒ{
+        "PkgName": "precreator",
+        "TypeString": "github.com/influxdb/influxdb/services/precreator.metaStore",
+        "UnderlyingTypeString": "struct{PrecreateShardGroupsFn func(cutoff time.Time) error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä"./metaStore/PrecreateShardGroups/m§
+**(metaStore/PrecreateShardGroups/timestamp	timestampvar"#services/precreator/service_test.go(µ	0»	@HRâ{
+        "PkgName": "precreator",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä*./metaStore/PrecreateShardGroups/timestamp˝
+"* metaStore/PrecreateShardGroupsFnPrecreateShardGroupsFnfield"#services/precreator/service_test.go(°0‘8HR„{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "precreator",
+        "FieldOfStruct": "metaStore",
+        "TypeString": "func(cutoff time.Time) error",
+        "UnderlyingTypeString": "func(cutoff time.Time) error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/precreator"
+      }ä"./metaStore/PrecreateShardGroupsFn

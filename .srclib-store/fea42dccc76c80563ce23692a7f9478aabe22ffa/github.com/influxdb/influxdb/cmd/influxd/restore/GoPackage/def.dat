@@ -1,0 +1,673 @@
+˚
+*.restorepackage"cmd/influxd/restore8R∆{
+        "Exported": true,
+        "PkgName": "restore",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä.Ñ
+	*CommandCommandtype"cmd/influxd/restore/restore.go(Ω0Û8R„{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "struct{Stdout io.Writer; Stderr io.Writer}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ZN
+
+text/plain@Command represents the program execution for "influxd restore".
+ä	./Command¥
+*Command/RestoreRestorefunc"cmd/influxd/restore/restore.go(⁄0¬8R”{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func(config *github.com/influxdb/influxdb/cmd/influxd/restore.Config, path string) error",
+        "UnderlyingTypeString": "func(config *github.com/influxdb/influxdb/cmd/influxd/restore.Config, path string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restoreˆ
+)*'Command/Restore/$restore0/$restore1/errerrvar"cmd/influxd/restore/restore.go(≥0◊@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä)./Command/Restore/$restore0/$restore1/err‚
+*Command/Restore/$restore0/errerrvar"cmd/influxd/restore/restore.go(≈0È@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/$restore0/err‚
+*Command/Restore/$restore2/errerrvar"cmd/influxd/restore/restore.go(Ñ
+0°
+@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/$restore2/err¢
+*Command/Restore/cmdcmdvar"cmd/influxd/restore/restore.go(‡0Ï@Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/cmd©
+*Command/Restore/configconfigvar"cmd/influxd/restore/restore.go(ˆ0Ñ@Rº{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/configŒ
+*Command/Restore/errerrvar"cmd/influxd/restore/restore.go(œ0É	@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/errÃ
+*Command/Restore/filesfilesvar"cmd/influxd/restore/restore.go(œ0É	@R‚{
+        "PkgName": "restore",
+        "TypeString": "[]io.Closer",
+        "UnderlyingTypeString": "[]io.Closer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/filesë
+*Command/Restore/mrmrvar"cmd/influxd/restore/restore.go(œ0É	@R∞{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/mrø
+*Command/Restore/pathpathvar"cmd/influxd/restore/restore.go(Ü0ë@Rÿ{
+        "PkgName": "restore",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Restore/path÷
+*Command/RunRunfunc"cmd/influxd/restore/restore.go(∏0ÿ8R◊{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func(args ...string) error",
+        "UnderlyingTypeString": "func(args ...string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }Z(
+
+text/plainRun executes the program.
+ä./Command/Runª
+*Command/Run/argsargsvar"cmd/influxd/restore/restore.go(–0ﬁ@R‹{
+        "PkgName": "restore",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Run/argsö
+*Command/Run/cmdcmdvar"cmd/influxd/restore/restore.go(æ0 @Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Run/cmd°
+*Command/Run/configconfigvar"cmd/influxd/restore/restore.go(È0í@Rº{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Run/config∆
+*Command/Run/errerrvar"cmd/influxd/restore/restore.go(È0í@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Run/err∑
+*Command/Run/pathpathvar"cmd/influxd/restore/restore.go(È0í@Rÿ{
+        "PkgName": "restore",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Run/pathª
+*Command/StderrStderrfield"cmd/influxd/restore/restore.go(·0Ò8R‹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "FieldOfStruct": "Command",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Stderrª
+*Command/StdoutStdoutfield"cmd/influxd/restore/restore.go(œ0ﬂ8R‹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "FieldOfStruct": "Command",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/Stdout˜
+*Command/parseFlags
+parseFlagsfunc"cmd/influxd/restore/restore.go(É0ﬂR√{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func(args []string) (*github.com/influxdb/influxdb/cmd/influxd/restore.Config, string, error)",
+        "UnderlyingTypeString": "func(args []string) (*github.com/influxdb/influxdb/cmd/influxd/restore.Config, string, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ZJ
+
+text/plain<parseFlags parses and validates the command line arguments.
+ä./Command/parseFlagsË
+"* Command/parseFlags/$restore0/errerrvar"cmd/influxd/restore/restore.go(·0ˆ@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/parseFlags/$restore0/errË
+"* Command/parseFlags/$restore2/errerrvar"cmd/influxd/restore/restore.go(Û0¢@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/parseFlags/$restore2/err…
+*Command/parseFlags/argsargsvar"cmd/influxd/restore/restore.go(¢0Ø@R‹{
+        "PkgName": "restore",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/parseFlags/args®
+*Command/parseFlags/cmdcmdvar"cmd/influxd/restore/restore.go(â0ï@Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/parseFlags/cmdá
+*Command/parseFlags/configconfigvar"cmd/influxd/restore/restore.go(¶0Ó@Rî{
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "struct{Meta *github.com/influxdb/influxdb/meta.Config \"toml:\\\"meta\\\"\"; Data github.com/influxdb/influxdb/tsdb.Config \"toml:\\\"data\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/parseFlags/configŸ
+*Command/parseFlags/configPath
+configPathvar"cmd/influxd/restore/restore.go(˛0ß@R⁄{
+        "PkgName": "restore",
+        "TypeString": "*string",
+        "UnderlyingTypeString": "*string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/parseFlags/configPathÕ
+*Command/parseFlags/fsfsvar"cmd/influxd/restore/restore.go(Õ0¸@RÊ{
+        "PkgName": "restore",
+        "TypeString": "*flag.FlagSet",
+        "UnderlyingTypeString": "*flag.FlagSet",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/parseFlags/fs≈
+*Command/parseFlags/pathpathvar"cmd/influxd/restore/restore.go(Â0ˆ@Rÿ{
+        "PkgName": "restore",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/parseFlags/pathº
+*Command/printUsage
+printUsagefunc"cmd/influxd/restore/restore.go(Ê)0„+Rï{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }Z=
+
+text/plain/printUsage prints the usage message to STDERR.
+ä./Command/printUsage®
+*Command/printUsage/cmdcmdvar"cmd/influxd/restore/restore.go(Ï)0¯)@Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/printUsage/cmdº
+*Command/unpackunpackfunc"cmd/influxd/restore/restore.go(Û0ßRç{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func(mr *github.com/influxdb/influxdb/snapshot.MultiReader, config *github.com/influxdb/influxdb/cmd/influxd/restore.Config) error",
+        "UnderlyingTypeString": "func(mr *github.com/influxdb/influxdb/snapshot.MultiReader, config *github.com/influxdb/influxdb/cmd/influxd/restore.Config) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ZQ
+
+text/plainCunpack expands the files in the snapshot archive into a directory.
+ä./Command/unpack∞
+F*DCommand/unpack/$restore0/$restore0/$restore1/$restore0/$restore0/errerrvar"cmd/influxd/restore/restore.go(¡0Ê@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }äF./Command/unpack/$restore0/$restore0/$restore1/$restore0/$restore0/err∞
+F*DCommand/unpack/$restore0/$restore0/$restore1/$restore1/$restore0/errerrvar"cmd/influxd/restore/restore.go(≤0◊@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }äF./Command/unpack/$restore0/$restore0/$restore1/$restore1/$restore0/errÙ
+(*&Command/unpack/$restore0/$restore0/errerrvar"cmd/influxd/restore/restore.go(Ç0ñ@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä(./Command/unpack/$restore0/$restore0/err˘
+'*%Command/unpack/$restore0/$restore0/sfsfvar"cmd/influxd/restore/restore.go(Ç0ñ@RÚ{
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/snapshot.File",
+        "UnderlyingTypeString": "struct{Name string \"json:\\\"name\\\"\"; Size int64 \"json:\\\"size\\\"\"; ModTime time.Time \"json:\\\"lastModified\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä'./Command/unpack/$restore0/$restore0/sf†
+*Command/unpack/cmdcmdvar"cmd/influxd/restore/restore.go(˘0Ö@Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpack/cmdß
+*Command/unpack/configconfigvar"cmd/influxd/restore/restore.go(®0∂@Rº{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpack/configè
+*Command/unpack/mrmrvar"cmd/influxd/restore/restore.go(é0¶@R∞{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpack/mr”
+*Command/unpackData
+unpackDatafunc"cmd/influxd/restore/restore.go(π$0≤)RÎ{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func(mr *github.com/influxdb/influxdb/snapshot.MultiReader, sf github.com/influxdb/influxdb/snapshot.File, config *github.com/influxdb/influxdb/cmd/influxd/restore.Config) error",
+        "UnderlyingTypeString": "func(mr *github.com/influxdb/influxdb/snapshot.MultiReader, sf github.com/influxdb/influxdb/snapshot.File, config *github.com/influxdb/influxdb/cmd/influxd/restore.Config) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackDataË
+"* Command/unpackData/$restore0/errerrvar"cmd/influxd/restore/restore.go(˛%0™&@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/unpackData/$restore0/errË
+"* Command/unpackData/$restore2/errerrvar"cmd/influxd/restore/restore.go(¥(0÷(@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/unpackData/$restore2/err®
+*Command/unpackData/cmdcmdvar"cmd/influxd/restore/restore.go(ø$0À$@Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/cmdØ
+*Command/unpackData/configconfigvar"cmd/influxd/restore/restore.go(Ñ%0í%@Rº{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/config‘
+*Command/unpackData/errerrvar"cmd/influxd/restore/restore.go(ì'0¨'@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/err¿
+*Command/unpackData/ffvar"cmd/influxd/restore/restore.go(ì'0¨'@R‹{
+        "PkgName": "restore",
+        "TypeString": "*os.File",
+        "UnderlyingTypeString": "*os.File",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/fó
+*Command/unpackData/mrmrvar"cmd/influxd/restore/restore.go(ÿ$0$@R∞{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/mr≈
+*Command/unpackData/pathpathvar"cmd/influxd/restore/restore.go(ù%0Ã%@Rÿ{
+        "PkgName": "restore",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/pathŸ
+*Command/unpackData/sfsfvar"cmd/influxd/restore/restore.go(Ú$0Ç%@RÚ{
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/snapshot.File",
+        "UnderlyingTypeString": "struct{Name string \"json:\\\"name\\\"\"; Size int64 \"json:\\\"size\\\"\"; ModTime time.Time \"json:\\\"lastModified\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackData/sf“
+*Command/unpackMeta
+unpackMetafunc"cmd/influxd/restore/restore.go(û0∑$RÎ{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*Command",
+        "TypeString": "func(mr *github.com/influxdb/influxdb/snapshot.MultiReader, sf github.com/influxdb/influxdb/snapshot.File, config *github.com/influxdb/influxdb/cmd/influxd/restore.Config) error",
+        "UnderlyingTypeString": "func(mr *github.com/influxdb/influxdb/snapshot.MultiReader, sf github.com/influxdb/influxdb/snapshot.File, config *github.com/influxdb/influxdb/cmd/influxd/restore.Config) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }Z}
+
+text/plainounpackMeta reads the metadata from the snapshot and initializes a raft
+cluster and replaces the root metadata.
+ä./Command/unpackMetaË
+"* Command/unpackMeta/$restore0/errerrvar"cmd/influxd/restore/restore.go(∂0€@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/unpackMeta/$restore0/errË
+"* Command/unpackMeta/$restore1/errerrvar"cmd/influxd/restore/restore.go(≈0Ì@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/unpackMeta/$restore1/errË
+"* Command/unpackMeta/$restore4/errerrvar"cmd/influxd/restore/restore.go(Õ!0‡!@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/unpackMeta/$restore4/err¸
+,**Command/unpackMeta/$restore5/$restore0/errerrvar"cmd/influxd/restore/restore.go(á#0õ#@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä,./Command/unpackMeta/$restore5/$restore0/errË
+"* Command/unpackMeta/$restore6/errerrvar"cmd/influxd/restore/restore.go(”#0Ó#@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä"./Command/unpackMeta/$restore6/err—
+*Command/unpackMeta/addraddrvar"cmd/influxd/restore/restore.go(î 0ƒ @R‰{
+        "PkgName": "restore",
+        "TypeString": "*net.TCPAddr",
+        "UnderlyingTypeString": "*net.TCPAddr",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/addr¬
+*Command/unpackMeta/bufbufvar"cmd/influxd/restore/restore.go(°0±@R±{
+        "PkgName": "restore",
+        "TypeString": "bytes.Buffer",
+        "UnderlyingTypeString": "struct{buf []byte; off int; runeBytes [4]byte; bootstrap [64]byte; lastRead bytes.readOp}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }Z%
+
+text/plainRead meta into buffer.
+ä./Command/unpackMeta/bufÇ
+*Command/unpackMeta/ccvar"cmd/influxd/restore/restore.go(Ó0˛@Rû{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/meta.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/c®
+*Command/unpackMeta/cmdcmdvar"cmd/influxd/restore/restore.go(§0∞@Ræ{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/cmdØ
+*Command/unpackMeta/configconfigvar"cmd/influxd/restore/restore.go(È0˜@Rº{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/configô
+*Command/unpackMeta/datadatavar"cmd/influxd/restore/restore.go(≤0¿@RÜ{
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/meta.Data",
+        "UnderlyingTypeString": "struct{Term uint64; Index uint64; ClusterID uint64; Nodes []github.com/influxdb/influxdb/meta.NodeInfo; Databases []github.com/influxdb/influxdb/meta.DatabaseInfo; Users []github.com/influxdb/influxdb/meta.UserInfo; MaxNodeID uint64; MaxShardGroupID uint64; MaxShardID uint64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }Z$
+
+text/plainUnpack into metadata.
+ä./Command/unpackMeta/data‘
+*Command/unpackMeta/errerrvar"cmd/influxd/restore/restore.go(¡0˚@RÍ{
+        "PkgName": "restore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/err—
+*Command/unpackMeta/hostporthostportvar"cmd/influxd/restore/restore.go(ƒ0¸@Rÿ{
+        "PkgName": "restore",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/hostportó
+*Command/unpackMeta/mrmrvar"cmd/influxd/restore/restore.go(Ω0’@R∞{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.MultiReader",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/mr≈
+*Command/unpackMeta/portportvar"cmd/influxd/restore/restore.go(¡0˚@Rÿ{
+        "PkgName": "restore",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/portŸ
+*Command/unpackMeta/sfsfvar"cmd/influxd/restore/restore.go(◊0Á@RÚ{
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/snapshot.File",
+        "UnderlyingTypeString": "struct{Name string \"json:\\\"name\\\"\"; Size int64 \"json:\\\"size\\\"\"; ModTime time.Time \"json:\\\"lastModified\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/sfå
+*Command/unpackMeta/storestorevar"cmd/influxd/restore/restore.go(´0Œ@Rú{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/meta.Store",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.Store",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Command/unpackMeta/storeÂ
+*ConfigConfigtype"cmd/influxd/restore/restore.go(´,0˛,8R…{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influxd/restore.Config",
+        "UnderlyingTypeString": "struct{Meta *github.com/influxdb/influxdb/meta.Config \"toml:\\\"meta\\\"\"; Data github.com/influxdb/influxdb/tsdb.Config \"toml:\\\"data\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ZL
+
+text/plain>Config represents a partial config for rebuilding the server.
+ä./Config©	
+*Config/DataDatafield"cmd/influxd/restore/restore.go(›,0¸,8R“{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Config",
+        "UnderlyingTypeString": "struct{Dir string \"toml:\\\"dir\\\"\"; MaxWALSize int \"toml:\\\"max-wal-size\\\"\"; WALFlushInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"wal-flush-interval\\\"\"; WALPartitionFlushDelay github.com/influxdb/influxdb/toml.Duration \"toml:\\\"wal-partition-flush-delay\\\"\"; WALDir string \"toml:\\\"wal-dir\\\"\"; WALEnableLogging bool \"toml:\\\"wal-enable-logging\\\"\"; WALReadySeriesSize int \"toml:\\\"wal-ready-series-size\\\"\"; WALCompactionThreshold float64 \"toml:\\\"wal-compaction-threshold\\\"\"; WALMaxSeriesSize int \"toml:\\\"wal-max-series-size\\\"\"; WALFlushColdInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"wal-flush-cold-interval\\\"\"; WALPartitionSizeThreshold uint64 \"toml:\\\"wal-partition-size-threshold\\\"\"}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Config/DataŒ
+*Config/MetaMetafield"cmd/influxd/restore/restore.go(º,0€,8R˜{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "FieldOfStruct": "Config",
+        "TypeString": "*github.com/influxdb/influxdb/meta.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.Config",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./Config/MetaØ
+*
+NewCommand
+NewCommandfunc"cmd/influxd/restore/restore.go(º0ô8RÅ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "TypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/restore.Command",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ZR
+
+text/plainDNewCommand returns a new instance of Command with default settings.
+ä./NewCommandﬂ
+
+*closeAllcloseAllfunc"cmd/influxd/restore/restore.go(·0´Rç{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "TypeString": "func(a []io.Closer)",
+        "UnderlyingTypeString": "func(a []io.Closer)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä
+./closeAll—
+*closeAll/$restore0/ccvar"cmd/influxd/restore/restore.go(·0´@RÌ{
+        "PkgName": "restore",
+        "TypeString": "io.Closer",
+        "UnderlyingTypeString": "interface{Close() error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./closeAll/$restore0/c≤
+*
+closeAll/aavar"cmd/influxd/restore/restore.go(Ô0¸@R‚{
+        "PkgName": "restore",
+        "TypeString": "[]io.Closer",
+        "UnderlyingTypeString": "[]io.Closer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./closeAll/a”
+*newNopListenernewNopListenerfunc"cmd/influxd/restore/restore.go(¥-0Ñ.RÔ{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "TypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./newNopListenerõ
+*nopListenernopListenertype"cmd/influxd/restore/restore.go(Ö-0≤-R¿{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "UnderlyingTypeString": "struct{closing chan struct{}}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListenerΩ
+*nopListener/AcceptAcceptfunc"cmd/influxd/restore/restore.go(Ü.0ı.8R◊{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*nopListener",
+        "TypeString": "func() (net.Conn, error)",
+        "UnderlyingTypeString": "func() (net.Conn, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/Accept≠
+*nopListener/Accept/lnlnvar"cmd/influxd/restore/restore.go(å.0õ.@R∆{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/Accept/ln•
+*nopListener/AddrAddrfunc"cmd/influxd/restore/restore.go(¿/0ı/8R≈{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*nopListener",
+        "TypeString": "func() net.Addr",
+        "UnderlyingTypeString": "func() net.Addr",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/Addr©
+*nopListener/Addr/lnlnvar"cmd/influxd/restore/restore.go(∆/0’/@R∆{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/Addr/ln¢
+*nopListener/CloseClosefunc"cmd/influxd/restore/restore.go(˜.0ø/8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "restore",
+        "Receiver": "*nopListener",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/Close´
+*nopListener/Close/lnlnvar"cmd/influxd/restore/restore.go(˝.0å/@R∆{
+        "PkgName": "restore",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/restore.nopListener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/Close/lní
+*nopListener/closingclosingfield"cmd/influxd/restore/restore.go(õ-0∞-R™{
+        "PkgScope": true,
+        "PkgName": "restore",
+        "FieldOfStruct": "nopListener",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/restore"
+      }ä./nopListener/closing

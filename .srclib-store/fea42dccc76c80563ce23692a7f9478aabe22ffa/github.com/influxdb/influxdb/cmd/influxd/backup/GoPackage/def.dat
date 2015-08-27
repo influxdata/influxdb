@@ -1,0 +1,366 @@
+˜
+*.backuppackage"cmd/influxd/backup8Rƒ{
+        "Exported": true,
+        "PkgName": "backup",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä.Ä
+	*CommandCommandtype"cmd/influxd/backup/backup.go(‚0Ñ8R‚{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "backup",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "struct{Logger *log.Logger; Stderr io.Writer}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ZM
+
+text/plain?Command represents the program execution for "influxd backup".
+ä	./CommandŸ
+*Command/LoggerLoggerfield"cmd/influxd/backup/backup.go(™0º8R∫{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "backup",
+        "FieldOfStruct": "Command",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }Z@
+
+text/plain2The logger passed to the ticker during execution.
+ä./Command/Logger“
+*Command/RunRunfunc"cmd/influxd/backup/backup.go(¥0ò8R’{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "backup",
+        "Receiver": "*Command",
+        "TypeString": "func(args ...string) error",
+        "UnderlyingTypeString": "func(args ...string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }Z(
+
+text/plainRun executes the program.
+ä./Command/Run‘
+*Command/Run/$backup3/errerrvar"cmd/influxd/backup/backup.go(º0·@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/$backup3/err‘
+*Command/Run/$backup4/errerrvar"cmd/influxd/backup/backup.go( 0È@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/$backup4/err∑
+*Command/Run/argsargsvar"cmd/influxd/backup/backup.go(Ã0⁄@R⁄{
+        "PkgName": "backup",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/argsî
+*Command/Run/cmdcmdvar"cmd/influxd/backup/backup.go(∫0∆@R∫{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/cmd¬
+*Command/Run/errerrvar"cmd/influxd/backup/backup.go(ˆ0ù@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/err≥
+*Command/Run/hosthostvar"cmd/influxd/backup/backup.go(ˆ0ù@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/host¸
+*Command/Run/mmvar"cmd/influxd/backup/backup.go(Ë0ë@R®{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.Manifest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.Manifest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/m≥
+*Command/Run/pathpathvar"cmd/influxd/backup/backup.go(ˆ0ù@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/pathº
+*Command/Run/tmppathtmppathvar"cmd/influxd/backup/backup.go(ü	0∑	@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/Run/tmppathˆ
+*Command/StderrStderrfield"cmd/influxd/backup/backup.go(Ú0Ç8R⁄{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "backup",
+        "FieldOfStruct": "Command",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }Z=
+
+text/plain/Standard input/output, overridden for testing.
+ä./Command/Stderr‡
+*Command/downloaddownloadfunc"cmd/influxd/backup/backup.go(¡0¿Rµ{
+        "PkgScope": true,
+        "PkgName": "backup",
+        "Receiver": "*Command",
+        "TypeString": "func(host string, m *github.com/influxdb/influxdb/snapshot.Manifest, path string) error",
+        "UnderlyingTypeString": "func(host string, m *github.com/influxdb/influxdb/snapshot.Manifest, path string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ZI
+
+text/plain;download downloads a snapshot from a host to a given path.
+ä./Command/downloadﬁ
+*Command/download/$backup2/errerrvar"cmd/influxd/backup/backup.go(Õ0Ä@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/$backup2/errﬁ
+*Command/download/$backup3/errerrvar"cmd/influxd/backup/backup.go(¸0¢@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/$backup3/errﬁ
+*Command/download/$backup4/errerrvar"cmd/influxd/backup/backup.go(ô0≥@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/$backup4/errû
+*Command/download/cmdcmdvar"cmd/influxd/backup/backup.go(«0”@R∫{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/cmdÆ
+*Command/download/connconnvar"cmd/influxd/backup/backup.go(Œ0@R«{
+        "PkgName": "backup",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/connÃ
+*Command/download/errerrvar"cmd/influxd/backup/backup.go(∫0”@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/err∏
+*Command/download/ffvar"cmd/influxd/backup/backup.go(∫0”@R⁄{
+        "PkgName": "backup",
+        "TypeString": "*os.File",
+        "UnderlyingTypeString": "*os.File",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/fΩ
+*Command/download/hosthostvar"cmd/influxd/backup/backup.go(ﬁ0È@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/hostÜ
+*Command/download/mmvar"cmd/influxd/backup/backup.go(Î0ˇ@R®{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.Manifest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.Manifest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/mΩ
+*Command/download/pathpathvar"cmd/influxd/backup/backup.go(Å0å@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/download/pathÂ
+*Command/nextPathnextPathfunc"cmd/influxd/backup/backup.go(π0ÅR…{
+        "PkgScope": true,
+        "PkgName": "backup",
+        "Receiver": "*Command",
+        "TypeString": "func(path string) (string, error)",
+        "UnderlyingTypeString": "func(path string) (string, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }Z:
+
+text/plain,nextPath returns the next file to write to.
+ä./Command/nextPathﬁ
+*Command/nextPath/$backup0/errerrvar"cmd/influxd/backup/backup.go(†0∑@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/nextPath/$backup0/errÇ
+1*/Command/nextPath/$backup1/$backup0/$backup0/errerrvar"cmd/influxd/backup/backup.go(í0¶@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä1./Command/nextPath/$backup1/$backup0/$backup0/errÿ
+&*$Command/nextPath/$backup1/$backup0/ssvar"cmd/influxd/backup/backup.go(Ì0å@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä&./Command/nextPath/$backup1/$backup0/s¿
+*Command/nextPath/$backup1/iivar"cmd/influxd/backup/backup.go(€0·@R–{
+        "PkgName": "backup",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/nextPath/$backup1/iû
+*Command/nextPath/cmdcmdvar"cmd/influxd/backup/backup.go(ø0À@R∫{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/nextPath/cmdΩ
+*Command/nextPath/pathpathvar"cmd/influxd/backup/backup.go(÷0·@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/nextPath/path´
+*Command/parseFlags
+parseFlagsfunc"cmd/influxd/backup/backup.go(Ÿ0àR˘{
+        "PkgScope": true,
+        "PkgName": "backup",
+        "Receiver": "*Command",
+        "TypeString": "func(args []string) (host string, path string, err error)",
+        "UnderlyingTypeString": "func(args []string) (host string, path string, err error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ZJ
+
+text/plain<parseFlags parses and validates the command line arguments.
+ä./Command/parseFlags‚
+!*Command/parseFlags/$backup0/errerrvar"cmd/influxd/backup/backup.go(Ã0·@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä!./Command/parseFlags/$backup0/err≈
+*Command/parseFlags/argsargsvar"cmd/influxd/backup/backup.go(¯0Ö@R⁄{
+        "PkgName": "backup",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/parseFlags/args¢
+*Command/parseFlags/cmdcmdvar"cmd/influxd/backup/backup.go(ﬂ0Î@R∫{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/parseFlags/cmd–
+*Command/parseFlags/errerrvar"cmd/influxd/backup/backup.go(¢0´@RË{
+        "PkgName": "backup",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/parseFlags/err…
+*Command/parseFlags/fsfsvar"cmd/influxd/backup/backup.go(∞0ﬂ@R‰{
+        "PkgName": "backup",
+        "TypeString": "*flag.FlagSet",
+        "UnderlyingTypeString": "*flag.FlagSet",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/parseFlags/fs¡
+*Command/parseFlags/hosthostvar"cmd/influxd/backup/backup.go(à0ì@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/parseFlags/host¡
+*Command/parseFlags/pathpathvar"cmd/influxd/backup/backup.go(ï0†@R÷{
+        "PkgName": "backup",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/parseFlags/path∏
+*Command/printUsage
+printUsagefunc"cmd/influxd/backup/backup.go(Ù0¶!Rì{
+        "PkgScope": true,
+        "PkgName": "backup",
+        "Receiver": "*Command",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }Z=
+
+text/plain/printUsage prints the usage message to STDERR.
+ä./Command/printUsage¢
+*Command/printUsage/cmdcmdvar"cmd/influxd/backup/backup.go(˙0Ü@R∫{
+        "PkgName": "backup",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ä./Command/printUsage/cmd©
+*
+NewCommand
+NewCommandfunc"cmd/influxd/backup/backup.go(Õ0ï8R˝{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "backup",
+        "TypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/backup.Command",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ZR
+
+text/plainDNewCommand returns a new instance of Command with default settings.
+ä./NewCommand∑
+*SuffixSuffixconst"cmd/influxd/backup/backup.go(Ü0ô8Rú{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "backup",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/backup"
+      }ZL
+
+text/plain>Suffix is a suffix added to the backup while it's in-process.
+ä./Suffix

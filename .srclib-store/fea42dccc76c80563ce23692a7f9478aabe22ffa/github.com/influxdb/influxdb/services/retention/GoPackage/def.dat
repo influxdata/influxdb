@@ -1,0 +1,435 @@
+é
+*$service/$service1/ffvar"services/retention/service.go(˙0±@R´{
+        "PkgName": "retention",
+        "TypeString": "func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo)",
+        "UnderlyingTypeString": "func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo)",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service1/f¶
+*$service/$service2/ddvar"services/retention/service.go(Å0î@R√{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service2/dÄ
+*$service/$service2/rrvar"services/retention/service.go(ñ0∞@Rù{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.RetentionPolicyInfo",
+        "UnderlyingTypeString": "struct{Name string; ReplicaN int; Duration time.Duration; ShardGroupDuration time.Duration; ShardGroups []github.com/influxdb/influxdb/meta.ShardGroupInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service2/r—
+*$service/$service3/databasedatabasevar"services/retention/service.go(∆0›@RŸ{
+        "PkgName": "retention",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service3/databaseø
+*$service/$service3/ididvar"services/retention/service.go(ﬂ0Ë@RŸ{
+        "PkgName": "retention",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service3/idÀ
+*$service/$service3/policypolicyvar"services/retention/service.go(∆0›@RŸ{
+        "PkgName": "retention",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service3/policyŒ
+*$service/$service5/shardIDshardIDvar"services/retention/service.go(Æ0º@RŸ{
+        "PkgName": "retention",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./$service/$service5/shardID˝
+*.	retentionpackage"services/retention8R«{
+        "Exported": true,
+        "PkgName": "retention",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä.ä
+*ConfigConfigtype"services/retention/config.go(R0∆8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/services/retention.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; CheckInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"check-interval\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Config≈
+*Config/CheckIntervalCheckIntervalfield"services/retention/config.go(ë0ƒ8R’{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Config/CheckIntervalã
+*Config/EnabledEnabledfield"services/retention/config.go(c0è8RÆ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Config/Enabledœ
+*DeleteShard$service418DeleteShardfunc"services/retention/service.go(¢0√@R›{
+        "PkgName": "retention",
+        "Receiver": "interface{DeleteShard(shardID uint64) error; ShardIDs() []uint64}",
+        "TypeString": "func(shardID uint64) error",
+        "UnderlyingTypeString": "func(shardID uint64) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./DeleteShard$service418ª
+*DeleteShardGroup$service309DeleteShardGroupfunc"services/retention/service.go(µ0Ô@R∫{
+        "PkgName": "retention",
+        "Receiver": "interface{DeleteShardGroup(database string, policy string, id uint64) error; IsLeader() bool; VisitRetentionPolicies(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))}",
+        "TypeString": "func(database string, policy string, id uint64) error",
+        "UnderlyingTypeString": "func(database string, policy string, id uint64) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./DeleteShardGroup$service309œ
+*IsLeader$service209IsLeaderfunc"services/retention/service.go(—0‡@RÊ{
+        "PkgName": "retention",
+        "Receiver": "interface{DeleteShardGroup(database string, policy string, id uint64) error; IsLeader() bool; VisitRetentionPolicies(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))}",
+        "TypeString": "func() bool",
+        "UnderlyingTypeString": "func() bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./IsLeader$service209—
+*	NewConfig	NewConfigfunc"services/retention/config.go(»0±8R¸{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "TypeString": "func() github.com/influxdb/influxdb/services/retention.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/retention.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./NewConfigû
+*
+NewService
+NewServicefunc"services/retention/service.go(î0Í8R{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "TypeString": "func(c github.com/influxdb/influxdb/services/retention.Config) *github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/retention.Config) *github.com/influxdb/influxdb/services/retention.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ZS
+
+text/plainENewService returns a configure retention policy enforcement service.
+ä./NewService›
+*NewService/ccvar"services/retention/service.go(§0¨@Rä{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/services/retention.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; CheckInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"check-interval\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./NewService/cÉ
+	*ServiceServicetype"services/retention/service.go(ß0 8RÊ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "struct{MetaStore interface{DeleteShardGroup(database string, policy string, id uint64) error; IsLeader() bool; VisitRetentionPolicies(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))}; TSDBStore interface{DeleteShard(shardID uint64) error; ShardIDs() []uint64}; enabled bool; checkInterval time.Duration; wg sync.WaitGroup; done chan struct{}; logger *log.Logger}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ZK
+
+text/plain=Service represents the retention policy enforcement service.
+ä	./Service–
+*Service/CloseClosefunc"services/retention/service.go(ù	0¶
+8Rº{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }Z8
+
+text/plain*Close stops retention policy enforcement.
+ä./Service/Closeñ
+*Service/Close/ssvar"services/retention/service.go(£	0≠	@RΩ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/Close/sﬁ
+*Service/MetaStore	MetaStorefield"services/retention/service.go(π0Ú8R˜{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "interface{DeleteShardGroup(database string, policy string, id uint64) error; IsLeader() bool; VisitRetentionPolicies(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))}",
+        "UnderlyingTypeString": "interface{DeleteShardGroup(database string, policy string, id uint64) error; IsLeader() bool; VisitRetentionPolicies(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/MetaStoreÕ
+*Service/OpenOpenfunc"services/retention/service.go(ô0Ó8Rº{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }Z8
+
+text/plain*Open starts retention policy enforcement.
+ä./Service/Openî
+*Service/Open/ssvar"services/retention/service.go(ü0©@RΩ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/Open/s¸
+*Service/SetLogger	SetLoggerfunc"services/retention/service.go(Á
+0£8R {
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLoggerƒ
+*Service/SetLogger/llvar"services/retention/service.go(É0ê@R„{
+        "PkgName": "retention",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/SetLogger/lû
+*Service/SetLogger/ssvar"services/retention/service.go(Ì
+0˜
+@RΩ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/SetLogger/sê
+*Service/TSDBStore	TSDBStorefield"services/retention/service.go(Ù0∆8R©{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "interface{DeleteShard(shardID uint64) error; ShardIDs() []uint64}",
+        "UnderlyingTypeString": "interface{DeleteShard(shardID uint64) error; ShardIDs() []uint64}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/TSDBStoreê
+*Service/checkIntervalcheckIntervalfield"services/retention/service.go(›0¯Rü{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/checkIntervalí
+*Service/deleteShardGroupsdeleteShardGroupsfunc"services/retention/service.go(•0÷Rñ{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/deleteShardGroupsÇ
+o*mService/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/$service0/$service0/$service0/errerrvar"services/retention/service.go(Â0û@RÎ{
+        "PkgName": "retention",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äo./Service/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/$service0/$service0/$service0/errò
+Y*WService/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/$service0/ggvar"services/retention/service.go(•0÷@RØ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/meta.ShardGroupInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.ShardGroupInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äY./Service/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/$service0/gò
+O*MService/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/ddvar"services/retention/service.go(Î0˛@R√{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äO./Service/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/dÚ
+O*MService/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/rrvar"services/retention/service.go(Ä0ö@Rù{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.RetentionPolicyInfo",
+        "UnderlyingTypeString": "struct{Name string; ReplicaN int; Duration time.Duration; ShardGroupDuration time.Duration; ShardGroups []github.com/influxdb/influxdb/meta.ShardGroupInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äO./Service/deleteShardGroups/$service0/$service0/$service0/$service0/$service1/rÆ
+*Service/deleteShardGroups/ssvar"services/retention/service.go(´0µ@RΩ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/deleteShardGroups/sÂ
+"* Service/deleteShardGroups/tickertickervar"services/retention/service.go(‚0ã@RÂ{
+        "PkgName": "retention",
+        "TypeString": "*time.Ticker",
+        "UnderlyingTypeString": "*time.Ticker",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä"./Service/deleteShardGroups/tickerÉ
+*Service/deleteShardsdeleteShardsfunc"services/retention/service.go(ÿ0∞Rñ{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/deleteShards¶
+i*gService/deleteShards/$service0/$service0/$service0/$service0/$service0/$service0/$service0/$service0/shshvar"services/retention/service.go(ÿ0∞@Rú{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.ShardInfo",
+        "UnderlyingTypeString": "struct{ID uint64; OwnerIDs []uint64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äi./Service/deleteShards/$service0/$service0/$service0/$service0/$service0/$service0/$service0/$service0/shé
+T*RService/deleteShards/$service0/$service0/$service0/$service0/$service0/$service0/ggvar"services/retention/service.go(ÿ0∞@RØ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/meta.ShardGroupInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.ShardGroupInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äT./Service/deleteShards/$service0/$service0/$service0/$service0/$service0/$service0/gé
+J*HService/deleteShards/$service0/$service0/$service0/$service0/$service0/ddvar"services/retention/service.go(∑0 @R√{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äJ./Service/deleteShards/$service0/$service0/$service0/$service0/$service0/dË
+J*HService/deleteShards/$service0/$service0/$service0/$service0/$service0/rrvar"services/retention/service.go(Ã0Ê@Rù{
+        "PkgName": "retention",
+        "TypeString": "github.com/influxdb/influxdb/meta.RetentionPolicyInfo",
+        "UnderlyingTypeString": "struct{Name string; ReplicaN int; Duration time.Duration; ShardGroupDuration time.Duration; ShardGroups []github.com/influxdb/influxdb/meta.ShardGroupInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äJ./Service/deleteShards/$service0/$service0/$service0/$service0/$service0/rå
+t*rService/deleteShards/$service0/$service0/$service0/$service0/$service1/$service0/$service0/$service0/$service0/errerrvar"services/retention/service.go(€0˝@RÎ{
+        "PkgName": "retention",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ät./Service/deleteShards/$service0/$service0/$service0/$service0/$service1/$service0/$service0/$service0/$service0/errÀ
+_*]Service/deleteShards/$service0/$service0/$service0/$service0/$service1/$service0/$service0/okokvar"services/retention/service.go(∞0Ã@R’{
+        "PkgName": "retention",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä_./Service/deleteShards/$service0/$service0/$service0/$service0/$service1/$service0/$service0/okß
+K*IService/deleteShards/$service0/$service0/$service0/$service0/$service1/ididvar"services/retention/service.go(ÿ0∞@RŸ{
+        "PkgName": "retention",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äK./Service/deleteShards/$service0/$service0/$service0/$service0/$service1/id‘
+N*LService/deleteShards/$service0/$service0/$service0/$service0/deletedShardIDsdeletedShardIDsvar"services/retention/service.go(‹0ã@RÛ{
+        "PkgName": "retention",
+        "TypeString": "map[uint64]struct{}",
+        "UnderlyingTypeString": "map[uint64]struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }äN./Service/deleteShards/$service0/$service0/$service0/$service0/deletedShardIDs§
+*Service/deleteShards/ssvar"services/retention/service.go(ﬁ0Ë@RΩ{
+        "PkgName": "retention",
+        "TypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/retention.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/deleteShards/s€
+*Service/deleteShards/tickertickervar"services/retention/service.go(ê0π@RÂ{
+        "PkgName": "retention",
+        "TypeString": "*time.Ticker",
+        "UnderlyingTypeString": "*time.Ticker",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/deleteShards/ticker˝
+*Service/donedonefield"services/retention/service.go(ò0≥Rß{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/doneÙ
+*Service/enabledenabledfield"services/retention/service.go(…0€Rï{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/enabledˇ
+*Service/loggerloggerfield"services/retention/service.go(∂0»R£{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/logger´
+*
+Service/wgwgfield"services/retention/service.go(˙0ñR€{
+        "PkgScope": true,
+        "PkgName": "retention",
+        "FieldOfStruct": "Service",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./Service/wg∞
+*ShardIDs$service396ShardIDsfunc"services/retention/service.go(å0ü@R«{
+        "PkgName": "retention",
+        "Receiver": "interface{DeleteShard(shardID uint64) error; ShardIDs() []uint64}",
+        "TypeString": "func() []uint64",
+        "UnderlyingTypeString": "func() []uint64",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä./ShardIDs$service396—
+#*!VisitRetentionPolicies$service227VisitRetentionPoliciesfunc"services/retention/service.go(„0≤@Ræ{
+        "PkgName": "retention",
+        "Receiver": "interface{DeleteShardGroup(database string, policy string, id uint64) error; IsLeader() bool; VisitRetentionPolicies(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))}",
+        "TypeString": "func(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))",
+        "UnderlyingTypeString": "func(f func(d github.com/influxdb/influxdb/meta.DatabaseInfo, r github.com/influxdb/influxdb/meta.RetentionPolicyInfo))",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/retention"
+      }ä#./VisitRetentionPolicies$service227

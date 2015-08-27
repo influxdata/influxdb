@@ -1989,6 +1989,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
 		},
 		&Query{
+			skip:    true,
+			name:    "top - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, 2) FROM intoverlap limit 2`,
+			exp:     `{"results":[{"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		&Query{
 			name:    "aggregation with a null field value - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT SUM(value) FROM intoverlap GROUP BY region`,

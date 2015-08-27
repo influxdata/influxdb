@@ -1,0 +1,377 @@
+Ò
+*.mainpackage"cmd/influx_stress8R¡{
+        "Exported": true,
+        "PkgName": "main",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä.∏
+%*#influx_stress.go/ConcurrencyLimiterConcurrencyLimitertype""cmd/influx_stress/influx_stress.go(…0´8RÇ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "struct{inc chan chan struct{}; dec chan struct{}; max int; count int}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }Zû
+
+text/plainèConcurrencyLimiter is a go routine safe struct that can be used to
+ensure that no more than a specifid max number of goroutines are
+executing.
+ä"./influx_stress/ConcurrencyLimiter†
+/*-influx_stress.go/ConcurrencyLimiter/Decrement	Decrementfunc""cmd/influx_stress/influx_stress.go(ø0Ä8Rµ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*ConcurrencyLimiter",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ZI
+
+text/plain;Decrement will reduce the count of running goroutines by 1
+ä,./influx_stress/ConcurrencyLimiter/DecrementÊ
+1*/influx_stress.go/ConcurrencyLimiter/Decrement/ccvar""cmd/influx_stress/influx_stress.go(≈0⁄@RÀ{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä../influx_stress/ConcurrencyLimiter/Decrement/cë
+/*-influx_stress.go/ConcurrencyLimiter/Increment	Incrementfunc""cmd/influx_stress/influx_stress.go(®0ˇ8Rµ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*ConcurrencyLimiter",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }Zπ
+
+text/plain™Increment will increase the count of running goroutines by 1.
+if the number is currently at the max, the call to Increment
+will block until another goroutine decrements.
+ä,./influx_stress/ConcurrencyLimiter/IncrementÊ
+1*/influx_stress.go/ConcurrencyLimiter/Increment/ccvar""cmd/influx_stress/influx_stress.go(Æ0√@RÀ{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä../influx_stress/ConcurrencyLimiter/Increment/c¸
+1*/influx_stress.go/ConcurrencyLimiter/Increment/rrvar""cmd/influx_stress/influx_stress.go(‘0Ï@R·{
+        "PkgName": "main",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä../influx_stress/ConcurrencyLimiter/Increment/r´
++*)influx_stress.go/ConcurrencyLimiter/countcountfield""cmd/influx_stress/influx_stress.go(†0©Rò{
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "ConcurrencyLimiter",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä(./influx_stress/ConcurrencyLimiter/countπ
+)*'influx_stress.go/ConcurrencyLimiter/decdecfield""cmd/influx_stress/influx_stress.go(Ä0ìR¨{
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "ConcurrencyLimiter",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä&./influx_stress/ConcurrencyLimiter/decû
+2*0influx_stress.go/ConcurrencyLimiter/handleLimitshandleLimitsfunc""cmd/influx_stress/influx_stress.go(‘0ÓRõ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*ConcurrencyLimiter",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ZZ
+
+text/plainLhandleLimits runs in a goroutine to manage the count of
+running goroutines.
+ä/./influx_stress/ConcurrencyLimiter/handleLimits¬
+T*Rinflux_stress.go/ConcurrencyLimiter/handleLimits/$influx_stress0/$influx_stress0/rrvar""cmd/influx_stress/influx_stress.go(ã0ó@R·{
+        "PkgName": "main",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }äQ./influx_stress/ConcurrencyLimiter/handleLimits/$influx_stress0/$influx_stress0/rÏ
+4*2influx_stress.go/ConcurrencyLimiter/handleLimits/ccvar""cmd/influx_stress/influx_stress.go(⁄0Ô@RÀ{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä1./influx_stress/ConcurrencyLimiter/handleLimits/c√
+)*'influx_stress.go/ConcurrencyLimiter/incincfield""cmd/influx_stress/influx_stress.go(Ê0˛R∂{
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "ConcurrencyLimiter",
+        "TypeString": "chan chan struct{}",
+        "UnderlyingTypeString": "chan chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä&./influx_stress/ConcurrencyLimiter/inc•
+)*'influx_stress.go/ConcurrencyLimiter/maxmaxfield""cmd/influx_stress/influx_stress.go(ï0ûRò{
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "ConcurrencyLimiter",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä&./influx_stress/ConcurrencyLimiter/max≈
+(*&influx_stress.go/NewConcurrencyLimiterNewConcurrencyLimiterfunc""cmd/influx_stress/influx_stress.go(≠0Û8Rú{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(max int) *github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "func(max int) *github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }Zà
+
+text/plainzNewConcurrencyLimiter returns a configured limiter that will
+ensure that calls to Increment will block if the max is hit.
+ä%./influx_stress/NewConcurrencyLimiterÿ
+**(influx_stress.go/NewConcurrencyLimiter/ccvar""cmd/influx_stress/influx_stress.go(Ë0“@RÀ{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä'./influx_stress/NewConcurrencyLimiter/c‡
+,**influx_stress.go/NewConcurrencyLimiter/maxmaxvar""cmd/influx_stress/influx_stress.go(»0œ@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä)./influx_stress/NewConcurrencyLimiter/max‡
+*influx_stress.go/addressaddressvar""cmd/influx_stress/influx_stress.go(¯0ÁRÔ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*string",
+        "UnderlyingTypeString": "*string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/addressÄ
+ *influx_stress.go/batchIntervalbatchIntervalvar""cmd/influx_stress/influx_stress.go(÷0ØR˝{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*time.Duration",
+        "UnderlyingTypeString": "*time.Duration",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/batchInterval‡
+*influx_stress.go/batchSize	batchSizevar""cmd/influx_stress/influx_stress.go(ì0‹RÈ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*int",
+        "UnderlyingTypeString": "*int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/batchSizeÊ
+*influx_stress.go/concurrencyconcurrencyvar""cmd/influx_stress/influx_stress.go(Å0‘RÈ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*int",
+        "UnderlyingTypeString": "*int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/concurrency„
+*influx_stress.go/databasedatabasevar""cmd/influx_stress/influx_stress.go(±0ˆRÔ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*string",
+        "UnderlyingTypeString": "*string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/database◊
+*influx_stress.go/mainmainfunc""cmd/influx_stress/influx_stress.go(Î0™RÓ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/mainŸ
+ú*ôinflux_stress.go/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/errerrvar""cmd/influx_stress/influx_stress.go(Ä0ï@RÂ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }äò./influx_stress/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/errı
+ä*áinflux_stress.go/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/bbvar""cmd/influx_stress/influx_stress.go(æ0”@Rß{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.BatchPoints",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }äÜ./influx_stress/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/b“
+ã*àinflux_stress.go/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/ststvar""cmd/influx_stress/influx_stress.go(Á0˜@RÅ{
+        "PkgName": "main",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }äá./influx_stress/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/stß
+é*ãinflux_stress.go/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/totaltotalvar""cmd/influx_stress/influx_stress.go(’0ﬁ@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ää./influx_stress/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/$influx_stress0/total⁄
+Y*Winflux_stress.go/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/ppvar""cmd/influx_stress/influx_stress.go(»
+0î@RÔ{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "struct{Measurement string; Tags map[string]string; Time time.Time; Fields map[string]interface{}; Precision string; Raw string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }äV./influx_stress/main/$influx_stress1/$influx_stress0/$influx_stress0/$influx_stress0/pò
+I*Ginflux_stress.go/main/$influx_stress1/$influx_stress0/$influx_stress0/jjvar""cmd/influx_stress/influx_stress.go(§
+0™
+@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }äF./influx_stress/main/$influx_stress1/$influx_stress0/$influx_stress0/jÿ
+)*'influx_stress.go/main/$influx_stress1/iivar""cmd/influx_stress/influx_stress.go(˛	0Ñ
+@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä&./influx_stress/main/$influx_stress1/iÿ
+)*'influx_stress.go/main/$influx_stress2/ttvar""cmd/influx_stress/influx_stress.go(Î0™@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä&./influx_stress/main/$influx_stress2/tÿ
+)*'influx_stress.go/main/$influx_stress3/rrvar""cmd/influx_stress/influx_stress.go(Î0™@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä&./influx_stress/main/$influx_stress3/rû
+*influx_stress.go/main/batchbatchvar""cmd/influx_stress/influx_stress.go(Â0¯	@Rß{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.BatchPoints",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/batchà
+*influx_stress.go/main/ccvar""cmd/influx_stress/influx_stress.go(∞0‚@Rù{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/c»
+*influx_stress.go/main/countercountervar""cmd/influx_stress/influx_stress.go(»0ˆ@RÀ{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx_stress.ConcurrencyLimiter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/counter÷
+*influx_stress.go/main/errerrvar""cmd/influx_stress/influx_stress.go(∞0‚@RÂ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/err≈
+*influx_stress.go/main/meanmeanvar""cmd/influx_stress/influx_stress.go(—0˙@R—{
+        "PkgName": "main",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/meanﬂ
+*influx_stress.go/main/mumuvar""cmd/influx_stress/influx_stress.go(ä0ó@RÒ{
+        "PkgName": "main",
+        "TypeString": "sync.Mutex",
+        "UnderlyingTypeString": "struct{state int32; sema uint32}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/mu‡
+%*#influx_stress.go/main/responseTimesresponseTimesvar""cmd/influx_stress/influx_stress.go(∞0œ@R—{
+        "PkgName": "main",
+        "TypeString": "[]int",
+        "UnderlyingTypeString": "[]int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä"./influx_stress/main/responseTimesÑ
+!*influx_stress.go/main/startTime	startTimevar""cmd/influx_stress/influx_stress.go(Ø0∆@RÅ{
+        "PkgName": "main",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/startTime»
+*influx_stress.go/main/totaltotalvar""cmd/influx_stress/influx_stress.go(Ñ0ï@R—{
+        "PkgName": "main",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/total÷
+#*!influx_stress.go/main/totalPointstotalPointsvar""cmd/influx_stress/influx_stress.go(“0‚@RÕ{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä ./influx_stress/main/totalPoints 
+*influx_stress.go/main/uuvar""cmd/influx_stress/influx_stress.go(˘0Æ@Rﬂ{
+        "PkgName": "main",
+        "TypeString": "*net/url.URL",
+        "UnderlyingTypeString": "*net/url.URL",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/uÉ
+*influx_stress.go/main/wgwgvar""cmd/influx_stress/influx_stress.go(ù0Æ@Rï{
+        "PkgName": "main",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/main/wg„
+*influx_stress.go/pointCount
+pointCountvar""cmd/influx_stress/influx_stress.go(Ø0ˇRÈ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*int",
+        "UnderlyingTypeString": "*int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/pointCountÊ
+*influx_stress.go/seriesCountseriesCountvar""cmd/influx_stress/influx_stress.go(ﬁ0≠RÈ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "*int",
+        "UnderlyingTypeString": "*int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx_stress"
+      }ä./influx_stress/seriesCount

@@ -1,0 +1,2935 @@
+π
+*$handler/$handler0/namenamevar"services/httpd/handler.go(º
+0«
+@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler0/name»
+*$handler/$handler1/errerrvar"services/httpd/handler.go(£0¨@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler1/err≈
+*$handler/$handler1/passwordpasswordvar"services/httpd/handler.go(Ù
+0ç@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler1/password˝
+*$handler/$handler1/uiuivar"services/httpd/handler.go(ê0°@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler1/ui≈
+*$handler/$handler1/usernameusernamevar"services/httpd/handler.go(Ù
+0ç@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler1/username≥
+*$handler/$handler3/dbdbvar"services/httpd/handler.go(°0™@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler3/db¸
+*$handler/$handler3/qqvar"services/httpd/handler.go(é0ü@Rù{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler3/q˙
+*$handler/$handler3/uuvar"services/httpd/handler.go(¸0å@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler3/u¬
+*$handler/$handler4/chunkSize	chunkSizevar"services/httpd/handler.go(ﬂ0Ï@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler4/chunkSize≥
+*$handler/$handler4/dbdbvar"services/httpd/handler.go(‘0›@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler4/db¸
+*$handler/$handler4/qqvar"services/httpd/handler.go(¡0“@Rù{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler4/qî
+*$handler/$handler5/ppvar"services/httpd/handler.go(ª0ÿ@Rµ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./$handler/$handler5/pÌ
+*.httpdpackage"services/httpd8Rø{
+        "Exported": true,
+        "PkgName": "httpd",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä.õ
+*Authenticate$handler1383Authenticatefunc"services/httpd/handler.go(Á
+0≠@R®{
+        "PkgName": "httpd",
+        "Receiver": "interface{Authenticate(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error); Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Users() ([]github.com/influxdb/influxdb/meta.UserInfo, error)}",
+        "TypeString": "func(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error)",
+        "UnderlyingTypeString": "func(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Authenticate$handler1383—
+*Authorize$handler1522	Authorizefunc"services/httpd/handler.go(Ú0±@RÁ{
+        "PkgName": "httpd",
+        "Receiver": "interface{Authorize(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error; ExecuteQuery(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}",
+        "TypeString": "func(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error",
+        "UnderlyingTypeString": "func(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Authorize$handler1522Ø
+*BatchBatchtype"services/httpd/handler.go(—{0Á|8RÈ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Batch",
+        "UnderlyingTypeString": "struct{Database string \"json:\\\"database\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy\\\"\"; Points []github.com/influxdb/influxdb/services/httpd.Point \"json:\\\"points\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./BatchÖ
+*Batch/DatabaseDatabasefield"services/httpd/handler.go(·{0ä|8R©{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Batch",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Batch/DatabaseŸ
+*Batch/PointsPointsfield"services/httpd/handler.go(æ|0Â|8RÉ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Batch",
+        "TypeString": "[]github.com/influxdb/influxdb/services/httpd.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/services/httpd.Point",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Batch/Pointsö
+*Batch/RetentionPolicyRetentionPolicyfield"services/httpd/handler.go(å|0º|8R©{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Batch",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Batch/RetentionPolicyÇ
+*ConfigConfigtype"services/httpd/config.go(0ü8Rª{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; AuthEnabled bool \"toml:\\\"auth-enabled\\\"\"; LogEnabled bool \"toml:\\\"log-enabled\\\"\"; WriteTracing bool \"toml:\\\"write-tracing\\\"\"; PprofEnabled bool \"toml:\\\"pprof-enabled\\\"\"; HttpsEnabled bool \"toml:\\\"https-enabled\\\"\"; HttpsCertificate string \"toml:\\\"https-certificate\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Configã
+*Config/AuthEnabledAuthEnabledfield"services/httpd/config.go(~0´8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/AuthEnabledé
+*Config/BindAddressBindAddressfield"services/httpd/config.go(O0|8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/BindAddress˛
+*Config/EnabledEnabledfield"services/httpd/config.go(%0M8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/Enabledü
+*Config/HttpsCertificateHttpsCertificatefield"services/httpd/config.go(Î0ù8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/HttpsCertificateè
+*Config/HttpsEnabledHttpsEnabledfield"services/httpd/config.go(ª0È8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/HttpsEnabledâ
+*Config/LogEnabled
+LogEnabledfield"services/httpd/config.go(≠0Ÿ8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/LogEnabledè
+*Config/PprofEnabledPprofEnabledfield"services/httpd/config.go(ã0π8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/PprofEnabledè
+*Config/WriteTracingWriteTracingfield"services/httpd/config.go(€0â8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Config/WriteTracingﬂ
+*Database$handler1331Databasefunc"services/httpd/handler.go(≥
+0‰
+@R¯{
+        "PkgName": "httpd",
+        "Receiver": "interface{Authenticate(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error); Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Users() ([]github.com/influxdb/influxdb/meta.UserInfo, error)}",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Database$handler1331Ú
+*DefaultChunkSizeDefaultChunkSizeconst"services/httpd/handler.go(ã0£8Rë{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zˆ
+
+text/plainÁWith raw data queries, mappers will read up to this amount before sending results back to the engine.
+This is the default size in the number of values returned in a raw query. Could be many more bytes depending on fields returned.
+ä./DefaultChunkSizeî
+*ExecuteQuery$handler1588ExecuteQueryfunc"services/httpd/handler.go(¥0é@R°{
+        "PkgName": "httpd",
+        "Receiver": "interface{Authorize(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error; ExecuteQuery(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}",
+        "TypeString": "func(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "UnderlyingTypeString": "func(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./ExecuteQuery$handler1588‰
+
+	*HandlerHandlertype"services/httpd/handler.go(¢	0†8RÃ	{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "struct{mux *github.com/bmizerany/pat.PatternServeMux; requireAuthentication bool; Version string; MetaStore interface{Authenticate(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error); Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Users() ([]github.com/influxdb/influxdb/meta.UserInfo, error)}; QueryExecutor interface{Authorize(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error; ExecuteQuery(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}; PointsWriter interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}; ContinuousQuerier github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuerier; Logger *log.Logger; loggingEnabled bool; WriteTrace bool}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZJ
+
+text/plain<Handler represents an HTTP handler for the InfluxDB server.
+ä	./Handlerñ
+*Handler/ContinuousQuerierContinuousQuerierfield"services/httpd/handler.go(Â0õ8Rõ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuerier",
+        "UnderlyingTypeString": "interface{Run(database string, name string) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/ContinuousQuerierè
+*Handler/LoggerLoggerfield"services/httpd/handler.go(û0∏8Rµ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/Loggerä
+*Handler/MetaStore	MetaStorefield"services/httpd/handler.go(õ
+0”8Rß{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "interface{Authenticate(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error); Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Users() ([]github.com/influxdb/influxdb/meta.UserInfo, error)}",
+        "UnderlyingTypeString": "interface{Authenticate(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error); Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Users() ([]github.com/influxdb/influxdb/meta.UserInfo, error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/MetaStoreª
+*Handler/PointsWriterPointsWriterfield"services/httpd/handler.go(î0‚8Rœ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/PointsWriterÃ
+*Handler/QueryExecutorQueryExecutorfield"services/httpd/handler.go(÷0ë8R›{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "interface{Authorize(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error; ExecuteQuery(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}",
+        "UnderlyingTypeString": "interface{Authorize(u *github.com/influxdb/influxdb/meta.UserInfo, q *github.com/influxdb/influxdb/influxql.Query, db string) error; ExecuteQuery(q *github.com/influxdb/influxdb/influxql.Query, db string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/QueryExecutor©
+*Handler/ServeHTTP	ServeHTTPfunc"services/httpd/handler.go(Á0ê#8RÑ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZA
+
+text/plain3ServeHTTP responds to HTTP request to the handler.
+ä./Handler/ServeHTTPä
+*Handler/ServeHTTP/hhvar"services/httpd/handler.go(Ì0˜@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/ServeHTTP/hƒ
+*Handler/ServeHTTP/rrvar"services/httpd/handler.go(ö 0© @RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/ServeHTTP/rä
+*Handler/ServeHTTP/wwvar"services/httpd/handler.go(É 0ò @R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/ServeHTTP/w˛
+*Handler/SetRoutes	SetRoutesfunc"services/httpd/handler.go(≠0Ø8Rú{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(routes []github.com/influxdb/influxdb/services/httpd.route)",
+        "UnderlyingTypeString": "func(routes []github.com/influxdb/influxdb/services/httpd.route)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/SetRoutesõ
+4*2Handler/SetRoutes/$handler0/$handler0/$handler0/hfhfvar"services/httpd/handler.go(Í0º@Rˇ{
+        "PkgName": "httpd",
+        "TypeString": "func(net/http.ResponseWriter, *net/http.Request, *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(net/http.ResponseWriter, *net/http.Request, *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä4./Handler/SetRoutes/$handler0/$handler0/$handler0/hfÈ
+4*2Handler/SetRoutes/$handler0/$handler0/$handler0/okokvar"services/httpd/handler.go(Í0º@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä4./Handler/SetRoutes/$handler0/$handler0/$handler0/ok¡
+4*2Handler/SetRoutes/$handler0/$handler0/$handler1/hfhfvar"services/httpd/handler.go(—0ì@R•{
+        "PkgName": "httpd",
+        "TypeString": "func(net/http.ResponseWriter, *net/http.Request)",
+        "UnderlyingTypeString": "func(net/http.ResponseWriter, *net/http.Request)",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä4./Handler/SetRoutes/$handler0/$handler0/$handler1/hfÈ
+4*2Handler/SetRoutes/$handler0/$handler0/$handler1/okokvar"services/httpd/handler.go(—0ì@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä4./Handler/SetRoutes/$handler0/$handler0/$handler1/ok¨
+/*-Handler/SetRoutes/$handler0/$handler0/handlerhandlervar"services/httpd/handler.go(˝0ë@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä/./Handler/SetRoutes/$handler0/$handler0/handler 
+*Handler/SetRoutes/$handler0/rrvar"services/httpd/handler.go(≠0Ø@RŸ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.route",
+        "UnderlyingTypeString": "struct{name string; method string; pattern string; gzipped bool; log bool; handlerFunc interface{}}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/SetRoutes/$handler0/rä
+*Handler/SetRoutes/hhvar"services/httpd/handler.go(≥0Ω@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/SetRoutes/hó
+*Handler/SetRoutes/routesroutesvar"services/httpd/handler.go(…0◊@R´{
+        "PkgName": "httpd",
+        "TypeString": "[]github.com/influxdb/influxdb/services/httpd.route",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/services/httpd.route",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/SetRoutes/routesà
+*Handler/VersionVersionfield"services/httpd/handler.go(¸	0ò
+8R´{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/Versionç
+*Handler/WriteTrace
+WriteTracefield"services/httpd/handler.go(È0¸8Rß{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/WriteTrace˝
+*Handler/loggingEnabledloggingEnabledfield"services/httpd/handler.go(∫0ÕRç{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/loggingEnabled¶
+*Handler/muxmuxfield"services/httpd/handler.go(¥	0ﬁ	R◊{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "*github.com/bmizerany/pat.PatternServeMux",
+        "UnderlyingTypeString": "*github.com/bmizerany/pat.PatternServeMux",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/muxí
+*Handler/requireAuthenticationrequireAuthenticationfield"services/httpd/handler.go(‡	0˙	Rç{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Handler",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/requireAuthenticationµ
+*Handler/serveOptionsserveOptionsfunc"services/httpd/handler.go(Ëp0◊qRÍ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z`
+
+text/plainRserveOptions returns an empty response to comply with OPTIONS pre-flight requests
+ä./Handler/serveOptionsê
+*Handler/serveOptions/hhvar"services/httpd/handler.go(Óp0¯p@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveOptions/h 
+*Handler/serveOptions/rrvar"services/httpd/handler.go(ûq0≠q@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveOptions/rê
+*Handler/serveOptions/wwvar"services/httpd/handler.go(áq0úq@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveOptions/w¨
+*Handler/servePing	servePingfunc"services/httpd/handler.go(Ær0ösRÍ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z`
+
+text/plainRservePing returns a simple response to let the client know the server is running.
+ä./Handler/servePingä
+*Handler/servePing/hhvar"services/httpd/handler.go(¥r0ær@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/servePing/hƒ
+*Handler/servePing/rrvar"services/httpd/handler.go(·r0r@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/servePing/rä
+*Handler/servePing/wwvar"services/httpd/handler.go( r0ﬂr@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/servePing/wÍ
+'*%Handler/serveProcessContinuousQueriesserveProcessContinuousQueriesfunc"services/httpd/handler.go(í#0â(RŒ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä'./Handler/serveProcessContinuousQueriesÇ
+5*3Handler/serveProcessContinuousQueries/$handler1/errerrvar"services/httpd/handler.go(¯&0†'@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä5./Handler/serveProcessContinuousQueries/$handler1/errŸ
+**(Handler/serveProcessContinuousQueries/dbdbvar"services/httpd/handler.go(È%0˙%@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä*./Handler/serveProcessContinuousQueries/db≤
+)*'Handler/serveProcessContinuousQueries/hhvar"services/httpd/handler.go(ò#0¢#@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä)./Handler/serveProcessContinuousQueries/hﬂ
+,**Handler/serveProcessContinuousQueries/namenamevar"services/httpd/handler.go(µ&0 &@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä,./Handler/serveProcessContinuousQueries/nameÎ
+)*'Handler/serveProcessContinuousQueries/qqvar"services/httpd/handler.go(ù%0Ø%@RÊ{
+        "PkgName": "httpd",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä)./Handler/serveProcessContinuousQueries/qÏ
+)*'Handler/serveProcessContinuousQueries/rrvar"services/httpd/handler.go(Ÿ#0Ë#@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä)./Handler/serveProcessContinuousQueries/r©
+,**Handler/serveProcessContinuousQueries/useruservar"services/httpd/handler.go(Í#0˝#@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä,./Handler/serveProcessContinuousQueries/user≤
+)*'Handler/serveProcessContinuousQueries/wwvar"services/httpd/handler.go(¬#0◊#@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä)./Handler/serveProcessContinuousQueries/wà
+*Handler/serveQuery
+serveQueryfunc"services/httpd/handler.go(’(0òBRŒ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZU
+
+text/plainGserveQuery parses an incoming query and, if valid, executes the query.
+ä./Handler/serveQueryÙ
+ *Handler/serveQuery/$handler2/ssvar"services/httpd/handler.go(’(0òB@RÅ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/influxql.Statement",
+        "UnderlyingTypeString": "interface{RequiredPrivileges() github.com/influxdb/influxdb/influxql.ExecutionPrivileges; stmt(); github.com/influxdb/influxdb/influxql.Node}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä ./Handler/serveQuery/$handler2/sÑ
+6*4Handler/serveQuery/$handler4/$handler0/$handler0/errerrvar"services/httpd/handler.go(¢20Ÿ2@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä6./Handler/serveQuery/$handler4/$handler0/$handler0/errÍ
+4*2Handler/serveQuery/$handler4/$handler0/$handler0/nnvar"services/httpd/handler.go(¢20Ÿ2@Rœ{
+        "PkgName": "httpd",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä4./Handler/serveQuery/$handler4/$handler0/$handler0/nˆ
+T*RHandler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/$handler0/rowrowvar"services/httpd/handler.go(’(0òB@Rô{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äT./Handler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/$handler0/rowÂ
+I*GHandler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/crcrvar"services/httpd/handler.go(Ë<0ˇ<@Rü{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äI./Handler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/cr˜
+Q*OHandler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/lastSeries
+lastSeriesvar"services/httpd/handler.go(É=0¨=@Rô{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äQ./Handler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/lastSeries©
+Q*OHandler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/rowsMerged
+rowsMergedvar"services/httpd/handler.go(∞=0ø=@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äQ./Handler/serveQuery/$handler6/$handler0/$handler3/$handler1/$handler0/rowsMerged“
+**(Handler/serveQuery/$handler6/$handler0/llvar"services/httpd/handler.go(Ÿ;0Ô;@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä*./Handler/serveQuery/$handler6/$handler0/lí
+ *Handler/serveQuery/$handler6/rrvar"services/httpd/handler.go(’(0òB@Rü{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä ./Handler/serveQuery/$handler6/r¬
+*Handler/serveQuery/chunkSize	chunkSizevar"services/httpd/handler.go(Ò10é2@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/chunkSizeæ
+*Handler/serveQuery/chunkedchunkedvar"services/httpd/handler.go(»10Ô1@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/chunked≥
+*Handler/serveQuery/dbdbvar"services/httpd/handler.go(⁄+0Î+@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/dbº
+*Handler/serveQuery/epochepochvar"services/httpd/handler.go(˝*0ß+@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/epoch»
+*Handler/serveQuery/errerrvar"services/httpd/handler.go(ë,0≠,@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/errå
+*Handler/serveQuery/hhvar"services/httpd/handler.go(€(0Â(@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/h˛
+*Handler/serveQuery/ppvar"services/httpd/handler.go(™+0ÿ+@Rü{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Parser",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Parser",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/pª
+*Handler/serveQuery/prettyprettyvar"services/httpd/handler.go(∆)0È)@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/pretty≈
+*Handler/serveQuery/qqvar"services/httpd/handler.go(≤)0ƒ)@RÊ{
+        "PkgName": "httpd",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/q≥
+*Handler/serveQuery/qpqpvar"services/httpd/handler.go(Ï)0è*@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/qpà
+*Handler/serveQuery/queryqueryvar"services/httpd/handler.go(ë,0≠,@Rù{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/query∆
+*Handler/serveQuery/rrvar"services/httpd/handler.go(â)0ò)@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/r´
+*Handler/serveQuery/resprespvar"services/httpd/handler.go(«50˝5@R√{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Response",
+        "UnderlyingTypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/resp®
+*Handler/serveQuery/resultsresultsvar"services/httpd/handler.go(Œ30ê4@R∑{
+        "PkgName": "httpd",
+        "TypeString": "\u003c-chan *github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "\u003c-chan *github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/resultsÉ
+*Handler/serveQuery/useruservar"services/httpd/handler.go(ö)0≠)@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/userå
+*Handler/serveQuery/wwvar"services/httpd/handler.go(Ú(0á)@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveQuery/w±
+*Handler/serveWrite
+serveWritefunc"services/httpd/handler.go(öB0ŒHRŒ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteˆ
+**(Handler/serveWrite/$handler0/$handler0/bbvar"services/httpd/handler.go(ﬂC0ˇC@RÔ{
+        "PkgName": "httpd",
+        "TypeString": "*compress/gzip.Reader",
+        "UnderlyingTypeString": "*compress/gzip.Reader",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä*./Handler/serveWrite/$handler0/$handler0/b
+,**Handler/serveWrite/$handler0/$handler0/errerrvar"services/httpd/handler.go(ﬂC0ˇC@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä,./Handler/serveWrite/$handler0/$handler0/err∞
+*Handler/serveWrite/bbvar"services/httpd/handler.go(âE0ßE@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/bŸ
+*Handler/serveWrite/bodybodyvar"services/httpd/handler.go(ùC0´C@RÒ{
+        "PkgName": "httpd",
+        "TypeString": "io.ReadCloser",
+        "UnderlyingTypeString": "interface{io.Closer; io.Reader}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/body»
+*Handler/serveWrite/errerrvar"services/httpd/handler.go(âE0ßE@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/errå
+*Handler/serveWrite/hhvar"services/httpd/handler.go(†B0™B@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/h∆
+*Handler/serveWrite/rrvar"services/httpd/handler.go(ŒB0›B@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/rÉ
+*Handler/serveWrite/useruservar"services/httpd/handler.go(ﬂB0ÚB@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/userå
+*Handler/serveWrite/wwvar"services/httpd/handler.go(∑B0ÃB@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWrite/wª
+*Handler/serveWriteJSONserveWriteJSONfunc"services/httpd/handler.go(ßI0ÙXRË{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request, body []byte, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request, body []byte, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zb
+
+text/plainTserveWriteJSON receives incoming series data in JSON and writes it to the database.
+ä./Handler/serveWriteJSON‰
+&*$Handler/serveWriteJSON/$handler0/errerrvar"services/httpd/handler.go(˙J0êK@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Handler/serveWriteJSON/$handler0/err°
+%*#Handler/serveWriteJSON/$handler2/didivar"services/httpd/handler.go(ƒM0M@R£{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä%./Handler/serveWriteJSON/$handler2/di‰
+&*$Handler/serveWriteJSON/$handler2/errerrvar"services/httpd/handler.go(ƒM0M@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Handler/serveWriteJSON/$handler2/err‰
+&*$Handler/serveWriteJSON/$handler6/errerrvar"services/httpd/handler.go(ôU0ÒV@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Handler/serveWriteJSON/$handler6/err¡
+*Handler/serveWriteJSON/bodybodyvar"services/httpd/handler.go(I0˚I@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/body˝
+*Handler/serveWriteJSON/bpbpvar"services/httpd/handler.go(ôJ0ÆJ@Rì{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points,omitempty\\\"\"; Database string \"json:\\\"database,omitempty\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Time time.Time \"json:\\\"time,omitempty\\\"\"; Precision string \"json:\\\"precision,omitempty\\\"\"; WriteConsistency string \"json:\\\"-\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/bpﬁ
+*Handler/serveWriteJSON/decdecvar"services/httpd/handler.go(¥J0≈J@RÒ{
+        "PkgName": "httpd",
+        "TypeString": "*encoding/json.Decoder",
+        "UnderlyingTypeString": "*encoding/json.Decoder",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/dec–
+*Handler/serveWriteJSON/errerrvar"services/httpd/handler.go(–S0˜S@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/errî
+*Handler/serveWriteJSON/hhvar"services/httpd/handler.go(≠I0∑I@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/hç
+*Handler/serveWriteJSON/pointspointsvar"services/httpd/handler.go(–S0˜S@Ró{
+        "PkgName": "httpd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/pointsŒ
+*Handler/serveWriteJSON/rrvar"services/httpd/handler.go(ﬂI0ÓI@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/rã
+*Handler/serveWriteJSON/useruservar"services/httpd/handler.go(˝I0êJ@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/userî
+*Handler/serveWriteJSON/wwvar"services/httpd/handler.go(»I0›I@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteJSON/wÀ
+*Handler/serveWriteLineserveWriteLinefunc"services/httpd/handler.go(ï[0ëpRË{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request, body []byte, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request, body []byte, user *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zr
+
+text/plaindserveWriteLine receives incoming series data in line protocol format and writes it to the database.
+ä./Handler/serveWriteLine⁄
+.*,Handler/serveWriteLine/$handler0/$handler0/iivar"services/httpd/handler.go(Ã]0—]@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä../Handler/serveWriteLine/$handler0/$handler0/i°
+%*#Handler/serveWriteLine/$handler4/didivar"services/httpd/handler.go( c0Ûc@R£{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä%./Handler/serveWriteLine/$handler4/di‰
+&*$Handler/serveWriteLine/$handler4/errerrvar"services/httpd/handler.go( c0Ûc@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Handler/serveWriteLine/$handler4/err‰
+&*$Handler/serveWriteLine/$handler8/errerrvar"services/httpd/handler.go(»l0ån@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Handler/serveWriteLine/$handler8/err¡
+*Handler/serveWriteLine/bodybodyvar"services/httpd/handler.go(ﬁ[0È[@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/bodyÇ
+$*"Handler/serveWriteLine/consistencyconsistencyvar"services/httpd/handler.go(ıi0üj@R˝{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/cluster.ConsistencyLevel",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä$./Handler/serveWriteLine/consistencyÕ
+!*Handler/serveWriteLine/databasedatabasevar"services/httpd/handler.go(£b0¿b@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä!./Handler/serveWriteLine/database–
+*Handler/serveWriteLine/errerrvar"services/httpd/handler.go(¶`0ı`@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/errî
+*Handler/serveWriteLine/hhvar"services/httpd/handler.go(õ[0•[@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/hç
+*Handler/serveWriteLine/pointspointsvar"services/httpd/handler.go(¶`0ı`@Ró{
+        "PkgName": "httpd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/points–
+"* Handler/serveWriteLine/precision	precisionvar"services/httpd/handler.go(”_0¯_@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä"./Handler/serveWriteLine/precisionŒ
+*Handler/serveWriteLine/rrvar"services/httpd/handler.go(Õ[0‹[@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/rã
+*Handler/serveWriteLine/useruservar"services/httpd/handler.go(Î[0˛[@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/userî
+*Handler/serveWriteLine/wwvar"services/httpd/handler.go(∂[0À[@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/serveWriteLine/w≠
+*Handler/writeError
+writeErrorfunc"services/httpd/handler.go(ˆX0¨ZR {
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Handler",
+        "TypeString": "func(w net/http.ResponseWriter, result github.com/influxdb/influxdb/influxql.Result, statusCode int)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, result github.com/influxdb/influxdb/influxql.Result, statusCode int)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/writeErrorå
+*Handler/writeError/hhvar"services/httpd/handler.go(¸X0ÜY@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/writeError/h«
+*Handler/writeError/resultresultvar"services/httpd/handler.go(™Y0¿Y@RŸ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "struct{StatementID int \"json:\\\"-\\\"\"; Series github.com/influxdb/influxdb/influxql.Rows; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/writeError/result≈
+*Handler/writeError/statusCode
+statusCodevar"services/httpd/handler.go(¬Y0–Y@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/writeError/statusCodeå
+*Handler/writeError/wwvar"services/httpd/handler.go(ìY0®Y@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Handler/writeError/wı
+*MarshalJSONMarshalJSONfunc"services/httpd/handler.go(ãx0˝y8R»{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(v interface{}, pretty bool) []byte",
+        "UnderlyingTypeString": "func(v interface{}, pretty bool) []byte",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZS
+
+text/plainEMarshalJSON will marshal v to JSON. Pretty prints if pretty is true.
+ä./MarshalJSON¢
+*MarshalJSON/bbvar"services/httpd/handler.go(∆x0Œx@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./MarshalJSON/b∫
+*MarshalJSON/errerrvar"services/httpd/handler.go(‘x0›x@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./MarshalJSON/err≠
+*MarshalJSON/prettyprettyvar"services/httpd/handler.go(´x0∂x@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./MarshalJSON/pretty¨
+*MarshalJSON/vvvar"services/httpd/handler.go(úx0©x@R€{
+        "PkgName": "httpd",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./MarshalJSON/vΩ
+*	NewConfig	NewConfigfunc"services/httpd/config.go(°0Ë8RÏ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func() github.com/influxdb/influxdb/services/httpd.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/httpd.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NewConfigè
+*
+NewHandler
+NewHandlerfunc"services/httpd/handler.go(ﬂ0´8R{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(requireAuthentication bool, loggingEnabled bool, writeTrace bool) *github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "func(requireAuthentication bool, loggingEnabled bool, writeTrace bool) *github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZH
+
+text/plain:NewHandler returns a new instance of handler with routes.
+ä./NewHandler¸
+*NewHandler/hhvar"services/httpd/handler.go(≥0õ@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NewHandler/h√
+*NewHandler/loggingEnabledloggingEnabledvar"services/httpd/handler.go(Ô0•@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NewHandler/loggingEnabledÿ
+"* NewHandler/requireAuthenticationrequireAuthenticationvar"services/httpd/handler.go(Ô0•@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä"./NewHandler/requireAuthentication∑
+*NewHandler/writeTrace
+writeTracevar"services/httpd/handler.go(Ô0•@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NewHandler/writeTraceÎ
+*
+NewService
+NewServicefunc"services/httpd/service.go(›0±8Rÿ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(c github.com/influxdb/influxdb/services/httpd.Config) *github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/httpd.Config) *github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z<
+
+text/plain.NewService returns a new instance of Service.
+ä./NewService’
+*NewService/ccvar"services/httpd/service.go(Ì0ı@RÜ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; AuthEnabled bool \"toml:\\\"auth-enabled\\\"\"; LogEnabled bool \"toml:\\\"log-enabled\\\"\"; WriteTracing bool \"toml:\\\"write-tracing\\\"\"; PprofEnabled bool \"toml:\\\"pprof-enabled\\\"\"; HttpsEnabled bool \"toml:\\\"https-enabled\\\"\"; HttpsCertificate string \"toml:\\\"https-certificate\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NewService/c¸
+*NewService/ssvar"services/httpd/service.go(É0à@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NewService/s˝
+*NormalizeBatchPointsNormalizeBatchPointsfunc"services/httpd/handler.go(—≤0Ãπ8R–{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(bp github.com/influxdb/influxdb/client.BatchPoints) ([]github.com/influxdb/influxdb/tsdb.Point, error)",
+        "UnderlyingTypeString": "func(bp github.com/influxdb/influxdb/client.BatchPoints) ([]github.com/influxdb/influxdb/tsdb.Point, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zµ
+
+text/plain¶NormalizeBatchPoints returns a slice of Points, created by populating individual
+points within the batch, which do not have times or tags, with the top-level
+values.
+ä./NormalizeBatchPointsö
+J*HNormalizeBatchPoints/$handler0/$handler0/$handler2/$handler0/$handler1/kkvar"services/httpd/handler.go(—≤0Ãπ@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äJ./NormalizeBatchPoints/$handler0/$handler0/$handler2/$handler0/$handler1/kÊ
+"* NormalizeBatchPoints/$handler0/ppvar"services/httpd/handler.go(—≤0Ãπ@RÌ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/client.Point",
+        "UnderlyingTypeString": "struct{Measurement string; Tags map[string]string; Time time.Time; Fields map[string]interface{}; Precision string; Raw string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä"./NormalizeBatchPoints/$handler0/p˚
+*NormalizeBatchPoints/bpbpvar"services/httpd/handler.go(Î≤0Ä≥@Rì{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/client.BatchPoints",
+        "UnderlyingTypeString": "struct{Points []github.com/influxdb/influxdb/client.Point \"json:\\\"points,omitempty\\\"\"; Database string \"json:\\\"database,omitempty\\\"\"; RetentionPolicy string \"json:\\\"retentionPolicy,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Time time.Time \"json:\\\"time,omitempty\\\"\"; Precision string \"json:\\\"precision,omitempty\\\"\"; WriteConsistency string \"json:\\\"-\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NormalizeBatchPoints/bpã
+*NormalizeBatchPoints/pointspointsvar"services/httpd/handler.go(õ≥0≥≥@Ró{
+        "PkgName": "httpd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./NormalizeBatchPoints/points•
+*PointPointtype"services/httpd/handler.go(Ñz0 {8Rﬂ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Point",
+        "UnderlyingTypeString": "struct{Name string \"json:\\\"name\\\"\"; Time time.Time \"json:\\\"time\\\"\"; Tags map[string]string \"json:\\\"tags\\\"\"; Fields map[string]interface{} \"json:\\\"fields\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Pointü
+*Point/FieldsFieldsfield"services/httpd/handler.go(õ{0»{8R…{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Point",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Point/Fields˘
+*
+Point/NameNamefield"services/httpd/handler.go(îz0øz8R©{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Point",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Point/Nameè
+*
+Point/TagsTagsfield"services/httpd/handler.go(Óz0ô{8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Point",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Point/Tagsß
+*
+Point/TimeTimefield"services/httpd/handler.go(¡z0Ïz8R◊{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Point",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Point/Timeä
+
+*ResponseResponsetype"services/httpd/handler.go(©®0Á®8R¯{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Response",
+        "UnderlyingTypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result; Err error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z?
+
+text/plain1Response represents a list of statement results.
+ä
+./Responseì
+*Response/ErrErrfield"services/httpd/handler.go(ÿ®0Â®8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Response",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/ErrÜ
+*Response/ErrorErrorfunc"services/httpd/handler.go(˛Ø0†±8Rµ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Response",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zu
+
+text/plaingError returns the first error from any statement.
+Returns nil if no errors occurred on any statements.
+ä./Response/Errorè
+*Response/Error/$handler1/rrrrvar"services/httpd/handler.go(˛Ø0†±@Rü{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/Error/$handler1/rrà
+*Response/Error/rrvar"services/httpd/handler.go(Ñ∞0è∞@RØ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/Error/rı
+*Response/MarshalJSONMarshalJSONfunc"services/httpd/handler.go(ù©0â¨8R»{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "Response",
+        "TypeString": "func() ([]byte, error)",
+        "UnderlyingTypeString": "func() ([]byte, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z?
+
+text/plain1MarshalJSON encodes a Response struct into JSON.
+ä./Response/MarshalJSONä
+*Response/MarshalJSON/oovar"services/httpd/handler.go(ä™0Ö´@R„{
+        "PkgName": "httpd",
+        "TypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z@
+
+text/plain2Define a struct that outputs "error" as a string.
+ä./Response/MarshalJSON/oﬁ
+*Response/MarshalJSON/o/ErrErrfield"services/httpd/handler.go(œ™0Ç´8RÌ{
+        "Exported": true,
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/MarshalJSON/o/Errº
+ *Response/MarshalJSON/o/ResultsResultsfield"services/httpd/handler.go(ó™0Ã™8Rø{
+        "Exported": true,
+        "PkgName": "httpd",
+        "TypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä ./Response/MarshalJSON/o/Results®
+*Response/MarshalJSON/rrvar"services/httpd/handler.go(£©0≠©@R√{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Response",
+        "UnderlyingTypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/MarshalJSON/rﬂ
+*Response/ResultsResultsfield"services/httpd/handler.go(º®0÷®8R˛{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Response",
+        "TypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/Resultsˇ
+*Response/UnmarshalJSONUnmarshalJSONfunc"services/httpd/handler.go(∆¨0èØ8R≈{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Response",
+        "TypeString": "func(b []byte) error",
+        "UnderlyingTypeString": "func(b []byte) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZF
+
+text/plain8UnmarshalJSON decodes the data into the Response struct
+ä./Response/UnmarshalJSON∫
+*Response/UnmarshalJSON/bbvar"services/httpd/handler.go(Á¨0Ô¨@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/UnmarshalJSON/b“
+*Response/UnmarshalJSON/errerrvar"services/httpd/handler.go(¸≠0òÆ@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/UnmarshalJSON/errÃ
+*Response/UnmarshalJSON/oovar"services/httpd/handler.go(˛¨0˘≠@R„{
+        "PkgName": "httpd",
+        "TypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "UnderlyingTypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result \"json:\\\"results,omitempty\\\"\"; Err string \"json:\\\"error,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/UnmarshalJSON/o‚
+*Response/UnmarshalJSON/o/ErrErrfield"services/httpd/handler.go(√≠0ˆ≠8RÌ{
+        "Exported": true,
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/UnmarshalJSON/o/Err¿
+"* Response/UnmarshalJSON/o/ResultsResultsfield"services/httpd/handler.go(ã≠0¿≠8Rø{
+        "Exported": true,
+        "PkgName": "httpd",
+        "TypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä"./Response/UnmarshalJSON/o/Resultsò
+*Response/UnmarshalJSON/rrvar"services/httpd/handler.go(Ã¨0◊¨@RØ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Response/UnmarshalJSON/rÁ
+	*ServiceServicetype"services/httpd/service.go(¢0™8RÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "struct{ln net.Listener; addr string; https bool; cert string; err chan error; Handler *github.com/influxdb/influxdb/services/httpd.Handler; Logger *log.Logger}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZM
+
+text/plain?Service manages the listener and handler for an HTTP endpoint.
+ä	./ServiceÂ
+*Service/AddrAddrfunc"services/httpd/service.go(ú0˜8R∫{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Service",
+        "TypeString": "func() net.Addr",
+        "UnderlyingTypeString": "func() net.Addr",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZV
+
+text/plainHAddr returns the listener's address. Returns nil if listener is closed.
+ä./Service/AddrÄ
+*Service/Addr/ssvar"services/httpd/service.go(¢0¨@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/Addr/s¿
+*Service/CloseClosefunc"services/httpd/service.go(˚0’8R¥{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z4
+
+text/plain&Close closes the underlying listener.
+ä./Service/CloseÇ
+*Service/Close/ssvar"services/httpd/service.go(Å0ã@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/Close/sÔ
+*Service/ErrErrfunc"services/httpd/service.go(ö0œ8RÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Service",
+        "TypeString": "func() \u003c-chan error",
+        "UnderlyingTypeString": "func() \u003c-chan error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZQ
+
+text/plainCErr returns a channel for fatal errors that occur on the listener.
+ä./Service/Err˛
+*Service/Err/ssvar"services/httpd/service.go(†0™@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/Err/s‰
+*Service/HandlerHandlerfield"services/httpd/service.go(É0ì8Rá{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/Handlerè
+*Service/LoggerLoggerfield"services/httpd/service.go(ñ0®8Rµ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/LoggerØ
+*Service/OpenOpenfunc"services/httpd/service.go(Œ0–8R¥{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z&
+
+text/plainOpen starts the service
+ä./Service/OpenÀ
+'*%Service/Open/$service0/$service0/certcertvar"services/httpd/service.go(å0º@R«{
+        "PkgName": "httpd",
+        "TypeString": "crypto/tls.Certificate",
+        "UnderlyingTypeString": "struct{Certificate [][]byte; PrivateKey crypto.PrivateKey; OCSPStaple []byte; Leaf *crypto/x509.Certificate}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä'./Service/Open/$service0/$service0/cert‰
+&*$Service/Open/$service0/$service0/errerrvar"services/httpd/service.go(å0º@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Service/Open/$service0/$service0/err¨
++*)Service/Open/$service0/$service0/listenerlistenervar"services/httpd/service.go(‰0 @Rú{
+        "PkgName": "httpd",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä+./Service/Open/$service0/$service0/listener‰
+&*$Service/Open/$service0/$service1/errerrvar"services/httpd/service.go(“	0¸	@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä&./Service/Open/$service0/$service1/err¨
++*)Service/Open/$service0/$service1/listenerlistenervar"services/httpd/service.go(“	0¸	@Rú{
+        "PkgName": "httpd",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä+./Service/Open/$service0/$service1/listenerÄ
+*Service/Open/ssvar"services/httpd/service.go(‘0ﬁ@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/Open/s
+*Service/SetLogger	SetLoggerfunc"services/httpd/service.go(ñ0“8R¬{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLogger∏
+*Service/SetLogger/llvar"services/httpd/service.go(≤0ø@R€{
+        "PkgName": "httpd",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/SetLogger/lä
+*Service/SetLogger/ssvar"services/httpd/service.go(ú0¶@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/SetLogger/s„
+*Service/addraddrfield"services/httpd/service.go(»0‘Rë{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/addr„
+*Service/certcertfield"services/httpd/service.go(‚0ÓRë{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/certË
+*Service/errerrfield"services/httpd/service.go(0ÄRô{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan error",
+        "UnderlyingTypeString": "chan error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/err‚
+*Service/httpshttpsfield"services/httpd/service.go(÷0‡Rç{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/https®
+*
+Service/lnlnfield"services/httpd/service.go(¥0∆R‹{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "Service",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/lnû
+*Service/serveservefunc"services/httpd/service.go(®0«Ré{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z:
+
+text/plain,serve serves the handler from the listener.
+ä./Service/serveæ
+*Service/serve/errerrvar"services/httpd/service.go(ö0º@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/serve/errÇ
+*Service/serve/ssvar"services/httpd/service.go(Æ0∏@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Service/serve/sÄ
+*Status$response_logger144Statusfunc"!services/httpd/response_logger.go(ê0ú@Râ{
+        "PkgName": "httpd",
+        "Receiver": "loggingResponseWriter",
+        "TypeString": "func() int",
+        "UnderlyingTypeString": "func() int",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Status$response_logger144∫
+*Users$handler1456Usersfunc"services/httpd/handler.go(∞0–@R‹{
+        "PkgName": "httpd",
+        "Receiver": "interface{Authenticate(username string, password string) (ui *github.com/influxdb/influxdb/meta.UserInfo, err error); Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Users() ([]github.com/influxdb/influxdb/meta.UserInfo, error)}",
+        "TypeString": "func() ([]github.com/influxdb/influxdb/meta.UserInfo, error)",
+        "UnderlyingTypeString": "func() ([]github.com/influxdb/influxdb/meta.UserInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./Users$handler1456¥
+*WritePoints$handler1711WritePointsfunc"services/httpd/handler.go(Ø0ﬂ@Rƒ{
+        "PkgName": "httpd",
+        "Receiver": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./WritePoints$handler1711¡
+*authenticateauthenticatefunc"services/httpd/handler.go(ˇà0§ëR¸{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner func(net/http.ResponseWriter, *net/http.Request, *github.com/influxdb/influxdb/meta.UserInfo), h *github.com/influxdb/influxdb/services/httpd.Handler, requireAuthentication bool) net/http.Handler",
+        "UnderlyingTypeString": "func(inner func(net/http.ResponseWriter, *net/http.Request, *github.com/influxdb/influxdb/meta.UserInfo), h *github.com/influxdb/influxdb/services/httpd.Handler, requireAuthentication bool) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZÁ
+
+text/plainÿauthenticate wraps a handler and ensures that if user credentials are passed in
+an attempt is made to authenticate that user. If authentication fails, an error is returned.
+
+There is one exception: if there are no users in the system, authentication is not required. This
+is to facilitate bootstrapping of a system with authentication enabled.
+ä./authenticate˙
+0*.authenticate/$handler0/$handler2/$handler0/errerrvar"services/httpd/handler.go(Ïç0öé@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä0./authenticate/$handler0/$handler2/$handler0/err˜
+5*3authenticate/$handler0/$handler2/$handler0/passwordpasswordvar"services/httpd/handler.go(Ïç0öé@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä5./authenticate/$handler0/$handler2/$handler0/password˜
+5*3authenticate/$handler0/$handler2/$handler0/usernameusernamevar"services/httpd/handler.go(Ïç0öé@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä5./authenticate/$handler0/$handler2/$handler0/username“
+*authenticate/$handler0/errerrvar"services/httpd/handler.go(ıã0îå@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/$handler0/err–
+*authenticate/$handler0/rrvar"services/httpd/handler.go(Ωä0Ãä@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/$handler0/rå
+*authenticate/$handler0/uisuisvar"services/httpd/handler.go(ıã0îå@Rù{
+        "PkgName": "httpd",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/$handler0/uisç
+*authenticate/$handler0/useruservar"services/httpd/handler.go(≈ã0ÿã@Rõ{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.UserInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/$handler0/userñ
+*authenticate/$handler0/wwvar"services/httpd/handler.go(¶ä0ªä@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/$handler0/wÇ
+*authenticate/hhvar"services/httpd/handler.go(—â0€â@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/h‡
+*authenticate/innerinnervar"services/httpd/handler.go(ëâ0œâ@Rˇ{
+        "PkgName": "httpd",
+        "TypeString": "func(net/http.ResponseWriter, *net/http.Request, *github.com/influxdb/influxdb/meta.UserInfo)",
+        "UnderlyingTypeString": "func(net/http.ResponseWriter, *net/http.Request, *github.com/influxdb/influxdb/meta.UserInfo)",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./authenticate/innerﬁ
+$*"authenticate/requireAuthenticationrequireAuthenticationvar"services/httpd/handler.go(›â0˜â@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä$./authenticate/requireAuthentication∞
+*buildLogLinebuildLogLinefunc"!services/httpd/response_logger.go(º0ÔR¿{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(l *github.com/influxdb/influxdb/services/httpd.responseLogger, r *net/http.Request, start time.Time) string",
+        "UnderlyingTypeString": "func(l *github.com/influxdb/influxdb/services/httpd.responseLogger, r *net/http.Request, start time.Time) string",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zå
+
+text/plain~buildLogLine creates a common log format
+in addition to the common fields, we also append referrer, user agent and request ID
+ä./buildLogLineƒ
+*buildLogLine/errerrvar"!services/httpd/response_logger.go(¡0@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/errø
+*buildLogLine/fieldsfieldsvar"!services/httpd/response_logger.go(0 @R’{
+        "PkgName": "httpd",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/fieldsµ
+*buildLogLine/hosthostvar"!services/httpd/response_logger.go(¡0@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/hostñ
+*buildLogLine/llvar"!services/httpd/response_logger.go(Œ0ﬂ@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/l¬
+*buildLogLine/rrvar"!services/httpd/response_logger.go(·0@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/ræ
+*buildLogLine/refererreferervar"!services/httpd/response_logger.go(∫0–@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/refererÊ
+*buildLogLine/startstartvar"!services/httpd/response_logger.go(Ú0Å@Rˇ{
+        "PkgName": "httpd",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/start≤
+*buildLogLine/uriurivar"!services/httpd/response_logger.go(û0∑@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/uriƒ
+*buildLogLine/userAgent	userAgentvar"!services/httpd/response_logger.go(”0Ì@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/userAgent¡
+*buildLogLine/usernameusernamevar"!services/httpd/response_logger.go(¢0æ@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./buildLogLine/username¶
+*convertToEpochconvertToEpochfunc"services/httpd/handler.go(s0¡wRÊ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(r *github.com/influxdb/influxdb/influxql.Result, epoch string)",
+        "UnderlyingTypeString": "func(r *github.com/influxdb/influxdb/influxql.Result, epoch string)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z_
+
+text/plainQconvertToEpoch converts result timestamps from time.Time to the specified epoch.
+ä./convertToEpochã
+E*CconvertToEpoch/$handler1/$handler0/$handler0/$handler0/$handler0/okokvar"services/httpd/handler.go(v0äw@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äE./convertToEpoch/$handler1/$handler0/$handler0/$handler0/$handler0/okΩ
+E*CconvertToEpoch/$handler1/$handler0/$handler0/$handler0/$handler0/tstsvar"services/httpd/handler.go(v0äw@Rˇ{
+        "PkgName": "httpd",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äE./convertToEpoch/$handler1/$handler0/$handler0/$handler0/$handler0/tsÚ
+0*.convertToEpoch/$handler1/$handler0/$handler0/vvvar"services/httpd/handler.go(s0¡w@Rﬂ{
+        "PkgName": "httpd",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä0./convertToEpoch/$handler1/$handler0/$handler0/vÑ
+*convertToEpoch/$handler1/ssvar"services/httpd/handler.go(s0¡w@Rô{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./convertToEpoch/$handler1/s∏
+*convertToEpoch/divisordivisorvar"services/httpd/handler.go(©t0ºt@Rœ{
+        "PkgName": "httpd",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./convertToEpoch/divisor¥
+*convertToEpoch/epochepochvar"services/httpd/handler.go(òt0§t@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./convertToEpoch/epochˆ
+*convertToEpoch/rrvar"services/httpd/handler.go(Ñt0ñt@Rü{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./convertToEpoch/rô
+*corscorsfunc"services/httpd/handler.go(Ëö0ú†R∫{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner net/http.Handler) net/http.Handler",
+        "UnderlyingTypeString": "func(inner net/http.Handler) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zô
+
+text/plainäcors responds to incoming requests and adds the appropriate cors headers
+TODO: corylanou: add the ability to configure this in our config
+ä./corsÕ
+!*cors/$handler0/$handler0/originoriginvar"services/httpd/handler.go(‚õ0Çú@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä!./cors/$handler0/$handler0/origin¿
+*cors/$handler0/rrvar"services/httpd/handler.go( õ0Ÿõ@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./cors/$handler0/rÜ
+*cors/$handler0/wwvar"services/httpd/handler.go(≥õ0»õ@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./cors/$handler0/wÊ
+*
+cors/innerinnervar"services/httpd/handler.go(Úö0Ñõ@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./cors/inner¿
+*detectdetectfunc"!services/httpd/response_logger.go(ª0¨Rö{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(values ...string) string",
+        "UnderlyingTypeString": "func(values ...string) string",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZU
+
+text/plainGdetect detects the first presense of a non blank string and returns it
+ä./detectƒ
+*detect/$response_logger0/vvvar"!services/httpd/response_logger.go(ª0¨@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./detect/$response_logger0/v≥
+*detect/valuesvaluesvar"!services/httpd/response_logger.go(«0◊@R’{
+        "PkgName": "httpd",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./detect/valuesÒ
+*
+gzipFilter
+gzipFilterfunc"services/httpd/handler.go(·ì0˘ñR∫{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner net/http.Handler) net/http.Handler",
+        "UnderlyingTypeString": "func(inner net/http.Handler) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z`
+
+text/plainRdetermines if the client can accept compressed responses, and encodes accordingly
+ä./gzipFilter◊
+*gzipFilter/$handler0/gzgzvar"services/httpd/handler.go(Ùï0ãñ@RÔ{
+        "PkgName": "httpd",
+        "TypeString": "*compress/gzip.Writer",
+        "UnderlyingTypeString": "*compress/gzip.Writer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipFilter/$handler0/gzò
+*gzipFilter/$handler0/gzwgzwvar"services/httpd/handler.go(°ñ0Ÿñ@R≠{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.gzipResponseWriter",
+        "UnderlyingTypeString": "struct{io.Writer; net/http.ResponseWriter}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipFilter/$handler0/gzwÃ
+*gzipFilter/$handler0/rrvar"services/httpd/handler.go(…î0ÿî@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipFilter/$handler0/rí
+*gzipFilter/$handler0/wwvar"services/httpd/handler.go(≤î0«î@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipFilter/$handler0/wÚ
+*gzipFilter/innerinnervar"services/httpd/handler.go(Òì0Éî@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipFilter/innerµ
+*gzipResponseWritergzipResponseWritertype"services/httpd/handler.go(´ë0ËëR»{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.gzipResponseWriter",
+        "UnderlyingTypeString": "struct{io.Writer; net/http.ResponseWriter}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter†
+*gzipResponseWriter/FlushFlushfunc"services/httpd/handler.go(¬í0äì8R≤{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "gzipResponseWriter",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter/Flushö
+*gzipResponseWriter/Flush/wwvar"services/httpd/handler.go(»í0‹í@R≠{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.gzipResponseWriter",
+        "UnderlyingTypeString": "struct{io.Writer; net/http.ResponseWriter}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter/Flush/wú
+#*!gzipResponseWriter/ResponseWriterResponseWriterfield"services/httpd/handler.go(”ë0Êë8Rí{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "gzipResponseWriter",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä#./gzipResponseWriter/ResponseWriter 
+*gzipResponseWriter/WriteWritefunc"services/httpd/handler.go(Íë0¿í8R‹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "gzipResponseWriter",
+        "TypeString": "func(b []byte) (int, error)",
+        "UnderlyingTypeString": "func(b []byte) (int, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter/Writeæ
+*gzipResponseWriter/Write/bbvar"services/httpd/handler.go(åí0îí@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter/Write/bö
+*gzipResponseWriter/Write/wwvar"services/httpd/handler.go(ë0Ñí@R≠{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.gzipResponseWriter",
+        "UnderlyingTypeString": "struct{io.Writer; net/http.ResponseWriter}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter/Write/w“
+*gzipResponseWriter/WriterWriterfield"services/httpd/handler.go(»ë0—ë8R‡{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "gzipResponseWriter",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./gzipResponseWriter/WriterÜ
+*	httpError	httpErrorfunc"services/httpd/handler.go(™}0ˆRË{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(w net/http.ResponseWriter, error string, pretty bool, code int)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, error string, pretty bool, code int)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZL
+
+text/plain>httpError writes an error to the client in a standard format.
+ä./httpErrorû
+*httpError/bbvar"services/httpd/handler.go(Ù~0¸~@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./httpError/b°
+*httpError/codecodevar"services/httpd/handler.go(Î}0Û}@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./httpError/code™
+*httpError/errorerrorvar"services/httpd/handler.go(–}0‹}@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./httpError/error©
+*httpError/prettyprettyvar"services/httpd/handler.go(ﬁ}0È}@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./httpError/pretty•
+*httpError/responseresponsevar"services/httpd/handler.go(¬~0Ó~@R√{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.Response",
+        "UnderlyingTypeString": "struct{Results []*github.com/influxdb/influxdb/influxql.Result; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./httpError/response˙
+*httpError/wwvar"services/httpd/handler.go(π}0Œ}@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./httpError/w»
+	*loggingloggingfunc"services/httpd/handler.go(∑¢0·§R¸{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner net/http.Handler, name string, weblog *log.Logger) net/http.Handler",
+        "UnderlyingTypeString": "func(inner net/http.Handler, name string, weblog *log.Logger) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä	./loggingö
+*logging/$handler0/llvar"services/httpd/handler.go(Ë£0Ç§@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/$handler0/l¬
+*logging/$handler0/logLinelogLinevar"services/httpd/handler.go(ù§0¡§@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/$handler0/logLine∆
+*logging/$handler0/rrvar"services/httpd/handler.go(Ω£0Ã£@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/$handler0/rÍ
+*logging/$handler0/startstartvar"services/httpd/handler.go(“£0Â£@Rˇ{
+        "PkgName": "httpd",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/$handler0/startå
+*logging/$handler0/wwvar"services/httpd/handler.go(¶£0ª£@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/$handler0/wÏ
+*logging/innerinnervar"services/httpd/handler.go(ƒ¢0÷¢@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/inner•
+*logging/namenamevar"services/httpd/handler.go(ÿ¢0„¢@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/nameµ
+*logging/weblogweblogvar"services/httpd/handler.go(Â¢0˜¢@R€{
+        "PkgName": "httpd",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./logging/weblogÿ
+*loggingResponseWriterloggingResponseWritertype"!services/httpd/response_logger.go(X0™R›{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.loggingResponseWriter",
+        "UnderlyingTypeString": "interface{Size() int; Status() int; net/http.ResponseWriter}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./loggingResponseWriter¥
+*loggingResponseWriter/SizeSizefunc"!services/httpd/response_logger.go(û0®8RΩ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "loggingResponseWriter",
+        "TypeString": "func() int",
+        "UnderlyingTypeString": "func() int",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./loggingResponseWriter/Size«
+*parseCredentialsparseCredentialsfunc"services/httpd/handler.go(ÚÉ0óÜR¬{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(r *net/http.Request) (string, string, error)",
+        "UnderlyingTypeString": "func(r *net/http.Request) (string, string, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zõ
+
+text/plainåparseCredentials returns the username and password encoded in
+a request. The credentials may be present as URL query params, or as
+a Basic Authentication header.
+as params: http://127.0.0.1/query?u=username&p=password
+as basic auth: http://username:password@127.0.0.1
+ä./parseCredentials¬
+*parseCredentials/$handler0/ppvar"services/httpd/handler.go(ÃÑ0ÍÑ@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/$handler0/p¬
+*parseCredentials/$handler0/uuvar"services/httpd/handler.go(ÃÑ0ÍÑ@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/$handler0/u¡
+*parseCredentials/$handler1/okokvar"services/httpd/handler.go(õÖ0¥Ö@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/$handler1/ok¬
+*parseCredentials/$handler1/ppvar"services/httpd/handler.go(õÖ0¥Ö@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/$handler1/p¬
+*parseCredentials/$handler1/uuvar"services/httpd/handler.go(õÖ0¥Ö@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/$handler1/u√
+*parseCredentials/qqvar"services/httpd/handler.go(¥Ñ0∆Ñ@RÊ{
+        "PkgName": "httpd",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/qƒ
+*parseCredentials/rrvar"services/httpd/handler.go(àÑ0óÑ@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseCredentials/rÀ
+*parseUsernameparseUsernamefunc"!services/httpd/response_logger.go(Ë0ÍR†{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(r *net/http.Request) string",
+        "UnderlyingTypeString": "func(r *net/http.Request) string",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZE
+
+text/plain7parses the username either from the url or auth header
+ä./parseUsername£
+J*HparseUsername/$response_logger0/$response_logger0/$response_logger0/namenamevar"!services/httpd/response_logger.go(å0ß@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äJ./parseUsername/$response_logger0/$response_logger0/$response_logger0/name“
+#*!parseUsername/$response_logger1/uuvar"!services/httpd/response_logger.go(ú0´@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä#./parseUsername/$response_logger1/uô
+H*FparseUsername/$response_logger2/$response_logger0/$response_logger0/okokvar"!services/httpd/response_logger.go(°0∫@RÕ{
+        "PkgName": "httpd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äH./parseUsername/$response_logger2/$response_logger0/$response_logger0/okö
+G*EparseUsername/$response_logger2/$response_logger0/$response_logger0/uuvar"!services/httpd/response_logger.go(°0∫@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }äG./parseUsername/$response_logger2/$response_logger0/$response_logger0/u√
+*parseUsername/qqvar"!services/httpd/response_logger.go(á0ó@RÊ{
+        "PkgName": "httpd",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseUsername/qƒ
+*parseUsername/rrvar"!services/httpd/response_logger.go(˚0ä@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseUsername/r¿
+*parseUsername/urlurlvar"!services/httpd/response_logger.go(Æ0æ@R›{
+        "PkgName": "httpd",
+        "TypeString": "*net/url.URL",
+        "UnderlyingTypeString": "*net/url.URL",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseUsername/url√
+*parseUsername/usernameusernamevar"!services/httpd/response_logger.go(û0´@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./parseUsername/usernameÀ
+
+*recoveryrecoveryfunc"services/httpd/handler.go(„§0ÓßR¸{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner net/http.Handler, name string, weblog *log.Logger) net/http.Handler",
+        "UnderlyingTypeString": "func(inner net/http.Handler, name string, weblog *log.Logger) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä
+./recoveryÏ
+0*.recovery/$handler0/$handler0/$handler0/logLinelogLinevar"services/httpd/handler.go(Ô¶0ìß@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä0./recovery/$handler0/$handler0/$handler0/logLine÷
+"* recovery/$handler0/$handler0/errerrvar"services/httpd/handler.go(Õ¶0›¶@R€{
+        "PkgName": "httpd",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä"./recovery/$handler0/$handler0/errú
+*recovery/$handler0/llvar"services/httpd/handler.go(ï¶0Ø¶@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/$handler0/l»
+*recovery/$handler0/rrvar"services/httpd/handler.go(Í•0˘•@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/$handler0/rÏ
+*recovery/$handler0/startstartvar"services/httpd/handler.go(ˇ•0í¶@Rˇ{
+        "PkgName": "httpd",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/$handler0/starté
+*recovery/$handler0/wwvar"services/httpd/handler.go(”•0Ë•@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/$handler0/wÓ
+*recovery/innerinnervar"services/httpd/handler.go(Ò§0É•@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/innerß
+*recovery/namenamevar"services/httpd/handler.go(Ö•0ê•@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/name∑
+*recovery/weblogweblogvar"services/httpd/handler.go(í•0§•@R€{
+        "PkgName": "httpd",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./recovery/weblogº
+*redactPasswordredactPasswordfunc"!services/httpd/response_logger.go(Ÿ0	Rí{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(r *net/http.Request)",
+        "UnderlyingTypeString": "func(r *net/http.Request)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ZA
+
+text/plain3redact any occurrence of a password parameter, 'p'
+ä./redactPassword‘
+$*"redactPassword/$response_logger0/ppvar"!services/httpd/response_logger.go(ò	0ß	@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä$./redactPassword/$response_logger0/p≈
+*redactPassword/qqvar"!services/httpd/response_logger.go(Å	0ì	@RÊ{
+        "PkgName": "httpd",
+        "TypeString": "net/url.Values",
+        "UnderlyingTypeString": "map[string][]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./redactPassword/q∆
+*redactPassword/rrvar"!services/httpd/response_logger.go(Ì0¸@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./redactPassword/rå
+*	requestID	requestIDfunc"services/httpd/handler.go(û†0µ¢R∫{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner net/http.Handler) net/http.Handler",
+        "UnderlyingTypeString": "func(inner net/http.Handler) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./requestID 
+*requestID/$handler0/rrvar"services/httpd/handler.go(Ö°0î°@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./requestID/$handler0/r‹
+*requestID/$handler0/uiduidvar"services/httpd/handler.go(ö°0∞°@RÛ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/uuid.UUID",
+        "UnderlyingTypeString": "[16]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./requestID/$handler0/uidê
+*requestID/$handler0/wwvar"services/httpd/handler.go(Ó†0É°@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./requestID/$handler0/w
+*requestID/innerinnervar"services/httpd/handler.go(≠†0ø†@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./requestID/inner∞
+*responseLoggerresponseLoggertype"!services/httpd/response_logger.go(ü0ÏR—{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "struct{w net/http.ResponseWriter; status int; size int}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zv
+
+text/plainhresponseLogger is wrapper of http.ResponseWriter that keeps track of its HTTP status
+code and body size
+ä./responseLoggerõ
+*responseLogger/FlushFlushfunc"!services/httpd/response_logger.go(∂0ˆ8RØ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*responseLogger",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Flush¶
+*responseLogger/Flush/llvar"!services/httpd/response_logger.go(º0Õ@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Flush/læ
+*responseLogger/HeaderHeaderfunc"!services/httpd/response_logger.go(Ó0¥8Rœ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*responseLogger",
+        "TypeString": "func() net/http.Header",
+        "UnderlyingTypeString": "func() net/http.Header",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Header®
+*responseLogger/Header/llvar"!services/httpd/response_logger.go(Ù0Ö@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Header/l†
+*responseLogger/SizeSizefunc"!services/httpd/response_logger.go(Î0°8R∑{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*responseLogger",
+        "TypeString": "func() int",
+        "UnderlyingTypeString": "func() int",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Size§
+*responseLogger/Size/llvar"!services/httpd/response_logger.go(Ò0Ç@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Size/l¶
+*responseLogger/StatusStatusfunc"!services/httpd/response_logger.go(®0È8R∑{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*responseLogger",
+        "TypeString": "func() int",
+        "UnderlyingTypeString": "func() int",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Status®
+*responseLogger/Status/llvar"!services/httpd/response_logger.go(Æ0ø@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Status/l≈
+*responseLogger/WriteWritefunc"!services/httpd/response_logger.go(¯0”8RŸ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*responseLogger",
+        "TypeString": "func(b []byte) (int, error)",
+        "UnderlyingTypeString": "func(b []byte) (int, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Writeº
+*responseLogger/Write/bbvar"!services/httpd/response_logger.go(ó0ü@R—{
+        "PkgName": "httpd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Write/b‘
+*responseLogger/Write/errerrvar"!services/httpd/response_logger.go(ñ0Ø@R„{
+        "PkgName": "httpd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Write/err¶
+*responseLogger/Write/llvar"!services/httpd/response_logger.go(˛0è@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Write/lø
+*responseLogger/Write/sizesizevar"!services/httpd/response_logger.go(ñ0Ø@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/Write/size∑
+*responseLogger/WriteHeaderWriteHeaderfunc"!services/httpd/response_logger.go(’0¶8Rπ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "Receiver": "*responseLogger",
+        "TypeString": "func(s int)",
+        "UnderlyingTypeString": "func(s int)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/WriteHeader≤
+*responseLogger/WriteHeader/llvar"!services/httpd/response_logger.go(€0Ï@Rª{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.responseLogger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/WriteHeader/l¬
+*responseLogger/WriteHeader/ssvar"!services/httpd/response_logger.go(˙0ˇ@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/WriteHeader/s˙
+*responseLogger/sizesizefield"!services/httpd/response_logger.go(‡0ÍRí{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "responseLogger",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/sizeÄ
+*responseLogger/statusstatusfield"!services/httpd/response_logger.go(‘0ﬁRí{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "responseLogger",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/status”
+*responseLogger/wwfield"!services/httpd/response_logger.go(∏0“RÙ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "responseLogger",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./responseLogger/wÛ
+*resultErrorresultErrorfunc"services/httpd/handler.go(¯0∂ÅRú{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(w net/http.ResponseWriter, result github.com/influxdb/influxdb/influxql.Result, code int)",
+        "UnderlyingTypeString": "func(w net/http.ResponseWriter, result github.com/influxdb/influxdb/influxql.Result, code int)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./resultErrorß
+*resultError/codecodevar"services/httpd/handler.go(∏Ä0¿Ä@RÀ{
+        "PkgName": "httpd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./resultError/codeª
+*resultError/resultresultvar"services/httpd/handler.go(†Ä0∂Ä@RŸ{
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "struct{StatementID int \"json:\\\"-\\\"\"; Series github.com/influxdb/influxdb/influxql.Rows; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./resultError/resultÄ
+*resultError/wwvar"services/httpd/handler.go(âÄ0ûÄ@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./resultError/w∏
+*routeroutetype"services/httpd/handler.go(”0‹RÙ{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "github.com/influxdb/influxdb/services/httpd.route",
+        "UnderlyingTypeString": "struct{name string; method string; pattern string; gzipped bool; log bool; handlerFunc interface{}}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route‚
+*route/gzippedgzippedfield"services/httpd/handler.go(ü0ØRã{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "route",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route/gzipped¸
+*route/handlerFunchandlerFuncfield"services/httpd/handler.go(√0⁄Rô{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "route",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route/handlerFunc÷
+*	route/loglogfield"services/httpd/handler.go(±0¡Rã{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "route",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route/log„
+*route/methodmethodfield"services/httpd/handler.go(˜0âRè{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "route",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route/method›
+*
+route/namenamefield"services/httpd/handler.go(„0ıRè{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "route",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route/nameÊ
+*route/patternpatternfield"services/httpd/handler.go(ã0ùRè{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "FieldOfStruct": "route",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./route/patternΩ
+
+*sanitizesanitizefunc"!services/httpd/response_logger.go(°0îR¶{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(r *net/http.Request, s string)",
+        "UnderlyingTypeString": "func(r *net/http.Request, s string)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Z@
+
+text/plain2Sanitize passwords from query string for logging.
+ä
+./sanitize∫
+*
+sanitize/rrvar"!services/httpd/response_logger.go(Ø0æ@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./sanitize/r§
+*
+sanitize/ssvar"!services/httpd/response_logger.go(¿0»@R—{
+        "PkgName": "httpd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./sanitize/sï
+*versionHeaderversionHeaderfunc"services/httpd/handler.go(˝ó0÷ôR™{
+        "PkgScope": true,
+        "PkgName": "httpd",
+        "TypeString": "func(inner net/http.Handler, h *github.com/influxdb/influxdb/services/httpd.Handler) net/http.Handler",
+        "UnderlyingTypeString": "func(inner net/http.Handler, h *github.com/influxdb/influxdb/services/httpd.Handler) net/http.Handler",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }Zä
+
+text/plain|versionHeader takes a HTTP handler and returns a HTTP handler
+and adds the X-INFLUXBD-VERSION header to outgoing responses.
+ä./versionHeader“
+*versionHeader/$handler0/rrvar"services/httpd/handler.go(Ùò0Éô@RÁ{
+        "PkgName": "httpd",
+        "TypeString": "*net/http.Request",
+        "UnderlyingTypeString": "*net/http.Request",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./versionHeader/$handler0/rò
+*versionHeader/$handler0/wwvar"services/httpd/handler.go(›ò0Úò@R≠{
+        "PkgName": "httpd",
+        "TypeString": "net/http.ResponseWriter",
+        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./versionHeader/$handler0/wÑ
+*versionHeader/hhvar"services/httpd/handler.go(§ò0Æò@R≠{
+        "PkgName": "httpd",
+        "TypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/httpd.Handler",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./versionHeader/h¯
+*versionHeader/innerinnervar"services/httpd/handler.go(êò0¢ò@Rï{
+        "PkgName": "httpd",
+        "TypeString": "net/http.Handler",
+        "UnderlyingTypeString": "interface{ServeHTTP(net/http.ResponseWriter, *net/http.Request)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/httpd"
+      }ä./versionHeader/inner

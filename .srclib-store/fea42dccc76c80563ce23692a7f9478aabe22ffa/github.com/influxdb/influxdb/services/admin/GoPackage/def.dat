@@ -1,0 +1,344 @@
+†
+*.adminpackage"services/admin8Rø{
+        "Exported": true,
+        "PkgName": "admin",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }Z1
+
+text/plain#Register static assets via statik.
+ä.¡
+*ConfigConfigtype"services/admin/config.go(Ö0”8R˘{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "TypeString": "github.com/influxdb/influxdb/services/admin.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; HttpsEnabled bool \"toml:\\\"https-enabled\\\"\"; HttpsCertificate string \"toml:\\\"https-certificate\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Configê
+*Config/BindAddressBindAddressfield"services/admin/config.go(¿0Ì8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Config/BindAddressÄ
+*Config/EnabledEnabledfield"services/admin/config.go(ñ0æ8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Config/Enabledü
+*Config/HttpsCertificateHttpsCertificatefield"services/admin/config.go(ü0—8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Config/HttpsCertificateè
+*Config/HttpsEnabledHttpsEnabledfield"services/admin/config.go(Ô0ù8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Config/HttpsEnabled÷
+*DefaultBindAddressDefaultBindAddressconst"services/admin/config.go(`0|8Ró{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ZR
+
+text/plainDDefaultBindAddress is the default bind address for the HTTP server.
+ä./DefaultBindAddressΩ
+*	NewConfig	NewConfigfunc"services/admin/config.go(’0Û8RÏ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "TypeString": "func() github.com/influxdb/influxdb/services/admin.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/admin.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./NewConfigÎ
+*
+NewService
+NewServicefunc"services/admin/service.go(æ0ü8Rÿ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "TypeString": "func(c github.com/influxdb/influxdb/services/admin.Config) *github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/admin.Config) *github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }Z<
+
+text/plain.NewService returns a new instance of Service.
+ä./NewServiceì
+*NewService/ccvar"services/admin/service.go(Œ0÷@Rƒ{
+        "PkgName": "admin",
+        "TypeString": "github.com/influxdb/influxdb/services/admin.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; HttpsEnabled bool \"toml:\\\"https-enabled\\\"\"; HttpsCertificate string \"toml:\\\"https-certificate\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./NewService/c§
+	*ServiceServicetype"services/admin/service.go(á0ã8Rî{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "TypeString": "github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "struct{listener net.Listener; addr string; https bool; cert string; err chan error; logger *log.Logger}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ZB
+
+text/plain4Service manages the listener for an admin endpoint.
+ä	./ServiceÂ
+*Service/AddrAddrfunc"services/admin/service.go(‘0ª8R∫{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "Receiver": "*Service",
+        "TypeString": "func() net.Addr",
+        "UnderlyingTypeString": "func() net.Addr",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ZV
+
+text/plainHAddr returns the listener's address. Returns nil if listener is closed.
+ä./Service/AddrÄ
+*Service/Addr/ssvar"services/admin/service.go(⁄0‰@R≠{
+        "PkgName": "admin",
+        "TypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/Addr/s¿
+*Service/CloseClosefunc"services/admin/service.go(ß0ç8R¥{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }Z4
+
+text/plain&Close closes the underlying listener.
+ä./Service/CloseÇ
+*Service/Close/ssvar"services/admin/service.go(≠0∑@R≠{
+        "PkgName": "admin",
+        "TypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/Close/sÔ
+*Service/ErrErrfunc"services/admin/service.go(“0á8RÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "Receiver": "*Service",
+        "TypeString": "func() \u003c-chan error",
+        "UnderlyingTypeString": "func() \u003c-chan error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ZQ
+
+text/plainCErr returns a channel for fatal errors that occur on the listener.
+ä./Service/Err˛
+*Service/Err/ssvar"services/admin/service.go(ÿ0‚@R≠{
+        "PkgName": "admin",
+        "TypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/Err/sØ
+*Service/OpenOpenfunc"services/admin/service.go(º0¸
+8R¥{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }Z&
+
+text/plainOpen starts the service
+ä./Service/OpenÀ
+'*%Service/Open/$service0/$service0/certcertvar"services/admin/service.go(¨0‹@R«{
+        "PkgName": "admin",
+        "TypeString": "crypto/tls.Certificate",
+        "UnderlyingTypeString": "struct{Certificate [][]byte; PrivateKey crypto.PrivateKey; OCSPStaple []byte; Leaf *crypto/x509.Certificate}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä'./Service/Open/$service0/$service0/cert‰
+&*$Service/Open/$service0/$service0/errerrvar"services/admin/service.go(¨0‹@R„{
+        "PkgName": "admin",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä&./Service/Open/$service0/$service0/err¨
++*)Service/Open/$service0/$service0/listenerlistenervar"services/admin/service.go(Ñ0Í@Rú{
+        "PkgName": "admin",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä+./Service/Open/$service0/$service0/listener‰
+&*$Service/Open/$service0/$service1/errerrvar"services/admin/service.go(¯0¢	@R„{
+        "PkgName": "admin",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä&./Service/Open/$service0/$service1/err¨
++*)Service/Open/$service0/$service1/listenerlistenervar"services/admin/service.go(¯0¢	@Rú{
+        "PkgName": "admin",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä+./Service/Open/$service0/$service1/listenerÄ
+*Service/Open/ssvar"services/admin/service.go(¬0Ã@R≠{
+        "PkgName": "admin",
+        "TypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/Open/s
+*Service/SetLogger	SetLoggerfunc"services/admin/service.go(Œ0ä8R¬{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "admin",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLogger∏
+*Service/SetLogger/llvar"services/admin/service.go(Í0˜@R€{
+        "PkgName": "admin",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/SetLogger/lä
+*Service/SetLogger/ssvar"services/admin/service.go(‘0ﬁ@R≠{
+        "PkgName": "admin",
+        "TypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/SetLogger/s„
+*Service/addraddrfield"services/admin/service.go(∞0øRë{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Service",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/addr„
+*Service/certcertfield"services/admin/service.go(–0ﬂRë{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Service",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/certË
+*Service/errerrfield"services/admin/service.go(·0ÙRô{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan error",
+        "UnderlyingTypeString": "chan error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/err‚
+*Service/httpshttpsfield"services/admin/service.go(¡0ŒRç{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Service",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/https∫
+*Service/listenerlistenerfield"services/admin/service.go(ô0ÆR‹{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Service",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/listenerÛ
+*Service/loggerloggerfield"services/admin/service.go(˜0âRõ{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "FieldOfStruct": "Service",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/loggerû
+*Service/serveservefunc"services/admin/service.go(Ï0·Ré{
+        "PkgScope": true,
+        "PkgName": "admin",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }Z:
+
+text/plain,serve serves the handler from the listener.
+ä./Service/serveæ
+*Service/serve/errerrvar"services/admin/service.go(∫0”@R„{
+        "PkgName": "admin",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/serve/errÇ
+*Service/serve/ssvar"services/admin/service.go(Ú0¸@R≠{
+        "PkgName": "admin",
+        "TypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/admin.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/serve/sı
+*Service/serve/statikFSstatikFSvar"services/admin/service.go(∫0”@Rã{
+        "PkgName": "admin",
+        "TypeString": "net/http.FileSystem",
+        "UnderlyingTypeString": "interface{Open(name string) (net/http.File, error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/admin"
+      }ä./Service/serve/statikFS

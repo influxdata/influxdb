@@ -1,0 +1,1969 @@
+Á
+*.b1package"tsdb/engine/b18Rº{
+        "Exported": true,
+        "PkgName": "b1",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä.´
+*CursorCursortype"tsdb/engine/b1/b1.go(ùl0˜m8R§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "UnderlyingTypeString": "struct{cursor *github.com/boltdb/bolt.Cursor; buf struct{key []byte; value []byte}; cache [][]byte; index int; prev []byte}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZA
+
+text/plain3Cursor provides ordered iteration across a series.
+ä./CursorÏ
+*Cursor/NextNextfunc"tsdb/engine/b1/b1.go(¬q0Çr8R⁄{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Cursor",
+        "TypeString": "func() (key []byte, value []byte)",
+        "UnderlyingTypeString": "func() (key []byte, value []byte)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZD
+
+text/plain6Next returns the next key/value pair from the cursor.
+ä./Cursor/NextÙ
+*Cursor/Next/ccvar"tsdb/engine/b1/b1.go(»q0—q@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Next/c†
+*Cursor/Next/keykeyvar"tsdb/engine/b1/b1.go(€q0Ïq@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Next/key¶
+*Cursor/Next/valuevaluevar"tsdb/engine/b1/b1.go(€q0Ïq@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Next/valueò
+*Cursor/SeekSeekfunc"tsdb/engine/b1/b1.go(»n0áq8R{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Cursor",
+        "TypeString": "func(seek []byte) (key []byte, value []byte)",
+        "UnderlyingTypeString": "func(seek []byte) (key []byte, value []byte)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZZ
+
+text/plainLSeek moves the cursor to a position and returns the closest key/value pair.
+ä./Cursor/Seekû
+*Cursor/Seek/$b11/iivar"tsdb/engine/b1/b1.go(†p0•p@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Seek/$b11/iÙ
+*Cursor/Seek/ccvar"tsdb/engine/b1/b1.go(Œn0◊n@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Seek/c†
+*Cursor/Seek/keykeyvar"tsdb/engine/b1/b1.go(Ïn0˝n@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Seek/key£
+*Cursor/Seek/seekseekvar"tsdb/engine/b1/b1.go(ﬁn0Èn@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Seek/seek¶
+*Cursor/Seek/valuevaluevar"tsdb/engine/b1/b1.go(Ïn0˝n@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/Seek/valueâ
+*
+Cursor/bufbuffield"tsdb/engine/b1/b1.go(Èl0èmR¡{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Cursor",
+        "TypeString": "struct{key []byte; value []byte}",
+        "UnderlyingTypeString": "struct{key []byte; value []byte}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/buf∫
+*Cursor/buf/keykeyfield"tsdb/engine/b1/b1.go(˚l0åmRÍ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/buf/key¿
+*Cursor/buf/valuevaluefield"tsdb/engine/b1/b1.go(˚l0åmRÍ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/buf/valueé
+*Cursor/cachecachefield"tsdb/engine/b1/b1.go(µm0√mRë{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Cursor",
+        "TypeString": "[][]byte",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z-
+
+text/plainCache and current cache index.
+ä./Cursor/cache¿
+*Cursor/cursorcursorfield"tsdb/engine/b1/b1.go(‘l0ÁlRΩ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Cursor",
+        "TypeString": "*github.com/boltdb/bolt.Cursor",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Cursor",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z0
+
+text/plain"Bolt cursor and readahead buffer.
+ä./Cursor/cursor’
+*Cursor/indexindexfield"tsdb/engine/b1/b1.go(≈m0ŒmRá{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Cursor",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/index˝
+*Cursor/prevprevfield"tsdb/engine/b1/b1.go(Ím0ımRç{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Cursor",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z#
+
+text/plainPreviously read key.
+ä./Cursor/prevŸ
+*Cursor/readreadfunc"tsdb/engine/b1/b1.go(∆r0ÚxR¿{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Cursor",
+        "TypeString": "func() (key []byte, value []byte)",
+        "UnderlyingTypeString": "func() (key []byte, value []byte)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZM
+
+text/plain?read returns the next key/value in the cursor buffer or cache.
+ä./Cursor/readÙ
+*Cursor/read/ccvar"tsdb/engine/b1/b1.go(Ãr0’r@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/read/c†
+*Cursor/read/keykeyvar"tsdb/engine/b1/b1.go(ﬂr0r@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/read/key¶
+*Cursor/read/valuevaluevar"tsdb/engine/b1/b1.go(ﬂr0r@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Cursor/read/valueˆ
+*EngineEnginetype"tsdb/engine/b1/b1.go(ª0≤8RÙ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "struct{mu sync.RWMutex; path string; db *github.com/boltdb/bolt.DB; cache map[uint8]map[string][][]byte; walSize int; flush chan struct{}; flushTimer *time.Timer; wg sync.WaitGroup; closing chan struct{}; logger *log.Logger; MaxWALSize int; WALFlushInterval time.Duration; WALPartitionFlushDelay time.Duration; LogOutput io.Writer}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z<
+
+text/plain.Engine represents a version 1 storage engine.
+ä./Engineß
+*Engine/BeginBeginfunc"tsdb/engine/b1/b1.go(⁄c0ˇd8Rö{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(writable bool) (github.com/influxdb/influxdb/tsdb.Tx, error)",
+        "UnderlyingTypeString": "func(writable bool) (github.com/influxdb/influxdb/tsdb.Tx, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z<
+
+text/plain.Begin starts a new transaction on the engine.
+ä./Engine/Beginˆ
+*Engine/Begin/eevar"tsdb/engine/b1/b1.go(‡c0Èc@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Begin/e¥
+*Engine/Begin/errerrvar"tsdb/engine/b1/b1.go(îd0≥d@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Begin/err«
+*Engine/Begin/txtxvar"tsdb/engine/b1/b1.go(îd0≥d@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Begin/tx≠
+*Engine/Begin/writablewritablevar"tsdb/engine/b1/b1.go(Òc0˛c@R {
+        "PkgName": "b1",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Begin/writableˇ
+*Engine/CloseClosefunc"tsdb/engine/b1/b1.go(Ò0É8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Closeˆ
+*Engine/Close/eevar"tsdb/engine/b1/b1.go(˜0Ä@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Close/e¥
+*Engine/Close/errerrvar"tsdb/engine/b1/b1.go(†0∞@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Close/errŸ
+*	Engine/DBDBfunc"tsdb/engine/b1/b1.go(≠e0€e8R⁄{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func() *github.com/boltdb/bolt.DB",
+        "UnderlyingTypeString": "func() *github.com/boltdb/bolt.DB",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z7
+
+text/plain)DB returns the underlying Bolt database.
+ä./Engine/DB
+*Engine/DB/eevar"tsdb/engine/b1/b1.go(≥e0ºe@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/DB/e≥
+*Engine/DeleteMeasurementDeleteMeasurementfunc"tsdb/engine/b1/b1.go(¡C0≠H8R{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(name string, seriesKeys []string) error",
+        "UnderlyingTypeString": "func(name string, seriesKeys []string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZN
+
+text/plain@DeleteMeasurement deletes a measurement and all related series.
+ä./Engine/DeleteMeasurementÍ
+-*+Engine/DeleteMeasurement/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(ãE0©E@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä-./Engine/DeleteMeasurement/$b10/$b10/$b10/err˛
+7*5Engine/DeleteMeasurement/$b10/$b10/$b11/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(îF0ÆF@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä7./Engine/DeleteMeasurement/$b10/$b10/$b11/$b10/$b10/err˛
+7*5Engine/DeleteMeasurement/$b10/$b10/$b11/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(◊F0¯F@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä7./Engine/DeleteMeasurement/$b10/$b10/$b11/$b10/$b11/err“
++*)Engine/DeleteMeasurement/$b10/$b10/$b11/kkvar"tsdb/engine/b1/b1.go(µD0ÄH@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä+./Engine/DeleteMeasurement/$b10/$b10/$b11/k¯
+&*$Engine/DeleteMeasurement/$b10/$b10/bbvar"tsdb/engine/b1/b1.go(ÃE0ÏE@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/DeleteMeasurement/$b10/$b10/b˚
+'*%Engine/DeleteMeasurement/$b10/$b10/bmbmvar"tsdb/engine/b1/b1.go(‰D0ÖE@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä'./Engine/DeleteMeasurement/$b10/$b10/bmÛ
+'*%Engine/DeleteMeasurement/$b10/$b10/txtxvar"tsdb/engine/b1/b1.go(ÕD0ÿD@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä'./Engine/DeleteMeasurement/$b10/$b10/tx÷
+#*!Engine/DeleteMeasurement/$b10/errerrvar"tsdb/engine/b1/b1.go(µD0ÄH@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä#./Engine/DeleteMeasurement/$b10/erré
+*Engine/DeleteMeasurement/eevar"tsdb/engine/b1/b1.go(«C0–C@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/DeleteMeasurement/eΩ
+*Engine/DeleteMeasurement/namenamevar"tsdb/engine/b1/b1.go(‰C0ÔC@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/DeleteMeasurement/name”
+%*#Engine/DeleteMeasurement/seriesKeys
+seriesKeysvar"tsdb/engine/b1/b1.go(ÒC0ÑD@R“{
+        "PkgName": "b1",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä%./Engine/DeleteMeasurement/seriesKeysÔ
+*Engine/DeleteSeriesDeleteSeriesfunc"tsdb/engine/b1/b1.go(ó?0¸B8R {
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(keys []string) error",
+        "UnderlyingTypeString": "func(keys []string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z?
+
+text/plain1DeleteSeries deletes the series from the engine.
+ä./Engine/DeleteSeriesÙ
+2*0Engine/DeleteSeries/$b10/$b10/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(‰@0˛@@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä2./Engine/DeleteSeries/$b10/$b10/$b10/$b10/$b10/errÙ
+2*0Engine/DeleteSeries/$b10/$b10/$b10/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(ßA0»A@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä2./Engine/DeleteSeries/$b10/$b10/$b10/$b10/$b11/err»
+&*$Engine/DeleteSeries/$b10/$b10/$b10/kkvar"tsdb/engine/b1/b1.go(Û?0œB@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/DeleteSeries/$b10/$b10/$b10/kÓ
+!*Engine/DeleteSeries/$b10/$b10/bbvar"tsdb/engine/b1/b1.go(¢@0¬@@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä!./Engine/DeleteSeries/$b10/$b10/bÈ
+"* Engine/DeleteSeries/$b10/$b10/txtxvar"tsdb/engine/b1/b1.go(ã@0ñ@@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä"./Engine/DeleteSeries/$b10/$b10/txÃ
+*Engine/DeleteSeries/$b10/errerrvar"tsdb/engine/b1/b1.go(Û?0œB@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/DeleteSeries/$b10/errÑ
+*Engine/DeleteSeries/eevar"tsdb/engine/b1/b1.go(ù?0¶?@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/DeleteSeries/e∑
+*Engine/DeleteSeries/keyskeysvar"tsdb/engine/b1/b1.go(µ?0¬?@R“{
+        "PkgName": "b1",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/DeleteSeries/keysê
+*Engine/FlushFlushfunc"tsdb/engine/b1/b1.go(ÒH0±O8RÚ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(partitionFlushDelay time.Duration) error",
+        "UnderlyingTypeString": "func(partitionFlushDelay time.Duration) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZM
+
+text/plain?Flush writes all points from the write ahead log to the index.
+ä./Engine/Flush¿
+!*Engine/Flush/$b10/$b10/$b10/keykeyvar"tsdb/engine/b1/b1.go(œJ0‹J@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä!./Engine/Flush/$b10/$b10/$b10/key€
+*Engine/Flush/$b10/$b10/txtxvar"tsdb/engine/b1/b1.go(ãJ0ñJ@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Flush/$b10/$b10/txæ
+*Engine/Flush/$b10/errerrvar"tsdb/engine/b1/b1.go(ıI0≤K@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Flush/$b10/err“
+!*Engine/Flush/$b11/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(ƒL0ËL@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä!./Engine/Flush/$b11/$b10/$b10/err¬
+*Engine/Flush/$b11/partitionIDpartitionIDvar"tsdb/engine/b1/b1.go(ÒH0±O@RÃ{
+        "PkgName": "b1",
+        "TypeString": "uint8",
+        "UnderlyingTypeString": "uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Flush/$b11/partitionIDˆ
+*Engine/Flush/eevar"tsdb/engine/b1/b1.go(˜H0ÄI@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Flush/eÿ
+"* Engine/Flush/partitionFlushDelaypartitionFlushDelayvar"tsdb/engine/b1/b1.go(àI0©I@R‘{
+        "PkgName": "b1",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä"./Engine/Flush/partitionFlushDelayÔ
+*Engine/Flush/partitionIDspartitionIDsvar"tsdb/engine/b1/b1.go(‹I0I@R–{
+        "PkgName": "b1",
+        "TypeString": "[]uint8",
+        "UnderlyingTypeString": "[]uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z.
+
+text/plain Retrieve a list of WAL buckets.
+ä./Engine/Flush/partitionIDs˚
+*Engine/FlushPartitionFlushPartitionfunc"tsdb/engine/b1/b1.go(ÂO0íY8R“{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(partitionID uint8) error",
+        "UnderlyingTypeString": "func(partitionID uint8) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z=
+
+text/plain/FlushPartition flushes a single WAL partition.
+ä./Engine/FlushPartition¯
+4*2Engine/FlushPartition/$b10/$b10/$b11/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(∏U0ÂU@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä4./Engine/FlushPartition/$b10/$b10/$b11/$b10/$b11/err¯
+4*2Engine/FlushPartition/$b10/$b10/$b11/$b10/$b12/errerrvar"tsdb/engine/b1/b1.go(≈V0÷V@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä4./Engine/FlushPartition/$b10/$b10/$b11/$b10/$b12/errÜ
+-*+Engine/FlushPartition/$b10/$b10/$b11/$b10/bbvar"tsdb/engine/b1/b1.go(¢T0ÀT@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä-./Engine/FlushPartition/$b10/$b10/$b11/$b10/bﬂ
+0*.Engine/FlushPartition/$b10/$b10/$b11/$b10/datadatavar"tsdb/engine/b1/b1.go(“S0˛S@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä0./Engine/FlushPartition/$b10/$b10/$b11/$b10/dataÓ
+/*-Engine/FlushPartition/$b10/$b10/$b11/$b10/errerrvar"tsdb/engine/b1/b1.go(¢T0ÀT@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä/./Engine/FlushPartition/$b10/$b10/$b11/$b10/err‹
+/*-Engine/FlushPartition/$b10/$b10/$b11/$b10/keykeyvar"tsdb/engine/b1/b1.go(“S0˛S@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä/./Engine/FlushPartition/$b10/$b10/$b11/$b10/keyÏ
+5*3Engine/FlushPartition/$b10/$b10/$b11/$b10/timestamp	timestampvar"tsdb/engine/b1/b1.go(“S0˛S@RÃ{
+        "PkgName": "b1",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä5./Engine/FlushPartition/$b10/$b10/$b11/$b10/timestampÃ
+(*&Engine/FlushPartition/$b10/$b10/$b11/kkvar"tsdb/engine/b1/b1.go(†S0±S@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä(./Engine/FlushPartition/$b10/$b10/$b11/kÃ
+(*&Engine/FlushPartition/$b10/$b10/$b11/vvvar"tsdb/engine/b1/b1.go(†S0±S@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä(./Engine/FlushPartition/$b10/$b10/$b11/vÚ
+#*!Engine/FlushPartition/$b10/$b10/ccvar"tsdb/engine/b1/b1.go(âS0ôS@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Cursor",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Cursor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä#./Engine/FlushPartition/$b10/$b10/cı
+$*"Engine/FlushPartition/$b10/$b10/pbpbvar"tsdb/engine/b1/b1.go(⁄Q0öR@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä$./Engine/FlushPartition/$b10/$b10/pbÌ
+$*"Engine/FlushPartition/$b10/$b10/txtxvar"tsdb/engine/b1/b1.go(âQ0îQ@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä$./Engine/FlushPartition/$b10/$b10/tx–
+ *Engine/FlushPartition/$b10/errerrvar"tsdb/engine/b1/b1.go(ÒP0µW@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä ./Engine/FlushPartition/$b10/errà
+*Engine/FlushPartition/eevar"tsdb/engine/b1/b1.go(ÎO0ÙO@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/FlushPartition/e 
+#*!Engine/FlushPartition/partitionIDpartitionIDvar"tsdb/engine/b1/b1.go(ÖP0ñP@RÃ{
+        "PkgName": "b1",
+        "TypeString": "uint8",
+        "UnderlyingTypeString": "uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä#./Engine/FlushPartition/partitionID∑
+*Engine/FlushPartition/pointNpointNvar"tsdb/engine/b1/b1.go(‚P0ÏP@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/FlushPartition/pointNÙ
+!*Engine/FlushPartition/startTime	startTimevar"tsdb/engine/b1/b1.go(ƒP0€P@R¸{
+        "PkgName": "b1",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä!./Engine/FlushPartition/startTime˝
+*Engine/LoadMetadataIndexLoadMetadataIndexfunc"tsdb/engine/b1/b1.go(˜0 '8R¬{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(index *github.com/influxdb/influxdb/tsdb.DatabaseIndex, measurementFields map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields) error",
+        "UnderlyingTypeString": "func(index *github.com/influxdb/influxdb/tsdb.DatabaseIndex, measurementFields map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZF
+
+text/plain8LoadMetadataIndex loads the shard metadata into memory.
+ä./Engine/LoadMetadataIndexÙ
+2*0Engine/LoadMetadataIndex/$b10/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(í#0Æ#@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä2./Engine/LoadMetadataIndex/$b10/$b10/$b10/$b10/errÂ
+3*1Engine/LoadMetadataIndex/$b10/$b10/$b10/$b11/namenamevar"tsdb/engine/b1/b1.go(˜0 '@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä3./Engine/LoadMetadataIndex/$b10/$b10/$b10/$b11/name¢
++*)Engine/LoadMetadataIndex/$b10/$b10/$b10/mmvar"tsdb/engine/b1/b1.go(±"0Ë"@Rû{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.Measurement",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.Measurement",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä+./Engine/LoadMetadataIndex/$b10/$b10/$b10/m±
+,**Engine/LoadMetadataIndex/$b10/$b10/$b10/mfmfvar"tsdb/engine/b1/b1.go(Ï"0ã#@R™{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä,./Engine/LoadMetadataIndex/$b10/$b10/$b10/mf»
+&*$Engine/LoadMetadataIndex/$b10/$b10/kkvar"tsdb/engine/b1/b1.go(ˇ!0ê"@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/LoadMetadataIndex/$b10/$b10/k»
+&*$Engine/LoadMetadataIndex/$b10/$b10/vvvar"tsdb/engine/b1/b1.go(ˇ!0ê"@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/LoadMetadataIndex/$b10/$b10/vÙ
+2*0Engine/LoadMetadataIndex/$b10/$b11/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(ô&0π&@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä2./Engine/LoadMetadataIndex/$b10/$b11/$b10/$b10/errß
+0*.Engine/LoadMetadataIndex/$b10/$b11/$b10/seriesseriesvar"tsdb/engine/b1/b1.go(Ò%0í&@Rî{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.Series",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.Series",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä0./Engine/LoadMetadataIndex/$b10/$b11/$b10/series»
+&*$Engine/LoadMetadataIndex/$b10/$b11/kkvar"tsdb/engine/b1/b1.go(ø%0–%@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/LoadMetadataIndex/$b10/$b11/k»
+&*$Engine/LoadMetadataIndex/$b10/$b11/vvvar"tsdb/engine/b1/b1.go(ø%0–%@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/LoadMetadataIndex/$b10/$b11/vÓ
+!*Engine/LoadMetadataIndex/$b10/ccvar"tsdb/engine/b1/b1.go(Ê!0¯!@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Cursor",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Cursor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä!./Engine/LoadMetadataIndex/$b10/c˜
+$*"Engine/LoadMetadataIndex/$b10/metametavar"tsdb/engine/b1/b1.go(¿!0„!@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä$./Engine/LoadMetadataIndex/$b10/metaÈ
+"* Engine/LoadMetadataIndex/$b10/txtxvar"tsdb/engine/b1/b1.go(ä!0ï!@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä"./Engine/LoadMetadataIndex/$b10/txé
+*Engine/LoadMetadataIndex/eevar"tsdb/engine/b1/b1.go(˝0Ü @R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/LoadMetadataIndex/eî
+ *Engine/LoadMetadataIndex/indexindexvar"tsdb/engine/b1/b1.go(ö 0≥ @R¢{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.DatabaseIndex",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.DatabaseIndex",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä ./Engine/LoadMetadataIndex/index÷
+,**Engine/LoadMetadataIndex/measurementFieldsmeasurementFieldsvar"tsdb/engine/b1/b1.go(µ 0È @R¿{
+        "PkgName": "b1",
+        "TypeString": "map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "UnderlyingTypeString": "map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä,./Engine/LoadMetadataIndex/measurementFields‹
+*Engine/LogOutput	LogOutputfield"tsdb/engine/b1/b1.go(ù0∞8R—{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z-
+
+text/plainThe writer used by the logger.
+ä./Engine/LogOutputÀ
+*Engine/MaxWALSize
+MaxWALSizefield"tsdb/engine/b1/b1.go(ë
+0´
+8R°{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZI
+
+text/plain;The maximum size and time thresholds for flushing the WAL.
+ä./Engine/MaxWALSize≥
+*Engine/OpenOpenfunc"tsdb/engine/b1/b1.go(∆0Ô8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z5
+
+text/plain'Open opens and initializes the engine.
+ä./Engine/Open¯
+4*2Engine/Open/$b10/$b10/$b11/$b10/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(≈0Û@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä4./Engine/Open/$b10/$b10/$b11/$b10/$b10/$b10/$b10/errÃ
+(*&Engine/Open/$b10/$b10/$b11/$b10/$b10/vvvar"tsdb/engine/b1/b1.go(ï0±@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä(./Engine/Open/$b10/$b10/$b11/$b10/$b10/vÚ
+#*!Engine/Open/$b10/$b10/$b11/$b10/bbvar"tsdb/engine/b1/b1.go(‹0é@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä#./Engine/Open/$b10/$b10/$b11/$b10/bÌ
+$*"Engine/Open/$b10/$b10/$b11/$b10/txtxvar"tsdb/engine/b1/b1.go(˙0Ö@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä$./Engine/Open/$b10/$b10/$b11/$b10/tx–
+ *Engine/Open/$b10/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(‚0Œ@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä ./Engine/Open/$b10/$b10/$b11/errŸ
+*Engine/Open/$b10/$b10/dbdbvar"tsdb/engine/b1/b1.go(≈0ê@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.DB",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.DB",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Open/$b10/$b10/db∆
+*Engine/Open/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(≈0ê@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Open/$b10/$b10/errº
+*Engine/Open/$b10/errerrvar"tsdb/engine/b1/b1.go(Í0≤@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Open/$b10/errº
+*Engine/Open/$b11/errerrvar"tsdb/engine/b1/b1.go(ò0©@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Open/$b11/errÙ
+*Engine/Open/eevar"tsdb/engine/b1/b1.go(Ã0’@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Open/e≈
+*Engine/PathPathfunc"tsdb/engine/b1/b1.go(Í0ö8R≤{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZE
+
+text/plain7Path returns the path the engine was initialized with.
+ä./Engine/PathÙ
+*Engine/Path/eevar"tsdb/engine/b1/b1.go(0˘@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/Path/e¶
+*Engine/SeriesCountSeriesCountfunc"tsdb/engine/b1/b1.go(∞a0ßc8R {
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func() (n int, err error)",
+        "UnderlyingTypeString": "func() (n int, err error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Zy
+
+text/plainkSeriesCount returns the number of series buckets on the shard.
+This does not include a count from the WAL.
+ä./Engine/SeriesCount›
+*Engine/SeriesCount/$b10/txtxvar"tsdb/engine/b1/b1.go(˙a0Öb@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/SeriesCount/$b10/txÇ
+*Engine/SeriesCount/eevar"tsdb/engine/b1/b1.go(∂a0øa@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/SeriesCount/e¿
+*Engine/SeriesCount/errerrvar"tsdb/engine/b1/b1.go(◊a0‡a@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/SeriesCount/err¢
+*Engine/SeriesCount/nnvar"tsdb/engine/b1/b1.go(–a0’a@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/SeriesCount/nå
+*Engine/SetLogOutputSetLogOutputfunc"tsdb/engine/b1/b1.go(¸0∫8R∫{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(w io.Writer)",
+        "UnderlyingTypeString": "func(w io.Writer)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Zl
+
+text/plain^SetLogOutput sets the writer used for log output.
+This must be set before opening the engine.
+ä./Engine/SetLogOutputÑ
+*Engine/SetLogOutput/eevar"tsdb/engine/b1/b1.go(Ç0ã@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/SetLogOutput/e‘
+*Engine/SetLogOutput/wwvar"tsdb/engine/b1/b1.go(ö0•@R¯{
+        "PkgName": "b1",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/SetLogOutput/wû
+*Engine/WALFlushIntervalWALFlushIntervalfield"tsdb/engine/b1/b1.go(≠
+0—
+8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/WALFlushInterval∞
+*Engine/WALPartitionFlushDelayWALPartitionFlushDelayfield"tsdb/engine/b1/b1.go(”
+0˜
+8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/WALPartitionFlushDelayë
+*Engine/WritePointsWritePointsfunc"tsdb/engine/b1/b1.go(©(0·>8R∆{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(points []github.com/influxdb/influxdb/tsdb.Point, measurementFieldsToSave map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields, seriesToCreate []*github.com/influxdb/influxdb/tsdb.SeriesCreate) error",
+        "UnderlyingTypeString": "func(points []github.com/influxdb/influxdb/tsdb.Point, measurementFieldsToSave map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields, seriesToCreate []*github.com/influxdb/influxdb/tsdb.SeriesCreate) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Zh
+
+text/plainZWritePoints will write the raw data points and any new metadata to the index in the shard
+ä./Engine/WritePointsÜ
+;*9Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(ˇ+0®,@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä;./Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/$b10/$b11/errÌ
+7*5Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/$b10/datadatavar"tsdb/engine/b1/b1.go(ß+0Õ+@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä7./Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/$b10/data¸
+6*4Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(ß+0Õ+@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä6./Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/$b10/errØ
+0*.Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/scscvar"tsdb/engine/b1/b1.go(Ò)0‡3@R†{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.SeriesCreate",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.SeriesCreate",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä0./Engine/WritePoints/$b10/$b10/$b10/$b10/$b10/scÄ
+**(Engine/WritePoints/$b10/$b10/$b10/$b10/bbvar"tsdb/engine/b1/b1.go(€*0˚*@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä*./Engine/WritePoints/$b10/$b10/$b10/$b10/bÜ
+;*9Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(®.0».@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä;./Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/$b10/$b11/errÌ
+7*5Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/$b10/datadatavar"tsdb/engine/b1/b1.go(ÿ-0ˆ-@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä7./Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/$b10/data¸
+6*4Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(ÿ-0ˆ-@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä6./Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/$b10/err∂
+/*-Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/mmvar"tsdb/engine/b1/b1.go(Ò)0‡3@R™{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä/./Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/m„
+2*0Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/namenamevar"tsdb/engine/b1/b1.go(Ò)0‡3@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä2./Engine/WritePoints/$b10/$b10/$b11/$b10/$b10/nameÄ
+**(Engine/WritePoints/$b10/$b10/$b11/$b10/bbvar"tsdb/engine/b1/b1.go(Å-0°-@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä*./Engine/WritePoints/$b10/$b10/$b11/$b10/bÚ
+1*/Engine/WritePoints/$b10/$b10/$b12/$b10/$b11/errerrvar"tsdb/engine/b1/b1.go(Ú20ç3@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä1./Engine/WritePoints/$b10/$b10/$b12/$b10/$b11/errÄ
+**(Engine/WritePoints/$b10/$b10/$b12/$b10/bbvar"tsdb/engine/b1/b1.go(ç00Õ0@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä*./Engine/WritePoints/$b10/$b10/$b12/$b10/bË
+,**Engine/WritePoints/$b10/$b10/$b12/$b10/errerrvar"tsdb/engine/b1/b1.go(ç00Õ0@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä,./Engine/WritePoints/$b10/$b10/$b12/$b10/err”
++*)Engine/WritePoints/$b10/$b10/$b12/$b10/ididvar"tsdb/engine/b1/b1.go(Ë10Å2@RŒ{
+        "PkgName": "b1",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä+./Engine/WritePoints/$b10/$b10/$b12/$b10/id÷
+,**Engine/WritePoints/$b10/$b10/$b12/$b10/keykeyvar"tsdb/engine/b1/b1.go(˚/0â0@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä,./Engine/WritePoints/$b10/$b10/$b12/$b10/key–
+**(Engine/WritePoints/$b10/$b10/$b12/$b10/vvvar"tsdb/engine/b1/b1.go(∫20Î2@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä*./Engine/WritePoints/$b10/$b10/$b12/$b10/v¸
+%*#Engine/WritePoints/$b10/$b10/$b12/ppvar"tsdb/engine/b1/b1.go(Ò)0‡3@RÑ{
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä%./Engine/WritePoints/$b10/$b10/$b12/pÁ
+!*Engine/WritePoints/$b10/$b10/txtxvar"tsdb/engine/b1/b1.go(â*0î*@Rˆ{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä!./Engine/WritePoints/$b10/$b10/txÚ
+"* Engine/WritePoints/$b10/$b10/walwalvar"tsdb/engine/b1/b1.go(ö/0π/@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä"./Engine/WritePoints/$b10/$b10/wal 
+*Engine/WritePoints/$b10/errerrvar"tsdb/engine/b1/b1.go(Ò)0‡3@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/WritePoints/$b10/errç
+9*7Engine/WritePoints/$b11/$b10/$b10/$b10/$b10/$b10/seriesseriesvar"tsdb/engine/b1/b1.go(ï:0≥:@RË{
+        "PkgName": "b1",
+        "TypeString": "map[string]struct{}",
+        "UnderlyingTypeString": "map[string]struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä9./Engine/WritePoints/$b11/$b10/$b10/$b10/$b10/$b10/series‘
+**(Engine/WritePoints/$b11/$b10/$b10/$b10/aavar"tsdb/engine/b1/b1.go(î80∫8@R“{
+        "PkgName": "b1",
+        "TypeString": "[][]byte",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä*./Engine/WritePoints/$b11/$b10/$b10/$b10/a‰
+2*0Engine/WritePoints/$b11/$b10/$b10/$b10/appending	appendingvar"tsdb/engine/b1/b1.go(æ80ˇ8@R {
+        "PkgName": "b1",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä2./Engine/WritePoints/$b11/$b10/$b10/$b10/appendingŸ
+-*+Engine/WritePoints/$b11/$b10/$b10/$b10/datadatavar"tsdb/engine/b1/b1.go(µ60”6@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä-./Engine/WritePoints/$b11/$b10/$b10/$b10/data÷
+,**Engine/WritePoints/$b11/$b10/$b10/$b10/keykeyvar"tsdb/engine/b1/b1.go(µ60”6@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä,./Engine/WritePoints/$b11/$b10/$b10/$b10/keyÏ
+4*2Engine/WritePoints/$b11/$b10/$b10/$b10/partitionIDpartitionIDvar"tsdb/engine/b1/b1.go(70ê8@RÃ{
+        "PkgName": "b1",
+        "TypeString": "uint8",
+        "UnderlyingTypeString": "uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä4./Engine/WritePoints/$b11/$b10/$b10/$b10/partitionID–
+**(Engine/WritePoints/$b11/$b10/$b10/$b10/vvvar"tsdb/engine/b1/b1.go(◊60ı6@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä*./Engine/WritePoints/$b11/$b10/$b10/$b10/v¸
+%*#Engine/WritePoints/$b11/$b10/$b10/ppvar"tsdb/engine/b1/b1.go(ª40¥>@RÑ{
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä%./Engine/WritePoints/$b11/$b10/$b10/p‡
+1*/Engine/WritePoints/$b11/$b10/$b11/$b10/$b10/keykeyvar"tsdb/engine/b1/b1.go(ª40¥>@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä1./Engine/WritePoints/$b11/$b10/$b11/$b10/$b10/keyÏ
+)*'Engine/WritePoints/$b11/$b10/$b11/cachecachevar"tsdb/engine/b1/b1.go(ª40¥>@RË{
+        "PkgName": "b1",
+        "TypeString": "map[string]struct{}",
+        "UnderlyingTypeString": "map[string]struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä)./Engine/WritePoints/$b11/$b10/$b11/cache‚
+/*-Engine/WritePoints/$b11/$b10/$b11/partitionIDpartitionIDvar"tsdb/engine/b1/b1.go(ª40¥>@RÃ{
+        "PkgName": "b1",
+        "TypeString": "uint8",
+        "UnderlyingTypeString": "uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä/./Engine/WritePoints/$b11/$b10/$b11/partitionID¸
+&*$Engine/WritePoints/$b11/$b10/resortsresortsvar"tsdb/engine/b1/b1.go(Ø50Ÿ5@R¸{
+        "PkgName": "b1",
+        "TypeString": "map[uint8]map[string]struct{}",
+        "UnderlyingTypeString": "map[uint8]map[string]struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä&./Engine/WritePoints/$b11/$b10/resorts 
+*Engine/WritePoints/$b11/errerrvar"tsdb/engine/b1/b1.go(ª40¥>@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/WritePoints/$b11/errÇ
+*Engine/WritePoints/eevar"tsdb/engine/b1/b1.go(Ø(0∏(@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/WritePoints/e‹
+,**Engine/WritePoints/measurementFieldsToSavemeasurementFieldsToSavevar"tsdb/engine/b1/b1.go(€(0ï)@R¿{
+        "PkgName": "b1",
+        "TypeString": "map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "UnderlyingTypeString": "map[string]*github.com/influxdb/influxdb/tsdb.MeasurementFields",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä,./Engine/WritePoints/measurementFieldsToSave˝
+*Engine/WritePoints/pointspointsvar"tsdb/engine/b1/b1.go(∆(0Ÿ(@Rî{
+        "PkgName": "b1",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/WritePoints/points•
+#*!Engine/WritePoints/seriesToCreateseriesToCreatevar"tsdb/engine/b1/b1.go(ó)0∫)@R§{
+        "PkgName": "b1",
+        "TypeString": "[]*github.com/influxdb/influxdb/tsdb.SeriesCreate",
+        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/tsdb.SeriesCreate",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä#./Engine/WritePoints/seriesToCreate†
+*Engine/autoflusherautoflusherfunc"tsdb/engine/b1/b1.go(ñZ0¬]R¥{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func(closing chan struct{})",
+        "UnderlyingTypeString": "func(closing chan struct{})",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Zä
+
+text/plain|autoflusher waits for notification of a flush and kicks it off in the background.
+This method runs in a separate goroutine.
+ä./Engine/autoflusherÚ
+1*/Engine/autoflusher/$b10/$b10/$b10/$b10/$b10/errerrvar"tsdb/engine/b1/b1.go(“[0˙[@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä1./Engine/autoflusher/$b10/$b10/$b10/$b10/$b10/err¸
+6*4Engine/autoflusher/$b10/$b10/$b10/$b10/$b11/$b10/errerrvar"tsdb/engine/b1/b1.go(“\0˙\@R‡{
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä6./Engine/autoflusher/$b10/$b10/$b10/$b10/$b11/$b10/err»
+*Engine/autoflusher/closingclosingvar"tsdb/engine/b1/b1.go(≥Z0»Z@R‹{
+        "PkgName": "b1",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/autoflusher/closingÇ
+*Engine/autoflusher/eevar"tsdb/engine/b1/b1.go(úZ0•Z@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/autoflusher/eâ
+*Engine/cachecachefield"tsdb/engine/b1/b1.go(©0ÃRª{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "map[uint8]map[string][][]byte",
+        "UnderlyingTypeString": "map[uint8]map[string][][]byte",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/cache„
+*Engine/closeclosefunc"tsdb/engine/b1/b1.go(Ö0ñRñ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/closeˆ
+*Engine/close/eevar"tsdb/engine/b1/b1.go(ã0î@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/close/eÔ
+*Engine/closingclosingfield"tsdb/engine/b1/b1.go(¸0ë	Rõ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/closing˙
+*	Engine/dbdbfield"tsdb/engine/b1/b1.go(Ç0èRµ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "*github.com/boltdb/bolt.DB",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.DB",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/dbÈ
+*Engine/flushflushfield"tsdb/engine/b1/b1.go(∂0ŒRõ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/flushÙ
+*Engine/flushTimer
+flushTimerfield"tsdb/engine/b1/b1.go(Ï0ÇRó{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "*time.Timer",
+        "UnderlyingTypeString": "*time.Timer",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/flushTimerù
+*Engine/loggerloggerfield"tsdb/engine/b1/b1.go(Ω	0œ	Ró{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z3
+
+text/plain%Used for out-of-band error messages.
+ä./Engine/loggerØ
+*	Engine/mumufield"tsdb/engine/b1/b1.go(Ã0€RÍ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "sync.RWMutex",
+        "UnderlyingTypeString": "struct{w sync.Mutex; writerSem uint32; readerSem uint32; readerCount int32; readerWait int32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/muÿ
+*Engine/pathpathfield"tsdb/engine/b1/b1.go(ﬁ0ÈRç{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/pathú
+*Engine/triggerAutoFlushtriggerAutoFlushfunc"tsdb/engine/b1/b1.go(‹^0Ω`Rä{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Engine",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z°
+
+text/plainítriggerAutoFlush signals that a flush should occur if the size is above the threshold.
+This function must be called within the context of a lock.
+ä./Engine/triggerAutoFlushå
+*Engine/triggerAutoFlush/eevar"tsdb/engine/b1/b1.go(‚^0Î^@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/triggerAutoFlush/e€
+*Engine/walSizewalSizefield"tsdb/engine/b1/b1.go(Û0ÅRá{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Engine/walSize·
+*	Engine/wgwgfield"tsdb/engine/b1/b1.go(‰0˙Rœ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Engine",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZK
+
+text/plain=These coordinate closing and waiting for running goroutines.
+ä./Engine/wgÈ
+*ErrWALPartitionNotFoundErrWALPartitionNotFoundvar"tsdb/engine/b1/b1.go(¯0∑8Rî{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z]
+
+text/plainOErrWALPartitionNotFound returns when flushing a partition that does not exist.
+ä./ErrWALPartitionNotFoundò
+*FormatFormatconst"tsdb/engine/b1/b1.go(Ù0Å8Rî{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z=
+
+text/plain/Format is the file format name of this engine.
+ä./Format»
+*	NewEngine	NewEnginefunc"tsdb/engine/b1/b1.go(Ø0Æ8Rı{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(path string, walPath string, opt github.com/influxdb/influxdb/tsdb.EngineOptions) github.com/influxdb/influxdb/tsdb.Engine",
+        "UnderlyingTypeString": "func(path string, walPath string, opt github.com/influxdb/influxdb/tsdb.EngineOptions) github.com/influxdb/influxdb/tsdb.Engine",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZÉ
+
+text/plainuNewEngine returns a new instance of Engine. walPath isn't used in b1, but had
+to be added for later engine versions.
+ä./NewEngineû
+*NewEngine/$b10/iivar"tsdb/engine/b1/b1.go(Œ0€@RÃ{
+        "PkgName": "b1",
+        "TypeString": "uint8",
+        "UnderlyingTypeString": "uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./NewEngine/$b10/i
+*NewEngine/eevar"tsdb/engine/b1/b1.go(Ç0Ï@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./NewEngine/e‚
+*NewEngine/optoptvar"tsdb/engine/b1/b1.go(€0Ò@Rî{
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.EngineOptions",
+        "UnderlyingTypeString": "struct{EngineVersion string; MaxWALSize int; WALFlushInterval time.Duration; WALPartitionFlushDelay time.Duration; Config github.com/influxdb/influxdb/tsdb.Config}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./NewEngine/optü
+*NewEngine/pathpathvar"tsdb/engine/b1/b1.go(æ0…@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./NewEngine/path®
+*NewEngine/walPathwalPathvar"tsdb/engine/b1/b1.go(À0Ÿ@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./NewEngine/walPathË
+*TxTxtype"tsdb/engine/b1/b1.go(Çf0©f8RÉ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.Tx",
+        "UnderlyingTypeString": "struct{*github.com/boltdb/bolt.Tx; engine *github.com/influxdb/influxdb/tsdb/engine/b1.Engine}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z+
+
+text/plainTx represents a transaction.
+ä./TxÜ
+*	Tx/CursorCursorfunc"tsdb/engine/b1/b1.go(‘f0‡k8RÜ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "*Tx",
+        "TypeString": "func(key string) github.com/influxdb/influxdb/tsdb.Cursor",
+        "UnderlyingTypeString": "func(key string) github.com/influxdb/influxdb/tsdb.Cursor",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z4
+
+text/plain&Cursor returns an iterator for a key.
+ä./Tx/Cursor∆
+*Tx/Cursor/bbvar"tsdb/engine/b1/b1.go(ùg0∏g@R˛{
+        "PkgName": "b1",
+        "TypeString": "*github.com/boltdb/bolt.Bucket",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Bucket",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Cursor/b¶
+*Tx/Cursor/cachecachevar"tsdb/engine/b1/b1.go(⁄i0ôj@R“{
+        "PkgName": "b1",
+        "TypeString": "[][]byte",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Cursor/cacheˆ
+*Tx/Cursor/curcurvar"tsdb/engine/b1/b1.go(äk0¶k@R®{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Cursor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Cursor/curú
+*Tx/Cursor/keykeyvar"tsdb/engine/b1/b1.go(Èf0Ûf@RŒ{
+        "PkgName": "b1",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Cursor/key≤
+*Tx/Cursor/partitionIDpartitionIDvar"tsdb/engine/b1/b1.go(©h0—h@RÃ{
+        "PkgName": "b1",
+        "TypeString": "uint8",
+        "UnderlyingTypeString": "uint8",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Cursor/partitionIDÎ
+*Tx/Cursor/txtxvar"tsdb/engine/b1/b1.go(⁄f0‡f@R†{
+        "PkgName": "b1",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Tx",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Tx",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Cursor/txä
+*Tx/TxTxfield"tsdb/engine/b1/b1.go(èf0óf8RÀ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Tx",
+        "TypeString": "*github.com/boltdb/bolt.Tx",
+        "UnderlyingTypeString": "*github.com/boltdb/bolt.Tx",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/Tx¨
+*	Tx/engineenginefield"tsdb/engine/b1/b1.go(ôf0ßfR„{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "FieldOfStruct": "Tx",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/engine/b1.Engine",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./Tx/engine»
+*WALPartitionWALPartitionfunc"tsdb/engine/b1/b1.go(îz0Ö{8R£{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(key []byte) uint8",
+        "UnderlyingTypeString": "func(key []byte) uint8",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZM
+
+text/plain?WALPartition returns the partition number that key belongs to.
+ä./WALPartitionø
+*WALPartition/hhvar"tsdb/engine/b1/b1.go(ªz0Ãz@RÒ{
+        "PkgName": "b1",
+        "TypeString": "hash.Hash64",
+        "UnderlyingTypeString": "interface{Sum64() uint64; hash.Hash}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./WALPartition/h¢
+*WALPartition/keykeyvar"tsdb/engine/b1/b1.go(¶z0∞z@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./WALPartition/key∫
+*WALPartitionNWALPartitionNconst"tsdb/engine/b1/b1.go(øy0–y8Ré{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZP
+
+text/plainBWALPartitionN is the number of partitions in the write ahead log.
+ä./WALPartitionN≤
+*
+byteSlices
+byteSlicestype"tsdb/engine/b1/b1.go(Íá0˝áRõ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.byteSlices",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZE
+
+text/plain7byteSlices represents a sortable slice of byte slices.
+ä./byteSlicesÇ
+*byteSlices/LenLenfunc"tsdb/engine/b1/b1.go(ˇá0∏à8RØ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "byteSlices",
+        "TypeString": "func() int",
+        "UnderlyingTypeString": "func() int",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Len‘
+*byteSlices/Len/aavar"tsdb/engine/b1/b1.go(Öà0ëà@RÄ{
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.byteSlices",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Len/aü
+*byteSlices/LessLessfunc"tsdb/engine/b1/b1.go(πà0ãâ8R…{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "byteSlices",
+        "TypeString": "func(i int, j int) bool",
+        "UnderlyingTypeString": "func(i int, j int) bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Less÷
+*byteSlices/Less/aavar"tsdb/engine/b1/b1.go(øà0Àà@RÄ{
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.byteSlices",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Less/aû
+*byteSlices/Less/iivar"tsdb/engine/b1/b1.go(“à0⁄à@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Less/iû
+*byteSlices/Less/jjvar"tsdb/engine/b1/b1.go(“à0⁄à@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Less/jï
+*byteSlices/SwapSwapfunc"tsdb/engine/b1/b1.go(åâ0œâ8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "b1",
+        "Receiver": "byteSlices",
+        "TypeString": "func(i int, j int)",
+        "UnderlyingTypeString": "func(i int, j int)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Swap÷
+*byteSlices/Swap/aavar"tsdb/engine/b1/b1.go(íâ0ûâ@RÄ{
+        "PkgName": "b1",
+        "TypeString": "github.com/influxdb/influxdb/tsdb/engine/b1.byteSlices",
+        "UnderlyingTypeString": "[][]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Swap/aû
+*byteSlices/Swap/iivar"tsdb/engine/b1/b1.go(•â0≠â@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Swap/iû
+*byteSlices/Swap/jjvar"tsdb/engine/b1/b1.go(•â0≠â@R»{
+        "PkgName": "b1",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./byteSlices/Swap/jô
+*
+init$b1264initfunc"tsdb/engine/b1/b1.go(É0∫@Rœ{
+        "PkgName": "b1",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./init$b1264∑
+*marshalCacheEntrymarshalCacheEntryfunc"tsdb/engine/b1/b1.go(Ç0™ÑRØ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(timestamp int64, data []byte) []byte",
+        "UnderlyingTypeString": "func(timestamp int64, data []byte) []byte",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z†
+
+text/plainëmarshalCacheEntry encodes the timestamp and data to a single byte slice.
+
+The format of the byte slice is:
+
+    uint64 timestamp
+    []byte data
+ä./marshalCacheEntryÆ
+*marshalCacheEntry/bufbufvar"tsdb/engine/b1/b1.go(ØÉ0“É@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalCacheEntry/buf±
+*marshalCacheEntry/datadatavar"tsdb/engine/b1/b1.go(òÉ0£É@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalCacheEntry/dataæ
+*marshalCacheEntry/timestamp	timestampvar"tsdb/engine/b1/b1.go(áÉ0ñÉ@RÃ{
+        "PkgName": "b1",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalCacheEntry/timestamp‡
+*marshalWALEntrymarshalWALEntryfunc"tsdb/engine/b1/b1.go( |0Í~R«{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(key []byte, timestamp int64, data []byte) []byte",
+        "UnderlyingTypeString": "func(key []byte, timestamp int64, data []byte) []byte",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Zπ
+
+text/plain™marshalWALEntry encodes point data into a single byte slice.
+
+The format of the byte slice is:
+
+    uint64 timestamp
+    uint32 key length
+    []byte key
+    []byte data
+ä./marshalWALEntry´
+*marshalWALEntry/datadatavar"tsdb/engine/b1/b1.go(¸|0á}@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalWALEntry/data®
+*marshalWALEntry/keykeyvar"tsdb/engine/b1/b1.go(ﬂ|0È|@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalWALEntry/key∏
+*marshalWALEntry/timestamp	timestampvar"tsdb/engine/b1/b1.go(Î|0˙|@RÃ{
+        "PkgName": "b1",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalWALEntry/timestamp¢
+*marshalWALEntry/vvvar"tsdb/engine/b1/b1.go(ì}0¡}@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./marshalWALEntry/v¶
+*topLevelBucketNtopLevelBucketNconst"tsdb/engine/b1/b1.go(â0úRÙ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZR
+
+text/plainDtopLevelBucketN is the number of non-series buckets in the bolt db.
+ä./topLevelBucketNä
+*u64tobu64tobfunc"tsdb/engine/b1/b1.go(«Ü0©áRá{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(v uint64) []byte",
+        "UnderlyingTypeString": "func(v uint64) []byte",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z=
+
+text/plain/u64tob converts a uint64 into an 8-byte slice.
+ä./u64tobí
+
+*u64tob/bbvar"tsdb/engine/b1/b1.go(ÁÜ0˚Ü@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä
+./u64tob/bí
+
+*u64tob/vvvar"tsdb/engine/b1/b1.go(”Ü0€Ü@RŒ{
+        "PkgName": "b1",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä
+./u64tob/vÖ
+*unmarshalCacheEntryunmarshalCacheEntryfunc"tsdb/engine/b1/b1.go(˛Ñ0ìÜRª{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(buf []byte) (timestamp int64, data []byte)",
+        "UnderlyingTypeString": "func(buf []byte) (timestamp int64, data []byte)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }Z]
+
+text/plainOunmarshalCacheEntry returns the timestamp and data from an encoded byte slice.
+ä./unmarshalCacheEntry≤
+*unmarshalCacheEntry/bufbufvar"tsdb/engine/b1/b1.go(óÖ0°Ö@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalCacheEntry/bufµ
+*unmarshalCacheEntry/datadatavar"tsdb/engine/b1/b1.go(µÖ0¿Ö@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalCacheEntry/data¬
+*unmarshalCacheEntry/timestamp	timestampvar"tsdb/engine/b1/b1.go(§Ö0≥Ö@RÃ{
+        "PkgName": "b1",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalCacheEntry/timestamp∂
+*unmarshalWALEntryunmarshalWALEntryfunc"tsdb/engine/b1/b1.go(‰0 ÅRœ{
+        "PkgScope": true,
+        "PkgName": "b1",
+        "TypeString": "func(v []byte) (key []byte, timestamp int64, data []byte)",
+        "UnderlyingTypeString": "func(v []byte) (key []byte, timestamp int64, data []byte)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ZÄ
+
+text/plainrunmarshalWALEntry decodes a WAL entry into it's separate parts.
+Returned byte slices point to the original slice.
+ä./unmarshalWALEntry±
+*unmarshalWALEntry/datadatavar"tsdb/engine/b1/b1.go(£Ä0ÆÄ@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalWALEntry/dataÆ
+*unmarshalWALEntry/keykeyvar"tsdb/engine/b1/b1.go(ÜÄ0êÄ@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalWALEntry/key∑
+*unmarshalWALEntry/keyLenkeyLenvar"tsdb/engine/b1/b1.go(≥Ä0›Ä@RŒ{
+        "PkgName": "b1",
+        "TypeString": "uint32",
+        "UnderlyingTypeString": "uint32",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalWALEntry/keyLenæ
+*unmarshalWALEntry/timestamp	timestampvar"tsdb/engine/b1/b1.go(íÄ0°Ä@RÃ{
+        "PkgName": "b1",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalWALEntry/timestampß
+*unmarshalWALEntry/vvvar"tsdb/engine/b1/b1.go(˚0ÉÄ@RŒ{
+        "PkgName": "b1",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/engine/b1"
+      }ä./unmarshalWALEntry/v

@@ -1,0 +1,1485 @@
+÷
+!*$service_test/$service_test12/bbvar"!services/collectd/service_test.go(∑/0˜=@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä!./$service_test/$service_test12/bÓ
+#*!$service_test/$service_test12/errerrvar"!services/collectd/service_test.go(∑/0˜=@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä#./$service_test/$service_test12/err›
+#*!$service_test/$service_test3/namenamevar"!services/collectd/service_test.go(≠)0∏)@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä#./$service_test/$service_test3/name˘
+*.collectdpackage"services/collectd8R≈{
+        "Exported": true,
+        "PkgName": "collectd",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä.Ω
+*ConfigConfigtype"services/collectd/config.go(¸0ı8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; RetentionPolicy string \"toml:\\\"retention-policy\\\"\"; BatchSize int \"toml:\\\"batch-size\\\"\"; BatchDuration github.com/influxdb/influxdb/toml.Duration \"toml:\\\"batch-timeout\\\"\"; TypesDB string \"toml:\\\"typesdb\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZJ
+
+text/plain<Config represents a configuration for the collectd service.
+ä./Config¬
+*Config/BatchDurationBatchDurationfield"services/collectd/config.go(è0√8R”{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/BatchDurationç
+*Config/BatchSize	BatchSizefield"services/collectd/config.go(‹0ç8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/BatchSizeô
+*Config/BindAddressBindAddressfield"services/collectd/config.go(Ω08R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/BindAddressê
+*Config/DatabaseDatabasefield"services/collectd/config.go(Ú0°8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/Databaseâ
+*Config/EnabledEnabledfield"services/collectd/config.go(ç0ª8R¨{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/Enabled•
+*Config/RetentionPolicyRetentionPolicyfield"services/collectd/config.go(£0⁄8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/RetentionPolicyç
+*Config/TypesDBTypesDBfield"services/collectd/config.go(≈0Û8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Config",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Config/TypesDB¶
+*DefaultBatchDurationDefaultBatchDurationconst"services/collectd/config.go(Ã0Ç8R∞{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./DefaultBatchDurationÅ
+*DefaultBatchSizeDefaultBatchSizeconst"services/collectd/config.go(≤0…8Ró{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./DefaultBatchSizeã
+*DefaultBindAddressDefaultBindAddressconst"services/collectd/config.go(U0r8Rù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./DefaultBindAddressÉ
+*DefaultDatabaseDefaultDatabaseconst"services/collectd/config.go(u0ë8Rù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./DefaultDatabaseô
+*DefaultRetentionPolicyDefaultRetentionPolicyconst"services/collectd/config.go(î0Ø8Rù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./DefaultRetentionPolicyÅ
+*DefaultTypesDBDefaultTypesDBconst"services/collectd/config.go(Ö0¥8Rù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./DefaultTypesDBñ
+*	NewConfig	NewConfigfunc"services/collectd/config.go(¥0…8R¯{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func() github.com/influxdb/influxdb/services/collectd.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/collectd.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZH
+
+text/plain:NewConfig returns a new instance of Config with defaults.
+ä./NewConfigç
+*
+NewService
+NewServicefunc"services/collectd/service.go(≥0›	8RÍ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(c github.com/influxdb/influxdb/services/collectd.Config) *github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/collectd.Config) *github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZI
+
+text/plain;NewService returns a new instance of the collectd service.
+ä./NewService√
+*NewService/ccvar"services/collectd/service.go(√0À@RÒ{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; RetentionPolicy string \"toml:\\\"retention-policy\\\"\"; BatchSize int \"toml:\\\"batch-size\\\"\"; BatchDuration github.com/influxdb/influxdb/toml.Duration \"toml:\\\"batch-timeout\\\"\"; TypesDB string \"toml:\\\"typesdb\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./NewService/cã
+*NewService/ssvar"services/collectd/service.go(Ÿ0–	@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./NewService/s™
+	*ServiceServicetype"services/collectd/service.go(ﬁ0Û8Rÿ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "struct{Config *github.com/influxdb/influxdb/services/collectd.Config; MetaStore github.com/influxdb/influxdb/services/collectd.metaStore; PointsWriter github.com/influxdb/influxdb/services/collectd.pointsWriter; Logger *log.Logger; wg sync.WaitGroup; err chan error; stop chan struct{}; ln *net.UDPConn; batcher *github.com/influxdb/influxdb/tsdb.PointBatcher; typesdb github.com/kimor79/gollectd.Types; addr net.Addr}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZÄ
+
+text/plainrService represents a UDP server which receives metrics in collectd's binary
+protocol and stores them in InfluxDB.
+ä	./ServiceÓ
+*Service/AddrAddrfunc"services/collectd/service.go(¡0ˇ8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func() net.Addr",
+        "UnderlyingTypeString": "func() net.Addr",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZV
+
+text/plainHAddr returns the listener's address. Returns nil if listener is closed.
+ä./Service/Addrè
+*Service/Addr/ssvar"services/collectd/service.go(«0—@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Addr/sº
+*Service/CloseClosefunc"services/collectd/service.go(˘0Â8R∫{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }Z'
+
+text/plainClose stops the service.
+ä./Service/Closeë
+*Service/Close/ssvar"services/collectd/service.go(ˇ0â@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Close/sÓ
+*Service/ConfigConfigfield"services/collectd/service.go(0Ñ8Rë{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Config",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/ConfigÈ
+*Service/ErrErrfunc"services/collectd/service.go(¡0Ù8Rƒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func() chan error",
+        "UnderlyingTypeString": "func() chan error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZP
+
+text/plainBErr returns a channel for fatal errors that occur on go routines.
+ä./Service/Errç
+*Service/Err/ssvar"services/collectd/service.go(«0—@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Err/sú
+*Service/LoggerLoggerfield"services/collectd/service.go(π0—8Rø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "testService",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Logger”
+*Service/MetaStore	MetaStorefield"services/collectd/service.go(Ü0ú8RÌ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.metaStore",
+        "UnderlyingTypeString": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/MetaStoreπ
+*Service/OpenOpenfunc"services/collectd/service.go(˚	0€8R∫{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }Z'
+
+text/plainOpen starts the service.
+ä./Service/OpenŸ
+*Service/Open/$service1/errerrvar"services/collectd/service.go(¬0ı@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Open/$service1/errŸ
+*Service/Open/$service2/errerrvar"services/collectd/service.go(·0£@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Open/$service2/errÌ
+&*$Service/Open/$service3/$service0/errerrvar"services/collectd/service.go(⁄0ê@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä&./Service/Open/$service3/$service0/err™
+**(Service/Open/$service3/$service0/typesdbtypesdbvar"services/collectd/service.go(⁄0ê@Rö{
+        "PkgName": "collectd",
+        "TypeString": "github.com/kimor79/gollectd.Types",
+        "UnderlyingTypeString": "map[string][]*github.com/kimor79/gollectd.Type",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä*./Service/Open/$service3/$service0/typesdb¬
+*Service/Open/addraddrvar"services/collectd/service.go(É0ø@R„{
+        "PkgName": "collectd",
+        "TypeString": "*net.UDPAddr",
+        "UnderlyingTypeString": "*net.UDPAddr",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Open/addr≈
+*Service/Open/errerrvar"services/collectd/service.go(É0ø@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Open/errº
+*Service/Open/lnlnvar"services/collectd/service.go(∑0‹@R„{
+        "PkgName": "collectd",
+        "TypeString": "*net.UDPConn",
+        "UnderlyingTypeString": "*net.UDPConn",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Open/lnè
+*Service/Open/ssvar"services/collectd/service.go(Å
+0ã
+@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/Open/sß
+*Service/PointsWriterPointsWriterfield"services/collectd/service.go(û0∑8R∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.pointsWriter",
+        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/PointsWriter˘
+*Service/SetLogger	SetLoggerfunc"services/collectd/service.go(¶0‚8R»{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLogger¡
+*Service/SetLogger/llvar"services/collectd/service.go(¬0œ@R·{
+        "PkgName": "collectd",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/SetLogger/lô
+*Service/SetLogger/ssvar"services/collectd/service.go(¨0∂@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/SetLogger/sÒ
+*Service/SetTypesSetTypesfunc"services/collectd/service.go(à0˙8Rﬁ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func(types string) (err error)",
+        "UnderlyingTypeString": "func(types string) (err error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }Z/
+
+text/plain!SetTypes sets collectd types db.
+ä./Service/SetTypesÕ
+*Service/SetTypes/errerrvar"services/collectd/service.go(≤0ª@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/SetTypes/erró
+*Service/SetTypes/ssvar"services/collectd/service.go(é0ò@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/SetTypes/s¡
+*Service/SetTypes/typestypesvar"services/collectd/service.go(£0Ø@R◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/SetTypes/typesî
+*Service/addraddrfield"services/collectd/service.go(·0ÒRø{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "net.Addr",
+        "UnderlyingTypeString": "interface{Network() string; String() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/addr«
+*Service/batcherbatcherfield"services/collectd/service.go(≠0«RÈ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.PointBatcher",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.PointBatcher",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/batcherÒ
+*Service/errerrfield"services/collectd/service.go(Ï0˛Rü{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan error",
+        "UnderlyingTypeString": "chan error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/errù
+*Service/handleMessagehandleMessagefunc"services/collectd/service.go(ˆ$0™'RÆ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func(buffer []byte)",
+        "UnderlyingTypeString": "func(buffer []byte)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/handleMessage±
+7*5Service/handleMessage/$service1/$service0/$service0/ppvar"services/collectd/service.go(ˆ$0™'@Rç{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä7./Service/handleMessage/$service1/$service0/$service0/pº
+2*0Service/handleMessage/$service1/$service0/pointspointsvar"services/collectd/service.go(—&0Ì&@Rù{
+        "PkgName": "collectd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä2./Service/handleMessage/$service1/$service0/points√
+(*&Service/handleMessage/$service1/packetpacketvar"services/collectd/service.go(ˆ$0™'@R∏{
+        "PkgName": "collectd",
+        "TypeString": "github.com/kimor79/gollectd.Packet",
+        "UnderlyingTypeString": "struct{Hostname string; Interval uint64; IntervalHR uint64; Plugin string; PluginInstance string; Time uint64; TimeHR uint64; Type string; TypeInstance string; Values []github.com/kimor79/gollectd.Value}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä(./Service/handleMessage/$service1/packetŒ
+*Service/handleMessage/bufferbuffervar"services/collectd/service.go(ñ%0£%@R◊{
+        "PkgName": "collectd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/handleMessage/buffer◊
+*Service/handleMessage/errerrvar"services/collectd/service.go(®%0€%@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/handleMessage/errè
+*Service/handleMessage/packetspacketsvar"services/collectd/service.go(®%0€%@Rï{
+        "PkgName": "collectd",
+        "TypeString": "*[]github.com/kimor79/gollectd.Packet",
+        "UnderlyingTypeString": "*[]github.com/kimor79/gollectd.Packet",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/handleMessage/packets°
+*Service/handleMessage/ssvar"services/collectd/service.go(¸$0Ü%@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/handleMessage/sÚ
+*
+Service/lnlnfield"services/collectd/service.go(ó0´R£{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "*net.UDPConn",
+        "UnderlyingTypeString": "*net.UDPConn",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/lnÎ
+*Service/serveservefunc"services/collectd/service.go(Å0Ù$Rî{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/serveÔ
+'*%Service/serve/$service0/$service0/errerrvar"services/collectd/service.go(æ#0„#@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä'./Service/serve/$service0/$service0/err—
+%*#Service/serve/$service0/$service0/nnvar"services/collectd/service.go(æ#0„#@R—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä%./Service/serve/$service0/$service0/næ
+*Service/serve/bufferbuffervar"services/collectd/service.go(û"0∫"@R◊{
+        "PkgName": "collectd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/serve/bufferë
+*Service/serve/ssvar"services/collectd/service.go(á0ë@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/serve/s˙
+*Service/stopstopfield"services/collectd/service.go(Ä0ïR•{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/stop∏
+*Service/typesdbtypesdbfield"services/collectd/service.go(…0ﬂR⁄{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "github.com/kimor79/gollectd.Types",
+        "UnderlyingTypeString": "map[string][]*github.com/kimor79/gollectd.Type",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/typesdb®
+*
+Service/wgwgfield"services/collectd/service.go(‘0ÍRŸ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "Service",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/wg˝
+*Service/writePointswritePointsfunc"services/collectd/service.go(¨'0í+Rî{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/writePoints∑
+K*IService/writePoints/$service0/$service0/$service0/$service0/$service0/errerrvar"services/collectd/service.go(ç*0≥*@RÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äK./Service/writePoints/$service0/$service0/$service0/$service0/$service0/err›
+C*AService/writePoints/$service0/$service0/$service0/$service0/batchbatchvar"services/collectd/service.go(ñ(0∞(@Rù{
+        "PkgName": "collectd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äC./Service/writePoints/$service0/$service0/$service0/$service0/batchı
+A*?Service/writePoints/$service0/$service0/$service0/$service0/reqreqvar"services/collectd/service.go(µ(0Ü*@Rª{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äA./Service/writePoints/$service0/$service0/$service0/$service0/reqù
+*Service/writePoints/ssvar"services/collectd/service.go(≤'0º'@Rπ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Service/writePoints/sç
+*TestService_BatchDurationTestService_BatchDurationfunc"!services/collectd/service_test.go(ø0ä"8HR§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }Z[
+
+text/plainMTest that the collectd service correctly batches points using BatchDuration.
+ä./TestService_BatchDurationı
+/*-TestService_BatchDuration/$service_test0/namenamevar"!services/collectd/service_test.go(ß0≤@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä/./TestService_BatchDuration/$service_test0/name¿
+;*9TestService_BatchDuration/$service_test1/$service_test0/ppvar"!services/collectd/service_test.go(Â0ˆ@HRç{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä;./TestService_BatchDuration/$service_test1/$service_test0/p÷
+.*,TestService_BatchDuration/$service_test1/reqreqvar"!services/collectd/service_test.go(â0®@HRª{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä../TestService_BatchDuration/$service_test1/reqÑ
+.*,TestService_BatchDuration/$service_test2/errerrvar"!services/collectd/service_test.go(¸0ã@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä../TestService_BatchDuration/$service_test2/errÑ
+.*,TestService_BatchDuration/$service_test5/errerrvar"!services/collectd/service_test.go(Ω0€@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä../TestService_BatchDuration/$service_test5/errÊ
+,**TestService_BatchDuration/$service_test5/nnvar"!services/collectd/service_test.go(Ω0€@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä,./TestService_BatchDuration/$service_test5/nﬁ
+J*HTestService_BatchDuration/$service_test6/$service_test0/$service_test0/ppvar"!services/collectd/service_test.go(è0ù@HRç{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äJ./TestService_BatchDuration/$service_test6/$service_test0/$service_test0/pê
+=*;TestService_BatchDuration/$service_test8/$service_test0/gotgotvar"!services/collectd/service_test.go(¢!0ª!@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä=./TestService_BatchDuration/$service_test8/$service_test0/gotÚ
+.*,TestService_BatchDuration/$service_test8/expexpvar"!services/collectd/service_test.go(ø0ä"@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä../TestService_BatchDuration/$service_test8/expÊ
+,**TestService_BatchDuration/$service_test8/iivar"!services/collectd/service_test.go(ø0ä"@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä,./TestService_BatchDuration/$service_test8/iˇ
+ *TestService_BatchDuration/addraddrvar"!services/collectd/service_test.go(∞0¿@HRˇ{
+        "PkgName": "collectd",
+        "TypeString": "net.Addr",
+        "UnderlyingTypeString": "interface{Network() string; String() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./TestService_BatchDuration/addr»
+ *TestService_BatchDuration/connconnvar"!services/collectd/service_test.go(¬0Ì@HR»{
+        "PkgName": "collectd",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./TestService_BatchDuration/connÊ
+*TestService_BatchDuration/errerrvar"!services/collectd/service_test.go(¬0Ì@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./TestService_BatchDuration/err¨
+#*!TestService_BatchDuration/pointChpointChvar"!services/collectd/service_test.go(–0ˆ@HR£{
+        "PkgName": "collectd",
+        "TypeString": "chan github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "chan github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä#./TestService_BatchDuration/pointCh£
+"* TestService_BatchDuration/pointspointsvar"!services/collectd/service_test.go(◊0Ô@HRù{
+        "PkgName": "collectd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä"./TestService_BatchDuration/points∏
+*TestService_BatchDuration/ssvar"!services/collectd/service_test.go(û0Õ@HR¡{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./TestService_BatchDuration/s÷
+*TestService_BatchDuration/ttvar"!services/collectd/service_test.go(ﬁ0Í@HRﬂ{
+        "PkgName": "collectd",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./TestService_BatchDuration/tÊ
+'*%TestService_BatchDuration/totalPointstotalPointsvar"!services/collectd/service_test.go(˛0õ@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä'./TestService_BatchDuration/totalPoints˙
+*TestService_BatchSizeTestService_BatchSizefunc"!services/collectd/service_test.go(»0Ì8HR§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZT
+
+text/plainFTest that the collectd service correctly batches points by BatchSize.
+ä./TestService_BatchSize«
+X*VTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test0/namenamevar"!services/collectd/service_test.go(≤
+0Ω
+@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äX./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test0/nameí
+d*bTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test1/$service_test1/ppvar"!services/collectd/service_test.go(Ú
+0Ç@HRç{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äd./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test1/$service_test1/p®
+W*UTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test1/reqreqvar"!services/collectd/service_test.go(ñ0µ@HRª{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äW./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test1/req÷
+W*UTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test2/errerrvar"!services/collectd/service_test.go(ä0ô@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äW./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test2/err÷
+W*UTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test5/errerrvar"!services/collectd/service_test.go(·0ˇ@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äW./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test5/err∏
+U*STestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test5/nnvar"!services/collectd/service_test.go(·0ˇ@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äU./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test5/n∞
+s*qTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test6/$service_test0/$service_test0/ppvar"!services/collectd/service_test.go(≈0”@HRç{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äs./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test6/$service_test0/$service_test0/p‚
+f*dTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test8/$service_test0/gotgotvar"!services/collectd/service_test.go(Ù0ç@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äf./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test8/$service_test0/gotƒ
+W*UTestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test8/expexpvar"!services/collectd/service_test.go(»0Ì@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äW./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test8/exp∏
+U*STestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test8/iivar"!services/collectd/service_test.go(»0Ì@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äU./TestService_BatchSize/$service_test0/$service_test0/$service_test0/$service_test8/i—
+I*GTestService_BatchSize/$service_test0/$service_test0/$service_test0/addraddrvar"!services/collectd/service_test.go(»0ÿ@HRˇ{
+        "PkgName": "collectd",
+        "TypeString": "net.Addr",
+        "UnderlyingTypeString": "interface{Network() string; String() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äI./TestService_BatchSize/$service_test0/$service_test0/$service_test0/addrö
+I*GTestService_BatchSize/$service_test0/$service_test0/$service_test0/connconnvar"!services/collectd/service_test.go(‹0á@HR»{
+        "PkgName": "collectd",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äI./TestService_BatchSize/$service_test0/$service_test0/$service_test0/conn∏
+H*FTestService_BatchSize/$service_test0/$service_test0/$service_test0/errerrvar"!services/collectd/service_test.go(‹0á@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äH./TestService_BatchSize/$service_test0/$service_test0/$service_test0/err˛
+L*JTestService_BatchSize/$service_test0/$service_test0/$service_test0/pointChpointChvar"!services/collectd/service_test.go(ﬂ	0ˇ	@HR£{
+        "PkgName": "collectd",
+        "TypeString": "chan github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "chan github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äL./TestService_BatchSize/$service_test0/$service_test0/$service_test0/pointChı
+K*ITestService_BatchSize/$service_test0/$service_test0/$service_test0/pointspointsvar"!services/collectd/service_test.go(Ö0ù@HRù{
+        "PkgName": "collectd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äK./TestService_BatchSize/$service_test0/$service_test0/$service_test0/pointsä
+F*DTestService_BatchSize/$service_test0/$service_test0/$service_test0/ssvar"!services/collectd/service_test.go(Ø	0⁄	@HR¡{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }äF./TestService_BatchSize/$service_test0/$service_test0/$service_test0/sˆ
+0*.TestService_BatchSize/$service_test0/batchSize	batchSizevar"!services/collectd/service_test.go(»0Ì@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä0./TestService_BatchSize/$service_test0/batchSizeﬂ
+"* TestService_BatchSize/batchSizes
+batchSizesvar"!services/collectd/service_test.go(⁄0˜@HR’{
+        "PkgName": "collectd",
+        "TypeString": "[]int",
+        "UnderlyingTypeString": "[]int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä"./TestService_BatchSize/batchSizesŒ
+*TestService_BatchSize/ttvar"!services/collectd/service_test.go(„0Ô@HRﬂ{
+        "PkgName": "collectd",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./TestService_BatchSize/tﬁ
+#*!TestService_BatchSize/totalPointstotalPointsvar"!services/collectd/service_test.go(É0†@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä#./TestService_BatchSize/totalPointsç
+*TestService_CreatesDatabaseTestService_CreatesDatabasefunc"!services/collectd/service_test.go(»0˝8HR§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZU
+
+text/plainGTest that the service checks / creates the target database on startup.
+ä./TestService_CreatesDatabase˘
+1*/TestService_CreatesDatabase/$service_test0/namenamevar"!services/collectd/service_test.go(ç0ò@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä1./TestService_CreatesDatabase/$service_test0/nameá
+2*0TestService_CreatesDatabase/createDatabaseCalledcreateDatabaseCalledvar"!services/collectd/service_test.go(Ø0Ã@HR”{
+        "PkgName": "collectd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä2./TestService_CreatesDatabase/createDatabaseCalled√
+ *TestService_CreatesDatabase/msmsvar"!services/collectd/service_test.go(œ0Â@HR≈{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./TestService_CreatesDatabase/msº
+*TestService_CreatesDatabase/ssvar"!services/collectd/service_test.go(â0¨@HR¡{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./TestService_CreatesDatabase/s⁄
+*TestService_CreatesDatabase/ttvar"!services/collectd/service_test.go(È0ı@HRﬂ{
+        "PkgName": "collectd",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./TestService_CreatesDatabase/t€
+*	Unmarshal	Unmarshalfunc"services/collectd/service.go(Ÿ+0í68R¥{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(packet *github.com/kimor79/gollectd.Packet) []github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "func(packet *github.com/kimor79/gollectd.Packet) []github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZP
+
+text/plainBUnmarshal translates a collectd packet into InfluxDB data points.
+ä./Unmarshalÿ
+$*"Unmarshal/$service0/$service0/nsecnsecvar"services/collectd/service.go(ı.0∂/@R◊{
+        "PkgName": "collectd",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä$./Unmarshal/$service0/$service0/nsec’
+#*!Unmarshal/$service0/$service0/secsecvar"services/collectd/service.go(í.0¨.@R◊{
+        "PkgName": "collectd",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä#./Unmarshal/$service0/$service0/sec˛
+&*$Unmarshal/$service1/$service0/fieldsfieldsvar"services/collectd/service.go(¥20⁄2@R˜{
+        "PkgName": "collectd",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä&./Unmarshal/$service1/$service0/fieldsÿ
+$*"Unmarshal/$service1/$service0/namenamevar"services/collectd/service.go(Õ10è2@R◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä$./Unmarshal/$service1/$service0/nameÖ
+!*Unmarshal/$service1/$service0/ppvar"services/collectd/service.go(Ø50‡5@Rç{
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä!./Unmarshal/$service1/$service0/pÓ
+$*"Unmarshal/$service1/$service0/tagstagsvar"services/collectd/service.go(í20±2@RÌ{
+        "PkgName": "collectd",
+        "TypeString": "map[string]string",
+        "UnderlyingTypeString": "map[string]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä$./Unmarshal/$service1/$service0/tagsµ
+*Unmarshal/$service1/iivar"services/collectd/service.go(Ÿ+0í6@R—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Unmarshal/$service1/i
+*Unmarshal/packetpacketvar"services/collectd/service.go(Ë+0ˇ+@Rë{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/kimor79/gollectd.Packet",
+        "UnderlyingTypeString": "*github.com/kimor79/gollectd.Packet",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Unmarshal/packet¸
+*Unmarshal/pointspointsvar"services/collectd/service.go(ó10™1@Rù{
+        "PkgName": "collectd",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./Unmarshal/pointsü
+*Unmarshal/timestamp	timestampvar"services/collectd/service.go(ª,0Œ,@RÖ{
+        "PkgName": "collectd",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }Z0
+
+text/plain"Prefer high resolution timestamp.
+ä./Unmarshal/timestampˆ
+*assertassertfunc"services/collectd/service.go(È60Ï7R {
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(condition bool, msg string, v ...interface{})",
+        "UnderlyingTypeString": "func(condition bool, msg string, v ...interface{})",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }Z`
+
+text/plainRassert will panic with a given formatted message if the given condition is false.
+ä./assertµ
+*assert/condition	conditionvar"services/collectd/service.go(ı60É7@R”{
+        "PkgName": "collectd",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./assert/conditionß
+*
+assert/msgmsgvar"services/collectd/service.go(Ö70è7@R◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./assert/msgØ
+
+*assert/vvvar"services/collectd/service.go(ë70°7@RÂ{
+        "PkgName": "collectd",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä
+./assert/v“
+*checkcheckfunc"!services/collectd/service_test.go(£.0›.HRÑ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(err error)",
+        "UnderlyingTypeString": "func(err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./checkæ
+*	check/errerrvar"!services/collectd/service_test.go(Æ.0∑.@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./check/errŒ
+*	expPoints	expPointsvar"!services/collectd/service_test.go(ó>0´SHRı{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./expPointsÂ
+*leaderWaitTimeoutleaderWaitTimeoutconst"services/collectd/service.go(·0ÖR˘{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./leaderWaitTimeoutÃ
+*	metaStore	metaStoretype"services/collectd/service.go(ﬁ0ﬂRÆ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.metaStore",
+        "UnderlyingTypeString": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZI
+
+text/plain;metaStore is an internal interface to make testing easier.
+ä./metaStore–
+%*#metaStore/CreateDatabaseIfNotExistsCreateDatabaseIfNotExistsfunc"services/collectd/service.go(õ0›8R∑{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "metaStore",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä%./metaStore/CreateDatabaseIfNotExists‰
+**(metaStore/CreateDatabaseIfNotExists/namenamevar"services/collectd/service.go(µ0¿@R◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä*./metaStore/CreateDatabaseIfNotExists/nameŒ
+*metaStore/WaitForLeaderWaitForLeaderfunc"services/collectd/service.go(ı0ô8RŸ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "metaStore",
+        "TypeString": "func(d time.Duration) error",
+        "UnderlyingTypeString": "func(d time.Duration) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./metaStore/WaitForLeader…
+*metaStore/WaitForLeader/ddvar"services/collectd/service.go(É0í@R›{
+        "PkgName": "collectd",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./metaStore/WaitForLeader/dß
+*newTestServicenewTestServicefunc"!services/collectd/service_test.go(Ó"0®'HRæ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(batchSize int, batchDuration time.Duration) *github.com/influxdb/influxdb/services/collectd.testService",
+        "UnderlyingTypeString": "func(batchSize int, batchDuration time.Duration) *github.com/influxdb/influxdb/services/collectd.testService",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./newTestServiceÓ
+#*!newTestService/$service_test0/errerrvar"!services/collectd/service_test.go(ä&0®&@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä#./newTestService/$service_test0/err‚
+*newTestService/batchDurationbatchDurationvar"!services/collectd/service_test.go(ë#0¨#@HR›{
+        "PkgName": "collectd",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./newTestService/batchDuration 
+*newTestService/batchSize	batchSizevar"!services/collectd/service_test.go(Ç#0è#@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./newTestService/batchSize¢
+*newTestService/ssvar"!services/collectd/service_test.go(æ#0à%@HR¡{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testService",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./newTestService/s£
+*pointsWriterpointsWritertype"services/collectd/service.go(Õ0ôR˘{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.pointsWriter",
+        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZL
+
+text/plain>pointsWriter is an internal interface to make testing easier.
+ä./pointsWriterß
+*pointsWriter/WritePointsWritePointsfunc"services/collectd/service.go(Á0ó8R≤{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "pointsWriter",
+        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./pointsWriter/WritePoints©
+*pointsWriter/WritePoints/ppvar"services/collectd/service.go(Û0ê@Rª{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./pointsWriter/WritePoints/på
+
+*testDatatestDatavar"!services/collectd/service_test.go(õ/0ë>HRÒ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZC
+
+text/plain5Raw data sent by collectd, captured using Wireshark.
+ä
+./testDataˆ
+*testMetaStoretestMetaStoretype"!services/collectd/service_test.go(Ù(0ì*HRê{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "UnderlyingTypeString": "struct{CreateDatabaseIfNotExistsFn func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testMetaStore‰
+)*'testMetaStore/CreateDatabaseIfNotExistsCreateDatabaseIfNotExistsfunc"!services/collectd/service_test.go(ï*0°+8HRº{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*testMetaStore",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä)./testMetaStore/CreateDatabaseIfNotExists€
+,**testMetaStore/CreateDatabaseIfNotExists/msmsvar"!services/collectd/service_test.go(õ*0¨*@HR≈{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä,./testMetaStore/CreateDatabaseIfNotExists/msÛ
+.*,testMetaStore/CreateDatabaseIfNotExists/namenamevar"!services/collectd/service_test.go(»*0”*@HR◊{
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä../testMetaStore/CreateDatabaseIfNotExists/nameÓ
++*)testMetaStore/CreateDatabaseIfNotExistsFnCreateDatabaseIfNotExistsFnfield"!services/collectd/service_test.go(å)0’)8HRø{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "testMetaStore",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä+./testMetaStore/CreateDatabaseIfNotExistsFn‚
+*testMetaStore/WaitForLeaderWaitForLeaderfunc"!services/collectd/service_test.go(£+0+8HRﬁ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*testMetaStore",
+        "TypeString": "func(d time.Duration) error",
+        "UnderlyingTypeString": "func(d time.Duration) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testMetaStore/WaitForLeaderÿ
+*testMetaStore/WaitForLeader/ddvar"!services/collectd/service_test.go( +0Ÿ+@HR›{
+        "PkgName": "collectd",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testMetaStore/WaitForLeader/d√
+ *testMetaStore/WaitForLeader/msmsvar"!services/collectd/service_test.go(©+0∫+@HR≈{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./testMetaStore/WaitForLeader/msÓ
+*testPointsWritertestPointsWritertype"!services/collectd/service_test.go(Ø'0Å(HRˇ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.testPointsWriter",
+        "UnderlyingTypeString": "struct{WritePointsFn func(*github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testPointsWriterª
+*testPointsWriter/WritePointsWritePointsfunc"!services/collectd/service_test.go(É(0Ì(8HR∑{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "Receiver": "*testPointsWriter",
+        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testPointsWriter/WritePoints∏
+ *testPointsWriter/WritePoints/ppvar"!services/collectd/service_test.go(™(0«(@HRª{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./testPointsWriter/WritePoints/p»
+ *testPointsWriter/WritePoints/wwvar"!services/collectd/service_test.go(â(0ú(@HRÀ{
+        "PkgName": "collectd",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.testPointsWriter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.testPointsWriter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./testPointsWriter/WritePoints/w¡
+ *testPointsWriter/WritePointsFnWritePointsFnfield"!services/collectd/service_test.go( '0ˇ'8HR∂{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "testPointsWriter",
+        "TypeString": "func(*github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(*github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä ./testPointsWriter/WritePointsFn’
+*testServicetestServicetype"!services/collectd/service_test.go(ë"0Ï"HRı{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.testService",
+        "UnderlyingTypeString": "struct{*github.com/influxdb/influxdb/services/collectd.Service; MetaStore github.com/influxdb/influxdb/services/collectd.testMetaStore; PointsWriter github.com/influxdb/influxdb/services/collectd.testPointsWriter}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testService»
+*testService/MetaStore	MetaStorefield"!services/collectd/service_test.go(±"0À"8HR”{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "testService",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.testMetaStore",
+        "UnderlyingTypeString": "struct{CreateDatabaseIfNotExistsFn func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testService/MetaStore¿
+*testService/PointsWriterPointsWriterfield"!services/collectd/service_test.go(Õ"0Í"8HR¬{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "testService",
+        "TypeString": "github.com/influxdb/influxdb/services/collectd.testPointsWriter",
+        "UnderlyingTypeString": "struct{WritePointsFn func(*github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testService/PointsWriterÜ
+*testService/ServiceServicefield"!services/collectd/service_test.go(ß"0Ø"8HRó{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "FieldOfStruct": "testService",
+        "TypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/collectd.Service",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./testService/Serviceú
+*typesDBTexttypesDBTextvar"!services/collectd/service_test.go(ÔS0ÄåHRÒ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ZI
+
+text/plain;Taken from /usr/share/collectd/types.db on a Ubuntu system
+ä./typesDBTextï
+*waitwaitfunc"!services/collectd/service_test.go(Ú+0Ñ-HR {
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(c chan struct{}, d time.Duration) (err error)",
+        "UnderlyingTypeString": "func(c chan struct{}, d time.Duration) (err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./wait≤
+*wait/ccvar"!services/collectd/service_test.go(¸+0ã,@HRÂ{
+        "PkgName": "collectd",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./wait/c™
+*wait/ddvar"!services/collectd/service_test.go(ç,0ú,@HR›{
+        "PkgName": "collectd",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./wait/dº
+
+*wait/errerrvar"!services/collectd/service_test.go(ü,0®,@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä
+./wait/err¢
+	*waitIntwaitIntfunc"!services/collectd/service_test.go(Ü-0°.HRŒ{
+        "PkgScope": true,
+        "PkgName": "collectd",
+        "TypeString": "func(c chan int, d time.Duration) (i int, err error)",
+        "UnderlyingTypeString": "func(c chan int, d time.Duration) (i int, err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä	./waitIntÆ
+*	waitInt/ccvar"!services/collectd/service_test.go(ì-0ù-@HR€{
+        "PkgName": "collectd",
+        "TypeString": "chan int",
+        "UnderlyingTypeString": "chan int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./waitInt/c∞
+*	waitInt/ddvar"!services/collectd/service_test.go(ü-0Æ-@HR›{
+        "PkgName": "collectd",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./waitInt/d¬
+*waitInt/errerrvar"!services/collectd/service_test.go(∏-0¡-@HRÈ{
+        "PkgName": "collectd",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./waitInt/err§
+*	waitInt/iivar"!services/collectd/service_test.go(±-0∂-@HR—{
+        "PkgName": "collectd",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/collectd"
+      }ä./waitInt/i

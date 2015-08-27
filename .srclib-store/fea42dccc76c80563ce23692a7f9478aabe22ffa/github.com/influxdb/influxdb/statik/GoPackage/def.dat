@@ -1,0 +1,22 @@
+ß
+*.statikpackage"statik8R¸{
+        "Exported": true,
+        "PkgName": "statik",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/statik"
+      }Š.—
+*init$statik64initfunc"statik/statik.go(;0Çô7@RË{
+        "PkgName": "statik",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/statik"
+      }Š./init$statik64Ÿ
+*init$statik64/datadatavar"statik/statik.go(J0²ô7@RÊ{
+        "PkgName": "statik",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/statik"
+      }Š./init$statik64/data

@@ -1,0 +1,79 @@
+ï
+*.helppackage"cmd/influxd/help8RÀ{
+        "Exported": true,
+        "PkgName": "help",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Š.×
+	*CommandCommandtype"cmd/influxd/help/help.go(u0™8RÈ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "help",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influxd/help.Command",
+        "UnderlyingTypeString": "struct{Stdout io.Writer}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }ZC
+
+text/plain5Command displays help for command-line sub-commands.
+Š	./CommandÊ
+*Command/RunRunfunc"cmd/influxd/help/help.go(³0¤8RÑ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "help",
+        "Receiver": "*Command",
+        "TypeString": "func(args ...string) error",
+        "UnderlyingTypeString": "func(args ...string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Z(
+
+text/plainRun executes the command.
+Š./Command/Run¯
+*Command/Run/argsargsvar"cmd/influxd/help/help.go(Ë0Ù@RÖ{
+        "PkgName": "help",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Š./Command/Run/argsˆ
+*Command/Run/cmdcmdvar"cmd/influxd/help/help.go(¹0Å@R²{
+        "PkgName": "help",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influxd/help.Command",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influxd/help.Command",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Š./Command/Run/cmd¯
+*Command/StdoutStdoutfield"cmd/influxd/help/help.go(‡0—8RÖ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "help",
+        "FieldOfStruct": "Command",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Š./Command/Stdout‡
+*
+NewCommand
+NewCommandfunc"cmd/influxd/help/help.go(Ì0”8Rõ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "help",
+        "TypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/help.Command",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/cmd/influxd/help.Command",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Z<
+
+text/plain.NewCommand returns a new instance of Command.
+Š./NewCommandÂ
+*usageusageconst"cmd/influxd/help/help.go(¬0ÏRþ{
+        "PkgScope": true,
+        "PkgName": "help",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influxd/help"
+      }Š./usage

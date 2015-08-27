@@ -1,0 +1,17 @@
+!*.Rcmd/influxd/help/help.goX`<
+github.com/golang/go"fmt*.Rcmd/influxd/help/help.goX`;
+github.com/golang/go"io*.Rcmd/influxd/help/help.goX`#;
+github.com/golang/go"os*.Rcmd/influxd/help/help.goX%`)@
+github.com/golang/go"strings*.Rcmd/influxd/help/help.goX+`4**CommandRcmd/influxd/help/help.goXu`|à3*Command/StdoutRcmd/influxd/help/help.goXá`çà=
+github.com/golang/go"io*.Rcmd/influxd/help/help.goXé`êB
+github.com/golang/go"io*WriterRcmd/influxd/help/help.goXë`ó/*
+NewCommandRcmd/influxd/help/help.goX—`€à)*CommandRcmd/influxd/help/help.goXﬂ`Ê)*CommandRcmd/influxd/help/help.goXÚ`˘0*Command/StdoutRcmd/influxd/help/help.goX˝`É=
+github.com/golang/go"os*.Rcmd/influxd/help/help.goXÖ`áB
+github.com/golang/go"os*StdoutRcmd/influxd/help/help.goXà`é4*Command/Run/cmdRcmd/influxd/help/help.goXπ`ºà)*CommandRcmd/influxd/help/help.goXæ`≈0*Command/RunRcmd/influxd/help/help.goX«` à5*Command/Run/argsRcmd/influxd/help/help.goXÀ`œàG
+github.com/golang/go"builtin*stringRcmd/influxd/help/help.goX”`ŸF
+github.com/golang/go"builtin*errorRcmd/influxd/help/help.goX€`‡>
+github.com/golang/go"fmt*.Rcmd/influxd/help/help.goX‰`ÁE
+github.com/golang/go"fmt*FprintlnRcmd/influxd/help/help.goXË`1*Command/Run/cmdRcmd/influxd/help/help.goXÒ`Ù0*Command/StdoutRcmd/influxd/help/help.goXı`˚B
+github.com/golang/go"strings*.Rcmd/influxd/help/help.goX˝`ÑJ
+github.com/golang/go"strings*	TrimSpaceRcmd/influxd/help/help.goXÖ`é'*usageRcmd/influxd/help/help.goXè`îD
+github.com/golang/go"builtin*nilRcmd/influxd/help/help.goXü`¢**usageRcmd/influxd/help/help.goX¨`±à

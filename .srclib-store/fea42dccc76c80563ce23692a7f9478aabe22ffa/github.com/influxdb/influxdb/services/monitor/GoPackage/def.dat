@@ -1,0 +1,117 @@
+õ
+*.monitorpackage"services/monitor8RÃ{
+        "Exported": true,
+        "PkgName": "monitor",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š.Æ
+*ConfigConfigtype"services/monitor/config.go(¡0•8R¹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "TypeString": "github.com/influxdb/influxdb/services/monitor.Config",
+        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; WriteInterval github.com/influxdb/influxdb/toml.Duration \"toml:\\\"write-interval\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }ZA
+
+text/plain3Config represents a configuration for the monitor.
+Š./Config†
+*Config/EnabledEnabledfield"services/monitor/config.go(²0Þ8Rª{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Config/Enabled¿
+*Config/WriteIntervalWriteIntervalfield"services/monitor/config.go(à0“8RÑ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Config/WriteIntervalŽ
+ *DefaultStatisticsWriteIntervalDefaultStatisticsWriteIntervalconst"services/monitor/config.go(²0â8R‘{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Zh
+
+text/plainZDefaultStatisticsWriteInterval is the interval of time between internal stats are written
+Š ./DefaultStatisticsWriteIntervalÖ
+	*MonitorMonitortype"services/monitor/monitor.go(G0l8RÌ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "TypeString": "github.com/influxdb/influxdb/services/monitor.Monitor",
+        "UnderlyingTypeString": "struct{Store interface{}}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Z<
+
+text/plain.Monitor represents a TSDB monitoring service.
+Š	./Monitor
+*Monitor/CloseClosefunc"services/monitor/monitor.go(0Ë8R¸{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "Receiver": "*Monitor",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Monitor/CloseŒ
+*Monitor/Close/mmvar"services/monitor/monitor.go(£0­@Rµ{
+        "PkgName": "monitor",
+        "TypeString": "*github.com/influxdb/influxdb/services/monitor.Monitor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/monitor.Monitor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Monitor/Close/mŒ
+*Monitor/OpenOpenfunc"services/monitor/monitor.go(n0œ8R¸{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "Receiver": "*Monitor",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Monitor/Openˆ
+*Monitor/Open/mmvar"services/monitor/monitor.go(t0~@Rµ{
+        "PkgName": "monitor",
+        "TypeString": "*github.com/influxdb/influxdb/services/monitor.Monitor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/monitor.Monitor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Monitor/Open/m
+*Monitor/StoreStorefield"services/monitor/monitor.go(Y0j8R¹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "FieldOfStruct": "Monitor",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./Monitor/StoreÇ
+*	NewConfig	NewConfigfunc"services/monitor/config.go(—08Rô{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "monitor",
+        "TypeString": "func() github.com/influxdb/influxdb/services/monitor.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/monitor.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/monitor"
+      }Š./NewConfig

@@ -1,0 +1,2681 @@
+Ü
+)*'$service_test/$service_test16/chunkSize	chunkSizevar"+services/continuous_querier/service_test.go(ÔK0¸K@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä)./$service_test/$service_test16/chunkSizeâ
+(*&$service_test/$service_test16/databasedatabasevar"+services/continuous_querier/service_test.go(ﬁK0ÌK@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./$service_test/$service_test16/databaseÃ
+%*#$service_test/$service_test16/queryqueryvar"+services/continuous_querier/service_test.go(«K0‹K@HR∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./$service_test/$service_test16/queryÿ
+!*$service_test/$service_test19/ppvar"+services/continuous_querier/service_test.go(¥X0—X@HRœ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä!./$service_test/$service_test19/p°
+*.continuous_querierpackage"services/continuous_querier8RŸ{
+        "Exported": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä.™
+*ConfigConfigtype"%services/continuous_querier/config.go(œ0ù8RÅ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.Config",
+        "UnderlyingTypeString": "struct{LogEnabled bool \"toml:\\\"log-enabled\\\"\"; Enabled bool \"toml:\\\"enabled\\\"\"; RecomputePreviousN int \"toml:\\\"recompute-previous-n\\\"\"; RecomputeNoOlderThan github.com/influxdb/influxdb/toml.Duration \"toml:\\\"recompute-no-older-than\\\"\"; ComputeRunsPerInterval int \"toml:\\\"compute-runs-per-interval\\\"\"; ComputeNoMoreThan github.com/influxdb/influxdb/toml.Duration \"toml:\\\"compute-no-more-than\\\"\"}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZR
+
+text/plainDConfig represents a configuration for the continuous query service.
+ä./Config›
+*Config/ComputeNoMoreThanComputeNoMoreThanfield"%services/continuous_querier/config.go(ﬁ0õ8RÁ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZÓ
+
+text/plainﬂComputeNoMoreThan paired with the RunsPerInterval will determine the ceiling of how many times smaller
+group by times will be computed. For example, if you have RunsPerInterval set to 10 and this setting
+to 1m. Then for a group by time(1m) will actually only get computed once per interval (and once per PreviousN).
+If you have a group by time(5m) then you'll get five computes per interval. Any group by time window larger
+than 10m will get computed 10 times for each interval.
+ä./Config/ComputeNoMoreThanÓ
+*Config/ComputeRunsPerIntervalComputeRunsPerIntervalfield"%services/continuous_querier/config.go(´0Ë8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Config",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zô
+
+text/plainäComputeRunsPerInterval will determine how many times the current and previous N intervals
+will be computed. The group by time will be divided by this and it will get computed  this many times:
+group by time seconds / runs per interval
+This will give partial results for current group by intervals and will determine how long it will
+be until lagged data is recomputed. For example, if this number is 10 and the group by time is 10m, it
+will be a minute past the previous 10m bucket of time before lagged data is picked up
+ä./Config/ComputeRunsPerIntervalñ
+*Config/EnabledEnabledfield"%services/continuous_querier/config.go(Œ0Î8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zm
+
+text/plain_If this flag is set to false, both the brokers and data nodes should ignore any CQ processing.
+ä./Config/Enabled†
+*Config/LogEnabled
+LogEnabledfield"%services/continuous_querier/config.go(ƒ0Ë8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Config",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zn
+
+text/plain`Enables logging in CQ service to display when CQ's are processed and how many points are wrote.
+ä./Config/LogEnabledÅ
+*Config/RecomputeNoOlderThanRecomputeNoOlderThanfield"%services/continuous_querier/config.go(√
+0Ü8RÁ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Config",
+        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zâ
+
+text/plain˙The RecomputePreviousN setting provides guidance for how far back to recompute, the RecomputeNoOlderThan
+setting sets a ceiling on how far back in time it will go. For example, if you have 2 PreviousN
+and have this set to 10m, then we'd only compute the previous two intervals for any
+CQs that have a group by time <= 5m. For all others, we'd only recompute the previous window
+ä./Config/RecomputeNoOlderThan‹
+*Config/RecomputePreviousNRecomputePreviousNfield"%services/continuous_querier/config.go(Ç0∂8Ræ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Config",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zì
+
+text/plainÑwhen continuous queries are run we'll automatically recompute previous intervals
+in case lagged data came in. Set to zero if you never have lagged data. We do
+it this way because invalidating previously computed intervals would be insanely hard
+and expensive.
+ä./Config/RecomputePreviousN‡
+*ContinuousQuerierContinuousQueriertype"&services/continuous_querier/service.go(€0˘8Rê{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuerier",
+        "UnderlyingTypeString": "interface{Run(database string, name string) error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZW
+
+text/plainIContinuousQuerier represents a service that executes continuous queries.
+ä./ContinuousQuerierÈ
+*ContinuousQuerier/RunRunfunc"&services/continuous_querier/service.go(◊0˜8Rè{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "ContinuousQuerier",
+        "TypeString": "func(database string, name string) error",
+        "UnderlyingTypeString": "func(database string, name string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zg
+
+text/plainYRun executes the named query in the named database.  Blank database or name matches all.
+ä./ContinuousQuerier/RunÚ
+ *ContinuousQuerier/Run/databasedatabasevar"&services/continuous_querier/service.go(€0@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä ./ContinuousQuerier/Run/databaseÊ
+*ContinuousQuerier/Run/namenamevar"&services/continuous_querier/service.go(€0@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuerier/Run/name≈
+*ContinuousQueryContinuousQuerytype"&services/continuous_querier/service.go(°M0®N8R˝{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "struct{Database string; Info *github.com/influxdb/influxdb/meta.ContinuousQueryInfo; LastRun time.Time; q *github.com/influxdb/influxdb/influxql.SelectStatement}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZU
+
+text/plainGContinuousQuery is a local wrapper / helper around continuous queries.
+ä./ContinuousQuery 
+*ContinuousQuery/DatabaseDatabasefield"&services/continuous_querier/service.go(ªM0 M8RÕ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "ContinuousQuery",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/Databaseû
+*ContinuousQuery/InfoInfofield"&services/continuous_querier/service.go(ÃM0ÓM8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "ContinuousQuery",
+        "TypeString": "*github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/Infoı
+*ContinuousQuery/LastRunLastRunfield"&services/continuous_querier/service.go(M0ÇN8R˚{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "ContinuousQuery",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/LastRun≤
+*ContinuousQuery/intoDBintoDBfunc"&services/continuous_querier/service.go(™N0âORæ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*ContinuousQuery",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/intoDBË
+*ContinuousQuery/intoDB/cqcqvar"&services/continuous_querier/service.go(∞N0√N@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/intoDB/cqÕ
+!*ContinuousQuery/intoMeasurementintoMeasurementfunc"&services/continuous_querier/service.go(÷P0±QRæ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*ContinuousQuery",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä!./ContinuousQuery/intoMeasurement˙
+$*"ContinuousQuery/intoMeasurement/cqcqvar"&services/continuous_querier/service.go(‹P0ÔP@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./ContinuousQuery/intoMeasurement/cq≤
+*ContinuousQuery/intoRPintoRPfunc"&services/continuous_querier/service.go(äO0ORæ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*ContinuousQuery",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/intoRPË
+*ContinuousQuery/intoRP/cqcqvar"&services/continuous_querier/service.go(êO0£O@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/intoRP/cq˘
+*ContinuousQuery/qqfield"&services/continuous_querier/service.go(ÑN0¶NRì{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "ContinuousQuery",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.SelectStatement",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.SelectStatement",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/qø
+*ContinuousQuery/setIntoRP	setIntoRPfunc"&services/continuous_querier/service.go(ÒO0’PR¬{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*ContinuousQuery",
+        "TypeString": "func(rp string)",
+        "UnderlyingTypeString": "func(rp string)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/setIntoRPÓ
+*ContinuousQuery/setIntoRP/cqcqvar"&services/continuous_querier/service.go(˜O0äP@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/setIntoRP/cqË
+*ContinuousQuery/setIntoRP/rprpvar"&services/continuous_querier/service.go(ñP0üP@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./ContinuousQuery/setIntoRP/rpÆ
+**(ContinuousQuery/shouldRunContinuousQueryshouldRunContinuousQueryfunc"&services/continuous_querier/service.go(éX0æ_R¶{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*ContinuousQuery",
+        "TypeString": "func(runsPerInterval int, noMoreThan time.Duration) (bool, error)",
+        "UnderlyingTypeString": "func(runsPerInterval int, noMoreThan time.Duration) (bool, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z€
+
+text/plainÃshouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
+lastRunTime of the CQ and the rules for when to run set through the config to determine
+if this CQ should be run
+ä*./ContinuousQuery/shouldRunContinuousQuery™
+7*5ContinuousQuery/shouldRunContinuousQuery/computeEverycomputeEveryvar"&services/continuous_querier/service.go(õ\0˘\@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä7./ContinuousQuery/shouldRunContinuousQuery/computeEveryå
+-*+ContinuousQuery/shouldRunContinuousQuery/cqcqvar"&services/continuous_querier/service.go(îX0ßX@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./ContinuousQuery/shouldRunContinuousQuery/cqõ
+.*,ContinuousQuery/shouldRunContinuousQuery/errerrvar"&services/continuous_querier/service.go(ŸZ0Ä[@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../ContinuousQuery/shouldRunContinuousQuery/errû
+3*1ContinuousQuery/shouldRunContinuousQuery/intervalintervalvar"&services/continuous_querier/service.go(ŸZ0Ä[@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä3./ContinuousQuery/shouldRunContinuousQuery/interval§
+5*3ContinuousQuery/shouldRunContinuousQuery/noMoreThan
+noMoreThanvar"&services/continuous_querier/service.go(◊X0ÔX@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä5./ContinuousQuery/shouldRunContinuousQuery/noMoreThanß
+:*8ContinuousQuery/shouldRunContinuousQuery/runsPerIntervalrunsPerIntervalvar"&services/continuous_querier/service.go(¬X0’X@RÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä:./ContinuousQuery/shouldRunContinuousQuery/runsPerInterval≥
+*DefaultComputeNoMoreThanDefaultComputeNoMoreThanconst"%services/continuous_querier/config.go(’0ˇ8Rß{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./DefaultComputeNoMoreThan∆
+*DefaultComputeRunsPerIntervalDefaultComputeRunsPerIntervalconst"%services/continuous_querier/config.go(∞0“8R´{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./DefaultComputeRunsPerIntervalª
+*DefaultRecomputeNoOlderThanDefaultRecomputeNoOlderThanconst"%services/continuous_querier/config.go(0≠8Rß{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./DefaultRecomputeNoOlderThan∏
+*DefaultRecomputePreviousNDefaultRecomputePreviousNconst"%services/continuous_querier/config.go(_0|8R´{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./DefaultRecomputePreviousNÈ
+*	MetaStore	MetaStoretype"+services/continuous_querier/service_test.go(Ü80ú98HR”{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "struct{mu sync.RWMutex; Leader bool; DatabaseInfos []github.com/influxdb/influxdb/meta.DatabaseInfo; Err error; t *testing.T}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z.
+
+text/plain MetaStore is a mock meta store.
+ä./MetaStoreÖ
+!*MetaStore/CreateContinuousQueryCreateContinuousQueryfunc"+services/continuous_querier/service_test.go(·E0‰J8HR§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*MetaStore",
+        "TypeString": "func(database string, name string, query string) error",
+        "UnderlyingTypeString": "func(database string, name string, query string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZA
+
+text/plain3CreateContinuousQuery adds a CQ to the meta store.
+ä!./MetaStore/CreateContinuousQueryÊ
+4*2MetaStore/CreateContinuousQuery/$service_test2/cqicqivar"+services/continuous_querier/service_test.go(·E0‰J@HRµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "struct{Name string; Query string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä4./MetaStore/CreateContinuousQuery/$service_test2/cqiç
+**(MetaStore/CreateContinuousQuery/databasedatabasevar"+services/continuous_querier/service_test.go(åF0®F@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./MetaStore/CreateContinuousQuery/database–
+%*#MetaStore/CreateContinuousQuery/dbidbivar"+services/continuous_querier/service_test.go(ˇF0†G@HRΩ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./MetaStore/CreateContinuousQuery/dbiê
+%*#MetaStore/CreateContinuousQuery/errerrvar"+services/continuous_querier/service_test.go(ˇF0†G@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./MetaStore/CreateContinuousQuery/errı
+$*"MetaStore/CreateContinuousQuery/msmsvar"+services/continuous_querier/service_test.go(ÁE0ÙE@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./MetaStore/CreateContinuousQuery/msÅ
+&*$MetaStore/CreateContinuousQuery/namenamevar"+services/continuous_querier/service_test.go(åF0®F@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä&./MetaStore/CreateContinuousQuery/nameÑ
+'*%MetaStore/CreateContinuousQuery/queryqueryvar"+services/continuous_querier/service_test.go(åF0®F@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä'./MetaStore/CreateContinuousQuery/queryÛ
+*MetaStore/CreateDatabaseCreateDatabasefunc"+services/continuous_querier/service_test.go(ªA0©E8HR§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*MetaStore",
+        "TypeString": "func(name string, defaultRetentionPolicy string) error",
+        "UnderlyingTypeString": "func(name string, defaultRetentionPolicy string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZD
+
+text/plain6CreateDatabase adds a new database to the meta store.
+ä./MetaStore/CreateDatabase¯
+-*+MetaStore/CreateDatabase/$service_test1/dbidbivar"+services/continuous_querier/service_test.go(ªA0©E@HR’{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./MetaStore/CreateDatabase/$service_test1/dbi©
+1*/MetaStore/CreateDatabase/defaultRetentionPolicydefaultRetentionPolicyvar"+services/continuous_querier/service_test.go(ﬂA0ÇB@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä1./MetaStore/CreateDatabase/defaultRetentionPolicyÁ
+*MetaStore/CreateDatabase/msmsvar"+services/continuous_querier/service_test.go(¡A0ŒA@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/CreateDatabase/msÛ
+*MetaStore/CreateDatabase/namenamevar"+services/continuous_querier/service_test.go(ﬂA0ÇB@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/CreateDatabase/nameˇ
+*MetaStore/DatabaseDatabasefunc"+services/continuous_querier/service_test.go(–=0⁄>8HRÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*MetaStore",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z:
+
+text/plain,Database returns a single database by name.
+ä./MetaStore/Database€
+*MetaStore/Database/msmsvar"+services/continuous_querier/service_test.go(÷=0„=@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/Database/msÁ
+*MetaStore/Database/namenamevar"+services/continuous_querier/service_test.go(Ó=0˘=@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/Database/name¢
+*MetaStore/DatabaseInfosDatabaseInfosfield"+services/continuous_querier/service_test.go( 80Î88HRõ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "MetaStore",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/DatabaseInfosê
+*MetaStore/Databases	Databasesfunc"+services/continuous_querier/service_test.go(ó<0ü=8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*MetaStore",
+        "TypeString": "func() ([]github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func() ([]github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z\
+
+text/plainNDatabases returns a list of database info about each database in the cluster.
+ä./MetaStore/Databases›
+*MetaStore/Databases/msmsvar"+services/continuous_querier/service_test.go(ù<0™<@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/Databases/ms¬
+*MetaStore/ErrErrfield"+services/continuous_querier/service_test.go(Ì80Ä98HRŸ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "MetaStore",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/Erré
+*MetaStore/IsLeaderIsLeaderfunc"+services/continuous_querier/service_test.go(‰:0ƒ;8HRŒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*MetaStore",
+        "TypeString": "func() bool",
+        "UnderlyingTypeString": "func() bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZG
+
+text/plain9IsLeader returns true if the node is the cluster leader.
+ä./MetaStore/IsLeader€
+*MetaStore/IsLeader/msmsvar"+services/continuous_querier/service_test.go(Í:0˜:@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/IsLeader/msµ
+*MetaStore/LeaderLeaderfield"+services/continuous_querier/service_test.go(∂80»88HR√{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "MetaStore",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/Leaderß
+*MetaStore/databasedatabasefunc"+services/continuous_querier/service_test.go(‹>0ÄAHR≤{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*MetaStore",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/databaseˆ
+%*#MetaStore/database/$service_test1/iivar"+services/continuous_querier/service_test.go(‹>0ÄA@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./MetaStore/database/$service_test1/i€
+*MetaStore/database/msmsvar"+services/continuous_querier/service_test.go(‚>0Ô>@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/database/msÁ
+*MetaStore/database/namenamevar"+services/continuous_querier/service_test.go(˙>0Ö?@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/database/nameÓ
+*MetaStore/mumufield"+services/continuous_querier/service_test.go(ö80¥8HRä{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "MetaStore",
+        "TypeString": "sync.RWMutex",
+        "UnderlyingTypeString": "struct{w sync.Mutex; writerSem uint32; readerSem uint32; readerCount int32; readerWait int32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/muñ
+*MetaStore/ttfield"+services/continuous_querier/service_test.go(Ç90ö9HRµ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "MetaStore",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./MetaStore/t»
+*	NewConfig	NewConfigfunc"%services/continuous_querier/config.go(‹0¡8R†{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func() github.com/influxdb/influxdb/services/continuous_querier.Config",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/continuous_querier.Config",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZH
+
+text/plain:NewConfig returns a new instance of Config with defaults.
+ä./NewConfig–
+*NewContinuousQueryNewContinuousQueryfunc"&services/continuous_querier/service.go(†R0∑V8R‹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(database string, cqi *github.com/influxdb/influxdb/meta.ContinuousQueryInfo) (*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery, error)",
+        "UnderlyingTypeString": "func(database string, cqi *github.com/influxdb/influxdb/meta.ContinuousQueryInfo) (*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery, error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zx
+
+text/plainjNewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
+ä./NewContinuousQueryΩ
+*NewContinuousQuery/cqicqivar"&services/continuous_querier/service.go(…R0ÊR@RÀ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/cqiÏ
+*NewContinuousQuery/cquerycqueryvar"&services/continuous_querier/service.go(≈U0†V@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/cqueryÏ
+*NewContinuousQuery/databasedatabasevar"&services/continuous_querier/service.go(∏R0«R@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/databaseÔ
+*NewContinuousQuery/errerrvar"&services/continuous_querier/service.go(ÖS0”S@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/err÷
+*NewContinuousQuery/okokvar"&services/continuous_querier/service.go(¸S0¥T@RÁ{
+        "PkgName": "continuous_querier",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/ok’
+*NewContinuousQuery/qqvar"&services/continuous_querier/service.go(¸S0¥T@RÈ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.CreateContinuousQueryStatement",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.CreateContinuousQueryStatement",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/qê
+*NewContinuousQuery/stmtstmtvar"&services/continuous_querier/service.go(ÖS0”S@Rõ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/influxql.Statement",
+        "UnderlyingTypeString": "interface{RequiredPrivileges() github.com/influxdb/influxdb/influxql.ExecutionPrivileges; stmt(); github.com/influxdb/influxdb/influxql.Node}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewContinuousQuery/stmt‚
+*NewMetaStoreNewMetaStorefunc"+services/continuous_querier/service_test.go(ƒ90¶:8HR¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z1
+
+text/plain#NewMetaStore returns a *MetaStore.
+ä./NewMetaStore⁄
+*NewMetaStore/ttvar"+services/continuous_querier/service_test.go(÷90‚9@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewMetaStore/t˚
+*NewPointsWriterNewPointsWriterfunc"+services/continuous_querier/service_test.go(‘Y0“Z8HR∆{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "UnderlyingTypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z;
+
+text/plain-NewPointsWriter returns a new *PointsWriter.
+ä./NewPointsWriter‡
+*NewPointsWriter/ttvar"+services/continuous_querier/service_test.go(ÈY0ıY@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewPointsWriter/t˛
+*NewQueryExecutorNewQueryExecutorfunc"+services/continuous_querier/service_test.go(àN0©O8HR»{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z9
+
+text/plain+NewQueryExecutor returns a *QueryExecutor.
+ä./NewQueryExecutor‚
+*NewQueryExecutor/ttvar"+services/continuous_querier/service_test.go(ûN0™N@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewQueryExecutor/t∆
+*
+NewService
+NewServicefunc"&services/continuous_querier/service.go(¥0Ï8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(c github.com/influxdb/influxdb/services/continuous_querier.Config) *github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/continuous_querier.Config) *github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z<
+
+text/plain.NewService returns a new instance of Service.
+ä./NewService®
+*NewService/ccvar"&services/continuous_querier/service.go(ƒ0Ã@RÃ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.Config",
+        "UnderlyingTypeString": "struct{LogEnabled bool \"toml:\\\"log-enabled\\\"\"; Enabled bool \"toml:\\\"enabled\\\"\"; RecomputePreviousN int \"toml:\\\"recompute-previous-n\\\"\"; RecomputeNoOlderThan github.com/influxdb/influxdb/toml.Duration \"toml:\\\"recompute-no-older-than\\\"\"; ComputeRunsPerInterval int \"toml:\\\"compute-runs-per-interval\\\"\"; ComputeNoMoreThan github.com/influxdb/influxdb/toml.Duration \"toml:\\\"compute-no-more-than\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewService/cΩ
+*NewService/ssvar"&services/continuous_querier/service.go(⁄0ﬂ@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewService/sâ
+*NewTestServiceNewTestServicefunc"+services/continuous_querier/service_test.go(ò10‹78HRº{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "func(t *testing.T) *github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZV
+
+text/plainHNewTestService returns a new *Service with default mock object members.
+ä./NewTestService”
+*NewTestService/msmsvar"+services/continuous_querier/service_test.go(‰10˘1@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.MetaStore",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewTestService/msÃ
+*NewTestService/ssvar"+services/continuous_querier/service_test.go(∆10‚1@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewTestService/sﬁ
+*NewTestService/ttvar"+services/continuous_querier/service_test.go(¨10∏1@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./NewTestService/tî
+*NoChunkingSizeNoChunkingSizeconst"&services/continuous_querier/service.go(Ù0Ü8R´{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zx
+
+text/plainjWhen planning a select statement, passing zero tells it not to chunk results. Only applies to raw queries
+ä./NoChunkingSizeà
+*PointsWriterPointsWritertype"+services/continuous_querier/service_test.go(àX0¢Y8HR„{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "UnderlyingTypeString": "struct{WritePointsFn func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error; Err error; PointsPerSecond int; t *testing.T}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z4
+
+text/plain&PointsWriter is a mock points writer.
+ä./PointsWriterÀ
+*PointsWriter/ErrErrfield"+services/continuous_querier/service_test.go(⁄X0ÔX8HR‹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "PointsWriter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/Err◊
+*PointsWriter/PointsPerSecondPointsPerSecondfield"+services/continuous_querier/service_test.go(ÒX0ÑY8HRƒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "PointsWriter",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/PointsPerSecondˇ
+*PointsWriter/WritePointsWritePointsfunc"+services/continuous_querier/service_test.go(˘Z0œ]8HR«{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*PointsWriter",
+        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z0
+
+text/plain"WritePoints mocks writing points.
+ä./PointsWriter/WritePoints‹
+K*IPointsWriter/WritePoints/$service_test0/$service_test0/$service_test0/errerrvar"+services/continuous_querier/service_test.go(ê\0™\@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äK./PointsWriter/WritePoints/$service_test0/$service_test0/$service_test0/errÛ
+*PointsWriter/WritePoints/nsnsvar"+services/continuous_querier/service_test.go(˜\0±]@HRÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/WritePoints/nsŒ
+*PointsWriter/WritePoints/ppvar"+services/continuous_querier/service_test.go(ù[0∫[@HRœ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/WritePoints/pÌ
+*PointsWriter/WritePoints/pwpwvar"+services/continuous_querier/service_test.go(ˇZ0è[@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/WritePoints/pw◊
+*PointsWriter/WritePointsFnWritePointsFnfield"+services/continuous_querier/service_test.go(üX0ÿX8HR {
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "PointsWriter",
+        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/WritePointsFnü
+*PointsWriter/ttfield"+services/continuous_querier/service_test.go(ÜY0†YHR∏{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "PointsWriter",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./PointsWriter/t”
+*QueryExecutorQueryExecutortype"+services/continuous_querier/service_test.go(ñK0ÿM8HR©{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "struct{ExecuteQueryFn func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error); Results []*github.com/influxdb/influxdb/influxql.Result; ResultInterval time.Duration; Err error; ErrAfterResult int; StopRespondingAfter int; t *testing.T}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z6
+
+text/plain(QueryExecutor is a mock query executor.
+ä./QueryExecutorŒ
+*QueryExecutor/ErrErrfield"+services/continuous_querier/service_test.go(ÎL0ÑM8HR›{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/Err◊
+*QueryExecutor/ErrAfterResultErrAfterResultfield"+services/continuous_querier/service_test.go(ÜM0ùM8HR≈{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/ErrAfterResultŸ
+*QueryExecutor/ExecuteQueryExecuteQueryfunc"+services/continuous_querier/service_test.go(˙O0ÿW8HRÚ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*QueryExecutor",
+        "TypeString": "func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "UnderlyingTypeString": "func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZZ
+
+text/plainLExecuteQuery returns a channel that the caller can read query results from.
+ä./QueryExecutor/ExecuteQuery‡
+M*KQueryExecutor/ExecuteQuery/$service_test0/$service_test0/$service_test0/errerrvar"+services/continuous_querier/service_test.go(»Q0ˇQ@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äM./QueryExecutor/ExecuteQuery/$service_test0/$service_test0/$service_test0/err§
+<*:QueryExecutor/ExecuteQuery/$service_test2/$service_test0/iivar"+services/continuous_querier/service_test.go(˙O0ÿW@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä<./QueryExecutor/ExecuteQuery/$service_test2/$service_test0/i¯
+<*:QueryExecutor/ExecuteQuery/$service_test2/$service_test0/rrvar"+services/continuous_querier/service_test.go(˙O0ÿW@HRπ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä<./QueryExecutor/ExecuteQuery/$service_test2/$service_test0/rÜ
+-*+QueryExecutor/ExecuteQuery/$service_test2/nnvar"+services/continuous_querier/service_test.go(ÖT0ãT@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./QueryExecutor/ExecuteQuery/$service_test2/n…
+*QueryExecutor/ExecuteQuery/chchvar"+services/continuous_querier/service_test.go(úS0ΩS@HR√{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan *github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "chan *github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/ExecuteQuery/chÄ
+&*$QueryExecutor/ExecuteQuery/chunkSize	chunkSizevar"+services/continuous_querier/service_test.go(»P0’P@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä&./QueryExecutor/ExecuteQuery/chunkSizeÉ
+%*#QueryExecutor/ExecuteQuery/databasedatabasevar"+services/continuous_querier/service_test.go(∑P0∆P@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./QueryExecutor/ExecuteQuery/databaseÛ
+*QueryExecutor/ExecuteQuery/qeqevar"+services/continuous_querier/service_test.go(ÄP0ëP@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/ExecuteQuery/qe∆
+"* QueryExecutor/ExecuteQuery/queryqueryvar"+services/continuous_querier/service_test.go(†P0µP@HR∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä"./QueryExecutor/ExecuteQuery/queryá
+*QueryExecutor/ExecuteQueryFnExecuteQueryFnfield"+services/continuous_querier/service_test.go(ÆK0ûL8HRı{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "UnderlyingTypeString": "func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/ExecuteQueryFn„
+*QueryExecutor/ResultIntervalResultIntervalfield"+services/continuous_querier/service_test.go(»L0ÈL8HR—{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/ResultIntervalö
+*QueryExecutor/ResultsResultsfield"+services/continuous_querier/service_test.go(†L0∆L8HRù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/ResultsÊ
+#*!QueryExecutor/StopRespondingAfterStopRespondingAfterfield"+services/continuous_querier/service_test.go(üM0∂M8HR≈{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä#./QueryExecutor/StopRespondingAfter¢
+*QueryExecutor/ttfield"+services/continuous_querier/service_test.go(∏M0÷MHRπ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "QueryExecutor",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./QueryExecutor/t–
+	*ServiceServicetype"&services/continuous_querier/service.go(◊	0Å8Rª{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "struct{MetaStore github.com/influxdb/influxdb/services/continuous_querier.metaStore; QueryExecutor github.com/influxdb/influxdb/services/continuous_querier.queryExecutor; PointsWriter github.com/influxdb/influxdb/services/continuous_querier.pointsWriter; Config *github.com/influxdb/influxdb/services/continuous_querier.Config; RunInterval time.Duration; RunCh chan struct{}; Logger *log.Logger; loggingEnabled bool; lastRuns map[string]time.Time; stop chan struct{}; wg *sync.WaitGroup}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z:
+
+text/plain,Service manages continuous query execution.
+ä	./Service⁄
+*Service/CloseClosefunc"&services/continuous_querier/service.go(Ø0∏8RŒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z'
+
+text/plainClose stops the service.
+ä./Service/Close√
+*Service/Close/ssvar"&services/continuous_querier/service.go(µ0ø@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Close/s†
+*Service/ConfigConfigfield"&services/continuous_querier/service.go(ª
+0–
+8Rπ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Config",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Configˇ
+ *Service/ExecuteContinuousQueryExecuteContinuousQueryfunc"&services/continuous_querier/service.go(¸$0∑78R¨{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func(dbi *github.com/influxdb/influxdb/meta.DatabaseInfo, cqi *github.com/influxdb/influxdb/meta.ContinuousQueryInfo) error",
+        "UnderlyingTypeString": "func(dbi *github.com/influxdb/influxdb/meta.DatabaseInfo, cqi *github.com/influxdb/influxdb/meta.ContinuousQueryInfo) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z;
+
+text/plain-ExecuteContinuousQuery executes a single CQ.
+ä ./Service/ExecuteContinuousQueryõ
+.*,Service/ExecuteContinuousQuery/$service5/errerrvar"&services/continuous_querier/service.go(À.0á/@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../Service/ExecuteContinuousQuery/$service5/errõ
+.*,Service/ExecuteContinuousQuery/$service7/errerrvar"&services/continuous_querier/service.go(Û00†1@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../Service/ExecuteContinuousQuery/$service7/err√
+B*@Service/ExecuteContinuousQuery/$service8/$service0/$service1/errerrvar"&services/continuous_querier/service.go(Œ40ˇ4@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äB./Service/ExecuteContinuousQuery/$service8/$service0/$service1/err√
+B*@Service/ExecuteContinuousQuery/$service8/$service0/$service2/errerrvar"&services/continuous_querier/service.go(‡50ç6@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äB./Service/ExecuteContinuousQuery/$service8/$service0/$service2/errÊ
+A*?Service/ExecuteContinuousQuery/$service8/$service0/newStartTimenewStartTimevar"&services/continuous_querier/service.go(ü40«4@Rô{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äA./Service/ExecuteContinuousQuery/$service8/$service0/newStartTime˝
+,**Service/ExecuteContinuousQuery/$service8/iivar"&services/continuous_querier/service.go(Œ20‘2@RÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./Service/ExecuteContinuousQuery/$service8/i•
+2*0Service/ExecuteContinuousQuery/computeNoMoreThancomputeNoMoreThanvar"&services/continuous_querier/service.go(µ)0Û)@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä2./Service/ExecuteContinuousQuery/computeNoMoreThan¯
+#*!Service/ExecuteContinuousQuery/cqcqvar"&services/continuous_querier/service.go(∆&0Ú&@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä#./Service/ExecuteContinuousQuery/cq’
+$*"Service/ExecuteContinuousQuery/cqicqivar"&services/continuous_querier/service.go(Ω%0⁄%@RÀ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./Service/ExecuteContinuousQuery/cqi«
+$*"Service/ExecuteContinuousQuery/dbidbivar"&services/continuous_querier/service.go(•%0ª%@RΩ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./Service/ExecuteContinuousQuery/dbiá
+$*"Service/ExecuteContinuousQuery/errerrvar"&services/continuous_querier/service.go(∆&0Ú&@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./Service/ExecuteContinuousQuery/errä
+)*'Service/ExecuteContinuousQuery/intervalintervalvar"&services/continuous_querier/service.go(®,0œ,@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä)./Service/ExecuteContinuousQuery/interval£
+$*"Service/ExecuteContinuousQuery/nownowvar"&services/continuous_querier/service.go(«+0ÿ+@Rô{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./Service/ExecuteContinuousQuery/nowÆ
+5*3Service/ExecuteContinuousQuery/recomputeNoOlderThanrecomputeNoOlderThanvar"&services/continuous_querier/service.go(É20«2@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä5./Service/ExecuteContinuousQuery/recomputeNoOlderThanÒ
+$*"Service/ExecuteContinuousQuery/runrunvar"&services/continuous_querier/service.go(ı)0–*@RÁ{
+        "PkgName": "continuous_querier",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./Service/ExecuteContinuousQuery/runÂ
+"* Service/ExecuteContinuousQuery/ssvar"&services/continuous_querier/service.go(Ç%0å%@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä"./Service/ExecuteContinuousQuery/sµ
+**(Service/ExecuteContinuousQuery/startTime	startTimevar"&services/continuous_querier/service.go(œ-0Ô-@Rô{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./Service/ExecuteContinuousQuery/startTime∂
+*Service/LoggerLoggerfield"&services/continuous_querier/service.go(Ã0Ê8Rœ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Loggerú
+*Service/MetaStore	MetaStorefield"&services/continuous_querier/service.go(È	0Ä
+8R¨{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.metaStore",
+        "UnderlyingTypeString": "interface{Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Databases() ([]github.com/influxdb/influxdb/meta.DatabaseInfo, error); IsLeader() bool}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/MetaStore◊
+*Service/OpenOpenfunc"&services/continuous_querier/service.go(ä0ë8RŒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z'
+
+text/plainOpen starts the service.
+ä./Service/Open¡
+*Service/Open/ssvar"&services/continuous_querier/service.go(ê0ö@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Open/sœ
+*Service/PointsWriterPointsWriterfield"&services/continuous_querier/service.go(ü
+0π
+8R÷{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.pointsWriter",
+        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/PointsWriter©
+*Service/QueryExecutorQueryExecutorfield"&services/continuous_querier/service.go(Ç
+0ù
+8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.queryExecutor",
+        "UnderlyingTypeString": "interface{ExecuteQuery(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/QueryExecutorΩ
+*Service/RunRunfunc"&services/continuous_querier/service.go(Ñ0π8RÜ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func(database string, name string) error",
+        "UnderlyingTypeString": "func(database string, name string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZX
+
+text/plainJRun runs the specified continuous query, or all CQs if none is specified.
+ä./Service/Run∆
+$*"Service/Run/$service0/$service0/dbdbvar"&services/continuous_querier/service.go(ê0π@RΩ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./Service/Run/$service0/$service0/dbâ
+%*#Service/Run/$service0/$service0/errerrvar"&services/continuous_querier/service.go(ê0π@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./Service/Run/$service0/$service0/err¨
+%*#Service/Run/$service0/$service1/errerrvar"&services/continuous_querier/service.go(‰0Ì@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z!
+
+text/plainGet all databases.
+ä%./Service/Run/$service0/$service1/err“
+.*,Service/Run/$service1/$service0/$service0/cqcqvar"&services/continuous_querier/service.go(Ñ0π@Rµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "struct{Name string; Query string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../Service/Run/$service1/$service0/$service0/cq 
+*Service/Run/$service1/dbdbvar"&services/continuous_querier/service.go(Ñ0π@R’{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Run/$service1/dbﬁ
+*Service/Run/databasedatabasevar"&services/continuous_querier/service.go(ö0Ø@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Run/database£
+*Service/Run/dbsdbsvar"&services/continuous_querier/service.go(æ0’@Rø{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Run/dbs“
+*Service/Run/namenamevar"&services/continuous_querier/service.go(ö0Ø@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Run/nameø
+*Service/Run/ssvar"&services/continuous_querier/service.go(ä0î@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/Run/sÇ
+*Service/RunChRunChfield"&services/continuous_querier/service.go(Æ0 8R”{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZI
+
+text/plain;RunCh can be used by clients to signal service to run CQs.
+ä./Service/RunCh¡
+*Service/RunIntervalRunIntervalfield"&services/continuous_querier/service.go(“
+0Ì
+8RÀ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/RunIntervaló
+*Service/SetLogger	SetLoggerfunc"&services/continuous_querier/service.go(˘0µ8R‹{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLoggerﬂ
+*Service/SetLogger/llvar"&services/continuous_querier/service.go(ï0¢@Rı{
+        "PkgName": "continuous_querier",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/SetLogger/lÀ
+*Service/SetLogger/ssvar"&services/continuous_querier/service.go(ˇ0â@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/SetLogger/s˜
+*Service/backgroundLoopbackgroundLoopfunc"&services/continuous_querier/service.go(Å0û R®{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZQ
+
+text/plainCbackgroundLoop runs on a go routine and periodically executes CQs.
+ä./Service/backgroundLoop’
+*Service/backgroundLoop/ssvar"&services/continuous_querier/service.go(á0ë@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/backgroundLoop/sµ
+*Service/convertRowToPointsconvertRowToPointsfunc"&services/continuous_querier/service.go(æF0–LRö{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func(measurementName string, row *github.com/influxdb/influxdb/influxql.Row) ([]github.com/influxdb/influxdb/tsdb.Point, error)",
+        "UnderlyingTypeString": "func(measurementName string, row *github.com/influxdb/influxdb/influxql.Row) ([]github.com/influxdb/influxdb/tsdb.Point, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zê
+
+text/plainÅconvertRowToPoints will convert a query result Row into Points that can be written back in.
+Used for continuous and INTO queries
+ä./Service/convertRowToPoints˚
+(*&Service/convertRowToPoints/$service0/ccvar"&services/continuous_querier/service.go(æF0–L@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./Service/convertRowToPoints/$service0/cı
+(*&Service/convertRowToPoints/$service0/iivar"&services/continuous_querier/service.go(æF0–L@RÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./Service/convertRowToPoints/$service0/i∏
+E*CService/convertRowToPoints/$service2/$service0/$service0/fieldIndex
+fieldIndexvar"&services/continuous_querier/service.go(æF0–L@RÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äE./Service/convertRowToPoints/$service2/$service0/$service0/fieldIndexª
+D*BService/convertRowToPoints/$service2/$service0/$service0/fieldName	fieldNamevar"&services/continuous_querier/service.go(æF0–L@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äD./Service/convertRowToPoints/$service2/$service0/$service0/fieldName≈
+2*0Service/convertRowToPoints/$service2/$service0/ppvar"&services/continuous_querier/service.go(ÀK0òL@R°{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä2./Service/convertRowToPoints/$service2/$service0/p∏
+5*3Service/convertRowToPoints/$service2/$service0/valsvalsvar"&services/continuous_querier/service.go(»J0ÏJ@Rã{
+        "PkgName": "continuous_querier",
+        "TypeString": "map[string]interface{}",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä5./Service/convertRowToPoints/$service2/$service0/valsâ
+(*&Service/convertRowToPoints/$service2/vvvar"&services/continuous_querier/service.go(æF0–L@R˘{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./Service/convertRowToPoints/$service2/vò
+)*'Service/convertRowToPoints/fieldIndexesfieldIndexesvar"&services/continuous_querier/service.go(áH0´H@R˚{
+        "PkgName": "continuous_querier",
+        "TypeString": "map[string]int",
+        "UnderlyingTypeString": "map[string]int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä)./Service/convertRowToPoints/fieldIndexesë
+,**Service/convertRowToPoints/measurementNamemeasurementNamevar"&services/continuous_querier/service.go(„F0˘F@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./Service/convertRowToPoints/measurementNameº
+#*!Service/convertRowToPoints/pointspointsvar"&services/continuous_querier/service.go(ıI0•J@R±{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä#./Service/convertRowToPoints/pointsµ
+ *Service/convertRowToPoints/rowrowvar"&services/continuous_querier/service.go(˚F0åG@R≥{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä ./Service/convertRowToPoints/row›
+*Service/convertRowToPoints/ssvar"&services/continuous_querier/service.go(ƒF0ŒF@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/convertRowToPoints/s˘
+&*$Service/convertRowToPoints/timeIndex	timeIndexvar"&services/continuous_querier/service.go(ˆG0ÖH@RÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä&./Service/convertRowToPoints/timeIndexÒ
+*Service/lastRunslastRunsfield"&services/continuous_querier/service.go(∞0ÕR«{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "map[string]time.Time",
+        "UnderlyingTypeString": "map[string]time.Time",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z=
+
+text/plain/lastRuns maps CQ name to last time it was run.
+ä./Service/lastRuns§
+*Service/loggingEnabledloggingEnabledfield"&services/continuous_querier/service.go(Ë0˚Rß{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/loggingEnabledá
+*Service/runContinuousQueriesrunContinuousQueriesfunc"&services/continuous_querier/service.go(‰ 0 $R®{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZO
+
+text/plainArunContinuousQueries gets CQs from the meta store and runs them.
+ä./Service/runContinuousQueriesÁ
+T*RService/runContinuousQueries/$service1/$service0/$service0/$service0/$service0/errerrvar"&services/continuous_querier/service.go(ª#0‰#@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äT./Service/runContinuousQueries/$service1/$service0/$service0/$service0/$service0/errÙ
+?*=Service/runContinuousQueries/$service1/$service0/$service0/cqcqvar"&services/continuous_querier/service.go(‰ 0 $@Rµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "struct{Name string; Query string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä?./Service/runContinuousQueries/$service1/$service0/$service0/cqÏ
++*)Service/runContinuousQueries/$service1/dbdbvar"&services/continuous_querier/service.go(‰ 0 $@R’{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä+./Service/runContinuousQueries/$service1/db≈
+"* Service/runContinuousQueries/dbsdbsvar"&services/continuous_querier/service.go(Ø!0“!@Rø{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä"./Service/runContinuousQueries/dbsÉ
+"* Service/runContinuousQueries/errerrvar"&services/continuous_querier/service.go(Ø!0“!@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä"./Service/runContinuousQueries/err·
+ *Service/runContinuousQueries/ssvar"&services/continuous_querier/service.go(Í 0Ù @R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä ./Service/runContinuousQueries/sÙ
+**(Service/runContinuousQueryAndWriteResult runContinuousQueryAndWriteResultfunc"&services/continuous_querier/service.go(¢80µERÃ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "*Service",
+        "TypeString": "func(cq *github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery) error",
+        "UnderlyingTypeString": "func(cq *github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zt
+
+text/plainfrunContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
+ä*./Service/runContinuousQueryAndWriteResultô
+r*pService/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/$service2/$service0/$service0/vvvar"&services/continuous_querier/service.go(¢80µE@Rı{
+        "PkgName": "continuous_querier",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }är./Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/$service2/$service0/$service0/vº
+m*kService/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/$service2/$service0/fieldsfieldsvar"&services/continuous_querier/service.go(ã@0ü@@Rù{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Fields",
+        "UnderlyingTypeString": "map[string]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äm./Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/$service2/$service0/fieldsù
+^*\Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/$service2/ppvar"&services/continuous_querier/service.go(¢80µE@R°{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä^./Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/$service2/pÎ
+V*TService/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/errerrvar"&services/continuous_querier/service.go(¥=0=@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äV./Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/err¢
+W*UService/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/partpartvar"&services/continuous_querier/service.go(¥=0=@R±{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äW./Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/$service0/partç
+L*JService/runContinuousQueryAndWriteResult/$service2/$service0/$service1/rowrowvar"&services/continuous_querier/service.go(¢80µE@R≥{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äL./Service/runContinuousQueryAndWriteResult/$service2/$service0/$service1/rowÙ
+;*9Service/runContinuousQueryAndWriteResult/$service2/resultresultvar"&services/continuous_querier/service.go(¢80µE@Rπ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä;./Service/runContinuousQueryAndWriteResult/$service2/resultØ
+8*6Service/runContinuousQueryAndWriteResult/$service4/errerrvar"&services/continuous_querier/service.go(«C0ÌC@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä8./Service/runContinuousQueryAndWriteResult/$service4/errÏ
+-*+Service/runContinuousQueryAndWriteResult/chchvar"&services/continuous_querier/service.go(ö:0·:@R—{
+        "PkgName": "continuous_querier",
+        "TypeString": "\u003c-chan *github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "\u003c-chan *github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./Service/runContinuousQueryAndWriteResult/chå
+-*+Service/runContinuousQueryAndWriteResult/cqcqvar"&services/continuous_querier/service.go(’80Ë8@RÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.ContinuousQuery",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./Service/runContinuousQueryAndWriteResult/cqõ
+.*,Service/runContinuousQueryAndWriteResult/errerrvar"&services/continuous_querier/service.go(ö:0·:@R˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../Service/runContinuousQueryAndWriteResult/errÿ
+1*/Service/runContinuousQueryAndWriteResult/pointspointsvar"&services/continuous_querier/service.go(Ò;0ï<@R±{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä1./Service/runContinuousQueryAndWriteResult/pointsœ
+,**Service/runContinuousQueryAndWriteResult/qqvar"&services/continuous_querier/service.go(æ90ˇ9@R∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./Service/runContinuousQueryAndWriteResult/qÌ
+.*,Service/runContinuousQueryAndWriteResult/reqreqvar"&services/continuous_querier/service.go(ıA0™C@Rœ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../Service/runContinuousQueryAndWriteResult/req˘
+,**Service/runContinuousQueryAndWriteResult/ssvar"&services/continuous_querier/service.go(®80≤8@R·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./Service/runContinuousQueryAndWriteResult/sò
+*Service/stopstopfield"&services/continuous_querier/service.go(œ0ÂRπ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/stopñ
+*
+Service/wgwgfield"&services/continuous_querier/service.go(Á0ˇRΩ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "FieldOfStruct": "Service",
+        "TypeString": "*sync.WaitGroup",
+        "UnderlyingTypeString": "*sync.WaitGroup",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./Service/wgß
+&*$TestExecuteContinuousQuery_HappyPath$TestExecuteContinuousQuery_HappyPathfunc"+services/continuous_querier/service_test.go(û0Í
+8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z6
+
+text/plain(Test ExecuteContinuousQuery happy path.
+ä&./TestExecuteContinuousQuery_HappyPathÑ
+7*5TestExecuteContinuousQuery_HappyPath/$service_test0/ppvar"+services/continuous_querier/service_test.go(¯0ï	@HRœ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä7./TestExecuteContinuousQuery_HappyPath/$service_test0/p“
+**(TestExecuteContinuousQuery_HappyPath/cqicqivar"+services/continuous_querier/service_test.go(•0ƒ@HRµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "struct{Name string; Query string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestExecuteContinuousQuery_HappyPath/cqiÚ
+**(TestExecuteContinuousQuery_HappyPath/dbidbivar"+services/continuous_querier/service_test.go(ï0£@HR’{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestExecuteContinuousQuery_HappyPath/dbiﬂ
++*)TestExecuteContinuousQuery_HappyPath/dbisdbisvar"+services/continuous_querier/service_test.go(Ò0ì@HRø{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä+./TestExecuteContinuousQuery_HappyPath/dbisö
+**(TestExecuteContinuousQuery_HappyPath/errerrvar"+services/continuous_querier/service_test.go(ö
+0≈
+@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestExecuteContinuousQuery_HappyPath/errë
+/*-TestExecuteContinuousQuery_HappyPath/pointCntpointCntvar"+services/continuous_querier/service_test.go(«0÷@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä/./TestExecuteContinuousQuery_HappyPath/pointCntÖ
+)*'TestExecuteContinuousQuery_HappyPath/pwpwvar"+services/continuous_querier/service_test.go(∫0ﬁ@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä)./TestExecuteContinuousQuery_HappyPath/pwá
+)*'TestExecuteContinuousQuery_HappyPath/qeqevar"+services/continuous_querier/service_test.go(ÿ0˛@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä)./TestExecuteContinuousQuery_HappyPath/qe¯
+(*&TestExecuteContinuousQuery_HappyPath/ssvar"+services/continuous_querier/service_test.go(Ÿ0Ô@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./TestExecuteContinuousQuery_HappyPath/sä
+(*&TestExecuteContinuousQuery_HappyPath/ttvar"+services/continuous_querier/service_test.go(»0‘@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./TestExecuteContinuousQuery_HappyPath/t¿
++*)TestExecuteContinuousQuery_InvalidQueries)TestExecuteContinuousQuery_InvalidQueriesfunc"+services/continuous_querier/service_test.go(ª'0ó-8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z@
+
+text/plain2Test ExecuteContinuousQuery with invalid queries.
+ä+./TestExecuteContinuousQuery_InvalidQueries‹
+/*-TestExecuteContinuousQuery_InvalidQueries/cqicqivar"+services/continuous_querier/service_test.go(«(0Ê(@HRµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "struct{Name string; Query string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä/./TestExecuteContinuousQuery_InvalidQueries/cqi¸
+/*-TestExecuteContinuousQuery_InvalidQueries/dbidbivar"+services/continuous_querier/service_test.go(∑(0≈(@HR’{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä/./TestExecuteContinuousQuery_InvalidQueries/dbiÈ
+0*.TestExecuteContinuousQuery_InvalidQueries/dbisdbisvar"+services/continuous_querier/service_test.go(ì(0µ(@HRø{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä0./TestExecuteContinuousQuery_InvalidQueries/dbis§
+/*-TestExecuteContinuousQuery_InvalidQueries/errerrvar"+services/continuous_querier/service_test.go(å)0∑)@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä/./TestExecuteContinuousQuery_InvalidQueries/errÇ
+-*+TestExecuteContinuousQuery_InvalidQueries/ssvar"+services/continuous_querier/service_test.go(˚'0ë(@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./TestExecuteContinuousQuery_InvalidQueries/sî
+-*+TestExecuteContinuousQuery_InvalidQueries/ttvar"+services/continuous_querier/service_test.go(Í'0ˆ'@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./TestExecuteContinuousQuery_InvalidQueries/tﬁ
+0*.TestExecuteContinuousQuery_QueryExecutor_Error.TestExecuteContinuousQuery_QueryExecutor_Errorfunc"+services/continuous_querier/service_test.go(›-0À08HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZO
+
+text/plainATest ExecuteContinuousQuery when QueryExecutor returns an error.
+ä0./TestExecuteContinuousQuery_QueryExecutor_ErrorÊ
+4*2TestExecuteContinuousQuery_QueryExecutor_Error/cqicqivar"+services/continuous_querier/service_test.go(≠/0Ã/@HRµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.ContinuousQueryInfo",
+        "UnderlyingTypeString": "struct{Name string; Query string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä4./TestExecuteContinuousQuery_QueryExecutor_Error/cqiÜ
+4*2TestExecuteContinuousQuery_QueryExecutor_Error/dbidbivar"+services/continuous_querier/service_test.go(ù/0´/@HR’{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "struct{Name string; DefaultRetentionPolicy string; RetentionPolicies []github.com/influxdb/influxdb/meta.RetentionPolicyInfo; ContinuousQueries []github.com/influxdb/influxdb/meta.ContinuousQueryInfo}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä4./TestExecuteContinuousQuery_QueryExecutor_Error/dbiÛ
+5*3TestExecuteContinuousQuery_QueryExecutor_Error/dbisdbisvar"+services/continuous_querier/service_test.go(˘.0õ/@HRø{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.DatabaseInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä5./TestExecuteContinuousQuery_QueryExecutor_Error/dbisÆ
+4*2TestExecuteContinuousQuery_QueryExecutor_Error/errerrvar"+services/continuous_querier/service_test.go(œ/0˙/@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä4./TestExecuteContinuousQuery_QueryExecutor_Error/errõ
+3*1TestExecuteContinuousQuery_QueryExecutor_Error/qeqevar"+services/continuous_querier/service_test.go(∫.0‡.@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä3./TestExecuteContinuousQuery_QueryExecutor_Error/qeå
+2*0TestExecuteContinuousQuery_QueryExecutor_Error/ssvar"+services/continuous_querier/service_test.go(¢.0∏.@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä2./TestExecuteContinuousQuery_QueryExecutor_Error/sû
+2*0TestExecuteContinuousQuery_QueryExecutor_Error/ttvar"+services/continuous_querier/service_test.go(ë.0ù.@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä2./TestExecuteContinuousQuery_QueryExecutor_Error/tò
+*TestOpenAndCloseTestOpenAndClosefunc"+services/continuous_querier/service_test.go(û0Ò8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Zc
+
+text/plainUTest closing never opened, open, open already open, close, and close already closed.
+ä./TestOpenAndCloseê
+%*#TestOpenAndClose/$service_test0/errerrvar"+services/continuous_querier/service_test.go(·0Ò@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./TestOpenAndClose/$service_test0/err–
+*TestOpenAndClose/ssvar"+services/continuous_querier/service_test.go(≈0€@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestOpenAndClose/s‚
+*TestOpenAndClose/ttvar"+services/continuous_querier/service_test.go(¥0¿@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestOpenAndClose/tÔ
+*TestService_HappyPathTestService_HappyPathfunc"+services/continuous_querier/service_test.go(å0¶8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z+
+
+text/plainTest the service happy path.
+ä./TestService_HappyPathÊ
+(*&TestService_HappyPath/$service_test0/ppvar"+services/continuous_querier/service_test.go(¨0…@HRœ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä(./TestService_HappyPath/$service_test0/pÇ
+**(TestService_HappyPath/$service_test1/cntcntvar"+services/continuous_querier/service_test.go(à0¨@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestService_HappyPath/$service_test1/cntö
+**(TestService_HappyPath/$service_test1/errerrvar"+services/continuous_querier/service_test.go(à0¨@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestService_HappyPath/$service_test1/errÎ
+*TestService_HappyPath/chchvar"+services/continuous_querier/service_test.go(Í0Å@HRÔ{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan int",
+        "UnderlyingTypeString": "chan int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_HappyPath/chÛ
+ *TestService_HappyPath/pointCntpointCntvar"+services/continuous_querier/service_test.go(—0‡@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä ./TestService_HappyPath/pointCntÁ
+*TestService_HappyPath/pwpwvar"+services/continuous_querier/service_test.go(ƒ0Ë@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.PointsWriter",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_HappyPath/pwÈ
+*TestService_HappyPath/qeqevar"+services/continuous_querier/service_test.go(‚0à@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_HappyPath/qe⁄
+*TestService_HappyPath/ssvar"+services/continuous_querier/service_test.go(∏0Œ@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_HappyPath/sÏ
+*TestService_HappyPath/ttvar"+services/continuous_querier/service_test.go(ß0≥@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_HappyPath/t…
+**(TestService_MetaStoreFailsToGetDatabases(TestService_MetaStoreFailsToGetDatabasesfunc"+services/continuous_querier/service_test.go( 0Ñ'8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZL
+
+text/plain>Test service behavior when meta store fails to get databases.
+ä*./TestService_MetaStoreFailsToGetDatabases∫
+C*ATestService_MetaStoreFailsToGetDatabases/$service_test0/chunkSize	chunkSizevar"+services/continuous_querier/service_test.go(æ$0À$@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äC./TestService_MetaStoreFailsToGetDatabases/$service_test0/chunkSizeΩ
+B*@TestService_MetaStoreFailsToGetDatabases/$service_test0/databasedatabasevar"+services/continuous_querier/service_test.go(≠$0º$@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }äB./TestService_MetaStoreFailsToGetDatabases/$service_test0/databaseÄ
+?*=TestService_MetaStoreFailsToGetDatabases/$service_test0/queryqueryvar"+services/continuous_querier/service_test.go(ñ$0´$@HR∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä?./TestService_MetaStoreFailsToGetDatabases/$service_test0/query¿
+=*;TestService_MetaStoreFailsToGetDatabases/$service_test1/errerrvar"+services/continuous_querier/service_test.go(∞&0◊&@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä=./TestService_MetaStoreFailsToGetDatabases/$service_test1/err°
+/*-TestService_MetaStoreFailsToGetDatabases/donedonevar"+services/continuous_querier/service_test.go(ﬂ"0˙"@HR˘{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä/./TestService_MetaStoreFailsToGetDatabases/doneè
+-*+TestService_MetaStoreFailsToGetDatabases/qeqevar"+services/continuous_querier/service_test.go(¸"0¢#@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./TestService_MetaStoreFailsToGetDatabases/qeÄ
+,**TestService_MetaStoreFailsToGetDatabases/ssvar"+services/continuous_querier/service_test.go(Ø!0≈!@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./TestService_MetaStoreFailsToGetDatabases/sí
+,**TestService_MetaStoreFailsToGetDatabases/ttvar"+services/continuous_querier/service_test.go(û!0™!@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./TestService_MetaStoreFailsToGetDatabases/tê
+*TestService_NotLeaderTestService_NotLeaderfunc"+services/continuous_querier/service_test.go(∞0≠ 8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZL
+
+text/plain>Test service when not the cluster leader (CQs shouldn't run).
+ä./TestService_NotLeaderî
+0*.TestService_NotLeader/$service_test0/chunkSize	chunkSizevar"+services/continuous_querier/service_test.go(Á0Ù@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä0./TestService_NotLeader/$service_test0/chunkSizeó
+/*-TestService_NotLeader/$service_test0/databasedatabasevar"+services/continuous_querier/service_test.go(÷0Â@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä/./TestService_NotLeader/$service_test0/database⁄
+,**TestService_NotLeader/$service_test0/queryqueryvar"+services/continuous_querier/service_test.go(ø0‘@HR∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä,./TestService_NotLeader/$service_test0/queryö
+**(TestService_NotLeader/$service_test1/errerrvar"+services/continuous_querier/service_test.go(Ÿ0Ä @HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestService_NotLeader/$service_test1/err˚
+*TestService_NotLeader/donedonevar"+services/continuous_querier/service_test.go(â0§@HR˘{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_NotLeader/doneÈ
+*TestService_NotLeader/qeqevar"+services/continuous_querier/service_test.go(¶0Ã@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_NotLeader/qe⁄
+*TestService_NotLeader/ssvar"+services/continuous_querier/service_test.go(‹0Ú@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_NotLeader/sÏ
+*TestService_NotLeader/ttvar"+services/continuous_querier/service_test.go(À0◊@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_NotLeader/t—
+*TestService_RunTestService_Runfunc"+services/continuous_querier/service_test.go(º0Ì8HR∏{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(t *testing.T)",
+        "UnderlyingTypeString": "func(t *testing.T)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z
+
+text/plainTest Run method.
+ä./TestService_Runà
+**(TestService_Run/$service_test0/chunkSize	chunkSizevar"+services/continuous_querier/service_test.go(¸0â@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä*./TestService_Run/$service_test0/chunkSizeã
+)*'TestService_Run/$service_test0/databasedatabasevar"+services/continuous_querier/service_test.go(Î0˙@HRÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä)./TestService_Run/$service_test0/databaseŒ
+&*$TestService_Run/$service_test0/queryqueryvar"+services/continuous_querier/service_test.go(‘0È@HR∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä&./TestService_Run/$service_test0/queryé
+$*"TestService_Run/$service_test1/errerrvar"+services/continuous_querier/service_test.go(„0ä@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./TestService_Run/$service_test1/erré
+$*"TestService_Run/$service_test2/errerrvar"+services/continuous_querier/service_test.go(Å0®@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./TestService_Run/$service_test2/erré
+$*"TestService_Run/$service_test3/errerrvar"+services/continuous_querier/service_test.go(„0ä@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./TestService_Run/$service_test3/erré
+$*"TestService_Run/$service_test4/errerrvar"+services/continuous_querier/service_test.go(Å0®@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä$./TestService_Run/$service_test4/err‰
+*TestService_Run/callCntcallCntvar"+services/continuous_querier/service_test.go(ﬂ0Î@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_Run/callCntÔ
+*TestService_Run/donedonevar"+services/continuous_querier/service_test.go(Æ0…@HR˘{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_Run/doneˆ
+*TestService_Run/expectCallCntexpectCallCntvar"+services/continuous_querier/service_test.go(À0›@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_Run/expectCallCnt›
+*TestService_Run/qeqevar"+services/continuous_querier/service_test.go(ì0π@HRÌ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.QueryExecutor",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_Run/qeŒ
+*TestService_Run/ssvar"+services/continuous_querier/service_test.go(‚0¯@HR·{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/continuous_querier.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_Run/s‡
+*TestService_Run/ttvar"+services/continuous_querier/service_test.go(—0›@HRÛ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*testing.T",
+        "UnderlyingTypeString": "*testing.T",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./TestService_Run/tî
+*assertassertfunc"&services/continuous_querier/service.go(ï`0òaRﬁ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(condition bool, msg string, v ...interface{})",
+        "UnderlyingTypeString": "func(condition bool, msg string, v ...interface{})",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z`
+
+text/plainRassert will panic with a given formatted message if the given condition is false.
+ä./assert”
+*assert/condition	conditionvar"&services/continuous_querier/service.go(°`0Ø`@RÁ{
+        "PkgName": "continuous_querier",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./assert/condition≈
+*
+assert/msgmsgvar"&services/continuous_querier/service.go(±`0ª`@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./assert/msgÕ
+
+*assert/vvvar"&services/continuous_querier/service.go(Ω`0Õ`@R˘{
+        "PkgName": "continuous_querier",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä
+./assert/v
+*checkcheckfunc"+services/continuous_querier/service_test.go(∆d0ÄeHRò{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(err error)",
+        "UnderlyingTypeString": "func(err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./check‹
+*	check/errerrvar"+services/continuous_querier/service_test.go(—d0⁄d@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./check/errÄ
+*expectedErrexpectedErrvar"+services/continuous_querier/service_test.go(Ê0íHRó{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./expectedErr¨
+*	genResult	genResultfunc"+services/continuous_querier/service_test.go(˛]0ìbHRé{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(rowCnt int, valCnt int) *github.com/influxdb/influxdb/influxql.Result",
+        "UnderlyingTypeString": "func(rowCnt int, valCnt int) *github.com/influxdb/influxdb/influxql.Result",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }Z8
+
+text/plain*genResult generates a dummy query result.
+ä./genResult†
+:*8genResult/$service_test0/$service_test0/$service_test0/mmvar"+services/continuous_querier/service_test.go(ø_0≈_@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä:./genResult/$service_test0/$service_test0/$service_test0/m÷
+-*+genResult/$service_test0/$service_test0/rowrowvar"+services/continuous_querier/service_test.go(Æ`0∆a@HR≥{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä-./genResult/$service_test0/$service_test0/row£
+.*,genResult/$service_test0/$service_test0/valsvalsvar"+services/continuous_querier/service_test.go(ê_0∏_@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "[][]interface{}",
+        "UnderlyingTypeString": "[][]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä../genResult/$service_test0/$service_test0/vals‰
+*genResult/$service_test0/nnvar"+services/continuous_querier/service_test.go(Ù^0˙^@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./genResult/$service_test0/nÄ
+*genResult/nownowvar"+services/continuous_querier/service_test.go(›^0Ó^@HRô{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./genResult/now’
+*genResult/rowCntrowCntvar"+services/continuous_querier/service_test.go(ç^0ü^@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./genResult/rowCntü
+*genResult/rowsrowsvar"+services/continuous_querier/service_test.go(µ^0€^@HRµ{
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/influxql.Rows",
+        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/influxql.Row",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./genResult/rows’
+*genResult/valCntvalCntvar"+services/continuous_querier/service_test.go(ç^0ü^@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./genResult/valCntï
+*	metaStore	metaStoretype"&services/continuous_querier/service.go(à0çRÌ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.metaStore",
+        "UnderlyingTypeString": "interface{Database(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); Databases() ([]github.com/influxdb/influxdb/meta.DatabaseInfo, error); IsLeader() bool}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZI
+
+text/plain;metaStore is an internal interface to make testing easier.
+ä./metaStoreª
+*metaStore/DatabaseDatabasefunc"&services/continuous_querier/service.go(⁄0ã8RÀ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "metaStore",
+        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./metaStore/Database‡
+*metaStore/Database/namenamevar"&services/continuous_querier/service.go(„0Ó@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./metaStore/Database/name™
+*metaStore/Databases	Databasesfunc"&services/continuous_querier/service.go(∞0ÿ8R∑{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "metaStore",
+        "TypeString": "func() ([]github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "UnderlyingTypeString": "func() ([]github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./metaStore/DatabasesΩ
+*metaStore/IsLeaderIsLeaderfunc"&services/continuous_querier/service.go(ü0Æ8RÕ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "metaStore",
+        "TypeString": "func() bool",
+        "UnderlyingTypeString": "func() bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./metaStore/IsLeaderÀ
+*pointsWriterpointsWritertype"&services/continuous_querier/service.go(’0°	Ró{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.pointsWriter",
+        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZL
+
+text/plain>pointsWriter is an internal interface to make testing easier.
+ä./pointsWriter≈
+*pointsWriter/WritePointsWritePointsfunc"&services/continuous_querier/service.go(Ô0ü	8R∆{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "pointsWriter",
+        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./pointsWriter/WritePoints«
+*pointsWriter/WritePoints/ppvar"&services/continuous_querier/service.go(˚0ò	@Rœ{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./pointsWriter/WritePoints/p¶
+*queryExecutorqueryExecutortype"&services/continuous_querier/service.go(¬0√RÓ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "github.com/influxdb/influxdb/services/continuous_querier.queryExecutor",
+        "UnderlyingTypeString": "interface{ExecuteQuery(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ZM
+
+text/plain?queryExecutor is an internal interface to make testing easier.
+ä./queryExecutorı
+*queryExecutor/ExecuteQueryExecuteQueryfunc"&services/continuous_querier/service.go(›0¡8RÒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "Receiver": "queryExecutor",
+        "TypeString": "func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "UnderlyingTypeString": "func(query *github.com/influxdb/influxdb/influxql.Query, database string, chunkSize int) (\u003c-chan *github.com/influxdb/influxdb/influxql.Result, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./queryExecutor/ExecuteQuery˘
+&*$queryExecutor/ExecuteQuery/chunkSize	chunkSizevar"&services/continuous_querier/service.go(í0ü@RÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä&./queryExecutor/ExecuteQuery/chunkSize¸
+%*#queryExecutor/ExecuteQuery/databasedatabasevar"&services/continuous_querier/service.go(Å0ê@RÎ{
+        "PkgName": "continuous_querier",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä%./queryExecutor/ExecuteQuery/databaseø
+"* queryExecutor/ExecuteQuery/queryqueryvar"&services/continuous_querier/service.go(Í0ˇ@R∑{
+        "PkgName": "continuous_querier",
+        "TypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/influxql.Query",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä"./queryExecutor/ExecuteQuery/queryÜ
+*unexpectedErrunexpectedErrvar"+services/continuous_querier/service_test.go(î0¬HRó{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./unexpectedErr≥
+*waitwaitfunc"+services/continuous_querier/service_test.go(ïb0ßcHRﬁ{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(c chan struct{}, d time.Duration) (err error)",
+        "UnderlyingTypeString": "func(c chan struct{}, d time.Duration) (err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./wait–
+*wait/ccvar"+services/continuous_querier/service_test.go(üb0Æb@HR˘{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan struct{}",
+        "UnderlyingTypeString": "chan struct{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./wait/c»
+*wait/ddvar"+services/continuous_querier/service_test.go(∞b0øb@HRÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./wait/d⁄
+
+*wait/errerrvar"+services/continuous_querier/service_test.go(¬b0Àb@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä
+./wait/err¿
+	*waitIntwaitIntfunc"+services/continuous_querier/service_test.go(©c0ƒdHR‚{
+        "PkgScope": true,
+        "PkgName": "continuous_querier",
+        "TypeString": "func(c chan int, d time.Duration) (i int, err error)",
+        "UnderlyingTypeString": "func(c chan int, d time.Duration) (i int, err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä	./waitIntÃ
+*	waitInt/ccvar"+services/continuous_querier/service_test.go(∂c0¿c@HRÔ{
+        "PkgName": "continuous_querier",
+        "TypeString": "chan int",
+        "UnderlyingTypeString": "chan int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./waitInt/cŒ
+*	waitInt/ddvar"+services/continuous_querier/service_test.go(¬c0—c@HRÒ{
+        "PkgName": "continuous_querier",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./waitInt/d‡
+*waitInt/errerrvar"+services/continuous_querier/service_test.go(€c0‰c@HR˝{
+        "PkgName": "continuous_querier",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./waitInt/err¬
+*	waitInt/iivar"+services/continuous_querier/service_test.go(‘c0Ÿc@HRÂ{
+        "PkgName": "continuous_querier",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/continuous_querier"
+      }ä./waitInt/i

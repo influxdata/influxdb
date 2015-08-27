@@ -1,0 +1,1362 @@
+„
+*.mainpackage"
+cmd/influx8R∫{
+        "Exported": true,
+        "PkgName": "main",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä.”
+*main.go/CommandLineCommandLinetype"cmd/influx/main.go(à0Ç
+8Rı{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "struct{Client *github.com/influxdb/influxdb/client.Client; Line *github.com/peterh/liner.State; Host string; Port int; Username string; Password string; Database string; Ssl bool; RetentionPolicy string; Version string; Pretty bool; Format string; Execute string; ShowVersion bool; Import bool; PPS int; Path string; Compressed bool}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine‹
+*main.go/CommandLine/ClientClientfield"cmd/influx/main.go(û0º8RÙ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Clientö
+ *main.go/CommandLine/Compressed
+Compressedfield"cmd/influx/main.go(Ï	0Ä
+8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Compressedò
+*main.go/CommandLine/DatabaseDatabasefield"cmd/influx/main.go(π0œ8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Databaseï
+*main.go/CommandLine/ExecuteExecutefield"cmd/influx/main.go(Ø0≈8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Executeƒ
+"* main.go/CommandLine/ExecuteQueryExecuteQueryfunc"cmd/influx/main.go(‚`0àe8RÀ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(query string) error",
+        "UnderlyingTypeString": "func(query string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/ExecuteQuery„
+-*+main.go/CommandLine/ExecuteQuery/$main1/errerrvar"cmd/influx/main.go(€b0Úb@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä*./main/CommandLine/ExecuteQuery/$main1/errô
+$*"main.go/CommandLine/ExecuteQuery/ccvar"cmd/influx/main.go(Ë`0ˆ`@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/ExecuteQuery/c’
+&*$main.go/CommandLine/ExecuteQuery/errerrvar"cmd/influx/main.go(úa0Ôa@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/CommandLine/ExecuteQuery/err…
+(*&main.go/CommandLine/ExecuteQuery/queryqueryvar"cmd/influx/main.go(Öa0ëa@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä%./main/CommandLine/ExecuteQuery/query†
++*)main.go/CommandLine/ExecuteQuery/responseresponsevar"cmd/influx/main.go(úa0Ôa@Rö{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä(./main/CommandLine/ExecuteQuery/responseí
+*main.go/CommandLine/FormatFormatfield"cmd/influx/main.go(—0Á8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Format¨
+$*"main.go/CommandLine/FormatResponseFormatResponsefunc"cmd/influx/main.go(äe0≤g8R≠{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "UnderlyingTypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/FormatResponseù
+&*$main.go/CommandLine/FormatResponse/ccvar"cmd/influx/main.go(êe0ûe@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/CommandLine/FormatResponse/c§
+-*+main.go/CommandLine/FormatResponse/responseresponsevar"cmd/influx/main.go(Øe0»e@Rö{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä*./main/CommandLine/FormatResponse/responseÎ
+&*$main.go/CommandLine/FormatResponse/wwvar"cmd/influx/main.go( e0’e@Rˆ{
+        "PkgName": "main",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/CommandLine/FormatResponse/wå
+*main.go/CommandLine/HostHostfield"cmd/influx/main.go(‹0Ú8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Hosté
+*main.go/CommandLine/ImportImportfield"cmd/influx/main.go(›0Ò8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Import∞
+*main.go/CommandLine/InsertInsertfunc"cmd/influx/main.go(ÔY0‡`8R…{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(stmt string) error",
+        "UnderlyingTypeString": "func(stmt string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Insertø
+%*#main.go/CommandLine/Insert/$main1/iivar"cmd/influx/main.go(∂[0ÿ[@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/CommandLine/Insert/$main1/iø
+%*#main.go/CommandLine/Insert/$main1/rrvar"cmd/influx/main.go(∂[0ÿ[@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/CommandLine/Insert/$main1/rç
+*main.go/CommandLine/Insert/ccvar"cmd/influx/main.go(ıY0ÉZ@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Insert/c…
+ *main.go/CommandLine/Insert/errerrvar"cmd/influx/main.go(ñ\0ç^@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Insert/err±
+*main.go/CommandLine/Insert/iivar"cmd/influx/main.go(¢Z0«Z@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Insert/iΩ
+"* main.go/CommandLine/Insert/pointpointvar"cmd/influx/main.go(¢Z0«Z@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Insert/point∫
+!*main.go/CommandLine/Insert/stmtstmtvar"cmd/influx/main.go(åZ0óZ@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Insert/stmtº
+*main.go/CommandLine/LineLinefield"cmd/influx/main.go(æ0⁄8R⁄{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "*github.com/peterh/liner.State",
+        "UnderlyingTypeString": "*github.com/peterh/liner.State",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/LineÉ
+*main.go/CommandLine/PPSPPSfield"cmd/influx/main.go(Û0Ü	8R§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/PPSæ
+"* main.go/CommandLine/ParseCommandParseCommandfunc"cmd/influx/main.go(Ö10Ç88R≈{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(cmd string) bool",
+        "UnderlyingTypeString": "func(cmd string) bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/ParseCommandô
+$*"main.go/CommandLine/ParseCommand/ccvar"cmd/influx/main.go(ã10ô1@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/ParseCommand/c√
+&*$main.go/CommandLine/ParseCommand/cmdcmdvar"cmd/influx/main.go(®10≤1@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/CommandLine/ParseCommand/cmd∆
+'*%main.go/CommandLine/ParseCommand/lcmdlcmdvar"cmd/influx/main.go(º10Î1@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä$./main/CommandLine/ParseCommand/lcmdò
+*main.go/CommandLine/PasswordPasswordfield"cmd/influx/main.go(°0∑8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Passwordå
+*main.go/CommandLine/PathPathfield"cmd/influx/main.go(‘	0Í	8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/PathÜ
+*main.go/CommandLine/PortPortfield"cmd/influx/main.go(Ù0á8R§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Porté
+*main.go/CommandLine/PrettyPrettyfield"cmd/influx/main.go(ó0´8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Pretty≠
+%*#main.go/CommandLine/RetentionPolicyRetentionPolicyfield"cmd/influx/main.go(Á0˝8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/CommandLine/RetentionPolicy•
+*main.go/CommandLine/SetAuthSetAuthfunc"cmd/influx/main.go(Ù>0üD8Rª{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(cmd string)",
+        "UnderlyingTypeString": "func(cmd string)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/SetAuth·
+-*+main.go/CommandLine/SetAuth/$main1/$main1/eevar"cmd/influx/main.go(ØA0“A@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä*./main/CommandLine/SetAuth/$main1/$main1/eœ
+-*+main.go/CommandLine/SetAuth/$main1/$main1/ppvar"cmd/influx/main.go(«B0ÚB@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä*./main/CommandLine/SetAuth/$main1/$main1/pœ
+-*+main.go/CommandLine/SetAuth/$main1/$main1/uuvar"cmd/influx/main.go(ØA0“A@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä*./main/CommandLine/SetAuth/$main1/$main1/u¿
+"* main.go/CommandLine/SetAuth/argsargsvar"cmd/influx/main.go(˚?0ñ@@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/SetAuth/argsè
+*main.go/CommandLine/SetAuth/ccvar"cmd/influx/main.go(˙>0à?@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/SetAuth/cπ
+!*main.go/CommandLine/SetAuth/cmdcmdvar"cmd/influx/main.go(í?0ú?@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/SetAuth/cmd´
+*main.go/CommandLine/SetFormat	SetFormatfunc"cmd/influx/main.go(ºF0ûI8Rª{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(cmd string)",
+        "UnderlyingTypeString": "func(cmd string)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/SetFormatì
+!*main.go/CommandLine/SetFormat/ccvar"cmd/influx/main.go(¬F0–F@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/SetFormat/cΩ
+#*!main.go/CommandLine/SetFormat/cmdcmdvar"cmd/influx/main.go(‹F0ÊF@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä ./main/CommandLine/SetFormat/cmdñ
+*main.go/CommandLine/SettingsSettingsfunc"cmd/influx/main.go(ãÑ0≥á8Rß{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Settingsì
+ *main.go/CommandLine/Settings/ccvar"cmd/influx/main.go(ëÑ0üÑ@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Settings/c◊
+ *main.go/CommandLine/Settings/wwvar"cmd/influx/main.go(ØÑ0…Ñ@RÏ{
+        "PkgName": "main",
+        "TypeString": "*text/tabwriter.Writer",
+        "UnderlyingTypeString": "*text/tabwriter.Writer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Settings/wù
+!*main.go/CommandLine/ShowVersionShowVersionfield"cmd/influx/main.go(«0€8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/ShowVersionÖ
+*main.go/CommandLine/SslSslfield"cmd/influx/main.go(—0Â8R¶{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Sslò
+*main.go/CommandLine/UsernameUsernamefield"cmd/influx/main.go(â0ü8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Usernameï
+*main.go/CommandLine/VersionVersionfield"cmd/influx/main.go(ˇ0ï8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "main",
+        "FieldOfStruct": "CommandLine",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/Versionï
+*main.go/CommandLine/connectconnectfunc"cmd/influx/main.go(Ñ80Ú>R≠{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(cmd string) error",
+        "UnderlyingTypeString": "func(cmd string) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect”
+&*$main.go/CommandLine/connect/$main3/eevar"cmd/influx/main.go(ﬂ=0˘=@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/CommandLine/connect/$main3/e¡
+&*$main.go/CommandLine/connect/$main3/vvvar"cmd/influx/main.go(ﬂ=0˘=@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/CommandLine/connect/$main3/vè
+*main.go/CommandLine/connect/ccvar"cmd/influx/main.go(ä80ò8@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/cÄ
+ *main.go/CommandLine/connect/clclvar"cmd/influx/main.go(ª80Ã8@Rñ{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Client",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Client",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/clπ
+!*main.go/CommandLine/connect/cmdcmdvar"cmd/influx/main.go(¢80¨8@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/cmd¬
+$*"main.go/CommandLine/connect/configconfigvar"cmd/influx/main.go(ƒ;0‡;@RÃ{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/client.Config",
+        "UnderlyingTypeString": "struct{URL net/url.URL; Username string; Password string; UserAgent string; Timeout time.Duration}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/connect/config≈
+*main.go/CommandLine/connect/eevar"cmd/influx/main.go(Î:0Ú:@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/eÀ
+!*main.go/CommandLine/connect/errerrvar"cmd/influx/main.go(›<0Ä=@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/errº
+"* main.go/CommandLine/connect/pathpathvar"cmd/influx/main.go(å90Œ9@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/path™
+*main.go/CommandLine/connect/uuvar"cmd/influx/main.go(“80€8@R√{
+        "PkgName": "main",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/connect/uˇ
+#*!main.go/CommandLine/formatResultsformatResultsfunc"cmd/influx/main.go(§p0´ÅR•{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(result github.com/influxdb/influxdb/client.Result, separator string) []string",
+        "UnderlyingTypeString": "func(result github.com/influxdb/influxdb/client.Result, separator string) []string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }Z]
+
+text/plainOformatResults will behave differently if you are formatting for columns or csv
+ä ./main/CommandLine/formatResultsÍ
+:*8main.go/CommandLine/formatResults/$main0/$main0/$main0/kkvar"cmd/influx/main.go(§p0´Å@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä7./main/CommandLine/formatResults/$main0/$main0/$main0/kÍ
+:*8main.go/CommandLine/formatResults/$main0/$main0/$main0/vvvar"cmd/influx/main.go(§p0´Å@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä7./main/CommandLine/formatResults/$main0/$main0/$main0/v˘
+?*=main.go/CommandLine/formatResults/$main0/$main0/$main2/columncolumnvar"cmd/influx/main.go(§p0´Å@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä<./main/CommandLine/formatResults/$main0/$main0/$main2/columnØ
+]*[main.go/CommandLine/formatResults/$main0/$main0/$main4/$main0/$main0/$main0/$main0/$main0/llvar"cmd/influx/main.go(Ñy0§y@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äZ./main/CommandLine/formatResults/$main0/$main0/$main4/$main0/$main0/$main0/$main0/$main0/lì
+O*Mmain.go/CommandLine/formatResults/$main0/$main0/$main4/$main0/$main0/$main0/nnvar"cmd/influx/main.go(•x0Àx@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äL./main/CommandLine/formatResults/$main0/$main0/$main4/$main0/$main0/$main0/nì
+O*Mmain.go/CommandLine/formatResults/$main0/$main0/$main4/$main0/$main1/$main0/ttvar"cmd/influx/main.go(Êy0ûz@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äL./main/CommandLine/formatResults/$main0/$main0/$main4/$main0/$main1/$main0/t°
+Q*Omain.go/CommandLine/formatResults/$main0/$main0/$main5/$main0/$main0/columnName
+columnNamevar"cmd/influx/main.go(§p0´Å@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äN./main/CommandLine/formatResults/$main0/$main0/$main5/$main0/$main0/columnNameá
+E*Cmain.go/CommandLine/formatResults/$main0/$main0/$main5/$main0/lineslinesvar"cmd/influx/main.go(Ô{0Ç|@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äB./main/CommandLine/formatResults/$main0/$main0/$main5/$main0/linesì
+I*Gmain.go/CommandLine/formatResults/$main0/$main0/$main6/$main0/$main1/vvvvvar"cmd/influx/main.go(§p0´Å@R÷{
+        "PkgName": "main",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äF./main/CommandLine/formatResults/$main0/$main0/$main6/$main0/$main1/vvä
+F*Dmain.go/CommandLine/formatResults/$main0/$main0/$main6/$main0/valuesvaluesvar"cmd/influx/main.go(ÿ}0Á}@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }äC./main/CommandLine/formatResults/$main0/$main0/$main6/$main0/values¯
+:*8main.go/CommandLine/formatResults/$main0/$main0/$main6/vvvar"cmd/influx/main.go(§p0´Å@R⁄{
+        "PkgName": "main",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä7./main/CommandLine/formatResults/$main0/$main0/$main6/v˝
+=*;main.go/CommandLine/formatResults/$main0/$main0/columnNamescolumnNamesvar"cmd/influx/main.go(ês0©s@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä:./main/CommandLine/formatResults/$main0/$main0/columnNamesË
+6*4main.go/CommandLine/formatResults/$main0/$main0/tagstagsvar"cmd/influx/main.go(ér0†r@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä3./main/CommandLine/formatResults/$main0/$main0/tags»
+,**main.go/CommandLine/formatResults/$main0/iivar"cmd/influx/main.go(§p0´Å@R∆{
+        "PkgName": "main",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä)./main/CommandLine/formatResults/$main0/iı
+.*,main.go/CommandLine/formatResults/$main0/rowrowvar"cmd/influx/main.go(§p0´Å@RÌ{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/influxql.Row",
+        "UnderlyingTypeString": "struct{Name string \"json:\\\"name,omitempty\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"; Columns []string \"json:\\\"columns,omitempty\\\"\"; Values [][]interface{} \"json:\\\"values,omitempty\\\"\"; Err error \"json:\\\"err,omitempty\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä+./main/CommandLine/formatResults/$main0/rowõ
+%*#main.go/CommandLine/formatResults/ccvar"cmd/influx/main.go(™p0∏p@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/CommandLine/formatResults/c±
+**(main.go/CommandLine/formatResults/resultresultvar"cmd/influx/main.go(»p0‹p@RØ{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä'./main/CommandLine/formatResults/resultÃ
+(*&main.go/CommandLine/formatResults/rowsrowsvar"cmd/influx/main.go(¸p0éq@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä%./main/CommandLine/formatResults/rows◊
+-*+main.go/CommandLine/formatResults/separator	separatorvar"cmd/influx/main.go(ﬁp0Óp@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä*./main/CommandLine/formatResults/separatorÙ
+*main.go/CommandLine/gophergopherfunc"cmd/influx/main.go(üé0Á≠Rç{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/gopherè
+*main.go/CommandLine/gopher/ccvar"cmd/influx/main.go(•é0≥é@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/gopher/cÓ
+*main.go/CommandLine/helphelpfunc"cmd/influx/main.go(µá0ùéRç{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/helpã
+*main.go/CommandLine/help/ccvar"cmd/influx/main.go(ªá0…á@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/help/cü
+*main.go/CommandLine/parseInto	parseIntofunc"cmd/influx/main.go(”V0ÌYR±{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(stmt string) string",
+        "UnderlyingTypeString": "func(stmt string) string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/parseIntoì
+!*main.go/CommandLine/parseInto/ccvar"cmd/influx/main.go(ŸV0ÁV@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/parseInto/c√
+%*#main.go/CommandLine/parseInto/identidentvar"cmd/influx/main.go(äW0≤W@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/CommandLine/parseInto/ident¿
+$*"main.go/CommandLine/parseInto/stmtstmtvar"cmd/influx/main.go(ÛV0˛V@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/parseInto/stmt˝
+*main.go/CommandLine/useusefunc"cmd/influx/main.go(°D0∫FR°{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(cmd string)",
+        "UnderlyingTypeString": "func(cmd string)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/use∏
+*main.go/CommandLine/use/argsargsvar"cmd/influx/main.go( D0ïE@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/use/argsá
+*main.go/CommandLine/use/ccvar"cmd/influx/main.go(ßD0µD@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/use/c±
+*main.go/CommandLine/use/cmdcmdvar"cmd/influx/main.go(ªD0≈D@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/use/cmd´
+*main.go/CommandLine/use/ddvar"cmd/influx/main.go(ˆE0ÇF@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/use/d˛
+*main.go/CommandLine/writeCSVwriteCSVfunc"cmd/influx/main.go(âj0‡lRì{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "UnderlyingTypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeCSVﬂ
+5*3main.go/CommandLine/writeCSV/$main0/$main0/$main0/rrvar"cmd/influx/main.go(âj0‡l@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä2./main/CommandLine/writeCSV/$main0/$main0/$main0/rﬁ
+1*/main.go/CommandLine/writeCSV/$main0/$main0/rowsrowsvar"cmd/influx/main.go(‚k0ál@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä../main/CommandLine/writeCSV/$main0/$main0/rowsµ
+,**main.go/CommandLine/writeCSV/$main0/resultresultvar"cmd/influx/main.go(âj0‡l@RØ{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä)./main/CommandLine/writeCSV/$main0/resultë
+ *main.go/CommandLine/writeCSV/ccvar"cmd/influx/main.go(èj0ùj@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeCSV/c⁄
+#*!main.go/CommandLine/writeCSV/csvwcsvwvar"cmd/influx/main.go(”j0Îj@RË{
+        "PkgName": "main",
+        "TypeString": "*encoding/csv.Writer",
+        "UnderlyingTypeString": "*encoding/csv.Writer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä ./main/CommandLine/writeCSV/csvwò
+'*%main.go/CommandLine/writeCSV/responseresponsevar"cmd/influx/main.go(®j0¡j@Rö{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä$./main/CommandLine/writeCSV/responseﬂ
+ *main.go/CommandLine/writeCSV/wwvar"cmd/influx/main.go(√j0Œj@Rˆ{
+        "PkgName": "main",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeCSV/wä
+"* main.go/CommandLine/writeColumnswriteColumnsfunc"cmd/influx/main.go(‚l0–oRì{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "UnderlyingTypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeColumnsÁ
+9*7main.go/CommandLine/writeColumns/$main0/$main0/$main0/rrvar"cmd/influx/main.go(‚l0–o@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä6./main/CommandLine/writeColumns/$main0/$main0/$main0/r„
+4*2main.go/CommandLine/writeColumns/$main0/$main0/csvcsvvar"cmd/influx/main.go(Án0ão@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä1./main/CommandLine/writeColumns/$main0/$main0/csv˘
+2*0main.go/CommandLine/writeColumns/$main0/$main0/wwvar"cmd/influx/main.go(§n0æn@RÏ{
+        "PkgName": "main",
+        "TypeString": "*text/tabwriter.Writer",
+        "UnderlyingTypeString": "*text/tabwriter.Writer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä/./main/CommandLine/writeColumns/$main0/$main0/wΩ
+0*.main.go/CommandLine/writeColumns/$main0/resultresultvar"cmd/influx/main.go(‚l0–o@RØ{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/client.Result",
+        "UnderlyingTypeString": "struct{Series []github.com/influxdb/influxdb/influxql.Row; Err error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä-./main/CommandLine/writeColumns/$main0/resultô
+$*"main.go/CommandLine/writeColumns/ccvar"cmd/influx/main.go(Ël0ˆl@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/writeColumns/c†
++*)main.go/CommandLine/writeColumns/responseresponsevar"cmd/influx/main.go(Öm0ûm@Rö{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä(./main/CommandLine/writeColumns/responseÁ
+$*"main.go/CommandLine/writeColumns/wwvar"cmd/influx/main.go(†m0´m@Rˆ{
+        "PkgName": "main",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/writeColumns/wÅ
+*main.go/CommandLine/writeJSON	writeJSONfunc"cmd/influx/main.go(¥g0ájRì{
+        "PkgScope": true,
+        "PkgName": "main",
+        "Receiver": "*CommandLine",
+        "TypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "UnderlyingTypeString": "func(response *github.com/influxdb/influxdb/client.Response, w io.Writer)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeJSONì
+!*main.go/CommandLine/writeJSON/ccvar"cmd/influx/main.go(∫g0»g@R®{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeJSON/c¿
+$*"main.go/CommandLine/writeJSON/datadatavar"cmd/influx/main.go(Éh0éh@RÃ{
+        "PkgName": "main",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä!./main/CommandLine/writeJSON/dataœ
+#*!main.go/CommandLine/writeJSON/errerrvar"cmd/influx/main.go(îh0ùh@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä ./main/CommandLine/writeJSON/errö
+(*&main.go/CommandLine/writeJSON/responseresponsevar"cmd/influx/main.go(‘g0Ìg@Rö{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/client.Response",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/client.Response",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä%./main/CommandLine/writeJSON/response·
+!*main.go/CommandLine/writeJSON/wwvar"cmd/influx/main.go(Ôg0˙g@Rˆ{
+        "PkgName": "main",
+        "TypeString": "io.Writer",
+        "UnderlyingTypeString": "interface{Write(p []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/CommandLine/writeJSON/w≥
+*main.go/defaultFormatdefaultFormatconst"cmd/influx/main.go(Õ0ÂR¯{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ZV
+
+text/plainHdefaultFormat is the default format of the results when issuing queries
+ä./main/defaultFormatﬂ
+*main.go/defaultPPS
+defaultPPSconst"cmd/influx/main.go(Ò0ˇRÚ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }Zê
+
+text/plainÅdefaultPPS is the default points per second that the import will throttle at
+by default it's 0, which means it will not throttle
+ä./main/defaultPPSˇ
+*main.go/interfaceToStringinterfaceToStringfunc"cmd/influx/main.go(≠Å0âÑRè{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(v interface{}) string",
+        "UnderlyingTypeString": "func(v interface{}) string",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/interfaceToStringª
+*main.go/interfaceToString/vvvar"cmd/influx/main.go(ƒÅ0—Å@R÷{
+        "PkgName": "main",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/interfaceToString/vå
+*main.go/isDigitisDigitfunc"cmd/influx/main.go(˜K0µLRˇ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(ch rune) bool",
+        "UnderlyingTypeString": "func(ch rune) bool",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }Z;
+
+text/plain-isDigit returns true if the rune is a digit.
+ä./main/isDigitö
+*main.go/isDigit/chchvar"cmd/influx/main.go(ÑL0ãL@R»{
+        "PkgName": "main",
+        "TypeString": "rune",
+        "UnderlyingTypeString": "rune",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/isDigit/ch‹
+*main.go/isIdentFirstCharisIdentFirstCharfunc"cmd/influx/main.go(úM0‰MRˇ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(ch rune) bool",
+        "UnderlyingTypeString": "func(ch rune) bool",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }Zp
+
+text/plainbisIdentFirstChar returns true if the rune can be used as the first char in an unquoted identifer.
+ä./main/isIdentFirstChar¨
+*main.go/isIdentFirstChar/chchvar"cmd/influx/main.go(≤M0πM@R»{
+        "PkgName": "main",
+        "TypeString": "rune",
+        "UnderlyingTypeString": "rune",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/isIdentFirstChar/chë
+*main.go/isLetterisLetterfunc"cmd/influx/main.go(ÍJ0≈KRˇ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(ch rune) bool",
+        "UnderlyingTypeString": "func(ch rune) bool",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }Z=
+
+text/plain/isLetter returns true if the rune is a letter.
+ä./main/isLetterú
+*main.go/isLetter/chchvar"cmd/influx/main.go(¯J0ˇJ@R»{
+        "PkgName": "main",
+        "TypeString": "rune",
+        "UnderlyingTypeString": "rune",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/isLetter/ch¿
+*main.go/isNotIdentCharisNotIdentCharfunc"cmd/influx/main.go(µN0çORˇ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(ch rune) bool",
+        "UnderlyingTypeString": "func(ch rune) bool",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ZZ
+
+text/plainLisIdentChar returns true if the rune can be used in an unquoted identifier.
+ä./main/isNotIdentChar®
+*main.go/isNotIdentChar/chchvar"cmd/influx/main.go(…N0–N@R»{
+        "PkgName": "main",
+        "TypeString": "rune",
+        "UnderlyingTypeString": "rune",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/isNotIdentChar/ch±
+*main.go/isWhitespaceisWhitespacefunc"cmd/influx/main.go(ÊI0∂JRˇ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(ch rune) bool",
+        "UnderlyingTypeString": "func(ch rune) bool",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ZQ
+
+text/plainCisWhitespace returns true if the rune is a space, tab, or newline.
+ä./main/isWhitespace§
+*main.go/isWhitespace/chchvar"cmd/influx/main.go(¯I0ˇI@R»{
+        "PkgName": "main",
+        "TypeString": "rune",
+        "UnderlyingTypeString": "rune",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/isWhitespace/chÆ
+*main.go/mainmainfunc"cmd/influx/main.go(Ñ
+0¡0RÁ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main£
+*main.go/main/$main2/vvvar"cmd/influx/main.go(Ñ
+0¡0@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main2/v√
+*main.go/main/$main3/$main0/eevar"cmd/influx/main.go(µ#0‡#@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main3/$main0/e±
+*main.go/main/$main3/$main0/ppvar"cmd/influx/main.go(µ#0‡#@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main3/$main0/pª
+*main.go/main/$main4/errerrvar"cmd/influx/main.go(∆$0⁄$@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main4/err◊
+'*%main.go/main/$main6/$main0/$main0/errerrvar"cmd/influx/main.go(¯%0ò&@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä$./main/main/$main6/$main0/$main0/err◊
+'*%main.go/main/$main7/$main0/$main1/errerrvar"cmd/influx/main.go(Œ*0ﬂ*@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä$./main/main/$main7/$main0/$main1/errî
+#*!main.go/main/$main7/$main0/configconfigvar"cmd/influx/main.go(ú(0¥(@R†{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/importer/v8.Config",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/importer/v8.Config",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä ./main/main/$main7/$main0/config√
+*main.go/main/$main7/$main0/eevar"cmd/influx/main.go(∑'0Ë'@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main7/$main0/eâ
+*main.go/main/$main7/$main0/iivar"cmd/influx/main.go(≠*0»*@R§{
+        "PkgName": "main",
+        "TypeString": "*github.com/influxdb/influxdb/importer/v8.Importer",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/importer/v8.Importer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main7/$main0/i∫
+!*main.go/main/$main7/$main0/pathpathvar"cmd/influx/main.go(˛&0¥'@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main7/$main0/path®
+*main.go/main/$main7/$main0/uuvar"cmd/influx/main.go(∑'0Ë'@R√{
+        "PkgName": "main",
+        "TypeString": "net/url.URL",
+        "UnderlyingTypeString": "struct{Scheme string; Opaque string; User *net/url.Userinfo; Host string; Path string; RawQuery string; Fragment string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main7/$main0/u◊
+'*%main.go/main/$main8/$main0/$main0/errerrvar"cmd/influx/main.go(ú-0∫-@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä$./main/main/$main8/$main0/$main0/err√
+%*#main.go/main/$main8/$main0/$main0/ffvar"cmd/influx/main.go(ú-0∫-@R–{
+        "PkgName": "main",
+        "TypeString": "*os.File",
+        "UnderlyingTypeString": "*os.File",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/main/$main8/$main0/$main0/fè
+C*Amain.go/main/$main9/$main0/$main1/$main0/$main0/$main0/$main0/errerrvar"cmd/influx/main.go(Æ/0Œ/@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä@./main/main/$main9/$main0/$main1/$main0/$main0/$main0/$main0/err˚
+A*?main.go/main/$main9/$main0/$main1/$main0/$main0/$main0/$main0/ffvar"cmd/influx/main.go(Æ/0Œ/@R–{
+        "PkgName": "main",
+        "TypeString": "*os.File",
+        "UnderlyingTypeString": "*os.File",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä>./main/main/$main9/$main0/$main1/$main0/$main0/$main0/$main0/f√
+*main.go/main/$main9/$main0/eevar"cmd/influx/main.go(Ä.0õ.@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main9/$main0/e±
+*main.go/main/$main9/$main0/llvar"cmd/influx/main.go(Ä.0õ.@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/$main9/$main0/lâ
+*main.go/main/ccvar"cmd/influx/main.go(ì
+0•
+@R¿{
+        "PkgName": "main",
+        "TypeString": "github.com/influxdb/influxdb/cmd/influx.CommandLine",
+        "UnderlyingTypeString": "struct{Client *github.com/influxdb/influxdb/client.Client; Line *github.com/peterh/liner.State; Host string; Port int; Username string; Password string; Database string; Ssl bool; RetentionPolicy string; Version string; Pretty bool; Format string; Execute string; ShowVersion bool; Import bool; PPS int; Path string; Compressed bool}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/c≠
+*main.go/main/errerrvar"cmd/influx/main.go(ˇ+0ô,@Rﬁ{
+        "PkgName": "main",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/err¶
+*main.go/main/fsfsvar"cmd/influx/main.go(®
+0Ú
+@R⁄{
+        "PkgName": "main",
+        "TypeString": "*flag.FlagSet",
+        "UnderlyingTypeString": "*flag.FlagSet",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/fs≥
+*main.go/main/historyFilehistoryFilevar"cmd/influx/main.go(Î+0˝+@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/historyFile¡
+ *main.go/main/promptForPasswordpromptForPasswordvar"cmd/influx/main.go(» 0ﬁ @R»{
+        "PkgName": "main",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/promptForPassword©
+*main.go/main/usrusrvar"cmd/influx/main.go(ˇ+0ô,@R⁄{
+        "PkgName": "main",
+        "TypeString": "*os/user.User",
+        "UnderlyingTypeString": "*os/user.User",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/main/usr´
+%*#main.go/parseDoubleQuotedIdentifierparseDoubleQuotedIdentifierfunc"cmd/influx/main.go(ÂP0ˆSRü{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(stmt string) (string, string)",
+        "UnderlyingTypeString": "func(stmt string) (string, string)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä"./main/parseDoubleQuotedIdentifier–
+/*-main.go/parseDoubleQuotedIdentifier/$main0/chchvar"cmd/influx/main.go(‰Q0ÎQ@R»{
+        "PkgName": "main",
+        "TypeString": "rune",
+        "UnderlyingTypeString": "rune",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä,./main/parseDoubleQuotedIdentifier/$main0/ch⁄
+0*.main.go/parseDoubleQuotedIdentifier/escapeNext
+escapeNextvar"cmd/influx/main.go(ßQ0∫Q@R»{
+        "PkgName": "main",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä-./main/parseDoubleQuotedIdentifier/escapeNext÷
+,**main.go/parseDoubleQuotedIdentifier/fieldsfieldsvar"cmd/influx/main.go(ºQ0àS@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä)./main/parseDoubleQuotedIdentifier/fieldsÃ
+**(main.go/parseDoubleQuotedIdentifier/stmtstmtvar"cmd/influx/main.go(ÜQ0ëQ@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä'./main/parseDoubleQuotedIdentifier/stmt≥
+*main.go/parseNextIdentifierparseNextIdentifierfunc"cmd/influx/main.go(¯S0—VRø{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(stmt string) (ident string, remainder string)",
+        "UnderlyingTypeString": "func(stmt string) (ident string, remainder string)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/parseNextIdentifierø
+#*!main.go/parseNextIdentifier/identidentvar"cmd/influx/main.go(üT0∂T@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä ./main/parseNextIdentifier/identÀ
+'*%main.go/parseNextIdentifier/remainder	remaindervar"cmd/influx/main.go(üT0∂T@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä$./main/parseNextIdentifier/remainderº
+"* main.go/parseNextIdentifier/stmtstmtvar"cmd/influx/main.go(ëT0úT@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/parseNextIdentifier/stmtü
+!*main.go/parseUnquotedIdentifierparseUnquotedIdentifierfunc"cmd/influx/main.go(èO0„PRü{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func(stmt string) (string, string)",
+        "UnderlyingTypeString": "func(stmt string) (string, string)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/parseUnquotedIdentifier‹
+/*-main.go/parseUnquotedIdentifier/$main0/fieldsfieldsvar"cmd/influx/main.go(–O0ÇP@R–{
+        "PkgName": "main",
+        "TypeString": "[]string",
+        "UnderlyingTypeString": "[]string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä,./main/parseUnquotedIdentifier/$main0/fieldsƒ
+&*$main.go/parseUnquotedIdentifier/stmtstmtvar"cmd/influx/main.go(¨O0∑O@RÃ{
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä#./main/parseUnquotedIdentifier/stmt√
+*main.go/showVersionshowVersionfunc"cmd/influx/main.go(√00É1RÁ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }ä./main/showVersionˆ
+*main.go/versionversionvar"cmd/influx/main.go(ﬁ0ÙRÊ{
+        "PkgScope": true,
+        "PkgName": "main",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/cmd/influx"
+      }Z?
+
+text/plain1These variables are populated via the Go linker.
+ä./main/version

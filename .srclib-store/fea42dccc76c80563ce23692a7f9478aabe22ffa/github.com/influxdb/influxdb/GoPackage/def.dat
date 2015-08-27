@@ -1,0 +1,413 @@
+◊
+*.influxdbpackage".8R≥{
+        "Exported": true,
+        "PkgName": "influxdb",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä.„
+
+*BalancerBalancertype"balancer.go(õ0¥8R–{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "github.com/influxdb/influxdb.Balancer",
+        "UnderlyingTypeString": "interface{Next() *github.com/influxdb/influxdb/meta.NodeInfo}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ZP
+
+text/plainBBalancer represents a load-balancing algorithm for a set of nodes
+ä
+./BalancerØ
+*Balancer/NextNextfunc"balancer.go(ù0≤8RÙ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "Receiver": "Balancer",
+        "TypeString": "func() *github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Zr
+
+text/plaindNext returns the next Node according to the balancing method
+or nil if there are no nodes available
+ä./Balancer/Next¸
+*ErrDatabaseNotFoundErrDatabaseNotFoundfunc"	errors.go(Ì0Œ8Rú{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(name string) error",
+        "UnderlyingTypeString": "func(name string) error",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./ErrDatabaseNotFoundü
+*ErrDatabaseNotFound/namenamevar"	errors.go(Ü0ë@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./ErrDatabaseNotFound/name’
+*ErrFieldTypeConflictErrFieldTypeConflictvar"	errors.go(±0È8Rã{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Zf
+
+text/plainXErrFieldTypeConflict is returned when a new field already exists with a different type.
+ä./ErrFieldTypeConflict¥
+*ErrFieldsRequiredErrFieldsRequiredvar"	errors.go(°0“8Rã{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ZN
+
+text/plain@ErrFieldsRequired is returned when a point does not any fields.
+ä./ErrFieldsRequiredÖ
+*ErrMeasurementNotFoundErrMeasurementNotFoundfunc"	errors.go(–0∑8Rú{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(name string) error",
+        "UnderlyingTypeString": "func(name string) error",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./ErrMeasurementNotFound•
+*ErrMeasurementNotFound/namenamevar"	errors.go(Ï0˜@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./ErrMeasurementNotFound/nameâ
+*ErrorfErrorffunc"	errors.go(π0§8R–{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(format string, a ...interface{}) (err error)",
+        "UnderlyingTypeString": "func(format string, a ...interface{}) (err error)",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./Errorfó
+*Errorf/$errors0/filefilevar"	errors.go(¯0û@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./Errorf/$errors0/fileë
+*Errorf/$errors0/linelinevar"	errors.go(¯0û@Rø{
+        "PkgName": "influxdb",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./Errorf/$errors0/lineç
+*Errorf/$errors0/okokvar"	errors.go(¯0û@R¡{
+        "PkgName": "influxdb",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./Errorf/$errors0/okä
+
+*Errorf/aavar"	errors.go(‘0‰@R”{
+        "PkgName": "influxdb",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä
+./Errorf/aî
+*
+Errorf/errerrvar"	errors.go(Á0@R◊{
+        "PkgName": "influxdb",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./Errorf/errã
+*Errorf/formatformatvar"	errors.go(≈0“@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./Errorf/format∂
+*IsClientErrorIsClientErrorfunc"	errors.go(Î0˚8Rñ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(err error) bool",
+        "UnderlyingTypeString": "func(err error) bool",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ZP
+
+text/plainBIsClientError indicates whether an error is a known client error.
+ä./IsClientError¢
+*IsClientError/errerrvar"	errors.go(˛0á@R◊{
+        "PkgName": "influxdb",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./IsClientError/err√
+*NewNodeBalancerNewNodeBalancerfunc"balancer.go(Û0Œ8R™{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(nodes []github.com/influxdb/influxdb/meta.NodeInfo) github.com/influxdb/influxdb.Balancer",
+        "UnderlyingTypeString": "func(nodes []github.com/influxdb/influxdb/meta.NodeInfo) github.com/influxdb/influxdb.Balancer",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Z¿
+
+text/plain±NewNodeBalancer create a shuffled, round-robin balancer so that
+multiple instances will return nodes in randomized order and each
+each returned node will be repeated in a cycle
+ä./NewNodeBalancerÿ
+*NewNodeBalancer/bbvar"balancer.go(‹0@Rç{
+        "PkgName": "influxdb",
+        "TypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./NewNodeBalancer/bË
+*NewNodeBalancer/nodesnodesvar"balancer.go(à0ù@Rë{
+        "PkgName": "influxdb",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./NewNodeBalancer/nodes—
+*assertassertfunc"	errors.go(Û0ˆR∏{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(condition bool, msg string, v ...interface{})",
+        "UnderlyingTypeString": "func(condition bool, msg string, v ...interface{})",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Z`
+
+text/plainRassert will panic with a given formatted message if the given condition is false.
+ä./assertê
+*assert/condition	conditionvar"	errors.go(ˇ0ç@R¡{
+        "PkgName": "influxdb",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./assert/conditionÇ
+*
+assert/msgmsgvar"	errors.go(è0ô@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "string",
+        "UnderlyingTypeString": "string",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./assert/msgä
+
+*assert/vvvar"	errors.go(õ0´@R”{
+        "PkgName": "influxdb",
+        "TypeString": "[]interface{}",
+        "UnderlyingTypeString": "[]interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä
+./assert/v£
+*mustMarshalJSONmustMarshalJSONfunc"	errors.go(Ω
+0«Rà{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(v interface{}) []byte",
+        "UnderlyingTypeString": "func(v interface{}) []byte",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Z∆
+
+text/plain∑mustMarshal encodes a value to JSON.
+This will panic if an error occurs. This should only be used internally when
+an invalid marshal will cause corruption and a panic is appropriate.
+ä./mustMarshalJSONé
+*mustMarshalJSON/bbvar"	errors.go(Î
+0Ñ@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./mustMarshalJSON/b¶
+*mustMarshalJSON/errerrvar"	errors.go(Î
+0Ñ@R◊{
+        "PkgName": "influxdb",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./mustMarshalJSON/errò
+*mustMarshalJSON/vvvar"	errors.go(“
+0ﬂ
+@Rœ{
+        "PkgName": "influxdb",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./mustMarshalJSON/vπ
+*mustUnmarshalJSONmustUnmarshalJSONfunc"	errors.go(ì0úRé{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "func(b []byte, v interface{})",
+        "UnderlyingTypeString": "func(b []byte, v interface{})",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Z–
+
+text/plain¡mustUnmarshalJSON decodes a value from JSON.
+This will panic if an error occurs. This should only be used internally when
+an invalid unmarshal will cause corruption and a panic is appropriate.
+ä./mustUnmarshalJSONº
+ *mustUnmarshalJSON/$errors0/errerrvar"	errors.go(…0‰@R◊{
+        "PkgName": "influxdb",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä ./mustUnmarshalJSON/$errors0/errí
+*mustUnmarshalJSON/bbvar"	errors.go(™0≤@R≈{
+        "PkgName": "influxdb",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./mustUnmarshalJSON/bú
+*mustUnmarshalJSON/vvvar"	errors.go(¥0¡@Rœ{
+        "PkgName": "influxdb",
+        "TypeString": "interface{}",
+        "UnderlyingTypeString": "interface{}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./mustUnmarshalJSON/vâ
+*nodeBalancernodeBalancertype"balancer.go(ª0∑Ræ{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "TypeString": "github.com/influxdb/influxdb.nodeBalancer",
+        "UnderlyingTypeString": "struct{nodes []github.com/influxdb/influxdb/meta.NodeInfo; p int}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer˛
+*nodeBalancer/NextNextfunc"balancer.go(Å0Ä8R˘{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "Receiver": "*nodeBalancer",
+        "TypeString": "func() *github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }Z4
+
+text/plain&Next returns the next available nodes
+ä./nodeBalancer/Next‹
+*nodeBalancer/Next/bbvar"balancer.go(á0ñ@Rç{
+        "PkgName": "influxdb",
+        "TypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/Next/bﬁ
+*nodeBalancer/Next/ddvar"balancer.go(‹0È@Rè{
+        "PkgName": "influxdb",
+        "TypeString": "*github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/Next/d„
+*nodeBalancer/Next/upupvar"balancer.go(À0€@Rë{
+        "PkgName": "influxdb",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/Next/upß
+*nodeBalancer/nodesnodesfield"balancer.go(“0ÁR÷{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "FieldOfStruct": "nodeBalancer",
+        "TypeString": "[]github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/nodes¯
+*nodeBalancer/onlineonlinefunc"balancer.go(’	0÷R·{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "Receiver": "*nodeBalancer",
+        "TypeString": "func() []github.com/influxdb/influxdb/meta.NodeInfo",
+        "UnderlyingTypeString": "func() []github.com/influxdb/influxdb/meta.NodeInfo",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ZB
+
+text/plain4online returns a slice of the nodes that are online
+ä./nodeBalancer/online‡
+*nodeBalancer/online/bbvar"balancer.go(€	0Í	@Rç{
+        "PkgName": "influxdb",
+        "TypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/online/b…
+*nodeBalancer/ppfield"balancer.go(ä0ìRÑ{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "FieldOfStruct": "nodeBalancer",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/p´
+*nodeBalancer/shuffleshufflefunc"balancer.go(ë0ú	Rá{
+        "PkgScope": true,
+        "PkgName": "influxdb",
+        "Receiver": "*nodeBalancer",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ZL
+
+text/plain>shuffle randomizes the ordering the balancers available nodes
+ä./nodeBalancer/shuffle¿
+.*,nodeBalancer/shuffle/$balancer0/$balancer0/jjvar"balancer.go(–0Â@Rø{
+        "PkgName": "influxdb",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä../nodeBalancer/shuffle/$balancer0/$balancer0/j™
+#*!nodeBalancer/shuffle/$balancer0/iivar"balancer.go(ë0ú	@Rø{
+        "PkgName": "influxdb",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä#./nodeBalancer/shuffle/$balancer0/i‚
+*nodeBalancer/shuffle/bbvar"balancer.go(ó0¶@Rç{
+        "PkgName": "influxdb",
+        "TypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb.nodeBalancer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb"
+      }ä./nodeBalancer/shuffle/b

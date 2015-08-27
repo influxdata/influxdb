@@ -1,0 +1,394 @@
+Ö
+*.snapshotterpackage"services/snapshotter8RÀ{
+        "Exported": true,
+        "PkgName": "snapshotter",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä.ª
+*	MuxHeader	MuxHeaderconst"services/snapshotter/service.go(˘0Ü8Rù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "TypeString": "untyped int",
+        "UnderlyingTypeString": "untyped int",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ZC
+
+text/plain5MuxHeader is the header byte used for the TCP muxer.
+ä./MuxHeader°
+*
+NewService
+NewServicefunc"services/snapshotter/service.go(≠0∏8Rà{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "TypeString": "func() *github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }Z<
+
+text/plain.NewService returns a new instance of Service.
+ä./NewServiceê
+	*ServiceServicetype"services/snapshotter/service.go(»0˙8Rˆ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "TypeString": "github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "struct{wg sync.WaitGroup; err chan error; MetaStore interface{encoding.BinaryMarshaler}; TSDBStore *github.com/influxdb/influxdb/tsdb.Store; Listener net.Listener; Logger *log.Logger}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ZF
+
+text/plain8Service manages the listener for the snapshot endpoint.
+ä	./Service‘
+*Service/CloseClosefunc"services/snapshotter/service.go(¸0Ë8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }Z6
+
+text/plain(Close implements the Service interface.
+ä./Service/Close†
+*Service/Close/ssvar"services/snapshotter/service.go(Ç0å@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/Close/sÚ
+*Service/ErrErrfunc"services/snapshotter/service.go(û	0”	8Rÿ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func() \u003c-chan error",
+        "UnderlyingTypeString": "func() \u003c-chan error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ZB
+
+text/plain4Err returns a channel for fatal out-of-band errors.
+ä./Service/Errú
+*Service/Err/ssvar"services/snapshotter/service.go(§	0Æ	@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/Err/sË
+*Service/ListenerListenerfield"services/snapshotter/service.go(Õ0‚8RÇ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "FieldOfStruct": "Service",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/Listener°
+*Service/LoggerLoggerfield"services/snapshotter/service.go(‰0¯8R¡{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "FieldOfStruct": "Service",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/Logger⁄
+*Service/MetaStore	MetaStorefield"services/snapshotter/service.go(ˇ0≤8RÒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "FieldOfStruct": "Service",
+        "TypeString": "interface{encoding.BinaryMarshaler}",
+        "UnderlyingTypeString": "interface{encoding.BinaryMarshaler}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/MetaStore¬
+*Service/OpenOpenfunc"services/snapshotter/service.go(÷0œ8R¿{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }Z'
+
+text/plainOpen starts the service.
+ä./Service/Openû
+*Service/Open/ssvar"services/snapshotter/service.go(‹0Ê@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/Open/sÇ
+*Service/SetLogger	SetLoggerfunc"services/snapshotter/service.go(©0Â8RŒ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func(l *log.Logger)",
+        "UnderlyingTypeString": "func(l *log.Logger)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ZJ
+
+text/plain<SetLogger sets the internal logger to the logger passed in.
+ä./Service/SetLogger 
+*Service/SetLogger/llvar"services/snapshotter/service.go(≈0“@RÁ{
+        "PkgName": "snapshotter",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/SetLogger/l®
+*Service/SetLogger/ssvar"services/snapshotter/service.go(Ø0π@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/SetLogger/s‰
+*Service/TSDBStore	TSDBStorefield"services/snapshotter/service.go(µ0 8R˚{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "FieldOfStruct": "Service",
+        "TypeString": "*github.com/influxdb/influxdb/tsdb.Store",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.Store",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/TSDBStore˙
+*Service/errerrfield"services/snapshotter/service.go(Ó0¸R•{
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "FieldOfStruct": "Service",
+        "TypeString": "chan error",
+        "UnderlyingTypeString": "chan error",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/err˘
+*Service/handleConn
+handleConnfunc"services/snapshotter/service.go(ò0ÊR¿{
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func(conn net.Conn) error",
+        "UnderlyingTypeString": "func(conn net.Conn) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ZN
+
+text/plain@handleConn processes conn. This is run in a separate goroutine.
+ä./Service/handleConnÓ
+"* Service/handleConn/$service1/errerrvar"services/snapshotter/service.go(¯0ó@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä"./Service/handleConn/$service1/errº
+*Service/handleConn/connconnvar"services/snapshotter/service.go(µ0¬@RŒ{
+        "PkgName": "snapshotter",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/handleConn/conn⁄
+*Service/handleConn/errerrvar"services/snapshotter/service.go(0é@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/handleConn/errµ
+*Service/handleConn/mmvar"services/snapshotter/service.go(0é@R–{
+        "PkgName": "snapshotter",
+        "TypeString": "github.com/influxdb/influxdb/snapshot.Manifest",
+        "UnderlyingTypeString": "struct{Files []github.com/influxdb/influxdb/snapshot.File \"json:\\\"files\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/handleConn/m™
+*Service/handleConn/ssvar"services/snapshotter/service.go(û0®@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/handleConn/sî
+*Service/readManifestreadManifestfunc"services/snapshotter/service.go(ﬂ0†R§{
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func(conn net.Conn) (github.com/influxdb/influxdb/snapshot.Manifest, error)",
+        "UnderlyingTypeString": "func(conn net.Conn) (github.com/influxdb/influxdb/snapshot.Manifest, error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }Z
+
+text/plainqreadManifest reads the manifest size and contents from conn.
+Unmarshals the bytes and returns a manifest object.
+ä./Service/readManifestÚ
+$*"Service/readManifest/$service0/errerrvar"services/snapshotter/service.go(«0Ó@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä$./Service/readManifest/$service0/err¿
+*Service/readManifest/connconnvar"services/snapshotter/service.go(˛0ã@RŒ{
+        "PkgName": "snapshotter",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/readManifest/connπ
+*Service/readManifest/mmvar"services/snapshotter/service.go(Ø0¬@R–{
+        "PkgName": "snapshotter",
+        "TypeString": "github.com/influxdb/influxdb/snapshot.Manifest",
+        "UnderlyingTypeString": "struct{Files []github.com/influxdb/influxdb/snapshot.File \"json:\\\"files\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/readManifest/mÆ
+*Service/readManifest/ssvar"services/snapshotter/service.go(Â0Ô@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/readManifest/s∂
+*Service/serveservefunc"services/snapshotter/service.go(ä
+0”Rö{
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func()",
+        "UnderlyingTypeString": "func()",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }Z@
+
+text/plain2serve serves snapshot requests from the listener.
+ä./Service/serve†
+;*9Service/serve/$service0/$service0/$service1/$service0/errerrvar"services/snapshotter/service.go(˛0ó@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä;./Service/serve/$service0/$service0/$service1/$service0/errÓ
+2*0Service/serve/$service0/$service0/$service1/connconnvar"services/snapshotter/service.go(º0…@RŒ{
+        "PkgName": "snapshotter",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä2./Service/serve/$service0/$service0/$service1/conn⁄
+(*&Service/serve/$service0/$service0/connconnvar"services/snapshotter/service.go(‚
+0Ç@RŒ{
+        "PkgName": "snapshotter",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä(./Service/serve/$service0/$service0/conn¯
+'*%Service/serve/$service0/$service0/errerrvar"services/snapshotter/service.go(‚
+0Ç@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä'./Service/serve/$service0/$service0/err†
+*Service/serve/ssvar"services/snapshotter/service.go(ê
+0ö
+@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/serve/s±
+*
+Service/wgwgfield"services/snapshotter/service.go(⁄0ÏRﬂ{
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "FieldOfStruct": "Service",
+        "TypeString": "sync.WaitGroup",
+        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/wg˝
+*Service/writeSnapshotwriteSnapshotfunc"services/snapshotter/service.go(ˆ0◊R™{
+        "PkgScope": true,
+        "PkgName": "snapshotter",
+        "Receiver": "*Service",
+        "TypeString": "func(conn net.Conn, prev github.com/influxdb/influxdb/snapshot.Manifest) error",
+        "UnderlyingTypeString": "func(conn net.Conn, prev github.com/influxdb/influxdb/snapshot.Manifest) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }Z_
+
+text/plainQwriteSnapshot creates a snapshot writer, trims the manifest, and writes to conn.
+ä./Service/writeSnapshotÙ
+%*#Service/writeSnapshot/$service2/errerrvar"services/snapshotter/service.go(Ù0é@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä%./Service/writeSnapshot/$service2/errŒ
+*Service/writeSnapshot/bufbufvar"services/snapshotter/service.go(¯0ü@R›{
+        "PkgName": "snapshotter",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/writeSnapshot/buf¬
+*Service/writeSnapshot/connconnvar"services/snapshotter/service.go(ñ0£@RŒ{
+        "PkgName": "snapshotter",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/writeSnapshot/conn‡
+*Service/writeSnapshot/errerrvar"services/snapshotter/service.go(¯0ü@RÔ{
+        "PkgName": "snapshotter",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/writeSnapshot/errƒ
+*Service/writeSnapshot/prevprevvar"services/snapshotter/service.go(•0ª@R–{
+        "PkgName": "snapshotter",
+        "TypeString": "github.com/influxdb/influxdb/snapshot.Manifest",
+        "UnderlyingTypeString": "struct{Files []github.com/influxdb/influxdb/snapshot.File \"json:\\\"files\\\"\"}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/writeSnapshot/prev∞
+*Service/writeSnapshot/ssvar"services/snapshotter/service.go(¸0Ü@R≈{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/snapshotter.Service",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/writeSnapshot/sô
+*Service/writeSnapshot/swswvar"services/snapshotter/service.go(Ä0≥@R´{
+        "PkgName": "snapshotter",
+        "TypeString": "*github.com/influxdb/influxdb/snapshot.Writer",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/snapshot.Writer",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/services/snapshotter"
+      }ä./Service/writeSnapshot/sw

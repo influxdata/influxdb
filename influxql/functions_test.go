@@ -30,6 +30,10 @@ func (t *testIterator) Next() (timestamp int64, value interface{}) {
 	return -1, nil
 }
 
+func (t *testIterator) Tags() map[string]string {
+	return nil
+}
+
 func TestMapMeanNoValues(t *testing.T) {
 	iter := &testIterator{}
 	if got := MapMean(iter); got != nil {

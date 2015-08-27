@@ -1,0 +1,389 @@
+”
+*.tcppackage"tcp8R≤{
+        "Exported": true,
+        "PkgName": "tcp",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä.®
+*DefaultTimeoutDefaultTimeoutconst"
+tcp/mux.go(û0ø8RÄ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ZS
+
+text/plainEDefaultTimeout is the default length of time to wait for first byte.
+ä./DefaultTimeoutÒ
+*MuxMuxtype"
+tcp/mux.go(Ò0´8Rä{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "TypeString": "github.com/influxdb/influxdb/tcp.Mux",
+        "UnderlyingTypeString": "struct{ln net.Listener; m map[byte]*github.com/influxdb/influxdb/tcp.listener; Timeout time.Duration; Logger *log.Logger}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }Z4
+
+text/plain&Mux multiplexes a network connection.
+ä./Muxõ
+*
+Mux/ListenListenfunc"
+tcp/mux.go(≠0ì8R«{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "Receiver": "*Mux",
+        "TypeString": "func(header byte) net.Listener",
+        "UnderlyingTypeString": "func(header byte) net.Listener",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }Zè
+
+text/plainÄListen returns a listener identified by header.
+Any connection accepted by mux is multiplexed based on the initial header byte.
+ä./Mux/Listenè
+*Mux/Listen/$mux0/okokvar"
+tcp/mux.go(ß0Ω@R¿{
+        "PkgName": "tcp",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Listen/$mux0/okè
+*Mux/Listen/headerheadervar"
+tcp/mux.go(ƒ0œ@R¿{
+        "PkgName": "tcp",
+        "TypeString": "byte",
+        "UnderlyingTypeString": "byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Listen/headerœ
+*Mux/Listen/lnlnvar"
+tcp/mux.go(ƒ0Ò@Rå{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Listen/ln»
+*Mux/Listen/muxmuxvar"
+tcp/mux.go(≥0ª@RÇ{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.Mux",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.Mux",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Listen/muxê
+*
+Mux/LoggerLoggerfield"
+tcp/mux.go(ó0©8R§{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "FieldOfStruct": "Mux",
+        "TypeString": "*log.Logger",
+        "UnderlyingTypeString": "*log.Logger",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }Z'
+
+text/plainOut-of-band error logger
+ä./Mux/Logger„
+*	Mux/ServeServefunc"
+tcp/mux.go(Œ0•8R¡{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "Receiver": "*Mux",
+        "TypeString": "func(ln net.Listener) error",
+        "UnderlyingTypeString": "func(ln net.Listener) error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }Za
+
+text/plainSServe handles connections from ln and multiplexes then across registered listener.
+ä./Mux/Serve÷
+!*Mux/Serve/$mux0/$mux0/$mux0/errerrvar"
+tcp/mux.go(π0Ì@RÓ{
+        "PkgName": "tcp",
+        "TypeString": "interface{Temporary() bool}",
+        "UnderlyingTypeString": "interface{Temporary() bool}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä!./Mux/Serve/$mux0/$mux0/$mux0/err•
+ *Mux/Serve/$mux0/$mux0/$mux0/okokvar"
+tcp/mux.go(π0Ì@R¿{
+        "PkgName": "tcp",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä ./Mux/Serve/$mux0/$mux0/$mux0/okâ
+,**Mux/Serve/$mux0/$mux0/$mux1/$mux0/$mux0/lnlnvar"
+tcp/mux.go(Œ0•@Rå{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä,./Mux/Serve/$mux0/$mux0/$mux1/$mux0/$mux0/lnæ
+!*Mux/Serve/$mux0/$mux0/$mux2/errerrvar"
+tcp/mux.go(∏	0	@R÷{
+        "PkgName": "tcp",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä!./Mux/Serve/$mux0/$mux0/$mux2/erræ
+!*Mux/Serve/$mux0/$mux0/$mux3/errerrvar"
+tcp/mux.go(µ0ÿ@R÷{
+        "PkgName": "tcp",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä!./Mux/Serve/$mux0/$mux0/$mux3/erræ
+!*Mux/Serve/$mux0/$mux0/$mux4/errerrvar"
+tcp/mux.go(ä0≤@R÷{
+        "PkgName": "tcp",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä!./Mux/Serve/$mux0/$mux0/$mux4/errî
+*Mux/Serve/$mux0/$mux0/connconnvar"
+tcp/mux.go(õ0≥@Rµ{
+        "PkgName": "tcp",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Serve/$mux0/$mux0/conn≤
+*Mux/Serve/$mux0/$mux0/errerrvar"
+tcp/mux.go(õ0≥@R÷{
+        "PkgName": "tcp",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Serve/$mux0/$mux0/errÙ
+*Mux/Serve/$mux0/$mux0/handlerhandlervar"
+tcp/mux.go(ÿ0@Rå{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Serve/$mux0/$mux0/handlerË
+*Mux/Serve/$mux0/$mux0/typtypvar"
+tcp/mux.go(§0Ø@R∆{
+        "PkgName": "tcp",
+        "TypeString": "[1]byte",
+        "UnderlyingTypeString": "[1]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ZD
+
+text/plain6Read first byte from connection to determine handler.
+ä./Mux/Serve/$mux0/$mux0/typ–
+*Mux/Serve/lnlnvar"
+tcp/mux.go(‰0Û@Rè{
+        "PkgName": "tcp",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Serve/ln∆
+*Mux/Serve/muxmuxvar"
+tcp/mux.go(‘0‹@RÇ{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.Mux",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.Mux",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/Serve/mux¨
+*Mux/TimeoutTimeoutfield"
+tcp/mux.go(‚0˜8R†{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "FieldOfStruct": "Mux",
+        "TypeString": "time.Duration",
+        "UnderlyingTypeString": "int64",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ZD
+
+text/plain6The amount of time to wait for the first header byte.
+ä./Mux/TimeoutÄ
+*Mux/lnlnfield"
+tcp/mux.go(ˇ0éRÀ{
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "FieldOfStruct": "Mux",
+        "TypeString": "net.Listener",
+        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/lnå
+*Mux/mmfield"
+tcp/mux.go(ê0•R⁄{
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "FieldOfStruct": "Mux",
+        "TypeString": "map[byte]*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "map[byte]*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Mux/mº
+*NewMuxNewMuxfunc"
+tcp/mux.go(›0ˆ8R≈{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "TypeString": "func() *github.com/influxdb/influxdb/tcp.Mux",
+        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/tcp.Mux",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }Z;
+
+text/plain-NewMux returns a new instance of Mux for ln.
+ä./NewMux’
+*Temporary$mux984	Temporaryfunc"
+tcp/mux.go(ÿ0Ë@RÑ{
+        "PkgName": "tcp",
+        "Receiver": "interface{Temporary() bool}",
+        "TypeString": "func() bool",
+        "UnderlyingTypeString": "func() bool",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./Temporary$mux984ô
+
+*listenerlistenertype"
+tcp/mux.go(’0˘Rì{
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "TypeString": "github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "struct{c chan net.Conn}",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ZF
+
+text/plain8listener is a receiver for connections received by Mux.
+ä
+./listenerÍ
+*listener/AcceptAcceptfunc"
+tcp/mux.go(¿0·8RÃ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "Receiver": "*listener",
+        "TypeString": "func() (c net.Conn, err error)",
+        "UnderlyingTypeString": "func() (c net.Conn, err error)",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ZP
+
+text/plainBAccept waits for and returns the next connection to the listener.
+ä./listener/Acceptˇ
+*listener/Accept/ccvar"
+tcp/mux.go(ﬁ0Ë@Rµ{
+        "PkgName": "tcp",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Accept/cà
+*listener/Accept/connconnvar"
+tcp/mux.go(¯0ä@Rµ{
+        "PkgName": "tcp",
+        "TypeString": "net.Conn",
+        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Accept/conn¶
+*listener/Accept/errerrvar"
+tcp/mux.go(Í0Û@R÷{
+        "PkgName": "tcp",
+        "TypeString": "error",
+        "UnderlyingTypeString": "interface{Error() string}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Accept/errŸ
+*listener/Accept/lnlnvar"
+tcp/mux.go(∆0“@Rå{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Accept/lnç
+*listener/Accept/okokvar"
+tcp/mux.go(¯0ä@R¿{
+        "PkgName": "tcp",
+        "TypeString": "bool",
+        "UnderlyingTypeString": "bool",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Accept/okù
+*listener/AddrAddrfunc"
+tcp/mux.go(Û0•8RÆ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "Receiver": "*listener",
+        "TypeString": "func() net.Addr",
+        "UnderlyingTypeString": "func() net.Addr",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }Z'
+
+text/plainAddr always returns nil.
+ä./listener/Addr’
+*listener/Addr/lnlnvar"
+tcp/mux.go(˘0Ö@Rå{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Addr/ln¿
+*listener/CloseClosefunc"
+tcp/mux.go(•0’8R®{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "Receiver": "*listener",
+        "TypeString": "func() error",
+        "UnderlyingTypeString": "func() error",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ZM
+
+text/plain?Close is a no-op. The mux's listener should be closed instead.
+ä./listener/Close◊
+*listener/Close/lnlnvar"
+tcp/mux.go(´0∑@Rå{
+        "PkgName": "tcp",
+        "TypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tcp.listener",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/Close/lnœ
+*
+listener/ccfield"
+tcp/mux.go(Ë0˜Rì{
+        "PkgScope": true,
+        "PkgName": "tcp",
+        "FieldOfStruct": "listener",
+        "TypeString": "chan net.Conn",
+        "UnderlyingTypeString": "chan net.Conn",
+        "Kind": "field",
+        "PackageImportPath": "github.com/influxdb/influxdb/tcp"
+      }ä./listener/c

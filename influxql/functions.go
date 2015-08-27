@@ -19,6 +19,7 @@ import (
 // These are used by the MapFunctions in this file
 type Iterator interface {
 	Next() (time int64, value interface{})
+	Tags() map[string]string
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -104,6 +105,9 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return MapFirst, nil
 	case "last":
 		return MapLast, nil
+	case "top":
+		return MapTop, nil
+
 	case "percentile":
 		_, ok := c.Args[1].(*NumberLiteral)
 		if !ok {
@@ -156,6 +160,12 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 		return ReduceFirst, nil
 	case "last":
 		return ReduceLast, nil
+	case "top":
+		lit, ok := c.Args[len(c.Args)-1].(*NumberLiteral)
+		if !ok {
+			return nil, fmt.Errorf("expected integer as last argument in top()")
+		}
+		return ReduceTop(lit.Val), nil
 	case "percentile":
 		if len(c.Args) != 2 {
 			return nil, fmt.Errorf("expected float argument in percentile()")
@@ -1033,6 +1043,49 @@ func ReduceLast(values []interface{}) interface{} {
 		return out.Val
 	}
 	return nil
+}
+
+// MapTop emits the top data points for each group by interval
+func MapTop(itr Iterator) interface{} {
+	var values []interface{}
+
+	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+		values = append(values, v)
+	}
+	return values
+}
+
+// ReduceTop computes the top values for each key.
+func ReduceTop(percentile float64) ReduceFunc {
+	return func(values []interface{}) interface{} {
+		var allValues []float64
+
+		for _, v := range values {
+			if v == nil {
+				continue
+			}
+
+			vals := v.([]interface{})
+			for _, v := range vals {
+				switch v.(type) {
+				case int64:
+					allValues = append(allValues, float64(v.(int64)))
+				case float64:
+					allValues = append(allValues, v.(float64))
+				}
+			}
+		}
+
+		sort.Float64s(allValues)
+		length := len(allValues)
+		index := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
+
+		if index < 0 || index >= len(allValues) {
+			return nil
+		}
+
+		return allValues[index]
+	}
 }
 
 // MapEcho emits the data points for each group by interval

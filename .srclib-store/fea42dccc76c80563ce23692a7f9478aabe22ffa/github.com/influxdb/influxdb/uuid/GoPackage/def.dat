@@ -1,0 +1,199 @@
+‚
+*.uuidpackage"uuid8R¥{
+        "Exported": true,
+        "PkgName": "uuid",
+        "TypeString": "",
+        "Kind": "package",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }Zà
+
+text/plain˘Copyright (c) 2012 The gocql Authors. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The uuid package can be used to generate and parse universally unique
+identifiers, a standardized format in the form of a 128 bit number.
+
+http://tools.ietf.org/html/rfc4122
+ä.˘
+
+*TimeUUIDTimeUUIDfunc"uuid/uuid.go(¯0±8R…{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "TypeString": "func() github.com/influxdb/influxdb/uuid.UUID",
+        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/uuid.UUID",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }Zl
+
+text/plain^TimeUUID generates a new time based UUID (version 1) using the current
+time as the timestamp.
+ä
+./TimeUUID”
+*UUIDUUIDtype"uuid/uuid.go(ä0ó8Rù{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "TypeString": "github.com/influxdb/influxdb/uuid.UUID",
+        "UnderlyingTypeString": "[16]byte",
+        "Kind": "type",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUIDÇ
+*UUID/StringStringfunc"uuid/uuid.go(…0°8Rß{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "Receiver": "UUID",
+        "TypeString": "func() string",
+        "UnderlyingTypeString": "func() string",
+        "Kind": "method",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }Zí
+
+text/plainÉString returns the UUID in it's canonical form, a 32 digit hexadecimal
+number in the form of xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.
+ä./UUID/Stringî
+*UUID/String/$uuid0/bbvar"uuid/uuid.go(…0°@R¬{
+        "PkgName": "uuid",
+        "TypeString": "byte",
+        "UnderlyingTypeString": "byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUID/String/$uuid0/bí
+*UUID/String/$uuid0/iivar"uuid/uuid.go(…0°@R¿{
+        "PkgName": "uuid",
+        "TypeString": "int",
+        "UnderlyingTypeString": "int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUID/String/$uuid0/i∂
+*UUID/String/hexString	hexStringconst"uuid/uuid.go(√0·@Rÿ{
+        "PkgName": "uuid",
+        "TypeString": "untyped string",
+        "UnderlyingTypeString": "untyped string",
+        "Kind": "const",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUID/String/hexStringû
+*UUID/String/offsetsoffsetsvar"uuid/uuid.go(Ó0ª@R»{
+        "PkgName": "uuid",
+        "TypeString": "[16]int",
+        "UnderlyingTypeString": "[16]int",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUID/String/offsetsä
+*UUID/String/rrvar"uuid/uuid.go(„0¯@R∆{
+        "PkgName": "uuid",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUID/String/r¨
+*UUID/String/uuvar"uuid/uuid.go(œ0’@RË{
+        "PkgName": "uuid",
+        "TypeString": "github.com/influxdb/influxdb/uuid.UUID",
+        "UnderlyingTypeString": "[16]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUID/String/uç
+*UUIDFromTimeUUIDFromTimefunc"uuid/uuid.go(Ç0æ8RÁ{
+        "Exported": true,
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "TypeString": "func(aTime time.Time) github.com/influxdb/influxdb/uuid.UUID",
+        "UnderlyingTypeString": "func(aTime time.Time) github.com/influxdb/influxdb/uuid.UUID",
+        "Kind": "func",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }Z’
+
+text/plain∆UUIDFromTime generates a new time based UUID (version 1) as described in
+RFC 4122. This UUID contains the MAC address of the node that generated
+the UUID, the given timestamp and a sequence number.
+ä./UUIDFromTime∆
+*UUIDFromTime/aTimeaTimevar"uuid/uuid.go(î0£@RÙ{
+        "PkgName": "uuid",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUIDFromTime/aTimeò
+*UUIDFromTime/clockclockvar"uuid/uuid.go(«0Ó@R∆{
+        "PkgName": "uuid",
+        "TypeString": "uint32",
+        "UnderlyingTypeString": "uint32",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUIDFromTime/clockå
+*UUIDFromTime/ttvar"uuid/uuid.go(Ÿ0©@R∆{
+        "PkgName": "uuid",
+        "TypeString": "uint64",
+        "UnderlyingTypeString": "uint64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUIDFromTime/tÆ
+*UUIDFromTime/uuvar"uuid/uuid.go(±0∑@RË{
+        "PkgName": "uuid",
+        "TypeString": "github.com/influxdb/influxdb/uuid.UUID",
+        "UnderlyingTypeString": "[16]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUIDFromTime/uÃ
+*UUIDFromTime/utcTimeutcTimevar"uuid/uuid.go(∫0◊@RÙ{
+        "PkgName": "uuid",
+        "TypeString": "time.Time",
+        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./UUIDFromTime/utcTimeü
+
+*clockSeqclockSeqvar"uuid/uuid.go(É0íR‡{
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "TypeString": "uint32",
+        "UnderlyingTypeString": "uint32",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä
+./clockSeq´
+*hardwareAddrhardwareAddrvar"uuid/uuid.go(Î0˛R‡{
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "TypeString": "[]byte",
+        "UnderlyingTypeString": "[]byte",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä./hardwareAddrù
+
+*timeBasetimeBasevar"uuid/uuid.go(ù0ÊRﬁ{
+        "PkgScope": true,
+        "PkgName": "uuid",
+        "TypeString": "int64",
+        "UnderlyingTypeString": "int64",
+        "Kind": "var",
+        "PackageImportPath": "github.com/influxdb/influxdb/uuid"
+      }ä
+./timeBase
