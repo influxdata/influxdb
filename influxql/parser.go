@@ -1809,24 +1809,24 @@ func (p *Parser) parseOrderBy() (SortFields, error) {
 func (p *Parser) parseSortFields() (SortFields, error) {
 	var fields SortFields
 
-	// If first token is ASC or DESC, all fields are sorted.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == ASC || tok == DESC {
-		if tok == DESC {
-			// Token must be ASC, until other sort orders are supported.
-			return nil, errors.New("only ORDER BY time ASC supported at this time")
+	tok, pos, lit := p.scanIgnoreWhitespace()
+
+	switch tok {
+	// The first field after an order by may not have a field name (e.g. ORDER BY ASC)
+	case ASC, DESC:
+		fields = append(fields, &SortField{Ascending: (tok == ASC)})
+	// If it's a token, parse it as a sort field.  At least one is required.
+	case IDENT:
+		p.unscan()
+		field, err := p.parseSortField()
+		if err != nil {
+			return nil, err
 		}
-		return append(fields, &SortField{Ascending: (tok == ASC)}), nil
-	} else if tok != IDENT {
+		fields = append(fields, field)
+	// Parse error...
+	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "ASC", "DESC"}, pos)
 	}
-	p.unscan()
-
-	// At least one field is required.
-	field, err := p.parseSortField()
-	if err != nil {
-		return nil, err
-	}
-	fields = append(fields, field)
 
 	// Parse additional fields.
 	for {
@@ -1843,11 +1843,6 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 		}
 
 		fields = append(fields, field)
-	}
-
-	// First SortField must be time ASC, until other sort orders are supported.
-	if len(fields) > 1 || fields[0].Name != "time" || !fields[0].Ascending {
-		return nil, errors.New("only ORDER BY time ASC supported at this time")
 	}
 
 	return fields, nil
