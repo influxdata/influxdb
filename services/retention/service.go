@@ -40,7 +40,7 @@ func NewService(c Config) *Service {
 
 // Open starts retention policy enforcement.
 func (s *Service) Open() error {
-	s.logger.Println("Starting rentention policy enforcement service")
+	s.logger.Println("Starting retention policy enforcement service with check interval of", s.checkInterval)
 	s.wg.Add(2)
 	go s.deleteShardGroups()
 	go s.deleteShards()

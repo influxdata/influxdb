@@ -12,5 +12,5 @@ type Config struct {
 }
 
 func NewConfig() Config {
-	return Config{Enabled: true, CheckInterval: toml.Duration(10 * time.Minute)}
+	return Config{Enabled: true, CheckInterval: toml.Duration(30 * time.Minute)}
 }
