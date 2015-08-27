@@ -124,9 +124,7 @@ string_lit          = `'` { unicode_char } `'`' .
 
 Duration literals specify a length of time.  An integer literal followed immediately (with no spaces) by a duration unit listed below is interpreted as a duration literal.
 
-```
-Duration unit definitions
--------------------------
+### Duration units
 | Units  | Meaning                                 |
 |--------|-----------------------------------------|
 | u or µ | microseconds (1 millionth of a second)  |
@@ -136,7 +134,6 @@ Duration unit definitions
 | h      | hour                                    |
 | d      | day                                     |
 | w      | week                                    |
-```
 
 ```
 duration_lit        = int_lit duration_unit .
@@ -191,6 +188,7 @@ statement           = alter_retention_policy_stmt |
                       show_measurements_stmt |
                       show_retention_policies |
                       show_series_stmt |
+                      show_shards_stmt |
                       show_tag_keys_stmt |
                       show_tag_values_stmt |
                       show_users_stmt |
@@ -455,7 +453,7 @@ SHOW FIELD KEYS FROM cpu;
 
 ### SHOW MEASUREMENTS
 
-show_measurements_stmt = [ where_clause ] [ group_by_clause ] [ limit_clause ]
+show_measurements_stmt = "SHOW MEASUREMENTS" [ where_clause ] [ group_by_clause ] [ limit_clause ]
                          [ offset_clause ] .
 
 ```sql
@@ -482,7 +480,7 @@ SHOW RETENTION POLICIES ON mydb;
 ### SHOW SERIES
 
 ```
-show_series_stmt = [ from_clause ] [ where_clause ] [ group_by_clause ]
+show_series_stmt = "SHOW SERIES" [ from_clause ] [ where_clause ] [ group_by_clause ]
                    [ limit_clause ] [ offset_clause ] .
 ```
 
@@ -492,10 +490,22 @@ show_series_stmt = [ from_clause ] [ where_clause ] [ group_by_clause ]
 
 ```
 
+### SHOW SHARDS
+
+```
+show_shards_stmt = "SHOW SHARDS" .
+```
+
+#### Example:
+
+```sql
+SHOW SHARDS;
+```
+
 ### SHOW TAG KEYS
 
 ```
-show_tag_keys_stmt = [ from_clause ] [ where_clause ] [ group_by_clause ]
+show_tag_keys_stmt = "SHOW TAG KEYS" [ from_clause ] [ where_clause ] [ group_by_clause ]
                      [ limit_clause ] [ offset_clause ] .
 ```
 
@@ -518,7 +528,7 @@ SHOW TAG KEYS WHERE host = 'serverA';
 ### SHOW TAG VALUES
 
 ```
-show_tag_values_stmt = [ from_clause ] with_tag_clause [ where_clause ]
+show_tag_values_stmt = "SHOW TAG VALUES" [ from_clause ] with_tag_clause [ where_clause ]
                        [ group_by_clause ] [ limit_clause ] [ offset_clause ] .
 ```
 
@@ -551,7 +561,7 @@ SHOW USERS;
 ### REVOKE
 
 ```
-revoke_stmt = privilege [ "ON" db_name ] "FROM" user_name
+revoke_stmt = "REVOKE" privilege [ "ON" db_name ] "FROM" user_name
 ```
 
 #### Examples:
@@ -567,7 +577,7 @@ REVOKE READ ON mydb FROM jdoe;
 ### SELECT
 
 ```
-select_stmt = fields from_clause [ into_clause ] [ where_clause ]
+select_stmt = "SELECT" fields from_clause [ into_clause ] [ where_clause ]
               [ group_by_clause ] [ order_by_clause ] [ limit_clause ]
               [ offset_clause ] [ slimit_clause ] [ soffset_clause ].
 ```
