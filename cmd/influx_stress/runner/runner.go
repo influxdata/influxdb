@@ -178,6 +178,7 @@ func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Time
 							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
 							mu.Unlock()
 						}
+						time.Sleep(cfg.BatchInterval)
 						wg.Done()
 						counter.Decrement()
 						if total%500000 == 0 {
