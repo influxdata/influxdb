@@ -24,6 +24,7 @@ func main() {
 
 	tstore := tsdb.NewStore(filepath.Join(path, "data"))
 	tstore.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+	tstore.EngineOptions.Config.Dir = filepath.Join(path, "data")
 	tstore.EngineOptions.Config.WALEnableLogging = false
 	tstore.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
 	if err := tstore.Open(); err != nil {
@@ -43,7 +44,7 @@ func main() {
 
 	tw := tabwriter.NewWriter(os.Stdout, 16, 8, 0, '\t', 0)
 
-	fmt.Fprintln(tw, strings.Join([]string{"DB", "Measurement", "Tags [#K/#V]", "Fields [Name:Type]", "Series"}, "\t"))
+	fmt.Fprintln(tw, strings.Join([]string{"Shard", "DB", "Measurement", "Tags [#K/#V]", "Fields [Name:Type]", "Series"}, "\t"))
 
 	shardIDs := tstore.ShardIDs()
 
@@ -64,9 +65,9 @@ func main() {
 			sort.Strings(fields)
 			series := m.SeriesKeys()
 			sort.Strings(series)
+			sort.Sort(ShardIDs(shardIDs))
 
 			// Sample a point from each measurement to determine the field types
-			fieldSummary := []string{}
 			for _, shardID := range shardIDs {
 				shard := tstore.Shard(shardID)
 				tx, err := shard.ReadOnlyTx()
@@ -74,33 +75,39 @@ func main() {
 					fmt.Printf("Failed to get transaction: %v", err)
 				}
 
-				if len(series) > 0 {
-					cursor := tx.Cursor(series[0])
+				for _, key := range series {
+					fieldSummary := []string{}
+
+					cursor := tx.Cursor(key)
+
+					// Series doesn't exist in this shard
+					if cursor == nil {
+						continue
+					}
 
 					// Seek to the beginning
 					_, value := cursor.Seek([]byte{})
 					codec := shard.FieldCodec(m.Name)
-					fields, err := codec.DecodeFieldsWithNames(value)
-					if err != nil {
-						fmt.Printf("Failed to decode values: %v", err)
-					}
+					if codec != nil {
+						fields, err := codec.DecodeFieldsWithNames(value)
+						if err != nil {
+							fmt.Printf("Failed to decode values: %v", err)
+						}
 
-					for field, value := range fields {
-						fieldSummary = append(fieldSummary, fmt.Sprintf("%s:%T", field, value))
+						for field, value := range fields {
+							fieldSummary = append(fieldSummary, fmt.Sprintf("%s:%T", field, value))
+						}
+						sort.Strings(fieldSummary)
 					}
-					sort.Strings(fieldSummary)
+					fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d\t%d [%s]\t%d\n", shardID, db, m.Name, len(tags), tagValues,
+						len(fields), strings.Join(fieldSummary, ","), len(series))
+					break
 				}
 				tx.Rollback()
-				break
 			}
-
-			fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%d [%s]\t%d\n", db, m.Name, len(tags), tagValues,
-				len(fields), strings.Join(fieldSummary, ","), len(series))
-
 		}
 	}
 	tw.Flush()
-
 }
 
 func countSeries(tstore *tsdb.Store) int {
@@ -127,3 +134,9 @@ func u64tob(v uint64) []byte {
 	binary.BigEndian.PutUint64(b, v)
 	return b
 }
+
+type ShardIDs []uint64
+
+func (a ShardIDs) Len() int           { return len(a) }
+func (a ShardIDs) Less(i, j int) bool { return a[i] < a[j] }
+func (a ShardIDs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
