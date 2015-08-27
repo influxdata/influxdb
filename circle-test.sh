@@ -5,9 +5,10 @@
 # build process for InfluxDB.
 
 BUILD_DIR=$HOME/influxdb-build
-GO_VERSION=go1.4.2
+GO_VERSION=go1.5
 PARALLELISM="-parallel 256"
 TIMEOUT="-timeout 480s"
+SKIP_32BIT="true"
 
 # Executes the given statement, and exits if the command returns a non-zero code.
 function exit_if_fail {
@@ -57,13 +58,15 @@ case $CIRCLE_NODE_INDEX in
             exit $rc
         fi
 
-        # 32bit tests. (Could be run on a separate node instead)
-        exit_if_fail docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
-        docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb \
-                        -v ${CIRCLE_ARTIFACTS}:/tmp/artifacts \
-                        -t ubuntu-32-influxdb-test bash \
-                        -c "cd /root/go/src/github.com/influxdb/influxdb && go get -t -d -v ./... && go build -v ./... && go test ${PARALLELISM} ${TIMEOUT} -v ./... 2>&1 | tee /tmp/artifacts/test_logs_i386.txt && exit \${PIPESTATUS[0]}"
-        rc=$?
+        if [ "$SKIP_32BIT" != "true" ]; then
+            # 32bit tests. (Could be run on a separate node instead)
+            exit_if_fail docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
+            docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb \
+                            -v ${CIRCLE_ARTIFACTS}:/tmp/artifacts \
+                            -t ubuntu-32-influxdb-test bash \
+                            -c "cd /root/go/src/github.com/influxdb/influxdb && go get -t -d -v ./... && go build -v ./... && go test ${PARALLELISM} ${TIMEOUT} -v ./... 2>&1 | tee /tmp/artifacts/test_logs_i386.txt && exit \${PIPESTATUS[0]}"
+            rc=$?
+        fi
         ;;
     1)
        GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
