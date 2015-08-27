@@ -48,9 +48,6 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 
 	validateIndex := func() {
-		if !reflect.DeepEqual(index.Names(), []string{"cpu"}) {
-			t.Fatalf("measurement names in shard didn't match")
-		}
 		if index.SeriesN() != 1 {
 			t.Fatalf("series wasn't in index")
 		}
@@ -125,9 +122,6 @@ func TestShardWriteAddNewField(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	if !reflect.DeepEqual(index.Names(), []string{"cpu"}) {
-		t.Fatalf("measurement names in shard didn't match")
-	}
 	if index.SeriesN() != 1 {
 		t.Fatalf("series wasn't in index")
 	}
