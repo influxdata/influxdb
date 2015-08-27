@@ -71,9 +71,6 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("write pid file: %s", err)
 	}
 
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	// Turn on block profiling to debug stuck databases
 	runtime.SetBlockProfileRate(int(1 * time.Second))
 

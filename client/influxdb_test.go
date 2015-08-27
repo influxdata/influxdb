@@ -498,13 +498,12 @@ func TestBatchPoints_Normal(t *testing.T) {
 }
 
 func TestClient_Timeout(t *testing.T) {
+	done := make(chan bool)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(1 * time.Second)
-		var data client.Response
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(data)
+		<-done
 	}))
 	defer ts.Close()
+	defer func() { done <- true }()
 
 	u, _ := url.Parse(ts.URL)
 	config := client.Config{URL: *u, Timeout: 500 * time.Millisecond}
@@ -517,13 +516,32 @@ func TestClient_Timeout(t *testing.T) {
 	_, err = c.Query(query)
 	if err == nil {
 		t.Fatalf("unexpected success.  expected timeout error")
-	} else if !strings.Contains(err.Error(), "use of closed network connection") {
-		t.Fatalf("unexpected error.  expected 'use of closed network connection' error, got %v", err)
+	} else if !strings.Contains(err.Error(), "request canceled") {
+		t.Fatalf("unexpected error.  expected 'request canceled' error, got %v", err)
+	}
+}
+
+func TestClient_NoTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(1 * time.Second)
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	confignotimeout := client.Config{URL: *u}
-	cnotimeout, err := client.NewClient(confignotimeout)
-	_, err = cnotimeout.Query(query)
+	query := client.Query{}
+	_, err = c.Query(query)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
