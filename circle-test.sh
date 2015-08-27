@@ -59,6 +59,7 @@ case $CIRCLE_NODE_INDEX in
         fi
 
         if [ "$SKIP_32BIT" != "true" ]; then
+            echo ">>> $SKIP32BIT"
             # 32bit tests. (Could be run on a separate node instead)
             exit_if_fail docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
             docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb \
