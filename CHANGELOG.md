@@ -1,6 +1,10 @@
 ## v0.9.4 [unreleased]
 
+### Release Notes
+With this release InfluxDB is moving to Go 1.5.
+
 ### Features
+-[#3863](https://github.com/influxdb/influxdb/pull/3863): Move to Go 1.5
 
 ### Bugfixes
 - [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
