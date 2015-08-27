@@ -175,7 +175,7 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 	defer tx.Rollback()
 
 	// Iterate over "cpu" series.
-	c := tx.Cursor("cpu")
+	c := tx.Cursor("cpu", true)
 	if k, v := c.Seek(u64tob(0)); !reflect.DeepEqual(k, []byte{0, 0, 0, 0, 0, 0, 0, 1}) || !reflect.DeepEqual(v, []byte{0x10}) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = c.Next(); !reflect.DeepEqual(k, []byte{0, 0, 0, 0, 0, 0, 0, 2}) || !reflect.DeepEqual(v, []byte{0x20}) {
@@ -185,7 +185,7 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 	}
 
 	// Iterate over "mem" series.
-	c = tx.Cursor("mem")
+	c = tx.Cursor("mem", true)
 	if k, v := c.Seek(u64tob(0)); !reflect.DeepEqual(k, []byte{0, 0, 0, 0, 0, 0, 0, 0}) || !reflect.DeepEqual(v, []byte{0x30}) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, _ = c.Next(); k != nil {
@@ -235,7 +235,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 	defer tx.Rollback()
 
 	// Iterate over "cpu" series.
-	c := tx.Cursor("cpu")
+	c := tx.Cursor("cpu", true)
 	if k, v := c.Seek(u64tob(0)); btou64(k) != 9 || !bytes.Equal(v, []byte{0x09}) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = c.Next(); btou64(k) != 10 || !bytes.Equal(v, []byte{0xFF}) {
@@ -276,7 +276,7 @@ func TestEngine_WriteIndex_SeekAgainstInBlockValue(t *testing.T) {
 	defer tx.Rollback()
 
 	// Ensure that we can seek to a block in the middle
-	c := tx.Cursor("cpu")
+	c := tx.Cursor("cpu", true)
 	if k, _ := c.Seek(u64tob(15)); btou64(k) != 20 {
 		t.Fatalf("expected to seek to time 20, but got %d", btou64(k))
 	}
@@ -334,7 +334,7 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 
 		// Iterate over results to ensure they are correct.
 		for _, key := range keys {
-			c := tx.Cursor(key)
+			c := tx.Cursor(key, true)
 
 			// Read list of key/values.
 			var got [][]byte
@@ -381,7 +381,7 @@ func TestEngine_WriteIndex_Quick_Append(t *testing.T) {
 
 		// Iterate over results to ensure they are correct.
 		for _, key := range keys {
-			c := tx.Cursor(key)
+			c := tx.Cursor(key, true)
 
 			// Read list of key/values.
 			var got [][]byte
@@ -523,13 +523,15 @@ func (w *EnginePointsWriter) Open() error { return nil }
 
 func (w *EnginePointsWriter) Close() error { return nil }
 
-func (w *EnginePointsWriter) Cursor(key string) tsdb.Cursor { return &Cursor{} }
+func (w *EnginePointsWriter) Cursor(key string, forward bool) tsdb.Cursor { return &Cursor{} }
 
 func (w *EnginePointsWriter) Flush() error { return nil }
 
 // Cursor represents a mock that implements tsdb.Curosr.
 type Cursor struct {
 }
+
+func (c *Cursor) Direction() bool { return true }
 
 func (c *Cursor) Seek(key []byte) ([]byte, []byte) { return nil, nil }
 

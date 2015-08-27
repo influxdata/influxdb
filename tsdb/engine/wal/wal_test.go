@@ -46,7 +46,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	}
 
 	verify := func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		k, v := c.Seek(inttob(1))
 
 		// ensure the series are there and points are in order
@@ -64,7 +64,7 @@ func TestWAL_WritePoints(t *testing.T) {
 			t.Fatalf("expected nil on last seek: %v %v", k, v)
 		}
 
-		c = log.Cursor("cpu,host=B")
+		c = log.Cursor("cpu,host=B", true)
 		k, v = c.Next()
 		if bytes.Compare(v, p3.Data()) != 0 {
 			t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
@@ -92,7 +92,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	}
 
 	verify2 := func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		k, v := c.Next()
 		if bytes.Compare(v, p1.Data()) != 0 {
 			t.Fatalf("order wrong, expected p1, %v %v %v", v, k, p1.Data())
@@ -110,7 +110,7 @@ func TestWAL_WritePoints(t *testing.T) {
 			t.Fatal("order wrong, expected p6")
 		}
 
-		c = log.Cursor("cpu,host=C")
+		c = log.Cursor("cpu,host=C", true)
 		_, v = c.Next()
 		if bytes.Compare(v, p5.Data()) != 0 {
 			t.Fatal("order wrong, expected p6")
@@ -150,7 +150,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 	}
 
 	verify := func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		_, v := c.Next()
 		if bytes.Compare(v, p1.Data()) != 0 {
 			t.Fatal("p1 value wrong")
@@ -183,7 +183,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 	}
 
 	verify = func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		_, v := c.Next()
 		if bytes.Compare(v, p1.Data()) != 0 {
 			t.Fatal("p1 value wrong")
@@ -229,7 +229,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 	}
 
 	verify := func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		_, v := c.Next()
 		if bytes.Compare(v, p1.Data()) != 0 {
 			t.Fatal("p1 value wrong")
@@ -268,7 +268,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 	}
 
 	verify = func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		_, v := c.Next()
 		if bytes.Compare(v, p1.Data()) != 0 {
 			t.Fatal("p1 value wrong")
@@ -349,7 +349,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	}
 
 	// ensure we have some data
-	c := log.Cursor("cpu,host=A,region=uswest23")
+	c := log.Cursor("cpu,host=A,region=uswest23", true)
 	k, v := c.Next()
 	if btou64(k) != 1 {
 		t.Fatalf("expected timestamp of 1, but got %v %v", k, v)
@@ -365,13 +365,13 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	}
 
 	// should be nil
-	c = log.Cursor("cpu,host=A,region=uswest23")
+	c = log.Cursor("cpu,host=A,region=uswest23", true)
 	k, v = c.Next()
 	if k != nil || v != nil {
 		t.Fatal("expected cache to be nil after flush: ", k, v)
 	}
 
-	c = log.Cursor("cpu,host=A,region=useast1")
+	c = log.Cursor("cpu,host=A,region=useast1", true)
 	k, v = c.Next()
 	if btou64(k) != 1 {
 		t.Fatal("expected cache to be there after flush and compact: ", k, v)
@@ -385,13 +385,13 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	log.Close()
 	log.Open()
 
-	c = log.Cursor("cpu,host=A,region=uswest23")
+	c = log.Cursor("cpu,host=A,region=uswest23", true)
 	k, v = c.Next()
 	if k != nil || v != nil {
 		t.Fatal("expected cache to be nil after flush and re-open: ", k, v)
 	}
 
-	c = log.Cursor("cpu,host=A,region=useast1")
+	c = log.Cursor("cpu,host=A,region=useast1", true)
 	k, v = c.Next()
 	if btou64(k) != 1 {
 		t.Fatal("expected cache to be there after flush and compact: ", k, v)
@@ -444,7 +444,7 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	}
 
 	// ensure we have some data
-	c := log.Cursor("cpu,host=A,region=uswest10")
+	c := log.Cursor("cpu,host=A,region=uswest10", true)
 	k, _ := c.Next()
 	if btou64(k) != 1 {
 		t.Fatalf("expected first data point but got one with key: %v", k)
@@ -625,12 +625,12 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	}
 
 	// ensure data is there
-	c := log.Cursor("cpu,host=A")
+	c := log.Cursor("cpu,host=A", true)
 	if k, _ := c.Next(); btou64(k) != 1 {
 		t.Fatal("expected data point for cpu,host=A")
 	}
 
-	c = log.Cursor("cpu,host=B")
+	c = log.Cursor("cpu,host=B", true)
 	if k, _ := c.Next(); btou64(k) != 2 {
 		t.Fatal("expected data point for cpu,host=B")
 	}
@@ -641,13 +641,13 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	}
 
 	// ensure data is there
-	c = log.Cursor("cpu,host=A")
+	c = log.Cursor("cpu,host=A", true)
 	if k, _ := c.Next(); btou64(k) != 1 {
 		t.Fatal("expected data point for cpu,host=A")
 	}
 
 	// ensure series is deleted
-	c = log.Cursor("cpu,host=B")
+	c = log.Cursor("cpu,host=B", true)
 	if k, _ := c.Next(); k != nil {
 		t.Fatal("expected no data for cpu,host=B")
 	}
@@ -675,13 +675,13 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	}
 
 	// ensure data is there
-	c = log.Cursor("cpu,host=A")
+	c = log.Cursor("cpu,host=A", true)
 	if k, _ := c.Next(); btou64(k) != 1 {
 		t.Fatal("expected data point for cpu,host=A")
 	}
 
 	// ensure series is deleted
-	c = log.Cursor("cpu,host=B")
+	c = log.Cursor("cpu,host=B", true)
 	if k, _ := c.Next(); k != nil {
 		t.Fatal("expected no data for cpu,host=B")
 	}
@@ -805,7 +805,7 @@ func TestWAL_QueryDuringCompaction(t *testing.T) {
 	}
 
 	verify := func() {
-		c := log.Cursor("cpu,host=A")
+		c := log.Cursor("cpu,host=A", true)
 		k, v := c.Seek(inttob(1))
 		// ensure the series are there and points are in order
 		if bytes.Compare(v, p1.Data()) != 0 {
@@ -851,7 +851,7 @@ func TestWAL_PointsSorted(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := log.Cursor("cpu,host=A")
+	c := log.Cursor("cpu,host=A", true)
 	k, _ := c.Next()
 	if btou64(k) != 1 {
 		t.Fatal("points out of order")

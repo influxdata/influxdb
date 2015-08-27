@@ -10,8 +10,8 @@ import (
 // If the same key is returned from multiple cursors then the first cursor
 // specified will take precendence. A key will only be returned once from the
 // returned cursor.
-func MultiCursor(cursors ...Cursor) Cursor {
-	return &multiCursor{cursors: cursors}
+func MultiCursor(forward bool, cursors ...Cursor) Cursor {
+	return &multiCursor{cursors: cursors, forward: forward}
 }
 
 // multiCursor represents a cursor that combines multiple cursors into one.
@@ -19,6 +19,7 @@ type multiCursor struct {
 	cursors []Cursor
 	heap    cursorHeap
 	prev    []byte
+	forward bool
 }
 
 // Seek moves the cursor to a given key.
@@ -47,6 +48,8 @@ func (mc *multiCursor) Seek(seek []byte) (key, value []byte) {
 
 	return mc.pop()
 }
+
+func (mc *multiCursor) Direction() bool { return mc.forward }
 
 // Next returns the next key/value from the cursor.
 func (mc *multiCursor) Next() (key, value []byte) { return mc.pop() }
@@ -90,7 +93,12 @@ type cursorHeap []*cursorHeapItem
 func (h cursorHeap) Len() int      { return len(h) }
 func (h cursorHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h cursorHeap) Less(i, j int) bool {
-	if cmp := bytes.Compare(h[i].key, h[j].key); cmp == -1 {
+	dir := -1
+	if !h[i].cursor.Direction() {
+		dir = 1
+	}
+
+	if cmp := bytes.Compare(h[i].key, h[j].key); cmp == dir {
 		return true
 	} else if cmp == 0 {
 		return h[i].priority > h[j].priority

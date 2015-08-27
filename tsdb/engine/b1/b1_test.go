@@ -64,7 +64,7 @@ func TestEngine_WritePoints(t *testing.T) {
 	tx := e.MustBegin(false)
 	defer tx.Rollback()
 
-	c := tx.Cursor("temperature")
+	c := tx.Cursor("temperature", true)
 	if k, v := c.Seek([]byte{0}); !bytes.Equal(k, u64tob(uint64(time.Unix(1434059627, 0).UnixNano()))) {
 		t.Fatalf("unexpected key: %#v", k)
 	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {

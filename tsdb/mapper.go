@@ -218,12 +218,17 @@ func (lm *SelectMapper) Open() error {
 			}
 		}
 
+		forward := true
+		if len(lm.selectStmt.SortFields) > 0 {
+			forward = lm.selectStmt.SortFields[0].Ascending
+		}
+
 		// Create all cursors for reading the data from this shard.
 		for _, t := range tagSets {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := lm.tx.Cursor(key)
+				c := lm.tx.Cursor(key, forward)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -238,7 +243,18 @@ func (lm *SelectMapper) Open() error {
 				tsc.pointHeap = newPointHeap()
 				//Prime the buffers.
 				for i := 0; i < len(tsc.cursors); i++ {
-					k, v := tsc.cursors[i].SeekTo(lm.queryTMin)
+					var k int64
+					var v []byte
+					if forward {
+						k, v = tsc.cursors[i].SeekTo(lm.queryTMin)
+						if k == -1 {
+							k, v = tsc.cursors[i].Next()
+						}
+
+					} else {
+						k, v = tsc.cursors[i].SeekTo(lm.queryTMax)
+					}
+
 					if k == -1 {
 						continue
 					}
@@ -325,7 +341,6 @@ func (lm *SelectMapper) nextChunkRaw() (interface{}, error) {
 				continue
 			}
 		}
-
 		if output == nil {
 			output = &MapperOutput{
 				Name:      cursor.measurement,

@@ -14,7 +14,7 @@ import (
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor.
 func TestMultiCursor_Single(t *testing.T) {
-	mc := tsdb.MultiCursor(
+	mc := tsdb.MultiCursor(true,
 		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x01}, Value: []byte{0x10}},
@@ -35,7 +35,7 @@ func TestMultiCursor_Single(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple non-overlapping subcursors.
 func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
-	mc := tsdb.MultiCursor(
+	mc := tsdb.MultiCursor(true,
 		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x30}},
@@ -64,7 +64,7 @@ func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple overlapping subcursors.
 func TestMultiCursor_Multiple_Overlapping(t *testing.T) {
-	mc := tsdb.MultiCursor(
+	mc := tsdb.MultiCursor(true,
 		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x03}},
@@ -118,7 +118,7 @@ func TestMultiCursor_Quick(t *testing.T) {
 		sort.Sort(byteSlices(exp))
 
 		// Create multi-cursor and iterate over all items.
-		mc := tsdb.MultiCursor(tsdbCursorSlice(cursors)...)
+		mc := tsdb.MultiCursor(true, tsdbCursorSlice(cursors)...)
 		for k, v := mc.Seek(u64tob(seek)); k != nil; k, v = mc.Next() {
 			got = append(got, append(k, v...))
 		}
@@ -143,6 +143,8 @@ func NewCursor(items []CursorItem) *Cursor {
 	sort.Sort(CursorItems(items))
 	return &Cursor{items: items}
 }
+
+func (c *Cursor) Direction() bool { return true }
 
 // Seek seeks to an item by key.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {

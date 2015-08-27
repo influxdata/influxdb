@@ -550,7 +550,7 @@ type Tx struct {
 }
 
 // Cursor returns an iterator for a key.
-func (tx *Tx) Cursor(key string) tsdb.Cursor {
+func (tx *Tx) Cursor(key string, forward bool) tsdb.Cursor {
 	// Retrieve key bucket.
 	b := tx.Bucket([]byte(key))
 
@@ -590,6 +590,8 @@ type Cursor struct {
 	// Previously read key.
 	prev []byte
 }
+
+func (c *Cursor) Direction() bool { return true }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
