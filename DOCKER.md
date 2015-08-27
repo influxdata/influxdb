@@ -16,7 +16,7 @@ This script uses the `golang:1.5` image to build a fully static binary of `influ
 To build the image using a different version of go:
 
 ```
-$ GO_VER=1.4.2 ./build-docker.sh
+$ GO_VER=1.5 ./build-docker.sh
 ```
 
 Available version can be found [here](https://hub.docker.com/_/golang/).
