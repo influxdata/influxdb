@@ -1,8 +1,8 @@
 FROM 32bit/ubuntu:14.04
 
 RUN apt-get update && apt-get install -y python-software-properties software-properties-common git
-RUN add-apt-repository ppa:evarlast/golang1.5
-RUN apt-get update && apt-get install -y golang-go
+RUN bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+RUN source /root/.gvm/scripts/gvm; gvm install go1.5 --binary
 
 ENV GOPATH=/root/go
 RUN mkdir -p /root/go/src/github.com/influxdb/influxdb
