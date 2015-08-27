@@ -1,6 +1,6 @@
 FROM 32bit/ubuntu:14.04
 
-RUN apt-get update && apt-get install -y python-software-properties software-properties-common git
+RUN apt-get update && apt-get install -y python-software-properties software-properties-common git curl
 RUN curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer >gvm_installer
 RUN bash gvm_installer
 RUN source /root/.gvm/scripts/gvm; gvm install go1.5 --binary
