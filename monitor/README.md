@@ -20,7 +20,7 @@ A new module named `monitor` supports all statistics and diagnostic functionalit
  * Allowing other modules to register statistics and diagnotics information, allowing it to be accessed on demand by the `monitor` module.
  * Serving the statistics and diagnostic information to the user, in response to commands such as `SHOW DIAGNOSTICS`.
  * Expose standard Go runtime information such as garbage collection statistics.
- * Writing the statistical information to an InfluxDB system, for historical analysis. This may be the same system generating the statistical information, but it does not have to be.
+ * Writing the statistical information to an InfluxDB system, for historical analysis. This may be the same system generating the statistical information, but it does not have to be. Information is written used the Line Protocol.
 
 To register with `monitor`, a module must implement the following interface:
 
