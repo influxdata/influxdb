@@ -8,12 +8,12 @@ import (
 
 // Client is the interface modules must implement if they wish to register with monitor.
 type Client interface {
-    Statistics() (expvar.Map, error)
-    Diagnostics() (map[string]interface{}, error)
+	Statistics() (expvar.Map, error)
+	Diagnostics() (map[string]interface{}, error)
 }
 
 type Service struct {
-	mu sync.Mutex
+	mu            sync.Mutex
 	registrations map[string]Client
 }
 
