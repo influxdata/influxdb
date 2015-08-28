@@ -1,5 +1,5 @@
 # List
-- [github.com/gogo/protobuf/proto](https://github.com/gogo/protobuf) [LICENSE](https://github.com/gogo/protobuf/blob/master/LICENSE)
+- github.com/gogo/protobuf/proto[LICENSE](https://github.com/gogo/protobuf/blob/master/LICENSE)
 - gopkg.in/fatih/pool.v2 [LICENSE](https://github.com/fatih/pool/blob/v2.0.0/LICENSE)
 - github.com/BurntSushi/toml [LICENSE](https://github.com/BurntSushi/toml/blob/master/COPYING)
 - github.com/peterh/liner [LICENSE](https://github.com/peterh/liner/blob/master/COPYING)
