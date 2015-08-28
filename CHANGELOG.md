@@ -11,6 +11,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3823](https://github.com/influxdb/influxdb/pull/3823): Deterministic ordering for first() and last()
 - [#3869](https://github.com/influxdb/influxdb/issues/3869): Seemingly deadlocked when ingesting metrics via graphite plugin
 - [#3856](https://github.com/influxdb/influxdb/pull/3856): Minor changes to retention enforcement.
+- [#3884](https://github.com/influxdb/influxdb/pull/3884): Fix two panics in WAL that can happen at server startup
 
 ## v0.9.3 [2015-08-26]
 

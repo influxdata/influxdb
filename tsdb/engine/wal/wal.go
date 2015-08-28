@@ -177,12 +177,12 @@ func NewLog(path string) *Log {
 		ReadySeriesSize:        tsdb.DefaultReadySeriesSize,
 		partitionCount:         PartitionCount,
 		flushCheckInterval:     defaultFlushCheckInterval,
+		logger:                 log.New(os.Stderr, "[wal] ", log.LstdFlags),
 	}
 }
 
 // Open opens and initializes the Log. Will recover from previous unclosed shutdowns
 func (l *Log) Open() error {
-	l.logger = log.New(l.LogOutput, "[wal] ", log.LstdFlags)
 
 	if l.EnableLogging {
 		l.logger.Printf("WAL starting with %d ready series size, %0.2f compaction threshold, and %d partition size threshold\n", l.ReadySeriesSize, l.CompactionThreshold, l.PartitionSizeThreshold)
@@ -375,7 +375,7 @@ func (l *Log) readMetadataFile(fileName string) ([]*seriesAndFields, error) {
 			break
 		} else if err != nil {
 			// print the error and move on since we can't recover the file
-			l.logger.Println("error reading lenght of metadata:", err.Error())
+			l.logger.Println("error reading length of metadata:", err.Error())
 			break
 		}
 
@@ -500,6 +500,9 @@ func (l *Log) openPartitionFiles() error {
 	for _, p := range l.partitions {
 
 		go func(p *Partition) {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+
 			// Recover from a partial compaction.
 			if err := p.recoverCompactionFile(); err != nil {
 				results <- fmt.Errorf("recover compaction files: %s", err)
