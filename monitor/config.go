@@ -37,5 +37,6 @@ func NewConfig() Config {
 		StoreDatabase: DefaultStoreDatabase,
 		StoreInterval: toml.Duration(DefaultStoreInterval),
 		StoreAddress:  DefaultStoreAddress,
+		ExpvarAddress: "127.0.0.1:9950",
 	}
 }

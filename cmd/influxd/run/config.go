@@ -20,7 +20,6 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
-	"github.com/influxdb/influxdb/services/monitor"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
@@ -45,7 +44,6 @@ type Config struct {
 	UDPs      []udp.Config      `toml:"udp"`
 
 	// Snapshot SnapshotConfig `toml:"snapshot"`
-	Monitoring      monitor.Config            `toml:"monitoring"`
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 
 	HintedHandoff hh.Config `toml:"hinted-handoff"`
@@ -69,7 +67,6 @@ func NewConfig() *Config {
 	c.OpenTSDB = opentsdb.NewConfig()
 	c.Graphites = append(c.Graphites, graphite.NewConfig())
 
-	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
 	c.HintedHandoff = hh.NewConfig()
@@ -98,7 +95,6 @@ func NewDemoConfig() (*Config, error) {
 	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 
 	c.Admin.Enabled = true
-	c.Monitoring.Enabled = false
 
 	return c, nil
 }

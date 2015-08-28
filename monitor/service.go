@@ -35,15 +35,18 @@ func NewService(c Config) *Service {
 
 // Open opens the monitoring service.
 func (s *Service) Open() error {
-	s.Logger.Println("Starting monitor service")
+	s.Logger.Println("starting monitor service")
 
-	if s.expvarAddress == "" {
-		listener, err := net.Listen("tcp", "127.0.0.1:9950")
+	if s.expvarAddress != "" {
+		listener, err := net.Listen("tcp", s.expvarAddress)
 		if err != nil {
 			return err
 		}
 
-		http.Serve(listener, nil)
+		go func() {
+			http.Serve(listener, nil)
+		}()
+		s.Logger.Println("expvar information available on %s", s.expvarAddress)
 	}
 	return nil
 }
