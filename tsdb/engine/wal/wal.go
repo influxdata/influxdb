@@ -500,6 +500,9 @@ func (l *Log) openPartitionFiles() error {
 	for _, p := range l.partitions {
 
 		go func(p *Partition) {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+
 			// Recover from a partial compaction.
 			if err := p.recoverCompactionFile(); err != nil {
 				results <- fmt.Errorf("recover compaction files: %s", err)
