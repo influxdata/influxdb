@@ -20,7 +20,7 @@ A new module named `monitor` supports all statistics and diagnostic functionalit
  * Expose standard Go runtime information such as garbage collection statistics.
  * Writing the statistical information to an InfluxDB system, for historical analysis. This may be the same system generating the statistical information, but it does not have to be.
 
-To register with the `monitor` service, a module must implement the following interface:
+To register with `monitor`, a module must implement the following interface:
 
 ```
 import "expvar"
