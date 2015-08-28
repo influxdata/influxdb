@@ -40,6 +40,7 @@ const (
 	EP_BATCHES_TRANSMITTED   = "batches_tx"
 	EP_POINTS_TRANSMITTED    = "points_tx"
 	EP_BATCHES_TRANSMIT_FAIL = "batches_tx_fail"
+	EP_BATCHES_SKIPPED       = "batches_skipped"
 )
 
 type Service struct {
@@ -60,6 +61,8 @@ type Service struct {
 
 	wg   sync.WaitGroup
 	done chan struct{}
+
+	writeSkip bool // For test purposes only.
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -83,6 +86,7 @@ func NewService(c Config) (*Service, error) {
 		batchTimeout: time.Duration(d.BatchTimeout),
 		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		done:         make(chan struct{}),
+		writeSkip:    c.WriteSkip,
 	}
 
 	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
@@ -284,6 +288,10 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
+			if s.writeSkip {
+				ep.Add(EP_BATCHES_SKIPPED, 1)
+				continue
+			}
 			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 				Database:         s.database,
 				RetentionPolicy:  "",
