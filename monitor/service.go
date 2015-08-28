@@ -1,8 +1,9 @@
 package monitor
 
 import (
-	"expvar"
+	//"expvar"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -15,6 +16,33 @@ type Client interface {
 type Service struct {
 	mu            sync.Mutex
 	registrations map[string]Client
+
+	expvarAddress string
+
+	Logger *log.Logger
+}
+
+func NewService(c Config) *Service {
+	return &Service{
+		registrations: make(map[string]client, 0),
+		expvarAddress: c.ExpvarAddress,
+		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+	}
+}
+
+// Open opens the monitoring service.
+func (s *Service) Open() error {
+	s.Logger.Println("Starting monitor service")
+
+	if s.expvarAddress != "" {
+
+	}
+	return nil
+}
+
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.Logger = l
 }
 
 // Register registers a client with the given name. It is an error to register a client with
