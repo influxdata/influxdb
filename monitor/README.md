@@ -28,7 +28,7 @@ To register with `monitor`, a module must implement the following interface:
 import "expvar"
 
 type Client interface {
-    Statistics() (expvar.Map, error)
+    Statistics() (*expvar.Map, error)
     Diagnostics() (map[string]interface{}, error)
 }
 ```

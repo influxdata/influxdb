@@ -12,7 +12,7 @@ import (
 
 // Client is the interface modules must implement if they wish to register with monitor.
 type Client interface {
-	Statistics() (expvar.Map, error)
+	Statistics() (*expvar.Map, error)
 	Diagnostics() (map[string]interface{}, error)
 }
 

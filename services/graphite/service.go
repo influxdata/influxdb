@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -22,6 +23,7 @@ const (
 	leaderWaitTimeout = 30 * time.Second
 )
 
+var epOnce sync.Once
 var ep = expvar.NewMap("graphite")
 var epTCP = expvar.NewMap("tcp")
 var epUDP = expvar.NewMap("udp")
@@ -31,16 +33,27 @@ func init() {
 	ep.Set("udp", epUDP)
 }
 
-const (
-	EP_CONNECTIONS_ACTIVE  = "tcp_connections_active"
-	EP_CONNECTIONS_HANDLED = "tcp_connections_handled"
+type monitorClient struct {
+	ep *expvar.Map
+}
 
+func (m monitorClient) Statistics() (*expvar.Map, error) {
+	return m.ep, nil
+}
+
+func (m monitorClient) Diagnostics() (map[string]interface{}, error) {
+	return nil, nil
+}
+
+const (
 	EP_POINTS_RECEIVED       = "points_rx"
 	EP_BYTES_RECEIVED        = "bytes_rx"
 	EP_BATCHES_TRANSMITTED   = "batches_tx"
 	EP_POINTS_TRANSMITTED    = "points_tx"
 	EP_BATCHES_TRANSMIT_FAIL = "batches_tx_fail"
 	EP_BATCHES_SKIPPED       = "batches_skipped"
+	EP_CONNECTIONS_ACTIVE    = "connections_active"
+	EP_CONNECTIONS_HANDLED   = "connections_handled"
 )
 
 type Service struct {
@@ -64,6 +77,9 @@ type Service struct {
 
 	writeSkip bool // For test purposes only.
 
+	MonitorService interface {
+		Register(name string, tags map[string]string, client monitor.Client) error
+	}
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
@@ -104,6 +120,16 @@ func NewService(c Config) (*Service, error) {
 		return nil, err
 	}
 	s.parser = parser
+
+	// One Graphite service hooks up monitoring for all Graphite functionality.
+	epOnce.Do(func() {
+		g := monitorClient{ep: ep}
+		s.MonitorService.Register("graphite", nil, g)
+		t := monitorClient{ep: epTCP}
+		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
+		u := monitorClient{ep: epUDP}
+		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
+	})
 
 	return &s, nil
 }
@@ -199,11 +225,11 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 
 // handleTCPConnection services an individual TCP connection for the Graphite input.
 func (s *Service) handleTCPConnection(conn net.Conn) {
-	epTCP.Add(EP_CONNECTIONS_ACTIVE, 1)
-	epTCP.Add(EP_CONNECTIONS_HANDLED, 1)
-	defer ep.Add(EP_CONNECTIONS_ACTIVE, -1)
 	defer conn.Close()
 	defer s.wg.Done()
+	defer ep.Add(EP_CONNECTIONS_ACTIVE, -1)
+	epTCP.Add(EP_CONNECTIONS_ACTIVE, 1)
+	epTCP.Add(EP_CONNECTIONS_HANDLED, 1)
 
 	reader := bufio.NewReader(conn)
 
@@ -261,7 +287,6 @@ func (s *Service) handleLine(line string) {
 	if line == "" {
 		return
 	}
-	ep.Add(EP_POINTS_RECEIVED, 1)
 
 	// Parse it.
 	point, err := s.parser.Parse(line)

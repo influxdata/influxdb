@@ -58,6 +58,8 @@ type Server struct {
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
 
+	MonitorService *monitor.Service
+
 	// Server reporting
 	reportingDisabled bool
 
@@ -119,8 +121,8 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
 	// Start the monitor service.
-	monitorSrv := monitor.NewService(c.Monitor)
-	monitorSrv.Open()
+	s.MonitorService = monitor.NewService(c.Monitor)
+	s.MonitorService.Open()
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
@@ -235,6 +237,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaStore = s.MetaStore
+	srv.MonitorService = s.MonitorService
 	s.Services = append(s.Services, srv)
 	return nil
 }
