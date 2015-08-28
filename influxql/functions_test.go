@@ -627,6 +627,40 @@ func TestMapTop(t *testing.T) {
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
 		},
+		{
+			name: "mixed numerics - ints",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				values: []topOut{
+					topOut{10, int64(99), map[string]string{"host": "a"}},
+					topOut{20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "mixed numerics - ints & floats",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, float64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				values: []topOut{
+					topOut{10, float64(99), map[string]string{"host": "a"}},
+					topOut{20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
 	}
 
 	for _, test := range tests {

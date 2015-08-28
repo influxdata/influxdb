@@ -1330,8 +1330,8 @@ func (t topOuts) Less(i, j int) bool {
 	w2, n2 := infer(t.values[j].Value)
 
 	// If we had "numeric" data, use that for comparison
-	if n1 != n2 && (w1 == intWeight && w2 == floatWeight) || (w1 == floatWeight && w2 == intWeight) {
-		return n1 < n2
+	if (w1 == floatWeight || w1 == intWeight) && (w2 == floatWeight || w2 == intWeight) {
+		return sortFloat(n1, n2)
 	}
 
 	return w1 < w2
