@@ -32,6 +32,7 @@ type Client interface {
 ### expvar
 Statistical information is gathered by each package using [expvar](https://golang.org/pkg/expvar). To prevent namespace collision during registration with `expvar`, each module registers using the format `influxdb_<module>`. For example the `influxdb/tsdb` package will register with `expvar` using the key `influxdb_tsdb`.
 
+Due to the nature of `expvar`, statistical information is reset to its initial state when a server is restarted,
 
 ## Configuration
 The `monitor` module will allow the following configuration:
