@@ -14,15 +14,23 @@ type point struct {
 	seriesKey string
 	time      int64
 	value     interface{}
+	tags      map[string]string
 }
 
 type testIterator struct {
-	values []point
+	values   []point
+	lastTags map[string]string
+	nextFunc func() (timestamp int64, value interface{})
+	tagsFunc func() map[string]string
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
+	if t.nextFunc != nil {
+		return t.nextFunc()
+	}
 	if len(t.values) > 0 {
 		v := t.values[0]
+		t.lastTags = t.values[0].tags
 		t.values = t.values[1:]
 		return v.time, v.value
 	}
@@ -31,7 +39,10 @@ func (t *testIterator) Next() (timestamp int64, value interface{}) {
 }
 
 func (t *testIterator) Tags() map[string]string {
-	return nil
+	if t.tagsFunc != nil {
+		return t.tagsFunc()
+	}
+	return t.lastTags
 }
 
 func TestMapMeanNoValues(t *testing.T) {
@@ -48,13 +59,13 @@ func TestMapMean(t *testing.T) {
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input:  []point{point{"0", 1, 1.0}},
+			input:  []point{point{"0", 1, 1.0, nil}},
 			output: &meanMapOutput{1, 1, Float64Type},
 		},
 		{ // Two points
 			input: []point{
-				point{"0", 1, 2.0},
-				point{"0", 2, 8.0},
+				point{"0", 1, 2.0, nil},
+				point{"0", 2, 8.0, nil},
 			},
 			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
@@ -216,16 +227,16 @@ func TestMapDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []point{
-			{seriesKey1, timeId1, uint64(1)},
-			{seriesKey1, timeId2, uint64(1)},
-			{seriesKey1, timeId3, "1"},
-			{seriesKey2, timeId4, uint64(1)},
-			{seriesKey2, timeId5, float64(1.0)},
-			{seriesKey2, timeId6, "1"},
+			{seriesKey1, timeId1, uint64(1), nil},
+			{seriesKey1, timeId2, uint64(1), nil},
+			{seriesKey1, timeId3, "1", nil},
+			{seriesKey2, timeId4, uint64(1), nil},
+			{seriesKey2, timeId5, float64(1.0), nil},
+			{seriesKey2, timeId6, "1", nil},
 		},
 	}
 
-	values := MapDistinct(iter).(distinctValues)
+	values := MapDistinct(iter).(interfaceValues)
 
 	if exp, got := 3, len(values); exp != got {
 		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
@@ -233,7 +244,7 @@ func TestMapDistinct(t *testing.T) {
 
 	sort.Sort(values)
 
-	exp := distinctValues{
+	exp := interfaceValues{
 		uint64(1),
 		float64(1),
 		"1",
@@ -257,7 +268,7 @@ func TestMapDistinctNil(t *testing.T) {
 }
 
 func TestReduceDistinct(t *testing.T) {
-	v1 := distinctValues{
+	v1 := interfaceValues{
 		"2",
 		"1",
 		float64(2.0),
@@ -268,7 +279,7 @@ func TestReduceDistinct(t *testing.T) {
 		false,
 	}
 
-	expect := distinctValues{
+	expect := interfaceValues{
 		uint64(1),
 		float64(1),
 		uint64(2),
@@ -305,11 +316,11 @@ func TestReduceDistinctNil(t *testing.T) {
 		},
 		{
 			name:   "empty mappper (len 1)",
-			values: []interface{}{distinctValues{}},
+			values: []interface{}{interfaceValues{}},
 		},
 		{
 			name:   "empty mappper (len 2)",
-			values: []interface{}{distinctValues{}, distinctValues{}},
+			values: []interface{}{interfaceValues{}, interfaceValues{}},
 		},
 	}
 
@@ -323,7 +334,7 @@ func TestReduceDistinctNil(t *testing.T) {
 }
 
 func Test_distinctValues_Sort(t *testing.T) {
-	values := distinctValues{
+	values := interfaceValues{
 		"2",
 		"1",
 		float64(2.0),
@@ -334,7 +345,7 @@ func Test_distinctValues_Sort(t *testing.T) {
 		false,
 	}
 
-	expect := distinctValues{
+	expect := interfaceValues{
 		uint64(1),
 		float64(1),
 		uint64(2),
@@ -370,13 +381,13 @@ func TestMapCountDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []point{
-			{seriesKey1, timeId1, uint64(1)},
-			{seriesKey1, timeId2, uint64(1)},
-			{seriesKey1, timeId3, "1"},
-			{seriesKey2, timeId4, uint64(1)},
-			{seriesKey2, timeId5, float64(1.0)},
-			{seriesKey2, timeId6, "1"},
-			{seriesKey2, timeId7, true},
+			{seriesKey1, timeId1, uint64(1), nil},
+			{seriesKey1, timeId2, uint64(1), nil},
+			{seriesKey1, timeId3, "1", nil},
+			{seriesKey2, timeId4, uint64(1), nil},
+			{seriesKey2, timeId5, float64(1.0), nil},
+			{seriesKey2, timeId6, "1", nil},
+			{seriesKey2, timeId7, true, nil},
 		},
 	}
 
@@ -535,4 +546,101 @@ func BenchmarkGetSortedRangeBySort(b *testing.B) {
 		results = data[8:23]
 	}
 	benchGetSortedRangeResults = results
+}
+
+func TestMapTop(t *testing.T) {
+	tests := []struct {
+		name string
+		skip bool
+		iter *testIterator
+		exp  topOuts
+		call *Call
+	}{
+		{
+			name: "int64 - basic",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				values: []topOut{
+					topOut{10, int64(99), map[string]string{"host": "a"}},
+					topOut{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - basic with extra tag",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				callArgs: []string{"host"},
+				values: []topOut{
+					topOut{10, int64(99), map[string]string{"host": "a"}},
+					topOut{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - tie on value, resolve based on time",
+			iter: &testIterator{
+				values: []point{
+					{"", 20, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				callArgs: []string{"host"},
+				values: []topOut{
+					topOut{10, int64(99), map[string]string{"host": "a"}},
+					topOut{20, int64(99), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - tie on value, time, resolve based on tags",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "b"}},
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				callArgs: []string{"host"},
+				values: []topOut{
+					topOut{10, int64(99), map[string]string{"host": "a"}},
+					topOut{10, int64(99), map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+	}
+
+	for _, test := range tests {
+		if test.skip {
+			continue
+		}
+		values := MapTop(test.iter, test.call).([]topOut)
+		if exp, got := len(test.exp.values), len(values); exp != got {
+			t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+		}
+		if !reflect.DeepEqual(values, test.exp.values) {
+			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp.values), spew.Sdump(values))
+		}
+
+	}
+
 }
