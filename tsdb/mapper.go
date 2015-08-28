@@ -753,6 +753,9 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		// Decode the raw point.
 		value := tsc.decodeRawPoint(p, selectFields, whereFields)
 		timestamp := p.timestamp
+
+		// Keep track of the current tags for the series cursor so we can
+		// respond with them if asked
 		tsc.currentTags = p.cursor.tags
 
 		// Advance the cursor
@@ -775,7 +778,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 	}
 }
 
-// Tgs returns the current tags of the current cursor
+// Tags returns the current tags of the current cursor
 // if there is no current currsor, it returns nil
 func (tsc *tagSetCursor) Tags() map[string]string {
 	return tsc.currentTags
