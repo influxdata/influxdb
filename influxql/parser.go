@@ -721,7 +721,7 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	if stmt.Sources, err = p.parseSources(stmt); err != nil {
+	if stmt.Sources, err = p.parseSources(); err != nil {
 		return nil, err
 	}
 
@@ -841,7 +841,7 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource(stmt)
+	source, err := p.parseSource()
 	if err != nil {
 		return nil, err
 	}
@@ -865,7 +865,7 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 
 	// Parse optional FROM.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(stmt); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -952,7 +952,7 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(stmt); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -990,7 +990,7 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(stmt); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1080,7 +1080,7 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(stmt); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1130,7 +1130,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	if tok == FROM {
 		// Parse source.
-		if stmt.Sources, err = p.parseSources(stmt); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1565,11 +1565,11 @@ func (p *Parser) parseAlias() (string, error) {
 }
 
 // parseSources parses a comma delimited list of sources.
-func (p *Parser) parseSources(parent Node) (Sources, error) {
+func (p *Parser) parseSources() (Sources, error) {
 	var sources Sources
 
 	for {
-		s, err := p.parseSource(parent)
+		s, err := p.parseSource()
 		if err != nil {
 			return nil, err
 		}
@@ -1594,7 +1594,7 @@ func (p *Parser) peekRune() rune {
 	return r
 }
 
-func (p *Parser) parseSource(parent Node) (Source, error) {
+func (p *Parser) parseSource() (Source, error) {
 	m := &Measurement{}
 
 	// Attempt to parse a regex.
