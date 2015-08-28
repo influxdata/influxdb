@@ -238,9 +238,8 @@ func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.Measureme
 
 	// persist the raw point data
 	l.mu.RLock()
-	defer l.mu.RUnlock()
-
 	partitionsToWrite := l.pointsToPartitions(points)
+	l.mu.RUnlock()
 
 	for p, points := range partitionsToWrite {
 		if err := p.Write(points); err != nil {
@@ -720,7 +719,7 @@ func (l *Log) partition(key []byte) *Partition {
 type Partition struct {
 	id                 uint8
 	path               string
-	mu                 sync.Mutex
+	mu                 sync.RWMutex
 	currentSegmentFile *os.File
 	currentSegmentSize int64
 	currentSegmentID   uint32
@@ -810,8 +809,8 @@ func (p *Partition) Close() error {
 func (p *Partition) Write(points []tsdb.Point) error {
 
 	if func() bool {
-		p.mu.Lock()
-		defer p.mu.Unlock()
+		p.mu.RLock()
+		defer p.mu.RUnlock()
 		// pause writes for a bit if we've hit the size threshold
 		if p.memorySize > p.sizeThreshold {
 			return true
