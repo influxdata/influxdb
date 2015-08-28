@@ -702,8 +702,6 @@ func (p *Parser) parsePrivilege() (Privilege, error) {
 // parseSelectStatement parses a select string and returns a Statement AST object.
 // This function assumes the SELECT token has already been consumed.
 func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, error) {
-	fmt.Println("parseSelectStatement: start")
-	defer fmt.Println("parseSelectStatement: end")
 	stmt := &SelectStatement{}
 	var err error
 
