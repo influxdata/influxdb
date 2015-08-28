@@ -22,7 +22,25 @@ const (
 	leaderWaitTimeout = 30 * time.Second
 )
 
-var ep = expvar.NewMap("inflxudb_graphite")
+var ep = expvar.NewMap("graphite")
+var epTCP = expvar.NewMap("tcp")
+var epUDP = expvar.NewMap("udp")
+
+func init() {
+	ep.Set("tcp", epTCP)
+	ep.Set("udp", epUDP)
+}
+
+const (
+	EP_CONNECTIONS_ACTIVE  = "tcp_connections_active"
+	EP_CONNECTIONS_HANDLED = "tcp_connections_handled"
+
+	EP_POINTS_RECEIVED       = "points_rx"
+	EP_BYTES_RECEIVED        = "bytes_rx"
+	EP_BATCHES_TRANSMITTED   = "batches_tx"
+	EP_POINTS_TRANSMITTED    = "points_tx"
+	EP_BATCHES_TRANSMIT_FAIL = "batches_tx_fail"
+)
 
 type Service struct {
 	bindAddress      string
@@ -177,6 +195,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 
 // handleTCPConnection services an individual TCP connection for the Graphite input.
 func (s *Service) handleTCPConnection(conn net.Conn) {
+	epTCP.Add(EP_CONNECTIONS_ACTIVE, 1)
+	epTCP.Add(EP_CONNECTIONS_HANDLED, 1)
+	defer ep.Add(EP_CONNECTIONS_ACTIVE, -1)
 	defer conn.Close()
 	defer s.wg.Done()
 
@@ -192,6 +213,8 @@ func (s *Service) handleTCPConnection(conn net.Conn) {
 		// Trim the buffer, even though there should be no padding
 		line := strings.TrimSpace(string(buf))
 
+		epTCP.Add(EP_POINTS_RECEIVED, 1)
+		epTCP.Add(EP_BYTES_RECEIVED, int64(len(buf)))
 		s.handleLine(line)
 	}
 }
@@ -218,9 +241,13 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 				conn.Close()
 				return
 			}
-			for _, line := range strings.Split(string(buf[:n]), "\n") {
+
+			lines := strings.Split(string(buf[:n]), "\n")
+			for _, line := range lines {
 				s.handleLine(line)
 			}
+			epUDP.Add(EP_POINTS_RECEIVED, int64(len(lines)))
+			epUDP.Add(EP_BYTES_RECEIVED, int64(n))
 		}
 	}()
 	return conn.LocalAddr(), nil
@@ -230,6 +257,8 @@ func (s *Service) handleLine(line string) {
 	if line == "" {
 		return
 	}
+	ep.Add(EP_POINTS_RECEIVED, 1)
+
 	// Parse it.
 	point, err := s.parser.Parse(line)
 	if err != nil {
@@ -260,9 +289,14 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				RetentionPolicy:  "",
 				ConsistencyLevel: s.consistencyLevel,
 				Points:           batch,
-			}); err != nil {
+			}); err == nil {
+				ep.Add(EP_BATCHES_TRANSMITTED, 1)
+				ep.Add(EP_POINTS_TRANSMITTED, int64(len(batch)))
+			} else {
 				s.logger.Printf("failed to write point batch to database %q: %s", s.database, err)
+				ep.Add(EP_BATCHES_TRANSMIT_FAIL, 1)
 			}
+
 		case <-s.done:
 			return
 		}
