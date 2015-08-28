@@ -830,7 +830,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
 					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
-					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1"}},
+					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1", IsTarget: true}},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 					Dimensions: []*influxql.Dimension{
 						{
@@ -854,7 +854,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Source: &influxql.SelectStatement{
 					IsRawQuery: true,
 					Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
-					Target:     &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1"}},
+					Target:     &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1", IsTarget: true}},
 					Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu_load_short"}},
 				},
 			},
@@ -869,7 +869,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Source: &influxql.SelectStatement{
 					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
 					Target: &influxql.Target{
-						Measurement: &influxql.Measurement{RetentionPolicy: "1h.policy1", Name: "cpu.load"},
+						Measurement: &influxql.Measurement{RetentionPolicy: "1h.policy1", Name: "cpu.load", IsTarget: true},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 					Dimensions: []*influxql.Dimension{
@@ -896,7 +896,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					IsRawQuery: true,
 					Fields:     []*influxql.Field{{Expr: &influxql.VarRef{Val: "value"}}},
 					Target: &influxql.Target{
-						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "value"},
+						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "value", IsTarget: true},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
@@ -914,7 +914,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Fields: []*influxql.Field{{Expr: &influxql.VarRef{Val: "transmit_rx"}},
 						{Expr: &influxql.VarRef{Val: "transmit_tx"}}},
 					Target: &influxql.Target{
-						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "network"},
+						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "network", IsTarget: true},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
@@ -930,7 +930,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Source: &influxql.SelectStatement{
 					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
 					Target: &influxql.Target{
-						Measurement: &influxql.Measurement{RetentionPolicy: "policy1"},
+						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", IsTarget: true},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`^[a-z]+.*`)}}},
 					Dimensions: []*influxql.Dimension{

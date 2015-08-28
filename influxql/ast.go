@@ -2169,7 +2169,7 @@ type Measurement struct {
 	RetentionPolicy string
 	Name            string
 	Regex           *RegexLiteral
-	Parent          Node
+	IsTarget        bool
 }
 
 // String returns a string representation of the measurement.

@@ -702,6 +702,8 @@ func (p *Parser) parsePrivilege() (Privilege, error) {
 // parseSelectStatement parses a select string and returns a Statement AST object.
 // This function assumes the SELECT token has already been consumed.
 func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, error) {
+	fmt.Println("parseSelectStatement: start")
+	defer fmt.Println("parseSelectStatement: end")
 	stmt := &SelectStatement{}
 	var err error
 
@@ -813,8 +815,7 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 		}
 	}
 
-	t := &Target{Measurement: &Measurement{}}
-	t.Measurement.Parent = t
+	t := &Target{Measurement: &Measurement{IsTarget: true}}
 
 	switch len(idents) {
 	case 1:
@@ -1594,7 +1595,7 @@ func (p *Parser) peekRune() rune {
 }
 
 func (p *Parser) parseSource(parent Node) (Source, error) {
-	m := &Measurement{Parent: parent}
+	m := &Measurement{}
 
 	// Attempt to parse a regex.
 	re, err := p.parseRegex()
