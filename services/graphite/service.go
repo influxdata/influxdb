@@ -2,6 +2,7 @@ package graphite
 
 import (
 	"bufio"
+	"expvar"
 	"fmt"
 	"log"
 	"math"
@@ -20,6 +21,8 @@ const (
 	udpBufferSize     = 65536
 	leaderWaitTimeout = 30 * time.Second
 )
+
+var ep = expvar.NewMap("inflxudb_graphite")
 
 type Service struct {
 	bindAddress      string
