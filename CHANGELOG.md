@@ -12,6 +12,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3869](https://github.com/influxdb/influxdb/issues/3869): Seemingly deadlocked when ingesting metrics via graphite plugin
 - [#3856](https://github.com/influxdb/influxdb/pull/3856): Minor changes to retention enforcement.
 - [#3884](https://github.com/influxdb/influxdb/pull/3884): Fix two panics in WAL that can happen at server startup
+- [#3868](https://github.com/influxdb/influxdb/pull/3868): Add shell option to start the daemon on CentOS. Thanks @SwannCroiset.
 
 ## v0.9.3 [2015-08-26]
 
