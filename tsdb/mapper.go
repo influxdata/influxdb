@@ -768,10 +768,10 @@ func (tsc *tagSetCursor) decodeRawPoint(p *pointHeapItem, selectFields, whereFie
 
 // seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
 type seriesCursor struct {
-	cursor Cursor // BoltDB cursor for a series
-	filter influxql.Expr
-	tags   map[string]string
-	seekto int64
+	cursor     Cursor // BoltDB cursor for a series
+	filter     influxql.Expr
+	tags       map[string]string
+	seekto     int64
 	seekResult struct {
 		k int64
 		v []byte
