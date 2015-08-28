@@ -3,8 +3,8 @@ _System Monitoring_ means all statistical and diagnostic information made availa
 
 ## Supported Commands
 
- * `SHOW STATS`
- * `SHOW DIAGNOSTICS`
+ * `SHOW STATS [ON <host>]`
+ * `SHOW DIAGNOSTICS [ON <host>]`
 
 If statistical information is also written to an InfluxDB system, the data will also be queryable by the InfluxQL query language.
 
