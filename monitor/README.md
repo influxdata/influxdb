@@ -11,7 +11,7 @@ If statistical information is also written to an InfluxDB system, the data will 
 ## Statistics vs. Diagnostics
 A distinction between _statistics_ and _diagnostics_ is made for the purposes of monitoring. Generally a statistical quality is something that is being counted, and for which it makes sense to store for historical analysis. Diagnostic information is not necessarily numerical, and may not make sense to store.
 
-An example of statistical information would be the number of points received over UDP, or the number of queries executed. Examples of diagnostic information would be a list of current Graphite TCP connections, the version of InfluxDB, and the uptime of the process.
+An example of statistical information would be the number of points received over UDP, or the number of queries executed. Examples of diagnostic information would be a list of current Graphite TCP connections, the version of InfluxDB, or the uptime of the process.
 
 ## Design and Implementation
 
