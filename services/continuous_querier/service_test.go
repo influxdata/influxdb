@@ -37,8 +37,8 @@ func TestOpenAndClose(t *testing.T) {
 	}
 }
 
-// Test ExecuteContinuousQuery happy path.
-func TestExecuteContinuousQuery_HappyPath(t *testing.T) {
+// Test ExecuteContinuousQuery.
+func TestExecuteContinuousQuery(t *testing.T) {
 	s := NewTestService(t)
 	dbis, _ := s.MetaStore.Databases()
 	dbi := dbis[0]
@@ -102,7 +102,7 @@ func TestExecuteContinuousQuery_ReferenceSource(t *testing.T) {
 }
 
 // Test the service happy path.
-func TestService_HappyPath(t *testing.T) {
+func TestContinuousQueryService(t *testing.T) {
 	s := NewTestService(t)
 
 	pointCnt := 100
@@ -127,7 +127,7 @@ func TestService_HappyPath(t *testing.T) {
 }
 
 // Test Run method.
-func TestService_Run(t *testing.T) {
+func TestContinuousQueryService_Run(t *testing.T) {
 	s := NewTestService(t)
 
 	// Set RunInterval high so we can trigger using Run method.
@@ -180,7 +180,7 @@ func TestService_Run(t *testing.T) {
 }
 
 // Test service when not the cluster leader (CQs shouldn't run).
-func TestService_NotLeader(t *testing.T) {
+func TestContinuousQueryService_NotLeader(t *testing.T) {
 	s := NewTestService(t)
 	// Set RunInterval high so we can test triggering with the RunCh below.
 	s.RunInterval = 10 * time.Second
@@ -205,7 +205,7 @@ func TestService_NotLeader(t *testing.T) {
 }
 
 // Test service behavior when meta store fails to get databases.
-func TestService_MetaStoreFailsToGetDatabases(t *testing.T) {
+func TestContinuousQueryService_MetaStoreFailsToGetDatabases(t *testing.T) {
 	s := NewTestService(t)
 	// Set RunInterval high so we can test triggering with the RunCh below.
 	s.RunInterval = 10 * time.Second
