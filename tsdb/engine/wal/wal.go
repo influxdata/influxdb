@@ -238,9 +238,8 @@ func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.Measureme
 
 	// persist the raw point data
 	l.mu.RLock()
-	defer l.mu.RUnlock()
-
 	partitionsToWrite := l.pointsToPartitions(points)
+	l.mu.RUnlock()
 
 	for p, points := range partitionsToWrite {
 		if err := p.Write(points); err != nil {
