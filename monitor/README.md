@@ -37,5 +37,6 @@ Statistical information is gathered by each package using [expvar](https://golan
 The `monitor` module will allow the following configuration:
 
  * Whether to write statistical and diagnostic information to an InfluxDB system. This is enabled by default.
+ * The name of the database to where this information should be written. Defaults to `_internal`. The information is written to the default retention policy for the given database.
  * The address and port of the InfluxDB system. This will default to the system generating the data.
  * The rate at which this information should be written. The maximum rate will be once-per-minute.
