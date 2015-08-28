@@ -1,9 +1,12 @@
 package monitor
 
 import (
-	//"expvar"
+	"expvar"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
+	"os"
 	"sync"
 )
 
@@ -24,7 +27,7 @@ type Service struct {
 
 func NewService(c Config) *Service {
 	return &Service{
-		registrations: make(map[string]client, 0),
+		registrations: make(map[string]Client, 0),
 		expvarAddress: c.ExpvarAddress,
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -34,8 +37,13 @@ func NewService(c Config) *Service {
 func (s *Service) Open() error {
 	s.Logger.Println("Starting monitor service")
 
-	if s.expvarAddress != "" {
+	if s.expvarAddress == "" {
+		listener, err := net.Listen("tcp", "127.0.0.1:9950")
+		if err != nil {
+			return err
+		}
 
+		http.Serve(listener, nil)
 	}
 	return nil
 }

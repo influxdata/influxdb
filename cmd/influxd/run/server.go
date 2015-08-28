@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
@@ -116,6 +117,10 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
+
+	// Start the monitor service.
+	monitorSrv := monitor.NewService(c.Monitor)
+	monitorSrv.Open()
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
