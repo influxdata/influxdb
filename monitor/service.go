@@ -16,9 +16,14 @@ type Client interface {
 	Diagnostics() (map[string]interface{}, error)
 }
 
+type clientWithTags struct {
+	Client
+	tags map[string]string
+}
+
 type Service struct {
 	mu            sync.Mutex
-	registrations map[string]Client
+	registrations map[string]clientWithTags
 
 	expvarAddress string
 
@@ -27,7 +32,7 @@ type Service struct {
 
 func NewService(c Config) *Service {
 	return &Service{
-		registrations: make(map[string]Client, 0),
+		registrations: make(map[string]clientWithTags, 0),
 		expvarAddress: c.ExpvarAddress,
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -65,7 +70,8 @@ func (s *Service) Register(name string, tags map[string]string, client Client) e
 		return fmt.Errorf("existing client registered with name %s", name)
 	}
 
-	s.registrations[name] = client
+	s.registrations[name] = clientWithTags{tags: tags, Client: client}
+	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
 	return nil
 }
 

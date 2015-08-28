@@ -121,6 +121,13 @@ func NewService(c Config) (*Service, error) {
 	}
 	s.parser = parser
 
+	return &s, nil
+}
+
+// Open starts the Graphite input processing data.
+func (s *Service) Open() error {
+	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
+
 	// One Graphite service hooks up monitoring for all Graphite functionality.
 	epOnce.Do(func() {
 		g := monitorClient{ep: ep}
@@ -130,13 +137,6 @@ func NewService(c Config) (*Service, error) {
 		u := monitorClient{ep: epUDP}
 		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
 	})
-
-	return &s, nil
-}
-
-// Open starts the Graphite input processing data.
-func (s *Service) Open() error {
-	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
 		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
@@ -227,7 +227,7 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 func (s *Service) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
-	defer ep.Add(EP_CONNECTIONS_ACTIVE, -1)
+	defer epTCP.Add(EP_CONNECTIONS_ACTIVE, -1)
 	epTCP.Add(EP_CONNECTIONS_ACTIVE, 1)
 	epTCP.Add(EP_CONNECTIONS_HANDLED, 1)
 
