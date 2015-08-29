@@ -2,9 +2,11 @@ package monitor
 
 import (
 	"expvar"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -23,6 +25,8 @@ type clientWithMeta struct {
 }
 
 type Service struct {
+	wg            sync.WaitGroup
+	done          chan struct{}
 	mu            sync.Mutex
 	registrations []*clientWithMeta
 
@@ -48,6 +52,39 @@ func NewService(c Config) *Service {
 func (s *Service) Open() error {
 	s.Logger.Println("starting monitor service")
 
+	// If enabled, record stats in a InfluxDB system.
+	if s.storeEnabled {
+		// Ensure database exists.
+		values := url.Values{}
+		values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %d", s.storeDatabase))
+		resp, err := http.Get(s.storeAddress + "/query?" + values.Encode())
+		if err != nil {
+			return fmt.Errorf("failed to create monitoring database on %s:", s.storeAddress, err.Error())
+		}
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("failed to create monitoring database on %s, received code: %d", s.storeAddress, resp.StatusCode)
+		}
+		s.Logger.Println("succesfully created database %s on %s", s.storeDatabase, s.storeAddress)
+
+		// Start periodic writes to system.
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			tick := time.NewTicker(s.storeInterval)
+			for {
+				select {
+				case <-tick.C:
+					if err := s.storeStatistics(); err != nil {
+						s.Logger.Printf("failed to write statistics to %s: %s", s.storeAddress, err.Error())
+					}
+				case <-s.done:
+					return
+				}
+
+			}
+		}()
+	}
+
 	// If enabled, expose all expvar data over HTTP.
 	if s.expvarAddress != "" {
 		listener, err := net.Listen("tcp", s.expvarAddress)
@@ -60,13 +97,14 @@ func (s *Service) Open() error {
 		}()
 		s.Logger.Println("expvar information available on %s", s.expvarAddress)
 	}
-
-	// If enabled, record stats in a InfluxDB system.
-	if s.storeEnabled {
-		// Ensure target database exists.
-		resp, err := http.Get(s.storeAddress + "/query")
-	}
 	return nil
+}
+
+func (s *Service) Close() {
+	s.Logger.Println("shutting down monitor service")
+	close(s.done)
+	s.wg.Wait()
+	s.done = nil
 }
 
 // SetLogger sets the internal logger to the logger passed in.
@@ -85,5 +123,9 @@ func (s *Service) Register(name string, tags map[string]string, client Client) e
 	}
 	s.registrations = append(s.registrations, c)
 	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
+	return nil
+}
+
+func (s *Service) storeStatistics() error {
 	return nil
 }
