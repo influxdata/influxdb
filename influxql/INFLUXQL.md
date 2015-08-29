@@ -87,11 +87,11 @@ CREATE       CONTINUOUS   DATABASE     DATABASES    DEFAULT      DELETE
 DESC         DROP         DURATION     END          EXISTS       EXPLAIN
 FIELD        FROM         GRANT        GROUP        IF           IN
 INNER        INSERT       INTO         KEY          KEYS         LIMIT
-SHOW         MEASUREMENT  MEASUREMENTS OFFSET       ON           ORDER
-PASSWORD     POLICY       POLICIES     PRIVILEGES   QUERIES      QUERY
-READ         REPLICATION  RETENTION    REVOKE       SELECT       SERIES
-SLIMIT       SOFFSET      TAG          TO           USER         USERS
-VALUES       WHERE        WITH         WRITE
+SHOW         MEASUREMENT  MEASUREMENTS NOT          OFFSET       ON
+ORDER        PASSWORD     POLICY       POLICIES     PRIVILEGES   QUERIES
+QUERY        READ         REPLICATION  RETENTION    REVOKE       SELECT
+SERIES       SLIMIT       SOFFSET      TAG          TO           USER
+USERS        VALUES       WHERE        WITH         WRITE
 ```
 
 ## Literals
