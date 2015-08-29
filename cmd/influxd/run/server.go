@@ -122,7 +122,9 @@ func NewServer(c *Config, version string) (*Server, error) {
 
 	// Start the monitor service.
 	s.MonitorService = monitor.NewService(c.Monitor)
-	s.MonitorService.Open()
+	if err := s.MonitorService.Open(); err != nil {
+		return nil, err
+	}
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
