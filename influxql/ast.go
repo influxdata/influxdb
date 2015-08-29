@@ -302,12 +302,19 @@ func (a SortFields) String() string {
 type CreateDatabaseStatement struct {
 	// Name of the database to be created.
 	Name string
+
+	// IfNotExists indicates whether to return without error if the database
+	// already exists.
+	IfNotExists bool
 }
 
 // String returns a string representation of the create database statement.
 func (s *CreateDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE DATABASE ")
+	if s.IfNotExists {
+		_, _ = buf.WriteString("IF NOT EXISTS ")
+	}
 	_, _ = buf.WriteString(s.Name)
 	return buf.String()
 }
