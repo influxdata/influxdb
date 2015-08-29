@@ -925,7 +925,15 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name: "testdb",
+				Name:        "testdb",
+				IfNotExists: false,
+			},
+		},
+		{
+			s: `CREATE DATABASE IF NOT EXISTS testdb`,
+			stmt: &influxql.CreateDatabaseStatement{
+				Name:        "testdb",
+				IfNotExists: true,
 			},
 		},
 
@@ -1276,6 +1284,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `CREATE CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 19`},
 		{s: `CREATE CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENT at line 1, char 6`},
+		{s: `CREATE DATABASE`, err: `found EOF, expected identifier at line 1, char 17`},
+		{s: `CREATE DATABASE IF`, err: `found EOF, expected NOT at line 1, char 20`},
+		{s: `CREATE DATABASE IF NOT`, err: `found EOF, expected EXISTS at line 1, char 24`},
+		{s: `CREATE DATABASE IF NOT EXISTS`, err: `found EOF, expected identifier at line 1, char 31`},
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
 		{s: `DROP RETENTION`, err: `found EOF, expected POLICY at line 1, char 16`},
 		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},

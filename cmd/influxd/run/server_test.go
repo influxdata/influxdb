@@ -52,8 +52,28 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{"error":"database already exists"}]}`,
 			},
 			&Query{
-				name:    "drop database should succeed",
+				name:    "create database should not error with existing database with IF NOT EXISTS",
+				command: `CREATE DATABASE IF NOT EXISTS db0`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "create database should create non-existing database with IF NOT EXISTS",
+				command: `CREATE DATABASE IF NOT EXISTS db1`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "show database should succeed",
+				command: `SHOW DATABASES`,
+				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db1"]]}]}]}`,
+			},
+			&Query{
+				name:    "drop database db0 should succeed",
 				command: `DROP DATABASE db0`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "drop database db1 should succeed",
+				command: `DROP DATABASE db1`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
