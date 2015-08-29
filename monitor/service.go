@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 )
 
 // Client is the interface modules must implement if they wish to register with monitor.
@@ -24,6 +25,11 @@ type clientWithMeta struct {
 type Service struct {
 	mu            sync.Mutex
 	registrations []*clientWithMeta
+
+	storeEnabled  bool
+	storeDatabase string
+	storeAddress  string
+	storeInterval time.Duration
 
 	expvarAddress string
 
