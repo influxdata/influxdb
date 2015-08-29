@@ -89,6 +89,9 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement) *influxql.Result {
 	_, err := e.Store.CreateDatabase(q.Name)
+	if err == ErrDatabaseExists && q.IfNotExists {
+		err = nil
+	}
 	return &influxql.Result{Err: err}
 }
 
