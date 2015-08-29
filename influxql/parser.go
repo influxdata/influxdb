@@ -1252,11 +1252,8 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 
 	// Look for "IF NOT EXISTS"
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == IF {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != NOT {
-			return nil, newParseError(tokstr(tok, lit), []string{"NOT"}, pos)
-		}
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != EXISTS {
-			return nil, newParseError(tokstr(tok, lit), []string{"EXISTS"}, pos)
+		if err := p.parseTokens([]Token{NOT, EXISTS}); err != nil {
+			return nil, err
 		}
 		stmt.IfNotExists = true
 	} else {
