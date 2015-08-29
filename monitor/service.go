@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"expvar"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -16,14 +15,15 @@ type Client interface {
 	Diagnostics() (map[string]interface{}, error)
 }
 
-type clientWithTags struct {
+type clientWithMeta struct {
 	Client
+	name string
 	tags map[string]string
 }
 
 type Service struct {
 	mu            sync.Mutex
-	registrations map[string]clientWithTags
+	registrations []*clientWithMeta
 
 	expvarAddress string
 
@@ -32,7 +32,7 @@ type Service struct {
 
 func NewService(c Config) *Service {
 	return &Service{
-		registrations: make(map[string]clientWithTags, 0),
+		registrations: make([]*clientWithMeta, 0),
 		expvarAddress: c.ExpvarAddress,
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -61,23 +61,16 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
-// Register registers a client with the given name. It is an error to register a client with
-// an already registered key.
+// Register registers a client with the given name and tags.
 func (s *Service) Register(name string, tags map[string]string, client Client) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.registrations[name]; ok {
-		return fmt.Errorf("existing client registered with name %s", name)
+	c := &clientWithMeta{
+		Client: client,
+		name:   name,
+		tags:   tags,
 	}
-
-	s.registrations[name] = clientWithTags{tags: tags, Client: client}
+	s.registrations = append(s.registrations, c)
 	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
 	return nil
-}
-
-// Deregister deregisters any client previously registered with the existing name.
-func (s *Service) Deregister(name string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.registrations, name)
 }

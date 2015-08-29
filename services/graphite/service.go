@@ -132,8 +132,10 @@ func (s *Service) Open() error {
 	epOnce.Do(func() {
 		g := monitorClient{ep: ep}
 		s.MonitorService.Register("graphite", nil, g)
+
 		t := monitorClient{ep: epTCP}
 		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
+
 		u := monitorClient{ep: epUDP}
 		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
 	})
