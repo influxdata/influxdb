@@ -48,6 +48,7 @@ func NewService(c Config) *Service {
 func (s *Service) Open() error {
 	s.Logger.Println("starting monitor service")
 
+	// If enabled, expose all expvar data over HTTP.
 	if s.expvarAddress != "" {
 		listener, err := net.Listen("tcp", s.expvarAddress)
 		if err != nil {
@@ -58,6 +59,12 @@ func (s *Service) Open() error {
 			http.Serve(listener, nil)
 		}()
 		s.Logger.Println("expvar information available on %s", s.expvarAddress)
+	}
+
+	// If enabled, record stats in a InfluxDB system.
+	if s.storeEnabled {
+		// Ensure target database exists.
+		resp, err := http.Get(s.storeAddress + "/query")
 	}
 	return nil
 }
