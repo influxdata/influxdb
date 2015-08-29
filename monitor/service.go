@@ -43,6 +43,10 @@ type Service struct {
 func NewService(c Config) *Service {
 	return &Service{
 		registrations: make([]*clientWithMeta, 0),
+		storeEnabled:  c.StoreEnabled,
+		storeDatabase: c.StoreDatabase,
+		storeAddress:  c.StoreAddress,
+		storeInterval: time.Duration(c.StoreInterval),
 		expvarAddress: c.ExpvarAddress,
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -54,6 +58,8 @@ func (s *Service) Open() error {
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
+		s.Logger.Printf("storing in %s, database '%s', interval %s",
+			s.storeAddress, s.storeDatabase, s.storeInterval)
 		// Ensure database exists.
 		values := url.Values{}
 		values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %d", s.storeDatabase))
@@ -62,9 +68,10 @@ func (s *Service) Open() error {
 			return fmt.Errorf("failed to create monitoring database on %s:", s.storeAddress, err.Error())
 		}
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed to create monitoring database on %s, received code: %d", s.storeAddress, resp.StatusCode)
+			return fmt.Errorf("failed to create monitoring database on %s, received code: %d",
+				s.storeAddress, resp.StatusCode)
 		}
-		s.Logger.Println("succesfully created database %s on %s", s.storeDatabase, s.storeAddress)
+		s.Logger.Printf("succesfully created database %s on %s", s.storeDatabase, s.storeAddress)
 
 		// Start periodic writes to system.
 		s.wg.Add(1)
