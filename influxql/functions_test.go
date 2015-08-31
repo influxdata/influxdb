@@ -751,6 +751,7 @@ func TestReduceTop(t *testing.T) {
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
 		},
 		{
+			skip: true,
 			name: "int64 - double map with non-matching tags",
 			values: []interface{}{
 				[]topOut{

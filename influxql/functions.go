@@ -1372,9 +1372,11 @@ func ReduceTop(values []interface{}, c *Call) interface{} {
 		o, _ := v.([]topOut)
 		out.values = append(out.values, o...)
 	}
+
+	// Have to always sort now for a final result
+	sort.Sort(out)
 	// If we have more than we asked for, only send back the top values
 	if int64(len(out.values)) > limit {
-		sort.Sort(out)
 		out.values = out.values[:limit]
 	}
 	if len(out.values) > 0 {
