@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"testing"
 
 	"github.com/influxdb/influxdb/influxql"
@@ -13,6 +14,7 @@ import (
 
 // remoteShardResponder implements the remoteShardConn interface.
 type remoteShardResponder struct {
+	net.Conn
 	t       *testing.T
 	rxBytes []byte
 
@@ -41,8 +43,7 @@ func newRemoteShardResponder(outputs []*tsdb.MapperOutput, tagsets []string) *re
 	return r
 }
 
-func (r remoteShardResponder) MarkUnusable() { return }
-func (r remoteShardResponder) Close() error  { return nil }
+func (r remoteShardResponder) Close() error { return nil }
 func (r remoteShardResponder) Read(p []byte) (n int, err error) {
 	return io.ReadFull(r.buffer, p)
 }

@@ -305,10 +305,6 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 
 func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (Mapper, error) {
 	shard := s.Shard(shardID)
-	if shard == nil {
-		// This can happen if the shard has been assigned, but hasn't actually been created yet.
-		return nil, nil
-	}
 
 	switch st := stmt.(type) {
 	case *influxql.SelectStatement:

@@ -29,9 +29,6 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *influxql.Row, 0)
 
-	// It's important that all resources are released when execution completes.
-	defer e.close()
-
 	go func() {
 		// Open the mappers.
 		for _, m := range e.mappers {
@@ -104,6 +101,8 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 		}
 
 		close(out)
+		// It's important that all resources are released when execution completes.
+		e.close()
 	}()
 	return out
 }
@@ -144,18 +143,20 @@ func (m *ShowMeasurementsMapper) Open() error {
 
 	var measurements Measurements
 
-	// If a WHERE clause was specified, filter the measurements.
-	if m.stmt.Condition != nil {
-		var err error
-		measurements, err = m.shard.index.measurementsByExpr(m.stmt.Condition)
-		if err != nil {
-			return err
+	if m.shard != nil {
+		// If a WHERE clause was specified, filter the measurements.
+		if m.stmt.Condition != nil {
+			var err error
+			measurements, err = m.shard.index.measurementsByExpr(m.stmt.Condition)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Otherwise, get all measurements from the database.
+			measurements = m.shard.index.Measurements()
 		}
-	} else {
-		// Otherwise, get all measurements from the database.
-		measurements = m.shard.index.Measurements()
+		sort.Sort(measurements)
 	}
-	sort.Sort(measurements)
 
 	// Create a channel to send measurement names on.
 	ch := make(chan string)

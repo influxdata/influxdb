@@ -15,6 +15,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3884](https://github.com/influxdb/influxdb/pull/3884): Fix two panics in WAL that can happen at server startup
 - [#3868](https://github.com/influxdb/influxdb/pull/3868): Add shell option to start the daemon on CentOS. Thanks @SwannCroiset.
 - [#3886](https://github.com/influxdb/influxdb/pull/3886): Prevent write timeouts due to lock contention in WAL
+- [#3574](https://github.com/influxdb/influxdb/issues/3574): Querying data node causes panic
 
 ## v0.9.3 [2015-08-26]
 
