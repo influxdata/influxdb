@@ -18,6 +18,8 @@
 # package is successful, the script will offer to tag the repo using the
 # supplied version string.
 #
+# See package.sh -h for options
+#
 # AWS upload: the script will also offer to upload the packages to S3. If
 # this option is selected, the credentials should be present in the file
 # ~/aws.conf. The contents should be of the form:
@@ -69,7 +71,14 @@ BINS=(
 
 # usage prints simple usage information.
 usage() {
-    echo -e "$0 [<version>] [-h]\n"
+    cat << EOF >&2
+$0 [-h] [-p] [-t <dist>] <version>
+    -p just build packages
+    -t <dist>
+       build package for <dist>
+       <dist> can be rpm, tar or deb
+       can have multiple -t
+EOF
     cleanup_exit $1
 }
 
@@ -170,7 +179,6 @@ make_dir_tree() {
     fi
 }
 
-
 # do_build builds the code. The version and commit must be passed in.
 do_build() {
     for b in ${BINS[*]}; do
@@ -190,7 +198,7 @@ do_build() {
         cleanup_exit 1
     fi
 
-    go install -a -ldflags="-X main.version $version -X main.branch=$branch -X main.commit=$commit" ./...
+    go install -a -ldflags="-X main.version $version -X main.branch $branch -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1
@@ -235,22 +243,69 @@ EOF
 }
 
 ###########################################################################
-# Start the packaging process.
+# Process options
+while :
+do
+  case $1 in
+    -h | --help) 
+	usage 0
+	;;
+    -p | --packages-only)
+	PACKAGES_ONLY="PACKAGES_ONLY"
+	shift
+	;;
+    -t | --target)
+        case "$2" in
+            'tar') TAR_WANTED="gz"
+                 ;;
+            'deb') DEB_WANTED="deb"
+                 ;;
+            'rpm') RPM_WANTED="rpm"
+                 ;;
+            *)
+                 echo "Unknown target distribution $2"
+                 exit 1
+                 ;;
+        esac
+        shift 2
+        ;;
+    -*)
+        echo "Unknown option $1"
+        usage 1
+        ;;
+    ?*)
+        if [ -z $VERSION ]; then
+           VERSION=$1
+           VERSION_UNDERSCORED=`echo "$VERSION" | tr - _`
+           shift
+        else
+           echo "$1 : aborting version already set to $VERSION" 
+           usage 1
+        fi
+        ;;
+     *) break
+  esac
+done
 
-if [ $# -ne 1 ]; then
-    usage 1
-elif [ $1 == "-h" ]; then
-    usage 0
-else
-    VERSION=$1
-    VERSION_UNDERSCORED=`echo "$VERSION" | tr - _`
+if [ -z "$DEB_WANTED$RPM_WANTED$TAR_WANTED" ]; then
+  TAR_WANTED="gz"
+  DEB_WANTED="deb"
+  RPM_WANTED="rpm" 
 fi
+
+if [ -z "$VERSION" ]; then
+  echo -e "Missing version"
+  usage 1
+fi
+
+###########################################################################
+# Start the packaging process.
 
 echo -e "\nStarting package process...\n"
 
 # Ensure the current is correct.
 TARGET_BRANCH=`current_branch`
-if [ -z "$NIGHTLY_BUILD" ]; then
+if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
 echo -n "Current branch is $TARGET_BRANCH. Start packaging this branch? [Y/n] "
     read response
     response=`echo $response | tr 'A-Z' 'a-z'`
@@ -262,7 +317,7 @@ fi
 
 check_gvm
 check_gopath
-if [ -z "$NIGHTLY_BUILD" ]; then
+if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
        check_clean_tree
        update_tree
        check_tag_exists $VERSION
@@ -301,7 +356,7 @@ generate_postinstall_script $VERSION
 ###########################################################################
 # Create the actual packages.
 
-if [ -z "$NIGHTLY_BUILD" ]; then
+if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
     echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
     read response
     response=`echo $response | tr 'A-Z' 'a-z'`
@@ -326,31 +381,37 @@ fi
 
 COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
 
-$FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
-if [ $? -ne 0 ]; then
-    echo "Failed to create Debian package -- aborting."
-    cleanup_exit 1
+if [ ! -z "$DEB_WANTED" ]; then
+    $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
+    if [ $? -ne 0 ]; then
+        echo "Failed to create Debian package -- aborting."
+        cleanup_exit 1
+    fi
+    echo "Debian package created successfully."
 fi
-echo "Debian package created successfully."
 
-$FPM -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
-if [ $? -ne 0 ]; then
-    echo "Failed to create Tar package -- aborting."
-    cleanup_exit 1
+if [ ! -z "$TAR_WANTED" ]; then
+    $FPM -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
+    if [ $? -ne 0 ]; then
+        echo "Failed to create Tar package -- aborting."
+        cleanup_exit 1
+    fi
+    echo "Tar package created successfully."
 fi
-echo "Tar package created successfully."
 
-$rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
-if [ $? -ne 0 ]; then
-    echo "Failed to create RPM package -- aborting."
-    cleanup_exit 1
+if [ ! -z "$RPM_WANTED" ]; then
+    $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
+    if [ $? -ne 0 ]; then
+        echo "Failed to create RPM package -- aborting."
+        cleanup_exit 1
+    fi
+    echo "RPM package created successfully."
 fi
-echo "RPM package created successfully."
 
 ###########################################################################
 # Offer to tag the repo.
 
-if [ -z "$NIGHTLY_BUILD" ]; then
+if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
     echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
     read response
     response=`echo $response | tr 'A-Z' 'a-z'`
@@ -361,11 +422,13 @@ if [ -z "$NIGHTLY_BUILD" ]; then
             echo "Failed to create tag v$VERSION -- aborting"
             cleanup_exit 1
         fi
+        echo "Tag v$VERSION created ..."
         git push origin v$VERSION
         if [ $? -ne 0 ]; then
             echo "Failed to push tag v$VERSION to repo -- aborting"
             cleanup_exit 1
         fi
+        echo "and pushed to repo"
     else
         echo "Not creating tag v$VERSION."
     fi
@@ -374,7 +437,7 @@ fi
 ###########################################################################
 # Offer to publish the packages.
 
-if [ -z "$NIGHTLY_BUILD" ]; then
+if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
     echo -n "Publish packages to S3? [y/N] "
     read response
     response=`echo $response | tr 'A-Z' 'a-z'`
@@ -387,7 +450,7 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
         cleanup_exit 1
     fi
 
-    for filepath in `ls *.{deb,rpm,gz}`; do
+    for filepath in `ls *.{$DEB_WANTED,$RPM_WANTED,$TAR_WANTED} 2> /dev/null`; do
         filename=`basename $filepath`
         if [ -n "$NIGHTLY_BUILD" ]; then
             filename=`echo $filename | sed s/$VERSION/nightly/`
@@ -395,9 +458,10 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
         fi
         AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
         if [ $? -ne 0 ]; then
-            echo "Upload failed -- aborting".
+            echo "Upload failed ($filename) -- aborting".
             cleanup_exit 1
         fi
+        echo "$filename uploaded"
     done
 else
     echo "Not publishing packages to S3."
