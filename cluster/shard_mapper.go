@@ -47,7 +47,7 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, c
 
 	if !sh.OwnedBy(s.MetaStore.NodeID()) || s.ForceRemoteMapping {
 		// Pick a node in a pseudo-random manner.
-		conn, err := s.dial(sh.OwnerIDs[rand.Intn(len(sh.OwnerIDs))])
+		conn, err := s.dial(sh.Owners[rand.Intn(len(sh.Owners))].NodeID)
 		if err != nil {
 			return nil, err
 		}

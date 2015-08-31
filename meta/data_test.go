@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/meta/internal"
 )
 
 // Ensure a node can be created.
@@ -299,7 +301,13 @@ func TestData_CreateShardGroup(t *testing.T) {
 		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC),
 		Shards: []meta.ShardInfo{
-			{ID: 1, OwnerIDs: []uint64{1, 2}},
+			{
+				ID: 1,
+				Owners: []meta.ShardOwner{
+					{NodeID: 1},
+					{NodeID: 2},
+				},
+			},
 		},
 	}) {
 		t.Fatalf("unexpected shard group: %#v", sgi)
@@ -570,8 +578,12 @@ func TestData_Clone(t *testing.T) {
 								EndTime:   time.Date(2000, time.February, 1, 0, 0, 0, 0, time.UTC),
 								Shards: []meta.ShardInfo{
 									{
-										ID:       200,
-										OwnerIDs: []uint64{1, 3, 4},
+										ID: 200,
+										Owners: []meta.ShardOwner{
+											{NodeID: 1},
+											{NodeID: 3},
+											{NodeID: 4},
+										},
 									},
 								},
 							},
@@ -605,8 +617,8 @@ func TestData_Clone(t *testing.T) {
 	}
 
 	// Ensure that changing data in the clone does not affect the original.
-	other.Databases[0].RetentionPolicies[0].ShardGroups[0].Shards[0].OwnerIDs[1] = 9
-	if v := data.Databases[0].RetentionPolicies[0].ShardGroups[0].Shards[0].OwnerIDs[1]; v != 3 {
+	other.Databases[0].RetentionPolicies[0].ShardGroups[0].Shards[0].Owners[1].NodeID = 9
+	if v := data.Databases[0].RetentionPolicies[0].ShardGroups[0].Shards[0].Owners[1].NodeID; v != 3 {
 		t.Fatalf("editing clone changed original: %v", v)
 	}
 }
@@ -637,8 +649,12 @@ func TestData_MarshalBinary(t *testing.T) {
 								EndTime:   time.Date(2000, time.February, 1, 0, 0, 0, 0, time.UTC),
 								Shards: []meta.ShardInfo{
 									{
-										ID:       200,
-										OwnerIDs: []uint64{1, 3, 4},
+										ID: 200,
+										Owners: []meta.ShardOwner{
+											{NodeID: 1},
+											{NodeID: 3},
+											{NodeID: 4},
+										},
 									},
 								},
 							},
@@ -680,5 +696,35 @@ func TestData_MarshalBinary(t *testing.T) {
 		t.Fatalf("unexpected databases: %#v", other.Databases)
 	} else if !reflect.DeepEqual(data.Users, other.Users) {
 		t.Fatalf("unexpected users: %#v", other.Users)
+	}
+}
+
+// Ensure shards with deprecated "OwnerIDs" can be decoded.
+func TestShardInfo_UnmarshalBinary_OwnerIDs(t *testing.T) {
+	// Encode deprecated form to bytes.
+	buf, err := proto.Marshal(&internal.ShardInfo{
+		ID:       proto.Uint64(1),
+		OwnerIDs: []uint64{10, 20, 30},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Decode deprecated form.
+	var si meta.ShardInfo
+	if err := si.UnmarshalBinary(buf); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify data is migrated correctly.
+	if !reflect.DeepEqual(si, meta.ShardInfo{
+		ID: 1,
+		Owners: []meta.ShardOwner{
+			{NodeID: 10},
+			{NodeID: 20},
+			{NodeID: 30},
+		},
+	}) {
+		t.Fatalf("unexpected shard info: %s", spew.Sdump(si))
 	}
 }
