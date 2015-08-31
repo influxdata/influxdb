@@ -88,6 +88,12 @@ func (lm *SelectMapper) Open() error {
 		return lm.remote.Open()
 	}
 
+	// This can happen when a shard has been assigned to this node but we have not
+	// written to it so it may not exist yet.
+	if lm.shard == nil {
+		return nil
+	}
+
 	var err error
 
 	// Get a read-only transaction.
