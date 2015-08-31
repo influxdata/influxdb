@@ -45,7 +45,12 @@ the configuration below.
 package main
 
 import "github.com/influxdb/influxdb/client"
-import "net/url"
+import (
+	  "net/url"
+	  "fmt"
+	  "log"
+	  "os"
+)
 
 const (
 	MyHost        = "localhost"
