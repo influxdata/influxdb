@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/influxdb/influxdb/influxql"
 )
 
 // Client is the interface modules must implement if they wish to register with monitor.
@@ -150,7 +152,31 @@ func (s *Service) Register(name string, tags map[string]string, client Client) e
 	return nil
 }
 
-func (s *Service) Statistics() ([]Statistic, error) {
+func (s *Service) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
+	switch stmt := stmt.(type) {
+	case *influxql.ShowStatsStatement:
+		return s.executeShowStatistics(stmt)
+	default:
+		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
+	}
+}
+
+func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxql.Result {
+	stats, _ := s.statistics()
+	rows := make([]*influxql.Row, 0)
+
+	for n, stat := range stats {
+		row := &influxql.Row{}
+		for k, v := range stat.Tags {
+			row.Columns = append(row.Columns, k)
+			row.Values = append(row.Values, []interface{}{v})
+		}
+		rows[n] = row
+	}
+	return &influxql.Result{Series: rows}
+}
+
+func (s *Service) statistics() ([]Statistic, error) {
 	statistics := make([]Statistic, len(s.registrations))
 	for i, r := range s.registrations {
 		values := make(map[string]float64, 0)
@@ -158,6 +184,7 @@ func (s *Service) Statistics() ([]Statistic, error) {
 		if err != nil {
 			continue
 		}
+
 		ep.Do(func(kv expvar.KeyValue) {
 			f := kv.Value.(*expvar.Float)
 			v, err := strconv.ParseFloat(f.String(), 64)
@@ -166,6 +193,7 @@ func (s *Service) Statistics() ([]Statistic, error) {
 			}
 			values[kv.Key] = v
 		})
+
 		a := Statistic{
 			Name:   r.name,
 			Tags:   r.tags,

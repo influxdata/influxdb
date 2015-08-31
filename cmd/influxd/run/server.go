@@ -88,6 +88,16 @@ func NewServer(c *Config, version string) (*Server, error) {
 		reportingDisabled: c.ReportingDisabled,
 	}
 
+	// Start the monitor service.
+	clusterID, err := s.MetaStore.ClusterID()
+	if err != nil {
+		return nil, err
+	}
+	s.MonitorService = monitor.NewService(c.Monitor)
+	if err := s.MonitorService.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
+		return nil, err
+	}
+
 	// Copy TSDB configuration.
 	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
 	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
@@ -103,6 +113,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
+	s.QueryExecutor.StatsDiagsStatementExecutor = s.MonitorService
 	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer
@@ -119,16 +130,6 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
-
-	// Start the monitor service.
-	clusterID, err := s.MetaStore.ClusterID()
-	if err != nil {
-		return nil, err
-	}
-	s.MonitorService = monitor.NewService(c.Monitor)
-	if err := s.MonitorService.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
-		return nil, err
-	}
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
