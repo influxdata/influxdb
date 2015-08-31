@@ -158,7 +158,9 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "last":
 		return ReduceLast, nil
 	case "top":
-		return ReduceTop, nil
+		return func(values []interface{}) interface{} {
+			return ReduceTop(values, c)
+		}, nil
 	case "percentile":
 		return func(values []interface{}) interface{} {
 			return ReducePercentile(values, c)
@@ -1323,22 +1325,23 @@ func (t topOuts) Less(i, j int) bool {
 	return w1 < w2
 }
 
+// callArgs will get any additional field/tag names that may be needed to sort with
+// it is important to maintain the order of these that they were asked for in the call
+// for sorting purposes
+func topCallArgs(c *Call) []string {
+	var names []string
+	for _, v := range c.Args[1 : len(c.Args)-1] {
+		if f, ok := v.(*VarRef); ok {
+			names = append(names, f.Val)
+		}
+	}
+	return names
+}
+
 // MapTop emits the top data points for each group by interval
 func MapTop(itr Iterator, c *Call) interface{} {
-	// callArgs will get any additional field/tag names that may be needed to sort with
-	// it is important to maintain the order of these that they were asked for in the call
-	// for sorting purposes
-	callArgs := func(ca *Call) []string {
-		var names []string
-		for _, v := range c.Args[1 : len(c.Args)-1] {
-			if f, ok := v.(*VarRef); ok {
-				names = append(names, f.Val)
-			}
-		}
-		return names
-	}
 
-	out := topOuts{callArgs: callArgs(c)}
+	out := topOuts{callArgs: topCallArgs(c)}
 	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
 	limit := int64(lit.Val)
 
@@ -1357,8 +1360,26 @@ func MapTop(itr Iterator, c *Call) interface{} {
 }
 
 // ReduceTop computes the top values for each key.
-func ReduceTop(values []interface{}) interface{} {
-	// TODO make it so
+func ReduceTop(values []interface{}, c *Call) interface{} {
+	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
+	limit := int64(lit.Val)
+
+	out := topOuts{callArgs: topCallArgs(c)}
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		o, _ := v.([]topOut)
+		out.values = append(out.values, o...)
+	}
+	// If we have more than we asked for, only send back the top values
+	if int64(len(out.values)) > limit {
+		sort.Sort(out)
+		out.values = out.values[:limit]
+	}
+	if len(out.values) > 0 {
+		return out.values
+	}
 	return nil
 }
 

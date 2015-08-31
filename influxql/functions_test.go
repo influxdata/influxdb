@@ -675,7 +675,113 @@ func TestMapTop(t *testing.T) {
 		if !reflect.DeepEqual(values, test.exp.values) {
 			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp.values), spew.Sdump(values))
 		}
+	}
+}
 
+func TestReduceTop(t *testing.T) {
+	tests := []struct {
+		name   string
+		skip   bool
+		values []interface{}
+		exp    []topOut
+		call   *Call
+	}{
+		{
+			name: "int64 - single map",
+			values: []interface{}{
+				[]topOut{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: []topOut{
+				topOut{10, int64(99), map[string]string{"host": "a"}},
+				topOut{20, int64(88), map[string]string{"host": "a"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map",
+			values: []interface{}{
+				[]topOut{
+					{10, int64(99), map[string]string{"host": "a"}},
+				},
+				[]topOut{
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: []topOut{
+				topOut{10, int64(99), map[string]string{"host": "a"}},
+				topOut{20, int64(88), map[string]string{"host": "a"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map with nil",
+			values: []interface{}{
+				[]topOut{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{"host": "a"}},
+				},
+				nil,
+			},
+			exp: []topOut{
+				topOut{10, int64(99), map[string]string{"host": "a"}},
+				topOut{20, int64(88), map[string]string{"host": "a"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map with non-matching tags and tag selected",
+			values: []interface{}{
+				[]topOut{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{}},
+				},
+				nil,
+			},
+			exp: []topOut{
+				topOut{10, int64(99), map[string]string{"host": "a"}},
+				topOut{20, int64(88), map[string]string{}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map with non-matching tags",
+			values: []interface{}{
+				[]topOut{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{}},
+				},
+				nil,
+			},
+			exp: []topOut{
+				topOut{10, int64(99), map[string]string{"host": "a"}},
+				topOut{20, int64(55), map[string]string{"host": "b"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
 	}
 
+	for _, test := range tests {
+		if test.skip {
+			continue
+		}
+		values := ReduceTop(test.values, test.call)
+		t.Logf("Test: %s", test.name)
+		if values != nil {
+			v, _ := values.([]topOut)
+			if exp, got := len(test.exp), len(v); exp != got {
+				t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+			}
+		}
+		if !reflect.DeepEqual(values, test.exp) {
+			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp), spew.Sdump(values))
+		}
+	}
 }
