@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
-	"gopkg.in/fatih/pool.v2"
 )
 
 // ShardMapper is responsible for providing mappers for requested shards. It is
@@ -55,32 +53,26 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, c
 		}
 		conn.SetDeadline(time.Now().Add(s.timeout))
 
-		m.SetRemote(NewRemoteMapper(conn.(*pool.PoolConn), sh.ID, stmt, chunkSize))
+		m.SetRemote(NewRemoteMapper(conn, sh.ID, stmt, chunkSize))
 	}
 
 	return m, nil
 }
 
 func (s *ShardMapper) dial(nodeID uint64) (net.Conn, error) {
-	// If we don't have a connection pool for that addr yet, create one
-	_, ok := s.pool.getPool(nodeID)
-	if !ok {
-		factory := &connFactory{nodeID: nodeID, clientPool: s.pool, timeout: s.timeout}
-		factory.metaStore = s.MetaStore
-
-		p, err := pool.NewChannelPool(1, 3, factory.dial)
-		if err != nil {
-			return nil, err
-		}
-		s.pool.setPool(nodeID, p)
+	ni, err := s.MetaStore.Node(nodeID)
+	if err != nil {
+		return nil, err
 	}
-	return s.pool.conn(nodeID)
-}
+	conn, err := net.Dial("tcp", ni.Host)
+	if err != nil {
+		return nil, err
+	}
 
-type remoteShardConn interface {
-	io.ReadWriter
-	Close() error
-	MarkUnusable()
+	// Write the cluster multiplexing header byte
+	conn.Write([]byte{MuxHeader})
+
+	return conn, nil
 }
 
 // RemoteMapper implements the tsdb.Mapper interface. It connects to a remote node,
@@ -93,12 +85,12 @@ type RemoteMapper struct {
 	tagsets []string
 	fields  []string
 
-	conn             remoteShardConn
+	conn             net.Conn
 	bufferedResponse *MapShardResponse
 }
 
 // NewRemoteMapper returns a new remote mapper using the given connection.
-func NewRemoteMapper(c remoteShardConn, shardID uint64, stmt influxql.Statement, chunkSize int) *RemoteMapper {
+func NewRemoteMapper(c net.Conn, shardID uint64, stmt influxql.Statement, chunkSize int) *RemoteMapper {
 	return &RemoteMapper{
 		conn:      c,
 		shardID:   shardID,
@@ -128,14 +120,12 @@ func (r *RemoteMapper) Open() (err error) {
 
 	// Write request.
 	if err := WriteTLV(r.conn, mapShardRequestMessage, buf); err != nil {
-		r.conn.MarkUnusable()
 		return err
 	}
 
 	// Read the response.
 	_, buf, err = ReadTLV(r.conn)
 	if err != nil {
-		r.conn.MarkUnusable()
 		return err
 	}
 
@@ -180,7 +170,6 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 		// Read the response.
 		_, buf, err := ReadTLV(r.conn)
 		if err != nil {
-			r.conn.MarkUnusable()
 			return nil, err
 		}
 

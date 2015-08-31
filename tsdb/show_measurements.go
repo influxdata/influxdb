@@ -29,9 +29,6 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *influxql.Row, 0)
 
-	// It's important that all resources are released when execution completes.
-	defer e.close()
-
 	go func() {
 		// Open the mappers.
 		for _, m := range e.mappers {
@@ -104,6 +101,8 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 		}
 
 		close(out)
+		// It's important that all resources are released when execution completes.
+		e.close()
 	}()
 	return out
 }
