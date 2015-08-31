@@ -121,8 +121,12 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
 	// Start the monitor service.
+	clusterID, err := s.MetaStore.ClusterID()
+	if err != nil {
+		return nil, err
+	}
 	s.MonitorService = monitor.NewService(c.Monitor)
-	if err := s.MonitorService.Open(); err != nil {
+	if err := s.MonitorService.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
 		return nil, err
 	}
 

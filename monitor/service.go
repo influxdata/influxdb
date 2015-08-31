@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -16,6 +17,12 @@ import (
 type Client interface {
 	Statistics() (*expvar.Map, error)
 	Diagnostics() (map[string]interface{}, error)
+}
+
+type Statistic struct {
+	Name   string
+	Tags   map[string]string
+	Values map[string]float64
 }
 
 type clientWithMeta struct {
@@ -29,6 +36,10 @@ type Service struct {
 	done          chan struct{}
 	mu            sync.Mutex
 	registrations []*clientWithMeta
+
+	hostname  string
+	clusterID uint64
+	nodeID    uint64
 
 	storeEnabled  bool
 	storeDatabase string
@@ -52,9 +63,13 @@ func NewService(c Config) *Service {
 	}
 }
 
-// Open opens the monitoring service.
-func (s *Service) Open() error {
-	s.Logger.Println("starting monitor service")
+// Open opens the monitoring service, using the given clusterID, node ID, and hostname
+// for identification purposes.
+func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
+	s.Logger.Printf("starting monitor service for cluster %s, host %s", clusterID, hostname)
+	s.clusterID = clusterID
+	s.nodeID = nodeID
+	s.hostname = hostname
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
@@ -133,6 +148,36 @@ func (s *Service) Register(name string, tags map[string]string, client Client) e
 	s.registrations = append(s.registrations, c)
 	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
 	return nil
+}
+
+func (s *Service) Statistics() ([]Statistic, error) {
+	statistics := make([]Statistic, len(s.registrations))
+	for i, r := range s.registrations {
+		values := make(map[string]float64, 0)
+		ep, err := r.Client.Statistics()
+		if err != nil {
+			continue
+		}
+		ep.Do(func(kv expvar.KeyValue) {
+			f := kv.Value.(*expvar.Float)
+			v, err := strconv.ParseFloat(f.String(), 64)
+			if err != nil {
+				return
+			}
+			values[kv.Key] = v
+		})
+		a := Statistic{
+			Name:   r.name,
+			Tags:   r.tags,
+			Values: values,
+		}
+		a.Tags["clusterID"] = strconv.FormatUint(s.clusterID, 10)
+		a.Tags["nodeID"] = strconv.FormatUint(s.nodeID, 10)
+		a.Tags["hostname"] = s.hostname
+
+		statistics[i] = a
+	}
+	return statistics, nil
 }
 
 func (s *Service) storeStatistics() error {
