@@ -91,25 +91,36 @@ running the following:
     gvm use go1.5 --default
 
 Revision Control Systems
-------
+-------------
 Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
 Currently the project only depends on `git` and `mercurial`.
 
 * [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
 * [Install Mercurial](http://mercurial.selenic.com/wiki/Download)
 
-Project structure
------------------
-First you need to setup the project structure:
+Getting the source
+------
+Setup the project structure and fetch the repo like so:
+
+    mkdir $HOME/gocodez
+    export GOPATH=$HOME/gocodez
+    go get github.com/influxdb/influxdb
+
+You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
+
+Cloning a fork
+-------------
+If you wish to work with fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Follow the steps below to work with a fork:
 
     export GOPATH=$HOME/gocodez
     mkdir -p $GOPATH/src/github.com/influxdb
     cd $GOPATH/src/github.com/influxdb
-    git clone git@github.com:influxdb/influxdb
+    git clone git@github.com:<username>/influxdb
 
-You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh
-file to be set for every shell instead of having to manually run it
-everytime.
+Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary so that Go imports work correctly.
+
+Pre-commit checks
+-------------
 
 We have a pre commit hook to make sure code is formatted properly
 and vetted before you commit any changes. We strongly recommend using the pre
