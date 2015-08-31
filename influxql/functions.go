@@ -1081,26 +1081,27 @@ func ReduceLast(values []interface{}) interface{} {
 	return nil
 }
 
-type topOuts struct {
-	values   []topOut
+type positionOut struct {
+	points   PositionPoints
 	callArgs []string // ordered args in the call
 }
 
-type topOut struct {
+type PositionPoints []positionPoint
+type positionPoint struct {
 	Time  int64
 	Value interface{}
 	Tags  map[string]string
 }
 
-func (t topOuts) Len() int      { return len(t.values) }
-func (t topOuts) Swap(i, j int) { t.values[i], t.values[j] = t.values[j], t.values[i] }
+func (t positionOut) Len() int      { return len(t.points) }
+func (t positionOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
 
 // Less is actuall more due to it having to sort in reverse
 // We can't use sort.Reverse due to special case of time is ALWAYS less, but top is always more
-func (t topOuts) Less(i, j int) bool {
+func (t positionOut) Less(i, j int) bool {
 
 	lessKey := func() bool {
-		t1, t2 := t.values[i].Tags, t.values[j].Tags
+		t1, t2 := t.points[i].Tags, t.points[j].Tags
 		for _, k := range t.callArgs {
 			if t1[k] != t2[k] {
 				return t1[k] < t2[k]
@@ -1113,7 +1114,7 @@ func (t topOuts) Less(i, j int) bool {
 		if d1 != d2 {
 			return d1 > d2
 		}
-		k1, k2 := t.values[i].Time, t.values[j].Time
+		k1, k2 := t.points[i].Time, t.points[j].Time
 		if k1 != k2 {
 			return k1 < k2
 		}
@@ -1124,7 +1125,7 @@ func (t topOuts) Less(i, j int) bool {
 		if d1 != d2 {
 			return d1 > d2
 		}
-		k1, k2 := t.values[i].Time, t.values[j].Time
+		k1, k2 := t.points[i].Time, t.points[j].Time
 		if k1 != k2 {
 			return k1 < k2
 		}
@@ -1135,7 +1136,7 @@ func (t topOuts) Less(i, j int) bool {
 		if d1 != d2 {
 			return d1 > d2
 		}
-		k1, k2 := t.values[i].Time, t.values[j].Time
+		k1, k2 := t.points[i].Time, t.points[j].Time
 		if k1 != k2 {
 			return k1 < k2
 		}
@@ -1146,16 +1147,16 @@ func (t topOuts) Less(i, j int) bool {
 
 	// Sort by float64/int64 first as that is the most likely match
 	{
-		d1, ok1 := t.values[i].Value.(float64)
-		d2, ok2 := t.values[j].Value.(float64)
+		d1, ok1 := t.points[i].Value.(float64)
+		d2, ok2 := t.points[j].Value.(float64)
 		if ok1 && ok2 {
 			return sortFloat(d1, d2)
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(int64)
-		d2, ok2 := t.values[j].Value.(int64)
+		d1, ok1 := t.points[i].Value.(int64)
+		d2, ok2 := t.points[j].Value.(int64)
 		if ok1 && ok2 {
 			return sortInt64(d1, d2)
 		}
@@ -1163,80 +1164,80 @@ func (t topOuts) Less(i, j int) bool {
 
 	// Sort by every numeric type left
 	{
-		d1, ok1 := t.values[i].Value.(float32)
-		d2, ok2 := t.values[j].Value.(float32)
+		d1, ok1 := t.points[i].Value.(float32)
+		d2, ok2 := t.points[j].Value.(float32)
 		if ok1 && ok2 {
 			return sortFloat(float64(d1), float64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(uint64)
-		d2, ok2 := t.values[j].Value.(uint64)
+		d1, ok1 := t.points[i].Value.(uint64)
+		d2, ok2 := t.points[j].Value.(uint64)
 		if ok1 && ok2 {
 			return sortUint64(d1, d2)
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(uint32)
-		d2, ok2 := t.values[j].Value.(uint32)
+		d1, ok1 := t.points[i].Value.(uint32)
+		d2, ok2 := t.points[j].Value.(uint32)
 		if ok1 && ok2 {
 			return sortUint64(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(uint16)
-		d2, ok2 := t.values[j].Value.(uint16)
+		d1, ok1 := t.points[i].Value.(uint16)
+		d2, ok2 := t.points[j].Value.(uint16)
 		if ok1 && ok2 {
 			return sortUint64(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(uint8)
-		d2, ok2 := t.values[j].Value.(uint8)
+		d1, ok1 := t.points[i].Value.(uint8)
+		d2, ok2 := t.points[j].Value.(uint8)
 		if ok1 && ok2 {
 			return sortUint64(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(int32)
-		d2, ok2 := t.values[j].Value.(int32)
+		d1, ok1 := t.points[i].Value.(int32)
+		d2, ok2 := t.points[j].Value.(int32)
 		if ok1 && ok2 {
 			return sortInt64(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(int16)
-		d2, ok2 := t.values[j].Value.(int16)
+		d1, ok1 := t.points[i].Value.(int16)
+		d2, ok2 := t.points[j].Value.(int16)
 		if ok1 && ok2 {
 			return sortInt64(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(int8)
-		d2, ok2 := t.values[j].Value.(int8)
+		d1, ok1 := t.points[i].Value.(int8)
+		d2, ok2 := t.points[j].Value.(int8)
 		if ok1 && ok2 {
 			return sortInt64(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(bool)
-		d2, ok2 := t.values[j].Value.(bool)
+		d1, ok1 := t.points[i].Value.(bool)
+		d2, ok2 := t.points[j].Value.(bool)
 		if ok1 && ok2 {
 			return d1 == true && d2 == false
 		}
 	}
 
 	{
-		d1, ok1 := t.values[i].Value.(string)
-		d2, ok2 := t.values[j].Value.(string)
+		d1, ok1 := t.points[i].Value.(string)
+		d2, ok2 := t.points[j].Value.(string)
 		if ok1 && ok2 {
 			return d1 < d2
 		}
@@ -1280,8 +1281,8 @@ func (t topOuts) Less(i, j int) bool {
 		panic("interfaceValues.Less - unreachable code")
 	}
 
-	w1, n1 := infer(t.values[i].Value)
-	w2, n2 := infer(t.values[j].Value)
+	w1, n1 := infer(t.points[i].Value)
+	w2, n2 := infer(t.points[j].Value)
 
 	// If we had "numeric" data, use that for comparison
 	if (w1 == floatWeight || w1 == intWeight) && (w2 == floatWeight || w2 == intWeight) {
@@ -1307,20 +1308,20 @@ func topCallArgs(c *Call) []string {
 // MapTop emits the top data points for each group by interval
 func MapTop(itr Iterator, c *Call) interface{} {
 
-	out := topOuts{callArgs: topCallArgs(c)}
+	out := positionOut{callArgs: topCallArgs(c)}
 	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
 	limit := int64(lit.Val)
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
-		out.values = append(out.values, topOut{k, v, itr.Tags()})
+		out.points = append(out.points, positionPoint{k, v, itr.Tags()})
 	}
 	// If we have more than we asked for, only send back the top values
-	if int64(len(out.values)) > limit {
+	if int64(len(out.points)) > limit {
 		sort.Sort(out)
-		out.values = out.values[:limit]
+		out.points = out.points[:limit]
 	}
-	if len(out.values) > 0 {
-		return out.values
+	if len(out.points) > 0 {
+		return out.points
 	}
 	return nil
 }
@@ -1330,23 +1331,23 @@ func ReduceTop(values []interface{}, c *Call) interface{} {
 	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
 	limit := int64(lit.Val)
 
-	out := topOuts{callArgs: topCallArgs(c)}
+	out := positionOut{callArgs: topCallArgs(c)}
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		o, _ := v.([]topOut)
-		out.values = append(out.values, o...)
+		o, _ := v.(PositionPoints)
+		out.points = append(out.points, o...)
 	}
 
 	// Have to always sort now for a final result
 	sort.Sort(out)
 	// If we have more than we asked for, only send back the top values
-	if int64(len(out.values)) > limit {
-		out.values = out.values[:limit]
+	if int64(len(out.points)) > limit {
+		out.points = out.points[:limit]
 	}
-	if len(out.values) > 0 {
-		return out.values
+	if len(out.points) > 0 {
+		return out.points
 	}
 	return nil
 }

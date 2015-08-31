@@ -528,6 +528,9 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 			}
 		}
 
+		// Perform top/bottom unwraps
+		values = ProcessTopBottom(e.stmt, values)
+
 		// Perform any mathematics.
 		values = processForMath(e.stmt.Fields, values)
 
@@ -928,6 +931,30 @@ func processForMath(fields influxql.Fields, results [][]interface{}) [][]interfa
 	}
 
 	return mathResults
+}
+
+// ProcessTopBottom
+func ProcessTopBottom(s *influxql.SelectStatement, results [][]interface{}) [][]interface{} {
+	// TODO see if this is a top or bottom query
+	var values [][]interface{}
+
+	// Check if we have a group by, if not, rewrite the entire result by flattening it out
+	if len(s.Dimensions) == 0 {
+		for _, result := range results {
+			for _, r := range result {
+				switch v := r.(type) {
+				case influxql.PositionPoints:
+					for _, p := range v {
+						tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+						values = append(values, []interface{}{tm, p.Value})
+					}
+				}
+			}
+		}
+		return values
+	}
+
+	return values
 }
 
 // ProcessAggregateDerivative returns the derivatives of an aggregate result set

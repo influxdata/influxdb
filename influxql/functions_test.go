@@ -476,7 +476,7 @@ func TestMapTop(t *testing.T) {
 		name string
 		skip bool
 		iter *testIterator
-		exp  topOuts
+		exp  positionOut
 		call *Call
 	}{
 		{
@@ -488,10 +488,10 @@ func TestMapTop(t *testing.T) {
 					{"", 20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
-				values: []topOut{
-					topOut{10, int64(99), map[string]string{"host": "a"}},
-					topOut{20, int64(88), map[string]string{"host": "a"}},
+			exp: positionOut{
+				points: PositionPoints{
+					positionPoint{10, int64(99), map[string]string{"host": "a"}},
+					positionPoint{20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -505,11 +505,11 @@ func TestMapTop(t *testing.T) {
 					{"", 20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
+			exp: positionOut{
 				callArgs: []string{"host"},
-				values: []topOut{
-					topOut{10, int64(99), map[string]string{"host": "a"}},
-					topOut{20, int64(88), map[string]string{"host": "a"}},
+				points: PositionPoints{
+					positionPoint{10, int64(99), map[string]string{"host": "a"}},
+					positionPoint{20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -523,11 +523,11 @@ func TestMapTop(t *testing.T) {
 					{"", 10, int64(99), map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
+			exp: positionOut{
 				callArgs: []string{"host"},
-				values: []topOut{
-					topOut{10, int64(99), map[string]string{"host": "a"}},
-					topOut{20, int64(99), map[string]string{"host": "a"}},
+				points: PositionPoints{
+					positionPoint{10, int64(99), map[string]string{"host": "a"}},
+					positionPoint{20, int64(99), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -541,11 +541,11 @@ func TestMapTop(t *testing.T) {
 					{"", 20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
+			exp: positionOut{
 				callArgs: []string{"host"},
-				values: []topOut{
-					topOut{10, int64(99), map[string]string{"host": "a"}},
-					topOut{10, int64(99), map[string]string{"host": "b"}},
+				points: PositionPoints{
+					positionPoint{10, int64(99), map[string]string{"host": "a"}},
+					positionPoint{10, int64(99), map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -559,10 +559,10 @@ func TestMapTop(t *testing.T) {
 					{"", 20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
-				values: []topOut{
-					topOut{10, int64(99), map[string]string{"host": "a"}},
-					topOut{20, uint64(88), map[string]string{"host": "a"}},
+			exp: positionOut{
+				points: PositionPoints{
+					positionPoint{10, int64(99), map[string]string{"host": "a"}},
+					positionPoint{20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -576,10 +576,10 @@ func TestMapTop(t *testing.T) {
 					{"", 20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
-				values: []topOut{
-					topOut{10, float64(99), map[string]string{"host": "a"}},
-					topOut{20, uint64(88), map[string]string{"host": "a"}},
+			exp: positionOut{
+				points: PositionPoints{
+					positionPoint{10, float64(99), map[string]string{"host": "a"}},
+					positionPoint{20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -593,10 +593,10 @@ func TestMapTop(t *testing.T) {
 					{"", 20, "88", map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
-				values: []topOut{
-					topOut{10, float64(99), map[string]string{"host": "a"}},
-					topOut{10, int64(53), map[string]string{"host": "b"}},
+			exp: positionOut{
+				points: PositionPoints{
+					positionPoint{10, float64(99), map[string]string{"host": "a"}},
+					positionPoint{10, int64(53), map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -610,10 +610,10 @@ func TestMapTop(t *testing.T) {
 					{"", 20, false, map[string]string{"host": "a"}},
 				},
 			},
-			exp: topOuts{
-				values: []topOut{
-					topOut{10, true, map[string]string{"host": "a"}},
-					topOut{10, true, map[string]string{"host": "b"}},
+			exp: positionOut{
+				points: PositionPoints{
+					positionPoint{10, true, map[string]string{"host": "a"}},
+					positionPoint{10, true, map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -624,13 +624,13 @@ func TestMapTop(t *testing.T) {
 		if test.skip {
 			continue
 		}
-		values := MapTop(test.iter, test.call).([]topOut)
+		values := MapTop(test.iter, test.call).(PositionPoints)
 		t.Logf("Test: %s", test.name)
-		if exp, got := len(test.exp.values), len(values); exp != got {
+		if exp, got := len(test.exp.points), len(values); exp != got {
 			t.Errorf("Wrong number of values. exp %v got %v", exp, got)
 		}
-		if !reflect.DeepEqual(values, test.exp.values) {
-			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp.values), spew.Sdump(values))
+		if !reflect.DeepEqual(values, test.exp.points) {
+			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp.points), spew.Sdump(values))
 		}
 	}
 }
@@ -640,70 +640,70 @@ func TestReduceTop(t *testing.T) {
 		name   string
 		skip   bool
 		values []interface{}
-		exp    []topOut
+		exp    PositionPoints
 		call   *Call
 	}{
 		{
 			name: "int64 - single map",
 			values: []interface{}{
-				[]topOut{
+				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
 					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: []topOut{
-				topOut{10, int64(99), map[string]string{"host": "a"}},
-				topOut{20, int64(88), map[string]string{"host": "a"}},
+			exp: PositionPoints{
+				positionPoint{10, int64(99), map[string]string{"host": "a"}},
+				positionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - double map",
 			values: []interface{}{
-				[]topOut{
+				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
 				},
-				[]topOut{
+				PositionPoints{
 					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
-			exp: []topOut{
-				topOut{10, int64(99), map[string]string{"host": "a"}},
-				topOut{20, int64(88), map[string]string{"host": "a"}},
+			exp: PositionPoints{
+				positionPoint{10, int64(99), map[string]string{"host": "a"}},
+				positionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - double map with nil",
 			values: []interface{}{
-				[]topOut{
+				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
 					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{"host": "a"}},
 				},
 				nil,
 			},
-			exp: []topOut{
-				topOut{10, int64(99), map[string]string{"host": "a"}},
-				topOut{20, int64(88), map[string]string{"host": "a"}},
+			exp: PositionPoints{
+				positionPoint{10, int64(99), map[string]string{"host": "a"}},
+				positionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - double map with non-matching tags and tag selected",
 			values: []interface{}{
-				[]topOut{
+				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
 					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{}},
 				},
 				nil,
 			},
-			exp: []topOut{
-				topOut{10, int64(99), map[string]string{"host": "a"}},
-				topOut{20, int64(88), map[string]string{}},
+			exp: PositionPoints{
+				positionPoint{10, int64(99), map[string]string{"host": "a"}},
+				positionPoint{20, int64(88), map[string]string{}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
 		},
@@ -711,16 +711,16 @@ func TestReduceTop(t *testing.T) {
 			skip: true,
 			name: "int64 - double map with non-matching tags",
 			values: []interface{}{
-				[]topOut{
+				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
 					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{}},
 				},
 				nil,
 			},
-			exp: []topOut{
-				topOut{10, int64(99), map[string]string{"host": "a"}},
-				topOut{20, int64(55), map[string]string{"host": "b"}},
+			exp: PositionPoints{
+				positionPoint{10, int64(99), map[string]string{"host": "a"}},
+				positionPoint{20, int64(55), map[string]string{"host": "b"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
@@ -733,7 +733,7 @@ func TestReduceTop(t *testing.T) {
 		values := ReduceTop(test.values, test.call)
 		t.Logf("Test: %s", test.name)
 		if values != nil {
-			v, _ := values.([]topOut)
+			v, _ := values.(PositionPoints)
 			if exp, got := len(test.exp), len(v); exp != got {
 				t.Errorf("Wrong number of values. exp %v got %v", exp, got)
 			}
