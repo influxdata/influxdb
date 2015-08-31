@@ -91,6 +91,7 @@ const (
 	LIMIT
 	MEASUREMENT
 	MEASUREMENTS
+	NOT
 	OFFSET
 	ON
 	ORDER
@@ -198,6 +199,7 @@ var tokens = [...]string{
 	LIMIT:        "LIMIT",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
+	NOT:          "NOT",
 	OFFSET:       "OFFSET",
 	ON:           "ON",
 	ORDER:        "ORDER",

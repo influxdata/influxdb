@@ -1250,6 +1250,16 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error) {
 	stmt := &CreateDatabaseStatement{}
 
+	// Look for "IF NOT EXISTS"
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == IF {
+		if err := p.parseTokens([]Token{NOT, EXISTS}); err != nil {
+			return nil, err
+		}
+		stmt.IfNotExists = true
+	} else {
+		p.unscan()
+	}
+
 	// Parse the name of the database to be created.
 	lit, err := p.parseIdent()
 	if err != nil {

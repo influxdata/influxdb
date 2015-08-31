@@ -138,6 +138,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `SHOW`, tok: influxql.SHOW},
 		{s: `MEASUREMENT`, tok: influxql.MEASUREMENT},
 		{s: `MEASUREMENTS`, tok: influxql.MEASUREMENTS},
+		{s: `NOT`, tok: influxql.NOT},
 		{s: `OFFSET`, tok: influxql.OFFSET},
 		{s: `ON`, tok: influxql.ON},
 		{s: `ORDER`, tok: influxql.ORDER},
