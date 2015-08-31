@@ -105,7 +105,9 @@ First you need to setup the project structure:
     export GOPATH=$HOME/gocodez
     mkdir -p $GOPATH/src/github.com/influxdb
     cd $GOPATH/src/github.com/influxdb
-    git clone git@github.com:influxdb/influxdb
+    git clone git@github.com:influxdb/influxdb # See note below about cloning forks.
+
+_If you wish to clone a fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary so that Go imports work correctly._
 
 You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh
 file to be set for every shell instead of having to manually run it
