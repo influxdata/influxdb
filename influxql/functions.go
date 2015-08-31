@@ -12,7 +12,6 @@ import (
 	"math"
 	"math/rand"
 	"sort"
-	"strings"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -38,39 +37,6 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// see if it's a query for raw data
 	if c == nil {
 		return MapRawQuery, nil
-	}
-
-	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" {
-		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
-		}
-	} else if strings.HasSuffix(c.Name, "derivative") {
-		// derivatives require a field name and optional duration
-		if len(c.Args) == 0 {
-			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
-		}
-	} else if len(c.Args) != 1 {
-		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
-	}
-
-	// derivative can take a nested aggregate function, everything else expects
-	// a variable reference as the first arg
-	if !strings.HasSuffix(c.Name, "derivative") {
-		// Ensure the argument is appropriate for the aggregate function.
-		switch fc := c.Args[0].(type) {
-		case *VarRef:
-		case *Distinct:
-			if c.Name != "count" {
-				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-			}
-		case *Call:
-			if fc.Name != "distinct" {
-				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-			}
-		default:
-			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-		}
 	}
 
 	// Retrieve map function by name.

@@ -1091,6 +1091,23 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
 				}
 			}
+			// derivative can take a nested aggregate function, everything else expects
+			// a variable reference as the first arg
+			if !strings.HasSuffix(c.Name, "derivative") {
+				switch fc := c.Args[0].(type) {
+				case *VarRef:
+				case *Distinct:
+					if c.Name != "count" {
+						return fmt.Errorf("expected field argument in %s()", c.Name)
+					}
+				case *Call:
+					if fc.Name != "distinct" {
+						return fmt.Errorf("expected field argument in %s()", c.Name)
+					}
+				default:
+					return fmt.Errorf("expected field argument in %s()", c.Name)
+				}
+			}
 		}
 	}
 

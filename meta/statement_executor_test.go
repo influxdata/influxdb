@@ -625,13 +625,13 @@ func TestStatementExecutor_ExecuteStatement_CreateContinuousQuery(t *testing.T) 
 			t.Fatalf("unexpected database: %s", database)
 		} else if name != "cq0" {
 			t.Fatalf("unexpected name: %s", name)
-		} else if query != `CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h) END` {
+		} else if query != `CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(field1) INTO db1 FROM db0 GROUP BY time(1h) END` {
 			t.Fatalf("unexpected query: %s", query)
 		}
 		return nil
 	}
 
-	stmt := influxql.MustParseStatement(`CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h) END`)
+	stmt := influxql.MustParseStatement(`CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(field1) INTO db1 FROM db0 GROUP BY time(1h) END`)
 	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
@@ -646,7 +646,7 @@ func TestStatementExecutor_ExecuteStatement_CreateContinuousQuery_Err(t *testing
 		return errors.New("marker")
 	}
 
-	stmt := influxql.MustParseStatement(`CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h) END`)
+	stmt := influxql.MustParseStatement(`CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(field1) INTO db1 FROM db0 GROUP BY time(1h) END`)
 	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
@@ -693,14 +693,14 @@ func TestStatementExecutor_ExecuteStatement_ShowContinuousQueries(t *testing.T) 
 			{
 				Name: "db0",
 				ContinuousQueries: []meta.ContinuousQueryInfo{
-					{Name: "cq0", Query: "SELECT count(*) INTO db1 FROM db0"},
-					{Name: "cq1", Query: "SELECT count(*) INTO db2 FROM db0"},
+					{Name: "cq0", Query: "SELECT count(field1) INTO db1 FROM db0"},
+					{Name: "cq1", Query: "SELECT count(field1) INTO db2 FROM db0"},
 				},
 			},
 			{
 				Name: "db1",
 				ContinuousQueries: []meta.ContinuousQueryInfo{
-					{Name: "cq2", Query: "SELECT count(*) INTO db3 FROM db1"},
+					{Name: "cq2", Query: "SELECT count(field1) INTO db3 FROM db1"},
 				},
 			},
 		}, nil
@@ -714,15 +714,15 @@ func TestStatementExecutor_ExecuteStatement_ShowContinuousQueries(t *testing.T) 
 			Name:    "db0",
 			Columns: []string{"name", "query"},
 			Values: [][]interface{}{
-				{"cq0", "SELECT count(*) INTO db1 FROM db0"},
-				{"cq1", "SELECT count(*) INTO db2 FROM db0"},
+				{"cq0", "SELECT count(field1) INTO db1 FROM db0"},
+				{"cq1", "SELECT count(field1) INTO db2 FROM db0"},
 			},
 		},
 		{
 			Name:    "db1",
 			Columns: []string{"name", "query"},
 			Values: [][]interface{}{
-				{"cq2", "SELECT count(*) INTO db3 FROM db1"},
+				{"cq2", "SELECT count(field1) INTO db3 FROM db1"},
 			},
 		},
 	}) {
@@ -755,7 +755,7 @@ func TestStatementExecutor_ExecuteStatement_Unsupported(t *testing.T) {
 
 		// Execute a SELECT statement.
 		NewStatementExecutor().ExecuteStatement(
-			influxql.MustParseStatement(`SELECT count(*) FROM db0`),
+			influxql.MustParseStatement(`SELECT count(field1) FROM db0`),
 		)
 	}()
 
