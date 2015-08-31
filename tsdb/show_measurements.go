@@ -144,18 +144,20 @@ func (m *ShowMeasurementsMapper) Open() error {
 
 	var measurements Measurements
 
-	// If a WHERE clause was specified, filter the measurements.
-	if m.stmt.Condition != nil {
-		var err error
-		measurements, err = m.shard.index.measurementsByExpr(m.stmt.Condition)
-		if err != nil {
-			return err
+	if m.shard != nil {
+		// If a WHERE clause was specified, filter the measurements.
+		if m.stmt.Condition != nil {
+			var err error
+			measurements, err = m.shard.index.measurementsByExpr(m.stmt.Condition)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Otherwise, get all measurements from the database.
+			measurements = m.shard.index.Measurements()
 		}
-	} else {
-		// Otherwise, get all measurements from the database.
-		measurements = m.shard.index.Measurements()
+		sort.Sort(measurements)
 	}
-	sort.Sort(measurements)
 
 	// Create a channel to send measurement names on.
 	ch := make(chan string)
