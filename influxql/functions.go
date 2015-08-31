@@ -935,28 +935,20 @@ type firstLastMapOutput struct {
 }
 
 // MapFirst collects the values to pass to the reducer
+// This function assumes time ordered input
 func MapFirst(itr Iterator) interface{} {
-	out := &firstLastMapOutput{}
-	pointsYielded := false
-
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
-		// Initialize first
-		if !pointsYielded {
-			out.Time = k
-			out.Val = v
-			pointsYielded = true
-		}
-		if k < out.Time {
-			out.Time = k
-			out.Val = v
-		} else if k == out.Time && greaterThan(v, out.Val) {
-			out.Val = v
-		}
+	k, v := itr.Next()
+	if k == -1 {
+		return nil
 	}
-	if pointsYielded {
-		return out
-	}
-	return nil
+	nextk, nextv := itr.Next()
+	for nextk == k {
+		if greaterThan(nextv, v) {
+			v = nextv
+		}
+		nextk, nextv = itr.Next()
+	} 
+	return &firstLastMapOutput{k, v}
 }
 
 // ReduceFirst computes the first of value.
