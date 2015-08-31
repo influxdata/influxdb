@@ -1276,7 +1276,7 @@ func (t topOuts) Less(i, j int) bool {
 		d1, ok1 := t.values[i].Value.(bool)
 		d2, ok2 := t.values[j].Value.(bool)
 		if ok1 && ok2 {
-			return d1 == false && d2 == true
+			return d1 == true && d2 == false
 		}
 	}
 

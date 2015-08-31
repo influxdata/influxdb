@@ -678,6 +678,23 @@ func TestMapTop(t *testing.T) {
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
+		{
+			name: "bools",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, true, map[string]string{"host": "a"}},
+					{"", 10, true, map[string]string{"host": "b"}},
+					{"", 20, false, map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				values: []topOut{
+					topOut{10, true, map[string]string{"host": "a"}},
+					topOut{10, true, map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
 	}
 
 	for _, test := range tests {
