@@ -73,6 +73,8 @@ func (s *Service) Open() error {
 		}
 		s.Logger.Printf("succesfully created database %s on %s", s.storeDatabase, s.storeAddress)
 
+		// XXX Self-register Go runtime stuff from expvar
+
 		// Start periodic writes to system.
 		s.wg.Add(1)
 		go func() {
@@ -134,5 +136,6 @@ func (s *Service) Register(name string, tags map[string]string, client Client) e
 }
 
 func (s *Service) storeStatistics() error {
+	// XXX add tags such as local hostname and cluster ID
 	return nil
 }
