@@ -110,10 +110,6 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return MapTop(itr, c)
 		}, nil
 	case "percentile":
-		_, ok := c.Args[1].(*NumberLiteral)
-		if !ok {
-			return nil, fmt.Errorf("expected float argument in percentile()")
-		}
 		return MapEcho, nil
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
@@ -162,20 +158,9 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "last":
 		return ReduceLast, nil
 	case "top":
-		lit, ok := c.Args[len(c.Args)-1].(*NumberLiteral)
-		if !ok {
-			return nil, fmt.Errorf("expected integer as last argument in top()")
-		}
-		return ReduceTop(lit.Val), nil
+		return ReduceTop, nil
 	case "percentile":
-		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected float argument in percentile()")
-		}
-
-		lit, ok := c.Args[1].(*NumberLiteral)
-		if !ok {
-			return nil, fmt.Errorf("expected float argument in percentile()")
-		}
+		lit, _ := c.Args[1].(*NumberLiteral)
 		return ReducePercentile(lit.Val), nil
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
@@ -1371,7 +1356,7 @@ func MapTop(itr Iterator, c *Call) interface{} {
 }
 
 // ReduceTop computes the top values for each key.
-func ReduceTop(percentile float64) ReduceFunc {
+func ReduceTop(values []interface{}) interface{} {
 	// TODO make it so
 	return nil
 }

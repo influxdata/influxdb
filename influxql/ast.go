@@ -1064,6 +1064,10 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				if exp, got := 2, len(c.Args); got != exp {
 					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
 				}
+				_, ok := c.Args[1].(*NumberLiteral)
+				if !ok {
+					return fmt.Errorf("expected float argument in percentile()")
+				}
 			case "top", "bottom":
 				if exp, got := 2, len(c.Args); got < exp {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", c.Name, exp, got)
