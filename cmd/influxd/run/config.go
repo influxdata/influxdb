@@ -13,13 +13,13 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
-	"github.com/influxdb/influxdb/services/monitor"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
@@ -36,6 +36,7 @@ type Config struct {
 	Precreator precreator.Config `toml:"shard-precreation"`
 
 	Admin     admin.Config      `toml:"admin"`
+	Monitor   monitor.Config    `toml:"monitor"`
 	HTTPD     httpd.Config      `toml:"http"`
 	Graphites []graphite.Config `toml:"graphite"`
 	Collectd  collectd.Config   `toml:"collectd"`
@@ -43,7 +44,6 @@ type Config struct {
 	UDPs      []udp.Config      `toml:"udp"`
 
 	// Snapshot SnapshotConfig `toml:"snapshot"`
-	Monitoring      monitor.Config            `toml:"monitoring"`
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 
 	HintedHandoff hh.Config `toml:"hinted-handoff"`
@@ -61,12 +61,12 @@ func NewConfig() *Config {
 	c.Precreator = precreator.NewConfig()
 
 	c.Admin = admin.NewConfig()
+	c.Monitor = monitor.NewConfig()
 	c.HTTPD = httpd.NewConfig()
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
 	c.Graphites = append(c.Graphites, graphite.NewConfig())
 
-	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
 	c.HintedHandoff = hh.NewConfig()
@@ -95,7 +95,6 @@ func NewDemoConfig() (*Config, error) {
 	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 
 	c.Admin.Enabled = true
-	c.Monitoring.Enabled = false
 
 	return c, nil
 }

@@ -2,6 +2,7 @@ package graphite
 
 import (
 	"bufio"
+	"expvar"
 	"fmt"
 	"log"
 	"math"
@@ -13,12 +14,46 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
 	udpBufferSize     = 65536
 	leaderWaitTimeout = 30 * time.Second
+)
+
+var epOnce sync.Once
+var ep = expvar.NewMap("graphite")
+var epTCP = expvar.NewMap("tcp")
+var epUDP = expvar.NewMap("udp")
+
+func init() {
+	ep.Set("tcp", epTCP)
+	ep.Set("udp", epUDP)
+}
+
+type monitorClient struct {
+	ep *expvar.Map
+}
+
+func (m monitorClient) Statistics() (*expvar.Map, error) {
+	return m.ep, nil
+}
+
+func (m monitorClient) Diagnostics() (map[string]interface{}, error) {
+	return nil, nil
+}
+
+const (
+	EP_POINTS_RECEIVED       = "points_rx"
+	EP_BYTES_RECEIVED        = "bytes_rx"
+	EP_BATCHES_TRANSMITTED   = "batches_tx"
+	EP_POINTS_TRANSMITTED    = "points_tx"
+	EP_BATCHES_TRANSMIT_FAIL = "batches_tx_fail"
+	EP_BATCHES_SKIPPED       = "batches_skipped"
+	EP_CONNECTIONS_ACTIVE    = "connections_active"
+	EP_CONNECTIONS_HANDLED   = "connections_handled"
 )
 
 type Service struct {
@@ -40,6 +75,11 @@ type Service struct {
 	wg   sync.WaitGroup
 	done chan struct{}
 
+	writeSkip bool // For test purposes only.
+
+	MonitorService interface {
+		Register(name string, tags map[string]string, client monitor.Client) error
+	}
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
@@ -62,6 +102,7 @@ func NewService(c Config) (*Service, error) {
 		batchTimeout: time.Duration(d.BatchTimeout),
 		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		done:         make(chan struct{}),
+		writeSkip:    c.WriteSkip,
 	}
 
 	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
@@ -86,6 +127,18 @@ func NewService(c Config) (*Service, error) {
 // Open starts the Graphite input processing data.
 func (s *Service) Open() error {
 	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
+
+	// One Graphite service hooks up monitoring for all Graphite functionality.
+	epOnce.Do(func() {
+		g := monitorClient{ep: ep}
+		s.MonitorService.Register("graphite", nil, g)
+
+		t := monitorClient{ep: epTCP}
+		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
+
+		u := monitorClient{ep: epUDP}
+		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
+	})
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
 		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
@@ -176,6 +229,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 func (s *Service) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
+	defer epTCP.Add(EP_CONNECTIONS_ACTIVE, -1)
+	epTCP.Add(EP_CONNECTIONS_ACTIVE, 1)
+	epTCP.Add(EP_CONNECTIONS_HANDLED, 1)
 
 	reader := bufio.NewReader(conn)
 
@@ -189,6 +245,8 @@ func (s *Service) handleTCPConnection(conn net.Conn) {
 		// Trim the buffer, even though there should be no padding
 		line := strings.TrimSpace(string(buf))
 
+		epTCP.Add(EP_POINTS_RECEIVED, 1)
+		epTCP.Add(EP_BYTES_RECEIVED, int64(len(buf)))
 		s.handleLine(line)
 	}
 }
@@ -215,9 +273,13 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 				conn.Close()
 				return
 			}
-			for _, line := range strings.Split(string(buf[:n]), "\n") {
+
+			lines := strings.Split(string(buf[:n]), "\n")
+			for _, line := range lines {
 				s.handleLine(line)
 			}
+			epUDP.Add(EP_POINTS_RECEIVED, int64(len(lines)))
+			epUDP.Add(EP_BYTES_RECEIVED, int64(n))
 		}
 	}()
 	return conn.LocalAddr(), nil
@@ -227,6 +289,7 @@ func (s *Service) handleLine(line string) {
 	if line == "" {
 		return
 	}
+
 	// Parse it.
 	point, err := s.parser.Parse(line)
 	if err != nil {
@@ -252,14 +315,23 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
+			if s.writeSkip {
+				ep.Add(EP_BATCHES_SKIPPED, 1)
+				continue
+			}
 			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 				Database:         s.database,
 				RetentionPolicy:  "",
 				ConsistencyLevel: s.consistencyLevel,
 				Points:           batch,
-			}); err != nil {
+			}); err == nil {
+				ep.Add(EP_BATCHES_TRANSMITTED, 1)
+				ep.Add(EP_POINTS_TRANSMITTED, int64(len(batch)))
+			} else {
 				s.logger.Printf("failed to write point batch to database %q: %s", s.database, err)
+				ep.Add(EP_BATCHES_TRANSMIT_FAIL, 1)
 			}
+
 		case <-s.done:
 			return
 		}

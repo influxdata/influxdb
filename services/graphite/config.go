@@ -38,6 +38,7 @@ type Config struct {
 	BindAddress      string        `toml:"bind-address"`
 	Database         string        `toml:"database"`
 	Enabled          bool          `toml:"enabled"`
+	WriteSkip        bool          `toml:"write-skip"`
 	Protocol         string        `toml:"protocol"`
 	BatchSize        int           `toml:"batch-size"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
@@ -50,6 +51,7 @@ type Config struct {
 // NewConfig returns a new Config with defaults.
 func NewConfig() Config {
 	return Config{
+		Enabled:          true,
 		BindAddress:      DefaultBindAddress,
 		Database:         DefaultDatabase,
 		Protocol:         DefaultProtocol,

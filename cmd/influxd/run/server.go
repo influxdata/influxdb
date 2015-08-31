@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
@@ -56,6 +57,8 @@ type Server struct {
 	// These references are required for the tcp muxer.
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
+
+	MonitorService *monitor.Service
 
 	// Server reporting
 	reportingDisabled bool
@@ -116,6 +119,12 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
+
+	// Start the monitor service.
+	s.MonitorService = monitor.NewService(c.Monitor)
+	if err := s.MonitorService.Open(); err != nil {
+		return nil, err
+	}
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
@@ -230,6 +239,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaStore = s.MetaStore
+	srv.MonitorService = s.MonitorService
 	s.Services = append(s.Services, srv)
 	return nil
 }
