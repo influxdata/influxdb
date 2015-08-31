@@ -165,13 +165,12 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 
 func TestReducePercentileNil(t *testing.T) {
 
-	// ReducePercentile should ignore nil values when calculating the percentile
-	fn := ReducePercentile(100)
 	input := []interface{}{
 		nil,
 	}
 
-	got := fn(input)
+	// ReducePercentile should ignore nil values when calculating the percentile
+	got := ReducePercentile(input, &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 100}}})
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
 	}

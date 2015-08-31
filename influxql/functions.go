@@ -160,8 +160,9 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "top":
 		return ReduceTop, nil
 	case "percentile":
-		lit, _ := c.Args[1].(*NumberLiteral)
-		return ReducePercentile(lit.Val), nil
+		return func(values []interface{}) interface{} {
+			return ReducePercentile(values, c)
+		}, nil
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
@@ -1372,36 +1373,39 @@ func MapEcho(itr Iterator) interface{} {
 }
 
 // ReducePercentile computes the percentile of values for each key.
-func ReducePercentile(percentile float64) ReduceFunc {
-	return func(values []interface{}) interface{} {
-		var allValues []float64
+func ReducePercentile(values []interface{}, c *Call) interface{} {
+	// Checks that this arg exists and is a valid type are done in the parsing validation
+	// and have test coverage there
+	lit, _ := c.Args[1].(*NumberLiteral)
+	percentile := lit.Val
 
-		for _, v := range values {
-			if v == nil {
-				continue
-			}
+	var allValues []float64
 
-			vals := v.([]interface{})
-			for _, v := range vals {
-				switch v.(type) {
-				case int64:
-					allValues = append(allValues, float64(v.(int64)))
-				case float64:
-					allValues = append(allValues, v.(float64))
-				}
-			}
+	for _, v := range values {
+		if v == nil {
+			continue
 		}
 
-		sort.Float64s(allValues)
-		length := len(allValues)
-		index := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
-
-		if index < 0 || index >= len(allValues) {
-			return nil
+		vals := v.([]interface{})
+		for _, v := range vals {
+			switch v.(type) {
+			case int64:
+				allValues = append(allValues, float64(v.(int64)))
+			case float64:
+				allValues = append(allValues, v.(float64))
+			}
 		}
-
-		return allValues[index]
 	}
+
+	sort.Float64s(allValues)
+	length := len(allValues)
+	index := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
+
+	if index < 0 || index >= len(allValues) {
+		return nil
+	}
+
+	return allValues[index]
 }
 
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.
