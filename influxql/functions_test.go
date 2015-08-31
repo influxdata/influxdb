@@ -661,6 +661,23 @@ func TestMapTop(t *testing.T) {
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
+		{
+			name: "mixed numerics - ints, floats, & strings",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, float64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, "88", map[string]string{"host": "a"}},
+				},
+			},
+			exp: topOuts{
+				values: []topOut{
+					topOut{10, float64(99), map[string]string{"host": "a"}},
+					topOut{10, int64(53), map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
 	}
 
 	for _, test := range tests {
@@ -668,6 +685,7 @@ func TestMapTop(t *testing.T) {
 			continue
 		}
 		values := MapTop(test.iter, test.call).([]topOut)
+		t.Logf("Test: %s", test.name)
 		if exp, got := len(test.exp.values), len(values); exp != got {
 			t.Errorf("Wrong number of values. exp %v got %v", exp, got)
 		}
