@@ -17,6 +17,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3886](https://github.com/influxdb/influxdb/pull/3886): Prevent write timeouts due to lock contention in WAL
 - [#3574](https://github.com/influxdb/influxdb/issues/3574): Querying data node causes panic
 - [#3913](https://github.com/influxdb/influxdb/issues/3913): Convert meta shard owners to objects
+- [#3927](https://github.com/influxdb/influxdb/issues/3927): Add WAL lock to prevent timing lock contention
 
 ## v0.9.3 [2015-08-26]
 
