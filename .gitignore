@@ -69,3 +69,6 @@ integration/migration_data/
 
 # goconvey config files
 *.goconvey
+
+// Ingnore SourceGraph directory
+.srclib-store/
