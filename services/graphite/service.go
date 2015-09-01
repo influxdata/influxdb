@@ -2,6 +2,7 @@ package graphite
 
 import (
 	"bufio"
+	"expvar"
 	"fmt"
 	"log"
 	"math"
@@ -13,12 +14,38 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
 	udpBufferSize     = 65536
 	leaderWaitTimeout = 30 * time.Second
+)
+
+// expvar stats maintained by the Graphite package.
+var monitorOnce sync.Once
+var statMap = expvar.NewMap("graphite")
+var statMapTCP = expvar.NewMap("tcp")
+var statMapUDP = expvar.NewMap("udp")
+
+// Build the graphite expvar hierarchy.
+func init() {
+	statMap.Set("tcp", statMapTCP)
+	statMap.Set("udp", statMapUDP)
+}
+
+// statistics gathered by the graphite package.
+const (
+	statPointsReceived      = "points_rx"
+	statBytesReceived       = "bytes_rx"
+	statPointsParseFail     = "points_parse_fail"
+	statPointsUnsupported   = "points_unsupported_fail"
+	statBatchesTrasmitted   = "batches_tx"
+	statPointsTransmitted   = "points_tx"
+	statBatchesTransmitFail = "batches_tx_fail"
+	statConnectionsActive   = "connections_active"
+	statConnectionsHandled  = "connections_handled"
 )
 
 type Service struct {
@@ -32,7 +59,8 @@ type Service struct {
 	batcher *tsdb.PointBatcher
 	parser  *Parser
 
-	logger *log.Logger
+	logger  *log.Logger
+	statMap *expvar.Map
 
 	ln   net.Listener
 	addr net.Addr
@@ -40,6 +68,9 @@ type Service struct {
 	wg   sync.WaitGroup
 	done chan struct{}
 
+	MonitorService interface {
+		Register(name string, tags map[string]string, client monitor.Client) error
+	}
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
@@ -86,6 +117,20 @@ func NewService(c Config) (*Service, error) {
 // Open starts the Graphite input processing data.
 func (s *Service) Open() error {
 	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
+
+	// One Graphite service hooks up monitoring for all Graphite functionality.
+	monitorOnce.Do(func() {
+		if s.MonitorService == nil {
+			s.logger.Println("no monitor service available, no monitoring will be performed")
+			return
+		}
+
+		t := monitor.NewMonitorClient(statMapTCP)
+		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
+
+		u := monitor.NewMonitorClient(statMapUDP)
+		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
+	})
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
 		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
@@ -151,6 +196,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 	}
 	s.ln = ln
 
+	// Point at the TCP stats.
+	s.statMap = statMapTCP
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -176,6 +224,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 func (s *Service) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
+	defer s.statMap.Add(statConnectionsActive, -1)
+	s.statMap.Add(statConnectionsActive, 1)
+	s.statMap.Add(statConnectionsHandled, 1)
 
 	reader := bufio.NewReader(conn)
 
@@ -189,6 +240,8 @@ func (s *Service) handleTCPConnection(conn net.Conn) {
 		// Trim the buffer, even though there should be no padding
 		line := strings.TrimSpace(string(buf))
 
+		s.statMap.Add(statPointsReceived, 1)
+		s.statMap.Add(statBytesReceived, int64(len(buf)))
 		s.handleLine(line)
 	}
 }
@@ -205,6 +258,9 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 		return nil, err
 	}
 
+	// Point at the UDP stats.
+	s.statMap = statMapUDP
+
 	buf := make([]byte, udpBufferSize)
 	s.wg.Add(1)
 	go func() {
@@ -215,9 +271,13 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 				conn.Close()
 				return
 			}
-			for _, line := range strings.Split(string(buf[:n]), "\n") {
+
+			lines := strings.Split(string(buf[:n]), "\n")
+			for _, line := range lines {
 				s.handleLine(line)
 			}
+			s.statMap.Add(statPointsReceived, int64(len(lines)))
+			s.statMap.Add(statBytesReceived, int64(n))
 		}
 	}()
 	return conn.LocalAddr(), nil
@@ -227,10 +287,12 @@ func (s *Service) handleLine(line string) {
 	if line == "" {
 		return
 	}
+
 	// Parse it.
 	point, err := s.parser.Parse(line)
 	if err != nil {
 		s.logger.Printf("unable to parse line: %s", err)
+		s.statMap.Add(statPointsParseFail, 1)
 		return
 	}
 
@@ -239,6 +301,7 @@ func (s *Service) handleLine(line string) {
 		// Drop NaN and +/-Inf data points since they are not supported values
 		if math.IsNaN(f) || math.IsInf(f, 0) {
 			s.logger.Printf("dropping unsupported value: '%v'", line)
+			s.statMap.Add(statPointsUnsupported, 1)
 			return
 		}
 	}
@@ -257,9 +320,14 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				RetentionPolicy:  "",
 				ConsistencyLevel: s.consistencyLevel,
 				Points:           batch,
-			}); err != nil {
+			}); err == nil {
+				s.statMap.Add(statBatchesTrasmitted, 1)
+				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
+			} else {
 				s.logger.Printf("failed to write point batch to database %q: %s", s.database, err)
+				s.statMap.Add(statBatchesTransmitFail, 1)
 			}
+
 		case <-s.done:
 			return
 		}
