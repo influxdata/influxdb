@@ -8,6 +8,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,8 +38,29 @@ type monitorClient struct {
 	ep *expvar.Map
 }
 
-func (m monitorClient) Statistics() (*expvar.Map, error) {
-	return m.ep, nil
+func (m monitorClient) Statistics() (map[string]interface{}, error) {
+	values := make(map[string]interface{})
+	m.ep.Do(func(kv expvar.KeyValue) {
+		var f interface{}
+		var err error
+		switch v := kv.Value.(type) {
+		case *expvar.Float:
+			f, err = strconv.ParseFloat(v.String(), 64)
+			if err != nil {
+				return
+			}
+		case *expvar.Int:
+			f, err = strconv.ParseUint(v.String(), 10, 64)
+			if err != nil {
+				return
+			}
+		default:
+			return
+		}
+		values[kv.Key] = f
+	})
+
+	return values, nil
 }
 
 func (m monitorClient) Diagnostics() (map[string]interface{}, error) {

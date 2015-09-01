@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"expvar"
 	"fmt"
 	"log"
 	"net"
@@ -9,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -18,7 +16,7 @@ import (
 
 // Client is the interface modules must implement if they wish to register with monitor.
 type Client interface {
-	Statistics() (*expvar.Map, error)
+	Statistics() (map[string]interface{}, error)
 	Diagnostics() (map[string]interface{}, error)
 }
 
@@ -224,35 +222,11 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 func (s *Service) statistics() ([]*statistic, error) {
 	statistics := make([]*statistic, len(s.registrations))
 	for i, r := range s.registrations {
-		values := make(map[string]interface{}, 0)
-		ep, err := r.Client.Statistics()
+		stats, err := r.Client.Statistics()
 		if err != nil {
 			continue
 		}
-
-		ep.Do(func(kv expvar.KeyValue) {
-			var f interface{}
-			var err error
-			switch v := kv.Value.(type) {
-			case *expvar.Float:
-				f, err = strconv.ParseFloat(v.String(), 64)
-				if err != nil {
-					return
-				}
-			case *expvar.Int:
-				f, err = strconv.ParseUint(v.String(), 10, 64)
-				if err != nil {
-					return
-				}
-			default:
-				return
-			}
-			values[kv.Key] = f
-		})
-
-		a := newStatistic(r.name, r.tags, values)
-
-		statistics[i] = a
+		statistics[i] = newStatistic(r.name, r.tags, stats)
 	}
 	return statistics, nil
 }
