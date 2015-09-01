@@ -22,6 +22,7 @@ type Client interface {
 	Diagnostics() (map[string]interface{}, error)
 }
 
+// Service represents an instance of the monitor service.
 type Service struct {
 	wg            sync.WaitGroup
 	done          chan struct{}
@@ -42,6 +43,7 @@ type Service struct {
 	Logger *log.Logger
 }
 
+// NewService returns a new instance of the monitor service.
 func NewService(c Config) *Service {
 	return &Service{
 		registrations: make([]*clientWithMeta, 0),
@@ -69,6 +71,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	if s.storeEnabled {
 		s.Logger.Printf("storing in %s, database '%s', interval %s",
 			s.storeAddress, s.storeDatabase, s.storeInterval)
+
 		// Ensure database exists.
 		values := url.Values{}
 		values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", s.storeDatabase))
@@ -94,6 +97,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 						s.Logger.Printf("failed to write statistics to %s: %s", s.storeAddress, err.Error())
 					}
 				case <-s.done:
+					s.Logger.Printf("terminating storage of statistics to %s", s.storeAddress)
 					return
 				}
 
@@ -116,6 +120,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	return nil
 }
 
+// Close closes the monitor service.
 func (s *Service) Close() {
 	s.Logger.Println("shutting down monitor service")
 	close(s.done)
@@ -142,6 +147,7 @@ func (s *Service) Register(name string, tags map[string]string, client Client) e
 	return nil
 }
 
+// ExecuteStatement executes monitor-related query statements.
 func (s *Service) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	switch stmt := stmt.(type) {
 	case *influxql.ShowStatsStatement:
@@ -151,6 +157,8 @@ func (s *Service) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	}
 }
 
+// executeShowStatistics returns the statistics of the registered monitor client in
+// the standard form expected by users of the InfluxDB system.
 func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxql.Result {
 	stats, _ := s.statistics()
 	rows := make([]*influxql.Row, len(stats))
@@ -176,6 +184,7 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 	return &influxql.Result{Series: rows}
 }
 
+// statistics returns the combined statistics for all registered clients.
 func (s *Service) statistics() ([]*statistic, error) {
 	statistics := make([]*statistic, len(s.registrations))
 	for i, r := range s.registrations {
@@ -188,6 +197,7 @@ func (s *Service) statistics() ([]*statistic, error) {
 	return statistics, nil
 }
 
+// storeStatistics writes the statistics to an InfluxDB system.
 func (s *Service) storeStatistics() error {
 	// XXX add tags such as local hostname and cluster ID
 	//a.Tags["clusterID"] = strconv.FormatUint(s.clusterID, 10)
@@ -196,12 +206,14 @@ func (s *Service) storeStatistics() error {
 	return nil
 }
 
+// statistic represents the information returned by a single monitor client.
 type statistic struct {
 	Name   string
 	Tags   map[string]string
 	Values map[string]interface{}
 }
 
+// newStatistic returns a new statistic object. It ensures that tags are always non-nil.
 func newStatistic(name string, tags map[string]string, values map[string]interface{}) *statistic {
 	var a map[string]string
 
@@ -218,6 +230,7 @@ func newStatistic(name string, tags map[string]string, values map[string]interfa
 	}
 }
 
+// tagNames returns a sorted list of the tag names, if any.
 func (s *statistic) tagNames() []string {
 	a := make([]string, 0, len(s.Tags))
 	for k, _ := range s.Tags {
@@ -227,6 +240,7 @@ func (s *statistic) tagNames() []string {
 	return a
 }
 
+// valueNames returns a sorted list of the value names, if any.
 func (s *statistic) valueNames() []string {
 	a := make([]string, 0, len(s.Values))
 	for k, _ := range s.Values {
@@ -236,20 +250,25 @@ func (s *statistic) valueNames() []string {
 	return a
 }
 
+// clientWithMeta wraps a registered client with its associated name and tags.
 type clientWithMeta struct {
 	Client
 	name string
 	tags map[string]string
 }
 
+// MonitorClient wraps a *expvar.Map so that it implements the Client interface. It is for
+// use by external packages that just record stats in an expvar.Map type.
 type MonitorClient struct {
 	ep *expvar.Map
 }
 
+// NewMonitorClient returns a new MonitorClient using the given expvar.Map.
 func NewMonitorClient(ep *expvar.Map) *MonitorClient {
 	return &MonitorClient{ep: ep}
 }
 
+// Statistics implements the Client interface for a MonitorClient.
 func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 	values := make(map[string]interface{})
 	m.ep.Do(func(kv expvar.KeyValue) {
@@ -275,6 +294,7 @@ func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 	return values, nil
 }
 
+// Diagnostics implements the Client interface for a MonitorClient.
 func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
 }
