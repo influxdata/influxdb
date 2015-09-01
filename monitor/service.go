@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -21,13 +22,13 @@ type Client interface {
 	Diagnostics() (map[string]interface{}, error)
 }
 
-type Statistic struct {
+type statistic struct {
 	Name   string
 	Tags   map[string]string
 	Values map[string]float64
 }
 
-func newStatistic(name string, tags map[string]string, values map[string]float64) *Statistic {
+func newStatistic(name string, tags map[string]string, values map[string]float64) *statistic {
 	var a map[string]string
 
 	if tags == nil {
@@ -36,11 +37,29 @@ func newStatistic(name string, tags map[string]string, values map[string]float64
 		a = tags
 	}
 
-	return &Statistic{
+	return &statistic{
 		Name:   name,
 		Tags:   a,
 		Values: values,
 	}
+}
+
+func (s *statistic) tagNames() []string {
+	a := make([]string, 0, len(s.Tags))
+	for k, _ := range s.Tags {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
+}
+
+func (s *statistic) valueNames() []string {
+	a := make([]string, 0, len(s.Values))
+	for k, _ := range s.Values {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
 }
 
 type clientWithMeta struct {
@@ -183,21 +202,27 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 
 	for n, stat := range stats {
 		row := &influxql.Row{}
-		for k, v := range stat.Tags {
+		values := make([]interface{}, 0, len(stat.Tags)+len(stat.Values))
+
+		row.Columns = append(row.Columns, "name")
+		values = append(values, stat.Name)
+
+		for _, k := range stat.tagNames() {
 			row.Columns = append(row.Columns, k)
-			row.Values = append(row.Values, []interface{}{v})
+			values = append(values, stat.Tags[k])
 		}
-		for k, v := range stat.Values {
+		for _, k := range stat.valueNames() {
 			row.Columns = append(row.Columns, k)
-			row.Values = append(row.Values, []interface{}{v})
+			values = append(values, stat.Values)
 		}
+		row.Values = [][]interface{}{values}
 		rows[n] = row
 	}
 	return &influxql.Result{Series: rows}
 }
 
-func (s *Service) statistics() ([]*Statistic, error) {
-	statistics := make([]*Statistic, len(s.registrations))
+func (s *Service) statistics() ([]*statistic, error) {
+	statistics := make([]*statistic, len(s.registrations))
 	for i, r := range s.registrations {
 		values := make(map[string]float64, 0)
 		ep, err := r.Client.Statistics()
