@@ -57,7 +57,7 @@ func NewService(c Config) *Service {
 // Open opens the monitoring service, using the given clusterID, node ID, and hostname
 // for identification purposes.
 func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
-	s.Logger.Printf("starting monitor service for cluster %s, host %s", clusterID, hostname)
+	s.Logger.Printf("starting monitor service for cluster %d, host %s", clusterID, hostname)
 	s.clusterID = clusterID
 	s.nodeID = nodeID
 	s.hostname = hostname
@@ -71,10 +71,10 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 			s.storeAddress, s.storeDatabase, s.storeInterval)
 		// Ensure database exists.
 		values := url.Values{}
-		values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %d", s.storeDatabase))
+		values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", s.storeDatabase))
 		resp, err := http.Get(s.storeAddress + "/query?" + values.Encode())
 		if err != nil {
-			return fmt.Errorf("failed to create monitoring database on %s:", s.storeAddress, err.Error())
+			return fmt.Errorf("failed to create monitoring database on %s: %s", s.storeAddress, err.Error())
 		}
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("failed to create monitoring database on %s, received code: %d",
@@ -111,7 +111,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 		go func() {
 			http.Serve(listener, nil)
 		}()
-		s.Logger.Println("expvar information available on %s", s.expvarAddress)
+		s.Logger.Printf("expvar information available on %s", s.expvarAddress)
 	}
 	return nil
 }
