@@ -197,7 +197,6 @@ func (s *Service) storeStatistics() {
 		}
 
 	}
-	return
 }
 
 // statistic represents the information returned by a single monitor client.

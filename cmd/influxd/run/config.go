@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
@@ -35,6 +36,7 @@ type Config struct {
 	Precreator precreator.Config `toml:"shard-precreation"`
 
 	Admin     admin.Config      `toml:"admin"`
+	Monitor   monitor.Config    `toml:"monitor"`
 	HTTPD     httpd.Config      `toml:"http"`
 	Graphites []graphite.Config `toml:"graphite"`
 	Collectd  collectd.Config   `toml:"collectd"`
@@ -59,6 +61,7 @@ func NewConfig() *Config {
 	c.Precreator = precreator.NewConfig()
 
 	c.Admin = admin.NewConfig()
+	c.Monitor = monitor.NewConfig()
 	c.HTTPD = httpd.NewConfig()
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
