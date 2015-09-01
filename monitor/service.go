@@ -108,7 +108,8 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	s.nodeID = nodeID
 	s.hostname = hostname
 
-	s.Register("memstats", nil, &goRuntime{})
+	// Self-register Go runtime stats.
+	s.Register("runtime", nil, &goRuntime{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
