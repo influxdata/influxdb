@@ -108,7 +108,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			},
 		}
 
-		_, err := InitializeMapFunc(c)
+		_, err := initializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
@@ -122,7 +122,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			},
 		}
 
-		_, err = InitializeMapFunc(c)
+		_, err = initializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
