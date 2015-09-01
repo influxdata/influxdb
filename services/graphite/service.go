@@ -8,7 +8,6 @@ import (
 	"math"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,39 +31,6 @@ var epUDP = expvar.NewMap("udp")
 func init() {
 	ep.Set("tcp", epTCP)
 	ep.Set("udp", epUDP)
-}
-
-type monitorClient struct {
-	ep *expvar.Map
-}
-
-func (m monitorClient) Statistics() (map[string]interface{}, error) {
-	values := make(map[string]interface{})
-	m.ep.Do(func(kv expvar.KeyValue) {
-		var f interface{}
-		var err error
-		switch v := kv.Value.(type) {
-		case *expvar.Float:
-			f, err = strconv.ParseFloat(v.String(), 64)
-			if err != nil {
-				return
-			}
-		case *expvar.Int:
-			f, err = strconv.ParseUint(v.String(), 10, 64)
-			if err != nil {
-				return
-			}
-		default:
-			return
-		}
-		values[kv.Key] = f
-	})
-
-	return values, nil
-}
-
-func (m monitorClient) Diagnostics() (map[string]interface{}, error) {
-	return nil, nil
 }
 
 const (
@@ -153,10 +119,10 @@ func (s *Service) Open() error {
 
 	// One Graphite service hooks up monitoring for all Graphite functionality.
 	epOnce.Do(func() {
-		t := monitorClient{ep: epTCP}
+		t := monitor.NewMonitorClient(epTCP)
 		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
 
-		u := monitorClient{ep: epUDP}
+		u := monitor.NewMonitorClient(epUDP)
 		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
 	})
 

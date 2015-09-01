@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"expvar"
 	"fmt"
 	"log"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -237,4 +239,41 @@ func (s *Service) storeStatistics() error {
 	//a.Tags["nodeID"] = strconv.FormatUint(s.nodeID, 10)
 	//a.Tags["hostname"] = s.hostname
 	return nil
+}
+
+type MonitorClient struct {
+	ep *expvar.Map
+}
+
+func NewMonitorClient(ep *expvar.Map) *MonitorClient {
+	return &MonitorClient{ep: ep}
+}
+
+func (m MonitorClient) Statistics() (map[string]interface{}, error) {
+	values := make(map[string]interface{})
+	m.ep.Do(func(kv expvar.KeyValue) {
+		var f interface{}
+		var err error
+		switch v := kv.Value.(type) {
+		case *expvar.Float:
+			f, err = strconv.ParseFloat(v.String(), 64)
+			if err != nil {
+				return
+			}
+		case *expvar.Int:
+			f, err = strconv.ParseUint(v.String(), 10, 64)
+			if err != nil {
+				return
+			}
+		default:
+			return
+		}
+		values[kv.Key] = f
+	})
+
+	return values, nil
+}
+
+func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
+	return nil, nil
 }
