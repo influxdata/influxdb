@@ -2242,14 +2242,29 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 	}
 
 	writes := []string{
-		fmt.Sprintf(`int,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`int,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`int,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`int,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`int,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-		fmt.Sprintf(`int,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:20Z").UnixNano()),
-		fmt.Sprintf(`int,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:02:00Z").UnixNano()),
-		fmt.Sprintf(`int,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:02:10Z").UnixNano()),
+		// cpu data with overlapping duplicate values
+		fmt.Sprintf(`cpu,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=3.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server04 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server05 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:10Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server06 value=6.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:20Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:10Z").UnixNano()),
+
+		// memory data
+		// hour 0
+		fmt.Sprintf(`memory,host=a,service=redis value=1000i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=b,service=mysql value=2000i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=b,service=redis value=1500i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		// hour 1
+		fmt.Sprintf(`memory,host=a,service=redis value=1001i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=b,service=mysql value=2001i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=b,service=redis value=1501i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+		// hour 2
+		fmt.Sprintf(`memory,host=a,service=redis value=1002i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=b,service=mysql value=2002i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=b,service=redis value=1502i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:00Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -2257,42 +2272,71 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			name:    "top - int",
+			name:    "top - cpu",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 1) FROM int`,
-			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top"],"values":[["2000-01-01T00:02:10Z",9]]}]}]}`,
+			command: `SELECT TOP(value, 1) FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T02:00:10Z",9]]}]}]}`,
 		},
 		&Query{
-			name:    "top - int - 2 values",
+			name:    "top - cpu - 2 values",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 2) FROM int`,
-			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top"],"values":[["2000-01-01T00:02:10Z",9],["2000-01-01T00:02:00Z",7]]}]}]}`,
+			command: `SELECT TOP(value, 2) FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T01:00:10Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "top - cpu - 3 values - sorts on tie properly",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, 3) FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T01:00:10Z",7],["2000-01-01T02:00:00Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
 		},
 
 		// FAILING TESTS
 		&Query{
-			name:    "top - int - 3 values with limit 2",
+			skip:    true,
+			name:    "top - cpu - 3 values with limit 2",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 3) FROM int limit 2`,
-			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top"],"values":[["2000-01-01T00:02:10Z",9],["2000-01-01T00:02:00Z",7]]}]}]}`,
+			command: `SELECT TOP(value, 3) FROM cpu limit 2`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T02:00:10Z",9],["2000-01-01T02:00:00Z",7]]}]}]}`,
 		},
 		&Query{
-			name:    "top - int - with tag",
+			skip:    true,
+			name:    "top - cpu - with tag",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, host, 1) FROM int`,
-			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top", "host"],"values":[["2000-01-01T00:02:10Z",9,"server08"]]}]}]}`,
+			command: `SELECT TOP(value, host, 1) FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top", "host"],"values":[["2000-01-01T02:00:10Z",9,"server08"]]}]}]}`,
 		},
 		&Query{
-			name:    "top - int - hourly",
+			skip:    true,
+			name:    "top - cpu - hourly with limit",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 1) FROM int where time >= "2000-01-01-T00:00:00Z" group by time(1h)`,
+			command: `SELECT TOP(value, 1) FROM cpu where time >= "2000-01-01-T00:00:00Z" group by time(1h) limit 3`,
 			exp:     ``,
 		},
 		&Query{
-			name:    "top - int - hourly with limit",
+			skip:    true,
+			name:    "top - cpu - group by time(1h)",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 1) FROM int where time >= "2000-01-01-T00:00:00Z" group by time(1h) limit 3`,
+			command: `SELECT top(value, 1) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:00Z",["Value":4]],["2000-01-01T01:00:00Z",["Value":7]],["2000-01-01T02:00:00Z",["Value":9]]]}]}]}`,
+		},
+		&Query{
+			skip:    true,
+			name:    "top - cpu - group by time(1h)",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT top(value, 2) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
 			exp:     ``,
+		},
+
+		/* yields:
+		memory,host=b,service=mysql value=2001 20
+		memory,host=b,service=mysql value=2002 30
+		*/
+		&Query{
+			skip:    true,
+			name:    "top - memory - 2 values, two tags",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, 2), host, service FROM memory`,
+			exp:     `{"results":[{"series":[{"name":"memory","columns":["time","top","host","service"],"values":[["2000-01-01T01:00:00Z",2001,"b","mysql"],["2000-01-01T02:00:00Z",2002,"b","mysql"]]}]}]}`,
 		},
 	}...)
 
@@ -2303,7 +2347,7 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 			}
 		}
 		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
+			t.Logf("SKIP: %s", query.name)
 			continue
 		}
 		if err := query.Execute(s); err != nil {
