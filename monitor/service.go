@@ -25,10 +25,10 @@ type Client interface {
 type statistic struct {
 	Name   string
 	Tags   map[string]string
-	Values map[string]float64
+	Values map[string]interface{}
 }
 
-func newStatistic(name string, tags map[string]string, values map[string]float64) *statistic {
+func newStatistic(name string, tags map[string]string, values map[string]interface{}) *statistic {
 	var a map[string]string
 
 	if tags == nil {
@@ -213,7 +213,7 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 		}
 		for _, k := range stat.valueNames() {
 			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Values)
+			values = append(values, stat.Values[k])
 		}
 		row.Values = [][]interface{}{values}
 		rows[n] = row
@@ -224,22 +224,30 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 func (s *Service) statistics() ([]*statistic, error) {
 	statistics := make([]*statistic, len(s.registrations))
 	for i, r := range s.registrations {
-		values := make(map[string]float64, 0)
+		values := make(map[string]interface{}, 0)
 		ep, err := r.Client.Statistics()
 		if err != nil {
 			continue
 		}
 
 		ep.Do(func(kv expvar.KeyValue) {
-			f, ok := kv.Value.(*expvar.Float)
-			if !ok {
+			var f interface{}
+			var err error
+			switch v := kv.Value.(type) {
+			case *expvar.Float:
+				f, err = strconv.ParseFloat(v.String(), 64)
+				if err != nil {
+					return
+				}
+			case *expvar.Int:
+				f, err = strconv.ParseUint(v.String(), 10, 64)
+				if err != nil {
+					return
+				}
+			default:
 				return
 			}
-			v, err := strconv.ParseFloat(f.String(), 64)
-			if err != nil {
-				return
-			}
-			values[kv.Key] = v
+			values[kv.Key] = f
 		})
 
 		a := newStatistic(r.name, r.tags, values)
