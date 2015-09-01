@@ -2278,6 +2278,13 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 			command: `SELECT TOP(value, 2) FROM intmany`,
 			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","top"],"values":[["2000-01-01T00:01:10Z",9],["2000-01-01T00:01:00Z",7]]}]}]}`,
 		},
+		&Query{
+			skip:    true,
+			name:    "top - int - with tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, host, 1) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","top", "host"],"values":[["2000-01-01T00:01:10Z",9,"server08"]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
