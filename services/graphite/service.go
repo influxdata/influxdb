@@ -119,6 +119,11 @@ func (s *Service) Open() error {
 
 	// One Graphite service hooks up monitoring for all Graphite functionality.
 	epOnce.Do(func() {
+		if s.MonitorService == nil {
+			s.logger.Println("no monitor service available, no monitoring will be performed")
+			return
+		}
+
 		t := monitor.NewMonitorClient(epTCP)
 		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
 
