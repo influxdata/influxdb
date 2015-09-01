@@ -68,6 +68,7 @@ type Service struct {
 	parser  *Parser
 
 	logger *log.Logger
+	ep     *expvar.Map
 
 	ln   net.Listener
 	addr net.Addr
@@ -130,9 +131,6 @@ func (s *Service) Open() error {
 
 	// One Graphite service hooks up monitoring for all Graphite functionality.
 	epOnce.Do(func() {
-		g := monitorClient{ep: ep}
-		s.MonitorService.Register("graphite", nil, g)
-
 		t := monitorClient{ep: epTCP}
 		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
 
@@ -204,6 +202,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 	}
 	s.ln = ln
 
+	// Point at the TCP stats.
+	s.ep = epTCP
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -229,9 +230,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 func (s *Service) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
-	defer epTCP.Add(EP_CONNECTIONS_ACTIVE, -1)
-	epTCP.Add(EP_CONNECTIONS_ACTIVE, 1)
-	epTCP.Add(EP_CONNECTIONS_HANDLED, 1)
+	defer s.ep.Add(EP_CONNECTIONS_ACTIVE, -1)
+	s.ep.Add(EP_CONNECTIONS_ACTIVE, 1)
+	s.ep.Add(EP_CONNECTIONS_HANDLED, 1)
 
 	reader := bufio.NewReader(conn)
 
@@ -245,8 +246,8 @@ func (s *Service) handleTCPConnection(conn net.Conn) {
 		// Trim the buffer, even though there should be no padding
 		line := strings.TrimSpace(string(buf))
 
-		epTCP.Add(EP_POINTS_RECEIVED, 1)
-		epTCP.Add(EP_BYTES_RECEIVED, int64(len(buf)))
+		s.ep.Add(EP_POINTS_RECEIVED, 1)
+		s.ep.Add(EP_BYTES_RECEIVED, int64(len(buf)))
 		s.handleLine(line)
 	}
 }
@@ -263,6 +264,9 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 		return nil, err
 	}
 
+	// Point at the UDP stats.
+	s.ep = epUDP
+
 	buf := make([]byte, udpBufferSize)
 	s.wg.Add(1)
 	go func() {
@@ -278,8 +282,8 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 			for _, line := range lines {
 				s.handleLine(line)
 			}
-			epUDP.Add(EP_POINTS_RECEIVED, int64(len(lines)))
-			epUDP.Add(EP_BYTES_RECEIVED, int64(n))
+			s.ep.Add(EP_POINTS_RECEIVED, int64(len(lines)))
+			s.ep.Add(EP_BYTES_RECEIVED, int64(n))
 		}
 	}()
 	return conn.LocalAddr(), nil
@@ -316,7 +320,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		select {
 		case batch := <-batcher.Out():
 			if s.writeSkip {
-				ep.Add(EP_BATCHES_SKIPPED, 1)
+				s.ep.Add(EP_BATCHES_SKIPPED, 1)
 				continue
 			}
 			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
@@ -325,11 +329,11 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				ConsistencyLevel: s.consistencyLevel,
 				Points:           batch,
 			}); err == nil {
-				ep.Add(EP_BATCHES_TRANSMITTED, 1)
-				ep.Add(EP_POINTS_TRANSMITTED, int64(len(batch)))
+				s.ep.Add(EP_BATCHES_TRANSMITTED, 1)
+				s.ep.Add(EP_POINTS_TRANSMITTED, int64(len(batch)))
 			} else {
 				s.logger.Printf("failed to write point batch to database %q: %s", s.database, err)
-				ep.Add(EP_BATCHES_TRANSMIT_FAIL, 1)
+				s.ep.Add(EP_BATCHES_TRANSMIT_FAIL, 1)
 			}
 
 		case <-s.done:
