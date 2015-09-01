@@ -78,7 +78,7 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 		Name: "percentile",
 		Args: []influxql.Expr{},
 	}
-	_, err := InitializeMapFunc(c)
+	_, err := initializeMapFunc(c)
 	if err == nil {
 		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
 	}
@@ -95,7 +95,7 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 		},
 	}
 
-	_, err = InitializeMapFunc(c)
+	_, err = initializeMapFunc(c)
 	if err == nil {
 		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
 	}
@@ -114,7 +114,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			Args: []influxql.Expr{},
 		}
 
-		_, err := InitializeMapFunc(c)
+		_, err := initializeMapFunc(c)
 		if err == nil {
 			t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
 		}
@@ -128,7 +128,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			},
 		}
 
-		_, err = InitializeMapFunc(c)
+		_, err = initializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
@@ -142,7 +142,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			},
 		}
 
-		_, err = InitializeMapFunc(c)
+		_, err = initializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
@@ -155,7 +155,7 @@ func TestInitializeReduceFuncPercentile(t *testing.T) {
 		Name: "percentile",
 		Args: []influxql.Expr{},
 	}
-	_, err := InitializeReduceFunc(c)
+	_, err := initializeReduceFunc(c)
 	if err == nil {
 		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
 	}
@@ -172,7 +172,7 @@ func TestInitializeReduceFuncPercentile(t *testing.T) {
 		},
 	}
 
-	_, err = InitializeReduceFunc(c)
+	_, err = initializeReduceFunc(c)
 	if err == nil {
 		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
 	}

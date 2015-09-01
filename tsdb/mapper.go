@@ -63,7 +63,7 @@ type SelectMapper struct {
 	intervalSize    int64              // Size of each interval.
 	numIntervals    int                // Maximum number of intervals to return.
 	currInterval    int                // Current interval for which data is being fetched.
-	mapFuncs        []MapFunc // The mapping functions.
+	mapFuncs        []mapFunc // The mapping functions.
 	fieldNames      []string           // the field name being read for mapping.
 }
 
@@ -445,10 +445,10 @@ func (lm *SelectMapper) initializeMapFunctions() error {
 	var err error
 	// Set up each mapping function for this statement.
 	aggregates := lm.selectStmt.FunctionCalls()
-	lm.mapFuncs = make([]MapFunc, len(aggregates))
+	lm.mapFuncs = make([]mapFunc, len(aggregates))
 	lm.fieldNames = make([]string, len(lm.mapFuncs))
 	for i, c := range aggregates {
-		lm.mapFuncs[i], err = InitializeMapFunc(c)
+		lm.mapFuncs[i], err = initializeMapFunc(c)
 		if err != nil {
 			return err
 		}
