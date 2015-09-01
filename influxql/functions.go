@@ -1086,77 +1086,32 @@ type positionOut struct {
 	callArgs []string // ordered args in the call
 }
 
-type PositionPoints []positionPoint
-type positionPoint struct {
-	Time  int64
-	Value interface{}
-	Tags  map[string]string
+func (p *positionOut) lessKey(i, j int) bool {
+	t1, t2 := p.points[i].Tags, p.points[j].Tags
+	for _, k := range p.callArgs {
+		if t1[k] != t2[k] {
+			return t1[k] < t2[k]
+		}
+	}
+	return false
 }
 
-func (t positionOut) Len() int      { return len(t.points) }
-func (t positionOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
-
-// Less is actuall more due to it having to sort in reverse
-// We can't use sort.Reverse due to special case of time is ALWAYS less, but top is always more
-func (t positionOut) Less(i, j int) bool {
-
-	lessKey := func() bool {
-		t1, t2 := t.points[i].Tags, t.points[j].Tags
-		for _, k := range t.callArgs {
-			if t1[k] != t2[k] {
-				return t1[k] < t2[k]
-			}
-		}
-		return false
-	}
-
-	sortFloat := func(d1, d2 float64) bool {
-		if d1 != d2 {
-			return d1 > d2
-		}
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		return lessKey()
-	}
-
-	sortInt64 := func(d1, d2 int64) bool {
-		if d1 != d2 {
-			return d1 > d2
-		}
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		return lessKey()
-	}
-
-	sortUint64 := func(d1, d2 uint64) bool {
-		if d1 != d2 {
-			return d1 > d2
-		}
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		return lessKey()
-	}
+func (p *positionOut) less(i, j int, sortFloat func(d1, d2 float64) bool, sortInt64 func(d1, d2 int64) bool, sortUint64 func(d1, d2 uint64) bool) bool {
 
 	// Sort by type if types match
 
 	// Sort by float64/int64 first as that is the most likely match
 	{
-		d1, ok1 := t.points[i].Value.(float64)
-		d2, ok2 := t.points[j].Value.(float64)
+		d1, ok1 := p.points[i].Value.(float64)
+		d2, ok2 := p.points[j].Value.(float64)
 		if ok1 && ok2 {
 			return sortFloat(d1, d2)
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(int64)
-		d2, ok2 := t.points[j].Value.(int64)
+		d1, ok1 := p.points[i].Value.(int64)
+		d2, ok2 := p.points[j].Value.(int64)
 		if ok1 && ok2 {
 			return sortInt64(d1, d2)
 		}
@@ -1164,80 +1119,80 @@ func (t positionOut) Less(i, j int) bool {
 
 	// Sort by every numeric type left
 	{
-		d1, ok1 := t.points[i].Value.(float32)
-		d2, ok2 := t.points[j].Value.(float32)
+		d1, ok1 := p.points[i].Value.(float32)
+		d2, ok2 := p.points[j].Value.(float32)
 		if ok1 && ok2 {
 			return sortFloat(float64(d1), float64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(uint64)
-		d2, ok2 := t.points[j].Value.(uint64)
+		d1, ok1 := p.points[i].Value.(uint64)
+		d2, ok2 := p.points[j].Value.(uint64)
 		if ok1 && ok2 {
 			return sortUint64(d1, d2)
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(uint32)
-		d2, ok2 := t.points[j].Value.(uint32)
+		d1, ok1 := p.points[i].Value.(uint32)
+		d2, ok2 := p.points[j].Value.(uint32)
 		if ok1 && ok2 {
 			return sortUint64(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(uint16)
-		d2, ok2 := t.points[j].Value.(uint16)
+		d1, ok1 := p.points[i].Value.(uint16)
+		d2, ok2 := p.points[j].Value.(uint16)
 		if ok1 && ok2 {
 			return sortUint64(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(uint8)
-		d2, ok2 := t.points[j].Value.(uint8)
+		d1, ok1 := p.points[i].Value.(uint8)
+		d2, ok2 := p.points[j].Value.(uint8)
 		if ok1 && ok2 {
 			return sortUint64(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(int32)
-		d2, ok2 := t.points[j].Value.(int32)
+		d1, ok1 := p.points[i].Value.(int32)
+		d2, ok2 := p.points[j].Value.(int32)
 		if ok1 && ok2 {
 			return sortInt64(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(int16)
-		d2, ok2 := t.points[j].Value.(int16)
+		d1, ok1 := p.points[i].Value.(int16)
+		d2, ok2 := p.points[j].Value.(int16)
 		if ok1 && ok2 {
 			return sortInt64(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(int8)
-		d2, ok2 := t.points[j].Value.(int8)
+		d1, ok1 := p.points[i].Value.(int8)
+		d2, ok2 := p.points[j].Value.(int8)
 		if ok1 && ok2 {
 			return sortInt64(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(bool)
-		d2, ok2 := t.points[j].Value.(bool)
+		d1, ok1 := p.points[i].Value.(bool)
+		d2, ok2 := p.points[j].Value.(bool)
 		if ok1 && ok2 {
 			return d1 == true && d2 == false
 		}
 	}
 
 	{
-		d1, ok1 := t.points[i].Value.(string)
-		d2, ok2 := t.points[j].Value.(string)
+		d1, ok1 := p.points[i].Value.(string)
+		d2, ok2 := p.points[j].Value.(string)
 		if ok1 && ok2 {
 			return d1 < d2
 		}
@@ -1281,8 +1236,8 @@ func (t positionOut) Less(i, j int) bool {
 		panic("interfaceValues.Less - unreachable code")
 	}
 
-	w1, n1 := infer(t.points[i].Value)
-	w2, n2 := infer(t.points[j].Value)
+	w1, n1 := infer(p.points[i].Value)
+	w2, n2 := infer(p.points[j].Value)
 
 	// If we had "numeric" data, use that for comparison
 	if (w1 == floatWeight || w1 == intWeight) && (w2 == floatWeight || w2 == intWeight) {
@@ -1290,6 +1245,99 @@ func (t positionOut) Less(i, j int) bool {
 	}
 
 	return w1 < w2
+
+}
+
+type PositionPoints []positionPoint
+type positionPoint struct {
+	Time  int64
+	Value interface{}
+	Tags  map[string]string
+}
+
+type topMapOut struct {
+	positionOut
+}
+
+func (t topMapOut) Len() int      { return len(t.points) }
+func (t topMapOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
+func (t topMapOut) Less(i, j int) bool {
+	sortFloat := func(d1, d2 float64) bool {
+		if d1 != d2 {
+			return d1 > d2
+		}
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortInt64 := func(d1, d2 int64) bool {
+		if d1 != d2 {
+			return d1 > d2
+		}
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortUint64 := func(d1, d2 uint64) bool {
+		if d1 != d2 {
+			return d1 > d2
+		}
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		return t.lessKey(i, j)
+	}
+	return t.less(i, j, sortFloat, sortInt64, sortUint64)
+}
+
+type topReduceOut struct {
+	positionOut
+}
+
+func (t topReduceOut) Len() int      { return len(t.points) }
+func (t topReduceOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
+func (t topReduceOut) Less(i, j int) bool {
+	// Now sort by time first, not max
+	sortFloat := func(d1, d2 float64) bool {
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		if d1 != d2 {
+			return d1 > d2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortInt64 := func(d1, d2 int64) bool {
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		if d1 != d2 {
+			return d1 > d2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortUint64 := func(d1, d2 uint64) bool {
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		if d1 != d2 {
+			return d1 > d2
+		}
+		return t.lessKey(i, j)
+	}
+	return t.less(i, j, sortFloat, sortInt64, sortUint64)
 }
 
 // callArgs will get any additional field/tag names that may be needed to sort with
@@ -1317,7 +1365,7 @@ func MapTop(itr Iterator, c *Call) interface{} {
 	}
 	// If we have more than we asked for, only send back the top values
 	if int64(len(out.points)) > limit {
-		sort.Sort(out)
+		sort.Sort(topMapOut{out})
 		out.points = out.points[:limit]
 	}
 	if len(out.points) > 0 {
@@ -1340,12 +1388,15 @@ func ReduceTop(values []interface{}, c *Call) interface{} {
 		out.points = append(out.points, o...)
 	}
 
-	// Have to always sort now for a final result
-	sort.Sort(out)
+	// Get the top of the top values
+	sort.Sort(topMapOut{out})
 	// If we have more than we asked for, only send back the top values
 	if int64(len(out.points)) > limit {
 		out.points = out.points[:limit]
 	}
+
+	// now we need to resort the tops by time
+	sort.Sort(topReduceOut{out})
 	if len(out.points) > 0 {
 		return out.points
 	}
