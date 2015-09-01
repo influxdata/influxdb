@@ -4,8 +4,10 @@ import (
 	"runtime"
 )
 
+// goRuntime captures Go runtime statistics and implements the monitor client interface
 type goRuntime struct{}
 
+// Statistics returns the statistics for the goRuntime type
 func (g *goRuntime) Statistics() (map[string]interface{}, error) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -29,6 +31,7 @@ func (g *goRuntime) Statistics() (map[string]interface{}, error) {
 	}, nil
 }
 
+// Diagnostics returns the statistics for the goRuntime type
 func (g *goRuntime) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
 }

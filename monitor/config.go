@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	// DefaultStoreEnabled is whether the system stores gathered information in
+	// DefaultStoreEnabled is whether the system writes gathered information in
 	// an InfluxDB system for historical analysis.
 	DefaultStoreEnabled = true
 
@@ -37,6 +37,5 @@ func NewConfig() Config {
 		StoreDatabase: DefaultStoreDatabase,
 		StoreInterval: toml.Duration(DefaultStoreInterval),
 		StoreAddress:  DefaultStoreAddress,
-		ExpvarAddress: "127.0.0.1:9950",
 	}
 }

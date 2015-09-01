@@ -37,7 +37,7 @@ type QueryExecutor struct {
 	}
 
 	// Execute statements relating to statistics and diagnostics.
-	StatsDiagsStatementExecutor interface {
+	MonitorStatementExecutor interface {
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
 	}
 
@@ -179,7 +179,8 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				// TODO: handle this in a cluster
 				res = q.executeDropDatabaseStatement(stmt)
 			case *influxql.ShowStatsStatement:
-				res = q.StatsDiagsStatementExecutor.ExecuteStatement(stmt)
+				// Send monitor-related queries to the monitor service.
+				res = q.MonitorStatementExecutor.ExecuteStatement(stmt)
 			default:
 				// Delegate all other meta statements to a separate executor. They don't hit tsdb storage.
 				res = q.MetaStatementExecutor.ExecuteStatement(stmt)
