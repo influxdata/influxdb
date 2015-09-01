@@ -4,6 +4,7 @@
 With this release InfluxDB is moving to Go 1.5.
 
 ### Features
+- [#3755](https://github.com/influxdb/influxdb/issues/3755): Add option to build script.
 - [#3863](https://github.com/influxdb/influxdb/pull/3863): Move to Go 1.5
 - [#3892](https://github.com/influxdb/influxdb/pull/3892): Support IF NOT EXISTS for CREATE DATABASE
 
