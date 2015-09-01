@@ -406,8 +406,8 @@ func (t *testMetastore) Database(name string) (*meta.DatabaseInfo, error) {
 						EndTime:   time.Now().Add(time.Hour),
 						Shards: []meta.ShardInfo{
 							{
-								ID:       uint64(1),
-								OwnerIDs: []uint64{1},
+								ID:     uint64(1),
+								Owners: []meta.ShardOwner{{NodeID: 1}},
 							},
 						},
 					},
@@ -440,8 +440,8 @@ func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.Retent
 				EndTime:   time.Now().Add(time.Hour),
 				Shards: []meta.ShardInfo{
 					{
-						ID:       uint64(1),
-						OwnerIDs: []uint64{1},
+						ID:     uint64(1),
+						Owners: []meta.ShardOwner{{NodeID: 1}},
 					},
 				},
 			},
@@ -461,8 +461,8 @@ func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max
 			EndTime:   time.Now().Add(time.Hour),
 			Shards: []meta.ShardInfo{
 				{
-					ID:       uint64(1),
-					OwnerIDs: []uint64{1},
+					ID:     uint64(1),
+					Owners: []meta.ShardOwner{{NodeID: 1}},
 				},
 			},
 		},

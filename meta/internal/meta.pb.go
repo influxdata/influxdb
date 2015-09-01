@@ -15,6 +15,7 @@ It has these top-level messages:
 	RetentionPolicyInfo
 	ShardGroupInfo
 	ShardInfo
+	ShardOwner
 	ContinuousQueryInfo
 	UserInfo
 	UserPrivilege
@@ -416,9 +417,10 @@ func (m *ShardGroupInfo) GetShards() []*ShardInfo {
 }
 
 type ShardInfo struct {
-	ID               *uint64  `protobuf:"varint,1,req" json:"ID,omitempty"`
-	OwnerIDs         []uint64 `protobuf:"varint,2,rep" json:"OwnerIDs,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	ID               *uint64       `protobuf:"varint,1,req" json:"ID,omitempty"`
+	OwnerIDs         []uint64      `protobuf:"varint,2,rep" json:"OwnerIDs,omitempty"`
+	Owners           []*ShardOwner `protobuf:"bytes,3,rep" json:"Owners,omitempty"`
+	XXX_unrecognized []byte        `json:"-"`
 }
 
 func (m *ShardInfo) Reset()         { *m = ShardInfo{} }
@@ -437,6 +439,29 @@ func (m *ShardInfo) GetOwnerIDs() []uint64 {
 		return m.OwnerIDs
 	}
 	return nil
+}
+
+func (m *ShardInfo) GetOwners() []*ShardOwner {
+	if m != nil {
+		return m.Owners
+	}
+	return nil
+}
+
+type ShardOwner struct {
+	NodeID           *uint64 `protobuf:"varint,1,req" json:"NodeID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *ShardOwner) Reset()         { *m = ShardOwner{} }
+func (m *ShardOwner) String() string { return proto.CompactTextString(m) }
+func (*ShardOwner) ProtoMessage()    {}
+
+func (m *ShardOwner) GetNodeID() uint64 {
+	if m != nil && m.NodeID != nil {
+		return *m.NodeID
+	}
+	return 0
 }
 
 type ContinuousQueryInfo struct {

@@ -224,7 +224,7 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string,
 	consistency ConsistencyLevel, points []tsdb.Point) error {
 	// The required number of writes to achieve the requested consistency level
-	required := len(shard.OwnerIDs)
+	required := len(shard.Owners)
 	switch consistency {
 	case ConsistencyLevelAny, ConsistencyLevelOne:
 		required = 1
@@ -233,11 +233,11 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	}
 
 	// response channel for each shard writer go routine
-	ch := make(chan error, len(shard.OwnerIDs))
+	ch := make(chan error, len(shard.Owners))
 
-	for _, nodeID := range shard.OwnerIDs {
-		go func(shardID, nodeID uint64, points []tsdb.Point) {
-			if w.MetaStore.NodeID() == nodeID {
+	for _, owner := range shard.Owners {
+		go func(shardID uint64, owner meta.ShardOwner, points []tsdb.Point) {
+			if w.MetaStore.NodeID() == owner.NodeID {
 				err := w.TSDBStore.WriteToShard(shardID, points)
 				// If we've written to shard that should exist on the current node, but the store has
 				// not actually created this shard, tell it to create it and retry the write
@@ -253,10 +253,10 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 				return
 			}
 
-			err := w.ShardWriter.WriteShard(shardID, nodeID, points)
+			err := w.ShardWriter.WriteShard(shardID, owner.NodeID, points)
 			if err != nil && tsdb.IsRetryable(err) {
 				// The remote write failed so queue it via hinted handoff
-				hherr := w.HintedHandoff.WriteShard(shardID, nodeID, points)
+				hherr := w.HintedHandoff.WriteShard(shardID, owner.NodeID, points)
 
 				// If the write consistency level is ANY, then a successful hinted handoff can
 				// be considered a successful write so send nil to the response channel
@@ -268,13 +268,13 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 			}
 			ch <- err
 
-		}(shard.ID, nodeID, points)
+		}(shard.ID, owner, points)
 	}
 
 	var wrote int
 	timeout := time.After(w.WriteTimeout)
 	var writeError error
-	for _, nodeID := range shard.OwnerIDs {
+	for _, owner := range shard.Owners {
 		select {
 		case <-w.closing:
 			return ErrWriteFailed
@@ -284,7 +284,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		case err := <-ch:
 			// If the write returned an error, continue to the next response
 			if err != nil {
-				w.Logger.Printf("write failed for shard %d on node %d: %v", shard.ID, nodeID, err)
+				w.Logger.Printf("write failed for shard %d on node %d: %v", shard.ID, owner.NodeID, err)
 
 				// Keep track of the first error we see to return back to the client
 				if writeError == nil {

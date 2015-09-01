@@ -34,8 +34,8 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 					EndTime:   time.Now().Add(time.Hour),
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID0),
-							OwnerIDs: []uint64{nID},
+							ID:     uint64(sID0),
+							Owners: []meta.ShardOwner{{NodeID: nID}},
 						},
 					},
 				},
@@ -45,8 +45,8 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 					EndTime:   time.Now().Add(-time.Hour),
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID1),
-							OwnerIDs: []uint64{nID},
+							ID:     uint64(sID1),
+							Owners: []meta.ShardOwner{{NodeID: nID}},
 						},
 					},
 				},
@@ -164,8 +164,8 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 					EndTime:   time.Now().Add(-time.Hour),
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID1),
-							OwnerIDs: []uint64{nID},
+							ID:     uint64(sID1),
+							Owners: []meta.ShardOwner{{NodeID: nID}},
 						},
 					},
 				},
@@ -175,8 +175,8 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 					EndTime:   time.Now().Add(time.Hour),
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID0),
-							OwnerIDs: []uint64{nID},
+							ID:     uint64(sID0),
+							Owners: []meta.ShardOwner{{NodeID: nID}},
 						},
 					},
 				},
@@ -338,8 +338,8 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 					ID: sgID,
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID0),
-							OwnerIDs: []uint64{nID},
+							ID:     uint64(sID0),
+							Owners: []meta.ShardOwner{{NodeID: nID}},
 						},
 					},
 				},
@@ -347,8 +347,8 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 					ID: sgID,
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID1),
-							OwnerIDs: []uint64{nID},
+							ID:     uint64(sID1),
+							Owners: []meta.ShardOwner{{NodeID: nID}},
 						},
 					},
 				},
