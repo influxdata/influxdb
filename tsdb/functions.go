@@ -1,4 +1,4 @@
-package influxql
+package tsdb
 
 // All aggregate and query functions are defined in this file along with any intermediate data objects they need to process.
 // Query functions are represented as two discreet functions: Map and Reduce. These roughly follow the MapReduce
@@ -12,6 +12,8 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	
+	"github.com/influxdb/influxdb/influxql"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -34,7 +36,7 @@ type ReduceFunc func([]interface{}) interface{}
 type UnmarshalFunc func([]byte) (interface{}, error)
 
 // InitializeMapFunc takes an aggregate call from the query and returns the MapFunc
-func InitializeMapFunc(c *Call) (MapFunc, error) {
+func InitializeMapFunc(c *influxql.Call) (MapFunc, error) {
 	// see if it's a query for raw data
 	if c == nil {
 		return MapRawQuery, nil
@@ -43,10 +45,10 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Retrieve map function by name.
 	switch c.Name {
 	case "count":
-		if _, ok := c.Args[0].(*Distinct); ok {
+		if _, ok := c.Args[0].(*influxql.Distinct); ok {
 			return MapCountDistinct, nil
 		}
-		if c, ok := c.Args[0].(*Call); ok {
+		if c, ok := c.Args[0].(*influxql.Call); ok {
 			if c.Name == "distinct" {
 				return MapCountDistinct, nil
 			}
@@ -81,7 +83,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
-		if fn, ok := c.Args[0].(*Call); ok {
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			return InitializeMapFunc(fn)
 		}
 		return MapRawQuery, nil
@@ -91,14 +93,14 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 }
 
 // InitializeReduceFunc takes an aggregate call from the query and returns the ReduceFunc
-func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
+func InitializeReduceFunc(c *influxql.Call) (ReduceFunc, error) {
 	// Retrieve reduce function by name.
 	switch c.Name {
 	case "count":
-		if _, ok := c.Args[0].(*Distinct); ok {
+		if _, ok := c.Args[0].(*influxql.Distinct); ok {
 			return ReduceCountDistinct, nil
 		}
-		if c, ok := c.Args[0].(*Call); ok {
+		if c, ok := c.Args[0].(*influxql.Call); ok {
 			if c.Name == "distinct" {
 				return ReduceCountDistinct, nil
 			}
@@ -135,7 +137,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
-		if fn, ok := c.Args[0].(*Call); ok {
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			return InitializeReduceFunc(fn)
 		}
 		return nil, fmt.Errorf("expected function argument to %s", c.Name)
@@ -144,7 +146,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	}
 }
 
-func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
+func InitializeUnmarshaller(c *influxql.Call) (UnmarshalFunc, error) {
 	// if c is nil it's a raw data query
 	if c == nil {
 		return func(b []byte) (interface{}, error) {
@@ -1341,10 +1343,10 @@ func (t topReduceOut) Less(i, j int) bool {
 // callArgs will get any additional field/tag names that may be needed to sort with
 // it is important to maintain the order of these that they were asked for in the call
 // for sorting purposes
-func topCallArgs(c *Call) []string {
+func topCallArgs(c *influxql.Call) []string {
 	var names []string
 	for _, v := range c.Args[1 : len(c.Args)-1] {
-		if f, ok := v.(*VarRef); ok {
+		if f, ok := v.(*influxql.VarRef); ok {
 			names = append(names, f.Val)
 		}
 	}
@@ -1352,9 +1354,9 @@ func topCallArgs(c *Call) []string {
 }
 
 // MapTop emits the top data points for each group by interval
-func MapTop(itr Iterator, c *Call) interface{} {
+func MapTop(itr Iterator, c *influxql.Call) interface{} {
 	// Capture the limit if it was specified in the call
-	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
+	lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
 	limit := int64(lit.Val)
 
 	// Simple case where only value and limit are specified.
@@ -1462,8 +1464,8 @@ func MapTop(itr Iterator, c *Call) interface{} {
 }
 
 // ReduceTop computes the top values for each key.
-func ReduceTop(values []interface{}, c *Call) interface{} {
-	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
+func ReduceTop(values []interface{}, c *influxql.Call) interface{} {
+	lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
 	limit := int64(lit.Val)
 
 	out := positionOut{callArgs: topCallArgs(c)}
@@ -1501,10 +1503,10 @@ func MapEcho(itr Iterator) interface{} {
 }
 
 // ReducePercentile computes the percentile of values for each key.
-func ReducePercentile(values []interface{}, c *Call) interface{} {
+func ReducePercentile(values []interface{}, c *influxql.Call) interface{} {
 	// Checks that this arg exists and is a valid type are done in the parsing validation
 	// and have test coverage there
-	lit, _ := c.Args[1].(*NumberLiteral)
+	lit, _ := c.Args[1].(*influxql.NumberLiteral)
 	percentile := lit.Val
 
 	var allValues []float64
@@ -1537,7 +1539,7 @@ func ReducePercentile(values []interface{}, c *Call) interface{} {
 }
 
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.
-func IsNumeric(c *Call) bool {
+func IsNumeric(c *influxql.Call) bool {
 	switch c.Name {
 	case "count", "first", "last", "distinct":
 		return false

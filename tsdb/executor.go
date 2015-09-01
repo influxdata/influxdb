@@ -386,9 +386,9 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	// the offsets within the value slices that are returned by the
 	// mapper.
 	aggregates := e.stmt.FunctionCalls()
-	reduceFuncs := make([]influxql.ReduceFunc, len(aggregates))
+	reduceFuncs := make([]ReduceFunc, len(aggregates))
 	for i, c := range aggregates {
-		reduceFunc, err := influxql.InitializeReduceFunc(c)
+		reduceFunc, err := InitializeReduceFunc(c)
 		if err != nil {
 			out <- &influxql.Row{Err: err}
 			return
@@ -646,7 +646,7 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
 			switch v := vals[j].(type) {
-			case influxql.PositionPoints:
+			case PositionPoints:
 				tMin := vals[0].(time.Time)
 				for _, p := range v {
 					result := e.topBottomPointToQueryResult(p, tMin, call, columnNames)
@@ -662,7 +662,7 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 	return values, nil
 }
 
-func (e *SelectExecutor) topBottomPointToQueryResult(p influxql.PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
+func (e *SelectExecutor) topBottomPointToQueryResult(p PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
 	tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
 	// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
 	if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {

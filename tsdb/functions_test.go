@@ -1,4 +1,4 @@
-package influxql
+package tsdb
 
 import (
 	"reflect"
@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdb/influxdb/influxql"
 )
 
 import "sort"
 
-type point struct {
+type testPoint struct {
 	seriesKey string
 	time      int64
 	value     interface{}
@@ -18,7 +19,7 @@ type point struct {
 }
 
 type testIterator struct {
-	values   []point
+	values   []testPoint
 	lastTags map[string]string
 	nextFunc func() (timestamp int64, value interface{})
 	tagsFunc func() map[string]string
@@ -63,17 +64,17 @@ func TestMapMeanNoValues(t *testing.T) {
 func TestMapMean(t *testing.T) {
 
 	tests := []struct {
-		input  []point
+		input  []testPoint
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input:  []point{point{"0", 1, 1.0, nil}},
+			input:  []testPoint{testPoint{"0", 1, 1.0, nil}},
 			output: &meanMapOutput{1, 1, Float64Type},
 		},
 		{ // Two points
-			input: []point{
-				point{"0", 1, 2.0, nil},
-				point{"0", 2, 8.0, nil},
+			input: []testPoint{
+				testPoint{"0", 1, 2.0, nil},
+				testPoint{"0", 2, 8.0, nil},
 			},
 			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
@@ -99,11 +100,11 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 
 	for _, fn := range []string{"derivative", "non_negative_derivative"} {
 		// Single field arg should return MapEcho
-		c := &Call{
+		c := &influxql.Call{
 			Name: fn,
-			Args: []Expr{
-				&VarRef{Val: " field1"},
-				&DurationLiteral{Val: time.Hour},
+			Args: []influxql.Expr{
+				&influxql.VarRef{Val: " field1"},
+				&influxql.DurationLiteral{Val: time.Hour},
 			},
 		}
 
@@ -113,11 +114,11 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 		}
 
 		// Nested Aggregate func should return the map func for the nested aggregate
-		c = &Call{
+		c = &influxql.Call{
 			Name: fn,
-			Args: []Expr{
-				&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
-				&DurationLiteral{Val: time.Hour},
+			Args: []influxql.Expr{
+				&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}},
+				&influxql.DurationLiteral{Val: time.Hour},
 			},
 		}
 
@@ -135,7 +136,7 @@ func TestReducePercentileNil(t *testing.T) {
 	}
 
 	// ReducePercentile should ignore nil values when calculating the percentile
-	got := ReducePercentile(input, &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 100}}})
+	got := ReducePercentile(input, &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 100}}})
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
 	}
@@ -157,7 +158,7 @@ func TestMapDistinct(t *testing.T) {
 	)
 
 	iter := &testIterator{
-		values: []point{
+		values: []testPoint{
 			{seriesKey1, timeId1, uint64(1), nil},
 			{seriesKey1, timeId2, uint64(1), nil},
 			{seriesKey1, timeId3, "1", nil},
@@ -188,7 +189,7 @@ func TestMapDistinct(t *testing.T) {
 
 func TestMapDistinctNil(t *testing.T) {
 	iter := &testIterator{
-		values: []point{},
+		values: []testPoint{},
 	}
 
 	values := MapDistinct(iter)
@@ -311,7 +312,7 @@ func TestMapCountDistinct(t *testing.T) {
 	)
 
 	iter := &testIterator{
-		values: []point{
+		values: []testPoint{
 			{seriesKey1, timeId1, uint64(1), nil},
 			{seriesKey1, timeId2, uint64(1), nil},
 			{seriesKey1, timeId3, "1", nil},
@@ -342,7 +343,7 @@ func TestMapCountDistinct(t *testing.T) {
 
 func TestMapCountDistinctNil(t *testing.T) {
 	iter := &testIterator{
-		values: []point{},
+		values: []testPoint{},
 	}
 
 	values := MapCountDistinct(iter)
@@ -448,9 +449,9 @@ func TestGetSortedRange(t *testing.T) {
 		if len(results) != len(tt.expected) {
 			t.Errorf("Test %s error.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
 		}
-		for i, point := range tt.expected {
-			if point != results[i] {
-				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
+		for i, testPoint := range tt.expected {
+			if testPoint != results[i] {
+				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, testPoint, results[i])
 			}
 		}
 	}
@@ -485,12 +486,12 @@ func TestMapTop(t *testing.T) {
 		skip bool
 		iter *testIterator
 		exp  positionOut
-		call *Call
+		call *influxql.Call
 	}{
 		{
 			name: "int64 - basic",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, int64(99), map[string]string{"host": "a"}},
 					{"", 10, int64(53), map[string]string{"host": "b"}},
 					{"", 20, int64(88), map[string]string{"host": "a"}},
@@ -502,12 +503,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - basic with tag",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, int64(99), map[string]string{"host": "a"}},
 					{"", 20, int64(53), map[string]string{"host": "b"}},
 					{"", 30, int64(88), map[string]string{"host": "a"}},
@@ -520,12 +521,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{20, int64(53), map[string]string{"host": "b"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - tie on value, resolve based on time",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 20, int64(99), map[string]string{"host": "a"}},
 					{"", 10, int64(53), map[string]string{"host": "a"}},
 					{"", 10, int64(99), map[string]string{"host": "a"}},
@@ -538,12 +539,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{20, int64(99), map[string]string{"host": "a"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - tie on value, time, resolve based on tags",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, int64(99), map[string]string{"host": "b"}},
 					{"", 10, int64(99), map[string]string{"host": "a"}},
 					{"", 20, int64(88), map[string]string{"host": "a"}},
@@ -556,12 +557,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{10, int64(99), map[string]string{"host": "b"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "mixed numerics - ints",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, int64(99), map[string]string{"host": "a"}},
 					{"", 10, int64(53), map[string]string{"host": "b"}},
 					{"", 20, uint64(88), map[string]string{"host": "a"}},
@@ -573,12 +574,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "mixed numerics - ints & floats",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, float64(99), map[string]string{"host": "a"}},
 					{"", 10, int64(53), map[string]string{"host": "b"}},
 					{"", 20, uint64(88), map[string]string{"host": "a"}},
@@ -590,12 +591,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "mixed numerics - ints, floats, & strings",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, float64(99), map[string]string{"host": "a"}},
 					{"", 10, int64(53), map[string]string{"host": "b"}},
 					{"", 20, "88", map[string]string{"host": "a"}},
@@ -607,12 +608,12 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "bools",
 			iter: &testIterator{
-				values: []point{
+				values: []testPoint{
 					{"", 10, true, map[string]string{"host": "a"}},
 					{"", 10, true, map[string]string{"host": "b"}},
 					{"", 20, false, map[string]string{"host": "a"}},
@@ -624,7 +625,7 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{10, true, map[string]string{"host": "b"}},
 				},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 	}
 
@@ -649,7 +650,7 @@ func TestReduceTop(t *testing.T) {
 		skip   bool
 		values []interface{}
 		exp    PositionPoints
-		call   *Call
+		call   *influxql.Call
 	}{
 		{
 			name: "int64 - single map",
@@ -664,7 +665,7 @@ func TestReduceTop(t *testing.T) {
 				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
 				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - double map",
@@ -681,7 +682,7 @@ func TestReduceTop(t *testing.T) {
 				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
 				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - double map with nil",
@@ -697,7 +698,7 @@ func TestReduceTop(t *testing.T) {
 				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
 				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - double map with non-matching tags and tag selected",
@@ -713,7 +714,7 @@ func TestReduceTop(t *testing.T) {
 				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
 				PositionPoint{20, int64(88), map[string]string{}},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			skip: true,
@@ -730,7 +731,7 @@ func TestReduceTop(t *testing.T) {
 				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
 				PositionPoint{20, int64(55), map[string]string{"host": "b"}},
 			},
-			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 	}
 
