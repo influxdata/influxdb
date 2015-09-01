@@ -2242,24 +2242,14 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 	}
 
 	writes := []string{
-		fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-
-		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
-
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-
-		fmt.Sprintf(`intoverlap,region=us-east value=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-east value=30 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-west value=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-east otherVal=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf(`int,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`int,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`int,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`int,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`int,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		fmt.Sprintf(`int,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:20Z").UnixNano()),
+		fmt.Sprintf(`int,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:02:00Z").UnixNano()),
+		fmt.Sprintf(`int,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:02:10Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -2269,21 +2259,40 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 		&Query{
 			name:    "top - int",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 1) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","top"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
+			command: `SELECT TOP(value, 1) FROM int`,
+			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top"],"values":[["2000-01-01T00:02:10Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "top - int - 2 values",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 2) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","top"],"values":[["2000-01-01T00:01:10Z",9],["2000-01-01T00:01:00Z",7]]}]}]}`,
+			command: `SELECT TOP(value, 2) FROM int`,
+			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top"],"values":[["2000-01-01T00:02:10Z",9],["2000-01-01T00:02:00Z",7]]}]}]}`,
+		},
+
+		// FAILING TESTS
+		&Query{
+			name:    "top - int - 3 values with limit 2",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, 3) FROM int limit 2`,
+			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top"],"values":[["2000-01-01T00:02:10Z",9],["2000-01-01T00:02:00Z",7]]}]}]}`,
 		},
 		&Query{
-			skip:    true,
 			name:    "top - int - with tag",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, host, 1) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","top", "host"],"values":[["2000-01-01T00:01:10Z",9,"server08"]]}]}]}`,
+			command: `SELECT TOP(value, host, 1) FROM int`,
+			exp:     `{"results":[{"series":[{"name":"int","columns":["time","top", "host"],"values":[["2000-01-01T00:02:10Z",9,"server08"]]}]}]}`,
+		},
+		&Query{
+			name:    "top - int - hourly",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, 1) FROM int where time >= "2000-01-01-T00:00:00Z" group by time(1h)`,
+			exp:     ``,
+		},
+		&Query{
+			name:    "top - int - hourly with limit",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, 1) FROM int where time >= "2000-01-01-T00:00:00Z" group by time(1h) limit 3`,
+			exp:     ``,
 		},
 	}...)
 
