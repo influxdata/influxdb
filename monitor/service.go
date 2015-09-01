@@ -27,6 +27,22 @@ type Statistic struct {
 	Values map[string]float64
 }
 
+func newStatistic(name string, tags map[string]string, values map[string]float64) *Statistic {
+	var a map[string]string
+
+	if tags == nil {
+		a = make(map[string]string)
+	} else {
+		a = tags
+	}
+
+	return &Statistic{
+		Name:   name,
+		Tags:   a,
+		Values: values,
+	}
+}
+
 type clientWithMeta struct {
 	Client
 	name string
@@ -163,11 +179,15 @@ func (s *Service) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 
 func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxql.Result {
 	stats, _ := s.statistics()
-	rows := make([]*influxql.Row, 0)
+	rows := make([]*influxql.Row, len(stats))
 
 	for n, stat := range stats {
 		row := &influxql.Row{}
 		for k, v := range stat.Tags {
+			row.Columns = append(row.Columns, k)
+			row.Values = append(row.Values, []interface{}{v})
+		}
+		for k, v := range stat.Values {
 			row.Columns = append(row.Columns, k)
 			row.Values = append(row.Values, []interface{}{v})
 		}
@@ -176,8 +196,8 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 	return &influxql.Result{Series: rows}
 }
 
-func (s *Service) statistics() ([]Statistic, error) {
-	statistics := make([]Statistic, len(s.registrations))
+func (s *Service) statistics() ([]*Statistic, error) {
+	statistics := make([]*Statistic, len(s.registrations))
 	for i, r := range s.registrations {
 		values := make(map[string]float64, 0)
 		ep, err := r.Client.Statistics()
@@ -186,7 +206,10 @@ func (s *Service) statistics() ([]Statistic, error) {
 		}
 
 		ep.Do(func(kv expvar.KeyValue) {
-			f := kv.Value.(*expvar.Float)
+			f, ok := kv.Value.(*expvar.Float)
+			if !ok {
+				return
+			}
 			v, err := strconv.ParseFloat(f.String(), 64)
 			if err != nil {
 				return
@@ -194,11 +217,7 @@ func (s *Service) statistics() ([]Statistic, error) {
 			values[kv.Key] = v
 		})
 
-		a := Statistic{
-			Name:   r.name,
-			Tags:   r.tags,
-			Values: values,
-		}
+		a := newStatistic(r.name, r.tags, values)
 		a.Tags["clusterID"] = strconv.FormatUint(s.clusterID, 10)
 		a.Tags["nodeID"] = strconv.FormatUint(s.nodeID, 10)
 		a.Tags["hostname"] = s.hostname
