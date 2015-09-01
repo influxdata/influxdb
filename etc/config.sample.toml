@@ -208,14 +208,6 @@ reporting-disabled = false
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
 
 ###
-### [monitoring]
-###
-
-[monitoring]
-  enabled = true
-  write-interval = "24h"
-
-###
 ### [continuous_queries]
 ###
 ### Controls how continuous queries are run within InfluxDB.
