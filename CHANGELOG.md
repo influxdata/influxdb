@@ -26,6 +26,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3901](https://github.com/influxdb/influxdb/pull/3901): Unblock relaxed write consistency level Thanks @takayuki!
 - [#3950](https://github.com/influxdb/influxdb/pull/3950): Limit bz1 quickcheck tests to 10 iterations on CI
 - [#3977](https://github.com/influxdb/influxdb/pull/3977): Silence wal logging during testing
+- [#3931](https://github.com/influxdb/influxdb/pull/3931): Don't precreate shard groups entirely in the past
 
 ## v0.9.3 [2015-08-26]
 
