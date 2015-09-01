@@ -1,4 +1,4 @@
-package influxql
+package tsdb
 
 // All aggregate and query functions are defined in this file along with any intermediate data objects they need to process.
 // Query functions are represented as two discreet functions: Map and Reduce. These roughly follow the MapReduce
@@ -13,6 +13,8 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	
+	"github.com/influxdb/influxdb/influxql"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -33,7 +35,7 @@ type ReduceFunc func([]interface{}) interface{}
 type UnmarshalFunc func([]byte) (interface{}, error)
 
 // InitializeMapFunc takes an aggregate call from the query and returns the MapFunc
-func InitializeMapFunc(c *Call) (MapFunc, error) {
+func InitializeMapFunc(c *influxql.Call) (MapFunc, error) {
 	// see if it's a query for raw data
 	if c == nil {
 		return MapRawQuery, nil
@@ -58,12 +60,12 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	if !strings.HasSuffix(c.Name, "derivative") {
 		// Ensure the argument is appropriate for the aggregate function.
 		switch fc := c.Args[0].(type) {
-		case *VarRef:
-		case *Distinct:
+		case *influxql.VarRef:
+		case *influxql.Distinct:
 			if c.Name != "count" {
 				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 			}
-		case *Call:
+		case *influxql.Call:
 			if fc.Name != "distinct" {
 				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 			}
@@ -75,10 +77,10 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Retrieve map function by name.
 	switch c.Name {
 	case "count":
-		if _, ok := c.Args[0].(*Distinct); ok {
+		if _, ok := c.Args[0].(*influxql.Distinct); ok {
 			return MapCountDistinct, nil
 		}
-		if c, ok := c.Args[0].(*Call); ok {
+		if c, ok := c.Args[0].(*influxql.Call); ok {
 			if c.Name == "distinct" {
 				return MapCountDistinct, nil
 			}
@@ -105,7 +107,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	case "last":
 		return MapLast, nil
 	case "percentile":
-		_, ok := c.Args[1].(*NumberLiteral)
+		_, ok := c.Args[1].(*influxql.NumberLiteral)
 		if !ok {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
@@ -113,7 +115,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
-		if fn, ok := c.Args[0].(*Call); ok {
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			return InitializeMapFunc(fn)
 		}
 		return MapRawQuery, nil
@@ -123,14 +125,14 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 }
 
 // InitializeReduceFunc takes an aggregate call from the query and returns the ReduceFunc
-func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
+func InitializeReduceFunc(c *influxql.Call) (ReduceFunc, error) {
 	// Retrieve reduce function by name.
 	switch c.Name {
 	case "count":
-		if _, ok := c.Args[0].(*Distinct); ok {
+		if _, ok := c.Args[0].(*influxql.Distinct); ok {
 			return ReduceCountDistinct, nil
 		}
-		if c, ok := c.Args[0].(*Call); ok {
+		if c, ok := c.Args[0].(*influxql.Call); ok {
 			if c.Name == "distinct" {
 				return ReduceCountDistinct, nil
 			}
@@ -161,7 +163,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 
-		lit, ok := c.Args[1].(*NumberLiteral)
+		lit, ok := c.Args[1].(*influxql.NumberLiteral)
 		if !ok {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
@@ -169,7 +171,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
-		if fn, ok := c.Args[0].(*Call); ok {
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			return InitializeReduceFunc(fn)
 		}
 		return nil, fmt.Errorf("expected function argument to %s", c.Name)
@@ -178,7 +180,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	}
 }
 
-func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
+func InitializeUnmarshaller(c *influxql.Call) (UnmarshalFunc, error) {
 	// if c is nil it's a raw data query
 	if c == nil {
 		return func(b []byte) (interface{}, error) {
@@ -1079,7 +1081,7 @@ func ReducePercentile(percentile float64) ReduceFunc {
 }
 
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.
-func IsNumeric(c *Call) bool {
+func IsNumeric(c *influxql.Call) bool {
 	switch c.Name {
 	case "count", "first", "last", "distinct":
 		return false

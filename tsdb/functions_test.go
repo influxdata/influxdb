@@ -1,4 +1,4 @@
-package influxql
+package tsdb
 
 import (
 	"reflect"
@@ -6,18 +6,19 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdb/influxdb/influxql"
 )
 
 import "sort"
 
-type point struct {
+type testPoint struct {
 	seriesKey string
 	time      int64
 	value     interface{}
 }
 
 type testIterator struct {
-	values []point
+	values []testPoint
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
@@ -40,17 +41,17 @@ func TestMapMeanNoValues(t *testing.T) {
 func TestMapMean(t *testing.T) {
 
 	tests := []struct {
-		input  []point
+		input  []testPoint
 		output *meanMapOutput
 	}{
-		{ // Single point
-			input:  []point{point{"0", 1, 1.0}},
+		{ // Single testPoint
+			input:  []testPoint{testPoint{"0", 1, 1.0}},
 			output: &meanMapOutput{1, 1, Float64Type},
 		},
-		{ // Two points
-			input: []point{
-				point{"0", 1, 2.0},
-				point{"0", 2, 8.0},
+		{ // Two testPoints
+			input: []testPoint{
+				testPoint{"0", 1, 2.0},
+				testPoint{"0", 2, 8.0},
 			},
 			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
@@ -73,9 +74,9 @@ func TestMapMean(t *testing.T) {
 }
 func TestInitializeMapFuncPercentile(t *testing.T) {
 	// No args
-	c := &Call{
+	c := &influxql.Call{
 		Name: "percentile",
-		Args: []Expr{},
+		Args: []influxql.Expr{},
 	}
 	_, err := InitializeMapFunc(c)
 	if err == nil {
@@ -87,10 +88,10 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 	}
 
 	// No percentile arg
-	c = &Call{
+	c = &influxql.Call{
 		Name: "percentile",
-		Args: []Expr{
-			&VarRef{Val: "field1"},
+		Args: []influxql.Expr{
+			&influxql.VarRef{Val: "field1"},
 		},
 	}
 
@@ -108,9 +109,9 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 
 	for _, fn := range []string{"derivative", "non_negative_derivative"} {
 		// No args should fail
-		c := &Call{
+		c := &influxql.Call{
 			Name: fn,
-			Args: []Expr{},
+			Args: []influxql.Expr{},
 		}
 
 		_, err := InitializeMapFunc(c)
@@ -119,11 +120,11 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 		}
 
 		// Single field arg should return MapEcho
-		c = &Call{
+		c = &influxql.Call{
 			Name: fn,
-			Args: []Expr{
-				&VarRef{Val: " field1"},
-				&DurationLiteral{Val: time.Hour},
+			Args: []influxql.Expr{
+				&influxql.VarRef{Val: " field1"},
+				&influxql.DurationLiteral{Val: time.Hour},
 			},
 		}
 
@@ -133,11 +134,11 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 		}
 
 		// Nested Aggregate func should return the map func for the nested aggregate
-		c = &Call{
+		c = &influxql.Call{
 			Name: fn,
-			Args: []Expr{
-				&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
-				&DurationLiteral{Val: time.Hour},
+			Args: []influxql.Expr{
+				&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}},
+				&influxql.DurationLiteral{Val: time.Hour},
 			},
 		}
 
@@ -150,9 +151,9 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 
 func TestInitializeReduceFuncPercentile(t *testing.T) {
 	// No args
-	c := &Call{
+	c := &influxql.Call{
 		Name: "percentile",
-		Args: []Expr{},
+		Args: []influxql.Expr{},
 	}
 	_, err := InitializeReduceFunc(c)
 	if err == nil {
@@ -164,10 +165,10 @@ func TestInitializeReduceFuncPercentile(t *testing.T) {
 	}
 
 	// No percentile arg
-	c = &Call{
+	c = &influxql.Call{
 		Name: "percentile",
-		Args: []Expr{
-			&VarRef{Val: "field1"},
+		Args: []influxql.Expr{
+			&influxql.VarRef{Val: "field1"},
 		},
 	}
 
@@ -211,7 +212,7 @@ func TestMapDistinct(t *testing.T) {
 	)
 
 	iter := &testIterator{
-		values: []point{
+		values: []testPoint{
 			{seriesKey1, timeId1, uint64(1)},
 			{seriesKey1, timeId2, uint64(1)},
 			{seriesKey1, timeId3, "1"},
@@ -242,7 +243,7 @@ func TestMapDistinct(t *testing.T) {
 
 func TestMapDistinctNil(t *testing.T) {
 	iter := &testIterator{
-		values: []point{},
+		values: []testPoint{},
 	}
 
 	values := MapDistinct(iter)
@@ -365,7 +366,7 @@ func TestMapCountDistinct(t *testing.T) {
 	)
 
 	iter := &testIterator{
-		values: []point{
+		values: []testPoint{
 			{seriesKey1, timeId1, uint64(1)},
 			{seriesKey1, timeId2, uint64(1)},
 			{seriesKey1, timeId3, "1"},
@@ -396,7 +397,7 @@ func TestMapCountDistinct(t *testing.T) {
 
 func TestMapCountDistinctNil(t *testing.T) {
 	iter := &testIterator{
-		values: []point{},
+		values: []testPoint{},
 	}
 
 	values := MapCountDistinct(iter)
@@ -502,9 +503,9 @@ func TestGetSortedRange(t *testing.T) {
 		if len(results) != len(tt.expected) {
 			t.Errorf("Test %s error.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
 		}
-		for i, point := range tt.expected {
-			if point != results[i] {
-				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
+		for i, testPoint := range tt.expected {
+			if testPoint != results[i] {
+				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, testPoint, results[i])
 			}
 		}
 	}
