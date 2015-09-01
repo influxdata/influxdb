@@ -30,8 +30,3 @@ func (g *goRuntime) Statistics() (map[string]interface{}, error) {
 		"NumGoroutine": int64(runtime.NumGoroutine()),
 	}, nil
 }
-
-// Diagnostics returns the statistics for the goRuntime type
-func (g *goRuntime) Diagnostics() (map[string]interface{}, error) {
-	return nil, nil
-}

@@ -69,7 +69,7 @@ type Service struct {
 	done chan struct{}
 
 	MonitorService interface {
-		Register(name string, tags map[string]string, client monitor.Client) error
+		RegisterStatsClient(name string, tags map[string]string, client monitor.StatsClient) error
 	}
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -125,11 +125,11 @@ func (s *Service) Open() error {
 			return
 		}
 
-		t := monitor.NewMonitorClient(statMapTCP)
-		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
+		t := monitor.NewStatsMonitorClient(statMapTCP)
+		s.MonitorService.RegisterStatsClient("graphite", map[string]string{"proto": "tcp"}, t)
 
-		u := monitor.NewMonitorClient(statMapUDP)
-		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
+		u := monitor.NewStatsMonitorClient(statMapUDP)
+		s.MonitorService.RegisterStatsClient("graphite", map[string]string{"proto": "udp"}, u)
 	})
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {

@@ -15,10 +15,19 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// Client is the interface modules must implement if they wish to register with monitor.
-type Client interface {
+// StatsClient is the interface modules must implement if they wish to register with monitor.
+type StatsClient interface {
+	// Statistics returns a map of keys to values. Each Value must be either int64 or float64.
+	// Statistical information is written to an InfluxDB system if enabled.
 	Statistics() (map[string]interface{}, error)
-	Diagnostics() (map[string]interface{}, error)
+}
+
+type DiagnosticsClient interface {
+	// Diagnostics returns a table of diagnostic information. The first returned value
+	// is the name of the columns, the second is a slice of interface slices containing
+	// the values for each column, by row. This information is never written to an InfluxDB
+	// system and display-only.
+	Diagnostics() ([]string, [][]interface{}, error)
 }
 
 // Service represents an instance of the monitor service.
@@ -61,7 +70,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	s.hostname = hostname
 
 	// Self-register Go runtime stats.
-	s.Register("runtime", nil, &goRuntime{})
+	s.RegisterStatsClient("runtime", nil, &goRuntime{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
@@ -94,17 +103,22 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
-// Register registers a client with the given name and tags.
-func (s *Service) Register(name string, tags map[string]string, client Client) error {
+// RegisterStatsClient registers a stats client with the given name and tags.
+func (s *Service) RegisterStatsClient(name string, tags map[string]string, client StatsClient) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := &clientWithMeta{
-		Client: client,
-		name:   name,
-		tags:   tags,
+		StatsClient: client,
+		name:        name,
+		tags:        tags,
 	}
 	s.registrations = append(s.registrations, c)
 	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
+	return nil
+}
+
+// RegisterDiagsClient registers a diagnostics client with the given name and tags.
+func (s *Service) RegisterDiagnosticsClient(name string, client DiagnosticsClient) error {
 	return nil
 }
 
@@ -152,7 +166,7 @@ func (s *Service) statistics() ([]*statistic, error) {
 
 	statistics := make([]*statistic, 0, len(s.registrations))
 	for _, r := range s.registrations {
-		stats, err := r.Client.Statistics()
+		stats, err := r.StatsClient.Statistics()
 		if err != nil {
 			continue
 		}
@@ -232,24 +246,24 @@ func (s *statistic) valueNames() []string {
 
 // clientWithMeta wraps a registered client with its associated name and tags.
 type clientWithMeta struct {
-	Client
+	StatsClient
 	name string
 	tags map[string]string
 }
 
-// MonitorClient wraps a *expvar.Map so that it implements the Client interface. It is for
+// StatsMonitorClient wraps a *expvar.Map so that it implements the Client interface. It is for
 // use by external packages that just record stats in an expvar.Map type.
-type MonitorClient struct {
+type StatsMonitorClient struct {
 	ep *expvar.Map
 }
 
-// NewMonitorClient returns a new MonitorClient using the given expvar.Map.
-func NewMonitorClient(ep *expvar.Map) *MonitorClient {
-	return &MonitorClient{ep: ep}
+// NewStatsMonitorClient returns a new StatsMonitorClient using the given expvar.Map.
+func NewStatsMonitorClient(ep *expvar.Map) *StatsMonitorClient {
+	return &StatsMonitorClient{ep: ep}
 }
 
-// Statistics implements the Client interface for a MonitorClient.
-func (m MonitorClient) Statistics() (map[string]interface{}, error) {
+// Statistics implements the StatsClient interface for a StatsMonitorClient.
+func (m StatsMonitorClient) Statistics() (map[string]interface{}, error) {
 	values := make(map[string]interface{})
 	m.ep.Do(func(kv expvar.KeyValue) {
 		var f interface{}
@@ -272,11 +286,6 @@ func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 	})
 
 	return values, nil
-}
-
-// Diagnostics implements the Client interface for a MonitorClient.
-func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
-	return nil, nil
 }
 
 func ensureDatabaseExists(host, database string) error {
