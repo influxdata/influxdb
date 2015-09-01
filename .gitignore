@@ -20,6 +20,10 @@ cmd/influxd/version.go
 
 # executables
 
+influx_stress
+**/influx_stress
+!**/influx_stress/
+
 influxd
 **/influxd
 !**/influxd/
