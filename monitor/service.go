@@ -32,10 +32,12 @@ type DiagnosticsClient interface {
 
 // Service represents an instance of the monitor service.
 type Service struct {
-	wg            sync.WaitGroup
-	done          chan struct{}
-	mu            sync.Mutex
-	registrations []*clientWithMeta
+	wg   sync.WaitGroup
+	done chan struct{}
+	mu   sync.RWMutex
+
+	statRegistrations []*clientWithMeta
+	diagRegistrations map[string]DiagnosticsClient
 
 	hostname  string
 	clusterID uint64
@@ -52,12 +54,13 @@ type Service struct {
 // NewService returns a new instance of the monitor service.
 func NewService(c Config) *Service {
 	return &Service{
-		registrations: make([]*clientWithMeta, 0),
-		storeEnabled:  c.StoreEnabled,
-		storeDatabase: c.StoreDatabase,
-		storeAddress:  c.StoreAddress,
-		storeInterval: time.Duration(c.StoreInterval),
-		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+		statRegistrations: make([]*clientWithMeta, 0),
+		diagRegistrations: make(map[string]DiagnosticsClient),
+		storeEnabled:      c.StoreEnabled,
+		storeDatabase:     c.StoreDatabase,
+		storeAddress:      c.StoreAddress,
+		storeInterval:     time.Duration(c.StoreInterval),
+		Logger:            log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
 
@@ -108,19 +111,23 @@ func (s *Service) SetLogger(l *log.Logger) {
 // RegisterStatsClient registers a stats client with the given name and tags.
 func (s *Service) RegisterStatsClient(name string, tags map[string]string, client StatsClient) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.mu.Lock()
 	c := &clientWithMeta{
 		StatsClient: client,
 		name:        name,
 		tags:        tags,
 	}
-	s.registrations = append(s.registrations, c)
-	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
+	s.statRegistrations = append(s.statRegistrations, c)
+	s.Logger.Printf(`'%s:%v' registered for statistics monitoring`, name, tags)
 	return nil
 }
 
 // RegisterDiagsClient registers a diagnostics client with the given name and tags.
 func (s *Service) RegisterDiagnosticsClient(name string, client DiagnosticsClient) error {
+	s.mu.Lock()
+	defer s.mu.Lock()
+	s.diagRegistrations[name] = client
+	s.Logger.Printf(`'%s' registered for diagnostics monitoring`, name)
 	return nil
 }
 
@@ -164,10 +171,10 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 // statistics returns the combined statistics for all registered clients.
 func (s *Service) statistics() ([]*statistic, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer s.mu.RLock()
 
-	statistics := make([]*statistic, 0, len(s.registrations))
-	for _, r := range s.registrations {
+	statistics := make([]*statistic, 0, len(s.statRegistrations))
+	for _, r := range s.statRegistrations {
 		stats, err := r.StatsClient.Statistics()
 		if err != nil {
 			continue
