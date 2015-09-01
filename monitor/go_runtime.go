@@ -30,3 +30,20 @@ func (g *goRuntime) Statistics() (map[string]interface{}, error) {
 		"NumGoroutine": int64(runtime.NumGoroutine()),
 	}, nil
 }
+
+func (g *goRuntime) Diagnostics() ([]string, [][]interface{}, error) {
+	diagnostics := map[string]interface{}{
+		"GOARCH":     runtime.GOARCH,
+		"GOOS":       runtime.GOOS,
+		"GOMAXPROCS": runtime.GOMAXPROCS(-1),
+		"version":    runtime.Version(),
+	}
+
+	a := make([]string, 0, len(diagnostics))
+	b := make([]interface{}, 1)
+	for k, v := range diagnostics {
+		a = append(a, k)
+		b = append(b, v)
+	}
+	return a, [][]interface{}{b}, nil
+}
