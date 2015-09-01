@@ -273,7 +273,6 @@ func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax tim
 		}
 		groups = append(groups, g)
 	}
-	sort.Sort(ShardGroupInfos(groups))
 	return groups, nil
 }
 
@@ -351,6 +350,7 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	// Retention policy has a new shard group, so update the policy.
 	rpi.ShardGroups = append(rpi.ShardGroups, sgi)
+	sort.Sort(ShardGroupInfos(rpi.ShardGroups))
 
 	return nil
 }
