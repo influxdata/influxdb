@@ -172,7 +172,13 @@ func (s *Service) statistics() ([]*statistic, error) {
 		if err != nil {
 			continue
 		}
-		statistics[i] = newStatistic(r.name, r.tags, stats)
+
+		// If a registered client has no field data, don't include it in the results
+		if len(stats) == 0 {
+			continue
+		}
+
+		statistics = append(statistics, newStatistic(r.name, r.tags, stats))
 	}
 	return statistics, nil
 }
