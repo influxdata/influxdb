@@ -785,6 +785,34 @@ func TestParsePointQuotedTags(t *testing.T) {
 	)
 }
 
+func TestParsePointsUnbalancedQuotedTags(t *testing.T) {
+	pts, err := tsdb.ParsePointsString("baz,mytag=\"a x=1 1441103862125\nbaz,mytag=a z=1 1441103862126")
+	if err != nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
+
+	if exp := 2; len(pts) != exp {
+		t.Fatalf("ParsePoints count mismatch. got %v, exp %v", len(pts), exp)
+	}
+
+	// Expected " in the tag value
+	exp := tsdb.NewPoint("baz", tsdb.Tags{"mytag": `"a`},
+		tsdb.Fields{"x": float64(1)}, time.Unix(0, 1441103862125))
+
+	if pts[0].String() != exp.String() {
+		t.Errorf("Point mismatch:\ngot: %v\nexp: %v", pts[0].String(), exp.String())
+	}
+
+	// Expected two points to ensure we did not overscan the line
+	exp = tsdb.NewPoint("baz", tsdb.Tags{"mytag": `a`},
+		tsdb.Fields{"z": float64(1)}, time.Unix(0, 1441103862126))
+
+	if pts[1].String() != exp.String() {
+		t.Errorf("Point mismatch:\ngot: %v\nexp: %v", pts[1].String(), exp.String())
+	}
+
+}
+
 func TestParsePointEscapedStringsAndCommas(t *testing.T) {
 	// non-escaped comma and quotes
 	test(t, `cpu,host=serverA,region=us-east value="{Hello\"{,}\" World}" 1000000000`,
