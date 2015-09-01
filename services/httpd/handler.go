@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -161,10 +162,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			pprof.Index(w, r)
 		}
-		return
+	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
+		serveExpvar(w, r)
+	} else {
+		h.mux.ServeHTTP(w, r)
 	}
-
-	h.mux.ServeHTTP(w, r)
 }
 
 func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
@@ -567,6 +569,21 @@ type Batch struct {
 	Database        string  `json:"database"`
 	RetentionPolicy string  `json:"retentionPolicy"`
 	Points          []Point `json:"points"`
+}
+
+// serveExpvar serves registered expvar information over HTTP.
+func serveExpvar(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	fmt.Fprintf(w, "{\n")
+	first := true
+	expvar.Do(func(kv expvar.KeyValue) {
+		if !first {
+			fmt.Fprintf(w, ",\n")
+		}
+		first = false
+		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
+	})
+	fmt.Fprintf(w, "\n}\n")
 }
 
 // httpError writes an error to the client in a standard format.

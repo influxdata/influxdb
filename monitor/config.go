@@ -27,7 +27,6 @@ type Config struct {
 	StoreDatabase string        `toml:"store-database"`
 	StoreInterval toml.Duration `toml:"store-interval"`
 	StoreAddress  string        `toml:"store-address"`
-	ExpvarAddress string        `toml:"expvar-address"`
 }
 
 // NewConfig returns an instance of Config with defaults.

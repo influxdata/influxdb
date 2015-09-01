@@ -97,7 +97,6 @@ reporting-disabled = false
   store-database = "_internal" # The destination database for recorded statistics
   store-interval = "1m" # The interval at which to record statistics
   store-address = "http://127.0.0.1" # The protocol and host for the recorded data
-  # expvar-address = "127.0.0.1:9950" # Unset to expose expvar data over HTTP.
 
 ###
 ### [admin]

@@ -4,7 +4,6 @@ import (
 	"expvar"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,8 +37,6 @@ type Service struct {
 	storeAddress  string
 	storeInterval time.Duration
 
-	expvarAddress string
-
 	Logger *log.Logger
 }
 
@@ -51,7 +48,6 @@ func NewService(c Config) *Service {
 		storeDatabase: c.StoreDatabase,
 		storeAddress:  c.StoreAddress,
 		storeInterval: time.Duration(c.StoreInterval),
-		expvarAddress: c.ExpvarAddress,
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
@@ -82,18 +78,6 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 		go s.storeStatistics()
 	}
 
-	// If enabled, expose all expvar data over HTTP.
-	if s.expvarAddress != "" {
-		listener, err := net.Listen("tcp", s.expvarAddress)
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			http.Serve(listener, nil)
-		}()
-		s.Logger.Printf("expvar information available on %s", s.expvarAddress)
-	}
 	return nil
 }
 
