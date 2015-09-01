@@ -947,7 +947,7 @@ func MapFirst(itr Iterator) interface{} {
 			v = nextv
 		}
 		nextk, nextv = itr.Next()
-	} 
+	}
 	return &firstLastMapOutput{k, v}
 }
 

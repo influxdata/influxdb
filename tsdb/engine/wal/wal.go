@@ -1072,13 +1072,20 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		} else if flush == memoryFlush {
 			ftype = "memory"
 		}
-		p.log.logger.Printf("Flush due to %s. Flushing %d series with %d bytes from partition %d. Compacting %d series\n", ftype, len(c.seriesToFlush), c.flushSize, p.id, c.countCompacting)
+		pointCount := 0
+		for _, a := range c.seriesToFlush {
+			pointCount += len(a)
+		}
+		p.log.logger.Printf("Flush due to %s. Flushing %d series with %d points and %d bytes from partition %d. Compacting %d series\n", ftype, len(c.seriesToFlush), pointCount, c.flushSize, p.id, c.countCompacting)
 	}
 
 	// write the data to the index first
 	if err := p.index.WriteIndex(c.seriesToFlush, nil, nil); err != nil {
 		// if we can't write the index, we should just bring down the server hard
 		panic(fmt.Sprintf("error writing the wal to the index: %s", err.Error()))
+	}
+	if p.log.EnableLogging {
+		p.log.logger.Printf("write to index took of partition %d took %s\n", p.id, time.Since(startTime))
 	}
 
 	// clear the flush cache and reset the memory thresholds
@@ -1094,6 +1101,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		p.mu.Unlock()
 	}()
 
+	startTime = time.Now()
 	err = p.compactFiles(c, flush)
 	if p.log.EnableLogging {
 		p.log.logger.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
