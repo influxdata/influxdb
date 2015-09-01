@@ -22,52 +22,6 @@ type Client interface {
 	Diagnostics() (map[string]interface{}, error)
 }
 
-type statistic struct {
-	Name   string
-	Tags   map[string]string
-	Values map[string]interface{}
-}
-
-func newStatistic(name string, tags map[string]string, values map[string]interface{}) *statistic {
-	var a map[string]string
-
-	if tags == nil {
-		a = make(map[string]string)
-	} else {
-		a = tags
-	}
-
-	return &statistic{
-		Name:   name,
-		Tags:   a,
-		Values: values,
-	}
-}
-
-func (s *statistic) tagNames() []string {
-	a := make([]string, 0, len(s.Tags))
-	for k, _ := range s.Tags {
-		a = append(a, k)
-	}
-	sort.Strings(a)
-	return a
-}
-
-func (s *statistic) valueNames() []string {
-	a := make([]string, 0, len(s.Values))
-	for k, _ := range s.Values {
-		a = append(a, k)
-	}
-	sort.Strings(a)
-	return a
-}
-
-type clientWithMeta struct {
-	Client
-	name string
-	tags map[string]string
-}
-
 type Service struct {
 	wg            sync.WaitGroup
 	done          chan struct{}
@@ -240,6 +194,52 @@ func (s *Service) storeStatistics() error {
 	//a.Tags["nodeID"] = strconv.FormatUint(s.nodeID, 10)
 	//a.Tags["hostname"] = s.hostname
 	return nil
+}
+
+type statistic struct {
+	Name   string
+	Tags   map[string]string
+	Values map[string]interface{}
+}
+
+func newStatistic(name string, tags map[string]string, values map[string]interface{}) *statistic {
+	var a map[string]string
+
+	if tags == nil {
+		a = make(map[string]string)
+	} else {
+		a = tags
+	}
+
+	return &statistic{
+		Name:   name,
+		Tags:   a,
+		Values: values,
+	}
+}
+
+func (s *statistic) tagNames() []string {
+	a := make([]string, 0, len(s.Tags))
+	for k, _ := range s.Tags {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
+}
+
+func (s *statistic) valueNames() []string {
+	a := make([]string, 0, len(s.Values))
+	for k, _ := range s.Values {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
+}
+
+type clientWithMeta struct {
+	Client
+	name string
+	tags map[string]string
 }
 
 type MonitorClient struct {
