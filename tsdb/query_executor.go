@@ -36,6 +36,11 @@ type QueryExecutor struct {
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
 	}
 
+	// Execute statements relating to statistics and diagnostics.
+	MonitorStatementExecutor interface {
+		ExecuteStatement(stmt influxql.Statement) *influxql.Result
+	}
+
 	// Maps shards for queries.
 	ShardMapper interface {
 		CreateMapper(shard meta.ShardInfo, stmt influxql.Statement, chunkSize int) (Mapper, error)
@@ -173,6 +178,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			case *influxql.DropDatabaseStatement:
 				// TODO: handle this in a cluster
 				res = q.executeDropDatabaseStatement(stmt)
+			case *influxql.ShowStatsStatement:
+				// Send monitor-related queries to the monitor service.
+				res = q.MonitorStatementExecutor.ExecuteStatement(stmt)
 			default:
 				// Delegate all other meta statements to a separate executor. They don't hit tsdb storage.
 				res = q.MetaStatementExecutor.ExecuteStatement(stmt)

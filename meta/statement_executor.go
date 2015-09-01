@@ -80,8 +80,6 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeDropContinuousQueryStatement(stmt)
 	case *influxql.ShowContinuousQueriesStatement:
 		return e.executeShowContinuousQueriesStatement(stmt)
-	case *influxql.ShowStatsStatement:
-		return e.executeShowStatsStatement(stmt)
 	default:
 		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 	}
@@ -282,8 +280,4 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 		rows = append(rows, row)
 	}
 	return &influxql.Result{Series: rows}
-}
-
-func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsStatement) *influxql.Result {
-	return &influxql.Result{Err: fmt.Errorf("SHOW STATS is not implemented yet")}
 }

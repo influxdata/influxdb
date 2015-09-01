@@ -72,8 +72,6 @@ enabled = true
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
 	} else if c.UDPs[0].BindAddress != ":4444" {
 		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
-	} else if c.Monitoring.Enabled != true {
-		t.Fatalf("unexpected monitoring enabled: %v", c.Monitoring.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
 		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
 	}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
@@ -57,6 +58,8 @@ type Server struct {
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
 
+	MonitorService *monitor.Service
+
 	// Server reporting
 	reportingDisabled bool
 
@@ -85,6 +88,16 @@ func NewServer(c *Config, version string) (*Server, error) {
 		reportingDisabled: c.ReportingDisabled,
 	}
 
+	// Start the monitor service.
+	clusterID, err := s.MetaStore.ClusterID()
+	if err != nil {
+		return nil, err
+	}
+	s.MonitorService = monitor.NewService(c.Monitor)
+	if err := s.MonitorService.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
+		return nil, err
+	}
+
 	// Copy TSDB configuration.
 	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
 	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
@@ -100,6 +113,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
+	s.QueryExecutor.MonitorStatementExecutor = s.MonitorService
 	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer
@@ -230,6 +244,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaStore = s.MetaStore
+	srv.MonitorService = s.MonitorService
 	s.Services = append(s.Services, srv)
 	return nil
 }
