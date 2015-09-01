@@ -243,9 +243,6 @@ func (s *Service) statistics() ([]*statistic, error) {
 		})
 
 		a := newStatistic(r.name, r.tags, values)
-		a.Tags["clusterID"] = strconv.FormatUint(s.clusterID, 10)
-		a.Tags["nodeID"] = strconv.FormatUint(s.nodeID, 10)
-		a.Tags["hostname"] = s.hostname
 
 		statistics[i] = a
 	}
@@ -254,5 +251,8 @@ func (s *Service) statistics() ([]*statistic, error) {
 
 func (s *Service) storeStatistics() error {
 	// XXX add tags such as local hostname and cluster ID
+	//a.Tags["clusterID"] = strconv.FormatUint(s.clusterID, 10)
+	//a.Tags["nodeID"] = strconv.FormatUint(s.nodeID, 10)
+	//a.Tags["hostname"] = s.hostname
 	return nil
 }
