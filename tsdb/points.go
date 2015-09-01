@@ -739,14 +739,19 @@ func skipWhitespace(buf []byte, i int) int {
 func scanLine(buf []byte, i int) (int, []byte) {
 	start := i
 	quoted := false
+	fields := false
 	for {
 		// reached the end of buf?
 		if i >= len(buf) {
 			break
 		}
 
+		if buf[i] == ' ' {
+			fields = true
+		}
+
 		// If we see a double quote, makes sure it is not escaped
-		if buf[i] == '"' && (i-1 > 0 && buf[i-1] != '\\') {
+		if fields && buf[i] == '"' && (i-1 > 0 && buf[i-1] != '\\') {
 			i += 1
 			quoted = !quoted
 			continue
