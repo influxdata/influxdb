@@ -72,8 +72,10 @@ BINS=(
 # usage prints simple usage information.
 usage() {
     cat << EOF >&2
-$0 [-h] [-p] [-t <dist>] <version>
+$0 [-h] [-p|-w] [-t <dist>] <version>
     -p just build packages
+    -w build packages for current working directory
+       imply -p
     -t <dist>
        build package for <dist>
        <dist> can be rpm, tar or deb
@@ -184,12 +186,29 @@ do_build() {
     for b in ${BINS[*]}; do
         rm -f $GOPATH_INSTALL/bin/$b
     done
+    
+    if [ ! -z "$WORKING_DIR" ]; then
+        STASH=`git stash create -a`
+        if [ $? -ne 0 ]; then
+            echo "WARNING: failed to stash uncommited local changes"
+        fi
+        git reset --hard
+    fi
+        
     go get -u -f -d ./...
     if [ $? -ne 0 ]; then
         echo "WARNING: failed to 'go get' packages."
     fi
 
     git checkout $TARGET_BRANCH # go get switches to master, so ensure we're back.
+    
+    if [ ! -z "$WORKING_DIR" ]; then
+        git stash apply $STASH
+        if [ $? -ne 0 ]; then #and apply previous uncommited local changes
+            echo "WARNING: failed to restore uncommited local changes"
+        fi
+    fi
+        
     version=$1
     commit=`git rev-parse HEAD`
     branch=`current_branch`
@@ -198,7 +217,7 @@ do_build() {
         cleanup_exit 1
     fi
 
-    go install -a -ldflags="-X main.version $version -X main.branch $branch -X main.commit $commit" ./...
+    go install -a -ldflags="-X main.version=$version -X main.branch=$branch -X main.commit=$commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1
@@ -269,6 +288,11 @@ do
         esac
         shift 2
         ;;
+    -w | --working-directory)
+	PACKAGES_ONLY="PACKAGES_ONLY"
+        WORKING_DIR="WORKING_DIR"
+	shift
+	;;        
     -*)
         echo "Unknown option $1"
         usage 1
