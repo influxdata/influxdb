@@ -348,7 +348,9 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 		}
 	}
 
-	// Retention policy has a new shard group, so update the policy.
+	// Retention policy has a new shard group, so update the policy. Shard
+	// Groups must be stored in sorted order, as other parts of the system
+	// assume this to be the case.
 	rpi.ShardGroups = append(rpi.ShardGroups, sgi)
 	sort.Sort(ShardGroupInfos(rpi.ShardGroups))
 
