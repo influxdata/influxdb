@@ -187,7 +187,7 @@ do_build() {
         rm -f $GOPATH_INSTALL/bin/$b
     done
     
-    if [ ! -z "$WORKING_DIR" ]; then
+    if [ -n "$WORKING_DIR" ]; then
         STASH=`git stash create -a`
         if [ $? -ne 0 ]; then
             echo "WARNING: failed to stash uncommited local changes"
@@ -202,7 +202,7 @@ do_build() {
 
     git checkout $TARGET_BRANCH # go get switches to master, so ensure we're back.
     
-    if [ ! -z "$WORKING_DIR" ]; then
+    if [ -n "$WORKING_DIR" ]; then
         git stash apply $STASH
         if [ $? -ne 0 ]; then #and apply previous uncommited local changes
             echo "WARNING: failed to restore uncommited local changes"
@@ -405,7 +405,7 @@ fi
 
 COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
 
-if [ ! -z "$DEB_WANTED" ]; then
+if [ -n "$DEB_WANTED" ]; then
     $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
     if [ $? -ne 0 ]; then
         echo "Failed to create Debian package -- aborting."
@@ -414,7 +414,7 @@ if [ ! -z "$DEB_WANTED" ]; then
     echo "Debian package created successfully."
 fi
 
-if [ ! -z "$TAR_WANTED" ]; then
+if [ -n "$TAR_WANTED" ]; then
     $FPM -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
     if [ $? -ne 0 ]; then
         echo "Failed to create Tar package -- aborting."
@@ -423,7 +423,7 @@ if [ ! -z "$TAR_WANTED" ]; then
     echo "Tar package created successfully."
 fi
 
-if [ ! -z "$RPM_WANTED" ]; then
+if [ -n "$RPM_WANTED" ]; then
     $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
     if [ $? -ne 0 ]; then
         echo "Failed to create RPM package -- aborting."
@@ -446,13 +446,13 @@ if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
             echo "Failed to create tag v$VERSION -- aborting"
             cleanup_exit 1
         fi
-        echo "Tag v$VERSION created ..."
+        echo "Tag v$VERSION created"
         git push origin v$VERSION
         if [ $? -ne 0 ]; then
             echo "Failed to push tag v$VERSION to repo -- aborting"
             cleanup_exit 1
         fi
-        echo "and pushed to repo"
+        echo "Tag v$VERSION pushed to repo"
     else
         echo "Not creating tag v$VERSION."
     fi
