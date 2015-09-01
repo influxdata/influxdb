@@ -23,19 +23,24 @@ const (
 	leaderWaitTimeout = 30 * time.Second
 )
 
+// expvar stats maintained by the Graphite package.
 var epOnce sync.Once
 var ep = expvar.NewMap("graphite")
 var epTCP = expvar.NewMap("tcp")
 var epUDP = expvar.NewMap("udp")
 
+// Build the graphite expvar hierarchy.
 func init() {
 	ep.Set("tcp", epTCP)
 	ep.Set("udp", epUDP)
 }
 
+// statistics gathered by the graphite package.
 const (
 	EP_POINTS_RECEIVED       = "points_rx"
 	EP_BYTES_RECEIVED        = "bytes_rx"
+	EP_POINTS_PARSE_FAIL     = "points_parse_fail"
+	EP_POINTS_UNSUPPORTED    = "points_unsupported_fail"
 	EP_BATCHES_TRANSMITTED   = "batches_tx"
 	EP_POINTS_TRANSMITTED    = "points_tx"
 	EP_BATCHES_TRANSMIT_FAIL = "batches_tx_fail"
@@ -291,6 +296,7 @@ func (s *Service) handleLine(line string) {
 	point, err := s.parser.Parse(line)
 	if err != nil {
 		s.logger.Printf("unable to parse line: %s", err)
+		s.ep.Add(EP_POINTS_PARSE_FAIL, 1)
 		return
 	}
 
@@ -299,6 +305,7 @@ func (s *Service) handleLine(line string) {
 		// Drop NaN and +/-Inf data points since they are not supported values
 		if math.IsNaN(f) || math.IsInf(f, 0) {
 			s.logger.Printf("dropping unsupported value: '%v'", line)
+			s.ep.Add(EP_POINTS_UNSUPPORTED, 1)
 			return
 		}
 	}
