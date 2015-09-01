@@ -18,7 +18,7 @@ type Service struct {
 
 	MetaStore interface {
 		IsLeader() bool
-		PrecreateShardGroups(cutoff time.Time) error
+		PrecreateShardGroups(now, cutoff time.Time) error
 	}
 }
 
@@ -91,9 +91,9 @@ func (s *Service) runPrecreation() {
 }
 
 // precreate performs actual resource precreation.
-func (s *Service) precreate(t time.Time) error {
-	cutoff := t.Add(s.advancePeriod).UTC()
-	if err := s.MetaStore.PrecreateShardGroups(cutoff); err != nil {
+func (s *Service) precreate(now time.Time) error {
+	cutoff := now.Add(s.advancePeriod).UTC()
+	if err := s.MetaStore.PrecreateShardGroups(now, cutoff); err != nil {
 		return err
 	}
 	return nil

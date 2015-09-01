@@ -489,29 +489,56 @@ func TestStore_PrecreateShardGroup(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	// Create node, database, policy, & group.
+	// Create node, database, policy, & groups.
 	if _, err := s.CreateNode("host0"); err != nil {
 		t.Fatal(err)
 	} else if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
-	} else if _, err := s.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp1", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
-	} else if err := s.PrecreateShardGroups(time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp2", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateShardGroup("db0", "rp0", time.Date(2001, time.January, 1, 1, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateShardGroup("db0", "rp1", time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 
+	if err := s.PrecreateShardGroups(time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC), time.Date(2001, time.January, 1, 3, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+
+	// rp0 should undergo precreation.
 	groups, err := s.ShardGroups("db0", "rp0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(groups) != 2 {
-		t.Fatalf("shard group precreation failed to create new shard group")
+		t.Fatalf("shard group precreation failed to create new shard group for rp0")
 	}
-	if groups[1].StartTime != time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC) {
+	if groups[1].StartTime != time.Date(2001, time.January, 1, 2, 0, 0, 0, time.UTC) {
 		t.Fatalf("precreated shard group has wrong start time, exp %s, got %s",
 			time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC), groups[1].StartTime)
+	}
+
+	// rp1 should not undergo precreation since it is completely in the past.
+	groups, err = s.ShardGroups("db0", "rp1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("shard group precreation created new shard group for rp1")
+	}
+
+	// rp2 should not undergo precreation since it has no shards.
+	groups, err = s.ShardGroups("db0", "rp2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 0 {
+		t.Fatalf("shard group precreation created new shard group for rp2")
 	}
 }
 

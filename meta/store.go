@@ -1389,38 +1389,34 @@ func (s *Store) UserCount() (count int, err error) {
 	return
 }
 
-// PrecreateShardGroups creates shard groups whose endtime is before the cutoff time passed in. This
-// avoid the need for these shards to be created when data for the corresponding time range arrives.
-// Shard creation involves Raft consensus, and precreation avoids taking the hit at write-time.
-func (s *Store) PrecreateShardGroups(cutoff time.Time) error {
+// PrecreateShardGroups creates shard groups whose endtime is before the 'to' time passed in, but
+// is yet to expire before 'from'. This is to avoid the need for these shards to be created when data
+// for the corresponding time range arrives. Shard creation involves Raft consensus, and precreation
+// avoids taking the hit at write-time.
+func (s *Store) PrecreateShardGroups(from, to time.Time) error {
 	s.read(func(data *Data) error {
 		for _, di := range data.Databases {
 			for _, rp := range di.RetentionPolicies {
-				for _, g := range rp.ShardGroups {
-					// Check to see if it is not deleted and going to end before our interval
-					if !g.Deleted() && g.EndTime.Before(cutoff) {
-						nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
+				if len(rp.ShardGroups) == 0 {
+					// No data was ever written to this group, or all groups have been deleted.
+					continue
+				}
+				g := rp.ShardGroups[len(rp.ShardGroups)-1] // Get the last group in time.
+				if !g.Deleted() && g.EndTime.Before(to) && g.EndTime.After(from) {
+					// Group is not deleted, will end before the future time, but is still yet to expire.
+					// This last check is important, so the system doesn't create shards groups wholly
+					// in the past.
 
-						// Check if successive shard group exists.
-						if sgi, err := s.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); err != nil {
-							s.Logger.Printf("failed to check if successive shard group for group exists %d: %s",
-								g.ID, err.Error())
-							continue
-						} else if sgi != nil && !sgi.Deleted() {
-							continue
-						}
-
-						// It doesn't. Create it.
-						if newGroup, err := s.CreateShardGroupIfNotExists(di.Name, rp.Name, nextShardGroupTime); err != nil {
-							s.Logger.Printf("failed to create successive shard group for group %d: %s",
-								g.ID, err.Error())
-						} else {
-							s.Logger.Printf("new shard group %d successfully created for database %s, retention policy %s",
-								newGroup.ID, di.Name, rp.Name)
-						}
+					// Create successive shard group.
+					nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
+					if newGroup, err := s.CreateShardGroupIfNotExists(di.Name, rp.Name, nextShardGroupTime); err != nil {
+						s.Logger.Printf("failed to create successive shard group for group %d: %s",
+							g.ID, err.Error())
+					} else {
+						s.Logger.Printf("new shard group %d successfully created for database %s, retention policy %s",
+							newGroup.ID, di.Name, rp.Name)
 					}
 				}
-
 			}
 		}
 		return nil
