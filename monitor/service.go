@@ -108,6 +108,8 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	s.nodeID = nodeID
 	s.hostname = hostname
 
+	s.Register("memstats", nil, &goRuntime{})
+
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
 		s.Logger.Printf("storing in %s, database '%s', interval %s",
@@ -124,8 +126,6 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 				s.storeAddress, resp.StatusCode)
 		}
 		s.Logger.Printf("succesfully created database %s on %s", s.storeDatabase, s.storeAddress)
-
-		// XXX Self-register Go runtime stuff from expvar
 
 		// Start periodic writes to system.
 		s.wg.Add(1)
