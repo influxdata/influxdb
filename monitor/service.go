@@ -125,16 +125,9 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 	rows := make([]*influxql.Row, len(stats))
 
 	for n, stat := range stats {
-		row := &influxql.Row{}
-		values := make([]interface{}, 0, len(stat.Tags)+len(stat.Values))
+		row := &influxql.Row{Name: stat.Name, Tags: stat.Tags}
 
-		row.Columns = append(row.Columns, "name")
-		values = append(values, stat.Name)
-
-		for _, k := range stat.tagNames() {
-			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Tags[k])
-		}
+		values := make([]interface{}, 0, len(stat.Values))
 		for _, k := range stat.valueNames() {
 			row.Columns = append(row.Columns, k)
 			values = append(values, stat.Values[k])
