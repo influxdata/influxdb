@@ -172,6 +172,11 @@ To set the version and commit flags during the build pass the following to the b
 
 where `$VERSION` is the version, `$BRANCH` is the branch, and `$COMMIT` is the git commit hash.
 
+If you want to build packages, see `package.sh` help:
+```bash
+package.sh -h
+```
+
 To run the tests, execute the following command:
 
 ```bash
