@@ -1,12 +1,16 @@
 package pd1
 
-import ()
+import (
+	"time"
+)
 
 type FloatValue struct {
 	Time  int64
 	Value float64
 }
 
+// First 8 bytes should be the timestamp, second 8 bytes should be
+// the first float value
 func EncodeFloatBlock(buf []byte, values []FloatValue) []byte {
 	return nil
 }
