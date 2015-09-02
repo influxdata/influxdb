@@ -68,7 +68,7 @@ type Service struct {
 	wg   sync.WaitGroup
 	done chan struct{}
 
-	MonitorService interface {
+	Monitor interface {
 		Register(name string, tags map[string]string, client monitor.Client) error
 	}
 	PointsWriter interface {
@@ -120,16 +120,16 @@ func (s *Service) Open() error {
 
 	// One Graphite service hooks up monitoring for all Graphite functionality.
 	monitorOnce.Do(func() {
-		if s.MonitorService == nil {
+		if s.Monitor == nil {
 			s.logger.Println("no monitor service available, no monitoring will be performed")
 			return
 		}
 
 		t := monitor.NewMonitorClient(statMapTCP)
-		s.MonitorService.Register("graphite", map[string]string{"proto": "tcp"}, t)
+		s.Monitor.Register("graphite", map[string]string{"proto": "tcp"}, t)
 
 		u := monitor.NewMonitorClient(statMapUDP)
-		s.MonitorService.Register("graphite", map[string]string{"proto": "udp"}, u)
+		s.Monitor.Register("graphite", map[string]string{"proto": "udp"}, u)
 	})
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
