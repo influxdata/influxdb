@@ -50,6 +50,7 @@ type Monitor struct {
 // New returns a new instance of the monitor system.
 func New(c Config) *Monitor {
 	return &Monitor{
+		done:          make(chan struct{}),
 		registrations: make([]*clientWithMeta, 0),
 		storeEnabled:  c.StoreEnabled,
 		storeDatabase: c.StoreDatabase,
