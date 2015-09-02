@@ -21,7 +21,7 @@ func Test_ServiceRegisterStats(t *testing.T) {
 	}
 
 	// Register a client without tags.
-	if err := service.Register("foo", nil, client); err != nil {
+	if err := service.RegisterStatsClient("foo", nil, client); err != nil {
 		t.Fatalf("failed to register client: %s", err.Error())
 	}
 	json := executeShowStatsJSON(t, service)
@@ -30,7 +30,7 @@ func Test_ServiceRegisterStats(t *testing.T) {
 	}
 
 	// Register a client with tags.
-	if err := service.Register("baz", map[string]string{"proto": "tcp"}, client); err != nil {
+	if err := service.RegisterStatsClient("baz", map[string]string{"proto": "tcp"}, client); err != nil {
 		t.Fatalf("failed to register client: %s", err.Error())
 	}
 	json = executeShowStatsJSON(t, service)

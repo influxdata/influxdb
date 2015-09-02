@@ -15,18 +15,29 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// Client is the interface modules must implement if they wish to register with monitor.
-type Client interface {
+// StatsClient is the interface modules must implement if they wish to register with monitor.
+type StatsClient interface {
+	// Statistics returns a map of keys to values. Each Value must be either int64 or float64.
+	// Statistical information is written to an InfluxDB system if enabled.
 	Statistics() (map[string]interface{}, error)
-	Diagnostics() (map[string]interface{}, error)
+}
+
+type DiagnosticsClient interface {
+	// Diagnostics returns a table of diagnostic information. The first returned value
+	// is the name of the columns, the second is a slice of interface slices containing
+	// the values for each column, by row. This information is never written to an InfluxDB
+	// system and display-only.
+	Diagnostics() ([]string, [][]interface{}, error)
 }
 
 // Service represents an instance of the monitor service.
 type Service struct {
-	wg            sync.WaitGroup
-	done          chan struct{}
-	mu            sync.Mutex
-	registrations []*clientWithMeta
+	wg   sync.WaitGroup
+	done chan struct{}
+	mu   sync.RWMutex
+
+	statRegistrations []*clientWithMeta
+	diagRegistrations map[string]DiagnosticsClient
 
 	hostname  string
 	clusterID uint64
@@ -43,12 +54,13 @@ type Service struct {
 // NewService returns a new instance of the monitor service.
 func NewService(c Config) *Service {
 	return &Service{
-		registrations: make([]*clientWithMeta, 0),
-		storeEnabled:  c.StoreEnabled,
-		storeDatabase: c.StoreDatabase,
-		storeAddress:  c.StoreAddress,
-		storeInterval: time.Duration(c.StoreInterval),
-		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+		statRegistrations: make([]*clientWithMeta, 0),
+		diagRegistrations: make(map[string]DiagnosticsClient),
+		storeEnabled:      c.StoreEnabled,
+		storeDatabase:     c.StoreDatabase,
+		storeAddress:      c.StoreAddress,
+		storeInterval:     time.Duration(c.StoreInterval),
+		Logger:            log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
 
@@ -60,8 +72,12 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	s.nodeID = nodeID
 	s.hostname = hostname
 
-	// Self-register Go runtime stats.
-	s.Register("runtime", nil, &goRuntime{})
+	// Self-register various stats and diags.
+	gr := &goRuntime{}
+	s.RegisterStatsClient("runtime", nil, gr)
+	s.RegisterDiagnosticsClient("runtime", gr)
+	s.RegisterDiagnosticsClient("network", &network{})
+	s.RegisterDiagnosticsClient("system", &system{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
@@ -94,17 +110,26 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
-// Register registers a client with the given name and tags.
-func (s *Service) Register(name string, tags map[string]string, client Client) error {
+// RegisterStatsClient registers a stats client with the given name and tags.
+func (s *Service) RegisterStatsClient(name string, tags map[string]string, client StatsClient) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c := &clientWithMeta{
-		Client: client,
-		name:   name,
-		tags:   tags,
+		StatsClient: client,
+		name:        name,
+		tags:        tags,
 	}
-	s.registrations = append(s.registrations, c)
-	s.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
+	s.statRegistrations = append(s.statRegistrations, c)
+	s.Logger.Printf(`'%s:%v' registered for statistics monitoring`, name, tags)
+	return nil
+}
+
+// RegisterDiagsClient registers a diagnostics client with the given name and tags.
+func (s *Service) RegisterDiagnosticsClient(name string, client DiagnosticsClient) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.diagRegistrations[name] = client
+	s.Logger.Printf(`'%s' registered for diagnostics monitoring`, name)
 	return nil
 }
 
@@ -113,6 +138,8 @@ func (s *Service) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	switch stmt := stmt.(type) {
 	case *influxql.ShowStatsStatement:
 		return s.executeShowStatistics(stmt)
+	case *influxql.ShowDiagnosticsStatement:
+		return s.executeShowDiagnostics(stmt)
 	default:
 		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 	}
@@ -138,14 +165,46 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 	return &influxql.Result{Series: rows}
 }
 
+func (s *Service) executeShowDiagnostics(q *influxql.ShowDiagnosticsStatement) *influxql.Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows := make([]*influxql.Row, 0, len(s.diagRegistrations))
+
+	// Display registered diags in deterministic order.
+	sortedKeys := make([]string, 0, len(s.diagRegistrations))
+	for k, _ := range s.diagRegistrations {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, k := range sortedKeys {
+		v := s.diagRegistrations[k]
+
+		row := &influxql.Row{Name: k}
+		names, values, err := v.Diagnostics()
+		if err != nil {
+			continue
+		}
+
+		// Set the values names and values.
+		for _, k := range names {
+			row.Columns = append(row.Columns, k)
+		}
+		row.Values = values
+		rows = append(rows, row)
+	}
+	return &influxql.Result{Series: rows}
+}
+
 // statistics returns the combined statistics for all registered clients.
 func (s *Service) statistics() ([]*statistic, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	statistics := make([]*statistic, 0, len(s.registrations))
-	for _, r := range s.registrations {
-		stats, err := r.Client.Statistics()
+	statistics := make([]*statistic, 0, len(s.statRegistrations))
+	for _, r := range s.statRegistrations {
+		stats, err := r.StatsClient.Statistics()
 		if err != nil {
 			continue
 		}
@@ -225,24 +284,24 @@ func (s *statistic) valueNames() []string {
 
 // clientWithMeta wraps a registered client with its associated name and tags.
 type clientWithMeta struct {
-	Client
+	StatsClient
 	name string
 	tags map[string]string
 }
 
-// MonitorClient wraps a *expvar.Map so that it implements the Client interface. It is for
+// StatsMonitorClient wraps a *expvar.Map so that it implements the Client interface. It is for
 // use by external packages that just record stats in an expvar.Map type.
-type MonitorClient struct {
+type StatsMonitorClient struct {
 	ep *expvar.Map
 }
 
-// NewMonitorClient returns a new MonitorClient using the given expvar.Map.
-func NewMonitorClient(ep *expvar.Map) *MonitorClient {
-	return &MonitorClient{ep: ep}
+// NewStatsMonitorClient returns a new StatsMonitorClient using the given expvar.Map.
+func NewStatsMonitorClient(ep *expvar.Map) *StatsMonitorClient {
+	return &StatsMonitorClient{ep: ep}
 }
 
-// Statistics implements the Client interface for a MonitorClient.
-func (m MonitorClient) Statistics() (map[string]interface{}, error) {
+// Statistics implements the StatsClient interface for a StatsMonitorClient.
+func (m StatsMonitorClient) Statistics() (map[string]interface{}, error) {
 	values := make(map[string]interface{})
 	m.ep.Do(func(kv expvar.KeyValue) {
 		var f interface{}
@@ -267,9 +326,23 @@ func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 	return values, nil
 }
 
-// Diagnostics implements the Client interface for a MonitorClient.
-func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
-	return nil, nil
+// diagnosticsFromMap returns DiagnosticsClient compatible output for a given map.
+func diagnosticsFromMap(m map[string]interface{}) ([]string, []interface{}) {
+	// Display diags in deterministic order.
+	sortedKeys := make([]string, 0, len(m))
+	for k, _ := range m {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	a := make([]string, 0, len(m))
+	b := []interface{}{}
+	for _, k := range sortedKeys {
+		v := m[k]
+		a = append(a, k)
+		b = append(b, v)
+	}
+	return a, b
 }
 
 func ensureDatabaseExists(host, database string) error {
