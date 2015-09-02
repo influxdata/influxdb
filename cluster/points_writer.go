@@ -234,8 +234,8 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	// response channel for each shard writer go routine
 	type AsyncWriteResult struct {
-		Owner  meta.ShardOwner
-		Err    error
+		Owner meta.ShardOwner
+		Err   error
 	}
 	ch := make(chan *AsyncWriteResult, len(shard.Owners))
 
