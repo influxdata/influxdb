@@ -65,7 +65,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
-		/// XXX need a once here, delay until first write?
+		/// XXX need a once here, delay until first write? ALSO SET STORE ADDRESS TO PROPER DEFAULT
 		s.Logger.Printf("storing in %s, database '%s', interval %s",
 			s.storeAddress, s.storeDatabase, s.storeInterval)
 
