@@ -1597,7 +1597,9 @@ type cursor struct {
 }
 
 func newCursor(cache [][]byte, direction tsdb.Direction) *cursor {
-	c := &cursor{cache: cache, direction: direction}
+	// position is set such that a call to Next will successfully advance
+	// to the next postion and return the value.
+	c := &cursor{cache: cache, direction: direction, position: -1}
 	if direction.Reverse() {
 		c.position = len(c.cache)
 	}
@@ -1608,38 +1610,68 @@ func (c *cursor) Direction() tsdb.Direction { return c.direction }
 
 // Seek will point the cursor to the given time (or key)
 func (c *cursor) Seek(seek []byte) (key, value []byte) {
-	// Seek cache index.
+	// Seek cache index
 	c.position = sort.Search(len(c.cache), func(i int) bool {
 		return bytes.Compare(c.cache[i][0:8], seek) != -1
 	})
 
-	return c.Next()
-}
-
-// Next moves the cursor to the next key/value. will return nil if at the end
-func (c *cursor) Next() (key, value []byte) {
-
+	// If seek is not in the cache, return the last value in the cache
 	if c.direction.Reverse() && c.position >= len(c.cache) {
-		c.position--
+		c.position = len(c.cache) - 1
 	}
 
-	if c.direction.Forward() && c.position >= len(c.cache) {
-		return nil, nil
-	}
-
-	if c.direction.Reverse() && c.position < 0 {
+	// Make sure our position points to something in the cache
+	if c.position < 0 || c.position >= len(c.cache) {
 		return nil, nil
 	}
 
 	v := c.cache[c.position]
 
-	if c.direction.Forward() {
-		c.position++
-	} else {
-		c.position--
+	if v == nil {
+		return nil, nil
 	}
 
 	return v[0:8], v[8:]
+}
+
+// Next moves the cursor to the next key/value. will return nil if at the end
+func (c *cursor) Next() (key, value []byte) {
+	var v []byte
+	if c.direction.Forward() {
+		v = c.nextForward()
+	} else {
+		v = c.nextReverse()
+	}
+
+	// Iterated past the end of the cursor
+	if v == nil {
+		return nil, nil
+	}
+
+	// Split v into key/value
+	return v[0:8], v[8:]
+}
+
+// nextForward advances the cursor forward returning the next value
+func (c *cursor) nextForward() (b []byte) {
+	c.position++
+
+	if c.position >= len(c.cache) {
+		return nil
+	}
+
+	return c.cache[c.position]
+}
+
+// nextReverse advances the cursor backwards returning the next value
+func (c *cursor) nextReverse() (b []byte) {
+	c.position--
+
+	if c.position < 0 {
+		return nil
+	}
+
+	return c.cache[c.position]
 }
 
 // seriesAndFields is a data struct to serialize new series and fields
