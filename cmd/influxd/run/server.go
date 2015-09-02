@@ -58,7 +58,7 @@ type Server struct {
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
 
-	MonitorService *monitor.Service
+	Monitor *monitor.Monitor
 
 	// Server reporting
 	reportingDisabled bool
@@ -93,8 +93,8 @@ func NewServer(c *Config, version string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.MonitorService = monitor.NewService(c.Monitor)
-	if err := s.MonitorService.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
+	s.Monitor = monitor.New(c.Monitor)
+	if err := s.Monitor.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
 		return nil, err
 	}
 
@@ -113,7 +113,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
-	s.QueryExecutor.MonitorStatementExecutor = s.MonitorService
+	s.QueryExecutor.MonitorStatementExecutor = s.Monitor
 	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer
@@ -244,7 +244,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 
 	srv.PointsWriter = s.PointsWriter
 	srv.MetaStore = s.MetaStore
-	srv.MonitorService = s.MonitorService
+	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 	return nil
 }

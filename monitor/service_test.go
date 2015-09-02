@@ -8,8 +8,8 @@ import (
 )
 
 // Test that a registered stats client results in the correct SHOW STATS output.
-func Test_ServiceRegisterStats(t *testing.T) {
-	service := openService(t)
+func Test_RegisterStats(t *testing.T) {
+	monitor := openMonitor(t)
 
 	client := mockStatsClient{
 		StatisticsFn: func() (map[string]interface{}, error) {
@@ -21,19 +21,19 @@ func Test_ServiceRegisterStats(t *testing.T) {
 	}
 
 	// Register a client without tags.
-	if err := service.Register("foo", nil, client); err != nil {
+	if err := monitor.Register("foo", nil, client); err != nil {
 		t.Fatalf("failed to register client: %s", err.Error())
 	}
-	json := executeShowStatsJSON(t, service)
+	json := executeShowStatsJSON(t, monitor)
 	if !strings.Contains(json, `{"name":"foo","columns":["bar","qux"],"values":[[1,2.4]]}]}`) {
 		t.Fatalf("SHOW STATS response incorrect, got: %s\n", json)
 	}
 
 	// Register a client with tags.
-	if err := service.Register("baz", map[string]string{"proto": "tcp"}, client); err != nil {
+	if err := monitor.Register("baz", map[string]string{"proto": "tcp"}, client); err != nil {
 		t.Fatalf("failed to register client: %s", err.Error())
 	}
-	json = executeShowStatsJSON(t, service)
+	json = executeShowStatsJSON(t, monitor)
 	if !strings.Contains(json, `{"name":"baz","tags":{"proto":"tcp"},"columns":["bar","qux"],"values":[[1,2.4]]}]}`) {
 		t.Fatalf("SHOW STATS response incorrect, got: %s\n", json)
 	}
@@ -51,16 +51,16 @@ func (m mockStatsClient) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
 }
 
-func openService(t *testing.T) *Service {
-	service := NewService(NewConfig())
-	err := service.Open(1, 2, "serverA")
+func openMonitor(t *testing.T) *Monitor {
+	monitor := New(NewConfig())
+	err := monitor.Open(1, 2, "serverA")
 	if err != nil {
-		t.Fatalf("failed to open service: %s", err.Error())
+		t.Fatalf("failed to open monitor: %s", err.Error())
 	}
-	return service
+	return monitor
 }
 
-func executeShowStatsJSON(t *testing.T, s *Service) string {
+func executeShowStatsJSON(t *testing.T, s *Monitor) string {
 	r := s.ExecuteStatement(&influxql.ShowStatsStatement{})
 	b, err := r.MarshalJSON()
 	if err != nil {
