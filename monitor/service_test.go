@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/meta"
 )
 
 // Test that a registered stats client results in the correct SHOW STATS output.
@@ -51,9 +52,18 @@ func (m mockStatsClient) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
 }
 
+type mockMetastore struct{}
+
+func (m *mockMetastore) ClusterID() uint64 { return 1 }
+func (m *mockMetastore) NodeID() uint64    { return 2 }
+func (m *mockMetastore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+	return nil, nil
+}
+
 func openService(t *testing.T) *Service {
 	service := NewService(NewConfig())
-	err := service.Open(1, 2, "serverA")
+	service.MetaStore = &mockMetastore{}
+	err := service.Open()
 	if err != nil {
 		t.Fatalf("failed to open service: %s", err.Error())
 	}
