@@ -2,6 +2,7 @@
 package run_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,10 +106,14 @@ func (s *Server) QueryWithParams(query string, values url.Values) (results strin
 		values = url.Values{}
 	}
 	values.Set("q", query)
-	resp, err := http.Get(s.URL() + "/query?" + values.Encode())
+	return s.HTTPGet(s.URL() + "/query?" + values.Encode())
+}
+
+// HTTPGet makes an HTTP GET request to the server and returns the response.
+func (s *Server) HTTPGet(url string) (results string, err error) {
+	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
-		//} else if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadRequest {
 	}
 	body := string(MustReadAll(resp.Body))
 	switch resp.StatusCode {
@@ -118,6 +123,27 @@ func (s *Server) QueryWithParams(query string, values url.Values) (results strin
 		}
 		return body, nil
 	case http.StatusOK:
+		return body, nil
+	default:
+		return "", fmt.Errorf("unexpected status code: code=%d, body=%s", resp.StatusCode, body)
+	}
+}
+
+// HTTPPost makes an HTTP POST request to the server and returns the response.
+func (s *Server) HTTPPost(url string, content []byte) (results string, err error) {
+	buf := bytes.NewBuffer(content)
+	resp, err := http.Post(url, "application/json", buf)
+	if err != nil {
+		return "", err
+	}
+	body := string(MustReadAll(resp.Body))
+	switch resp.StatusCode {
+	case http.StatusBadRequest:
+		if !expectPattern(".*error parsing query*.", body) {
+			return "", fmt.Errorf("unexpected status code: code=%d, body=%s", resp.StatusCode, body)
+		}
+		return body, nil
+	case http.StatusOK, http.StatusNoContent:
 		return body, nil
 	default:
 		return "", fmt.Errorf("unexpected status code: code=%d, body=%s", resp.StatusCode, body)

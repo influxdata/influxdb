@@ -23,7 +23,7 @@ const (
 // ContinuousQuerier represents a service that executes continuous queries.
 type ContinuousQuerier interface {
 	// Run executes the named query in the named database.  Blank database or name matches all.
-	Run(database, name string) error
+	Run(database, name string, t time.Time) error
 }
 
 // queryExecutor is an internal interface to make testing easier.
@@ -43,6 +43,28 @@ type pointsWriter interface {
 	WritePoints(p *cluster.WritePointsRequest) error
 }
 
+// RunRequest is a request to run one or more CQs.
+type RunRequest struct {
+	// Now tells the CQ serivce what the current time is.
+	Now time.Time
+	// CQs tells the CQ service which queries to run.
+	// If nil, all queries will be run.
+	CQs []string
+}
+
+// matches returns true if the CQ matches one of the requested CQs.
+func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
+	if rr.CQs == nil {
+		return true
+	}
+	for _, q := range rr.CQs {
+		if q == cq.Name {
+			return true
+		}
+	}
+	return false
+}
+
 // Service manages continuous query execution.
 type Service struct {
 	MetaStore     metaStore
@@ -51,7 +73,7 @@ type Service struct {
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
-	RunCh          chan struct{}
+	RunCh          chan *RunRequest
 	Logger         *log.Logger
 	loggingEnabled bool
 	// lastRuns maps CQ name to last time it was run.
@@ -65,7 +87,7 @@ func NewService(c Config) *Service {
 	s := &Service{
 		Config:         &c,
 		RunInterval:    time.Second,
-		RunCh:          make(chan struct{}),
+		RunCh:          make(chan *RunRequest),
 		loggingEnabled: c.LogEnabled,
 		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
 		lastRuns:       map[string]time.Time{},
@@ -112,7 +134,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 }
 
 // Run runs the specified continuous query, or all CQs if none is specified.
-func (s *Service) Run(database, name string) error {
+func (s *Service) Run(database, name string, t time.Time) error {
 	var dbs []meta.DatabaseInfo
 
 	if database != "" {
@@ -145,7 +167,7 @@ func (s *Service) Run(database, name string) error {
 	}
 
 	// Signal the background routine to run CQs.
-	s.RunCh <- struct{}{}
+	s.RunCh <- &RunRequest{Now: t}
 
 	return nil
 }
@@ -158,21 +180,21 @@ func (s *Service) backgroundLoop() {
 		case <-s.stop:
 			s.Logger.Println("continuous query service terminating")
 			return
-		case <-s.RunCh:
+		case req := <-s.RunCh:
 			if s.MetaStore.IsLeader() {
-				s.Logger.Print("running continuous queries by request")
-				s.runContinuousQueries()
+				s.Logger.Printf("running continuous queries by request for time: %v", req.Now.UnixNano())
+				s.runContinuousQueries(req)
 			}
 		case <-time.After(s.RunInterval):
 			if s.MetaStore.IsLeader() {
-				s.runContinuousQueries()
+				s.runContinuousQueries(&RunRequest{Now: time.Now()})
 			}
 		}
 	}
 }
 
 // runContinuousQueries gets CQs from the meta store and runs them.
-func (s *Service) runContinuousQueries() {
+func (s *Service) runContinuousQueries(req *RunRequest) {
 	// Get list of all databases.
 	dbs, err := s.MetaStore.Databases()
 	if err != nil {
@@ -183,7 +205,10 @@ func (s *Service) runContinuousQueries() {
 	for _, db := range dbs {
 		// TODO: distribute across nodes
 		for _, cq := range db.ContinuousQueries {
-			if err := s.ExecuteContinuousQuery(&db, &cq); err != nil {
+			if !req.matches(&cq) {
+				continue
+			}
+			if err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
 				s.Logger.Printf("error executing query: %s: err = %s", cq.Query, err)
 			}
 		}
@@ -191,7 +216,7 @@ func (s *Service) runContinuousQueries() {
 }
 
 // ExecuteContinuousQuery executes a single CQ.
-func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo) error {
+func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, now time.Time) error {
 	// TODO: re-enable stats
 	//s.stats.Inc("continuousQueryExecuted")
 
@@ -219,9 +244,9 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// We're about to run the query so store the time.
-	now := time.Now()
-	cq.LastRun = now
-	s.lastRuns[cqi.Name] = now
+	lastRun := time.Now()
+	cq.LastRun = lastRun
+	s.lastRuns[cqi.Name] = lastRun
 
 	// Get the group by interval.
 	interval, err := cq.q.GroupByInterval()
@@ -287,12 +312,6 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	if err != nil {
 		return err
 	}
-
-	// Drain results
-	defer func() {
-		for _ = range ch {
-		}
-	}()
 
 	// Read all rows from the result channel.
 	points := make([]tsdb.Point, 0, 100)
