@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 )
 
 // Client is the interface modules must implement if they wish to register with monitor.
@@ -26,14 +29,20 @@ type Monitor struct {
 	mu            sync.Mutex
 	registrations []*clientWithMeta
 
-	hostname  string
-	clusterID uint64
-	nodeID    uint64
-
 	storeEnabled  bool
 	storeDatabase string
 	storeAddress  string
 	storeInterval time.Duration
+
+	MetaStore interface {
+		ClusterID() (uint64, error)
+		NodeID() uint64
+		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+	}
+
+	PointsWriter interface {
+		WritePoints(p *cluster.WritePointsRequest) error
+	}
 
 	Logger *log.Logger
 }
@@ -52,11 +61,8 @@ func New(c Config) *Monitor {
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purposem.
-func (m *Monitor) Open(clusterID, nodeID uint64, hostname string) error {
-	m.Logger.Printf("starting monitor system for cluster %d, host %s", clusterID, hostname)
-	m.clusterID = clusterID
-	m.nodeID = nodeID
-	m.hostname = hostname
+func (m *Monitor) Open() error {
+	m.Logger.Printf("Starting monitor system")
 
 	// Self-register Go runtime statm.
 	m.Register("runtime", nil, &goRuntime{})
