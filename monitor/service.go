@@ -4,8 +4,6 @@ import (
 	"expvar"
 	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/meta"
 )
 
 // Client is the interface modules must implement if they wish to register with monitor.
@@ -28,25 +27,26 @@ type Service struct {
 	mu            sync.Mutex
 	registrations []*clientWithMeta
 
-	hostname  string
-	clusterID uint64
-	nodeID    uint64
-
 	storeEnabled  bool
 	storeDatabase string
-	storeAddress  string
 	storeInterval time.Duration
 
 	Logger *log.Logger
+
+	MetaStore interface {
+		ClusterID() (uint64, error)
+		NodeID() uint64
+		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+	}
 }
 
 // NewService returns a new instance of the monitor service.
 func NewService(c Config) *Service {
 	return &Service{
+		done:          make(chan struct{}),
 		registrations: make([]*clientWithMeta, 0),
 		storeEnabled:  c.StoreEnabled,
 		storeDatabase: c.StoreDatabase,
-		storeAddress:  c.StoreAddress,
 		storeInterval: time.Duration(c.StoreInterval),
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -54,22 +54,19 @@ func NewService(c Config) *Service {
 
 // Open opens the monitoring service, using the given clusterID, node ID, and hostname
 // for identification purposes.
-func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
-	s.Logger.Printf("starting monitor service for cluster %d, host %s", clusterID, hostname)
-	s.clusterID = clusterID
-	s.nodeID = nodeID
-	s.hostname = hostname
+func (s *Service) Open() error {
+	s.Logger.Printf("Starting monitor service")
 
 	// Self-register Go runtime stats.
 	s.Register("runtime", nil, &goRuntime{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
-		s.Logger.Printf("storing in %s, database '%s', interval %s",
-			s.storeAddress, s.storeDatabase, s.storeInterval)
+		s.Logger.Printf("storing monitor statistics in database '%s', interval %s",
+			s.storeDatabase, s.storeInterval)
 
-		s.Logger.Printf("ensuring database %s exists on %s", s.storeDatabase, s.storeAddress)
-		if err := ensureDatabaseExists(s.storeAddress, s.storeDatabase); err != nil {
+		s.Logger.Printf("ensuring database %s exists", s.storeDatabase)
+		if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.storeDatabase); err != nil {
 			return err
 		}
 
@@ -82,11 +79,12 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 }
 
 // Close closes the monitor service.
-func (s *Service) Close() {
+func (s *Service) Close() error {
 	s.Logger.Println("shutting down monitor service")
 	close(s.done)
 	s.wg.Wait()
 	s.done = nil
+	return nil
 }
 
 // SetLogger sets the internal logger to the logger passed in.
@@ -175,7 +173,7 @@ func (s *Service) storeStatistics() {
 		case <-tick.C:
 			// Write stats here.
 		case <-s.done:
-			s.Logger.Printf("terminating storage of statistics to %s", s.storeAddress)
+			s.Logger.Println("terminating storage of monitor statisitcs")
 			return
 		}
 
@@ -270,18 +268,4 @@ func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 // Diagnostics implements the Client interface for a MonitorClient.
 func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
-}
-
-func ensureDatabaseExists(host, database string) error {
-	values := url.Values{}
-	values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", database))
-	resp, err := http.Get(host + "/query?" + values.Encode())
-	if err != nil {
-		return fmt.Errorf("failed to create monitoring database on %s: %s", host, err.Error())
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to create monitoring database on %s, received code: %d",
-			host, resp.StatusCode)
-	}
-	return nil
 }
