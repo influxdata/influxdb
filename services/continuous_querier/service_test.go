@@ -56,7 +56,7 @@ func TestExecuteContinuousQuery(t *testing.T) {
 		return nil
 	}
 
-	err := s.ExecuteContinuousQuery(&dbi, &cqi)
+	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
 	if err != nil {
 		t.Error(err)
 	}
@@ -95,7 +95,7 @@ func TestExecuteContinuousQuery_ReferenceSource(t *testing.T) {
 		return nil
 	}
 
-	err := s.ExecuteContinuousQuery(&dbi, &cqi)
+	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
 	if err != nil {
 		t.Error(err)
 	}
@@ -152,7 +152,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 	s.Open()
 	// Trigger service to run all CQs.
-	s.Run("", "")
+	s.Run("", "", time.Now())
 	// Shouldn't time out.
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Error(err)
@@ -167,7 +167,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	expectCallCnt = 1
 	callCnt = 0
 	s.Open()
-	s.Run("db", "cq")
+	s.Run("db", "cq", time.Now())
 	// Shouldn't time out.
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Error(err)
@@ -196,7 +196,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 
 	s.Open()
 	// Trigger service to run CQs.
-	s.RunCh <- struct{}{}
+	s.RunCh <- &RunRequest{Now: time.Now()}
 	// Expect timeout error because ExecuteQuery callback wasn't called.
 	if err := wait(done, 100*time.Millisecond); err == nil {
 		t.Error(err)
@@ -221,7 +221,7 @@ func TestContinuousQueryService_MetaStoreFailsToGetDatabases(t *testing.T) {
 
 	s.Open()
 	// Trigger service to run CQs.
-	s.RunCh <- struct{}{}
+	s.RunCh <- &RunRequest{Now: time.Now()}
 	// Expect timeout error because ExecuteQuery callback wasn't called.
 	if err := wait(done, 100*time.Millisecond); err == nil {
 		t.Error(err)
@@ -237,21 +237,21 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	cqi.Query = `this is not a query`
-	err := s.ExecuteContinuousQuery(&dbi, &cqi)
+	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
 	if err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Valid query but invalid continuous query.
 	cqi.Query = `SELECT * FROM cpu`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi)
+	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
 	if err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Group by requires aggregate.
 	cqi.Query = `SELECT value INTO other_value FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi)
+	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
 	if err == nil {
 		t.Error("expected error but got nil")
 	}
@@ -267,7 +267,7 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
-	err := s.ExecuteContinuousQuery(&dbi, &cqi)
+	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
 	if err != expectedErr {
 		t.Errorf("exp = %s, got = %v", expectedErr, err)
 	}
