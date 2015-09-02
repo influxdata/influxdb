@@ -123,7 +123,7 @@ func NewEngineOptions() EngineOptions {
 type Tx interface {
 	io.WriterTo
 
-	Cursor(series string, forward bool) Cursor
+	Cursor(series string, direction Direction) Cursor
 	Size() int64
 	Commit() error
 	Rollback() error
@@ -133,7 +133,7 @@ type Tx interface {
 type Cursor interface {
 	Seek(seek []byte) (key, value []byte)
 	Next() (key, value []byte)
-	Direction() bool
+	Direction() Direction
 }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).

@@ -218,9 +218,13 @@ func (lm *SelectMapper) Open() error {
 			}
 		}
 
-		forward := true
+		direction := Forward
 		if len(lm.selectStmt.SortFields) > 0 {
-			forward = lm.selectStmt.SortFields[0].Ascending
+			if lm.selectStmt.SortFields[0].Ascending {
+				direction = Forward
+			} else {
+				direction = Reverse
+			}
 		}
 
 		// Create all cursors for reading the data from this shard.
@@ -228,7 +232,7 @@ func (lm *SelectMapper) Open() error {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := lm.tx.Cursor(key, forward)
+				c := lm.tx.Cursor(key, direction)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -245,7 +249,7 @@ func (lm *SelectMapper) Open() error {
 				for i := 0; i < len(tsc.cursors); i++ {
 					var k int64
 					var v []byte
-					if forward {
+					if direction == Forward {
 						k, v = tsc.cursors[i].SeekTo(lm.queryTMin)
 						if k == -1 {
 							k, v = tsc.cursors[i].Next()

@@ -5,21 +5,48 @@ import (
 	"container/heap"
 )
 
+// Direction represents a cursor navigation direction.
+type Direction bool
+
+const (
+	// Forward indicates that a cursor will move forward over its values.
+	Forward Direction = true
+	// Reverse indicates that a cursor will move backwards over its values.
+	Reverse Direction = false
+)
+
+func (d Direction) String() string {
+	if d.Forward() {
+		return "forward"
+	}
+	return "reverse"
+}
+
+// Forward returns true if direction is forward
+func (d Direction) Forward() bool {
+	return d == Forward
+}
+
+// Forward returns true if direction is reverse
+func (d Direction) Reverse() bool {
+	return d == Reverse
+}
+
 // MultiCursor returns a single cursor that combines the results of all cursors in order.
 //
 // If the same key is returned from multiple cursors then the first cursor
 // specified will take precendence. A key will only be returned once from the
 // returned cursor.
-func MultiCursor(forward bool, cursors ...Cursor) Cursor {
-	return &multiCursor{cursors: cursors, forward: forward}
+func MultiCursor(d Direction, cursors ...Cursor) Cursor {
+	return &multiCursor{cursors: cursors, direction: d}
 }
 
 // multiCursor represents a cursor that combines multiple cursors into one.
 type multiCursor struct {
-	cursors []Cursor
-	heap    cursorHeap
-	prev    []byte
-	forward bool
+	cursors   []Cursor
+	heap      cursorHeap
+	prev      []byte
+	direction Direction
 }
 
 // Seek moves the cursor to a given key.
@@ -49,7 +76,7 @@ func (mc *multiCursor) Seek(seek []byte) (key, value []byte) {
 	return mc.pop()
 }
 
-func (mc *multiCursor) Direction() bool { return mc.forward }
+func (mc *multiCursor) Direction() Direction { return mc.direction }
 
 // Next returns the next key/value from the cursor.
 func (mc *multiCursor) Next() (key, value []byte) { return mc.pop() }

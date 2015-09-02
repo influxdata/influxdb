@@ -212,27 +212,27 @@ func TestMultiCursor_Quick(t *testing.T) {
 
 // Cursor represents an in-memory test cursor.
 type Cursor struct {
-	forward bool
-	items   []CursorItem
-	index   int
+	direction tsdb.Direction
+	items     []CursorItem
+	index     int
 }
 
 // NewCursor returns a new instance of Cursor.
-func NewCursor(forward bool, items []CursorItem) *Cursor {
+func NewCursor(direction tsdb.Direction, items []CursorItem) *Cursor {
 	index := 0
 	sort.Sort(CursorItems(items))
 
-	if !forward {
+	if direction.Reverse() {
 		index = len(items)
 	}
-	return &Cursor{forward: forward, items: items, index: index}
+	return &Cursor{direction: direction, items: items, index: index}
 }
 
-func (c *Cursor) Direction() bool { return c.forward }
+func (c *Cursor) Direction() tsdb.Direction { return c.direction }
 
 // Seek seeks to an item by key.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
-	if c.forward {
+	if c.direction.Forward() {
 		return c.seekForward(seek)
 	}
 	return c.seekReverse(seek)
@@ -260,17 +260,17 @@ func (c *Cursor) seekReverse(seek []byte) (key, value []byte) {
 
 // Next returns the next key/value pair.
 func (c *Cursor) Next() (key, value []byte) {
-	if !c.forward && c.index < 0 {
+	if c.direction.Reverse() && c.index < 0 {
 		return nil, nil
 	}
 
-	if c.forward && c.index >= len(c.items) {
+	if c.direction.Forward() && c.index >= len(c.items) {
 		return nil, nil
 	}
 
 	k, v := c.items[c.index].Key, c.items[c.index].Value
 
-	if c.forward {
+	if c.direction.Forward() {
 		c.index++
 	} else {
 		c.index--
@@ -281,7 +281,7 @@ func (c *Cursor) Next() (key, value []byte) {
 // Generate returns a randomly generated cursor. Implements quick.Generator.
 func (c Cursor) Generate(rand *rand.Rand, size int) reflect.Value {
 	c.index = 0
-	c.forward = true
+	c.direction = tsdb.Forward
 
 	c.items = make([]CursorItem, rand.Intn(size))
 	for i := range c.items {

@@ -223,11 +223,11 @@ func (l *Log) Open() error {
 }
 
 // Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given
-func (l *Log) Cursor(key string, forward bool) tsdb.Cursor {
+func (l *Log) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	return l.partition([]byte(key)).cursor(key, forward)
+	return l.partition([]byte(key)).cursor(key, direction)
 }
 
 func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
@@ -1380,7 +1380,7 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 }
 
 // cursor will combine the in memory cache and flush cache (if a flush is currently happening) to give a single ordered cursor for the key
-func (p *Partition) cursor(key string, forward bool) *cursor {
+func (p *Partition) cursor(key string, direction tsdb.Direction) *cursor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -1398,7 +1398,7 @@ func (p *Partition) cursor(key string, forward bool) *cursor {
 			c = append(c, entry.points...)
 
 			dedupe := tsdb.DedupeEntries(c)
-			return newCursor(dedupe, forward)
+			return newCursor(dedupe, direction)
 		}
 	}
 
@@ -1410,7 +1410,7 @@ func (p *Partition) cursor(key string, forward bool) *cursor {
 	// build a copy so modifications to the partition don't change the result set
 	a := make([][]byte, len(entry.points))
 	copy(a, entry.points)
-	return newCursor(a, forward)
+	return newCursor(a, direction)
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -1589,22 +1589,22 @@ type entry struct {
 	timestamp int64
 }
 
-// cursor is a forward cursor for a given entry in the cache
+// cursor is a unidirectional iterator for a given entry in the cache
 type cursor struct {
-	cache    [][]byte
-	position int
-	forward  bool
+	cache     [][]byte
+	position  int
+	direction tsdb.Direction
 }
 
-func newCursor(cache [][]byte, forward bool) *cursor {
-	c := &cursor{cache: cache, forward: forward}
-	if !forward {
+func newCursor(cache [][]byte, direction tsdb.Direction) *cursor {
+	c := &cursor{cache: cache, direction: direction}
+	if direction.Reverse() {
 		c.position = len(c.cache)
 	}
 	return c
 }
 
-func (c *cursor) Direction() bool { return c.forward }
+func (c *cursor) Direction() tsdb.Direction { return c.direction }
 
 // Seek will point the cursor to the given time (or key)
 func (c *cursor) Seek(seek []byte) (key, value []byte) {
@@ -1619,28 +1619,27 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 // Next moves the cursor to the next key/value. will return nil if at the end
 func (c *cursor) Next() (key, value []byte) {
 
-	if !c.forward && c.position >= len(c.cache) {
+	if c.direction.Reverse() && c.position >= len(c.cache) {
 		c.position--
 	}
 
-	if c.forward && c.position >= len(c.cache) {
+	if c.direction.Forward() && c.position >= len(c.cache) {
 		return nil, nil
 	}
 
-	if !c.forward && c.position < 0 {
+	if c.direction.Reverse() && c.position < 0 {
 		return nil, nil
 	}
 
 	v := c.cache[c.position]
 
-	if c.forward {
+	if c.direction.Forward() {
 		c.position++
 	} else {
 		c.position--
 	}
 
 	return v[0:8], v[8:]
-
 }
 
 // seriesAndFields is a data struct to serialize new series and fields

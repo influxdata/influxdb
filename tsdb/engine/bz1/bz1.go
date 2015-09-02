@@ -59,7 +59,7 @@ type WAL interface {
 	WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 	LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error
 	DeleteSeries(keys []string) error
-	Cursor(key string, forward bool) tsdb.Cursor
+	Cursor(key string, direction tsdb.Direction) tsdb.Cursor
 	Open() error
 	Close() error
 	Flush() error
@@ -606,8 +606,8 @@ type Tx struct {
 }
 
 // Cursor returns an iterator for a key.
-func (tx *Tx) Cursor(key string, forward bool) tsdb.Cursor {
-	walCursor := tx.wal.Cursor(key, forward)
+func (tx *Tx) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
+	walCursor := tx.wal.Cursor(key, direction)
 
 	// Retrieve points bucket. Ignore if there is no bucket.
 	b := tx.Bucket([]byte("points")).Bucket([]byte(key))
@@ -616,15 +616,15 @@ func (tx *Tx) Cursor(key string, forward bool) tsdb.Cursor {
 	}
 
 	c := &Cursor{
-		cursor:  b.Cursor(),
-		forward: forward,
+		cursor:    b.Cursor(),
+		direction: direction,
 	}
 
-	if !forward {
+	if direction.Reverse() {
 		c.last()
 	}
 
-	return tsdb.MultiCursor(forward, walCursor, c)
+	return tsdb.MultiCursor(direction, walCursor, c)
 }
 
 // Cursor provides ordered iteration across a series.
@@ -632,7 +632,7 @@ type Cursor struct {
 	cursor       *bolt.Cursor
 	buf          []byte // uncompressed buffer
 	off          int    // buffer offset
-	forward      bool
+	direction    tsdb.Direction
 	fieldIndices []int
 	index        int
 }
@@ -642,7 +642,7 @@ func (c *Cursor) last() {
 	c.setBuf(v)
 }
 
-func (c *Cursor) Direction() bool { return c.forward }
+func (c *Cursor) Direction() tsdb.Direction { return c.direction }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
@@ -678,13 +678,13 @@ func (c *Cursor) seekBuf(seek []byte) (key, value []byte) {
 			return
 		}
 
-		if c.forward && bytes.Compare(buf[0:8], seek) != -1 {
+		if c.direction.Forward() && bytes.Compare(buf[0:8], seek) != -1 {
 			return
-		} else if !c.forward && bytes.Compare(buf[0:8], seek) != 1 {
+		} else if c.direction.Reverse() && bytes.Compare(buf[0:8], seek) != 1 {
 			return
 		}
 
-		if c.forward {
+		if c.direction.Forward() {
 			// Otherwise skip ahead to the next entry.
 			c.off += entryHeaderSize + entryDataSize(buf)
 		} else {
@@ -704,7 +704,7 @@ func (c *Cursor) Next() (key, value []byte) {
 		return nil, nil
 	}
 
-	if c.forward {
+	if c.direction.Forward() {
 		// Move forward to next entry.
 		c.off += entryHeaderSize + entryDataSize(c.buf[c.off:])
 	} else {
@@ -745,7 +745,7 @@ func (c *Cursor) setBuf(block []byte) {
 		log.Printf("block decode error: %s", err)
 	}
 
-	if c.forward {
+	if c.direction.Forward() {
 		c.buf, c.off = buf, 0
 	} else {
 		c.buf, c.off = buf, 0

@@ -582,18 +582,18 @@ func (w *EnginePointsWriter) Open() error { return nil }
 
 func (w *EnginePointsWriter) Close() error { return nil }
 
-func (w *EnginePointsWriter) Cursor(key string, forward bool) tsdb.Cursor {
-	return &Cursor{forward: forward}
+func (w *EnginePointsWriter) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
+	return &Cursor{direction: direction}
 }
 
 func (w *EnginePointsWriter) Flush() error { return nil }
 
 // Cursor represents a mock that implements tsdb.Curosr.
 type Cursor struct {
-	forward bool
+	direction tsdb.Direction
 }
 
-func (c *Cursor) Direction() bool { return c.forward }
+func (c *Cursor) Direction() tsdb.Direction { return c.direction }
 
 func (c *Cursor) Seek(key []byte) ([]byte, []byte) { return nil, nil }
 
