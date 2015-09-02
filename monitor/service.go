@@ -72,10 +72,11 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	s.nodeID = nodeID
 	s.hostname = hostname
 
-	// Self-register Go runtime stats and diags.
+	// Self-register various stats and diags.
 	gr := &goRuntime{}
 	s.RegisterStatsClient("runtime", nil, gr)
 	s.RegisterDiagnosticsClient("runtime", gr)
+	s.RegisterDiagnosticsClient("network", &network{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
