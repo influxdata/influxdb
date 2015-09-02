@@ -122,7 +122,7 @@ func TestRPCFetchDataMatchesBlocking(t *testing.T) {
 
 	// Simulate the rmote index changing and unblocking
 	fs.mu.Lock()
-	fs.md.Index = 100
+	fs.md = &Data{Index: 100}
 	fs.mu.Unlock()
 	close(fs.blockChan)
 	wg.Wait()
