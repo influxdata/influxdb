@@ -111,7 +111,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 // RegisterStatsClient registers a stats client with the given name and tags.
 func (s *Service) RegisterStatsClient(name string, tags map[string]string, client StatsClient) error {
 	s.mu.Lock()
-	defer s.mu.Lock()
+	defer s.mu.Unlock()
 	c := &clientWithMeta{
 		StatsClient: client,
 		name:        name,
@@ -125,7 +125,7 @@ func (s *Service) RegisterStatsClient(name string, tags map[string]string, clien
 // RegisterDiagsClient registers a diagnostics client with the given name and tags.
 func (s *Service) RegisterDiagnosticsClient(name string, client DiagnosticsClient) error {
 	s.mu.Lock()
-	defer s.mu.Lock()
+	defer s.mu.Unlock()
 	s.diagRegistrations[name] = client
 	s.Logger.Printf(`'%s' registered for diagnostics monitoring`, name)
 	return nil
