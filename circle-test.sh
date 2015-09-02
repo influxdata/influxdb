@@ -48,9 +48,9 @@ exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew
 exit_if_fail go build -v ./...
 
 # Run the tests.
-exit_if_fail go tool vet --composites=false .
 case $CIRCLE_NODE_INDEX in
     0)
+        exit_if_fail go tool vet --composites=false .
         go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
         rc=${PIPESTATUS[0]}
         ;;
