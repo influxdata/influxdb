@@ -1398,7 +1398,7 @@ func (p *Partition) cursor(key string, forward bool) *cursor {
 			c = append(c, entry.points...)
 
 			dedupe := tsdb.DedupeEntries(c)
-			return &cursor{cache: dedupe, forward: forward}
+			return newCursor(dedupe, forward)
 		}
 	}
 
@@ -1410,7 +1410,7 @@ func (p *Partition) cursor(key string, forward bool) *cursor {
 	// build a copy so modifications to the partition don't change the result set
 	a := make([][]byte, len(entry.points))
 	copy(a, entry.points)
-	return &cursor{cache: a, forward: forward}
+	return newCursor(a, forward)
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -1594,6 +1594,14 @@ type cursor struct {
 	cache    [][]byte
 	position int
 	forward  bool
+}
+
+func newCursor(cache [][]byte, forward bool) *cursor {
+	c := &cursor{cache: cache, forward: forward}
+	if !forward {
+		c.position = len(c.cache)
+	}
+	return c
 }
 
 func (c *cursor) Direction() bool { return c.forward }

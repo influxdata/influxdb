@@ -620,6 +620,10 @@ func (tx *Tx) Cursor(key string, forward bool) tsdb.Cursor {
 		forward: forward,
 	}
 
+	if !forward {
+		c.last()
+	}
+
 	return tsdb.MultiCursor(forward, walCursor, c)
 }
 
@@ -631,6 +635,11 @@ type Cursor struct {
 	forward      bool
 	fieldIndices []int
 	index        int
+}
+
+func (c *Cursor) last() {
+	_, v := c.cursor.Last()
+	c.setBuf(v)
 }
 
 func (c *Cursor) Direction() bool { return c.forward }
@@ -699,8 +708,6 @@ func (c *Cursor) Next() (key, value []byte) {
 		// Move forward to next entry.
 		c.off += entryHeaderSize + entryDataSize(c.buf[c.off:])
 	} else {
-		c.index -= 1
-
 		// If we've move past the beginning of buf, grab the previous block
 		if c.index < 0 {
 			_, v := c.cursor.Prev()
@@ -710,6 +717,7 @@ func (c *Cursor) Next() (key, value []byte) {
 		if len(c.fieldIndices) > 0 {
 			c.off = c.fieldIndices[c.index]
 		}
+		c.index -= 1
 	}
 
 	// If no items left then read first item from next block.
