@@ -8,6 +8,7 @@ BUILD_DIR=$HOME/influxdb-build
 GO_VERSION=go1.5
 PARALLELISM="-parallel 256"
 TIMEOUT="-timeout 480s"
+QUICKCHECKS="-quickchecks 10"
 
 # Executes the given statement, and exits if the command returns a non-zero code.
 function exit_if_fail {
@@ -51,7 +52,7 @@ exit_if_fail go build -v ./...
 exit_if_fail go tool vet --composites=false .
 case $CIRCLE_NODE_INDEX in
     0)
-        go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
+        go test $PARALLELISM $TIMEOUT -v $QUICKCHECKS ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
         rc=${PIPESTATUS[0]}
         if [[ $rc != 0 ]]; then
             exit $rc
@@ -62,11 +63,11 @@ case $CIRCLE_NODE_INDEX in
         docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb \
                         -v ${CIRCLE_ARTIFACTS}:/tmp/artifacts \
                         -t ubuntu-32-influxdb-test bash \
-                        -c "cd /root/go/src/github.com/influxdb/influxdb && go get -t -d -v ./... && go build -v ./... && go test ${PARALLELISM} ${TIMEOUT} -v ./... 2>&1 | tee /tmp/artifacts/test_logs_i386.txt && exit \${PIPESTATUS[0]}"
+                        -c "cd /root/go/src/github.com/influxdb/influxdb && go get -t -d -v ./... && go build -v ./... && go test ${PARALLELISM} ${TIMEOUT} $QUICKCHECKS -v ./... 2>&1 | tee /tmp/artifacts/test_logs_i386.txt && exit \${PIPESTATUS[0]}"
         rc=$?
         ;;
     1)
-       GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
+       GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v $QUICKCHECKS -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
        rc=${PIPESTATUS[0]}
        ;;
 esac
