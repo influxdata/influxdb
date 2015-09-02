@@ -939,6 +939,11 @@ func TestServer_Query_Math(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
+			name:    "SELECT field-by-field math",
+			command: `SELECT value * value from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
 			name:    "SELECT float multiple of integer value",
 			command: `SELECT value * 2.0 from db.rp.integer`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
