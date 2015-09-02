@@ -7,6 +7,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3863](https://github.com/influxdb/influxdb/pull/3863): Move to Go 1.5
 - [#3892](https://github.com/influxdb/influxdb/pull/3892): Support IF NOT EXISTS for CREATE DATABASE
 - [#3916](https://github.com/influxdb/influxdb/pull/3916): New statistics and diagnostics support. Graphite first to be instrumented.
+- [#3901](https://github.com/influxdb/influxdb/pull/3901): Add consistency level option to influx cli Thanks @takayuki
 
 ### Bugfixes
 - [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
@@ -20,6 +21,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3913](https://github.com/influxdb/influxdb/issues/3913): Convert meta shard owners to objects
 - [#3927](https://github.com/influxdb/influxdb/issues/3927): Add WAL lock to prevent timing lock contention
 - [#3928](https://github.com/influxdb/influxdb/issues/3928): Write fails for multiple points when tag starts with quote
+- [#3901](https://github.com/influxdb/influxdb/pull/3901): Unblock relaxed write consistency level Thanks @takayuki!
 
 ## v0.9.3 [2015-08-26]
 
