@@ -15,7 +15,7 @@ func (n *network) Statistics() (map[string]interface{}, error) {
 func (n *network) Diagnostics() ([]string, [][]interface{}, error) {
 	h, err := os.Hostname()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	diagnostics := map[string]interface{}{

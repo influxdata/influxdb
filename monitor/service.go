@@ -77,6 +77,7 @@ func (s *Service) Open(clusterID, nodeID uint64, hostname string) error {
 	s.RegisterStatsClient("runtime", nil, gr)
 	s.RegisterDiagnosticsClient("runtime", gr)
 	s.RegisterDiagnosticsClient("network", &network{})
+	s.RegisterDiagnosticsClient("system", &system{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if s.storeEnabled {
