@@ -89,14 +89,13 @@ reporting-disabled = false
   check-interval = "10m"
 
 ###
-### Controls the system self-monitoring, statistics, diagnostics, and expvar data.
+### Controls the system self-monitoring, statistics and diagnostics.
 ###
 
 [monitor]
-  store-enabled = false # Whether to record statistics in an InfluxDB system
+  store-enabled = true # Whether to record statistics internally.
   store-database = "_internal" # The destination database for recorded statistics
   store-interval = "1m" # The interval at which to record statistics
-  store-address = "http://127.0.0.1:8086" # The protocol and host for the recorded data
 
 ###
 ### [admin]

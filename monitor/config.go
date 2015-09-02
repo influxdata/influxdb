@@ -28,7 +28,7 @@ type Config struct {
 // NewConfig returns an instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
-		StoreEnabled:  false,
+		StoreEnabled:  true,
 		StoreDatabase: DefaultStoreDatabase,
 		StoreInterval: toml.Duration(DefaultStoreInterval),
 	}

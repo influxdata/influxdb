@@ -3,6 +3,7 @@ package monitor
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -55,8 +56,9 @@ func (m mockStatsClient) Diagnostics() (map[string]interface{}, error) {
 
 type mockMetastore struct{}
 
-func (m *mockMetastore) ClusterID() (uint64, error) { return 1, nil }
-func (m *mockMetastore) NodeID() uint64             { return 2 }
+func (m *mockMetastore) ClusterID() (uint64, error)          { return 1, nil }
+func (m *mockMetastore) NodeID() uint64                      { return 2 }
+func (m *mockMetastore) WaitForLeader(d time.Duration) error { return nil }
 func (m *mockMetastore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
 	return nil, nil
 }

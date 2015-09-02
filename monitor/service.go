@@ -2,10 +2,7 @@ package monitor
 
 import (
 	"expvar"
-	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -15,6 +12,8 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 )
+
+const leaderWaitTimeout = 30 * time.Second
 
 // Client is the interface modules must implement if they wish to register with monitor.
 type Client interface {
@@ -37,6 +36,7 @@ type Monitor struct {
 	MetaStore interface {
 		ClusterID() (uint64, error)
 		NodeID() uint64
+		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 
@@ -69,11 +69,6 @@ func (m *Monitor) Open() error {
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
-		m.Logger.Printf("storing statistics in database '%s', interval %s",
-			m.storeDatabase, m.storeInterval)
-		if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
-			return err
-		}
 
 		// Start periodic writes to system.
 		m.wg.Add(1)
@@ -139,6 +134,20 @@ func (m *Monitor) storeStatistics() {
 	//a.Tags["nodeID"] = strconv.FormatUint(m.nodeID, 10)
 	//a.Tags["hostname"] = m.hostname
 	defer m.wg.Done()
+
+	m.Logger.Printf("storing statistics in database '%s', interval %s",
+		m.storeDatabase, m.storeInterval)
+
+	if err := m.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
+		m.Logger.Printf("failed to detect a cluster leader, terminating storage: %s", err.Error())
+		return
+	}
+
+	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
+		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
+			m.storeDatabase, err.Error())
+		return
+	}
 
 	tick := time.NewTicker(m.storeInterval)
 	defer tick.Stop()
@@ -242,18 +251,4 @@ func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 // Diagnostics implements the Client interface for a MonitorClient.
 func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
-}
-
-func ensureDatabaseExists(host, database string) error {
-	values := url.Values{}
-	values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", database))
-	resp, err := http.Get(host + "/query?" + values.Encode())
-	if err != nil {
-		return fmt.Errorf("failed to create monitoring database on %s: %s", host, err.Error())
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to create monitoring database on %s, received code: %d",
-			host, resp.StatusCode)
-	}
-	return nil
 }
