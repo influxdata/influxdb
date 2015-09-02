@@ -59,7 +59,7 @@ case $CIRCLE_NODE_INDEX in
 
         # 32bit tests. (Could be run on a separate node instead)
         exit_if_fail docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
-        docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb \
+        docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb -e "CI=${CI}" \
                         -v ${CIRCLE_ARTIFACTS}:/tmp/artifacts \
                         -t ubuntu-32-influxdb-test bash \
                         -c "cd /root/go/src/github.com/influxdb/influxdb && go get -t -d -v ./... && go build -v ./... && go test ${PARALLELISM} ${TIMEOUT} -v ./... 2>&1 | tee /tmp/artifacts/test_logs_i386.txt && exit \${PIPESTATUS[0]}"
