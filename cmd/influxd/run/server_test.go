@@ -2289,6 +2289,12 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 			command: `SELECT TOP(value, 3) FROM cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T01:00:10Z",7],["2000-01-01T02:00:00Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
 		},
+		&Query{
+			name:    "top - cpu - with tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, host, 1) FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top","host"],"values":[["2000-01-01T02:00:10Z",9,"server08"]]}]}]}`,
+		},
 
 		// FAILING TESTS
 		&Query{
@@ -2297,13 +2303,6 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, 3) FROM cpu limit 2`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T02:00:10Z",9],["2000-01-01T02:00:00Z",7]]}]}]}`,
-		},
-		&Query{
-			skip:    true,
-			name:    "top - cpu - with tag",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, host, 1) FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top", "host"],"values":[["2000-01-01T02:00:10Z",9,"server08"]]}]}]}`,
 		},
 		&Query{
 			skip:    true,
@@ -2332,7 +2331,6 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 		memory,host=b,service=mysql value=2002 30
 		*/
 		&Query{
-			skip:    true,
 			name:    "top - memory - 2 values, two tags",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, 2), host, service FROM memory`,

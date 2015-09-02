@@ -525,7 +525,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		}
 
 		// Perform top/bottom unwraps
-		values, err = e.processTopBottom(values)
+		values, err = e.processTopBottom(values, columnNames)
 		if err != nil {
 			out <- &influxql.Row{Err: err}
 		}
@@ -624,12 +624,14 @@ func (e *SelectExecutor) close() {
 	}
 }
 
-func (e *SelectExecutor) processTopBottom(results [][]interface{}) ([][]interface{}, error) {
+func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
 	aggregates := e.stmt.FunctionCalls()
+	var call *influxql.Call
 	process := false
 	for _, c := range aggregates {
 		if c.Name == "top" || c.Name == "bottom" {
 			process = true
+			call = c
 			break
 		}
 	}
@@ -646,7 +648,20 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}) ([][]interfac
 				if v, ok := vals[j].(influxql.PositionPoints); ok {
 					for _, p := range v {
 						tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
-						values = append(values, []interface{}{tm, p.Value})
+						vals := []interface{}{tm}
+						for _, c := range columnNames {
+							if c == call.Name {
+								vals = append(vals, p.Value)
+								continue
+							}
+							// TODO look in fields first for value
+
+							// look in the tags for a value
+							if t, ok := p.Tags[c]; ok {
+								vals = append(vals, t)
+							}
+						}
+						values = append(values, vals)
 					}
 				} else {
 					return nil, fmt.Errorf("unrechable code - processTopBottom")

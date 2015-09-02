@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/influxdb/influxdb/helpers/slices"
 )
 
 // DataType represents the primitive data types available in InfluxQL.
@@ -874,7 +876,8 @@ func (s *SelectStatement) ColumnNames() []string {
 					continue
 				}
 				// We have a special case now where we have to add the column names for the fields TOP or BOTTOM asked for as well
-				//stringSlice(columNames).Union(f.Fields())
+				columnNames = slices.Union(columnNames, f.Fields(), true)
+				continue
 			}
 			columnNames = append(columnNames, field.Name())
 		default:
@@ -2338,7 +2341,12 @@ func (c *Call) Fields() []string {
 		// maintain the sort order
 		keyMap := make(map[string]struct{})
 		keys := []string{}
-		for _, a := range c.Args {
+		for i, a := range c.Args {
+			if i == 0 {
+				// special case, first argument is always the name of the function regarldess of the field name
+				keys = append(keys, c.Name)
+				continue
+			}
 			switch v := a.(type) {
 			case *VarRef:
 				if _, ok := keyMap[v.Val]; !ok {
