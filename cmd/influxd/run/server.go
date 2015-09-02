@@ -113,7 +113,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
-	s.QueryExecutor.MonitorStatementExecutor = s.Monitor
+	s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
 	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer

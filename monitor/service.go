@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/influxdb/influxdb/influxql"
 )
 
 // Client is the interface modules must implement if they wish to register with monitor.
@@ -108,38 +106,8 @@ func (m *Monitor) Register(name string, tags map[string]string, client Client) e
 	return nil
 }
 
-// ExecuteStatement executes monitor-related query statements.
-func (m *Monitor) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
-	switch stmt := stmt.(type) {
-	case *influxql.ShowStatsStatement:
-		return m.executeShowStatistics(stmt)
-	default:
-		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
-	}
-}
-
-// executeShowStatistics returns the statistics of the registered monitor client in
-// the standard form expected by users of the InfluxDB system.
-func (m *Monitor) executeShowStatistics(q *influxql.ShowStatsStatement) *influxql.Result {
-	stats, _ := m.statistics()
-	rows := make([]*influxql.Row, len(stats))
-
-	for n, stat := range stats {
-		row := &influxql.Row{Name: stat.Name, Tags: stat.Tags}
-
-		values := make([]interface{}, 0, len(stat.Values))
-		for _, k := range stat.valueNames() {
-			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Values[k])
-		}
-		row.Values = [][]interface{}{values}
-		rows[n] = row
-	}
-	return &influxql.Result{Series: rows}
-}
-
 // statistics returns the combined statistics for all registered clients.
-func (m *Monitor) statistics() ([]*statistic, error) {
+func (m *Monitor) Statistics() ([]*statistic, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
