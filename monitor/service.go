@@ -53,7 +53,6 @@ func New(c Config) *Monitor {
 		registrations: make([]*clientWithMeta, 0),
 		storeEnabled:  c.StoreEnabled,
 		storeDatabase: c.StoreDatabase,
-		storeAddress:  c.StoreAddress,
 		storeInterval: time.Duration(c.StoreInterval),
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -69,11 +68,9 @@ func (m *Monitor) Open() error {
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
-		m.Logger.Printf("storing in %s, database '%s', interval %s",
-			m.storeAddress, m.storeDatabase, m.storeInterval)
-
-		m.Logger.Printf("ensuring database %s exists on %s", m.storeDatabase, m.storeAddress)
-		if err := ensureDatabaseExists(m.storeAddress, m.storeDatabase); err != nil {
+		m.Logger.Printf("storing statistics in database '%s', interval %s",
+			m.storeDatabase, m.storeInterval)
+		if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
 			return err
 		}
 
@@ -149,7 +146,7 @@ func (m *Monitor) storeStatistics() {
 		case <-tick.C:
 			// Write stats here.
 		case <-m.done:
-			m.Logger.Printf("terminating storage of statistics to %s", m.storeAddress)
+			m.Logger.Printf("terminating storage of statistics")
 			return
 		}
 
