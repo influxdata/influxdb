@@ -89,6 +89,16 @@ reporting-disabled = false
   check-interval = "10m"
 
 ###
+### Controls the system self-monitoring, statistics, diagnostics, and expvar data.
+###
+
+[monitor]
+  store-enabled = true # Whether to record statistics in an InfluxDB system
+  store-database = "_internal" # The destination database for recorded statistics
+  store-interval = "1m" # The interval at which to record statistics
+  store-address = "http://127.0.0.1" # The protocol and host for the recorded data
+
+###
 ### [admin]
 ###
 ### Controls the availability of the built-in, web-based admin interface. If HTTPS is
@@ -206,14 +216,6 @@ reporting-disabled = false
 
   # batch-size = 1000 # will flush if this many points get buffered
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
-
-###
-### [monitoring]
-###
-
-[monitoring]
-  enabled = true
-  write-interval = "24h"
 
 ###
 ### [continuous_queries]
