@@ -244,7 +244,7 @@ func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt 
 
 		switch lit := nested.Args[0].(type) {
 		case *influxql.VarRef:
-			if IsNumeric(nested) {
+			if influxql.IsNumeric(nested) {
 				f := m.Fields[lit.Val]
 				if err := validateType(a.Name, f.Name, f.Type); err != nil {
 					return err
@@ -254,7 +254,7 @@ func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt 
 			if nested.Name != "count" {
 				return fmt.Errorf("aggregate call didn't contain a field %s", a.String())
 			}
-			if IsNumeric(nested) {
+			if influxql.IsNumeric(nested) {
 				f := m.Fields[lit.Val]
 				if err := validateType(a.Name, f.Name, f.Type); err != nil {
 					return err

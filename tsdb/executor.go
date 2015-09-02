@@ -343,9 +343,9 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	// the offsets within the value slices that are returned by the
 	// mapper.
 	aggregates := e.stmt.FunctionCalls()
-	reduceFuncs := make([]reduceFunc, len(aggregates))
+	reduceFuncs := make([]influxql.ReduceFunc, len(aggregates))
 	for i, c := range aggregates {
-		reduceFunc, err := initializeReduceFunc(c)
+		reduceFunc, err := influxql.InitializeReduceFunc(c)
 		if err != nil {
 			out <- &influxql.Row{Err: err}
 			return

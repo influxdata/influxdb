@@ -1,4 +1,4 @@
-package tsdb
+package influxql
 
 import (
 	"reflect"
@@ -6,19 +6,18 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/influxql"
 )
 
 import "sort"
 
-type testPoint struct {
+type point struct {
 	seriesKey string
 	time      int64
 	value     interface{}
 }
 
 type testIterator struct {
-	values []testPoint
+	values []point
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
@@ -41,17 +40,17 @@ func TestMapMeanNoValues(t *testing.T) {
 func TestMapMean(t *testing.T) {
 
 	tests := []struct {
-		input  []testPoint
+		input  []point
 		output *meanMapOutput
 	}{
-		{ // Single testPoint
-			input:  []testPoint{testPoint{"0", 1, 1.0}},
+		{ // Single point
+			input:  []point{point{"0", 1, 1.0}},
 			output: &meanMapOutput{1, 1, Float64Type},
 		},
-		{ // Two testPoints
-			input: []testPoint{
-				testPoint{"0", 1, 2.0},
-				testPoint{"0", 2, 8.0},
+		{ // Two points
+			input: []point{
+				point{"0", 1, 2.0},
+				point{"0", 2, 8.0},
 			},
 			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
@@ -74,11 +73,11 @@ func TestMapMean(t *testing.T) {
 }
 func TestInitializeMapFuncPercentile(t *testing.T) {
 	// No args
-	c := &influxql.Call{
+	c := &Call{
 		Name: "percentile",
-		Args: []influxql.Expr{},
+		Args: []Expr{},
 	}
-	_, err := initializeMapFunc(c)
+	_, err := InitializeMapFunc(c)
 	if err == nil {
 		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
 	}
@@ -88,14 +87,14 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 	}
 
 	// No percentile arg
-	c = &influxql.Call{
+	c = &Call{
 		Name: "percentile",
-		Args: []influxql.Expr{
-			&influxql.VarRef{Val: "field1"},
+		Args: []Expr{
+			&VarRef{Val: "field1"},
 		},
 	}
 
-	_, err = initializeMapFunc(c)
+	_, err = InitializeMapFunc(c)
 	if err == nil {
 		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
 	}
@@ -109,40 +108,40 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 
 	for _, fn := range []string{"derivative", "non_negative_derivative"} {
 		// No args should fail
-		c := &influxql.Call{
+		c := &Call{
 			Name: fn,
-			Args: []influxql.Expr{},
+			Args: []Expr{},
 		}
 
-		_, err := initializeMapFunc(c)
+		_, err := InitializeMapFunc(c)
 		if err == nil {
 			t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
 		}
 
 		// Single field arg should return MapEcho
-		c = &influxql.Call{
+		c = &Call{
 			Name: fn,
-			Args: []influxql.Expr{
-				&influxql.VarRef{Val: " field1"},
-				&influxql.DurationLiteral{Val: time.Hour},
+			Args: []Expr{
+				&VarRef{Val: " field1"},
+				&DurationLiteral{Val: time.Hour},
 			},
 		}
 
-		_, err = initializeMapFunc(c)
+		_, err = InitializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
 
 		// Nested Aggregate func should return the map func for the nested aggregate
-		c = &influxql.Call{
+		c = &Call{
 			Name: fn,
-			Args: []influxql.Expr{
-				&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}},
-				&influxql.DurationLiteral{Val: time.Hour},
+			Args: []Expr{
+				&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
+				&DurationLiteral{Val: time.Hour},
 			},
 		}
 
-		_, err = initializeMapFunc(c)
+		_, err = InitializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
@@ -151,11 +150,11 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 
 func TestInitializeReduceFuncPercentile(t *testing.T) {
 	// No args
-	c := &influxql.Call{
+	c := &Call{
 		Name: "percentile",
-		Args: []influxql.Expr{},
+		Args: []Expr{},
 	}
-	_, err := initializeReduceFunc(c)
+	_, err := InitializeReduceFunc(c)
 	if err == nil {
 		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
 	}
@@ -165,14 +164,14 @@ func TestInitializeReduceFuncPercentile(t *testing.T) {
 	}
 
 	// No percentile arg
-	c = &influxql.Call{
+	c = &Call{
 		Name: "percentile",
-		Args: []influxql.Expr{
-			&influxql.VarRef{Val: "field1"},
+		Args: []Expr{
+			&VarRef{Val: "field1"},
 		},
 	}
 
-	_, err = initializeReduceFunc(c)
+	_, err = InitializeReduceFunc(c)
 	if err == nil {
 		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
 	}
@@ -212,7 +211,7 @@ func TestMapDistinct(t *testing.T) {
 	)
 
 	iter := &testIterator{
-		values: []testPoint{
+		values: []point{
 			{seriesKey1, timeId1, uint64(1)},
 			{seriesKey1, timeId2, uint64(1)},
 			{seriesKey1, timeId3, "1"},
@@ -243,7 +242,7 @@ func TestMapDistinct(t *testing.T) {
 
 func TestMapDistinctNil(t *testing.T) {
 	iter := &testIterator{
-		values: []testPoint{},
+		values: []point{},
 	}
 
 	values := MapDistinct(iter)
@@ -366,7 +365,7 @@ func TestMapCountDistinct(t *testing.T) {
 	)
 
 	iter := &testIterator{
-		values: []testPoint{
+		values: []point{
 			{seriesKey1, timeId1, uint64(1)},
 			{seriesKey1, timeId2, uint64(1)},
 			{seriesKey1, timeId3, "1"},
@@ -397,7 +396,7 @@ func TestMapCountDistinct(t *testing.T) {
 
 func TestMapCountDistinctNil(t *testing.T) {
 	iter := &testIterator{
-		values: []testPoint{},
+		values: []point{},
 	}
 
 	values := MapCountDistinct(iter)
@@ -503,9 +502,9 @@ func TestGetSortedRange(t *testing.T) {
 		if len(results) != len(tt.expected) {
 			t.Errorf("Test %s error.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
 		}
-		for i, testPoint := range tt.expected {
-			if testPoint != results[i] {
-				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, testPoint, results[i])
+		for i, point := range tt.expected {
+			if point != results[i] {
+				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
 			}
 		}
 	}
