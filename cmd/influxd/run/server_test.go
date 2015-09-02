@@ -2338,6 +2338,38 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 			command: `SELECT TOP(value, 2), host, service FROM memory`,
 			exp:     `{"results":[{"series":[{"name":"memory","columns":["time","top","host","service"],"values":[["2000-01-01T01:00:00Z",2001,"b","mysql"],["2000-01-01T02:00:00Z",2002,"b","mysql"]]}]}]}`,
 		},
+
+		/*
+			select top(value, 2), host, service from memory
+			yields:
+			memory,host=b,service=mysql value=2001 20
+			memory,host=b,service=mysql value=2002 30
+
+			select top(value, host, 2)
+			yields:
+			memory,host=b,service=mysql value=2002 30
+			memory,host=a,service=redis value=1002 30
+
+			select top(value, service, 2)
+			yields:
+			memory,host=b,service=mysql value=2002 30
+			memory,host=b,service=redis value=1502 30
+
+			select top(value, host, service, 2)
+			yields
+			memory,host=a,service=redis value=1002 30
+			memory,host=b,service=mysql value=2002 30
+		*/
+
+		// TODO
+		// - Test that specifiying fields or tags in the function will rewrite the query to expand them to the fields
+		// - Test that specifying `time` witha group by will override the time buckets and expand all sub-points (aka flatten the response)
+		// - Test that a field can be used in the top function in addition to a tag
+		// - Test that a field and a tag can be used in the top function
+		// - Test that asking for a field will come back before a tag if they have the same name for a tag and a field
+		// - Test that `select top(value, host, 2)` when there is only one value for `host` it will only bring back one value
+		// - Test that `select top(value, host, 4) from foo where time > now() - 1d and time < now() group by time(1h)` and host is unique in some time buckets that it returns only the unique ones, and not always 4 values
+
 	}...)
 
 	for i, query := range test.queries {

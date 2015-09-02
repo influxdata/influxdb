@@ -397,11 +397,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	}
 
 	// Put together the rows to return, starting with columns.
-	columnNames := make([]string, len(e.stmt.Fields)+1)
-	columnNames[0] = "time"
-	for i, f := range e.stmt.Fields {
-		columnNames[i+1] = f.Name()
-	}
+	columnNames := e.stmt.ColumnNames()
 
 	// Open the mappers.
 	for _, m := range e.mappers {

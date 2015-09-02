@@ -857,6 +857,47 @@ func (s *SelectStatement) RewriteDistinct() {
 	}
 }
 
+// ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
+// while maintaining sort order of the field names
+func (s *SelectStatement) ColumnNames() []string {
+	// Always set the first column to be time, even if they didn't specify it
+	columnNames := []string{"time"}
+
+	// First walk each field
+	for _, field := range s.Fields {
+		// time is always first, and we already added it, so ignore it if they asked for it anywhere else.
+		switch f := field.Expr.(type) {
+		case *Call:
+			if f.Name == "top" || f.Name == "bottom" {
+				if len(f.Args) == 2 {
+					columnNames = append(columnNames, f.Name)
+					continue
+				}
+				// We have a special case now where we have to add the column names for the fields TOP or BOTTOM asked for as well
+				//stringSlice(columNames).Union(f.Fields())
+			}
+			columnNames = append(columnNames, field.Name())
+		default:
+			if field.Name() != "time" {
+				columnNames = append(columnNames, field.Name())
+			}
+		}
+	}
+
+	return columnNames
+}
+
+// HasTimeFieldSpecified will walk all fields and determine if the user explicitly asked for time
+// This is needed to determine re-write behaviors for functions like TOP and BOTTOM
+func (s *SelectStatement) HasTimeFieldSpecified() bool {
+	for _, f := range s.Fields {
+		if f.Name() == "time" {
+			return true
+		}
+	}
+	return false
+}
+
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
@@ -2288,6 +2329,28 @@ func (c *Call) String() string {
 
 	// Write function name and args.
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(str, ", "))
+}
+
+// Fields will extract any field names from the call.  Only specific calls support this.
+func (c *Call) Fields() []string {
+	switch c.Name {
+	case "top", "bottom":
+		// maintain the sort order
+		keyMap := make(map[string]struct{})
+		keys := []string{}
+		for _, a := range c.Args {
+			switch v := a.(type) {
+			case *VarRef:
+				if _, ok := keyMap[v.Val]; !ok {
+					keyMap[v.Val] = struct{}{}
+					keys = append(keys, v.Val)
+				}
+			}
+		}
+		return keys
+	default:
+		return []string{}
+	}
 }
 
 // Distinct represents a DISTINCT expression.
