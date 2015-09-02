@@ -171,7 +171,16 @@ func (s *Service) executeShowDiagnostics(q *influxql.ShowDiagnosticsStatement) *
 
 	rows := make([]*influxql.Row, 0, len(s.diagRegistrations))
 
-	for k, v := range s.diagRegistrations {
+	// Display registered diags in deterministic order.
+	sortedKeys := make([]string, 0, len(s.diagRegistrations))
+	for k, _ := range s.diagRegistrations {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, k := range sortedKeys {
+		v := s.diagRegistrations[k]
+
 		row := &influxql.Row{Name: k}
 		names, values, err := v.Diagnostics()
 		if err != nil {
@@ -315,6 +324,25 @@ func (m StatsMonitorClient) Statistics() (map[string]interface{}, error) {
 	})
 
 	return values, nil
+}
+
+// diagnosticsFromMap returns DiagnosticsClient compatible output for a given map.
+func diagnosticsFromMap(m map[string]interface{}) ([]string, []interface{}) {
+	// Display diags in deterministic order.
+	sortedKeys := make([]string, 0, len(m))
+	for k, _ := range m {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	a := make([]string, 0, len(m))
+	b := []interface{}{}
+	for _, k := range sortedKeys {
+		v := m[k]
+		a = append(a, k)
+		b = append(b, v)
+	}
+	return a, b
 }
 
 func ensureDatabaseExists(host, database string) error {

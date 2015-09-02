@@ -39,11 +39,6 @@ func (g *goRuntime) Diagnostics() ([]string, [][]interface{}, error) {
 		"version":    runtime.Version(),
 	}
 
-	a := make([]string, 0, len(diagnostics))
-	b := []interface{}{}
-	for k, v := range diagnostics {
-		a = append(a, k)
-		b = append(b, v)
-	}
+	a, b := diagnosticsFromMap(diagnostics)
 	return a, [][]interface{}{b}, nil
 }

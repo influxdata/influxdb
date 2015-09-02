@@ -22,16 +22,11 @@ func (s *system) Statistics() (map[string]interface{}, error) {
 func (s *system) Diagnostics() ([]string, [][]interface{}, error) {
 	diagnostics := map[string]interface{}{
 		"PID":         os.Getpid(),
-		"currentTime": time.Now(),
-		"started":     startTime.String(),
+		"currentTime": time.Now().UTC(),
+		"started":     startTime,
 		"uptime":      time.Since(startTime).String(),
 	}
 
-	a := make([]string, 0, len(diagnostics))
-	b := []interface{}{}
-	for k, v := range diagnostics {
-		a = append(a, k)
-		b = append(b, v)
-	}
+	a, b := diagnosticsFromMap(diagnostics)
 	return a, [][]interface{}{b}, nil
 }
