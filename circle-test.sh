@@ -63,7 +63,7 @@ case $CIRCLE_NODE_INDEX in
                         -c "cd /root/go/src/github.com/influxdb/influxdb && go get -t -d -v ./... && go build -v ./... && go test ${PARALLELISM} ${TIMEOUT} -v ./... 2>&1 | tee /tmp/artifacts/test_logs_i386.txt && exit \${PIPESTATUS[0]}"
         rc=$?
         ;;
-    1)
+    2)
        GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
        rc=${PIPESTATUS[0]}
        ;;
