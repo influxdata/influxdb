@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -20,6 +21,16 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/bz1"
 	"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
+
+var QuickConfig quick.Config
+
+func init() {
+	// Limit the number of iterations on CI so it doesn't take so long.
+	if os.Getenv("CI") == "true" {
+		QuickConfig.MaxCount = 10
+		fmt.Fprintf(os.Stderr, "Limiting quickchecks to %d iterations (CI)\n", QuickConfig.MaxCount)
+	}
+}
 
 // Ensure the engine can write series metadata and reload it.
 func TestEngine_LoadMetadataIndex_Series(t *testing.T) {
@@ -337,7 +348,7 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 		}
 
 		return true
-	}, nil)
+	}, &QuickConfig)
 }
 
 // Ensure the engine can accept randomly generated append-only points.
@@ -384,7 +395,7 @@ func TestEngine_WriteIndex_Quick_Append(t *testing.T) {
 		}
 
 		return true
-	}, nil)
+	}, &QuickConfig)
 }
 
 func BenchmarkEngine_WriteIndex_512b(b *testing.B)  { benchmarkEngine_WriteIndex(b, 512) }
