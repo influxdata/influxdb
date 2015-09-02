@@ -40,7 +40,7 @@ func (g *goRuntime) Diagnostics() ([]string, [][]interface{}, error) {
 	}
 
 	a := make([]string, 0, len(diagnostics))
-	b := make([]interface{}, 1)
+	b := []interface{}{}
 	for k, v := range diagnostics {
 		a = append(a, k)
 		b = append(b, v)

@@ -169,16 +169,16 @@ func (s *Service) executeShowDiagnostics(q *influxql.ShowDiagnosticsStatement) *
 
 	rows := make([]*influxql.Row, 0, len(s.diagRegistrations))
 
-	for _, v := range s.diagRegistrations {
+	for k, v := range s.diagRegistrations {
+		row := &influxql.Row{Name: k}
 		names, values, err := v.Diagnostics()
 		if err != nil {
 			continue
 		}
 
-		row := &influxql.Row{}
-		row.Columns = append(row.Columns, "name")
-		for _, n := range names {
-			row.Columns = append(row.Columns, n)
+		// Set the values names and values.
+		for _, k := range names {
+			row.Columns = append(row.Columns, k)
 		}
 		row.Values = values
 		rows = append(rows, row)
