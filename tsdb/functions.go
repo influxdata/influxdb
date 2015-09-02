@@ -1,10 +1,10 @@
-package influxql
+package tsdb
 
 // All aggregate and query functions are defined in this file along with any intermediate data objects they need to process.
 // Query functions are represented as two discreet functions: Map and Reduce. These roughly follow the MapReduce
 // paradigm popularized by Google and Hadoop.
 //
-// When adding an aggregate function, define a mapper, a reducer, and add them in the switch statement in the MapReduceFuncs function
+// When adding an aggregate function, define a mapper, a reducer, and add them in the switch statement in the MapreduceFuncs function
 
 import (
 	"encoding/json"
@@ -13,27 +13,29 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	
+	"github.com/influxdb/influxdb/influxql"
 )
 
-// Iterator represents a forward-only iterator over a set of points.
-// These are used by the MapFunctions in this file
-type Iterator interface {
+// iterator represents a forward-only iterator over a set of points.
+// These are used by the mapFunctions in this file
+type iterator interface {
 	Next() (time int64, value interface{})
 }
 
-// MapFunc represents a function used for mapping over a sequential series of data.
+// mapFunc represents a function used for mapping over a sequential series of data.
 // The iterator represents a single group by interval
-type MapFunc func(Iterator) interface{}
+type mapFunc func(iterator) interface{}
 
-// ReduceFunc represents a function used for reducing mapper output.
-type ReduceFunc func([]interface{}) interface{}
+// reduceFunc represents a function used for reducing mapper output.
+type reduceFunc func([]interface{}) interface{}
 
 // UnmarshalFunc represents a function that can take bytes from a mapper from remote
 // server and marshal it into an interface the reducer can use
-type UnmarshalFunc func([]byte) (interface{}, error)
+type unmarshalFunc func([]byte) (interface{}, error)
 
-// InitializeMapFunc takes an aggregate call from the query and returns the MapFunc
-func InitializeMapFunc(c *Call) (MapFunc, error) {
+// initializemapFunc takes an aggregate call from the query and returns the mapFunc
+func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 	// see if it's a query for raw data
 	if c == nil {
 		return MapRawQuery, nil
@@ -58,12 +60,12 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	if !strings.HasSuffix(c.Name, "derivative") {
 		// Ensure the argument is appropriate for the aggregate function.
 		switch fc := c.Args[0].(type) {
-		case *VarRef:
-		case *Distinct:
+		case *influxql.VarRef:
+		case *influxql.Distinct:
 			if c.Name != "count" {
 				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 			}
-		case *Call:
+		case *influxql.Call:
 			if fc.Name != "distinct" {
 				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 			}
@@ -75,10 +77,10 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Retrieve map function by name.
 	switch c.Name {
 	case "count":
-		if _, ok := c.Args[0].(*Distinct); ok {
+		if _, ok := c.Args[0].(*influxql.Distinct); ok {
 			return MapCountDistinct, nil
 		}
-		if c, ok := c.Args[0].(*Call); ok {
+		if c, ok := c.Args[0].(*influxql.Call); ok {
 			if c.Name == "distinct" {
 				return MapCountDistinct, nil
 			}
@@ -105,7 +107,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	case "last":
 		return MapLast, nil
 	case "percentile":
-		_, ok := c.Args[1].(*NumberLiteral)
+		_, ok := c.Args[1].(*influxql.NumberLiteral)
 		if !ok {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
@@ -113,8 +115,8 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
-		if fn, ok := c.Args[0].(*Call); ok {
-			return InitializeMapFunc(fn)
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
+			return initializeMapFunc(fn)
 		}
 		return MapRawQuery, nil
 	default:
@@ -122,15 +124,15 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	}
 }
 
-// InitializeReduceFunc takes an aggregate call from the query and returns the ReduceFunc
-func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
+// InitializereduceFunc takes an aggregate call from the query and returns the reduceFunc
+func initializeReduceFunc(c *influxql.Call) (reduceFunc, error) {
 	// Retrieve reduce function by name.
 	switch c.Name {
 	case "count":
-		if _, ok := c.Args[0].(*Distinct); ok {
+		if _, ok := c.Args[0].(*influxql.Distinct); ok {
 			return ReduceCountDistinct, nil
 		}
-		if c, ok := c.Args[0].(*Call); ok {
+		if c, ok := c.Args[0].(*influxql.Call); ok {
 			if c.Name == "distinct" {
 				return ReduceCountDistinct, nil
 			}
@@ -161,7 +163,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 
-		lit, ok := c.Args[1].(*NumberLiteral)
+		lit, ok := c.Args[1].(*influxql.NumberLiteral)
 		if !ok {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
@@ -169,8 +171,8 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
-		if fn, ok := c.Args[0].(*Call); ok {
-			return InitializeReduceFunc(fn)
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
+			return initializeReduceFunc(fn)
 		}
 		return nil, fmt.Errorf("expected function argument to %s", c.Name)
 	default:
@@ -178,7 +180,7 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	}
 }
 
-func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
+func initializeUnmarshaller(c *influxql.Call) (unmarshalFunc, error) {
 	// if c is nil it's a raw data query
 	if c == nil {
 		return func(b []byte) (interface{}, error) {
@@ -242,7 +244,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 }
 
 // MapCount computes the number of values in an iterator.
-func MapCount(itr Iterator) interface{} {
+func MapCount(itr iterator) interface{} {
 	n := float64(0)
 	for k, _ := itr.Next(); k != -1; k, _ = itr.Next() {
 		n++
@@ -327,7 +329,7 @@ func (d distinctValues) Less(i, j int) bool {
 }
 
 // MapDistinct computes the unique values in an iterator.
-func MapDistinct(itr Iterator) interface{} {
+func MapDistinct(itr iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
 	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
@@ -381,7 +383,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 }
 
 // MapCountDistinct computes the unique count of values in an iterator.
-func MapCountDistinct(itr Iterator) interface{} {
+func MapCountDistinct(itr iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
 	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
@@ -425,7 +427,7 @@ const (
 )
 
 // MapSum computes the summation of values in an iterator.
-func MapSum(itr Iterator) interface{} {
+func MapSum(itr iterator) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
@@ -480,7 +482,7 @@ func ReduceSum(values []interface{}) interface{} {
 }
 
 // MapMean computes the count and sum of values in an iterator to be combined by the reducer.
-func MapMean(itr Iterator) interface{} {
+func MapMean(itr iterator) interface{} {
 	out := &meanMapOutput{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -686,7 +688,7 @@ type minMaxMapOut struct {
 }
 
 // MapMin collects the values to pass to the reducer
-func MapMin(itr Iterator) interface{} {
+func MapMin(itr iterator) interface{} {
 	min := &minMaxMapOut{}
 
 	pointsYielded := false
@@ -749,7 +751,7 @@ func ReduceMin(values []interface{}) interface{} {
 }
 
 // MapMax collects the values to pass to the reducer
-func MapMax(itr Iterator) interface{} {
+func MapMax(itr iterator) interface{} {
 	max := &minMaxMapOut{}
 
 	pointsYielded := false
@@ -817,7 +819,7 @@ type spreadMapOutput struct {
 }
 
 // MapSpread collects the values to pass to the reducer
-func MapSpread(itr Iterator) interface{} {
+func MapSpread(itr iterator) interface{} {
 	out := &spreadMapOutput{}
 	pointsYielded := false
 	var val float64
@@ -878,7 +880,7 @@ func ReduceSpread(values []interface{}) interface{} {
 }
 
 // MapStddev collects the values to pass to the reducer
-func MapStddev(itr Iterator) interface{} {
+func MapStddev(itr iterator) interface{} {
 	var values []float64
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -936,7 +938,7 @@ type firstLastMapOutput struct {
 
 // MapFirst collects the values to pass to the reducer
 // This function assumes time ordered input
-func MapFirst(itr Iterator) interface{} {
+func MapFirst(itr iterator) interface{} {
 	k, v := itr.Next()
 	if k == -1 {
 		return nil
@@ -981,7 +983,7 @@ func ReduceFirst(values []interface{}) interface{} {
 }
 
 // MapLast collects the values to pass to the reducer
-func MapLast(itr Iterator) interface{} {
+func MapLast(itr iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
@@ -1036,7 +1038,7 @@ func ReduceLast(values []interface{}) interface{} {
 }
 
 // MapEcho emits the data points for each group by interval
-func MapEcho(itr Iterator) interface{} {
+func MapEcho(itr iterator) interface{} {
 	var values []interface{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -1046,7 +1048,7 @@ func MapEcho(itr Iterator) interface{} {
 }
 
 // ReducePercentile computes the percentile of values for each key.
-func ReducePercentile(percentile float64) ReduceFunc {
+func ReducePercentile(percentile float64) reduceFunc {
 	return func(values []interface{}) interface{} {
 		var allValues []float64
 
@@ -1079,7 +1081,7 @@ func ReducePercentile(percentile float64) ReduceFunc {
 }
 
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.
-func IsNumeric(c *Call) bool {
+func IsNumeric(c *influxql.Call) bool {
 	switch c.Name {
 	case "count", "first", "last", "distinct":
 		return false
@@ -1089,7 +1091,7 @@ func IsNumeric(c *Call) bool {
 }
 
 // MapRawQuery is for queries without aggregates
-func MapRawQuery(itr Iterator) interface{} {
+func MapRawQuery(itr iterator) interface{} {
 	var values []*rawQueryMapOutput
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
