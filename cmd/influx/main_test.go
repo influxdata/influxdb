@@ -91,6 +91,31 @@ func TestParseCommand_Use(t *testing.T) {
 	}
 }
 
+func TestParseCommand_Consistency(t *testing.T) {
+	t.Parallel()
+	c := main.CommandLine{}
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "consistency one"},
+		{cmd: " consistency one"},
+		{cmd: "consistency one "},
+		{cmd: "consistency one;"},
+		{cmd: "consistency one; "},
+		{cmd: "Consistency one"},
+	}
+
+	for _, test := range tests {
+		if !c.ParseCommand(test.cmd) {
+			t.Fatalf(`Command "consistency" failed for %q.`, test.cmd)
+		}
+
+		if c.WriteConsistency != "one" {
+			t.Fatalf(`Command "consistency" changed consistency to %q. Expected one`, c.WriteConsistency)
+		}
+	}
+}
+
 func TestParseCommand_Insert(t *testing.T) {
 	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

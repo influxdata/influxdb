@@ -53,7 +53,7 @@ type CommandLine struct {
 	Execute          string
 	ShowVersion      bool
 	Import           bool
-	PPS              int    // Controls how many points per second the import will allow via throttling
+	PPS              int // Controls how many points per second the import will allow via throttling
 	Path             string
 	Compressed       bool
 }
