@@ -136,6 +136,8 @@ func (s *Service) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	switch stmt := stmt.(type) {
 	case *influxql.ShowStatsStatement:
 		return s.executeShowStatistics(stmt)
+	case *influxql.ShowDiagnosticsStatement:
+		return s.executeShowDiagnostics(stmt)
 	default:
 		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 	}
@@ -168,10 +170,33 @@ func (s *Service) executeShowStatistics(q *influxql.ShowStatsStatement) *influxq
 	return &influxql.Result{Series: rows}
 }
 
+func (s *Service) executeShowDiagnostics(q *influxql.ShowDiagnosticsStatement) *influxql.Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows := make([]*influxql.Row, 0, len(s.diagRegistrations))
+
+	for _, v := range s.diagRegistrations {
+		names, values, err := v.Diagnostics()
+		if err != nil {
+			continue
+		}
+
+		row := &influxql.Row{}
+		row.Columns = append(row.Columns, "name")
+		for _, n := range names {
+			row.Columns = append(row.Columns, n)
+		}
+		row.Values = values
+		rows = append(rows, row)
+	}
+	return &influxql.Result{Series: rows}
+}
+
 // statistics returns the combined statistics for all registered clients.
 func (s *Service) statistics() ([]*statistic, error) {
-	s.mu.Lock()
-	defer s.mu.RLock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	statistics := make([]*statistic, 0, len(s.statRegistrations))
 	for _, r := range s.statRegistrations {
