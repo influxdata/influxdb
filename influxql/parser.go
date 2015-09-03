@@ -1822,6 +1822,11 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if lit != "time" {
+			return nil, errors.New("only ORDER BY time supported at this time")
+		}
+
 		fields = append(fields, field)
 	// Parse error...
 	default:
@@ -1843,6 +1848,10 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 		}
 
 		fields = append(fields, field)
+	}
+
+	if len(fields) > 1 {
+		return nil, errors.New("only ORDER BY time supported at this time")
 	}
 
 	return fields, nil

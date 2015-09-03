@@ -585,7 +585,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW SERIES WHERE with ORDER BY and LIMIT
 		{
-			s: `SHOW SERIES WHERE region = 'order by desc' ORDER BY DESC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SHOW SERIES WHERE region = 'order by desc' ORDER BY DESC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowSeriesStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -1258,6 +1259,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, DESC at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, DESC at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries ORDER BY time ASC,`, err: `found EOF, expected identifier at line 1, char 47`},
+		{s: `SELECT field1 FROM myseries ORDER BY time, field1`, err: `only ORDER BY time supported at this time`},
 		{s: `SELECT field1 AS`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `SELECT field1 FROM foo group by time(1s)`, err: `GROUP BY requires at least one aggregate function`},
 		{s: `SELECT count(value), value FROM foo`, err: `mixing aggregate and non-aggregate queries is not supported`},
