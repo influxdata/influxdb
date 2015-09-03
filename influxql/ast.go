@@ -1092,43 +1092,44 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 
 	// Secondly, determine if specific calls have the correct number of arguments
 	for _, f := range s.Fields {
-		if c, ok := f.Expr.(*Call); ok {
-			switch c.Name {
+		switch expr := f.Expr.(type) {
+		case *Call:
+			switch expr.Name {
 			case "derivative", "non_negative_derivative":
 				if err := allowMixedAggregates(); err != nil {
 					return err
 				}
-				if min, max, got := 1, 2, len(c.Args); got > max || got < min {
-					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", c.Name, min, max, got)
+				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
 			case "percentile":
 				if err := allowMixedAggregates(); err != nil {
 					return err
 				}
-				if exp, got := 2, len(c.Args); got != exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				if exp, got := 2, len(expr.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 				}
-				_, ok := c.Args[1].(*NumberLiteral)
+				_, ok := expr.Args[1].(*NumberLiteral)
 				if !ok {
 					return fmt.Errorf("expected float argument in percentile()")
 				}
 			case "top", "bottom":
-				if exp, got := 2, len(c.Args); got < exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", c.Name, exp, got)
+				if exp, got := 2, len(expr.Args); got < exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", expr.Name, exp, got)
 				}
-				if len(c.Args) > 1 {
-					callLimit, ok := c.Args[len(c.Args)-1].(*NumberLiteral)
+				if len(expr.Args) > 1 {
+					callLimit, ok := expr.Args[len(expr.Args)-1].(*NumberLiteral)
 					if !ok {
-						return fmt.Errorf("expected integer as last argument in %s(), found %s", c.Name, c.Args[len(c.Args)-1])
+						return fmt.Errorf("expected integer as last argument in %s(), found %s", expr.Name, expr.Args[len(expr.Args)-1])
 					}
 					// Check if they asked for a limit smaller than what they passed into the call
 					if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
-						return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), c.Name, int64(s.Limit))
+						return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), expr.Name, int64(s.Limit))
 					}
 
-					for _, v := range c.Args[:len(c.Args)-1] {
+					for _, v := range expr.Args[:len(expr.Args)-1] {
 						if _, ok := v.(*VarRef); !ok {
-							return fmt.Errorf("only fields or tags are allowed in %s(), found %s", c.Name, v)
+							return fmt.Errorf("only fields or tags are allowed in %s(), found %s", expr.Name, v)
 						}
 					}
 				}
@@ -1136,25 +1137,22 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				if err := allowMixedAggregates(); err != nil {
 					return err
 				}
-				if exp, got := 1, len(c.Args); got != exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				if exp, got := 1, len(expr.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 				}
-			}
-			// derivative can take a nested aggregate function, everything else expects
-			// a variable reference as the first arg
-			if !strings.HasSuffix(c.Name, "derivative") {
-				switch fc := c.Args[0].(type) {
+				switch fc := expr.Args[0].(type) {
 				case *VarRef:
-				case *Distinct:
-					if c.Name != "count" {
-						return fmt.Errorf("expected field argument in %s()", c.Name)
-					}
+					// do nothing
 				case *Call:
 					if fc.Name != "distinct" {
-						return fmt.Errorf("expected field argument in %s()", c.Name)
+						return fmt.Errorf("expected field argument in %s()", expr.Name)
+					}
+				case *Distinct:
+					if expr.Name != "count" {
+						return fmt.Errorf("expected field argument in %s()", expr.Name)
 					}
 				default:
-					return fmt.Errorf("expected field argument in %s()", c.Name)
+					return fmt.Errorf("expected field argument in %s()", expr.Name)
 				}
 			}
 		}
