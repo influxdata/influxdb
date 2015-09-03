@@ -15,7 +15,6 @@ func TestConfig_Parse(t *testing.T) {
 store-enabled=true
 store-database="the_db"
 store-interval="10m"
-store-address="server1"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +26,5 @@ store-address="server1"
 		t.Fatalf("unexpected store-database: %s", c.StoreDatabase)
 	} else if time.Duration(c.StoreInterval) != 10*time.Minute {
 		t.Fatalf("unexpected store-interval:  %s", c.StoreInterval)
-	} else if c.StoreAddress != "server1" {
-		t.Fatalf("unexpected store-address: %s", c.StoreAddress)
 	}
 }

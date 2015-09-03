@@ -2,18 +2,18 @@ package monitor
 
 import (
 	"expvar"
-	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 )
+
+const leaderWaitTimeout = 30 * time.Second
 
 // Client is the interface modules must implement if they wish to register with monitor.
 type Client interface {
@@ -28,14 +28,21 @@ type Monitor struct {
 	mu            sync.Mutex
 	registrations []*clientWithMeta
 
-	hostname  string
-	clusterID uint64
-	nodeID    uint64
-
 	storeEnabled  bool
 	storeDatabase string
 	storeAddress  string
 	storeInterval time.Duration
+
+	MetaStore interface {
+		ClusterID() (uint64, error)
+		NodeID() uint64
+		WaitForLeader(d time.Duration) error
+		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+	}
+
+	PointsWriter interface {
+		WritePoints(p *cluster.WritePointsRequest) error
+	}
 
 	Logger *log.Logger
 }
@@ -43,10 +50,10 @@ type Monitor struct {
 // New returns a new instance of the monitor system.
 func New(c Config) *Monitor {
 	return &Monitor{
+		done:          make(chan struct{}),
 		registrations: make([]*clientWithMeta, 0),
 		storeEnabled:  c.StoreEnabled,
 		storeDatabase: c.StoreDatabase,
-		storeAddress:  c.StoreAddress,
 		storeInterval: time.Duration(c.StoreInterval),
 		Logger:        log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
@@ -54,24 +61,14 @@ func New(c Config) *Monitor {
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purposem.
-func (m *Monitor) Open(clusterID, nodeID uint64, hostname string) error {
-	m.Logger.Printf("starting monitor system for cluster %d, host %s", clusterID, hostname)
-	m.clusterID = clusterID
-	m.nodeID = nodeID
-	m.hostname = hostname
+func (m *Monitor) Open() error {
+	m.Logger.Printf("Starting monitor system")
 
 	// Self-register Go runtime statm.
 	m.Register("runtime", nil, &goRuntime{})
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
-		m.Logger.Printf("storing in %s, database '%s', interval %s",
-			m.storeAddress, m.storeDatabase, m.storeInterval)
-
-		m.Logger.Printf("ensuring database %s exists on %s", m.storeDatabase, m.storeAddress)
-		if err := ensureDatabaseExists(m.storeAddress, m.storeDatabase); err != nil {
-			return err
-		}
 
 		// Start periodic writes to system.
 		m.wg.Add(1)
@@ -108,38 +105,8 @@ func (m *Monitor) Register(name string, tags map[string]string, client Client) e
 	return nil
 }
 
-// ExecuteStatement executes monitor-related query statements.
-func (m *Monitor) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
-	switch stmt := stmt.(type) {
-	case *influxql.ShowStatsStatement:
-		return m.executeShowStatistics(stmt)
-	default:
-		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
-	}
-}
-
-// executeShowStatistics returns the statistics of the registered monitor client in
-// the standard form expected by users of the InfluxDB system.
-func (m *Monitor) executeShowStatistics(q *influxql.ShowStatsStatement) *influxql.Result {
-	stats, _ := m.statistics()
-	rows := make([]*influxql.Row, len(stats))
-
-	for n, stat := range stats {
-		row := &influxql.Row{Name: stat.Name, Tags: stat.Tags}
-
-		values := make([]interface{}, 0, len(stat.Values))
-		for _, k := range stat.valueNames() {
-			row.Columns = append(row.Columns, k)
-			values = append(values, stat.Values[k])
-		}
-		row.Values = [][]interface{}{values}
-		rows[n] = row
-	}
-	return &influxql.Result{Series: rows}
-}
-
 // statistics returns the combined statistics for all registered clients.
-func (m *Monitor) statistics() ([]*statistic, error) {
+func (m *Monitor) Statistics() ([]*statistic, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -168,6 +135,20 @@ func (m *Monitor) storeStatistics() {
 	//a.Tags["hostname"] = m.hostname
 	defer m.wg.Done()
 
+	m.Logger.Printf("storing statistics in database '%s', interval %s",
+		m.storeDatabase, m.storeInterval)
+
+	if err := m.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
+		m.Logger.Printf("failed to detect a cluster leader, terminating storage: %s", err.Error())
+		return
+	}
+
+	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
+		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
+			m.storeDatabase, err.Error())
+		return
+	}
+
 	tick := time.NewTicker(m.storeInterval)
 	defer tick.Stop()
 	for {
@@ -175,7 +156,7 @@ func (m *Monitor) storeStatistics() {
 		case <-tick.C:
 			// Write stats here.
 		case <-m.done:
-			m.Logger.Printf("terminating storage of statistics to %s", m.storeAddress)
+			m.Logger.Printf("terminating storage of statistics")
 			return
 		}
 
@@ -270,18 +251,4 @@ func (m MonitorClient) Statistics() (map[string]interface{}, error) {
 // Diagnostics implements the Client interface for a MonitorClient.
 func (m MonitorClient) Diagnostics() (map[string]interface{}, error) {
 	return nil, nil
-}
-
-func ensureDatabaseExists(host, database string) error {
-	values := url.Values{}
-	values.Set("q", fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", database))
-	resp, err := http.Get(host + "/query?" + values.Encode())
-	if err != nil {
-		return fmt.Errorf("failed to create monitoring database on %s: %s", host, err.Error())
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to create monitoring database on %s, received code: %d",
-			host, resp.StatusCode)
-	}
-	return nil
 }

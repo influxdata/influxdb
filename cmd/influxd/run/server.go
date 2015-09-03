@@ -85,17 +85,9 @@ func NewServer(c *Config, version string) (*Server, error) {
 		MetaStore: meta.NewStore(c.Meta),
 		TSDBStore: tsdbStore,
 
-		reportingDisabled: c.ReportingDisabled,
-	}
+		Monitor: monitor.New(c.Monitor),
 
-	// Start the monitor service.
-	clusterID, err := s.MetaStore.ClusterID()
-	if err != nil {
-		return nil, err
-	}
-	s.Monitor = monitor.New(c.Monitor)
-	if err := s.Monitor.Open(clusterID, s.MetaStore.NodeID(), s.Hostname); err != nil {
-		return nil, err
+		reportingDisabled: c.ReportingDisabled,
 	}
 
 	// Copy TSDB configuration.
@@ -113,7 +105,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
-	s.QueryExecutor.MonitorStatementExecutor = s.Monitor
+	s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
 	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer
@@ -130,6 +122,13 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
+
+	// Initialize the monitor
+	s.Monitor.MetaStore = s.MetaStore
+	s.Monitor.PointsWriter = s.PointsWriter
+	if err := s.Monitor.Open(); err != nil {
+		return nil, err
+	}
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
@@ -382,6 +381,9 @@ func (s *Server) Close() error {
 	}
 	if s.HintedHandoff != nil {
 		s.HintedHandoff.Close()
+	}
+	if s.Monitor != nil {
+		s.Monitor.Close()
 	}
 	for _, service := range s.Services {
 		service.Close()
