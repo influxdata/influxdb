@@ -574,6 +574,25 @@ func (e *Engine) SeriesBucketStats(key string) (stats bolt.BucketStats, err erro
 	return stats, err
 }
 
+// WriteTo writes the length and contents of the engine to w.
+func (e *Engine) WriteTo(w io.Writer) (n int64, err error) {
+	tx, err := e.db.Begin(false)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	// Write size.
+	if err := binary.Write(w, binary.BigEndian, uint64(tx.Size())); err != nil {
+		return 0, err
+	}
+
+	// Write data.
+	n, err = tx.WriteTo(w)
+	n += 8 // size header
+	return
+}
+
 // Stats represents internal engine statistics.
 type Stats struct {
 	Size int64 // BoltDB data size
