@@ -120,21 +120,21 @@
                         <button class="btn btn-default dropdown-toggle" id="dropdown-templates" data-toggle="dropdown">Query Templates <span class="caret"></span> </button>
                         <ul class="dropdown-menu pull-right" id="action-template">
                           <li><label data-query="SHOW DATABASES">Show Databases</label></li>
-                          <li><label data-query="CREATE DATABASE name">Create Database</label></li>
-                          <li><label data-query="DROP DATABASE name">Drop Database</label></li>
+                          <li><label data-query="CREATE DATABASE &quot;db_name&quot;">Create Database</label></li>
+                          <li><label data-query="DROP DATABASE &quot;db_name&quot;">Drop Database</label></li>
                           <li class="divider"></li>
                           <li><label data-query="SHOW MEASUREMENTS">Show Measurements</label></li>
-                          <li><label data-query="SHOW TAG KEYS FROM measurement_name">Show Tag Keys</label></li>
-                          <li><label data-query="SHOW TAG VALUES FROM measurement_name WITH KEY = tag_key">Show Tag Values</label></li>
+                          <li><label data-query="SHOW TAG KEYS FROM &quot;measurement_name&quot;">Show Tag Keys</label></li>
+                          <li><label data-query="SHOW TAG VALUES FROM &quot;measurement_name&quot; WITH KEY = &quot;tag_key&quot;">Show Tag Values</label></li>
                           <li class="divider"></li>
-                          <li><label data-query="SHOW RETENTION POLICIES ON db_name">Show Retention Policies</label></li>
-                          <li><label data-query="CREATE RETENTION POLICY rp_name ON db_name DURATION 30d REPLICATION 1 DEFAULT">Create Retention Policy</label></li>
-                          <li><label data-query="DROP RETENTION POLICY rp_name">Drop Retention Policy</label></li>
+                          <li><label data-query="SHOW RETENTION POLICIES ON &quot;db_name&quot;">Show Retention Policies</label></li>
+                          <li><label data-query="CREATE RETENTION POLICY &quot;rp_name&quot; ON &quot;db_name&quot; DURATION 30d REPLICATION 1 DEFAULT">Create Retention Policy</label></li>
+                          <li><label data-query="DROP RETENTION POLICY &quot;rp_name&quot;">Drop Retention Policy</label></li>
                           <li class="divider"></li>
                           <li><label data-query="SHOW USERS">Show Users</label></li>
-                          <li><label data-query="CREATE USER username WITH PASSWORD 'password'">Create User</label></li>
-                          <li><label data-query="CREATE USER username WITH PASSWORD 'password' WITH ALL PRIVILEGES">Create Admin User</label></li>
-                          <li><label data-query="DROP USER username">Drop User</label></li>
+                          <li><label data-query="CREATE USER &quot;username&quot; WITH PASSWORD 'password'">Create User</label></li>
+                          <li><label data-query="CREATE USER &quot;username&quot; WITH PASSWORD 'password' WITH ALL PRIVILEGES">Create Admin User</label></li>
+                          <li><label data-query="DROP USER &quot;username&quot;">Drop User</label></li>
                         </ul>
                     </div>
                 </div>
