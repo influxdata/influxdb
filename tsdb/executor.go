@@ -645,7 +645,8 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 		for _, vals := range results {
 			// start at 1 because the first value is always time
 			for j := 1; j < len(vals); j++ {
-				if v, ok := vals[j].(influxql.PositionPoints); ok {
+				switch v := vals[j].(type) {
+				case influxql.PositionPoints:
 					for _, p := range v {
 						tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
 						vals := []interface{}{tm}
@@ -663,14 +664,55 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 						}
 						values = append(values, vals)
 					}
-				} else {
+				case nil:
+					continue
+				default:
 					return nil, fmt.Errorf("unrechable code - processTopBottom")
 				}
 			}
 		}
 		return values, nil
 	}
-	return results, nil
+	// We have a group by time, so we need to rewrite the buckets
+	for _, vals := range results {
+		// start at 1 because the first value is always time
+		for j := 1; j < len(vals); j++ {
+			bucketTime := vals[0].(time.Time)
+			switch v := vals[j].(type) {
+			case influxql.PositionPoints:
+				for _, p := range v {
+					var tm string
+					if e.stmt.HasTimeFieldSpecified() {
+						tm = time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+					} else {
+						tm = bucketTime.UTC().Format(time.RFC3339Nano)
+					}
+
+					vals := []interface{}{tm}
+					for _, c := range columnNames {
+						if c == call.Name {
+							vals = append(vals, p.Value)
+							continue
+						}
+						// TODO look in fields first for value
+
+						// look in the tags for a value
+						if t, ok := p.Tags[c]; ok {
+							vals = append(vals, t)
+						}
+					}
+					values = append(values, vals)
+				}
+			case nil:
+				continue
+			default:
+				return nil, fmt.Errorf("unrechable code - processTopBottom")
+			}
+		}
+	}
+	return values, nil
+
+	//return results, nil
 }
 
 // limitedRowWriter accepts raw mapper values, and will emit those values as rows in chunks

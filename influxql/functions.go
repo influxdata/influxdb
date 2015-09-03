@@ -19,6 +19,7 @@ import (
 type Iterator interface {
 	Next() (time int64, value interface{})
 	Tags() map[string]string
+	BucketTime() int64
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -1097,9 +1098,6 @@ func (p *positionOut) lessKey(i, j int) bool {
 }
 
 func (p *positionOut) less(i, j int, sortFloat func(d1, d2 float64) bool, sortInt64 func(d1, d2 int64) bool, sortUint64 func(d1, d2 uint64) bool) bool {
-
-	// Sort by type if types match
-
 	// Sort by float64/int64 first as that is the most likely match
 	{
 		d1, ok1 := p.points[i].Value.(float64)
@@ -1355,21 +1353,107 @@ func topCallArgs(c *Call) []string {
 
 // MapTop emits the top data points for each group by interval
 func MapTop(itr Iterator, c *Call) interface{} {
-
-	out := positionOut{callArgs: topCallArgs(c)}
+	// Capture the limit if it was specified in the call
 	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
 	limit := int64(lit.Val)
 
+	// Simple case where only value and limit are specified.
+	if len(c.Args) == 2 {
+		out := positionOut{callArgs: topCallArgs(c)}
+
+		for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+			t := k
+			if bt := itr.BucketTime(); bt > -1 {
+				t = bt
+			}
+			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
+		}
+
+		// If we have more than we asked for, only send back the top values
+		if int64(len(out.points)) > limit {
+			sort.Sort(topMapOut{out})
+			out.points = out.points[:limit]
+		}
+		if len(out.points) > 0 {
+			return out.points
+		}
+		return nil
+	}
+	// They specified tags in the call to get unique sets, so we need to map them as we accumulate them
+	outMap := make(map[string]positionOut)
+
+	mapKey := func(args []string, fields map[string]interface{}, keys map[string]string) string {
+		key := ""
+		for _, a := range args {
+			if v, ok := fields[a]; ok {
+				key += a + ":" + fmt.Sprintf("%v", v) + ","
+				continue
+			}
+			if v, ok := keys[a]; ok {
+				key += a + ":" + v + ","
+				continue
+			}
+		}
+		return key
+	}
+
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
-		out.points = append(out.points, positionPoint{k, v, itr.Tags()})
+		t := k
+		if bt := itr.BucketTime(); bt > -1 {
+			t = bt
+		}
+		callArgs := c.Fields()
+		tags := itr.Tags()
+		// TODO send fields in
+		key := mapKey(callArgs, nil, tags)
+		if out, ok := outMap[key]; ok {
+			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
+			outMap[key] = out
+		} else {
+			out = positionOut{callArgs: topCallArgs(c)}
+			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
+			outMap[key] = out
+		}
 	}
-	// If we have more than we asked for, only send back the top values
-	if int64(len(out.points)) > limit {
-		sort.Sort(topMapOut{out})
-		out.points = out.points[:limit]
+	// Sort all the maps
+	for k, v := range outMap {
+		sort.Sort(topMapOut{v})
+		outMap[k] = v
 	}
-	if len(out.points) > 0 {
-		return out.points
+
+	slice := func(needed int64, m map[string]positionOut) PositionPoints {
+		points := PositionPoints{}
+		var collected int64
+		for k, v := range m {
+			if len(v.points) > 0 {
+				points = append(points, v.points[0])
+				v.points = v.points[1:]
+				m[k] = v
+				collected++
+			}
+		}
+		// If we got more than we needed, sort them and return the top
+		if collected > needed {
+			o := positionOut{callArgs: topCallArgs(c), points: points}
+			sort.Sort(topMapOut{o})
+			points = o.points[:needed]
+		}
+
+		return points
+	}
+
+	points := PositionPoints{}
+	var collected int64
+	for collected < limit {
+		p := slice(limit-collected, outMap)
+		if len(p) == 0 {
+			break
+		}
+		points = append(points, p...)
+		collected += int64(len(p))
+	}
+	if len(points) > 0 {
+		return points
 	}
 	return nil
 }

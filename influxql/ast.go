@@ -1117,10 +1117,15 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", c.Name, exp, got)
 				}
 				if len(c.Args) > 1 {
-					_, ok := c.Args[len(c.Args)-1].(*NumberLiteral)
+					callLimit, ok := c.Args[len(c.Args)-1].(*NumberLiteral)
 					if !ok {
 						return fmt.Errorf("expected integer as last argument in %s(), found %s", c.Name, c.Args[len(c.Args)-1])
 					}
+					// Check if they asked for a limit smaller than what they passed into the call
+					if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
+						return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), c.Name, int64(s.Limit))
+					}
+
 					for _, v := range c.Args[:len(c.Args)-1] {
 						if _, ok := v.(*VarRef); !ok {
 							return fmt.Errorf("only fields or tags are allowed in %s(), found %s", c.Name, v)
