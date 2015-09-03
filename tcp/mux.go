@@ -126,3 +126,17 @@ func (ln *listener) Close() error { return nil }
 
 // Addr always returns nil.
 func (ln *listener) Addr() net.Addr { return nil }
+
+// Dial connects to a remote mux listener with a given header byte.
+func Dial(network, address string, header byte) (net.Conn, error) {
+	conn, err := net.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := conn.Write([]byte{header}); err != nil {
+		return nil, fmt.Errorf("write mux header: %s", err)
+	}
+
+	return conn, nil
+}

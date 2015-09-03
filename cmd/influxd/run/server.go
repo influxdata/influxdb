@@ -18,6 +18,7 @@ import (
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
+	"github.com/influxdb/influxdb/services/copier"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
@@ -57,6 +58,7 @@ type Server struct {
 	// These references are required for the tcp muxer.
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
+	CopierService      *copier.Service
 
 	Monitor *monitor.Monitor
 
@@ -134,6 +136,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.appendClusterService(c.Cluster)
 	s.appendPrecreatorService(c.Precreator)
 	s.appendSnapshotterService()
+	s.appendCopierService()
 	s.appendAdminService(c.Admin)
 	s.appendContinuousQueryService(c.ContinuousQuery)
 	s.appendHTTPDService(c.HTTPD)
@@ -168,6 +171,13 @@ func (s *Server) appendSnapshotterService() {
 	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
 	s.SnapshotterService = srv
+}
+
+func (s *Server) appendCopierService() {
+	srv := copier.NewService()
+	srv.TSDBStore = s.TSDBStore
+	s.Services = append(s.Services, srv)
+	s.CopierService = srv
 }
 
 func (s *Server) appendRetentionPolicyService(c retention.Config) {
@@ -324,6 +334,7 @@ func (s *Server) Open() error {
 
 		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
+		s.CopierService.Listener = mux.Listen(copier.MuxHeader)
 		go mux.Serve(ln)
 
 		// Open meta store.

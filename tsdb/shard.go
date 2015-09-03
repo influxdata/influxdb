@@ -382,6 +382,9 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*Fie
 // SeriesCount returns the number of series buckets on the shard.
 func (s *Shard) SeriesCount() (int, error) { return s.engine.SeriesCount() }
 
+// WriteTo writes the shard's data to w.
+func (s *Shard) WriteTo(w io.Writer) (int64, error) { return s.engine.WriteTo(w) }
+
 type MeasurementFields struct {
 	Fields map[string]*Field `json:"fields"`
 	Codec  *FieldCodec

@@ -524,6 +524,25 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 // DB returns the underlying Bolt database.
 func (e *Engine) DB() *bolt.DB { return e.db }
 
+// WriteTo writes the length and contents of the engine to w.
+func (e *Engine) WriteTo(w io.Writer) (n int64, err error) {
+	tx, err := e.db.Begin(false)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	// Write size.
+	if err := binary.Write(w, binary.BigEndian, uint64(tx.Size())); err != nil {
+		return 0, err
+	}
+
+	// Write data.
+	n, err = tx.WriteTo(w)
+	n += 8 // size header
+	return
+}
+
 // Tx represents a transaction.
 type Tx struct {
 	*bolt.Tx
