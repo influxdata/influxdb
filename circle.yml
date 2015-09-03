@@ -7,9 +7,7 @@ machine:
 
 dependencies:
     override:
-        - if [[ -e ~/docker/image.tar ]]; then docker load -i ~/docker/image.tar; fi
-        - docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
-        - mkdir -p ~/docker; docker save ubuntu-32-influxdb-test > ~/docker/image.tar
+        - echo "Dummy override"
     cache_directories:
         - "~/docker"
 test:
