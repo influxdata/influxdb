@@ -77,6 +77,7 @@ type Service struct {
 	Logger         *log.Logger
 	loggingEnabled bool
 	// lastRuns maps CQ name to last time it was run.
+	mu       sync.RWMutex
 	lastRuns map[string]time.Time
 	stop     chan struct{}
 	wg       *sync.WaitGroup
@@ -156,6 +157,8 @@ func (s *Service) Run(database, name string, t time.Time) error {
 	}
 
 	// Loop through databases.
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, db := range dbs {
 		// Loop through CQs in each DB executing the ones that match name.
 		for _, cq := range db.ContinuousQueries {
@@ -227,6 +230,8 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Get the last time this CQ was run from the service's cache.
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	cq.LastRun = s.lastRuns[cqi.Name]
 
 	// Set the retention policy to default if it wasn't specified in the query.
