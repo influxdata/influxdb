@@ -12,7 +12,7 @@ var connectionSettings = {
     port: "8086",
     username: "",
     password: "",
-    ssl: false
+    ssl: ('https:' == window.location.protocol ? true : false)
 }
 
 var connectionString = function() {
