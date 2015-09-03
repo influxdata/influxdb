@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io/ioutil"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -64,12 +65,79 @@ func TestEngine_WritePoints(t *testing.T) {
 	tx := e.MustBegin(false)
 	defer tx.Rollback()
 
-	c := tx.Cursor("temperature", true)
+	c := tx.Cursor("temperature", tsdb.Forward)
 	if k, v := c.Seek([]byte{0}); !bytes.Equal(k, u64tob(uint64(time.Unix(1434059627, 0).UnixNano()))) {
 		t.Fatalf("unexpected key: %#v", k)
 	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {
 		t.Fatal(err)
 	} else if m["value"] != float64(200) {
+		t.Errorf("unexpected value: %#v", m)
+	}
+
+	if k, v := c.Next(); k != nil {
+		t.Fatalf("unexpected key/value: %#v / %#v", k, v)
+	}
+}
+
+// Ensure points can be written to the engine and queried in reverse order.
+func TestEngine_WritePoints_Reverse(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	// Create metadata.
+	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
+	mf.CreateFieldIfNotExists("value", influxql.Float)
+	seriesToCreate := []*tsdb.SeriesCreate{
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("temperature"), nil)), nil)},
+	}
+
+	// Parse point.
+	points, err := tsdb.ParsePointsWithPrecision([]byte("temperature value=100 0"), time.Now().UTC(), "s")
+	if err != nil {
+		t.Fatal(err)
+	} else if data, err := mf.Codec.EncodeFields(points[0].Fields()); err != nil {
+		t.Fatal(err)
+	} else {
+		points[0].SetData(data)
+	}
+
+	// Write original value.
+	if err := e.WritePoints(points, map[string]*tsdb.MeasurementFields{"temperature": mf}, seriesToCreate); err != nil {
+		t.Fatal(err)
+	}
+
+	// Flush to disk.
+	if err := e.Flush(0); err != nil {
+		t.Fatal(err)
+	}
+
+	// Parse new point.
+	points, err = tsdb.ParsePointsWithPrecision([]byte("temperature value=200 1"), time.Now().UTC(), "s")
+	if err != nil {
+		t.Fatal(err)
+	} else if data, err := mf.Codec.EncodeFields(points[0].Fields()); err != nil {
+		t.Fatal(err)
+	} else {
+		points[0].SetData(data)
+	}
+
+	// Write the new points existing value.
+	if err := e.WritePoints(points, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ensure only the updated value is read.
+	tx := e.MustBegin(false)
+	defer tx.Rollback()
+
+	c := tx.Cursor("temperature", tsdb.Reverse)
+	if k, _ := c.Seek(u64tob(math.MaxInt64)); !bytes.Equal(k, u64tob(uint64(time.Unix(1, 0).UnixNano()))) {
+		t.Fatalf("unexpected key: %v", btou64(k))
+	} else if k, v := c.Next(); !bytes.Equal(k, u64tob(uint64(time.Unix(0, 0).UnixNano()))) {
+		t.Fatalf("unexpected key: %#v", k)
+	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {
+		t.Fatal(err)
+	} else if m["value"] != float64(100) {
 		t.Errorf("unexpected value: %#v", m)
 	}
 
