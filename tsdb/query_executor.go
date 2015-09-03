@@ -868,7 +868,9 @@ func (q *QueryExecutor) normalizeStatement(stmt influxql.Statement, defaultDatab
 // normalizeMeasurement inserts the default database or policy into all measurement names,
 // if required.
 func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) error {
-	if m.Name == "" && m.Regex == nil {
+	// Targets (measurements in an INTO clause) can have blank names, which means it will be
+	// the same as the measurement name it came from in the FROM clause.
+	if !m.IsTarget && m.Name == "" && m.Regex == nil {
 		return errors.New("invalid measurement")
 	}
 

@@ -182,9 +182,25 @@ func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.R
 	db := q.Get("db")
 	// Get the name of the CQ to run (blank means run all).
 	name := q.Get("name")
+	// Get the time for which the CQ should be evaluated.
+	var t time.Time
+	var err error
+	s := q.Get("time")
+	if s != "" {
+		t, err = time.Parse(time.RFC3339Nano, s)
+		if err != nil {
+			// Try parsing as an int64 nanosecond timestamp.
+			i, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			t = time.Unix(0, i)
+		}
+	}
 
 	// Pass the request to the CQ service.
-	if err := h.ContinuousQuerier.Run(db, name); err != nil {
+	if err := h.ContinuousQuerier.Run(db, name, t); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

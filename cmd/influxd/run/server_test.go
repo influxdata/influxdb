@@ -3631,7 +3631,7 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 	}
 }
 
-func TestServer_Query_CreateContinuousQuery(t *testing.T) {
+func TestServer_ContinuousQuery(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -3643,37 +3643,112 @@ func TestServer_Query_CreateContinuousQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test := NewTest("db0", "rp0")
+	runTest := func(test *Test, t *testing.T) {
+		for i, query := range test.queries {
+			if i == 0 {
+				if err := test.init(s); err != nil {
+					t.Fatalf("test init failed: %s", err)
+				}
+			}
+			if query.skip {
+				t.Logf("SKIP:: %s", query.name)
+				continue
+			}
+			if err := query.Execute(s); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+		}
+	}
 
+	// Start times of CQ intervals.
+	interval0 := time.Now().Add(-time.Second).Round(time.Second * 5)
+	interval1 := interval0.Add(-time.Second * 5)
+	interval2 := interval0.Add(-time.Second * 10)
+	interval3 := interval0.Add(-time.Second * 15)
+
+	writes := []string{
+		// Point too far in the past for CQ to pick up.
+		fmt.Sprintf(`cpu,host=server01,region=uswest value=100 %d`, interval3.Add(time.Second).UnixNano()),
+
+		// Points two intervals ago.
+		fmt.Sprintf(`cpu,host=server01 value=100 %d`, interval2.Add(time.Second).UnixNano()),
+		fmt.Sprintf(`cpu,host=server01,region=uswest value=100 %d`, interval2.Add(time.Second*2).UnixNano()),
+		fmt.Sprintf(`cpu,host=server01,region=useast value=100 %d`, interval2.Add(time.Second*3).UnixNano()),
+
+		// Points one interval ago.
+		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, interval1.Add(time.Second).UnixNano()),
+		fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, interval1.Add(time.Second*2).UnixNano()),
+
+		// Points in the current interval.
+		fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, interval0.Add(time.Second).UnixNano()),
+		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, interval0.Add(time.Second*2).UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
 	test.addQueries([]*Query{
 		&Query{
-			name:    "create continuous query",
-			command: `CREATE CONTINUOUS QUERY "my.query" ON db0 BEGIN SELECT count(value) INTO measure1 FROM myseries GROUP BY time(10m) END`,
+			name:    `create another retention policy for CQ to write into`,
+			command: `CREATE RETENTION POLICY rp1 ON db0 DURATION 1h REPLICATION 1`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "create continuous query with backreference",
+			command: `CREATE CONTINUOUS QUERY "cq1" ON db0 BEGIN SELECT count(value) INTO "rp1".:MEASUREMENT FROM /[cg]pu/ GROUP BY time(5s) END`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    `create another retention policy for CQ to write into`,
+			command: `CREATE RETENTION POLICY rp2 ON db0 DURATION 1h REPLICATION 1`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "create continuous query with backreference and group by time",
+			command: `CREATE CONTINUOUS QUERY "cq2" ON db0 BEGIN SELECT count(value) INTO "rp2".:MEASUREMENT FROM /[cg]pu/ GROUP BY time(5s), * END`,
 			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    `show continuous queries`,
 			command: `SHOW CONTINUOUS QUERIES`,
-			exp:     `{"results":[{"series":[{"name":"db0","columns":["name","query"],"values":[["my.query","CREATE CONTINUOUS QUERY \"my.query\" ON db0 BEGIN SELECT count(value) INTO \"db0\".\"rp0\".measure1 FROM \"db0\".\"rp0\".myseries GROUP BY time(10m) END"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"db0","columns":["name","query"],"values":[["cq1","CREATE CONTINUOUS QUERY cq1 ON db0 BEGIN SELECT count(value) INTO \"db0\".\"rp1\".:MEASUREMENT FROM \"db0\".\"rp0\"./[cg]pu/ GROUP BY time(5s) END"],["cq2","CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT count(value) INTO \"db0\".\"rp2\".:MEASUREMENT FROM \"db0\".\"rp0\"./[cg]pu/ GROUP BY time(5s), * END"]]}]}]}`,
 		},
 	}...)
 
-	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
-			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
+	// Run first test to create CQs.
+	runTest(&test, t)
+
+	// Trigger CQs to run.
+	u := fmt.Sprintf("%s/data/process_continuous_queries?time=%d", s.URL(), interval0.UnixNano())
+	if _, err := s.HTTPPost(u, nil); err != nil {
+		t.Fatal(err)
 	}
+
+	// Wait for CQs to run. TODO: fix this ugly hack
+	time.Sleep(time.Second * 2)
+
+	// Setup tests to check the CQ results.
+	test2 := NewTest("db0", "rp1")
+	test2.addQueries([]*Query{
+		&Query{
+			name:    "check results of cq1",
+			command: `SELECT * FROM "rp1"./[cg]pu/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","count","host","region","value"],"values":[["` + interval2.UTC().Format(time.RFC3339Nano) + `",3,null,null,null]]},{"name":"gpu","columns":["time","count","host","region","value"],"values":[["` + interval1.UTC().Format(time.RFC3339Nano) + `",2,null,null,null],["` + interval0.UTC().Format(time.RFC3339Nano) + `",1,null,null,null]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		// TODO: restore this test once this is fixed: https://github.com/influxdb/influxdb/issues/3968
+		&Query{
+			skip:    true,
+			name:    "check results of cq2",
+			command: `SELECT * FROM "rp2"./[cg]pu/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","count","host","region","value"],"values":[["` + interval2.UTC().Format(time.RFC3339Nano) + `",1,"server01","uswest",null],["` + interval2.UTC().Format(time.RFC3339Nano) + `",1,"server01","",null],["` + interval2.UTC().Format(time.RFC3339Nano) + `",1,"server01","useast",null]]},{"name":"gpu","columns":["time","count","host","region","value"],"values":[["` + interval1.UTC().Format(time.RFC3339Nano) + `",1,"server02","useast",null],["` + interval1.UTC().Format(time.RFC3339Nano) + `",1,"server03","caeast",null],["` + interval0.UTC().Format(time.RFC3339Nano) + `",1,"server03","caeast",null]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	// Run second test to check CQ results.
+	runTest(&test2, t)
 }
 
 // Tests that a known CQ query with concurrent writes does not deadlock the server

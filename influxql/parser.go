@@ -488,6 +488,9 @@ func (p *Parser) parseSegmentedIdents() ([]string, error) {
 		if ch := p.peekRune(); ch == '/' {
 			// Next segment is a regex so we're done.
 			break
+		} else if ch == ':' {
+			// Next segment is context-specific so let caller handle it.
+			break
 		} else if ch == '.' {
 			// Add an empty identifier.
 			idents = append(idents, "")
@@ -799,7 +802,18 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 		return nil, err
 	}
 
-	t := &Target{Measurement: &Measurement{}}
+	if len(idents) < 3 {
+		// Check for source measurement reference.
+		if ch := p.peekRune(); ch == ':' {
+			if err := p.parseTokens([]Token{COLON, MEASUREMENT}); err != nil {
+				return nil, err
+			}
+			// Append empty measurement name.
+			idents = append(idents, "")
+		}
+	}
+
+	t := &Target{Measurement: &Measurement{IsTarget: true}}
 
 	switch len(idents) {
 	case 1:
