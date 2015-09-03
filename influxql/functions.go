@@ -1432,10 +1432,11 @@ func MapTop(itr Iterator, c *Call) interface{} {
 				collected++
 			}
 		}
+		o := positionOut{callArgs: topCallArgs(c), points: points}
+		sort.Sort(topMapOut{o})
+		points = o.points
 		// If we got more than we needed, sort them and return the top
 		if collected > needed {
-			o := positionOut{callArgs: topCallArgs(c), points: points}
-			sort.Sort(topMapOut{o})
 			points = o.points[:needed]
 		}
 

@@ -18,10 +18,11 @@ type point struct {
 }
 
 type testIterator struct {
-	values   []point
-	lastTags map[string]string
-	nextFunc func() (timestamp int64, value interface{})
-	tagsFunc func() map[string]string
+	values         []point
+	lastTags       map[string]string
+	nextFunc       func() (timestamp int64, value interface{})
+	tagsFunc       func() map[string]string
+	bucketTimeFunc func() int64
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
@@ -43,6 +44,13 @@ func (t *testIterator) Tags() map[string]string {
 		return t.tagsFunc()
 	}
 	return t.lastTags
+}
+
+func (t *testIterator) BucketTime() int64 {
+	if t.bucketTimeFunc != nil {
+		return t.bucketTimeFunc()
+	}
+	return -1
 }
 
 func TestMapMeanNoValues(t *testing.T) {
@@ -497,19 +505,19 @@ func TestMapTop(t *testing.T) {
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
 		{
-			name: "int64 - basic with extra tag",
+			name: "int64 - basic with tag",
 			iter: &testIterator{
 				values: []point{
 					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, int64(88), map[string]string{"host": "a"}},
+					{"", 20, int64(53), map[string]string{"host": "b"}},
+					{"", 30, int64(88), map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
 					positionPoint{10, int64(99), map[string]string{"host": "a"}},
-					positionPoint{20, int64(88), map[string]string{"host": "a"}},
+					positionPoint{20, int64(53), map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -519,7 +527,7 @@ func TestMapTop(t *testing.T) {
 			iter: &testIterator{
 				values: []point{
 					{"", 20, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 10, int64(53), map[string]string{"host": "a"}},
 					{"", 10, int64(99), map[string]string{"host": "a"}},
 				},
 			},
