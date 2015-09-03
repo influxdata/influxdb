@@ -370,11 +370,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	}
 
 	if s.loggingEnabled {
-		db := cq.intoDB()
-		if db == "" {
-			db = cq.Database
-		}
-		s.Logger.Printf("wrote %d point(s) to %s.%s", len(points), db, cq.intoRP())
+		s.Logger.Printf("wrote %d point(s) to %s.%s", len(points), cq.intoDB(), cq.intoRP())
 	}
 
 	return nil
@@ -421,7 +417,13 @@ type ContinuousQuery struct {
 	q        *influxql.SelectStatement
 }
 
-func (cq *ContinuousQuery) intoDB() string          { return cq.q.Target.Measurement.Database }
+func (cq *ContinuousQuery) intoDB() string {
+	if cq.q.Target.Measurement.Database != "" {
+		return cq.q.Target.Measurement.Database
+	}
+	return cq.Database
+}
+
 func (cq *ContinuousQuery) intoRP() string          { return cq.q.Target.Measurement.RetentionPolicy }
 func (cq *ContinuousQuery) setIntoRP(rp string)     { cq.q.Target.Measurement.RetentionPolicy = rp }
 func (cq *ContinuousQuery) intoMeasurement() string { return cq.q.Target.Measurement.Name }
