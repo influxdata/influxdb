@@ -29,10 +29,49 @@ var statMap = expvar.NewMap("graphite")
 var statMapTCP = expvar.NewMap("tcp")
 var statMapUDP = expvar.NewMap("udp")
 
-// Build the graphite expvar hierarchy.
+// Initialize the graphite stats and diags
 func init() {
 	statMap.Set("tcp", statMapTCP)
 	statMap.Set("udp", statMapUDP)
+	tcpConnections = make(map[string]*tcpConnectionDiag)
+}
+
+// Package-level tracking of connections for diagnostics.
+type tcpConnectionDiag struct {
+	conn        net.Conn
+	connectTime time.Time
+}
+
+var tcpConnectionsMu sync.Mutex
+var tcpConnections map[string]*tcpConnectionDiag
+
+func addConnection(c net.Conn) {
+	tcpConnectionsMu.Lock()
+	defer tcpConnectionsMu.Unlock()
+	tcpConnections[c.RemoteAddr().String()] = &tcpConnectionDiag{
+		conn:        c,
+		connectTime: time.Now().UTC(),
+	}
+}
+func removeConnection(c net.Conn) {
+	tcpConnectionsMu.Lock()
+	defer tcpConnectionsMu.Unlock()
+	delete(tcpConnections, c.RemoteAddr().String())
+}
+
+func handleDiagnostics() (*monitor.Diagnostic, error) {
+	tcpConnectionsMu.Lock()
+	defer tcpConnectionsMu.Unlock()
+
+	d := &monitor.Diagnostic{
+		Columns: []string{"local", "remote", "connect time"},
+		Rows:    make([][]interface{}, 0, len(tcpConnections)),
+	}
+	for _, v := range tcpConnections {
+		_ = v
+		d.Rows = append(d.Rows, []interface{}{v.conn.LocalAddr().String(), v.conn.RemoteAddr().String(), v.connectTime})
+	}
+	return d, nil
 }
 
 // statistics gathered by the graphite package.
@@ -70,6 +109,7 @@ type Service struct {
 
 	Monitor interface {
 		RegisterStatsClient(name string, tags map[string]string, client monitor.StatsClient) error
+		RegisterDiagnosticsClient(name string, client monitor.DiagsClient) error
 	}
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -130,6 +170,8 @@ func (s *Service) Open() error {
 
 		u := monitor.NewStatsMonitorClient(statMapUDP)
 		s.Monitor.RegisterStatsClient("graphite", map[string]string{"proto": "udp"}, u)
+
+		s.Monitor.RegisterDiagnosticsClient("graphite", monitor.DiagsClientFunc(handleDiagnostics))
 	})
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
@@ -223,8 +265,10 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 // handleTCPConnection services an individual TCP connection for the Graphite input.
 func (s *Service) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
+	defer removeConnection(conn)
 	defer s.wg.Done()
 	defer s.statMap.Add(statConnectionsActive, -1)
+	addConnection(conn)
 	s.statMap.Add(statConnectionsActive, 1)
 	s.statMap.Add(statConnectionsHandled, 1)
 
