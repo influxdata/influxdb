@@ -31,7 +31,13 @@ func (g *goRuntime) Statistics() (map[string]interface{}, error) {
 	}, nil
 }
 
-// Diagnostics returns the statistics for the goRuntime type
-func (g *goRuntime) Diagnostics() (map[string]interface{}, error) {
-	return nil, nil
+func (g *goRuntime) Diagnostics() (*Diagnostic, error) {
+	diagnostics := map[string]interface{}{
+		"GOARCH":     runtime.GOARCH,
+		"GOOS":       runtime.GOOS,
+		"GOMAXPROCS": runtime.GOMAXPROCS(-1),
+		"version":    runtime.Version(),
+	}
+
+	return DiagnosticFromMap(diagnostics), nil
 }
