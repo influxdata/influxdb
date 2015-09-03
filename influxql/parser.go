@@ -129,6 +129,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
 	case SERIES:
 		return p.parseShowSeriesStatement()
+	case SHARDS:
+		return p.parseShowShardsStatement()
 	case STATS:
 		return p.parseShowStatsStatement()
 	case DIAGNOSTICS:
@@ -1407,6 +1409,12 @@ func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
 	}
 
 	return
+}
+
+// parseShowShardsStatement parses a string for "SHOW SHARDS" statement.
+// This function assumes the "SHOW SHARDS" tokens have already been consumed.
+func (p *Parser) parseShowShardsStatement() (*ShowShardsStatement, error) {
+	return &ShowShardsStatement{}, nil
 }
 
 // parseShowStatsStatement parses a string and returns a ShowStatsStatement.

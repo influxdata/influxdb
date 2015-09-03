@@ -765,6 +765,57 @@ func TestStatementExecutor_ExecuteStatement_Unsupported(t *testing.T) {
 	}
 }
 
+// Ensure a SHOW SHARDS statement can be executed.
+func TestStatementExecutor_ExecuteStatement_ShowShards(t *testing.T) {
+	e := NewStatementExecutor()
+	e.Store.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+		return []meta.DatabaseInfo{
+			{
+				Name: "foo",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Duration: time.Second,
+						ShardGroups: []meta.ShardGroupInfo{
+							{
+								StartTime: time.Unix(0, 0),
+								EndTime:   time.Unix(1, 0),
+								Shards: []meta.ShardInfo{
+									{
+										ID: 1,
+										Owners: []meta.ShardOwner{
+											{NodeID: 1},
+											{NodeID: 2},
+											{NodeID: 3},
+										},
+									},
+									{
+										ID: 2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SHARDS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+		{
+			Name:    "foo",
+			Columns: []string{"id", "start_time", "end_time", "expiry_time", "owners"},
+			Values: [][]interface{}{
+				{uint64(1), "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", "1,2,3"},
+				{uint64(2), "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", ""},
+			},
+		},
+	}) {
+		t.Fatalf("unexpected rows: %s", spew.Sdump(res.Series))
+	}
+}
+
 // StatementExecutor represents a test wrapper for meta.StatementExecutor.
 type StatementExecutor struct {
 	*meta.StatementExecutor

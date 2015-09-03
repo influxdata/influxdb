@@ -105,6 +105,7 @@ func (*ShowFieldKeysStatement) node()         {}
 func (*ShowRetentionPoliciesStatement) node() {}
 func (*ShowMeasurementsStatement) node()      {}
 func (*ShowSeriesStatement) node()            {}
+func (*ShowShardsStatement) node()            {}
 func (*ShowStatsStatement) node()             {}
 func (*ShowDiagnosticsStatement) node()       {}
 func (*ShowTagKeysStatement) node()           {}
@@ -206,6 +207,7 @@ func (*ShowFieldKeysStatement) stmt()         {}
 func (*ShowMeasurementsStatement) stmt()      {}
 func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
+func (*ShowShardsStatement) stmt()            {}
 func (*ShowStatsStatement) stmt()             {}
 func (*ShowDiagnosticsStatement) stmt()       {}
 func (*ShowTagKeysStatement) stmt()           {}
@@ -1838,6 +1840,17 @@ func (s *ShowStatsStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowStatsStatement
 func (s *ShowStatsStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// ShowShardsStatement represents a command for displaying shards in the cluster.
+type ShowShardsStatement struct{}
+
+// String returns a string representation.
+func (s *ShowShardsStatement) String() string { return "SHOW SHARDS" }
+
+// RequiredPrivileges returns the privileges required to execute the statement.
+func (s *ShowShardsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 

@@ -1231,6 +1231,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW SHARDS
+		{
+			s:    `SHOW SHARDS`,
+			stmt: &influxql.ShowShardsStatement{},
+		},
+
 		// SHOW DIAGNOSTICS
 		{
 			s:    `SHOW DIAGNOSTICS`,

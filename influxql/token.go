@@ -111,6 +111,7 @@ const (
 	SERVERS
 	SET
 	SHOW
+	SHARDS
 	SLIMIT
 	STATS
 	DIAGNOSTICS
@@ -220,6 +221,7 @@ var tokens = [...]string{
 	SERVERS:      "SERVERS",
 	SET:          "SET",
 	SHOW:         "SHOW",
+	SHARDS:       "SHARDS",
 	SLIMIT:       "SLIMIT",
 	SOFFSET:      "SOFFSET",
 	STATS:        "STATS",
