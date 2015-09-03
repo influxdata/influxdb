@@ -151,8 +151,8 @@ type Log struct {
 	// out of the WAL.
 	Index IndexWriter
 
-	// EnableLogging specifies if detailed logs should be output
-	EnableLogging bool
+	// LoggingEnabled specifies if detailed logs should be output
+	LoggingEnabled bool
 }
 
 // IndexWriter is an interface for the indexed database the WAL flushes data to
@@ -185,7 +185,7 @@ func NewLog(path string) *Log {
 // Open opens and initializes the Log. Will recover from previous unclosed shutdowns
 func (l *Log) Open() error {
 
-	if l.EnableLogging {
+	if l.LoggingEnabled {
 		l.logger.Printf("WAL starting with %d ready series size, %0.2f compaction threshold, and %d partition size threshold\n", l.ReadySeriesSize, l.CompactionThreshold, l.PartitionSizeThreshold)
 		l.logger.Printf("WAL writing to %s\n", l.path)
 	}
@@ -681,14 +681,14 @@ func (l *Log) flushMetadata() error {
 	defer l.flushLock.Unlock()
 
 	startTime := time.Now()
-	if l.EnableLogging {
+	if l.LoggingEnabled {
 		l.logger.Printf("Flushing %d measurements and %d series to index\n", len(measurements), len(series))
 	}
 	// write them to the index
 	if err := l.Index.WriteIndex(nil, measurements, series); err != nil {
 		return err
 	}
-	if l.EnableLogging {
+	if l.LoggingEnabled {
 		l.logger.Println("Metadata flush took", time.Since(startTime))
 	}
 
@@ -1075,7 +1075,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		defer p.log.flushLock.Unlock()
 
 		startTime := time.Now()
-		if p.log.EnableLogging {
+		if p.log.LoggingEnabled {
 			ftype := "idle"
 			if flush == thresholdFlush {
 				ftype = "threshold"
@@ -1094,7 +1094,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 			// if we can't write the index, we should just bring down the server hard
 			panic(fmt.Sprintf("error writing the wal to the index: %s", err.Error()))
 		}
-		if p.log.EnableLogging {
+		if p.log.LoggingEnabled {
 			p.log.logger.Printf("write to index of partition %d took %s\n", p.id, time.Since(startTime))
 		}
 	}()
@@ -1114,7 +1114,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 
 	startTime := time.Now()
 	err = p.compactFiles(c, flush)
-	if p.log.EnableLogging {
+	if p.log.LoggingEnabled {
 		p.log.logger.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
 	}
 

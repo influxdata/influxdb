@@ -25,6 +25,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3928](https://github.com/influxdb/influxdb/issues/3928): Write fails for multiple points when tag starts with quote
 - [#3901](https://github.com/influxdb/influxdb/pull/3901): Unblock relaxed write consistency level Thanks @takayuki!
 - [#3950](https://github.com/influxdb/influxdb/pull/3950): Limit bz1 quickcheck tests to 10 iterations on CI
+- [#3977](https://github.com/influxdb/influxdb/pull/3977): Silence wal logging during testing
 
 ## v0.9.3 [2015-08-26]
 
