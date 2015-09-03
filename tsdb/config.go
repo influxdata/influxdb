@@ -52,7 +52,7 @@ type Config struct {
 
 	// WAL configuration options for bz1 (introduced in 0.9.3)
 	WALDir                    string        `toml:"wal-dir"`
-	WALEnableLogging          bool          `toml:"wal-enable-logging"`
+	WALLoggingEnabled         bool          `toml:"wal-logging-enabled"`
 	WALReadySeriesSize        int           `toml:"wal-ready-series-size"`
 	WALCompactionThreshold    float64       `toml:"wal-compaction-threshold"`
 	WALMaxSeriesSize          int           `toml:"wal-max-series-size"`
@@ -66,7 +66,7 @@ func NewConfig() Config {
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
 
-		WALEnableLogging:          true,
+		WALLoggingEnabled:         true,
 		WALReadySeriesSize:        DefaultReadySeriesSize,
 		WALCompactionThreshold:    DefaultCompactionThreshold,
 		WALMaxSeriesSize:          DefaultMaxSeriesSize,
