@@ -25,7 +25,7 @@ func main() {
 	tstore := tsdb.NewStore(filepath.Join(path, "data"))
 	tstore.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 	tstore.EngineOptions.Config.Dir = filepath.Join(path, "data")
-	tstore.EngineOptions.Config.WALEnableLogging = false
+	tstore.EngineOptions.Config.WALLoggingEnabled = false
 	tstore.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
 	if err := tstore.Open(); err != nil {
 		fmt.Printf("Failed to open dir: %v\n", err)
@@ -78,7 +78,7 @@ func main() {
 				for _, key := range series {
 					fieldSummary := []string{}
 
-					cursor := tx.Cursor(key)
+					cursor := tx.Cursor(key, tsdb.Forward)
 
 					// Series doesn't exist in this shard
 					if cursor == nil {
