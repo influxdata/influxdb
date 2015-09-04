@@ -435,12 +435,12 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 				heap.Push(tsc.pointHeap, p)
 			}
 			// Wrap the tagset cursor so it implements the mapping functions interface.
-			f := func() (time int64, value interface{}) {
+			nextf := func() (time int64, value interface{}) {
 				k, v := tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
 				return k, v
 			}
 
-			tf := func() map[string]string {
+			tagf := func() map[string]string {
 				return tsc.Tags()
 			}
 
@@ -455,8 +455,8 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			}
 
 			tagSetCursor := &aggTagSetCursor{
-				nextFunc: f,
-				tagsFunc: tf,
+				nextFunc: nextf,
+				tagsFunc: tagf,
 				tMinFunc: tminf,
 			}
 
