@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -365,8 +366,9 @@ type Handler struct {
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
+	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
 	h := &Handler{
-		Handler: httpd.NewHandler(requireAuthentication, true, false),
+		Handler: httpd.NewHandler(requireAuthentication, true, false, statMap),
 	}
 	h.Handler.MetaStore = &h.MetaStore
 	h.Handler.QueryExecutor = &h.QueryExecutor
