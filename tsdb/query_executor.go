@@ -171,14 +171,12 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				res = q.executeShowTagValuesStatement(stmt, database)
 			case *influxql.ShowFieldKeysStatement:
 				res = q.executeShowFieldKeysStatement(stmt, database)
-			case *influxql.ShowDiagnosticsStatement:
-				res = q.executeShowDiagnosticsStatement(stmt)
 			case *influxql.DeleteStatement:
 				res = &influxql.Result{Err: ErrInvalidQuery}
 			case *influxql.DropDatabaseStatement:
 				// TODO: handle this in a cluster
 				res = q.executeDropDatabaseStatement(stmt)
-			case *influxql.ShowStatsStatement:
+			case *influxql.ShowStatsStatement, *influxql.ShowDiagnosticsStatement:
 				// Send monitor-related queries to the monitor service.
 				res = q.MonitorStatementExecutor.ExecuteStatement(stmt)
 			default:
@@ -901,10 +899,6 @@ func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDat
 	}
 
 	return nil
-}
-
-func (q *QueryExecutor) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement) *influxql.Result {
-	return &influxql.Result{Err: fmt.Errorf("SHOW DIAGNOSTICS is not implemented yet")}
 }
 
 // ErrAuthorize represents an authorization error.

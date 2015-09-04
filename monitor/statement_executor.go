@@ -10,6 +10,7 @@ import (
 type StatementExecutor struct {
 	Monitor interface {
 		Statistics() ([]*statistic, error)
+		Diagnostics() (map[string]*Diagnostic, error)
 	}
 }
 
@@ -26,7 +27,10 @@ func (s *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 }
 
 func (s *StatementExecutor) executeShowStatistics() *influxql.Result {
-	stats, _ := s.Monitor.Statistics()
+	stats, err := s.Monitor.Statistics()
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
 	rows := make([]*influxql.Row, len(stats))
 
 	for n, stat := range stats {
@@ -44,5 +48,18 @@ func (s *StatementExecutor) executeShowStatistics() *influxql.Result {
 }
 
 func (s *StatementExecutor) executeShowDiagnostics() *influxql.Result {
-	return nil
+	diags, err := s.Monitor.Diagnostics()
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+	rows := make([]*influxql.Row, 0, len(diags))
+
+	for k, v := range diags {
+		row := &influxql.Row{Name: k}
+
+		row.Columns = v.Columns
+		row.Values = v.Rows
+		rows = append(rows, row)
+	}
+	return &influxql.Result{Series: rows}
 }
