@@ -641,39 +641,7 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 	var values [][]interface{}
 
 	// Check if we have a group by, if not, rewrite the entire result by flattening it out
-	if len(e.stmt.Dimensions) == 0 {
-		for _, vals := range results {
-			// start at 1 because the first value is always time
-			for j := 1; j < len(vals); j++ {
-				switch v := vals[j].(type) {
-				case influxql.PositionPoints:
-					for _, p := range v {
-						tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
-						vals := []interface{}{tm}
-						for _, c := range columnNames {
-							if c == call.Name {
-								vals = append(vals, p.Value)
-								continue
-							}
-							// TODO look in fields first for value
-
-							// look in the tags for a value
-							if t, ok := p.Tags[c]; ok {
-								vals = append(vals, t)
-							}
-						}
-						values = append(values, vals)
-					}
-				case nil:
-					continue
-				default:
-					return nil, fmt.Errorf("unrechable code - processTopBottom")
-				}
-			}
-		}
-		return values, nil
-	}
-	// We have a group by time, so we need to rewrite the buckets
+	//if len(e.stmt.Dimensions) == 0 {
 	for _, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
@@ -681,13 +649,11 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 			switch v := vals[j].(type) {
 			case influxql.PositionPoints:
 				for _, p := range v {
-					var tm string
-					if e.stmt.HasTimeFieldSpecified() {
-						tm = time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
-					} else {
+					tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+					// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
+					if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
 						tm = tMin.UTC().Format(time.RFC3339Nano)
 					}
-
 					vals := []interface{}{tm}
 					for _, c := range columnNames {
 						if c == call.Name {
@@ -711,8 +677,6 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 		}
 	}
 	return values, nil
-
-	//return results, nil
 }
 
 // limitedRowWriter accepts raw mapper values, and will emit those values as rows in chunks
