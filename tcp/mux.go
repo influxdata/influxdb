@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,8 @@ const (
 type Mux struct {
 	ln net.Listener
 	m  map[byte]*listener
+
+	wg sync.WaitGroup
 
 	// The amount of time to wait for the first header byte.
 	Timeout time.Duration
@@ -49,6 +52,8 @@ func (mux *Mux) Serve(ln net.Listener) error {
 			continue
 		}
 		if err != nil {
+			// Wait for all connections to be demux
+			mux.wg.Wait()
 			for _, ln := range mux.m {
 				close(ln.c)
 			}
@@ -56,11 +61,13 @@ func (mux *Mux) Serve(ln net.Listener) error {
 		}
 
 		// Demux in a goroutine to
+		mux.wg.Add(1)
 		go mux.handleConn(conn)
 	}
 }
 
 func (mux *Mux) handleConn(conn net.Conn) {
+	defer mux.wg.Done()
 	// Set a read deadline so connections with no data don't timeout.
 	if err := conn.SetReadDeadline(time.Now().Add(mux.Timeout)); err != nil {
 		conn.Close()
