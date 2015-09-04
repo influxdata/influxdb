@@ -444,7 +444,7 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 				return tsc.Tags()
 			}
 
-			btf := func() int64 {
+			tminf := func() int64 {
 				if len(lm.selectStmt.Dimensions) == 0 {
 					return -1
 				}
@@ -457,7 +457,7 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			tagSetCursor := &aggTagSetCursor{
 				nextFunc: f,
 				tagsFunc: tf,
-				tMinFunc: btf,
+				tMinFunc: tminf,
 			}
 
 			// Execute the map function which walks the entire interval, and aggregates
