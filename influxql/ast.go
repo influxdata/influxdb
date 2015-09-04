@@ -860,7 +860,7 @@ func (s *SelectStatement) RewriteDistinct() {
 }
 
 // ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
-// while maintaining sort order of the field names
+// while maintaining order of the field names
 func (s *SelectStatement) ColumnNames() []string {
 	// Always set the first column to be time, even if they didn't specify it
 	columnNames := []string{"time"}
@@ -1073,7 +1073,12 @@ func (s *SelectStatement) validateFields() error {
 	return nil
 }
 
-func (s *SelectStatement) allowMixedAggregates(numAggregates int) error {
+// validSelectWithAggregate determines if a SELECT statement has the correct
+// combination of aggregate functions combined with selected fields and tags
+// Currently we don't have support for all aggregates, but aggregates that
+// can be combined with fields/tags are:
+//  TOP, BOTTOM, MAX, MIN, FIRST, LAST
+func (s *SelectStatement) validSelectWithAggregate(numAggregates int) error {
 	if numAggregates != 0 && numAggregates != len(s.Fields) {
 		return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
 	}
@@ -1095,14 +1100,14 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 		case *Call:
 			switch expr.Name {
 			case "derivative", "non_negative_derivative":
-				if err := s.allowMixedAggregates(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(numAggregates); err != nil {
 					return err
 				}
 				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
 			case "percentile":
-				if err := s.allowMixedAggregates(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(numAggregates); err != nil {
 					return err
 				}
 				if exp, got := 2, len(expr.Args); got != exp {
@@ -1133,7 +1138,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					}
 				}
 			default:
-				if err := s.allowMixedAggregates(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(numAggregates); err != nil {
 					return err
 				}
 				if exp, got := 1, len(expr.Args); got != exp {
@@ -2340,12 +2345,12 @@ func (c *Call) String() string {
 func (c *Call) Fields() []string {
 	switch c.Name {
 	case "top", "bottom":
-		// maintain the sort order
+		// maintain the order the user specified in the query
 		keyMap := make(map[string]struct{})
 		keys := []string{}
 		for i, a := range c.Args {
 			if i == 0 {
-				// special case, first argument is always the name of the function regarldess of the field name
+				// special case, first argument is always the name of the function regardless of the field name
 				keys = append(keys, c.Name)
 				continue
 			}
