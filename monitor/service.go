@@ -16,13 +16,6 @@ import (
 
 const leaderWaitTimeout = 30 * time.Second
 
-// StatsClient is the interface modules must implement if they wish to register with monitor.
-type StatsClient interface {
-	// Statistics returns a map of keys to values. Each Value must be either int64 or float64.
-	// Statistical information is written to an InfluxDB system if enabled.
-	Statistics() (map[string]interface{}, error)
-}
-
 // DiagsClient is the interface modules implement if they register diags with monitor.
 type DiagsClient interface {
 	Diagnostics() (*Diagnostic, error)
@@ -67,7 +60,6 @@ type Monitor struct {
 	done chan struct{}
 	mu   sync.Mutex
 
-	statRegistrations []*clientWithMeta
 	diagRegistrations map[string]DiagsClient
 
 	storeEnabled  bool
@@ -93,7 +85,6 @@ type Monitor struct {
 func New(c Config) *Monitor {
 	return &Monitor{
 		done:              make(chan struct{}),
-		statRegistrations: make([]*clientWithMeta, 0),
 		diagRegistrations: make(map[string]DiagsClient),
 		storeEnabled:      c.StoreEnabled,
 		storeDatabase:     c.StoreDatabase,
@@ -108,9 +99,7 @@ func (m *Monitor) Open() error {
 	m.Logger.Printf("Starting monitor system")
 
 	// Self-register various stats and diagnostics.
-	gr := &goRuntime{}
-	m.RegisterStatsClient("runtime", nil, gr)
-	m.RegisterDiagnosticsClient("runtime", gr)
+	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
 
@@ -138,44 +127,6 @@ func (m *Monitor) SetLogger(l *log.Logger) {
 	m.Logger = l
 }
 
-// Register registers a client with the given name and tags.
-func (m *Monitor) RegisterStatsClient(name string, tags map[string]string, client StatsClient) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	a := tags
-	if a == nil {
-		a = make(map[string]string)
-	}
-
-	// Get cluster-level metadata to supplement stats.
-	var clusterID string
-	var hostname string
-	var err error
-	if cID, err := m.MetaStore.ClusterID(); err != nil {
-		m.Logger.Printf("failed to determine cluster ID: %s", err)
-	} else {
-		clusterID = strconv.FormatUint(cID, 10)
-	}
-	nodeID := strconv.FormatUint(m.MetaStore.NodeID(), 10)
-	if hostname, err = os.Hostname(); err != nil {
-		m.Logger.Printf("failed to determine hostname: %s", err)
-	}
-	a["clusterID"] = clusterID
-	a["nodeID"] = nodeID
-	a["hostname"] = hostname
-
-	c := &clientWithMeta{
-		StatsClient: client,
-		name:        name,
-		tags:        a,
-	}
-
-	m.statRegistrations = append(m.statRegistrations, c)
-	m.Logger.Printf(`'%s:%v' registered for statistics monitoring`, name, tags)
-	return nil
-}
-
 // RegisterDiagnosticsClient registers a diagnostics client with the given name and tags.
 func (m *Monitor) RegisterDiagnosticsClient(name string, client DiagsClient) error {
 	m.mu.Lock()
@@ -185,25 +136,75 @@ func (m *Monitor) RegisterDiagnosticsClient(name string, client DiagsClient) err
 	return nil
 }
 
-// statistics returns the combined statistics for all registered clients.
+// statistics returns the combined statistics for all expvar data.
 func (m *Monitor) Statistics() ([]*statistic, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	statistics := make([]*statistic, 0)
 
-	statistics := make([]*statistic, 0, len(m.statRegistrations))
-	for _, r := range m.statRegistrations {
-		stats, err := r.StatsClient.Statistics()
-		if err != nil {
-			continue
+	expvar.Do(func(kv expvar.KeyValue) {
+		// Skip built-in expvar stats.
+		if kv.Key == "memstats" || kv.Key == "cmdline" {
+			return
 		}
+
+		statistic := &statistic{
+			Tags:   make(map[string]string),
+			Values: make(map[string]interface{}),
+		}
+
+		// Every other top-level expvar value is a map.
+		m := kv.Value.(*expvar.Map)
+
+		m.Do(func(subKV expvar.KeyValue) {
+			switch subKV.Key {
+			case "name":
+				// straight to string name.
+				u, err := strconv.Unquote(subKV.Value.String())
+				if err != nil {
+					return
+				}
+				statistic.Name = u
+			case "tags":
+				// string-string tags map.
+				n := subKV.Value.(*expvar.Map)
+				n.Do(func(t expvar.KeyValue) {
+					u, err := strconv.Unquote(t.Value.String())
+					if err != nil {
+						return
+					}
+					statistic.Tags[t.Key] = u
+				})
+			case "values":
+				// string-interface map.
+				n := subKV.Value.(*expvar.Map)
+				n.Do(func(kv expvar.KeyValue) {
+					var f interface{}
+					var err error
+					switch v := kv.Value.(type) {
+					case *expvar.Float:
+						f, err = strconv.ParseFloat(v.String(), 64)
+						if err != nil {
+							return
+						}
+					case *expvar.Int:
+						f, err = strconv.ParseUint(v.String(), 10, 64)
+						if err != nil {
+							return
+						}
+					default:
+						return
+					}
+					statistic.Values[kv.Key] = f
+				})
+			}
+		})
 
 		// If a registered client has no field data, don't include it in the results
-		if len(stats) == 0 {
-			continue
+		if len(statistic.Values) == 0 {
+			return
 		}
+		statistics = append(statistics, statistic)
+	})
 
-		statistics = append(statistics, newStatistic(r.name, r.tags, stats))
-	}
 	return statistics, nil
 }
 
@@ -288,16 +289,6 @@ func newStatistic(name string, tags map[string]string, values map[string]interfa
 	}
 }
 
-// tagNames returns a sorted list of the tag names, if any.
-func (s *statistic) tagNames() []string {
-	a := make([]string, 0, len(s.Tags))
-	for k, _ := range s.Tags {
-		a = append(a, k)
-	}
-	sort.Strings(a)
-	return a
-}
-
 // valueNames returns a sorted list of the value names, if any.
 func (s *statistic) valueNames() []string {
 	a := make([]string, 0, len(s.Values))
@@ -306,50 +297,6 @@ func (s *statistic) valueNames() []string {
 	}
 	sort.Strings(a)
 	return a
-}
-
-// clientWithMeta wraps a registered client with its associated name and tagm.
-type clientWithMeta struct {
-	StatsClient
-	name string
-	tags map[string]string
-}
-
-// StatsMonitorClient wraps a *expvar.Map so that it implements the StatsClient interface.
-// It is for use by external packages that just record stats in an expvar.Map type.
-type StatsMonitorClient struct {
-	ep *expvar.Map
-}
-
-// NewStatsMonitorClient returns a new StatsMonitorClient using the given expvar.Map.
-func NewStatsMonitorClient(ep *expvar.Map) *StatsMonitorClient {
-	return &StatsMonitorClient{ep: ep}
-}
-
-// Statistics implements the Client interface for a StatsMonitorClient.
-func (m StatsMonitorClient) Statistics() (map[string]interface{}, error) {
-	values := make(map[string]interface{})
-	m.ep.Do(func(kv expvar.KeyValue) {
-		var f interface{}
-		var err error
-		switch v := kv.Value.(type) {
-		case *expvar.Float:
-			f, err = strconv.ParseFloat(v.String(), 64)
-			if err != nil {
-				return
-			}
-		case *expvar.Int:
-			f, err = strconv.ParseUint(v.String(), 10, 64)
-			if err != nil {
-				return
-			}
-		default:
-			return
-		}
-		values[kv.Key] = f
-	})
-
-	return values, nil
 }
 
 // DiagnosticFromMap returns a Diagnostic from a map.

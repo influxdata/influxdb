@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 )
@@ -14,28 +15,19 @@ func Test_RegisterStats(t *testing.T) {
 	monitor := openMonitor(t)
 	executor := &StatementExecutor{Monitor: monitor}
 
-	client := mockStatsClient{
-		StatisticsFn: func() (map[string]interface{}, error) {
-			return map[string]interface{}{
-				"bar": 1,
-				"qux": 2.4,
-			}, nil
-		},
-	}
-
-	// Register a client without tags.
-	if err := monitor.RegisterStatsClient("foo", nil, client); err != nil {
-		t.Fatalf("failed to register client: %s", err.Error())
-	}
+	// Register stats without tags.
+	statMap := influxdb.NewStatistics("foo", "foo", nil)
+	statMap.Add("bar", 1)
+	statMap.AddFloat("qux", 2.4)
 	json := executeShowStatsJSON(t, executor)
 	if !strings.Contains(json, `"columns":["bar","qux"],"values":[[1,2.4]]`) || !strings.Contains(json, `"name":"foo"`) {
 		t.Fatalf("SHOW STATS response incorrect, got: %s\n", json)
 	}
 
 	// Register a client with tags.
-	if err := monitor.RegisterStatsClient("baz", map[string]string{"proto": "tcp"}, client); err != nil {
-		t.Fatalf("failed to register client: %s", err.Error())
-	}
+	statMap = influxdb.NewStatistics("bar", "baz", map[string]string{"proto": "tcp"})
+	statMap.Add("bar", 1)
+	statMap.AddFloat("qux", 2.4)
 	json = executeShowStatsJSON(t, executor)
 	if !strings.Contains(json, `"columns":["bar","qux"],"values":[[1,2.4]]`) ||
 		!strings.Contains(json, `"name":"baz"`) ||
@@ -43,18 +35,6 @@ func Test_RegisterStats(t *testing.T) {
 		t.Fatalf("SHOW STATS response incorrect, got: %s\n", json)
 
 	}
-}
-
-type mockStatsClient struct {
-	StatisticsFn func() (map[string]interface{}, error)
-}
-
-func (m mockStatsClient) Statistics() (map[string]interface{}, error) {
-	return m.StatisticsFn()
-}
-
-func (m mockStatsClient) Diagnostics() (map[string]interface{}, error) {
-	return nil, nil
 }
 
 type mockMetastore struct{}
