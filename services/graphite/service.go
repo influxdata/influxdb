@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
@@ -102,7 +103,6 @@ type Service struct {
 	done chan struct{}
 
 	Monitor interface {
-		RegisterStatsClient(name string, tags map[string]string, client monitor.StatsClient) error
 		RegisterDiagnosticsClient(name string, client monitor.DiagsClient) error
 	}
 	PointsWriter interface {
@@ -154,9 +154,11 @@ func (s *Service) Open() error {
 
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
 	// should be done before any data could arrive for the service.
-	s.setExpvar()
+	key := strings.Join([]string{"graphite", s.protocol, s.bindAddress}, ":")
+	tags := map[string]string{"proto": s.protocol, "bind": s.bindAddress}
+	s.statMap = influxdb.NewStatistics(key, "graphite", tags)
 
-	// // One Graphite service hooks up diagnostics for all Graphite functionality.
+	// One Graphite service hooks up diagnostics for all Graphite functionality.
 	monitorOnce.Do(func() {
 		if s.Monitor == nil {
 			s.logger.Println("no monitor service available, no monitoring will be performed")
@@ -192,13 +194,6 @@ func (s *Service) Open() error {
 	}
 	if err != nil {
 		return err
-	}
-
-	// Register stats for this service, now that it has started successfully.
-	if s.Monitor != nil {
-		t := monitor.NewStatsMonitorClient(s.statMap)
-		s.Monitor.RegisterStatsClient("graphite",
-			map[string]string{"proto": s.protocol, "bind": s.bindAddress}, t)
 	}
 
 	s.logger.Printf("Listening on %s: %s", strings.ToUpper(s.protocol), s.addr.String())
@@ -369,22 +364,3 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		}
 	}
 }
-
-// setExpvar configures the expvar based collection for this service. It must be done within a
-// lock so previous registrations for this key can be checked. Re-registering a key will result
-// in a panic.
-func (s *Service) setExpvar() {
-	expvarMu.Lock()
-	defer expvarMu.Unlock()
-
-	key := strings.Join([]string{"graphite", s.protocol, s.bindAddress}, ":")
-
-	// Add expvar for this service.
-	var m expvar.Var
-	if m = expvar.Get(key); m == nil {
-		m = expvar.NewMap(key)
-	}
-	s.statMap = m.(*expvar.Map)
-}
-
-var expvarMu sync.Mutex
