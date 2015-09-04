@@ -1617,7 +1617,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 
 	// If seek is not in the cache, return the last value in the cache
 	if c.direction.Reverse() && c.position >= len(c.cache) {
-		c.position = len(c.cache) - 1
+		c.position = len(c.cache)
 	}
 
 	// Make sure our position points to something in the cache

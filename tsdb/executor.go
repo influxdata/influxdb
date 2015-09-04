@@ -266,7 +266,6 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 		ascending := true
 		if len(e.stmt.SortFields) > 0 {
 			ascending = e.stmt.SortFields[0].Ascending
-
 		}
 
 		var timeBoundary int64
@@ -434,6 +433,11 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		}
 	}
 
+	ascending := true
+	if len(e.stmt.SortFields) > 0 {
+		ascending = e.stmt.SortFields[0].Ascending
+	}
+
 	// Keep looping until all mappers drained.
 	for !e.mappersDrained() {
 		// Send out data for the next alphabetically-lowest tagset. All Mappers send out in this order
@@ -506,7 +510,12 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		for k, _ := range buckets {
 			tMins = append(tMins, k)
 		}
-		sort.Sort(tMins)
+
+		if ascending {
+			sort.Sort(tMins)
+		} else {
+			sort.Sort(sort.Reverse(tMins))
+		}
 
 		values := make([][]interface{}, len(tMins))
 		for i, t := range tMins {
