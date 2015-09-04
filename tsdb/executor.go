@@ -140,6 +140,23 @@ func (e *SelectExecutor) nextMapperLowestTime(tagset string) int64 {
 	return minTime
 }
 
+// nextMapperHighestTime returns the highest time across all Mappers, for the given tagset.
+func (e *SelectExecutor) nextMapperHighestTime(tagset string) int64 {
+	maxTime := int64(math.MinInt64)
+	for _, m := range e.mappers {
+		if !m.drained && m.bufferedChunk != nil {
+			if m.bufferedChunk.key() != tagset {
+				continue
+			}
+			t := m.bufferedChunk.Values[0].Time
+			if t > maxTime {
+				maxTime = t
+			}
+		}
+	}
+	return maxTime
+}
+
 // tagSetIsLimited returns whether data for the given tagset has been LIMITed.
 func (e *SelectExecutor) tagSetIsLimited(tagset string) bool {
 	_, ok := e.limitedTagSets[tagset]
@@ -246,9 +263,20 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 			rowWriter = nil
 		}
 
-		// Process the mapper outputs. We can send out everything up to the min of the last time
-		// of the chunks for the next tagset.
-		minTime := e.nextMapperLowestTime(tagset)
+		ascending := true
+		if len(e.stmt.SortFields) > 0 {
+			ascending = e.stmt.SortFields[0].Ascending
+		}
+
+		var timeBoundary int64
+
+		if ascending {
+			// Process the mapper outputs. We can send out everything up to the min of the last time
+			// of the chunks for the next tagset.
+			timeBoundary = e.nextMapperLowestTime(tagset)
+		} else {
+			timeBoundary = e.nextMapperHighestTime(tagset)
+		}
 
 		// Now empty out all the chunks up to the min time. Create new output struct for this data.
 		var chunkedOutput *MapperOutput
@@ -257,19 +285,30 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 				continue
 			}
 
+			chunkBoundary := false
+			if ascending {
+				chunkBoundary = m.bufferedChunk.Values[0].Time > timeBoundary
+			} else {
+				chunkBoundary = m.bufferedChunk.Values[0].Time < timeBoundary
+			}
+
 			// This mapper's next chunk is not for the next tagset, or the very first value of
 			// the chunk is at a higher acceptable timestamp. Skip it.
-			if m.bufferedChunk.key() != tagset || m.bufferedChunk.Values[0].Time > minTime {
+			if m.bufferedChunk.key() != tagset || chunkBoundary {
 				continue
 			}
 
 			// Find the index of the point up to the min.
 			ind := len(m.bufferedChunk.Values)
 			for i, mo := range m.bufferedChunk.Values {
-				if mo.Time > minTime {
+				if ascending && mo.Time > timeBoundary {
+					ind = i
+					break
+				} else if !ascending && mo.Time < timeBoundary {
 					ind = i
 					break
 				}
+
 			}
 
 			// Add up to the index to the values
@@ -293,8 +332,12 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 			}
 		}
 
-		// Sort the values by time first so we can then handle offset and limit
-		sort.Sort(MapperValues(chunkedOutput.Values))
+		if ascending {
+			// Sort the values by time first so we can then handle offset and limit
+			sort.Sort(MapperValues(chunkedOutput.Values))
+		} else {
+			sort.Sort(sort.Reverse(MapperValues(chunkedOutput.Values)))
+		}
 
 		// Now that we have full name and tag details, initialize the rowWriter.
 		// The Name and Tags will be the same for all mappers.
@@ -390,6 +433,11 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		}
 	}
 
+	ascending := true
+	if len(e.stmt.SortFields) > 0 {
+		ascending = e.stmt.SortFields[0].Ascending
+	}
+
 	// Keep looping until all mappers drained.
 	for !e.mappersDrained() {
 		// Send out data for the next alphabetically-lowest tagset. All Mappers send out in this order
@@ -462,7 +510,12 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		for k, _ := range buckets {
 			tMins = append(tMins, k)
 		}
-		sort.Sort(tMins)
+
+		if ascending {
+			sort.Sort(tMins)
+		} else {
+			sort.Sort(sort.Reverse(tMins))
+		}
 
 		values := make([][]interface{}, len(tMins))
 		for i, t := range tMins {

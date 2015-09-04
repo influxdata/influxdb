@@ -82,6 +82,17 @@ func (lm *SelectMapper) openMeta() error {
 	return errors.New("not implemented")
 }
 
+func (lm *SelectMapper) timeDirection() Direction {
+	if len(lm.selectStmt.SortFields) > 0 {
+		if lm.selectStmt.SortFields[0].Ascending {
+			return Forward
+		} else {
+			return Reverse
+		}
+	}
+	return Forward
+}
+
 // Open opens the local mapper.
 func (lm *SelectMapper) Open() error {
 	if lm.remote != nil {
@@ -218,12 +229,20 @@ func (lm *SelectMapper) Open() error {
 			}
 		}
 
+		// For aggregate functions, we iterate the cursors in forward order but return the
+		// time bucket results in reverse order.  This simplifies the aggregate code in that
+		// they do not need to hand forward and revers semantics.  For raw queries, we do need
+		// iterate in reverse order if using order by time desc.
+		direction := Forward
+		if lm.rawMode {
+			direction = lm.timeDirection()
+		}
 		// Create all cursors for reading the data from this shard.
 		for _, t := range tagSets {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := lm.tx.Cursor(key)
+				c := lm.tx.Cursor(key, direction)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -238,7 +257,18 @@ func (lm *SelectMapper) Open() error {
 				tsc.pointHeap = newPointHeap()
 				//Prime the buffers.
 				for i := 0; i < len(tsc.cursors); i++ {
-					k, v := tsc.cursors[i].SeekTo(lm.queryTMin)
+					var k int64
+					var v []byte
+					if direction.Forward() {
+						k, v = tsc.cursors[i].SeekTo(lm.queryTMin)
+					} else {
+						k, v = tsc.cursors[i].SeekTo(lm.queryTMax)
+					}
+
+					if k == -1 {
+						k, v = tsc.cursors[i].Next()
+					}
+
 					if k == -1 {
 						continue
 					}
@@ -325,7 +355,6 @@ func (lm *SelectMapper) nextChunkRaw() (interface{}, error) {
 				continue
 			}
 		}
-
 		if output == nil {
 			output = &MapperOutput{
 				Name:      cursor.measurement,

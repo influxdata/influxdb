@@ -276,7 +276,7 @@ type SortField struct {
 // String returns a string representation of a sort field
 func (field *SortField) String() string {
 	var buf bytes.Buffer
-	if field.Name == "" {
+	if field.Name != "" {
 		_, _ = buf.WriteString(field.Name)
 		_, _ = buf.WriteString(" ")
 	}
