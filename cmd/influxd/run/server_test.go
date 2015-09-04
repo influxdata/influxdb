@@ -3726,7 +3726,7 @@ func TestServer_ContinuousQuery(t *testing.T) {
 	}
 
 	// Wait for CQs to run. TODO: fix this ugly hack
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 5)
 
 	// Setup tests to check the CQ results.
 	test2 := NewTest("db0", "rp1")
