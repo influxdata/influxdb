@@ -2,12 +2,29 @@ package httpd
 
 import (
 	"crypto/tls"
+	"expvar"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/influxdb/influxdb"
+)
+
+// statistics gathered by the httpd package.
+const (
+	statRequest                      = "req"                 // Number of HTTP requests served
+	statCQRequest                    = "cq_req"              // Number of CQ-execute requests served
+	statQueryRequest                 = "query_req"           // Number of query requests served
+	statWriteRequest                 = "write_req"           // Number of write requests serverd
+	statPingRequest                  = "ping_req"            // Number of ping requests served
+	statWriteRequestBytesReceived    = "write_req_bytes"     // Sum of all bytes in write requests
+	statQueryRequestBytesTransmitted = "query_resp_bytes"    // Sum of all bytes returned in query reponses
+	statPointsWrittenOK              = "points_written_ok"   // Number of points written OK
+	statPointsWrittenFail            = "points_written_fail" // Number of points that failed to be written
+	statAuthFail                     = "auth_fail"           // Number of authentication failures
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
@@ -20,11 +37,18 @@ type Service struct {
 
 	Handler *Handler
 
-	Logger *log.Logger
+	Logger  *log.Logger
+	statMap *expvar.Map
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
+	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
+	// should be done before any data could arrive for the service.
+	key := strings.Join([]string{"httpd", c.BindAddress}, ":")
+	tags := map[string]string{"bind": c.BindAddress}
+	statMap := influxdb.NewStatistics(key, "httpd", tags)
+
 	s := &Service{
 		addr:  c.BindAddress,
 		https: c.HttpsEnabled,
@@ -34,6 +58,7 @@ func NewService(c Config) *Service {
 			c.AuthEnabled,
 			c.LogEnabled,
 			c.WriteTracing,
+			statMap,
 		),
 		Logger: log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 	}
