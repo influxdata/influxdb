@@ -37,6 +37,7 @@ type Store struct {
 
 	EngineOptions EngineOptions
 	Logger        *log.Logger
+	closing       chan struct{}
 }
 
 // Path returns the store's root path.
@@ -66,6 +67,12 @@ func (s *Store) ShardN() int {
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	select {
+	case <-s.closing:
+		return fmt.Errorf("closing")
+	default:
+	}
 
 	// shard already exists
 	if _, ok := s.shards[shardID]; ok {
@@ -297,6 +304,8 @@ func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.closing = make(chan struct{})
+
 	s.shards = map[uint64]*Shard{}
 	s.databaseIndexes = map[string]*DatabaseIndex{}
 
@@ -352,6 +361,8 @@ func (s *Store) Close() error {
 			return err
 		}
 	}
+	close(s.closing)
+	s.closing = nil
 	s.shards = nil
 	s.databaseIndexes = nil
 
