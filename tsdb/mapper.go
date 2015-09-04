@@ -455,9 +455,9 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			}
 
 			tagSetCursor := &aggTagSetCursor{
-				nextFunc:       f,
-				tagsFunc:       tf,
-				bucketTimeFunc: btf,
+				nextFunc: f,
+				tagsFunc: tf,
+				tMinFunc: btf,
 			}
 
 			// Execute the map function which walks the entire interval, and aggregates
@@ -634,9 +634,9 @@ func (lm *SelectMapper) Close() {
 // aggTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated
 // by intervals.
 type aggTagSetCursor struct {
-	nextFunc       func() (time int64, value interface{})
-	tagsFunc       func() map[string]string
-	bucketTimeFunc func() int64
+	nextFunc func() (time int64, value interface{})
+	tagsFunc func() map[string]string
+	tMinFunc func() int64
 }
 
 // Next returns the next value for the aggTagSetCursor. It implements the interface expected
@@ -652,7 +652,7 @@ func (a *aggTagSetCursor) Tags() map[string]string {
 
 // TMin returns the current floor time for the bucket being worked on
 func (a *aggTagSetCursor) TMin() int64 {
-	return a.bucketTimeFunc()
+	return a.tMinFunc()
 }
 
 type pointHeapItem struct {

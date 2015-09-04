@@ -18,11 +18,11 @@ type point struct {
 }
 
 type testIterator struct {
-	values         []point
-	lastTags       map[string]string
-	nextFunc       func() (timestamp int64, value interface{})
-	tagsFunc       func() map[string]string
-	bucketTimeFunc func() int64
+	values   []point
+	lastTags map[string]string
+	nextFunc func() (timestamp int64, value interface{})
+	tagsFunc func() map[string]string
+	tMinFunc func() int64
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
@@ -47,8 +47,8 @@ func (t *testIterator) Tags() map[string]string {
 }
 
 func (t *testIterator) TMin() int64 {
-	if t.bucketTimeFunc != nil {
-		return t.bucketTimeFunc()
+	if t.tMinFunc != nil {
+		return t.tMinFunc()
 	}
 	return -1
 }

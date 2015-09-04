@@ -677,7 +677,7 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 	for _, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
-			bucketTime := vals[0].(time.Time)
+			tMin := vals[0].(time.Time)
 			switch v := vals[j].(type) {
 			case influxql.PositionPoints:
 				for _, p := range v {
@@ -685,7 +685,7 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 					if e.stmt.HasTimeFieldSpecified() {
 						tm = time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
 					} else {
-						tm = bucketTime.UTC().Format(time.RFC3339Nano)
+						tm = tMin.UTC().Format(time.RFC3339Nano)
 					}
 
 					vals := []interface{}{tm}
