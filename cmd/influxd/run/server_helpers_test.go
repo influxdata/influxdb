@@ -333,6 +333,7 @@ func configureLogging(s *Server) {
 		s.MetaStore.Logger = nullLogger
 		s.TSDBStore.Logger = nullLogger
 		s.HintedHandoff.SetLogger(nullLogger)
+		s.Monitor.SetLogger(nullLogger)
 		for _, service := range s.Services {
 			if service, ok := service.(logSetter); ok {
 				service.SetLogger(nullLogger)

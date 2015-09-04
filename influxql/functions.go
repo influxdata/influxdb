@@ -12,13 +12,14 @@ import (
 	"math"
 	"math/rand"
 	"sort"
-	"strings"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
 type Iterator interface {
 	Next() (time int64, value interface{})
+	Tags() map[string]string
+	TMin() int64
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -37,39 +38,6 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// see if it's a query for raw data
 	if c == nil {
 		return MapRawQuery, nil
-	}
-
-	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" {
-		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
-		}
-	} else if strings.HasSuffix(c.Name, "derivative") {
-		// derivatives require a field name and optional duration
-		if len(c.Args) == 0 {
-			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
-		}
-	} else if len(c.Args) != 1 {
-		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
-	}
-
-	// derivative can take a nested aggregate function, everything else expects
-	// a variable reference as the first arg
-	if !strings.HasSuffix(c.Name, "derivative") {
-		// Ensure the argument is appropriate for the aggregate function.
-		switch fc := c.Args[0].(type) {
-		case *VarRef:
-		case *Distinct:
-			if c.Name != "count" {
-				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-			}
-		case *Call:
-			if fc.Name != "distinct" {
-				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-			}
-		default:
-			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-		}
 	}
 
 	// Retrieve map function by name.
@@ -104,11 +72,11 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return MapFirst, nil
 	case "last":
 		return MapLast, nil
+	case "top":
+		return func(itr Iterator) interface{} {
+			return MapTop(itr, c)
+		}, nil
 	case "percentile":
-		_, ok := c.Args[1].(*NumberLiteral)
-		if !ok {
-			return nil, fmt.Errorf("expected float argument in percentile()")
-		}
 		return MapEcho, nil
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
@@ -156,16 +124,14 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 		return ReduceFirst, nil
 	case "last":
 		return ReduceLast, nil
+	case "top":
+		return func(values []interface{}) interface{} {
+			return ReduceTop(values, c)
+		}, nil
 	case "percentile":
-		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected float argument in percentile()")
-		}
-
-		lit, ok := c.Args[1].(*NumberLiteral)
-		if !ok {
-			return nil, fmt.Errorf("expected float argument in percentile()")
-		}
-		return ReducePercentile(lit.Val), nil
+		return func(values []interface{}) interface{} {
+			return ReducePercentile(values, c)
+		}, nil
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
@@ -204,7 +170,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 		}, nil
 	case "distinct":
 		return func(b []byte) (interface{}, error) {
-			var val distinctValues
+			var val interfaceValues
 			err := json.Unmarshal(b, &val)
 			return val, err
 		}, nil
@@ -253,12 +219,14 @@ func MapCount(itr Iterator) interface{} {
 	return nil
 }
 
-type distinctValues []interface{}
+type interfaceValues []interface{}
 
-func (d distinctValues) Len() int      { return len(d) }
-func (d distinctValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-func (d distinctValues) Less(i, j int) bool {
+func (d interfaceValues) Len() int      { return len(d) }
+func (d interfaceValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d interfaceValues) Less(i, j int) bool {
 	// Sort by type if types match
+
+	// Sort by float64/int64 first as that is the most likely match
 	{
 		d1, ok1 := d[i].(float64)
 		d2, ok2 := d[j].(float64)
@@ -268,8 +236,73 @@ func (d distinctValues) Less(i, j int) bool {
 	}
 
 	{
+		d1, ok1 := d[i].(int64)
+		d2, ok2 := d[j].(int64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	// Sort by every numeric type left
+	{
+		d1, ok1 := d[i].(float32)
+		d2, ok2 := d[j].(float32)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
 		d1, ok1 := d[i].(uint64)
 		d2, ok2 := d[j].(uint64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(uint32)
+		d2, ok2 := d[j].(uint32)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(uint16)
+		d2, ok2 := d[j].(uint16)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(uint8)
+		d2, ok2 := d[j].(uint8)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(int32)
+		d2, ok2 := d[j].(int32)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(int16)
+		d2, ok2 := d[j].(int16)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(int8)
+		d2, ok2 := d[j].(int8)
 		if ok1 && ok2 {
 			return d1 < d2
 		}
@@ -303,16 +336,30 @@ func (d distinctValues) Less(i, j int) bool {
 		switch v := val.(type) {
 		case uint64:
 			return intWeight, float64(v)
+		case uint32:
+			return intWeight, float64(v)
+		case uint16:
+			return intWeight, float64(v)
+		case uint8:
+			return intWeight, float64(v)
 		case int64:
 			return intWeight, float64(v)
+		case int32:
+			return intWeight, float64(v)
+		case int16:
+			return intWeight, float64(v)
+		case int8:
+			return intWeight, float64(v)
 		case float64:
-			return floatWeight, v
+			return floatWeight, float64(v)
+		case float32:
+			return floatWeight, float64(v)
 		case bool:
 			return boolWeight, 0
 		case string:
 			return stringWeight, 0
 		}
-		panic("unreachable code")
+		panic("interfaceValues.Less - unreachable code")
 	}
 
 	w1, n1 := infer(d[i])
@@ -338,7 +385,7 @@ func MapDistinct(itr Iterator) interface{} {
 		return nil
 	}
 
-	results := make(distinctValues, len(index))
+	results := make(interfaceValues, len(index))
 	var i int
 	for value, _ := range index {
 		results[i] = value
@@ -356,7 +403,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 		if v == nil {
 			continue
 		}
-		d, ok := v.(distinctValues)
+		d, ok := v.(interfaceValues)
 		if !ok {
 			msg := fmt.Sprintf("expected distinctValues, got: %T", v)
 			panic(msg)
@@ -367,7 +414,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 	}
 
 	// convert map keys to an array
-	results := make(distinctValues, len(index))
+	results := make(interfaceValues, len(index))
 	var i int
 	for k, _ := range index {
 		results[i] = k
@@ -1035,6 +1082,414 @@ func ReduceLast(values []interface{}) interface{} {
 	return nil
 }
 
+type positionOut struct {
+	points   PositionPoints
+	callArgs []string // ordered args in the call
+}
+
+func (p *positionOut) lessKey(i, j int) bool {
+	t1, t2 := p.points[i].Tags, p.points[j].Tags
+	for _, k := range p.callArgs {
+		if t1[k] != t2[k] {
+			return t1[k] < t2[k]
+		}
+	}
+	return false
+}
+
+func (p *positionOut) less(i, j int, sortFloat func(d1, d2 float64) bool, sortInt64 func(d1, d2 int64) bool, sortUint64 func(d1, d2 uint64) bool) bool {
+	// Sort by float64/int64 first as that is the most likely match
+	{
+		d1, ok1 := p.points[i].Value.(float64)
+		d2, ok2 := p.points[j].Value.(float64)
+		if ok1 && ok2 {
+			return sortFloat(d1, d2)
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(int64)
+		d2, ok2 := p.points[j].Value.(int64)
+		if ok1 && ok2 {
+			return sortInt64(d1, d2)
+		}
+	}
+
+	// Sort by every numeric type left
+	{
+		d1, ok1 := p.points[i].Value.(float32)
+		d2, ok2 := p.points[j].Value.(float32)
+		if ok1 && ok2 {
+			return sortFloat(float64(d1), float64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(uint64)
+		d2, ok2 := p.points[j].Value.(uint64)
+		if ok1 && ok2 {
+			return sortUint64(d1, d2)
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(uint32)
+		d2, ok2 := p.points[j].Value.(uint32)
+		if ok1 && ok2 {
+			return sortUint64(uint64(d1), uint64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(uint16)
+		d2, ok2 := p.points[j].Value.(uint16)
+		if ok1 && ok2 {
+			return sortUint64(uint64(d1), uint64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(uint8)
+		d2, ok2 := p.points[j].Value.(uint8)
+		if ok1 && ok2 {
+			return sortUint64(uint64(d1), uint64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(int32)
+		d2, ok2 := p.points[j].Value.(int32)
+		if ok1 && ok2 {
+			return sortInt64(int64(d1), int64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(int16)
+		d2, ok2 := p.points[j].Value.(int16)
+		if ok1 && ok2 {
+			return sortInt64(int64(d1), int64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(int8)
+		d2, ok2 := p.points[j].Value.(int8)
+		if ok1 && ok2 {
+			return sortInt64(int64(d1), int64(d2))
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(bool)
+		d2, ok2 := p.points[j].Value.(bool)
+		if ok1 && ok2 {
+			return d1 == true && d2 == false
+		}
+	}
+
+	{
+		d1, ok1 := p.points[i].Value.(string)
+		d2, ok2 := p.points[j].Value.(string)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	// Types did not match, need to sort based on arbitrary weighting of type
+	const (
+		intWeight = iota
+		floatWeight
+		boolWeight
+		stringWeight
+	)
+
+	infer := func(val interface{}) (int, float64) {
+		switch v := val.(type) {
+		case uint64:
+			return intWeight, float64(v)
+		case uint32:
+			return intWeight, float64(v)
+		case uint16:
+			return intWeight, float64(v)
+		case uint8:
+			return intWeight, float64(v)
+		case int64:
+			return intWeight, float64(v)
+		case int32:
+			return intWeight, float64(v)
+		case int16:
+			return intWeight, float64(v)
+		case int8:
+			return intWeight, float64(v)
+		case float64:
+			return floatWeight, float64(v)
+		case float32:
+			return floatWeight, float64(v)
+		case bool:
+			return boolWeight, 0
+		case string:
+			return stringWeight, 0
+		}
+		panic("interfaceValues.Less - unreachable code")
+	}
+
+	w1, n1 := infer(p.points[i].Value)
+	w2, n2 := infer(p.points[j].Value)
+
+	// If we had "numeric" data, use that for comparison
+	if (w1 == floatWeight || w1 == intWeight) && (w2 == floatWeight || w2 == intWeight) {
+		return sortFloat(n1, n2)
+	}
+
+	return w1 < w2
+
+}
+
+type PositionPoints []PositionPoint
+type PositionPoint struct {
+	Time  int64
+	Value interface{}
+	Tags  map[string]string
+}
+
+type topMapOut struct {
+	positionOut
+}
+
+func (t topMapOut) Len() int      { return len(t.points) }
+func (t topMapOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
+func (t topMapOut) Less(i, j int) bool {
+	sortFloat := func(d1, d2 float64) bool {
+		if d1 != d2 {
+			return d1 > d2
+		}
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortInt64 := func(d1, d2 int64) bool {
+		if d1 != d2 {
+			return d1 > d2
+		}
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortUint64 := func(d1, d2 uint64) bool {
+		if d1 != d2 {
+			return d1 > d2
+		}
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		return t.lessKey(i, j)
+	}
+	return t.less(i, j, sortFloat, sortInt64, sortUint64)
+}
+
+type topReduceOut struct {
+	positionOut
+}
+
+func (t topReduceOut) Len() int      { return len(t.points) }
+func (t topReduceOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
+func (t topReduceOut) Less(i, j int) bool {
+	// Now sort by time first, not value
+	sortFloat := func(d1, d2 float64) bool {
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		if d1 != d2 {
+			return d1 > d2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortInt64 := func(d1, d2 int64) bool {
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		if d1 != d2 {
+			return d1 > d2
+		}
+		return t.lessKey(i, j)
+	}
+
+	sortUint64 := func(d1, d2 uint64) bool {
+		k1, k2 := t.points[i].Time, t.points[j].Time
+		if k1 != k2 {
+			return k1 < k2
+		}
+		if d1 != d2 {
+			return d1 > d2
+		}
+		return t.lessKey(i, j)
+	}
+	return t.less(i, j, sortFloat, sortInt64, sortUint64)
+}
+
+// callArgs will get any additional field/tag names that may be needed to sort with
+// it is important to maintain the order of these that they were asked for in the call
+// for sorting purposes
+func topCallArgs(c *Call) []string {
+	var names []string
+	for _, v := range c.Args[1 : len(c.Args)-1] {
+		if f, ok := v.(*VarRef); ok {
+			names = append(names, f.Val)
+		}
+	}
+	return names
+}
+
+// MapTop emits the top data points for each group by interval
+func MapTop(itr Iterator, c *Call) interface{} {
+	// Capture the limit if it was specified in the call
+	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
+	limit := int64(lit.Val)
+
+	// Simple case where only value and limit are specified.
+	if len(c.Args) == 2 {
+		out := positionOut{callArgs: topCallArgs(c)}
+
+		for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+			t := k
+			if bt := itr.TMin(); bt > -1 {
+				t = bt
+			}
+			out.points = append(out.points, PositionPoint{t, v, itr.Tags()})
+		}
+
+		// If we have more than we asked for, only send back the top values
+		if int64(len(out.points)) > limit {
+			sort.Sort(topMapOut{out})
+			out.points = out.points[:limit]
+		}
+		if len(out.points) > 0 {
+			return out.points
+		}
+		return nil
+	}
+	// They specified tags in the call to get unique sets, so we need to map them as we accumulate them
+	outMap := make(map[string]positionOut)
+
+	mapKey := func(args []string, fields map[string]interface{}, keys map[string]string) string {
+		key := ""
+		for _, a := range args {
+			if v, ok := fields[a]; ok {
+				key += a + ":" + fmt.Sprintf("%v", v) + ","
+				continue
+			}
+			if v, ok := keys[a]; ok {
+				key += a + ":" + v + ","
+				continue
+			}
+		}
+		return key
+	}
+
+	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+		t := k
+		if bt := itr.TMin(); bt > -1 {
+			t = bt
+		}
+		callArgs := c.Fields()
+		tags := itr.Tags()
+		// TODO in the future we need to send in fields as well
+		// this will allow a user to query on both fields and tags
+		// fields will take the priority over tags if there is a name collision
+		key := mapKey(callArgs, nil, tags)
+		if out, ok := outMap[key]; ok {
+			out.points = append(out.points, PositionPoint{t, v, itr.Tags()})
+			outMap[key] = out
+		} else {
+			out = positionOut{callArgs: topCallArgs(c)}
+			out.points = append(out.points, PositionPoint{t, v, itr.Tags()})
+			outMap[key] = out
+		}
+	}
+	// Sort all the maps
+	for k, v := range outMap {
+		sort.Sort(topMapOut{v})
+		outMap[k] = v
+	}
+
+	slice := func(needed int64, m map[string]positionOut) PositionPoints {
+		points := PositionPoints{}
+		var collected int64
+		for k, v := range m {
+			if len(v.points) > 0 {
+				points = append(points, v.points[0])
+				v.points = v.points[1:]
+				m[k] = v
+				collected++
+			}
+		}
+		o := positionOut{callArgs: topCallArgs(c), points: points}
+		sort.Sort(topMapOut{o})
+		points = o.points
+		// If we got more than we needed, sort them and return the top
+		if collected > needed {
+			points = o.points[:needed]
+		}
+
+		return points
+	}
+
+	points := PositionPoints{}
+	var collected int64
+	for collected < limit {
+		p := slice(limit-collected, outMap)
+		if len(p) == 0 {
+			break
+		}
+		points = append(points, p...)
+		collected += int64(len(p))
+	}
+	if len(points) > 0 {
+		return points
+	}
+	return nil
+}
+
+// ReduceTop computes the top values for each key.
+func ReduceTop(values []interface{}, c *Call) interface{} {
+	lit, _ := c.Args[len(c.Args)-1].(*NumberLiteral)
+	limit := int64(lit.Val)
+
+	out := positionOut{callArgs: topCallArgs(c)}
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		o, _ := v.(PositionPoints)
+		out.points = append(out.points, o...)
+	}
+
+	// Get the top of the top values
+	sort.Sort(topMapOut{out})
+	// If we have more than we asked for, only send back the top values
+	if int64(len(out.points)) > limit {
+		out.points = out.points[:limit]
+	}
+
+	// now we need to resort the tops by time
+	sort.Sort(topReduceOut{out})
+	if len(out.points) > 0 {
+		return out.points
+	}
+	return nil
+}
+
 // MapEcho emits the data points for each group by interval
 func MapEcho(itr Iterator) interface{} {
 	var values []interface{}
@@ -1046,36 +1501,39 @@ func MapEcho(itr Iterator) interface{} {
 }
 
 // ReducePercentile computes the percentile of values for each key.
-func ReducePercentile(percentile float64) ReduceFunc {
-	return func(values []interface{}) interface{} {
-		var allValues []float64
+func ReducePercentile(values []interface{}, c *Call) interface{} {
+	// Checks that this arg exists and is a valid type are done in the parsing validation
+	// and have test coverage there
+	lit, _ := c.Args[1].(*NumberLiteral)
+	percentile := lit.Val
 
-		for _, v := range values {
-			if v == nil {
-				continue
-			}
+	var allValues []float64
 
-			vals := v.([]interface{})
-			for _, v := range vals {
-				switch v.(type) {
-				case int64:
-					allValues = append(allValues, float64(v.(int64)))
-				case float64:
-					allValues = append(allValues, v.(float64))
-				}
-			}
+	for _, v := range values {
+		if v == nil {
+			continue
 		}
 
-		sort.Float64s(allValues)
-		length := len(allValues)
-		index := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
-
-		if index < 0 || index >= len(allValues) {
-			return nil
+		vals := v.([]interface{})
+		for _, v := range vals {
+			switch v.(type) {
+			case int64:
+				allValues = append(allValues, float64(v.(int64)))
+			case float64:
+				allValues = append(allValues, v.(float64))
+			}
 		}
-
-		return allValues[index]
 	}
+
+	sort.Float64s(allValues)
+	length := len(allValues)
+	index := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
+
+	if index < 0 || index >= len(allValues) {
+		return nil
+	}
+
+	return allValues[index]
 }
 
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.

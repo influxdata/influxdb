@@ -397,11 +397,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	}
 
 	// Put together the rows to return, starting with columns.
-	columnNames := make([]string, len(e.stmt.Fields)+1)
-	columnNames[0] = "time"
-	for i, f := range e.stmt.Fields {
-		columnNames[i+1] = f.Name()
-	}
+	columnNames := e.stmt.ColumnNames()
 
 	// Open the mappers.
 	for _, m := range e.mappers {
@@ -528,6 +524,12 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 			}
 		}
 
+		// Perform top/bottom unwraps
+		values, err = e.processTopBottom(values, columnNames)
+		if err != nil {
+			out <- &influxql.Row{Err: err}
+		}
+
 		// Perform any mathematics.
 		values = processForMath(e.stmt.Fields, values)
 
@@ -620,6 +622,67 @@ func (e *SelectExecutor) close() {
 			m.Close()
 		}
 	}
+}
+
+func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
+	aggregates := e.stmt.FunctionCalls()
+	var call *influxql.Call
+	process := false
+	for _, c := range aggregates {
+		if c.Name == "top" || c.Name == "bottom" {
+			process = true
+			call = c
+			break
+		}
+	}
+	if !process {
+		return results, nil
+	}
+	var values [][]interface{}
+
+	// Check if we have a group by, if not, rewrite the entire result by flattening it out
+	//if len(e.stmt.Dimensions) == 0 {
+	for _, vals := range results {
+		// start at 1 because the first value is always time
+		for j := 1; j < len(vals); j++ {
+			switch v := vals[j].(type) {
+			case influxql.PositionPoints:
+				tMin := vals[0].(time.Time)
+				for _, p := range v {
+					result := e.topBottomPointToQueryResult(p, tMin, call, columnNames)
+					values = append(values, result)
+				}
+			case nil:
+				continue
+			default:
+				return nil, fmt.Errorf("unrechable code - processTopBottom")
+			}
+		}
+	}
+	return values, nil
+}
+
+func (e *SelectExecutor) topBottomPointToQueryResult(p influxql.PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
+	tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+	// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
+	if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
+		tm = tMin.UTC().Format(time.RFC3339Nano)
+	}
+	vals := []interface{}{tm}
+	for _, c := range columnNames {
+		if c == call.Name {
+			vals = append(vals, p.Value)
+			continue
+		}
+		// TODO in the future fields will also be available to us.
+		// we should always favor fields over tags if there is a name collision
+
+		// look in the tags for a value
+		if t, ok := p.Tags[c]; ok {
+			vals = append(vals, t)
+		}
+	}
+	return vals
 }
 
 // limitedRowWriter accepts raw mapper values, and will emit those values as rows in chunks

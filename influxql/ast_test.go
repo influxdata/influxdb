@@ -451,7 +451,7 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 			isRaw: false,
 		},
 		{
-			stmt:  "select mean(*) from foo group by *",
+			stmt:  "select mean(value) from foo group by *",
 			isRaw: false,
 		},
 	}

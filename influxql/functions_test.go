@@ -14,20 +14,43 @@ type point struct {
 	seriesKey string
 	time      int64
 	value     interface{}
+	tags      map[string]string
 }
 
 type testIterator struct {
-	values []point
+	values   []point
+	lastTags map[string]string
+	nextFunc func() (timestamp int64, value interface{})
+	tagsFunc func() map[string]string
+	tMinFunc func() int64
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
+	if t.nextFunc != nil {
+		return t.nextFunc()
+	}
 	if len(t.values) > 0 {
 		v := t.values[0]
+		t.lastTags = t.values[0].tags
 		t.values = t.values[1:]
 		return v.time, v.value
 	}
 
 	return -1, nil
+}
+
+func (t *testIterator) Tags() map[string]string {
+	if t.tagsFunc != nil {
+		return t.tagsFunc()
+	}
+	return t.lastTags
+}
+
+func (t *testIterator) TMin() int64 {
+	if t.tMinFunc != nil {
+		return t.tMinFunc()
+	}
+	return -1
 }
 
 func TestMapMeanNoValues(t *testing.T) {
@@ -44,13 +67,13 @@ func TestMapMean(t *testing.T) {
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input:  []point{point{"0", 1, 1.0}},
+			input:  []point{point{"0", 1, 1.0, nil}},
 			output: &meanMapOutput{1, 1, Float64Type},
 		},
 		{ // Two points
 			input: []point{
-				point{"0", 1, 2.0},
-				point{"0", 2, 8.0},
+				point{"0", 1, 2.0, nil},
+				point{"0", 2, 8.0, nil},
 			},
 			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
@@ -71,55 +94,12 @@ func TestMapMean(t *testing.T) {
 		}
 	}
 }
-func TestInitializeMapFuncPercentile(t *testing.T) {
-	// No args
-	c := &Call{
-		Name: "percentile",
-		Args: []Expr{},
-	}
-	_, err := InitializeMapFunc(c)
-	if err == nil {
-		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
-	}
-
-	if exp := "expected two arguments for percentile()"; err.Error() != exp {
-		t.Errorf("InitializeMapFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
-	}
-
-	// No percentile arg
-	c = &Call{
-		Name: "percentile",
-		Args: []Expr{
-			&VarRef{Val: "field1"},
-		},
-	}
-
-	_, err = InitializeMapFunc(c)
-	if err == nil {
-		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
-	}
-
-	if exp := "expected two arguments for percentile()"; err.Error() != exp {
-		t.Errorf("InitializeMapFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
-	}
-}
 
 func TestInitializeMapFuncDerivative(t *testing.T) {
 
 	for _, fn := range []string{"derivative", "non_negative_derivative"} {
-		// No args should fail
-		c := &Call{
-			Name: fn,
-			Args: []Expr{},
-		}
-
-		_, err := InitializeMapFunc(c)
-		if err == nil {
-			t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
-		}
-
 		// Single field arg should return MapEcho
-		c = &Call{
+		c := &Call{
 			Name: fn,
 			Args: []Expr{
 				&VarRef{Val: " field1"},
@@ -127,7 +107,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			},
 		}
 
-		_, err = InitializeMapFunc(c)
+		_, err := InitializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
@@ -148,48 +128,14 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 	}
 }
 
-func TestInitializeReduceFuncPercentile(t *testing.T) {
-	// No args
-	c := &Call{
-		Name: "percentile",
-		Args: []Expr{},
-	}
-	_, err := InitializeReduceFunc(c)
-	if err == nil {
-		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
-	}
-
-	if exp := "expected float argument in percentile()"; err.Error() != exp {
-		t.Errorf("InitializedReduceFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
-	}
-
-	// No percentile arg
-	c = &Call{
-		Name: "percentile",
-		Args: []Expr{
-			&VarRef{Val: "field1"},
-		},
-	}
-
-	_, err = InitializeReduceFunc(c)
-	if err == nil {
-		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
-	}
-
-	if exp := "expected float argument in percentile()"; err.Error() != exp {
-		t.Errorf("InitializedReduceFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
-	}
-}
-
 func TestReducePercentileNil(t *testing.T) {
 
-	// ReducePercentile should ignore nil values when calculating the percentile
-	fn := ReducePercentile(100)
 	input := []interface{}{
 		nil,
 	}
 
-	got := fn(input)
+	// ReducePercentile should ignore nil values when calculating the percentile
+	got := ReducePercentile(input, &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 100}}})
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
 	}
@@ -212,16 +158,16 @@ func TestMapDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []point{
-			{seriesKey1, timeId1, uint64(1)},
-			{seriesKey1, timeId2, uint64(1)},
-			{seriesKey1, timeId3, "1"},
-			{seriesKey2, timeId4, uint64(1)},
-			{seriesKey2, timeId5, float64(1.0)},
-			{seriesKey2, timeId6, "1"},
+			{seriesKey1, timeId1, uint64(1), nil},
+			{seriesKey1, timeId2, uint64(1), nil},
+			{seriesKey1, timeId3, "1", nil},
+			{seriesKey2, timeId4, uint64(1), nil},
+			{seriesKey2, timeId5, float64(1.0), nil},
+			{seriesKey2, timeId6, "1", nil},
 		},
 	}
 
-	values := MapDistinct(iter).(distinctValues)
+	values := MapDistinct(iter).(interfaceValues)
 
 	if exp, got := 3, len(values); exp != got {
 		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
@@ -229,7 +175,7 @@ func TestMapDistinct(t *testing.T) {
 
 	sort.Sort(values)
 
-	exp := distinctValues{
+	exp := interfaceValues{
 		uint64(1),
 		float64(1),
 		"1",
@@ -253,7 +199,7 @@ func TestMapDistinctNil(t *testing.T) {
 }
 
 func TestReduceDistinct(t *testing.T) {
-	v1 := distinctValues{
+	v1 := interfaceValues{
 		"2",
 		"1",
 		float64(2.0),
@@ -264,7 +210,7 @@ func TestReduceDistinct(t *testing.T) {
 		false,
 	}
 
-	expect := distinctValues{
+	expect := interfaceValues{
 		uint64(1),
 		float64(1),
 		uint64(2),
@@ -301,11 +247,11 @@ func TestReduceDistinctNil(t *testing.T) {
 		},
 		{
 			name:   "empty mappper (len 1)",
-			values: []interface{}{distinctValues{}},
+			values: []interface{}{interfaceValues{}},
 		},
 		{
 			name:   "empty mappper (len 2)",
-			values: []interface{}{distinctValues{}, distinctValues{}},
+			values: []interface{}{interfaceValues{}, interfaceValues{}},
 		},
 	}
 
@@ -319,7 +265,7 @@ func TestReduceDistinctNil(t *testing.T) {
 }
 
 func Test_distinctValues_Sort(t *testing.T) {
-	values := distinctValues{
+	values := interfaceValues{
 		"2",
 		"1",
 		float64(2.0),
@@ -330,7 +276,7 @@ func Test_distinctValues_Sort(t *testing.T) {
 		false,
 	}
 
-	expect := distinctValues{
+	expect := interfaceValues{
 		uint64(1),
 		float64(1),
 		uint64(2),
@@ -366,13 +312,13 @@ func TestMapCountDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []point{
-			{seriesKey1, timeId1, uint64(1)},
-			{seriesKey1, timeId2, uint64(1)},
-			{seriesKey1, timeId3, "1"},
-			{seriesKey2, timeId4, uint64(1)},
-			{seriesKey2, timeId5, float64(1.0)},
-			{seriesKey2, timeId6, "1"},
-			{seriesKey2, timeId7, true},
+			{seriesKey1, timeId1, uint64(1), nil},
+			{seriesKey1, timeId2, uint64(1), nil},
+			{seriesKey1, timeId3, "1", nil},
+			{seriesKey2, timeId4, uint64(1), nil},
+			{seriesKey2, timeId5, float64(1.0), nil},
+			{seriesKey2, timeId6, "1", nil},
+			{seriesKey2, timeId7, true, nil},
 		},
 	}
 
@@ -531,4 +477,277 @@ func BenchmarkGetSortedRangeBySort(b *testing.B) {
 		results = data[8:23]
 	}
 	benchGetSortedRangeResults = results
+}
+
+func TestMapTop(t *testing.T) {
+	tests := []struct {
+		name string
+		skip bool
+		iter *testIterator
+		exp  positionOut
+		call *Call
+	}{
+		{
+			name: "int64 - basic",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				points: PositionPoints{
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - basic with tag",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 20, int64(53), map[string]string{"host": "b"}},
+					{"", 30, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				callArgs: []string{"host"},
+				points: PositionPoints{
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, int64(53), map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - tie on value, resolve based on time",
+			iter: &testIterator{
+				values: []point{
+					{"", 20, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "a"}},
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				callArgs: []string{"host"},
+				points: PositionPoints{
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, int64(99), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - tie on value, time, resolve based on tags",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "b"}},
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				callArgs: []string{"host"},
+				points: PositionPoints{
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "mixed numerics - ints",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				points: PositionPoints{
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "mixed numerics - ints & floats",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, float64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				points: PositionPoints{
+					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "mixed numerics - ints, floats, & strings",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, float64(99), map[string]string{"host": "a"}},
+					{"", 10, int64(53), map[string]string{"host": "b"}},
+					{"", 20, "88", map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				points: PositionPoints{
+					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "bools",
+			iter: &testIterator{
+				values: []point{
+					{"", 10, true, map[string]string{"host": "a"}},
+					{"", 10, true, map[string]string{"host": "b"}},
+					{"", 20, false, map[string]string{"host": "a"}},
+				},
+			},
+			exp: positionOut{
+				points: PositionPoints{
+					PositionPoint{10, true, map[string]string{"host": "a"}},
+					PositionPoint{10, true, map[string]string{"host": "b"}},
+				},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+	}
+
+	for _, test := range tests {
+		if test.skip {
+			continue
+		}
+		values := MapTop(test.iter, test.call).(PositionPoints)
+		t.Logf("Test: %s", test.name)
+		if exp, got := len(test.exp.points), len(values); exp != got {
+			t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+		}
+		if !reflect.DeepEqual(values, test.exp.points) {
+			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp.points), spew.Sdump(values))
+		}
+	}
+}
+
+func TestReduceTop(t *testing.T) {
+	tests := []struct {
+		name   string
+		skip   bool
+		values []interface{}
+		exp    PositionPoints
+		call   *Call
+	}{
+		{
+			name: "int64 - single map",
+			values: []interface{}{
+				PositionPoints{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: PositionPoints{
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map",
+			values: []interface{}{
+				PositionPoints{
+					{10, int64(99), map[string]string{"host": "a"}},
+				},
+				PositionPoints{
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{"host": "a"}},
+				},
+			},
+			exp: PositionPoints{
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map with nil",
+			values: []interface{}{
+				PositionPoints{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{"host": "a"}},
+				},
+				nil,
+			},
+			exp: PositionPoints{
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			name: "int64 - double map with non-matching tags and tag selected",
+			values: []interface{}{
+				PositionPoints{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{}},
+				},
+				nil,
+			},
+			exp: PositionPoints{
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
+		},
+		{
+			skip: true,
+			name: "int64 - double map with non-matching tags",
+			values: []interface{}{
+				PositionPoints{
+					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), map[string]string{}},
+				},
+				nil,
+			},
+			exp: PositionPoints{
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(55), map[string]string{"host": "b"}},
+			},
+			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
+		},
+	}
+
+	for _, test := range tests {
+		if test.skip {
+			continue
+		}
+		values := ReduceTop(test.values, test.call)
+		t.Logf("Test: %s", test.name)
+		if values != nil {
+			v, _ := values.(PositionPoints)
+			if exp, got := len(test.exp), len(v); exp != got {
+				t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+			}
+		}
+		if !reflect.DeepEqual(values, test.exp) {
+			t.Errorf("Wrong values. \nexp\n %v\ngot\n %v", spew.Sdump(test.exp), spew.Sdump(values))
+		}
+	}
 }

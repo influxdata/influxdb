@@ -343,7 +343,7 @@ func (lm *SelectMapper) nextChunkRaw() (interface{}, error) {
 		}
 		cursor := lm.cursors[lm.currCursorIndex]
 
-		k, v, t := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
+		k, v := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
 		if v == nil {
 			// Tagset cursor is empty, move to next one.
 			lm.currCursorIndex++
@@ -363,7 +363,7 @@ func (lm *SelectMapper) nextChunkRaw() (interface{}, error) {
 				cursorKey: cursor.key(),
 			}
 		}
-		value := &MapperValue{Time: k, Value: v, Tags: t}
+		value := &MapperValue{Time: k, Value: v, Tags: cursor.Tags()}
 		output.Values = append(output.Values, value)
 		if len(output.Values) == lm.chunkSize {
 			return output, nil
@@ -435,13 +435,29 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 				heap.Push(tsc.pointHeap, p)
 			}
 			// Wrap the tagset cursor so it implements the mapping functions interface.
-			f := func() (time int64, value interface{}) {
-				k, v, _ := tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
+			nextf := func() (time int64, value interface{}) {
+				k, v := tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
 				return k, v
 			}
 
+			tagf := func() map[string]string {
+				return tsc.Tags()
+			}
+
+			tminf := func() int64 {
+				if len(lm.selectStmt.Dimensions) == 0 {
+					return -1
+				}
+				if !lm.selectStmt.HasTimeFieldSpecified() {
+					return tmin
+				}
+				return -1
+			}
+
 			tagSetCursor := &aggTagSetCursor{
-				nextFunc: f,
+				nextFunc: nextf,
+				tagsFunc: tagf,
+				tMinFunc: tminf,
 			}
 
 			// Execute the map function which walks the entire interval, and aggregates
@@ -619,12 +635,24 @@ func (lm *SelectMapper) Close() {
 // by intervals.
 type aggTagSetCursor struct {
 	nextFunc func() (time int64, value interface{})
+	tagsFunc func() map[string]string
+	tMinFunc func() int64
 }
 
 // Next returns the next value for the aggTagSetCursor. It implements the interface expected
 // by the mapping functions.
 func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
+}
+
+// Tags returns the current tags for the cursor
+func (a *aggTagSetCursor) Tags() map[string]string {
+	return a.tagsFunc()
+}
+
+// TMin returns the current floor time for the bucket being worked on
+func (a *aggTagSetCursor) TMin() int64 {
+	return a.tMinFunc()
 }
 
 type pointHeapItem struct {
@@ -670,6 +698,7 @@ type tagSetCursor struct {
 	tags        map[string]string // Tag key-value pairs
 	cursors     []*seriesCursor   // Underlying series cursors.
 	decoder     *FieldCodec       // decoder for the raw data bytes
+	currentTags map[string]string // the current tags for the underlying series cursor in play
 
 	// pointHeap is a min-heap, ordered by timestamp, that contains the next
 	// point from each seriesCursor. Queries sometimes pull points from
@@ -723,11 +752,11 @@ func (tsc *tagSetCursor) key() string {
 
 // Next returns the next matching series-key, timestamp byte slice and meta tags for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}, map[string]string) {
+func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
 	for {
 		// If we're out of points, we're done.
 		if tsc.pointHeap.Len() == 0 {
-			return -1, nil, nil
+			return -1, nil
 		}
 
 		// Grab the next point with the lowest timestamp.
@@ -735,13 +764,16 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 		// We're done if the point is outside the query's time range [tmin:tmax).
 		if p.timestamp != tmin && (tmin > p.timestamp || p.timestamp >= tmax) {
-			return -1, nil, nil
+			return -1, nil
 		}
 
 		// Decode the raw point.
 		value := tsc.decodeRawPoint(p, selectFields, whereFields)
 		timestamp := p.timestamp
-		tags := p.cursor.tags
+
+		// Keep track of the current tags for the series cursor so we can
+		// respond with them if asked
+		tsc.currentTags = p.cursor.tags
 
 		// Advance the cursor
 		nextKey, nextVal := p.cursor.Next()
@@ -759,8 +791,14 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 			continue
 		}
 
-		return timestamp, value, tags
+		return timestamp, value
 	}
+}
+
+// Tags returns the current tags of the current cursor
+// if there is no current currsor, it returns nil
+func (tsc *tagSetCursor) Tags() map[string]string {
+	return tsc.currentTags
 }
 
 // decodeRawPoint decodes raw point data into field names & values and does WHERE filtering.
