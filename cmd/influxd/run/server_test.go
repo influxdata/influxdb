@@ -2377,6 +2377,12 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"memory","columns":["time","top","host","service"],"values":[["2000-01-01T02:00:00Z",2002,"b","mysql"],["2000-01-01T02:00:00Z",1502,"b","redis"]]}]}]}`,
 		},
 		&Query{
+			name:    "top - memory - host tag with limit 2 with service tag in select",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT TOP(value, host, 2), service FROM memory`,
+			exp:     `{"results":[{"series":[{"name":"memory","columns":["time","top","host","service"],"values":[["2000-01-01T02:00:00Z",2002,"b","mysql"],["2000-01-01T02:00:00Z",1002,"a","redis"]]}]}]}`,
+		},
+		&Query{
 			name:    "top - memory - host and service tag with limit 3",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, host, service, 3) FROM memory`,
