@@ -254,7 +254,9 @@ func (s *Store) Open() error {
 		close(s.ready)
 	}
 
-	return nil
+	// Wait for a leader to be elected so we know the raft log is loaded
+	// and up to date
+	return s.WaitForLeader(0)
 }
 
 // syncNodeInfo continuously tries to update the current nodes hostname

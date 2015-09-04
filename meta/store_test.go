@@ -855,14 +855,14 @@ func TestCluster_Restart(t *testing.T) {
 		t.Fatal("no leader found")
 	}
 
-	// Add 5 more ndes, 2 should become raft peers, 3 remote raft clients
+	// Add 5 more nodes, 2 should become raft peers, 3 remote raft clients
 	for i := 0; i < 5; i++ {
 		if err := c.Join(); err != nil {
 			t.Fatalf("failed to join cluster: %v", err)
 		}
 	}
 
-	// The tests use a host host assigned listener port.  We need to re-use
+	// The tests use a host assigned listener port.  We need to re-use
 	// the original ports when the new cluster is restarted so that the existing
 	// peer store addresses can be reached.
 	addrs := []string{}
@@ -885,10 +885,25 @@ func TestCluster_Restart(t *testing.T) {
 
 	// Re-create the cluster nodes from existing disk paths and addresses
 	stores := []*Store{}
+	storeChan := make(chan *Store)
 	for i, s := range c.Stores {
-		store := MustOpenStoreWithPath(addrs[i], s.Path())
+
+		// Need to start each instance asynchronously because they have existing raft peers
+		// store.  Starting one will block indefinitely because it will not be able to become
+		// leader until another peer is available to hold an election.
+		go func(addr, path string) {
+			store := MustOpenStoreWithPath(addr, path)
+			storeChan <- store
+		}(addrs[i], s.Path())
+
+	}
+
+	// Collect up our restart meta-stores
+	for range c.Stores {
+		store := <-storeChan
 		stores = append(stores, store)
 	}
+
 	c.Stores = stores
 
 	// Wait for the cluster to stabilize
