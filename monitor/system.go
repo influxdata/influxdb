@@ -11,13 +11,8 @@ func init() {
 	startTime = time.Now().UTC()
 }
 
-// system captures network statistics and implements the monitor client interface
+// system captures system-level diagnostics
 type system struct{}
-
-// Statistics returns the statistics for the system type
-func (s *system) Statistics() (map[string]interface{}, error) {
-	return nil, nil
-}
 
 func (s *system) Diagnostics() (*Diagnostic, error) {
 	diagnostics := map[string]interface{}{
