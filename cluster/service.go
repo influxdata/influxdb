@@ -185,7 +185,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 			// If we can't find it, then we need to drop this request
 			// as it is no longer valid.  This could happen if writes were queued via
 			// hinted handoff and delivered after a shard group was deleted.
-			s.Logger.Printf("drop write request: shard=%d", req.ShardID())
+			s.Logger.Printf("drop write request: shard=%d. shard group does not exist or was deleted", req.ShardID())
 			return nil
 		}
 
