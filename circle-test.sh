@@ -55,7 +55,10 @@ case $CIRCLE_NODE_INDEX in
         rc=${PIPESTATUS[0]}
         ;;
     1)
-        # 32bit tests. (Could be run on a separate node instead)
+        # 32bit tests.
+        if [[ -e ~/docker/image.tar ]]; then docker load -i ~/docker/image.tar; fi
+        docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
+        mkdir -p ~/docker; docker save ubuntu-32-influxdb-test > ~/docker/image.tar
         exit_if_fail docker build -f Dockerfile_test_ubuntu32 -t ubuntu-32-influxdb-test .
         docker run -v $(pwd):/root/go/src/github.com/influxdb/influxdb -e "CI=${CI}" \
                         -v ${CIRCLE_ARTIFACTS}:/tmp/artifacts \
