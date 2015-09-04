@@ -24,21 +24,24 @@ func Test_RegisterStats(t *testing.T) {
 	}
 
 	// Register a client without tags.
-	if err := monitor.Register("foo", nil, client); err != nil {
+	if err := monitor.RegisterStatsClient("foo", nil, client); err != nil {
 		t.Fatalf("failed to register client: %s", err.Error())
 	}
 	json := executeShowStatsJSON(t, executor)
-	if !strings.Contains(json, `{"name":"foo","columns":["bar","qux"],"values":[[1,2.4]]}]}`) {
+	if !strings.Contains(json, `"columns":["bar","qux"],"values":[[1,2.4]]`) || !strings.Contains(json, `"name":"foo"`) {
 		t.Fatalf("SHOW STATS response incorrect, got: %s\n", json)
 	}
 
 	// Register a client with tags.
-	if err := monitor.Register("baz", map[string]string{"proto": "tcp"}, client); err != nil {
+	if err := monitor.RegisterStatsClient("baz", map[string]string{"proto": "tcp"}, client); err != nil {
 		t.Fatalf("failed to register client: %s", err.Error())
 	}
 	json = executeShowStatsJSON(t, executor)
-	if !strings.Contains(json, `{"name":"baz","tags":{"proto":"tcp"},"columns":["bar","qux"],"values":[[1,2.4]]}]}`) {
+	if !strings.Contains(json, `"columns":["bar","qux"],"values":[[1,2.4]]`) ||
+		!strings.Contains(json, `"name":"baz"`) ||
+		!strings.Contains(json, `"proto":"tcp"`) {
 		t.Fatalf("SHOW STATS response incorrect, got: %s\n", json)
+
 	}
 }
 
