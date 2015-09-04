@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,8 @@ const (
 type Mux struct {
 	ln net.Listener
 	m  map[byte]*listener
+
+	wg sync.WaitGroup
 
 	// The amount of time to wait for the first header byte.
 	Timeout time.Duration
@@ -49,45 +52,54 @@ func (mux *Mux) Serve(ln net.Listener) error {
 			continue
 		}
 		if err != nil {
+			// Wait for all connections to be demux
+			mux.wg.Wait()
 			for _, ln := range mux.m {
 				close(ln.c)
 			}
 			return err
 		}
 
-		// Set a read deadline so connections with no data don't timeout.
-		if err := conn.SetReadDeadline(time.Now().Add(mux.Timeout)); err != nil {
-			conn.Close()
-			mux.Logger.Printf("tcp.Mux: cannot set read deadline: %s", err)
-			continue
-		}
-
-		// Read first byte from connection to determine handler.
-		var typ [1]byte
-		if _, err := io.ReadFull(conn, typ[:]); err != nil {
-			conn.Close()
-			mux.Logger.Printf("tcp.Mux: cannot read header byte: %s", err)
-			continue
-		}
-
-		// Reset read deadline and let the listener handle that.
-		if err := conn.SetReadDeadline(time.Time{}); err != nil {
-			conn.Close()
-			mux.Logger.Printf("tcp.Mux: cannot reset set read deadline: %s", err)
-			continue
-		}
-
-		// Retrieve handler based on first byte.
-		handler := mux.m[typ[0]]
-		if handler == nil {
-			conn.Close()
-			mux.Logger.Printf("tcp.Mux: handler not registered: %d", typ[0])
-			continue
-		}
-
-		// Send connection to handler.
-		handler.c <- conn
+		// Demux in a goroutine to
+		mux.wg.Add(1)
+		go mux.handleConn(conn)
 	}
+}
+
+func (mux *Mux) handleConn(conn net.Conn) {
+	defer mux.wg.Done()
+	// Set a read deadline so connections with no data don't timeout.
+	if err := conn.SetReadDeadline(time.Now().Add(mux.Timeout)); err != nil {
+		conn.Close()
+		mux.Logger.Printf("tcp.Mux: cannot set read deadline: %s", err)
+		return
+	}
+
+	// Read first byte from connection to determine handler.
+	var typ [1]byte
+	if _, err := io.ReadFull(conn, typ[:]); err != nil {
+		conn.Close()
+		mux.Logger.Printf("tcp.Mux: cannot read header byte: %s", err)
+		return
+	}
+
+	// Reset read deadline and let the listener handle that.
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		conn.Close()
+		mux.Logger.Printf("tcp.Mux: cannot reset set read deadline: %s", err)
+		return
+	}
+
+	// Retrieve handler based on first byte.
+	handler := mux.m[typ[0]]
+	if handler == nil {
+		conn.Close()
+		mux.Logger.Printf("tcp.Mux: handler not registered: %d", typ[0])
+		return
+	}
+
+	// Send connection to handler.  The handler is responsible for closing the connection.
+	handler.c <- conn
 }
 
 // Listen returns a listener identified by header.
