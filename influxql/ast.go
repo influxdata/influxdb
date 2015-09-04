@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/helpers/slices"
+	"github.com/influxdb/influxdb/pkg/slices"
 )
 
 // DataType represents the primitive data types available in InfluxQL.
