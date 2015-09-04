@@ -19,7 +19,7 @@ import (
 type Iterator interface {
 	Next() (time int64, value interface{})
 	Tags() map[string]string
-	BucketTime() int64
+	TMin() int64
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -1363,7 +1363,7 @@ func MapTop(itr Iterator, c *Call) interface{} {
 
 		for k, v := itr.Next(); k != -1; k, v = itr.Next() {
 			t := k
-			if bt := itr.BucketTime(); bt > -1 {
+			if bt := itr.TMin(); bt > -1 {
 				t = bt
 			}
 			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
@@ -1399,7 +1399,7 @@ func MapTop(itr Iterator, c *Call) interface{} {
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
 		t := k
-		if bt := itr.BucketTime(); bt > -1 {
+		if bt := itr.TMin(); bt > -1 {
 			t = bt
 		}
 		callArgs := c.Fields()

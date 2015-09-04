@@ -650,8 +650,8 @@ func (a *aggTagSetCursor) Tags() map[string]string {
 	return a.tagsFunc()
 }
 
-// BucketTime returns the current floor time for the bucket being worked on
-func (a *aggTagSetCursor) BucketTime() int64 {
+// TMin returns the current floor time for the bucket being worked on
+func (a *aggTagSetCursor) TMin() int64 {
 	return a.bucketTimeFunc()
 }
 

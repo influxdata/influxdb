@@ -46,7 +46,7 @@ func (t *testIterator) Tags() map[string]string {
 	return t.lastTags
 }
 
-func (t *testIterator) BucketTime() int64 {
+func (t *testIterator) TMin() int64 {
 	if t.bucketTimeFunc != nil {
 		return t.bucketTimeFunc()
 	}
