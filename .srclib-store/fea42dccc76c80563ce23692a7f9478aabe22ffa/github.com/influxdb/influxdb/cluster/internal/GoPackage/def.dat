@@ -1,1162 +1,0 @@
-˘
-*.internalpackage"cluster/internal8Rƒ{
-        "Exported": true,
-        "PkgName": "internal",
-        "TypeString": "",
-        "Kind": "package",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }Zˇ
-
-text/plainPackage internal is a generated protocol buffer package.
-
-It is generated from these files:
-	internal/data.proto
-
-It has these top-level messages:
-	WriteShardRequest
-	Field
-	Tag
-	Point
-	WriteShardResponse
-	MapShardRequest
-	MapShardResponse
-ä.À
-*FieldFieldtype"cluster/internal/data.pb.go(¢	0Î8RÉ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "struct{Name *string \"protobuf:\\\"bytes,1,req\\\" json:\\\"Name,omitempty\\\"\"; Int32 *int32 \"protobuf:\\\"varint,2,opt\\\" json:\\\"Int32,omitempty\\\"\"; Int64 *int64 \"protobuf:\\\"varint,3,opt\\\" json:\\\"Int64,omitempty\\\"\"; Float64 *float64 \"protobuf:\\\"fixed64,4,opt\\\" json:\\\"Float64,omitempty\\\"\"; Bool *bool \"protobuf:\\\"varint,5,opt\\\" json:\\\"Bool,omitempty\\\"\"; String_ *string \"protobuf:\\\"bytes,6,opt\\\" json:\\\"String,omitempty\\\"\"; Bytes []byte \"protobuf:\\\"bytes,7,opt\\\" json:\\\"Bytes,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field˛
-*
-Field/BoolBoolfield"cluster/internal/data.pb.go(„0¨8R¨{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*bool",
-        "UnderlyingTypeString": "*bool",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/BoolÉ
-*Field/BytesBytesfield"cluster/internal/data.pb.go(˙0√8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Bytesç
-*Field/Float64Float64field"cluster/internal/data.pb.go(î0·8R≤{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*float64",
-        "UnderlyingTypeString": "*float64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Float64è
-*Field/GetBoolGetBoolfunc"cluster/internal/data.pb.go(ß0ã8Rµ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() bool",
-        "UnderlyingTypeString": "func() bool",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetBoolâ
-*Field/GetBool/mmvar"cluster/internal/data.pb.go(≠0µ@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetBool/mñ
-*Field/GetBytesGetBytesfunc"cluster/internal/data.pb.go(˚0œ8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() []byte",
-        "UnderlyingTypeString": "func() []byte",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetBytesã
-*Field/GetBytes/mmvar"cluster/internal/data.pb.go(Å0â@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetBytes/mû
-*Field/GetFloat64
-GetFloat64func"cluster/internal/data.pb.go(π0•8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() float64",
-        "UnderlyingTypeString": "func() float64",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetFloat64è
-*Field/GetFloat64/mmvar"cluster/internal/data.pb.go(ø0«@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetFloat64/mî
-*Field/GetInt32GetInt32func"cluster/internal/data.pb.go(Ì0—8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() int32",
-        "UnderlyingTypeString": "func() int32",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetInt32ã
-*Field/GetInt32/mmvar"cluster/internal/data.pb.go(Û0˚@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetInt32/mî
-*Field/GetInt64GetInt64func"cluster/internal/data.pb.go(”0∑8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() int64",
-        "UnderlyingTypeString": "func() int64",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetInt64ã
-*Field/GetInt64/mmvar"cluster/internal/data.pb.go(Ÿ0·@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetInt64/mì
-*Field/GetNameGetNamefunc"cluster/internal/data.pb.go(à0Î8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetNameâ
-*Field/GetName/mmvar"cluster/internal/data.pb.go(é0ñ@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetName/mú
-*Field/GetString_
-GetString_func"cluster/internal/data.pb.go(ç0˘8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetString_è
-*Field/GetString_/mmvar"cluster/internal/data.pb.go(ì0õ@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/GetString_/mÉ
-*Field/Int32Int32field"cluster/internal/data.pb.go(¸	0∆
-8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*int32",
-        "UnderlyingTypeString": "*int32",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Int32É
-*Field/Int64Int64field"cluster/internal/data.pb.go(»
-0í8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*int64",
-        "UnderlyingTypeString": "*int64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Int64Ç
-*
-Field/NameNamefield"cluster/internal/data.pb.go(≤	0˙	8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Nameî
-*Field/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(‰0Ü8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/ProtoMessageˇ
-*Field/ResetResetfunc"cluster/internal/data.pb.go(Ì0ù8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/ResetÖ
-*Field/Reset/mmvar"cluster/internal/data.pb.go(Û0˚@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Reset/mê
-*Field/StringStringfunc"cluster/internal/data.pb.go(û0„8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/Stringá
-*Field/String/mmvar"cluster/internal/data.pb.go(§0¨@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/String/mã
-*Field/String_String_field"cluster/internal/data.pb.go(Æ0¯8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/String_§
-*Field/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(≈0È8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Field/XXX_unrecognized»
-*MapShardRequestMapShardRequesttype"cluster/internal/data.pb.go(ç%0≤'8R‚{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "UnderlyingTypeString": "struct{ShardID *uint64 \"protobuf:\\\"varint,1,req\\\" json:\\\"ShardID,omitempty\\\"\"; Query *string \"protobuf:\\\"bytes,2,req\\\" json:\\\"Query,omitempty\\\"\"; ChunkSize *int32 \"protobuf:\\\"varint,3,req\\\" json:\\\"ChunkSize,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest≠
-*MapShardRequest/ChunkSize	ChunkSizefield"cluster/internal/data.pb.go(æ&0ã'8R∏{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardRequest",
-        "TypeString": "*int32",
-        "UnderlyingTypeString": "*int32",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/ChunkSizeæ
-*MapShardRequest/GetChunkSizeGetChunkSizefunc"cluster/internal/data.pb.go(‡*0⁄+8R¡{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardRequest",
-        "TypeString": "func() int32",
-        "UnderlyingTypeString": "func() int32",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/GetChunkSizeª
- *MapShardRequest/GetChunkSize/mmvar"cluster/internal/data.pb.go(Ê*0¯*@R∆{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä ./MapShardRequest/GetChunkSize/m¥
-*MapShardRequest/GetQueryGetQueryfunc"cluster/internal/data.pb.go(Ó)0ﬁ*8R√{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardRequest",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/GetQuery≥
-*MapShardRequest/GetQuery/mmvar"cluster/internal/data.pb.go(Ù)0Ü*@R∆{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/GetQuery/m∫
-*MapShardRequest/GetShardID
-GetShardIDfunc"cluster/internal/data.pb.go(˜(0Ï)8R√{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardRequest",
-        "TypeString": "func() uint64",
-        "UnderlyingTypeString": "func() uint64",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/GetShardID∑
-*MapShardRequest/GetShardID/mmvar"cluster/internal/data.pb.go(˝(0è)@R∆{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/GetShardID/m≤
-*MapShardRequest/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(…(0ı(8Rµ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardRequest",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/ProtoMessage£
-*MapShardRequest/QueryQueryfield"cluster/internal/data.pb.go(Ù%0º&8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardRequest",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/Queryù
-*MapShardRequest/ResetResetfunc"cluster/internal/data.pb.go(¥'0¯'8Rµ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardRequest",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/Reset≠
-*MapShardRequest/Reset/mmvar"cluster/internal/data.pb.go(∫'0Ã'@R∆{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/Reset/m©
-*MapShardRequest/ShardIDShardIDfield"cluster/internal/data.pb.go(ß%0Ú%8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardRequest",
-        "TypeString": "*uint64",
-        "UnderlyingTypeString": "*uint64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/ShardIDÆ
-*MapShardRequest/StringStringfunc"cluster/internal/data.pb.go(˘'0»(8R√{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardRequest",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/StringØ
-*MapShardRequest/String/mmvar"cluster/internal/data.pb.go(ˇ'0ë(@R∆{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardRequest/String/m¬
-"* MapShardRequest/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(ç'0∞'8R∏{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardRequest",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä"./MapShardRequest/XXX_unrecognized‡
-*MapShardResponseMapShardResponsetype"cluster/internal/data.pb.go(·+0ù/8R˜{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "struct{Code *int32 \"protobuf:\\\"varint,1,req\\\" json:\\\"Code,omitempty\\\"\"; Message *string \"protobuf:\\\"bytes,2,opt\\\" json:\\\"Message,omitempty\\\"\"; Data []byte \"protobuf:\\\"bytes,3,opt\\\" json:\\\"Data,omitempty\\\"\"; TagSets []string \"protobuf:\\\"bytes,4,rep\\\" json:\\\"TagSets,omitempty\\\"\"; Fields []string \"protobuf:\\\"bytes,5,rep\\\" json:\\\"Fields,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse°
-*MapShardResponse/CodeCodefield"cluster/internal/data.pb.go(¸+0≈,8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardResponse",
-        "TypeString": "*int32",
-        "UnderlyingTypeString": "*int32",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/Code°
-*MapShardResponse/DataDatafield"cluster/internal/data.pb.go(î-0‹-8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardResponse",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/Data´
-*MapShardResponse/FieldsFieldsfield"cluster/internal/data.pb.go(´.0ı.8RΩ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardResponse",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/Fields≤
-*MapShardResponse/GetCodeGetCodefunc"cluster/internal/data.pb.go(Ê00“18R¬{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func() int32",
-        "UnderlyingTypeString": "func() int32",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetCodeµ
-*MapShardResponse/GetCode/mmvar"cluster/internal/data.pb.go(Ï00ˇ0@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetCode/m¥
-*MapShardResponse/GetDataGetDatafunc"cluster/internal/data.pb.go(Õ20™38Rƒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func() []byte",
-        "UnderlyingTypeString": "func() []byte",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetDataµ
-*MapShardResponse/GetData/mmvar"cluster/internal/data.pb.go(”20Ê2@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetData/mæ
-*MapShardResponse/GetFields	GetFieldsfunc"cluster/internal/data.pb.go(ì40ˆ48R»{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func() []string",
-        "UnderlyingTypeString": "func() []string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetFieldsπ
-*MapShardResponse/GetFields/mmvar"cluster/internal/data.pb.go(ô40¨4@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetFields/mΩ
-*MapShardResponse/GetMessage
-GetMessagefunc"cluster/internal/data.pb.go(‘10À28Rƒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetMessageª
-*MapShardResponse/GetMessage/mmvar"cluster/internal/data.pb.go(⁄10Ì1@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetMessage/m¡
-*MapShardResponse/GetTagSets
-GetTagSetsfunc"cluster/internal/data.pb.go(¨30ë48R»{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func() []string",
-        "UnderlyingTypeString": "func() []string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetTagSetsª
-*MapShardResponse/GetTagSets/mmvar"cluster/internal/data.pb.go(≤30≈3@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/GetTagSets/m¨
-*MapShardResponse/MessageMessagefield"cluster/internal/data.pb.go(«,0í-8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardResponse",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/Messageµ
-*MapShardResponse/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(∑00‰08R∂{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/ProtoMessage†
-*MapShardResponse/ResetResetfunc"cluster/internal/data.pb.go(ü/0Â/8R∂{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/Reset±
-*MapShardResponse/Reset/mmvar"cluster/internal/data.pb.go(•/0∏/@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/Reset/m±
-*MapShardResponse/StringStringfunc"cluster/internal/data.pb.go(Ê/0∂08Rƒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MapShardResponse",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/String≥
-*MapShardResponse/String/mmvar"cluster/internal/data.pb.go(Ï/0ˇ/@R»{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.MapShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/String/mÆ
-*MapShardResponse/TagSetsTagSetsfield"cluster/internal/data.pb.go(ﬁ-0©.8RΩ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardResponse",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./MapShardResponse/TagSets≈
-#*!MapShardResponse/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(˜.0õ/8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MapShardResponse",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä#./MapShardResponse/XXX_unrecognized∏
-*PointPointtype"cluster/internal/data.pb.go(˚0‹8R{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "struct{Name *string \"protobuf:\\\"bytes,1,req\\\" json:\\\"Name,omitempty\\\"\"; Time *int64 \"protobuf:\\\"varint,2,req\\\" json:\\\"Time,omitempty\\\"\"; Fields []*github.com/influxdb/influxdb/cluster/internal.Field \"protobuf:\\\"bytes,3,rep\\\" json:\\\"Fields,omitempty\\\"\"; Tags []*github.com/influxdb/influxdb/cluster/internal.Tag \"protobuf:\\\"bytes,4,rep\\\" json:\\\"Tags,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./PointÊ
-*Point/FieldsFieldsfield"cluster/internal/data.pb.go(†0Í8Ré{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Point",
-        "TypeString": "[]*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/Fields˘
-*Point/GetFields	GetFieldsfunc"cluster/internal/data.pb.go(¡0ô8Rô{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func() []*github.com/influxdb/influxdb/cluster/internal.Field",
-        "UnderlyingTypeString": "func() []*github.com/influxdb/influxdb/cluster/internal.Field",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetFieldsç
-*Point/GetFields/mmvar"cluster/internal/data.pb.go(«0œ@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetFields/mì
-*Point/GetNameGetNamefunc"cluster/internal/data.pb.go(˘0‹8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetNameâ
-*Point/GetName/mmvar"cluster/internal/data.pb.go(ˇ0á@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetName/mÔ
-*Point/GetTagsGetTagsfunc"cluster/internal/data.pb.go(õ0Ì8Rï{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func() []*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "func() []*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetTagsâ
-*Point/GetTags/mmvar"cluster/internal/data.pb.go(°0©@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetTags/më
-*Point/GetTimeGetTimefunc"cluster/internal/data.pb.go(ﬁ0ø8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func() int64",
-        "UnderlyingTypeString": "func() int64",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetTimeâ
-*Point/GetTime/mmvar"cluster/internal/data.pb.go(‰0Ï@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/GetTime/mÇ
-*
-Point/NameNamefield"cluster/internal/data.pb.go(ã0”8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Point",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/Nameî
-*Point/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(’0˜8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/ProtoMessageˇ
-*Point/ResetResetfunc"cluster/internal/data.pb.go(ﬁ0é8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/ResetÖ
-*Point/Reset/mmvar"cluster/internal/data.pb.go(‰0Ï@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/Reset/mê
-*Point/StringStringfunc"cluster/internal/data.pb.go(è0‘8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Point",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/Stringá
-*Point/String/mmvar"cluster/internal/data.pb.go(ï0ù@R≤{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/String/m‹
-*
-Point/TagsTagsfield"cluster/internal/data.pb.go(Ï0¥8Rä{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Point",
-        "TypeString": "[]*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/TagsÄ
-*
-Point/TimeTimefield"cluster/internal/data.pb.go(’0û8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Point",
-        "TypeString": "*int64",
-        "UnderlyingTypeString": "*int64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/Time§
-*Point/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(∂0⁄8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Point",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Point/XXX_unrecognized∫
-*TagTagtype"cluster/internal/data.pb.go(÷0õ8R¯{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "struct{Key *string \"protobuf:\\\"bytes,1,req\\\" json:\\\"Key,omitempty\\\"\"; Value *string \"protobuf:\\\"bytes,2,req\\\" json:\\\"Value,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tagä
-*
-Tag/GetKeyGetKeyfunc"cluster/internal/data.pb.go(∞0é8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/GetKeyˇ
-*Tag/GetKey/mmvar"cluster/internal/data.pb.go(∂0º@RÆ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/GetKey/mê
-*Tag/GetValueGetValuefunc"cluster/internal/data.pb.go(ê0Ù8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/GetValueÉ
-*Tag/GetValue/mmvar"cluster/internal/data.pb.go(ñ0ú@RÆ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/GetValue/m˘
-	*Tag/KeyKeyfield"cluster/internal/data.pb.go(‰0™8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Tag",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä	./Tag/Keyé
-*Tag/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(é0Æ8R©{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/ProtoMessage˘
-*	Tag/ResetResetfunc"cluster/internal/data.pb.go(ù0…8R©{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/Reset˝
-*Tag/Reset/mmvar"cluster/internal/data.pb.go(£0©@RÆ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/Reset/mä
-*
-Tag/StringStringfunc"cluster/internal/data.pb.go( 0ç8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/Stringˇ
-*Tag/String/mmvar"cluster/internal/data.pb.go(–0÷@RÆ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/String/mˇ
-*	Tag/ValueValuefield"cluster/internal/data.pb.go(¨0Ù8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Tag",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/Valueû
-*Tag/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(ˆ0ô8R¨{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Tag",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./Tag/XXX_unrecognized¨
-*WriteShardRequestWriteShardRequesttype"cluster/internal/data.pb.go(ï0Ò8R¿{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "UnderlyingTypeString": "struct{ShardID *uint64 \"protobuf:\\\"varint,1,req\\\" json:\\\"ShardID,omitempty\\\"\"; Points []*github.com/influxdb/influxdb/cluster/internal.Point \"protobuf:\\\"bytes,2,rep\\\" json:\\\"Points,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequestù
-*WriteShardRequest/GetPoints	GetPointsfunc"cluster/internal/data.pb.go(∑0õ	8R•{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardRequest",
-        "TypeString": "func() []*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "func() []*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/GetPointsΩ
-*WriteShardRequest/GetPoints/mmvar"cluster/internal/data.pb.go(Ω0—@R {
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/GetPoints/m¿
-*WriteShardRequest/GetShardID
-GetShardIDfunc"cluster/internal/data.pb.go(æ0µ8R≈{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardRequest",
-        "TypeString": "func() uint64",
-        "UnderlyingTypeString": "func() uint64",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/GetShardIDø
- *WriteShardRequest/GetShardID/mmvar"cluster/internal/data.pb.go(ƒ0ÿ@R {
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä ./WriteShardRequest/GetShardID/mä
-*WriteShardRequest/PointsPointsfield"cluster/internal/data.pb.go(ˇ0…8Rö{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "WriteShardRequest",
-        "TypeString": "[]*github.com/influxdb/influxdb/cluster/internal.Point",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/cluster/internal.Point",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/Points∏
- *WriteShardRequest/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(é0º8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardRequest",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä ./WriteShardRequest/ProtoMessage£
-*WriteShardRequest/ResetResetfunc"cluster/internal/data.pb.go(Û0ª8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardRequest",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/Resetµ
-*WriteShardRequest/Reset/mmvar"cluster/internal/data.pb.go(˘0ç@R {
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/Reset/mØ
-*WriteShardRequest/ShardIDShardIDfield"cluster/internal/data.pb.go(±0˝8Rº{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "WriteShardRequest",
-        "TypeString": "*uint64",
-        "UnderlyingTypeString": "*uint64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/ShardID¥
-*WriteShardRequest/StringStringfunc"cluster/internal/data.pb.go(º0ç8R≈{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardRequest",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/String∑
-*WriteShardRequest/String/mmvar"cluster/internal/data.pb.go(¬0÷@R {
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardRequest/String/m»
-$*"WriteShardRequest/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(À0Ô8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "WriteShardRequest",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä$./WriteShardRequest/XXX_unrecognized¸
-*WriteShardResponseWriteShardResponsetype"cluster/internal/data.pb.go(Ù0Ã!8Rç{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "UnderlyingTypeString": "struct{Code *int32 \"protobuf:\\\"varint,1,req\\\" json:\\\"Code,omitempty\\\"\"; Message *string \"protobuf:\\\"bytes,2,opt\\\" json:\\\"Message,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponseß
-*WriteShardResponse/CodeCodefield"cluster/internal/data.pb.go(ë 0Ÿ 8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "WriteShardResponse",
-        "TypeString": "*int32",
-        "UnderlyingTypeString": "*int32",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/Code∏
-*WriteShardResponse/GetCodeGetCodefunc"cluster/internal/data.pb.go(ù#0ã$8Rƒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardResponse",
-        "TypeString": "func() int32",
-        "UnderlyingTypeString": "func() int32",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/GetCodeΩ
-*WriteShardResponse/GetCode/mmvar"cluster/internal/data.pb.go(£#0∏#@RÃ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/GetCode/m√
-*WriteShardResponse/GetMessage
-GetMessagefunc"cluster/internal/data.pb.go(ç$0Ü%8R∆{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardResponse",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/GetMessage√
-!*WriteShardResponse/GetMessage/mmvar"cluster/internal/data.pb.go(ì$0®$@RÃ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä!./WriteShardResponse/GetMessage/m≤
-*WriteShardResponse/MessageMessagefield"cluster/internal/data.pb.go(€ 0•!8RΩ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "WriteShardResponse",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/Messageª
-!*WriteShardResponse/ProtoMessageProtoMessagefunc"cluster/internal/data.pb.go(Ï"0õ#8R∏{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardResponse",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä!./WriteShardResponse/ProtoMessage¶
-*WriteShardResponse/ResetResetfunc"cluster/internal/data.pb.go(Œ!0ò"8R∏{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardResponse",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/Resetπ
-*WriteShardResponse/Reset/mmvar"cluster/internal/data.pb.go(‘!0È!@RÃ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/Reset/m∑
-*WriteShardResponse/StringStringfunc"cluster/internal/data.pb.go(ô"0Î"8R∆{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*WriteShardResponse",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/Stringª
-*WriteShardResponse/String/mmvar"cluster/internal/data.pb.go(ü"0¥"@RÃ{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster/internal.WriteShardResponse",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./WriteShardResponse/String/mÀ
-%*#WriteShardResponse/XXX_unrecognizedXXX_unrecognizedfield"cluster/internal/data.pb.go(ß!0 !8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "WriteShardResponse",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä%./WriteShardResponse/XXX_unrecognized¥
-*init$data.pb6781initfunc"cluster/internal/data.pb.go(¯40á5@R◊{
-        "PkgName": "internal",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/cluster/internal"
-      }ä./init$data.pb6781

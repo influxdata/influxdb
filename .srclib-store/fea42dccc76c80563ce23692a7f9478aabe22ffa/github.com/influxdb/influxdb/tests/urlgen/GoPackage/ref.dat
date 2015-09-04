@@ -1,57 +1,0 @@
-*.Rtests/urlgen/urlgen.goX`D
-github.com/golang/go"encoding/json*.Rtests/urlgen/urlgen.goX`';
-github.com/golang/go"flag*.Rtests/urlgen/urlgen.goX)`/:
-github.com/golang/go"fmt*.Rtests/urlgen/urlgen.goX1`6;
-github.com/golang/go"time*.Rtests/urlgen/urlgen.goX8`>/*urlgen.go/mainRtests/urlgen/urlgen.goXG`Kˆ9*urlgen.go/main/intervalNRtests/urlgen/urlgen.goXY`bˆ;
-github.com/golang/go"flag*.Rtests/urlgen/urlgen.goXe`i=
-github.com/golang/go"flag*IntRtests/urlgen/urlgen.goXj`m9*urlgen.go/main/seriesNRtests/urlgen/urlgen.goXŒ`“ˆ=
-github.com/golang/go"flag*.Rtests/urlgen/urlgen.goX˜`œ?
-github.com/golang/go"flag*IntRtests/urlgen/urlgen.goX` 9*urlgen.go/main/clientNRtests/urlgen/urlgen.goXØ`ßˆ=
-github.com/golang/go"flag*.Rtests/urlgen/urlgen.goXä`è?
-github.com/golang/go"flag*IntRtests/urlgen/urlgen.goXé`ì6*urlgen.go/main/hostRtests/urlgen/urlgen.goX `¤ˆ=
-github.com/golang/go"flag*.Rtests/urlgen/urlgen.goX¬`°B
-github.com/golang/go"flag*StringRtests/urlgen/urlgen.goX±`·=
-github.com/golang/go"flag*.Rtests/urlgen/urlgen.goXå`éA
-github.com/golang/go"flag*ParseRtests/urlgen/urlgen.goXê`ï3*urlgen.go/main/nRtests/urlgen/urlgen.goX¨`©ˆ6*urlgen.go/main/clientNRtests/urlgen/urlgen.goX¯`¶6*urlgen.go/main/seriesNRtests/urlgen/urlgen.goX¼`Ã8*urlgen.go/main/intervalNRtests/urlgen/urlgen.goXÉ`Ò3*urlgen.go/main/tRtests/urlgen/urlgen.goXÕ`Öˆ=
-github.com/golang/go"time*.Rtests/urlgen/urlgen.goXÚ`Ş?
-github.com/golang/go"time*NowRtests/urlgen/urlgen.goXß`âD
-github.com/golang/go"time*Time/UTCRtests/urlgen/urlgen.goXå`èD
-github.com/golang/go"time*Time/AddRtests/urlgen/urlgen.goXë`î=
-github.com/golang/go"time*.Rtests/urlgen/urlgen.goXğ`ôD
-github.com/golang/go"time*DurationRtests/urlgen/urlgen.goXõ`ı0*urlgen.go/main/nRtests/urlgen/urlgen.goXş`ÿ=
-github.com/golang/go"time*.Rtests/urlgen/urlgen.goXƒ`‡B
-github.com/golang/go"time*SecondRtests/urlgen/urlgen.goXˆ`<*urlgen.go/main/$urlgen0/iRtests/urlgen/urlgen.goX–`—ˆ9*urlgen.go/main/$urlgen0/iRtests/urlgen/urlgen.goX`Ÿ6*urlgen.go/main/clientNRtests/urlgen/urlgen.goX£`ª9*urlgen.go/main/$urlgen0/iRtests/urlgen/urlgen.goX¬`­N*+urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/jRtests/urlgen/urlgen.goX¸`¹ˆK*+urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/jRtests/urlgen/urlgen.goXÀ`Á6*urlgen.go/main/seriesNRtests/urlgen/urlgen.goXÅ`ÌK*+urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/jRtests/urlgen/urlgen.goXÎ`Ï\*9urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/pointsRtests/urlgen/urlgen.goX×`İˆC
-github.com/golang/go"builtin*makeRtests/urlgen/urlgen.goXá`å/*urlgen.go/PointRtests/urlgen/urlgen.goXé`î`*=urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/$urlgen0/kRtests/urlgen/urlgen.goXú`ûˆ]*=urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/$urlgen0/kRtests/urlgen/urlgen.goX‚`ƒ8*urlgen.go/main/intervalNRtests/urlgen/urlgen.goX‡`]*=urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/$urlgen0/kRtests/urlgen/urlgen.goX’`“0*urlgen.go/main/tRtests/urlgen/urlgen.goXœ`0*urlgen.go/main/tRtests/urlgen/urlgen.goX `¡D
-github.com/golang/go"time*Time/AddRtests/urlgen/urlgen.goX¢`¥=
-github.com/golang/go"time*.Rtests/urlgen/urlgen.goXª`®B
-github.com/golang/go"time*SecondRtests/urlgen/urlgen.goX¯`µY*9urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/pointsRtests/urlgen/urlgen.goX»`ÁE
-github.com/golang/go"builtin*appendRtests/urlgen/urlgen.goXÄ`ÊY*9urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/pointsRtests/urlgen/urlgen.goXË`Ñ/*urlgen.go/PointRtests/urlgen/urlgen.goXÔ`Ù;*urlgen.go/Point/MeasurementRtests/urlgen/urlgen.goXà`ë4*urlgen.go/Point/TimeRtests/urlgen/urlgen.goXù`ı0*urlgen.go/main/tRtests/urlgen/urlgen.goX†`‡4*urlgen.go/Point/TagsRtests/urlgen/urlgen.goX`’E
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goXŸ`¥E
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goX¦`¬<
-github.com/golang/go"fmt*.Rtests/urlgen/urlgen.goXµ`¸B
-github.com/golang/go"fmt*SprintfRtests/urlgen/urlgen.goX¹`ÀK*+urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/jRtests/urlgen/urlgen.goXÍ`Î6*urlgen.go/Point/FieldsRtests/urlgen/urlgen.goXÙ`ßE
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goXê`ğ[*8urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/batchRtests/urlgen/urlgen.goX›` ˆ/*urlgen.go/BatchRtests/urlgen/urlgen.goX¥`ª8*urlgen.go/Batch/DatabaseRtests/urlgen/urlgen.goX°`¸?*urlgen.go/Batch/RetentionPolicyRtests/urlgen/urlgen.goXË`Ú6*urlgen.go/Batch/PointsRtests/urlgen/urlgen.goXç`íY*9urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/pointsRtests/urlgen/urlgen.goXø`şY*6urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/bufRtests/urlgen/urlgen.goXˆ`‹ˆF
-github.com/golang/go"encoding/json*.Rtests/urlgen/urlgen.goX’`–L
-github.com/golang/go"encoding/json*MarshalRtests/urlgen/urlgen.goX—`X*8urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/batchRtests/urlgen/urlgen.goXŸ`¤<
-github.com/golang/go"fmt*.Rtests/urlgen/urlgen.goXª`­A
-github.com/golang/go"fmt*PrintfRtests/urlgen/urlgen.goX®`´3*urlgen.go/main/hostRtests/urlgen/urlgen.goXÓ`×V*6urlgen.go/main/$urlgen0/$urlgen0/$urlgen0/$urlgen0/bufRtests/urlgen/urlgen.goXÙ`Ü2*urlgen.go/BatchRtests/urlgen/urlgen.goXí`òˆ;*urlgen.go/Batch/DatabaseRtests/urlgen/urlgen.goXı`…	ˆE
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goX	`“	B*urlgen.go/Batch/RetentionPolicyRtests/urlgen/urlgen.goX©	`¸	ˆE
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goX¹	`¿	9*urlgen.go/Batch/PointsRtests/urlgen/urlgen.goXÜ	`â	ˆ/*urlgen.go/PointRtests/urlgen/urlgen.goXï	`ô	2*urlgen.go/PointRtests/urlgen/urlgen.goX
-`’
-ˆ>*urlgen.go/Point/MeasurementRtests/urlgen/urlgen.goX
-`¨
-ˆE
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goX©
-`¯
-7*urlgen.go/Point/TimeRtests/urlgen/urlgen.goXÖ
-`Ú
-ˆ=
-github.com/golang/go"time*.Rtests/urlgen/urlgen.goXâ
-`æ
-@
-github.com/golang/go"time*TimeRtests/urlgen/urlgen.goXç
-`ë
-7*urlgen.go/Point/TagsRtests/urlgen/urlgen.goXˆ`ŒˆE
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goX˜`E
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goXŸ`¥9*urlgen.go/Point/FieldsRtests/urlgen/urlgen.goXº`ÀˆE
-github.com/golang/go"builtin*stringRtests/urlgen/urlgen.goXÊ`Ğ

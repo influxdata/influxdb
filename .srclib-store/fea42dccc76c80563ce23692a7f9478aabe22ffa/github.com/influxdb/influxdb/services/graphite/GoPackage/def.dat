@@ -1,2152 +1,0 @@
-ù
-*$service/$service0/ppvar"services/graphite/service.go(ü0º@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./$service/$service0/pø
-*$service/$service1/ddvar"services/graphite/service.go(Ó0˝@R›{
-        "PkgName": "graphite",
-        "TypeString": "time.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./$service/$service1/d¬
-*$service/$service2/namenamevar"services/graphite/service.go(°0¨@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./$service/$service2/name˘
-*.graphitepackage"services/graphite8R≈{
-        "Exported": true,
-        "PkgName": "graphite",
-        "TypeString": "",
-        "Kind": "package",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä.¡
-*ConfigConfigtype"services/graphite/config.go(æ0‘8R™{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "struct{BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; Enabled bool \"toml:\\\"enabled\\\"\"; Protocol string \"toml:\\\"protocol\\\"\"; BatchSize int \"toml:\\\"batch-size\\\"\"; BatchTimeout github.com/influxdb/influxdb/toml.Duration \"toml:\\\"batch-timeout\\\"\"; ConsistencyLevel string \"toml:\\\"consistency-level\\\"\"; Templates []string \"toml:\\\"templates\\\"\"; Tags []string \"toml:\\\"tags\\\"\"; Separator string \"toml:\\\"separator\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZJ
-
-text/plain<Config represents the configuration for Graphite endpoints.
-ä./Configç
-*Config/BatchSize	BatchSizefield"services/graphite/config.go(ö	0Ã	8R™{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/BatchSizeø
-*Config/BatchTimeoutBatchTimeoutfield"services/graphite/config.go(Œ	0É
-8R”{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "github.com/influxdb/influxdb/toml.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/BatchTimeoutô
-*Config/BindAddressBindAddressfield"services/graphite/config.go(œ0É8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/BindAddress®
-*Config/ConsistencyLevelConsistencyLevelfield"services/graphite/config.go(Ö
-0æ
-8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/ConsistencyLevelê
-*Config/DatabaseDatabasefield"services/graphite/config.go(Ö0µ8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Database„
-*Config/DefaultTagsDefaultTagsfunc"services/graphite/config.go(≈0Ô8R˚{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func() github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/tsdb.Tags",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/DefaultTagsÏ
-,**Config/DefaultTags/$config0/$config0/partspartsvar"services/graphite/config.go(£0¡@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä,./Config/DefaultTags/$config0/$config0/parts 
-*Config/DefaultTags/$config0/ttvar"services/graphite/config.go(≈0Ô@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/DefaultTags/$config0/tò
-*Config/DefaultTags/ccvar"services/graphite/config.go(À0‘@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/DefaultTags/cÏ
-*Config/DefaultTags/tagstagsvar"services/graphite/config.go(Ò0Ñ@RÇ{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/DefaultTags/tagsâ
-*Config/EnabledEnabledfield"services/graphite/config.go(∑0Ê8R¨{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Enabledê
-*Config/ProtocolProtocolfield"services/graphite/config.go(Ë0ò	8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Protocolì
-*Config/Separator	Separatorfield"services/graphite/config.go(°0“8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Separatorà
-*Config/TagsTagsfield"services/graphite/config.go(Û
-0ü8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Tagsó
-*Config/Templates	Templatesfield"services/graphite/config.go(¿
-0Ò
-8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Config",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Templatesò
-*Config/ValidateValidatefunc"services/graphite/config.go(Ò0ù8Rπ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Validate‹
-*Config/Validate/$config0/errerrvar"services/graphite/config.go(ô0µ@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Validate/$config0/err‹
-*Config/Validate/$config1/errerrvar"services/graphite/config.go(Ÿ0@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Validate/$config1/errí
-*Config/Validate/ccvar"services/graphite/config.go(˜0Ä@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/Validate/c˘
-*Config/WithDefaultsWithDefaultsfunc"services/graphite/config.go(√0√8Rõ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func() *github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zq
-
-text/plaincWithDefaults takes the given config and returns a new config with any required
-default values set.
-ä./Config/WithDefaultsö
-*Config/WithDefaults/ccvar"services/graphite/config.go(…0“@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/WithDefaults/cÿ
-*Config/WithDefaults/ddvar"services/graphite/config.go(Ó0ı@Rı{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "struct{BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; Enabled bool \"toml:\\\"enabled\\\"\"; Protocol string \"toml:\\\"protocol\\\"\"; BatchSize int \"toml:\\\"batch-size\\\"\"; BatchTimeout github.com/influxdb/influxdb/toml.Duration \"toml:\\\"batch-timeout\\\"\"; ConsistencyLevel string \"toml:\\\"consistency-level\\\"\"; Templates []string \"toml:\\\"templates\\\"\"; Tags []string \"toml:\\\"tags\\\"\"; Separator string \"toml:\\\"separator\\\"\"}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/WithDefaults/d®
-*Config/validateFiltervalidateFilterfunc"services/graphite/config.go(Û$0¥'Rπ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func(filter string) error",
-        "UnderlyingTypeString": "func(filter string) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateFilter–
-"* Config/validateFilter/$config0/ppvar"services/graphite/config.go(Û$0¥'@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä"./Config/validateFilter/$config0/pû
-*Config/validateFilter/ccvar"services/graphite/config.go(˘$0Ç%@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateFilter/cÕ
-*Config/validateFilter/filterfiltervar"services/graphite/config.go(ì%0†%@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateFilter/filter£
-*Config/validateTagvalidateTagfunc"services/graphite/config.go(∂'0ﬁ)RΩ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func(keyValue string) error",
-        "UnderlyingTypeString": "func(keyValue string) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTagò
-*Config/validateTag/ccvar"services/graphite/config.go(º'0≈'@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTag/cÕ
-*Config/validateTag/keyValuekeyValuevar"services/graphite/config.go(”'0‚'@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTag/keyValue»
-*Config/validateTag/partspartsvar"services/graphite/config.go(Ì'0í(@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTag/partsà
-*Config/validateTagsvalidateTagsfunc"services/graphite/config.go(û!0Ø"Rü{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTagsà
-4*2Config/validateTags/$config0/$config0/$config0/errerrvar"services/graphite/config.go(Á!0˛!@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä4./Config/validateTags/$config0/$config0/$config0/errÃ
- *Config/validateTags/$config0/ttvar"services/graphite/config.go(û!0Ø"@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä ./Config/validateTags/$config0/tö
-*Config/validateTags/ccvar"services/graphite/config.go(§!0≠!@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTags/c≤
-*Config/validateTemplatevalidateTemplatefunc"services/graphite/config.go(±"0Ò$RΩ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func(template string) error",
-        "UnderlyingTypeString": "func(template string) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTemplate‘
-$*"Config/validateTemplate/$config0/ppvar"services/graphite/config.go(±"0Ò$@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä$./Config/validateTemplate/$config0/p¢
-*Config/validateTemplate/ccvar"services/graphite/config.go(∑"0¿"@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTemplate/cÂ
-(*&Config/validateTemplate/hasMeasurementhasMeasurementvar"services/graphite/config.go(Ì"0Ñ#@R”{
-        "PkgName": "graphite",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä(./Config/validateTemplate/hasMeasurement◊
-"* Config/validateTemplate/templatetemplatevar"services/graphite/config.go(”"0‚"@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä"./Config/validateTemplate/templateó
-*Config/validateTemplatesvalidateTemplatesfunc"services/graphite/config.go(ü0ú!Rü{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Config",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTemplatesí
-9*7Config/validateTemplates/$config0/$config0/$config5/errerrvar"services/graphite/config.go(Ã0Ô@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä9./Config/validateTemplates/$config0/$config0/$config5/err˘
-8*6Config/validateTemplates/$config0/$config0/$config6/okokvar"services/graphite/config.go(√0€@R”{
-        "PkgName": "graphite",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä8./Config/validateTemplates/$config0/$config0/$config6/ok∂
-K*IConfig/validateTemplates/$config0/$config0/$config7/$config0/$config0/errerrvar"services/graphite/config.go(ô0∏@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äK./Config/validateTemplates/$config0/$config0/$config7/$config0/$config0/err⁄
-]*[Config/validateTemplates/$config0/$config0/$config8/$config0/$config0/$config0/$config0/errerrvar"services/graphite/config.go(¬ 0ﬁ @RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä]./Config/validateTemplates/$config0/$config0/$config8/$config0/$config0/$config0/$config0/err≠
-N*LConfig/validateTemplates/$config0/$config0/$config8/$config0/$config0/tagStrtagStrvar"services/graphite/config.go(ü0ú!@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äN./Config/validateTemplates/$config0/$config0/$config8/$config0/$config0/tagStr˜
-3*1Config/validateTemplates/$config0/$config0/filterfiltervar"services/graphite/config.go(•0±@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä3./Config/validateTemplates/$config0/$config0/filter¯
-2*0Config/validateTemplates/$config0/$config0/partspartsvar"services/graphite/config.go(∫0‘@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä2./Config/validateTemplates/$config0/$config0/partsÒ
-1*/Config/validateTemplates/$config0/$config0/tagstagsvar"services/graphite/config.go(¥0æ@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä1./Config/validateTemplates/$config0/$config0/tags˝
-5*3Config/validateTemplates/$config0/$config0/templatetemplatevar"services/graphite/config.go(ï0¢@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä5./Config/validateTemplates/$config0/$config0/template–
-%*#Config/validateTemplates/$config0/iivar"services/graphite/config.go(ü0ú!@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä%./Config/validateTemplates/$config0/i÷
-%*#Config/validateTemplates/$config0/ttvar"services/graphite/config.go(ü0ú!@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä%./Config/validateTemplates/$config0/t§
-*Config/validateTemplates/ccvar"services/graphite/config.go(•0Æ@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Config/validateTemplates/c
-"* Config/validateTemplates/filtersfiltersvar"services/graphite/config.go(ı0ï@RÒ{
-        "PkgName": "graphite",
-        "TypeString": "map[string]struct{}",
-        "UnderlyingTypeString": "map[string]struct{}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä"./Config/validateTemplates/filters•
-&*$CreateDatabaseIfNotExists$service775CreateDatabaseIfNotExistsfunc"services/graphite/service.go(á0…@Rä{
-        "PkgName": "graphite",
-        "Receiver": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
-        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä&./CreateDatabaseIfNotExists$service775∆
-*DefaultBatchSizeDefaultBatchSizeconst"services/graphite/config.go(¸0ì8Ró{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped int",
-        "UnderlyingTypeString": "untyped int",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZC
-
-text/plain5DefaultBatchSize is the default Graphite batch size.
-ä./DefaultBatchSize—
-*DefaultBatchTimeoutDefaultBatchTimeoutconst"services/graphite/config.go(’0ˆ8Rì{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "time.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZI
-
-text/plain;DefaultBatchTimeout is the default Graphite batch timeout.
-ä./DefaultBatchTimeoutÁ
-*DefaultBindAddressDefaultBindAddressconst"services/graphite/config.go(⁄0ˆ8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZX
-
-text/plainJDefaultBindAddress is the default binding interface if none is specified.
-ä./DefaultBindAddress˝
-*DefaultConsistencyLevelDefaultConsistencyLevelconst"services/graphite/config.go(î0≥8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z_
-
-text/plainQDefaultConsistencyLevel is the default write consistency for the Graphite input.
-ä./DefaultConsistencyLevel“
-*DefaultDatabaseDefaultDatabaseconst"services/graphite/config.go(ª0◊8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZL
-
-text/plain>DefaultDatabase is the default database if none is specified.
-ä./DefaultDatabase€
-*DefaultProtocolDefaultProtocolconst"services/graphite/config.go(•0º8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZU
-
-text/plainGDefaultProtocol is the default IP protocol used by the Graphite input.
-ä./DefaultProtocolÉ
-*DefaultSeparatorDefaultSeparatorconst"services/graphite/config.go(™0¿8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zz
-
-text/plainlDefaultSeparator is the default join character to use when joining multiple
-measurment parts in a template.
-ä./DefaultSeparatorä
-*	NewConfig	NewConfigfunc"services/graphite/config.go(á0ÿ8R¯{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "func() github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z<
-
-text/plain.NewConfig returns a new Config with defaults.
-ä./NewConfig©
-*	NewParser	NewParserfunc"services/graphite/parser.go(Ê0º8Rò{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "func(templates []string, defaultTags github.com/influxdb/influxdb/tsdb.Tags) (*github.com/influxdb/influxdb/services/graphite.Parser, error)",
-        "UnderlyingTypeString": "func(templates []string, defaultTags github.com/influxdb/influxdb/tsdb.Tags) (*github.com/influxdb/influxdb/services/graphite.Parser, error)",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z;
-
-text/plain-NewParser returns a GraphiteParser instance.
-ä./NewParserÔ
-*NewParser/defaultTagsdefaultTagsvar"services/graphite/parser.go(â0û@RÇ{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewParser/defaultTags¬
-*NewParser/templates	templatesvar"services/graphite/parser.go(ı0á@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewParser/templates‘
-*NewParserWithOptionsNewParserWithOptionsfunc"services/graphite/parser.go(Û0¥8Rà{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "func(options github.com/influxdb/influxdb/services/graphite.Options) (*github.com/influxdb/influxdb/services/graphite.Parser, error)",
-        "UnderlyingTypeString": "func(options github.com/influxdb/influxdb/services/graphite.Options) (*github.com/influxdb/influxdb/services/graphite.Parser, error)",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZU
-
-text/plainGNewParserWithOptions returns a graphite parser using the given options
-ä./NewParserWithOptions∏
-R*PNewParserWithOptions/$parser0/$parser0/$parser1/$parser0/$parser0/$parser0/partspartsvar"services/graphite/parser.go(£
-0¬
-@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äR./NewParserWithOptions/$parser0/$parser0/$parser1/$parser0/$parser0/$parser0/partsô
-F*DNewParserWithOptions/$parser0/$parser0/$parser1/$parser0/$parser0/kvkvvar"services/graphite/parser.go(Û0¥@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äF./NewParserWithOptions/$parser0/$parser0/$parser1/$parser0/$parser0/kvö
-B*@NewParserWithOptions/$parser0/$parser0/$parser1/$parser0/tagStrstagStrsvar"services/graphite/parser.go(Ã	0˛	@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äB./NewParserWithOptions/$parser0/$parser0/$parser1/$parser0/tagStrs¯
-,**NewParserWithOptions/$parser0/$parser0/errerrvar"services/graphite/parser.go(Ì
-0®@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä,./NewParserWithOptions/$parser0/$parser0/errÔ
-/*-NewParserWithOptions/$parser0/$parser0/filterfiltervar"services/graphite/parser.go(ø0À@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä/./NewParserWithOptions/$parser0/$parser0/filter
-.*,NewParserWithOptions/$parser0/$parser0/partspartsvar"services/graphite/parser.go(ã0´@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä../NewParserWithOptions/$parser0/$parser0/partsî
--*+NewParserWithOptions/$parser0/$parser0/tagstagsvar"services/graphite/parser.go(É	0ñ	@RÇ{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä-./NewParserWithOptions/$parser0/$parser0/tagsı
-1*/NewParserWithOptions/$parser0/$parser0/templatetemplatevar"services/graphite/parser.go(©0º@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä1./NewParserWithOptions/$parser0/$parser0/templateÕ
--*+NewParserWithOptions/$parser0/$parser0/tmpltmplvar"services/graphite/parser.go(Ì
-0®@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä-./NewParserWithOptions/$parser0/$parser0/tmpl‡
-'*%NewParserWithOptions/$parser0/patternpatternvar"services/graphite/parser.go(Û0¥@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä'./NewParserWithOptions/$parser0/pattern∞
-*NewParserWithOptions/matchermatchervar"services/graphite/parser.go(≥0 @Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewParserWithOptions/matcherÿ
-*NewParserWithOptions/optionsoptionsvar"services/graphite/parser.go(ç0ú@R·{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Options",
-        "UnderlyingTypeString": "struct{Separator string; Templates []string; DefaultTags github.com/influxdb/influxdb/tsdb.Tags}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewParserWithOptions/optionsú
-*
-NewService
-NewServicefunc"services/graphite/service.go(ã0˝8R¸{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "func(c github.com/influxdb/influxdb/services/graphite.Config) (*github.com/influxdb/influxdb/services/graphite.Service, error)",
-        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/graphite.Config) (*github.com/influxdb/influxdb/services/graphite.Service, error)",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZF
-
-text/plain8NewService returns an instance of the Graphite service.
-ä./NewService«
-*NewService/ccvar"services/graphite/service.go(õ0£@Rı{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "struct{BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; Enabled bool \"toml:\\\"enabled\\\"\"; Protocol string \"toml:\\\"protocol\\\"\"; BatchSize int \"toml:\\\"batch-size\\\"\"; BatchTimeout github.com/influxdb/influxdb/toml.Duration \"toml:\\\"batch-timeout\\\"\"; ConsistencyLevel string \"toml:\\\"consistency-level\\\"\"; Templates []string \"toml:\\\"templates\\\"\"; Tags []string \"toml:\\\"tags\\\"\"; Separator string \"toml:\\\"separator\\\"\"}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewService/cÇ
-*NewService/consistencyLevelconsistencyLevelvar"services/graphite/service.go(ë
-0€
-@RÉ{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/cluster.ConsistencyLevel",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewService/consistencyLevelâ
-*NewService/ddvar"services/graphite/service.go(‹0Ò@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Config",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewService/d¡
-*NewService/errerrvar"services/graphite/service.go(ë
-0€
-@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewService/errò
-*NewService/parserparservar"services/graphite/service.go(´0∞@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Parser",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Parser",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewService/parserÿ
-*NewService/ssvar"services/graphite/service.go(Ù0é
-@RÜ{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "struct{bindAddress string; database string; protocol string; batchSize int; batchTimeout time.Duration; consistencyLevel github.com/influxdb/influxdb/cluster.ConsistencyLevel; batcher *github.com/influxdb/influxdb/tsdb.PointBatcher; parser *github.com/influxdb/influxdb/services/graphite.Parser; logger *log.Logger; ln net.Listener; addr net.Addr; wg sync.WaitGroup; done chan struct{}; PointsWriter interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}; MetaStore interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewService/sí
-*NewTemplateNewTemplatefunc"services/graphite/parser.go(±0“ 8R∏{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "func(pattern string, defaultTags github.com/influxdb/influxdb/tsdb.Tags, separator string) (*github.com/influxdb/influxdb/services/graphite.template, error)",
-        "UnderlyingTypeString": "func(pattern string, defaultTags github.com/influxdb/influxdb/tsdb.Tags, separator string) (*github.com/influxdb/influxdb/services/graphite.template, error)",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate¬
-*NewTemplate/$parser0/tagtagvar"services/graphite/parser.go(±0“ @R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/$parser0/tagÛ
-*NewTemplate/defaultTagsdefaultTagsvar"services/graphite/parser.go(“0Á@RÇ{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/defaultTagsÕ
-*NewTemplate/hasMeasurementhasMeasurementvar"services/graphite/parser.go(∂0Õ@R”{
-        "PkgName": "graphite",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/hasMeasurementº
-*NewTemplate/patternpatternvar"services/graphite/parser.go(¬0–@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/pattern¬
-*NewTemplate/separator	separatorvar"services/graphite/parser.go(È0˘@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/separator∑
-*NewTemplate/tagstagsvar"services/graphite/parser.go(ë0¥@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/tags£
-*NewTemplate/templatetemplatevar"services/graphite/parser.go(œ0†@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./NewTemplate/templateµ
-	*OptionsOptionstype"services/graphite/parser.go(‘0ß8Rñ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Options",
-        "UnderlyingTypeString": "struct{Separator string; Templates []string; DefaultTags github.com/influxdb/influxdb/tsdb.Tags}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZO
-
-text/plainAOptions are configurable values that can be provided to a Parser
-ä	./Options«
-*Options/DefaultTagsDefaultTagsfield"services/graphite/parser.go(ê0•8R‹{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Options",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Options/DefaultTagsñ
-*Options/Separator	Separatorfield"services/graphite/parser.go(Ê0¯8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Options",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Options/Separatorö
-*Options/Templates	Templatesfield"services/graphite/parser.go(˙0é8Rµ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Options",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Options/Templates´
-*ParserParsertype"services/graphite/parser.go(”0â8R©{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Parser",
-        "UnderlyingTypeString": "struct{matcher *github.com/influxdb/influxdb/services/graphite.matcher; tags github.com/influxdb/influxdb/tsdb.Tags}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z5
-
-text/plain'Parser encapsulates a Graphite Parser.
-ä./ParserΩ
-*Parser/ParseParsefunc"services/graphite/parser.go(Û0Ã8R•{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Parser",
-        "TypeString": "func(line string) (github.com/influxdb/influxdb/tsdb.Point, error)",
-        "UnderlyingTypeString": "func(line string) (github.com/influxdb/influxdb/tsdb.Point, error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z@
-
-text/plain2Parse performs Graphite parsing of a single line.
-ä./Parser/ParseË
-$*"Parser/Parse/$parser3/$parser0/errerrvar"services/graphite/parser.go(ü0—@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä$./Parser/Parse/$parser3/$parser0/errÁ
-)*'Parser/Parse/$parser3/$parser0/unixTimeunixTimevar"services/graphite/parser.go(ü0—@RŸ{
-        "PkgName": "graphite",
-        "TypeString": "float64",
-        "UnderlyingTypeString": "float64",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä)./Parser/Parse/$parser3/$parser0/unixTime·
-,**Parser/Parse/$parser4/$parser0/$parser0/okokvar"services/graphite/parser.go(∆0÷@R”{
-        "PkgName": "graphite",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä,./Parser/Parse/$parser4/$parser0/$parser0/okæ
-*Parser/Parse/$parser4/kkvar"services/graphite/parser.go(Û0Ã@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/$parser4/kæ
-*Parser/Parse/$parser4/vvvar"services/graphite/parser.go(Û0Ã@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/$parser4/vƒ
-*Parser/Parse/errerrvar"services/graphite/parser.go(0õ@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/errÍ
-*Parser/Parse/fieldValuesfieldValuesvar"services/graphite/parser.go(Û0§@R˜{
-        "PkgName": "graphite",
-        "TypeString": "map[string]interface{}",
-        "UnderlyingTypeString": "map[string]interface{}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/fieldValuesø
-*Parser/Parse/fieldsfieldsvar"services/graphite/parser.go(‡0˛@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/fieldsµ
-*Parser/Parse/linelinevar"services/graphite/parser.go(ä0ï@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/line¢
-*Parser/Parse/matchermatchervar"services/graphite/parser.go(ù0¬@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/matcher 
-*Parser/Parse/measurementmeasurementvar"services/graphite/parser.go(ƒ0Ò@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/measurementå
-*Parser/Parse/ppvar"services/graphite/parser.go(˘0Ç@R∑{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Parser",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Parser",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/pÓ
-*Parser/Parse/pointpointvar"services/graphite/parser.go(ı0∂@Rç{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
-        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/pointÀ
-*Parser/Parse/tagstagsvar"services/graphite/parser.go(ƒ0Ò@RÌ{
-        "PkgName": "graphite",
-        "TypeString": "map[string]string",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/tagsÚ
-*Parser/Parse/timestamp	timestampvar"services/graphite/parser.go(—0Ó@RÖ{
-        "PkgName": "graphite",
-        "TypeString": "time.Time",
-        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/timestampÆ
-*Parser/Parse/vvvar"services/graphite/parser.go(0õ@RŸ{
-        "PkgName": "graphite",
-        "TypeString": "float64",
-        "UnderlyingTypeString": "float64",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/Parse/v”
-*Parser/matchermatcherfield"services/graphite/parser.go(‰0ÙR¯{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Parser",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/matcherì
-*Parser/tagstagsfield"services/graphite/parser.go(ˆ0áR¡{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Parser",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Parser/tagsä
-	*ServiceServicetype"services/graphite/service.go(©0Œ8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "struct{bindAddress string; database string; protocol string; batchSize int; batchTimeout time.Duration; consistencyLevel github.com/influxdb/influxdb/cluster.ConsistencyLevel; batcher *github.com/influxdb/influxdb/tsdb.PointBatcher; parser *github.com/influxdb/influxdb/services/graphite.Parser; logger *log.Logger; ln net.Listener; addr net.Addr; wg sync.WaitGroup; done chan struct{}; PointsWriter interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}; MetaStore interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä	./Serviceñ
-*Service/AddrAddrfunc"services/graphite/service.go(ì0«8R¿{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func() net.Addr",
-        "UnderlyingTypeString": "func() net.Addr",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Addrè
-*Service/Addr/ssvar"services/graphite/service.go(ô0£@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Addr/s⁄
-*Service/CloseClosefunc"services/graphite/service.go(É0î8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZE
-
-text/plain7Close stops all data processing on the Graphite input.
-ä./Service/Closeë
-*Service/Close/ssvar"services/graphite/service.go(â0ì@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Close/s´
-*Service/MetaStore	MetaStorefield"services/graphite/service.go(»0Ã8R≈{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "UnderlyingTypeString": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/MetaStore–
-*Service/OpenOpenfunc"services/graphite/service.go(≤0«8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z>
-
-text/plain0Open starts the Graphite input processing data.
-ä./Service/OpenŸ
-*Service/Open/$service0/errerrvar"services/graphite/service.go(ƒ0˜@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Open/$service0/errŸ
-*Service/Open/$service1/errerrvar"services/graphite/service.go(„0û@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Open/$service1/err≈
-*Service/Open/errerrvar"services/graphite/service.go(ø0»@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Open/errè
-*Service/Open/ssvar"services/graphite/service.go(∏0¬@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/Open/sƒ
-*Service/PointsWriterPointsWriterfield"services/graphite/service.go(¯0∆8R’{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/PointsWriter˘
-*Service/SetLogger	SetLoggerfunc"services/graphite/service.go(’0ë8R»{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func(l *log.Logger)",
-        "UnderlyingTypeString": "func(l *log.Logger)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZJ
-
-text/plain<SetLogger sets the internal logger to the logger passed in.
-ä./Service/SetLogger¡
-*Service/SetLogger/llvar"services/graphite/service.go(Ò0˛@R·{
-        "PkgName": "graphite",
-        "TypeString": "*log.Logger",
-        "UnderlyingTypeString": "*log.Logger",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/SetLogger/lô
-*Service/SetLogger/ssvar"services/graphite/service.go(€0Â@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/SetLogger/sî
-*Service/addraddrfield"services/graphite/service.go(æ0ÀRø{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "net.Addr",
-        "UnderlyingTypeString": "interface{Network() string; String() string}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/addrı
-*Service/batchSize	batchSizefield"services/graphite/service.go(Ü0öRë{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/batchSizeä
-*Service/batchTimeoutbatchTimeoutfield"services/graphite/service.go(ú0∫Rù{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "time.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/batchTimeout«
-*Service/batcherbatcherfield"services/graphite/service.go(Ë0ÇRÈ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb.PointBatcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.PointBatcher",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/batcherÅ
-*Service/bindAddressbindAddressfield"services/graphite/service.go(ª0“Ró{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/bindAddressº
-*Service/consistencyLevelconsistencyLevelfield"services/graphite/service.go(º0ÂR√{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "github.com/influxdb/influxdb/cluster.ConsistencyLevel",
-        "UnderlyingTypeString": "int",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/consistencyLevel¯
-*Service/databasedatabasefield"services/graphite/service.go(‘0ÎRó{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/database˙
-*Service/donedonefield"services/graphite/service.go(„0ıR•{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "chan struct{}",
-        "UnderlyingTypeString": "chan struct{}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/doneê
-*Service/handleLine
-handleLinefunc"services/graphite/service.go(à&0‰)R™{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func(line string)",
-        "UnderlyingTypeString": "func(line string)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine—
-*Service/handleLine/errerrvar"services/graphite/service.go(‡&0Ç'@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine/errª
-*Service/handleLine/ffvar"services/graphite/service.go(’'0ˇ'@RŸ{
-        "PkgName": "graphite",
-        "TypeString": "float64",
-        "UnderlyingTypeString": "float64",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine/f¬
-*Service/handleLine/linelinevar"services/graphite/service.go(•&0∞&@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine/line∏
-*Service/handleLine/okokvar"services/graphite/service.go(’'0ˇ'@R”{
-        "PkgName": "graphite",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine/ok˚
-*Service/handleLine/pointpointvar"services/graphite/service.go(‡&0Ç'@Rç{
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
-        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine/pointõ
-*Service/handleLine/ssvar"services/graphite/service.go(é&0ò&@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleLine/së
-*Service/handleTCPConnectionhandleTCPConnectionfunc"services/graphite/service.go(û0é!RÆ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func(conn net.Conn)",
-        "UnderlyingTypeString": "func(conn net.Conn)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z`
-
-text/plainRhandleTCPConnection services an individual TCP connection for the Graphite input.
-ä./Service/handleTCPConnection˘
-5*3Service/handleTCPConnection/$service0/$service0/bufbufvar"services/graphite/service.go( 0Ï@R◊{
-        "PkgName": "graphite",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä5./Service/handleTCPConnection/$service0/$service0/bufã
-5*3Service/handleTCPConnection/$service0/$service0/errerrvar"services/graphite/service.go( 0Ï@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä5./Service/handleTCPConnection/$service0/$service0/err¸
-6*4Service/handleTCPConnection/$service0/$service0/linelinevar"services/graphite/service.go(Õ 0Û @R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä6./Service/handleTCPConnection/$service0/$service0/line≈
-"* Service/handleTCPConnection/connconnvar"services/graphite/service.go(ƒ0—@R»{
-        "PkgName": "graphite",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä"./Service/handleTCPConnection/connË
-$*"Service/handleTCPConnection/readerreadervar"services/graphite/service.go(˛0ù@RÂ{
-        "PkgName": "graphite",
-        "TypeString": "*bufio.Reader",
-        "UnderlyingTypeString": "*bufio.Reader",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä$./Service/handleTCPConnection/reader≠
-*Service/handleTCPConnection/ssvar"services/graphite/service.go(§0Æ@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/handleTCPConnection/s±
-*
-Service/lnlnfield"services/graphite/service.go(´0ºR‚{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "net.Listener",
-        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/ln¸
-*Service/loggerloggerfield"services/graphite/service.go(ñ0®R°{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "*log.Logger",
-        "UnderlyingTypeString": "*log.Logger",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/loggerÜ
-*Service/openTCPServeropenTCPServerfunc"services/graphite/service.go(õ0«R∏{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func() (net.Addr, error)",
-        "UnderlyingTypeString": "func() (net.Addr, error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Z]
-
-text/plainOopenTCPServer opens the Graphite input in TCP mode and starts processing data.
-ä./Service/openTCPServeré
-B*@Service/openTCPServer/$service1/$service0/$service0/$service0/okokvar"services/graphite/service.go(ä0©@R”{
-        "PkgName": "graphite",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äB./Service/openTCPServer/$service1/$service0/$service0/$service0/okß
-E*CService/openTCPServer/$service1/$service0/$service0/$service0/opErropErrvar"services/graphite/service.go(ä0©@R„{
-        "PkgName": "graphite",
-        "TypeString": "*net.OpError",
-        "UnderlyingTypeString": "*net.OpError",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äE./Service/openTCPServer/$service1/$service0/$service0/$service0/opErrı
-:*8Service/openTCPServer/$service1/$service0/$service0/connconnvar"services/graphite/service.go(È0É@R»{
-        "PkgName": "graphite",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä:./Service/openTCPServer/$service1/$service0/$service0/connì
-9*7Service/openTCPServer/$service1/$service0/$service0/errerrvar"services/graphite/service.go(È0É@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä9./Service/openTCPServer/$service1/$service0/$service0/err◊
-*Service/openTCPServer/errerrvar"services/graphite/service.go(“0˝@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openTCPServer/errç
-*Service/openTCPServer/lnlnvar"services/graphite/service.go(“0˝@R¢{
-        "PkgName": "graphite",
-        "TypeString": "net.Listener",
-        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openTCPServer/ln°
-*Service/openTCPServer/ssvar"services/graphite/service.go(°0´@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openTCPServer/sè
-*Service/openUDPServeropenUDPServerfunc"services/graphite/service.go(Î!0Ü&R∏{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func() (net.Addr, error)",
-        "UnderlyingTypeString": "func() (net.Addr, error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zf
-
-text/plainXopenUDPServer opens the Graphite input in UDP mode and starts processing incoming data.
-ä./Service/openUDPServerò
-D*BService/openUDPServer/$service2/$service0/$service0/$service1/linelinevar"services/graphite/service.go(Î!0Ü&@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äD./Service/openUDPServer/$service2/$service0/$service0/$service1/lineì
-9*7Service/openUDPServer/$service2/$service0/$service0/errerrvar"services/graphite/service.go(¨$0Œ$@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä9./Service/openUDPServer/$service2/$service0/$service0/errı
-7*5Service/openUDPServer/$service2/$service0/$service0/nnvar"services/graphite/service.go(¨$0Œ$@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä7./Service/openUDPServer/$service2/$service0/$service0/n‘
-*Service/openUDPServer/addraddrvar"services/graphite/service.go(¢"0◊"@R„{
-        "PkgName": "graphite",
-        "TypeString": "*net.UDPAddr",
-        "UnderlyingTypeString": "*net.UDPAddr",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openUDPServer/addr≈
-*Service/openUDPServer/bufbufvar"services/graphite/service.go(–#0Ú#@R◊{
-        "PkgName": "graphite",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openUDPServer/buf‘
-*Service/openUDPServer/connconnvar"services/graphite/service.go(Ä#0ß#@R„{
-        "PkgName": "graphite",
-        "TypeString": "*net.UDPConn",
-        "UnderlyingTypeString": "*net.UDPConn",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openUDPServer/conn◊
-*Service/openUDPServer/errerrvar"services/graphite/service.go(¢"0◊"@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openUDPServer/err°
-*Service/openUDPServer/ssvar"services/graphite/service.go(Ò!0˚!@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/openUDPServer/s“
-*Service/parserparserfield"services/graphite/service.go(Ñ0ìR˜{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Parser",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Parser",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/parser‡
-*Service/processBatchesprocessBatchesfunc"services/graphite/service.go(≈*0•.RÇ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*Service",
-        "TypeString": "func(batcher *github.com/influxdb/influxdb/tsdb.PointBatcher)",
-        "UnderlyingTypeString": "func(batcher *github.com/influxdb/influxdb/tsdb.PointBatcher)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zj
-
-text/plain\processBatches continually drains the given batcher and writes the batches to the database.
-ä./Service/processBatches©
-D*BService/processBatches/$service0/$service0/$service0/$service0/errerrvar"services/graphite/service.go(–+0ó-@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }äD./Service/processBatches/$service0/$service0/$service0/$service0/errœ
-<*:Service/processBatches/$service0/$service0/$service0/batchbatchvar"services/graphite/service.go(∞+0»+@Rù{
-        "PkgName": "graphite",
-        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
-        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä<./Service/processBatches/$service0/$service0/$service0/batch•
- *Service/processBatches/batcherbatchervar"services/graphite/service.go(Ê*0Ä+@R©{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb.PointBatcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb.PointBatcher",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä ./Service/processBatches/batcher£
-*Service/processBatches/ssvar"services/graphite/service.go(À*0’*@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/processBatches/s¯
-*Service/protocolprotocolfield"services/graphite/service.go(Ì0ÑRó{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/protocol®
-*
-Service/wgwgfield"services/graphite/service.go(Œ0·RŸ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "Service",
-        "TypeString": "sync.WaitGroup",
-        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./Service/wg£
-*WaitForLeader$service736WaitForLeaderfunc"services/graphite/service.go(‡0Ñ@R¨{
-        "PkgName": "graphite",
-        "Receiver": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "TypeString": "func(d time.Duration) error",
-        "UnderlyingTypeString": "func(d time.Duration) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./WaitForLeader$service736ª
-*WritePoints$service659WritePointsfunc"services/graphite/service.go(ì0√@R {
-        "PkgName": "graphite",
-        "Receiver": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
-        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./WritePoints$service659∑
-*defaultTemplatedefaultTemplatevar"services/graphite/parser.go(}0ñR’{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./defaultTemplate±
-*init$parser157initfunc"services/graphite/parser.go(ò0¢@Rÿ{
-        "PkgName": "graphite",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./init$parser157»
-*init$parser157/errerrvar"services/graphite/parser.go(´0¥@RÈ{
-        "PkgName": "graphite",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./init$parser157/errÂ
-*leaderWaitTimeoutleaderWaitTimeoutconst"services/graphite/service.go(¸0†R˘{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "time.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./leaderWaitTimeout·
-	*matchermatchertype"services/graphite/parser.go(â'0Õ'Rß{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "struct{root *github.com/influxdb/influxdb/services/graphite.node; defaultTemplate *github.com/influxdb/influxdb/services/graphite.template}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zl
-
-text/plain^matcher determines which template should be applied to a given metric
-based on a filter tree.
-ä	./matcherÛ
-*matcher/AddAddfunc"services/graphite/parser.go(€(0¯)8RŒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*matcher",
-        "TypeString": "func(filter string, template *github.com/influxdb/influxdb/services/graphite.template)",
-        "UnderlyingTypeString": "func(filter string, template *github.com/influxdb/influxdb/services/graphite.template)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZQ
-
-text/plainCAdd inserts the template in the filter tree based the given filter
-ä./matcher/Addπ
-*matcher/Add/filterfiltervar"services/graphite/parser.go(Ò(0˛(@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/Add/filterå
-*matcher/Add/mmvar"services/graphite/parser.go(·(0Î(@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/Add/m£
-*matcher/Add/templatetemplatevar"services/graphite/parser.go(Ä)0í)@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/Add/templateØ
-*matcher/AddDefaultTemplateAddDefaultTemplatefunc"services/graphite/parser.go(˙)0‘*8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*matcher",
-        "TypeString": "func(template *github.com/influxdb/influxdb/services/graphite.template)",
-        "UnderlyingTypeString": "func(template *github.com/influxdb/influxdb/services/graphite.template)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/AddDefaultTemplate™
-*matcher/AddDefaultTemplate/mmvar"services/graphite/parser.go(Ä*0ä*@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/AddDefaultTemplate/m¡
-%*#matcher/AddDefaultTemplate/templatetemplatevar"services/graphite/parser.go(ü*0±*@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä%./matcher/AddDefaultTemplate/templateﬁ
-*matcher/MatchMatchfunc"services/graphite/parser.go(ô+0¶,8R∂{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*matcher",
-        "TypeString": "func(line string) *github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "func(line string) *github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZN
-
-text/plain@Match returns the template that matches the given graphite line
-ä./matcher/Match∑
-*matcher/Match/linelinevar"services/graphite/parser.go(±+0º+@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/Match/lineê
-*matcher/Match/mmvar"services/graphite/parser.go(ü+0©+@Rπ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.matcher",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/Match/mõ
-*matcher/Match/tmpltmplvar"services/graphite/parser.go(À+0Ê+@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/Match/tmpl
-*matcher/defaultTemplatedefaultTemplatefield"services/graphite/parser.go(≤'0À'R˚{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "matcher",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/defaultTemplate«
-*matcher/rootrootfield"services/graphite/parser.go(õ'0∞'RÛ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "matcher",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./matcher/root∑
-*
-newMatcher
-newMatcherfunc"services/graphite/parser.go(œ'0ì(R‚{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "func() *github.com/influxdb/influxdb/services/graphite.matcher",
-        "UnderlyingTypeString": "func() *github.com/influxdb/influxdb/services/graphite.matcher",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./newMatcher˘
-*nodenodetype"services/graphite/parser.go(©-0Ì-RØ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "struct{value string; children github.com/influxdb/influxdb/services/graphite.nodes; template *github.com/influxdb/influxdb/services/graphite.template}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZÑ
-
-text/plainvnode is an item in a sorted k-ary tree.  Each child is sorted by its value.
-The special value of "*", is always last.
-ä./node¿
-*node/InsertInsertfunc"services/graphite/parser.go(˘30Â48RÀ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*node",
-        "TypeString": "func(filter string, template *github.com/influxdb/influxdb/services/graphite.template)",
-        "UnderlyingTypeString": "func(filter string, template *github.com/influxdb/influxdb/services/graphite.template)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zù
-
-text/plainéInsert inserts the given string template into the tree.  The filter string is separated
-on "." and each part is used as the path in the tree.
-ä./node/Insertπ
-*node/Insert/filterfiltervar"services/graphite/parser.go(è40ú4@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/Insert/filterÜ
-*node/Insert/nnvar"services/graphite/parser.go(ˇ30Ü4@R≥{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/Insert/n£
-*node/Insert/templatetemplatevar"services/graphite/parser.go(û40∞4@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/Insert/templateà
-*node/SearchSearchfunc"services/graphite/parser.go(í<0Ì<8R≥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*node",
-        "TypeString": "func(line string) *github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "func(line string) *github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/Search≥
-*node/Search/linelinevar"services/graphite/parser.go(®<0≥<@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/Search/lineÜ
-*node/Search/nnvar"services/graphite/parser.go(ò<0ü<@R≥{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/Search/nÃ
-*node/childrenchildrenfield"services/graphite/parser.go(…-0◊-RÚ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "node",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.nodes",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/childrenà
-*node/insertinsertfunc"services/graphite/parser.go(Ô-0„2Rµ{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*node",
-        "TypeString": "func(values []string, template *github.com/influxdb/influxdb/services/graphite.template)",
-        "UnderlyingTypeString": "func(values []string, template *github.com/influxdb/influxdb/services/graphite.template)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/insertò
-*node/insert/$parser1/vvvar"services/graphite/parser.go(Ô-0„2@R≥{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/insert/$parser1/vÜ
-*node/insert/nnvar"services/graphite/parser.go(ı-0¸-@R≥{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/insert/nò
-*node/insert/newNodenewNodevar"services/graphite/parser.go(ù10ø1@R≥{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/insert/newNode£
-*node/insert/templatetemplatevar"services/graphite/parser.go(ñ.0®.@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/insert/templateΩ
-*node/insert/valuesvaluesvar"services/graphite/parser.go(Ö.0î.@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/insert/values˙
-*node/searchsearchfunc"services/graphite/parser.go(Á40ê<Rß{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*node",
-        "TypeString": "func(lineParts []string) *github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "func(lineParts []string) *github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/search∂
-*node/search/$parser2/iivar"services/graphite/parser.go(‡80Â8@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/search/$parser2/i§
-*node/search/iivar"services/graphite/parser.go(¬80û9@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/search/i≥
-*node/search/lengthlengthvar"services/graphite/parser.go(Ω70÷7@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/search/length∆
-*node/search/lineParts	linePartsvar"services/graphite/parser.go(˝40è5@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/search/linePartsÜ
-*node/search/nnvar"services/graphite/parser.go(Ì40Ù4@R≥{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/search/n“
-*node/templatetemplatefield"services/graphite/parser.go(Ÿ-0Î-R¯{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "node",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/templateÂ
-*
-node/valuevaluefield"services/graphite/parser.go(∏-0«-Rî{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "node",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./node/valueñ
-*nodesnodestype"services/graphite/parser.go(Ù<0Å=R–{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.nodes",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/services/graphite.node",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodesÇ
-*	nodes/LenLenfunc"services/graphite/parser.go(¥C0ÂC8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*nodes",
-        "TypeString": "func() int",
-        "UnderlyingTypeString": "func() int",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/LenÑ
-*nodes/Len/nnvar"services/graphite/parser.go(∫C0¬C@Rµ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.nodes",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.nodes",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Len/nì
-*
-nodes/LessLessfunc"services/graphite/parser.go(ìA0ÎB8RŒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*nodes",
-        "TypeString": "func(j int, k int) bool",
-        "UnderlyingTypeString": "func(j int, k int) bool",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ZÒ
-
-text/plain‚Less returns a boolean indicating whether the filter at position j
-is less than the filter at position k.  Filters are order by string
-comparison of each component parts.  A wildcard value "*" is never
-less than a non-wildcard value.
-
-For example, the filters:
-            "*.*"
-            "servers.*"
-            "servers.localhost"
-            "*.localhost"
-
-Would be sorted as:
-            "servers.localhost"
-            "servers.*"
-            "*.localhost"
-            "*.*"
-ä./nodes/Less¢
-*nodes/Less/jjvar"services/graphite/parser.go(®A0∞A@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Less/j¢
-*nodes/Less/kkvar"services/graphite/parser.go(®A0∞A@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Less/kÜ
-*nodes/Less/nnvar"services/graphite/parser.go(ôA0°A@Rµ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.nodes",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.nodes",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Less/nï
-*
-nodes/SwapSwapfunc"services/graphite/parser.go(ÌB0≥C8Rƒ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*nodes",
-        "TypeString": "func(i int, j int)",
-        "UnderlyingTypeString": "func(i int, j int)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Swap¢
-*nodes/Swap/iivar"services/graphite/parser.go(ÇC0äC@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Swap/i¢
-*nodes/Swap/jjvar"services/graphite/parser.go(ÇC0äC@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Swap/jÜ
-*nodes/Swap/nnvar"services/graphite/parser.go(ÛB0˚B@Rµ{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.nodes",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.nodes",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./nodes/Swap/n 
-
-*templatetemplatetype"services/graphite/parser.go(±0ØRê{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "struct{tags []string; defaultTags github.com/influxdb/influxdb/tsdb.Tags; greedyMeasurement bool; separator string}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zi
-
-text/plain[template represents a pattern and tags to map a graphite metric string to a influxdb Point
-ä
-./template»
-*template/ApplyApplyfunc"services/graphite/parser.go(ª!0û&8R˝{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "Receiver": "*template",
-        "TypeString": "func(line string) (string, map[string]string)",
-        "UnderlyingTypeString": "func(line string) (string, map[string]string)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }Zo
-
-text/plainaApply extracts the template fields form the given line and returns the measurement
-name and tags
-ä./template/Apply¬
-*template/Apply/$parser0/kkvar"services/graphite/parser.go(ª!0û&@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/$parser0/k¬
-*template/Apply/$parser0/vvvar"services/graphite/parser.go(ª!0û&@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/$parser0/vº
-*template/Apply/$parser1/iivar"services/graphite/parser.go(ª!0û&@R—{
-        "PkgName": "graphite",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/$parser1/i»
-*template/Apply/$parser1/tagtagvar"services/graphite/parser.go(ª!0û&@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/$parser1/tag√
-*template/Apply/fieldsfieldsvar"services/graphite/parser.go(Ä"0¢"@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/fieldsπ
-*template/Apply/linelinevar"services/graphite/parser.go(‘!0ﬂ!@R◊{
-        "PkgName": "graphite",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/line“
-*template/Apply/measurementmeasurementvar"services/graphite/parser.go(¨"0¿"@R€{
-        "PkgName": "graphite",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/measurementî
-*template/Apply/ttvar"services/graphite/parser.go(¡!0Ã!@Rª{
-        "PkgName": "graphite",
-        "TypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/graphite.template",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/tœ
-*template/Apply/tagstagsvar"services/graphite/parser.go(√"0Ë"@RÌ{
-        "PkgName": "graphite",
-        "TypeString": "map[string]string",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/Apply/tagsÆ
-*template/defaultTagsdefaultTagsfield"services/graphite/parser.go(‡0˚R√{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "template",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Tags",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/defaultTagsë
-*template/greedyMeasurementgreedyMeasurementfield"services/graphite/parser.go(˝0ìRî{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "template",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/greedyMeasurement˝
-*template/separator	separatorfield"services/graphite/parser.go(ï0≠Rò{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "template",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/separatorÚ
-*template/tagstagsfield"services/graphite/parser.go(ƒ0ﬁRú{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "FieldOfStruct": "template",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./template/tags›
-*udpBufferSizeudpBufferSizeconst"services/graphite/service.go(·0˙R˝{
-        "PkgScope": true,
-        "PkgName": "graphite",
-        "TypeString": "untyped int",
-        "UnderlyingTypeString": "untyped int",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/graphite"
-      }ä./udpBufferSize

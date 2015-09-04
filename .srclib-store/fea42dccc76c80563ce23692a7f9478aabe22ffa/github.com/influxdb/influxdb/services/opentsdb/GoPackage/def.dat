@@ -1,1299 +1,0 @@
-ù
-*$handler/$handler0/ppvar"services/opentsdb/handler.go(Ö0¢@Rª{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./$handler/$handler0/pù
-*$service/$service0/ppvar"services/opentsdb/service.go(Õ0Í@Rª{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/cluster.WritePointsRequest",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./$service/$service0/pø
-*$service/$service1/ddvar"services/opentsdb/service.go(ú0´@R›{
-        "PkgName": "opentsdb",
-        "TypeString": "time.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./$service/$service1/d¬
-*$service/$service2/namenamevar"services/opentsdb/service.go(œ0⁄@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./$service/$service2/name˘
-*.opentsdbpackage"services/opentsdb8R≈{
-        "Exported": true,
-        "PkgName": "opentsdb",
-        "TypeString": "",
-        "Kind": "package",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä.ﬂ
-*ConfigConfigtype"services/opentsdb/config.go(µ0ç8Rî{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.Config",
-        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; RetentionPolicy string \"toml:\\\"retention-policy\\\"\"; ConsistencyLevel string \"toml:\\\"consistency-level\\\"\"; TLSEnabled bool \"toml:\\\"tls-enabled\\\"\"; Certificate string \"toml:\\\"certificate\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Configô
-*Config/BindAddressBindAddressfield"services/opentsdb/config.go(0ù8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/BindAddressô
-*Config/CertificateCertificatefield"services/opentsdb/config.go(ﬂ0ã8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/Certificate®
-*Config/ConsistencyLevelConsistencyLevelfield"services/opentsdb/config.go(˝0Ø8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/ConsistencyLevelê
-*Config/DatabaseDatabasefield"services/opentsdb/config.go(ü0»8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/Databaseâ
-*Config/EnabledEnabledfield"services/opentsdb/config.go(∆0Ó8R¨{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/Enabled•
-*Config/RetentionPolicyRetentionPolicyfield"services/opentsdb/config.go( 0˚8R∞{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/RetentionPolicyí
-*Config/TLSEnabled
-TLSEnabledfield"services/opentsdb/config.go(±0›8R¨{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Config",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Config/TLSEnabled•
-&*$CreateDatabaseIfNotExists$service821CreateDatabaseIfNotExistsfunc"services/opentsdb/service.go(µ0˜@Rä{
-        "PkgName": "opentsdb",
-        "Receiver": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "TypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
-        "UnderlyingTypeString": "func(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä&./CreateDatabaseIfNotExists$service821·
-*DefaultBindAddressDefaultBindAddressconst"services/opentsdb/config.go(d0Ä8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZS
-
-text/plainEDefaultBindAddress is the default address that the service binds to.
-ä./DefaultBindAddressÏ
-*DefaultConsistencyLevelDefaultConsistencyLevelconst"services/opentsdb/config.go(ç0¨8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZN
-
-text/plain@DefaultConsistencyLevel is the default write consistency level.
-ä./DefaultConsistencyLevelÕ
-*DefaultDatabaseDefaultDatabaseconst"services/opentsdb/config.go(¿0‹8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZG
-
-text/plain9DefaultDatabase is the default database used for writes.
-ä./DefaultDatabaseÒ
-*DefaultRetentionPolicyDefaultRetentionPolicyconst"services/opentsdb/config.go(´0∆8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "untyped string",
-        "UnderlyingTypeString": "untyped string",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZV
-
-text/plainHDefaultRetentionPolicy is the default retention policy used for writes.
-ä./DefaultRetentionPolicy˜
-	*HandlerHandlertype"services/opentsdb/handler.go(Ó0√8R®{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.Handler",
-        "UnderlyingTypeString": "struct{Database string; RetentionPolicy string; ConsistencyLevel github.com/influxdb/influxdb/cluster.ConsistencyLevel; PointsWriter interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}; Logger *log.Logger}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä	./Handlerÿ
-*Handler/ConsistencyLevelConsistencyLevelfield"services/opentsdb/handler.go(≤0€8R›{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Handler",
-        "TypeString": "github.com/influxdb/influxdb/cluster.ConsistencyLevel",
-        "UnderlyingTypeString": "int",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/ConsistencyLevelî
-*Handler/DatabaseDatabasefield"services/opentsdb/handler.go(Ä0ó8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Handler",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/Databaseò
-*Handler/LoggerLoggerfield"services/opentsdb/handler.go(Ø0¡8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Handler",
-        "TypeString": "*log.Logger",
-        "UnderlyingTypeString": "*log.Logger",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/Loggerƒ
-*Handler/PointsWriterPointsWriterfield"services/opentsdb/handler.go(ﬁ0¨8R’{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Handler",
-        "TypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/PointsWriter©
-*Handler/RetentionPolicyRetentionPolicyfield"services/opentsdb/handler.go(ô0∞8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Handler",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/RetentionPolicyÔ
-*Handler/ServeHTTP	ServeHTTPfunc"services/opentsdb/handler.go(≈0™8Rä{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Handler",
-        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
-        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/ServeHTTPô
-*Handler/ServeHTTP/hhvar"services/opentsdb/handler.go(À0’@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Handler",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Handler",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/ServeHTTP/hÕ
-*Handler/ServeHTTP/rrvar"services/opentsdb/handler.go(¯0á@RÌ{
-        "PkgName": "opentsdb",
-        "TypeString": "*net/http.Request",
-        "UnderlyingTypeString": "*net/http.Request",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/ServeHTTP/rì
-*Handler/ServeHTTP/wwvar"services/opentsdb/handler.go(·0ˆ@R≥{
-        "PkgName": "opentsdb",
-        "TypeString": "net/http.ResponseWriter",
-        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/ServeHTTP/wó
-*Handler/servePutservePutfunc"services/opentsdb/handler.go(Ê0ØR{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Handler",
-        "TypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
-        "UnderlyingTypeString": "func(w net/http.ResponseWriter, r *net/http.Request)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZE
-
-text/plain7ServeHTTP implements OpenTSDB's HTTP /api/put endpoint
-ä./Handler/servePutı
-**(Handler/servePut/$handler1/$handler0/errerrvar"services/opentsdb/handler.go(À0Ï@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä*./Handler/servePut/$handler1/$handler0/err˛
-)*'Handler/servePut/$handler1/$handler0/zrzrvar"services/opentsdb/handler.go(À0Ï@Rı{
-        "PkgName": "opentsdb",
-        "TypeString": "*compress/gzip.Reader",
-        "UnderlyingTypeString": "*compress/gzip.Reader",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä)./Handler/servePut/$handler1/$handler0/zrÔ
- *Handler/servePut/$handler4/decdecvar"services/opentsdb/handler.go(‹0ˆ@R˜{
-        "PkgName": "opentsdb",
-        "TypeString": "*encoding/json.Decoder",
-        "UnderlyingTypeString": "*encoding/json.Decoder",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä ./Handler/servePut/$handler4/dec∑
-(*&Handler/servePut/$handler5/$handler0/ppvar"services/opentsdb/handler.go(0˚@R±{
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.point",
-        "UnderlyingTypeString": "struct{Metric string \"json:\\\"metric\\\"\"; Time int64 \"json:\\\"timestamp\\\"\"; Value float64 \"json:\\\"value\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä(./Handler/servePut/$handler5/$handler0/pÙ
-)*'Handler/servePut/$handler5/$handler0/tstsvar"services/opentsdb/handler.go(„0Ô@RÖ{
-        "PkgName": "opentsdb",
-        "TypeString": "time.Time",
-        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Zd
-
-text/plainVConvert timestamp to Go time.
-If time value is over a billion then it's microseconds.
-ä)./Handler/servePut/$handler5/$handler0/ts√
-*Handler/servePut/$handler5/iivar"services/opentsdb/handler.go(Ê0Ø@R—{
-        "PkgName": "opentsdb",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/$handler5/i·
- *Handler/servePut/$handler6/errerrvar"services/opentsdb/handler.go(Ô0º@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä ./Handler/servePut/$handler6/err¯
-*Handler/servePut/brbrvar"services/opentsdb/handler.go(á0ó@RÂ{
-        "PkgName": "opentsdb",
-        "TypeString": "*bufio.Reader",
-        "UnderlyingTypeString": "*bufio.Reader",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z0
-
-text/plain"Wrap reader if it's gzip encoded.
-ä./Handler/servePut/brõ
-*Handler/servePut/dpsdpsvar"services/opentsdb/handler.go(¿0◊@R∑{
-        "PkgName": "opentsdb",
-        "TypeString": "[]github.com/influxdb/influxdb/services/opentsdb.point",
-        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/services/opentsdb.point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/dpsÕ
-*Handler/servePut/errerrvar"services/opentsdb/handler.go(≈
-0Ÿ
-@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/errµ
-*Handler/servePut/ffvar"services/opentsdb/handler.go(≈
-0Ÿ
-@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/fó
-*Handler/servePut/hhvar"services/opentsdb/handler.go(Ï0ˆ@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Handler",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Handler",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/hÚ
-*Handler/servePut/multimultivar"services/opentsdb/handler.go(¯0Ç@R”{
-        "PkgName": "opentsdb",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z3
-
-text/plain%Peek to see if this is a JSON array.
-ä./Handler/servePut/multiä
-*Handler/servePut/pointspointsvar"services/opentsdb/handler.go(Æ0◊@Rù{
-        "PkgName": "opentsdb",
-        "TypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
-        "UnderlyingTypeString": "[]github.com/influxdb/influxdb/tsdb.Point",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/pointsÀ
-*Handler/servePut/rrvar"services/opentsdb/handler.go(ò0ß@RÌ{
-        "PkgName": "opentsdb",
-        "TypeString": "*net/http.Request",
-        "UnderlyingTypeString": "*net/http.Request",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/rë
-*Handler/servePut/wwvar"services/opentsdb/handler.go(Å0ñ@R≥{
-        "PkgName": "opentsdb",
-        "TypeString": "net/http.ResponseWriter",
-        "UnderlyingTypeString": "interface{Header() net/http.Header; Write([]byte) (int, error); WriteHeader(int)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Handler/servePut/wÃ
-*	NewConfig	NewConfigfunc"services/opentsdb/config.go(è0´8R¯{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "func() github.com/influxdb/influxdb/services/opentsdb.Config",
-        "UnderlyingTypeString": "func() github.com/influxdb/influxdb/services/opentsdb.Config",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./NewConfigí
-*
-NewService
-NewServicefunc"services/opentsdb/service.go(ƒ0…8R¸{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "func(c github.com/influxdb/influxdb/services/opentsdb.Config) (*github.com/influxdb/influxdb/services/opentsdb.Service, error)",
-        "UnderlyingTypeString": "func(c github.com/influxdb/influxdb/services/opentsdb.Config) (*github.com/influxdb/influxdb/services/opentsdb.Service, error)",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z<
-
-text/plain.NewService returns a new instance of Service.
-ä./NewService±
-*NewService/ccvar"services/opentsdb/service.go(‘0‹@Rﬂ{
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.Config",
-        "UnderlyingTypeString": "struct{Enabled bool \"toml:\\\"enabled\\\"\"; BindAddress string \"toml:\\\"bind-address\\\"\"; Database string \"toml:\\\"database\\\"\"; RetentionPolicy string \"toml:\\\"retention-policy\\\"\"; ConsistencyLevel string \"toml:\\\"consistency-level\\\"\"; TLSEnabled bool \"toml:\\\"tls-enabled\\\"\"; Certificate string \"toml:\\\"certificate\\\"\"}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./NewService/cÇ
-*NewService/consistencyLevelconsistencyLevelvar"services/opentsdb/service.go(Û0Ω@RÉ{
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/cluster.ConsistencyLevel",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./NewService/consistencyLevel¡
-*NewService/errerrvar"services/opentsdb/service.go(Û0Ω@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./NewService/errã
-*NewService/ssvar"services/opentsdb/service.go(Ê0∏@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./NewService/sÜ
-	*ServiceServicetype"services/opentsdb/service.go(Å0ë8RË{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "struct{ln net.Listener; httpln *github.com/influxdb/influxdb/services/opentsdb.chanListener; wg sync.WaitGroup; err chan error; tls bool; cert string; BindAddress string; Database string; RetentionPolicy string; ConsistencyLevel github.com/influxdb/influxdb/cluster.ConsistencyLevel; PointsWriter interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}; MetaStore interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}; Logger *log.Logger}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZM
-
-text/plain?Service manages the listener and handler for an HTTP endpoint.
-ä	./ServiceÓ
-*Service/AddrAddrfunc"services/opentsdb/service.go(ã0Ê8R¿{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func() net.Addr",
-        "UnderlyingTypeString": "func() net.Addr",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZV
-
-text/plainHAddr returns the listener's address. Returns nil if listener is closed.
-ä./Service/Addrè
-*Service/Addr/ssvar"services/opentsdb/service.go(ë0õ@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Addr/sù
-*Service/BindAddressBindAddressfield"services/opentsdb/service.go(Ø0∆8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/BindAddress…
-*Service/CloseClosefunc"services/opentsdb/service.go(›0≈8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z4
-
-text/plain&Close closes the underlying listener.
-ä./Service/Closeë
-*Service/Close/ssvar"services/opentsdb/service.go(„0Ì@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Close/sÿ
-*Service/ConsistencyLevelConsistencyLevelfield"services/opentsdb/service.go(˙0£8R›{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "github.com/influxdb/influxdb/cluster.ConsistencyLevel",
-        "UnderlyingTypeString": "int",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/ConsistencyLevelî
-*Service/DatabaseDatabasefield"services/opentsdb/service.go(»0ﬂ8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Database¯
-*Service/ErrErrfunc"services/opentsdb/service.go(â0æ8R“{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func() \u003c-chan error",
-        "UnderlyingTypeString": "func() \u003c-chan error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZQ
-
-text/plainCErr returns a channel for fatal errors that occur on the listener.
-ä./Service/Errç
-*Service/Err/ssvar"services/opentsdb/service.go(è0ô@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Err/sò
-*Service/LoggerLoggerfield"services/opentsdb/service.go(˝0è8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "*log.Logger",
-        "UnderlyingTypeString": "*log.Logger",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Logger´
-*Service/MetaStore	MetaStorefield"services/opentsdb/service.go(ˆ0˙8R≈{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "UnderlyingTypeString": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/MetaStore∏
-*Service/OpenOpenfunc"services/opentsdb/service.go(Ê0≤8R∫{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z&
-
-text/plainOpen starts the service
-ä./Service/OpenŸ
-*Service/Open/$service0/errerrvar"services/opentsdb/service.go(ª0Ó@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Open/$service0/errŸ
-*Service/Open/$service1/errerrvar"services/opentsdb/service.go(⁄0ï@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Open/$service1/err‘
-'*%Service/Open/$service2/$service0/certcertvar"services/opentsdb/service.go(≥0„@RÕ{
-        "PkgName": "opentsdb",
-        "TypeString": "crypto/tls.Certificate",
-        "UnderlyingTypeString": "struct{Certificate [][]byte; PrivateKey crypto.PrivateKey; OCSPStaple []byte; Leaf *crypto/x509.Certificate}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä'./Service/Open/$service2/$service0/certÌ
-&*$Service/Open/$service2/$service0/errerrvar"services/opentsdb/service.go(≥0„@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä&./Service/Open/$service2/$service0/errµ
-+*)Service/Open/$service2/$service0/listenerlistenervar"services/opentsdb/service.go(ã0¯@R¢{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Listener",
-        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä+./Service/Open/$service2/$service0/listenerÌ
-&*$Service/Open/$service2/$service1/errerrvar"services/opentsdb/service.go(˛0Ø@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä&./Service/Open/$service2/$service1/errµ
-+*)Service/Open/$service2/$service1/listenerlistenervar"services/opentsdb/service.go(˛0Ø@R¢{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Listener",
-        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä+./Service/Open/$service2/$service1/listenerè
-*Service/Open/ssvar"services/opentsdb/service.go(Ï0ˆ@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/Open/sƒ
-*Service/PointsWriterPointsWriterfield"services/opentsdb/service.go(¶0Ù8R’{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "UnderlyingTypeString": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/PointsWriter©
-*Service/RetentionPolicyRetentionPolicyfield"services/opentsdb/service.go(·0¯8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/RetentionPolicy˘
-*Service/SetLogger	SetLoggerfunc"services/opentsdb/service.go(Ü0¡8R»{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func(l *log.Logger)",
-        "UnderlyingTypeString": "func(l *log.Logger)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZJ
-
-text/plain<SetLogger sets the internal logger to the logger passed in.
-ä./Service/SetLogger¡
-*Service/SetLogger/llvar"services/opentsdb/service.go(¢0Ø@R·{
-        "PkgName": "opentsdb",
-        "TypeString": "*log.Logger",
-        "UnderlyingTypeString": "*log.Logger",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/SetLogger/lô
-*Service/SetLogger/ssvar"services/opentsdb/service.go(å0ñ@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/SetLogger/sÏ
-*Service/certcertfield"services/opentsdb/service.go(°0¨Ró{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/certÒ
-*Service/errerrfield"services/opentsdb/service.go(Ö0îRü{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "chan error",
-        "UnderlyingTypeString": "chan error",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/err‰
-*Service/handleConn
-handleConnfunc"services/opentsdb/service.go(Å0“!RÆ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func(conn net.Conn)",
-        "UnderlyingTypeString": "func(conn net.Conn)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZN
-
-text/plain@handleConn processes conn. This is run in a separate goroutine.
-ä./Service/handleConn◊
-*Service/handleConn/bufbufvar"services/opentsdb/service.go(Á0˜@R∞{
-        "PkgName": "opentsdb",
-        "TypeString": "bytes.Buffer",
-        "UnderlyingTypeString": "struct{buf []byte; off int; runeBytes [4]byte; bootstrap [64]byte; lastRead bytes.readOp}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z=
-
-text/plain/Read header into buffer to check if it's HTTP.
-ä./Service/handleConn/buf–
-*Service/handleConn/bufrbufrvar"services/opentsdb/service.go(µ0Ë@RÂ{
-        "PkgName": "opentsdb",
-        "TypeString": "*bufio.Reader",
-        "UnderlyingTypeString": "*bufio.Reader",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleConn/bufr≥
-*Service/handleConn/connconnvar"services/opentsdb/service.go(û0´@R»{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleConn/conn—
-*Service/handleConn/errerrvar"services/opentsdb/service.go(”0@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleConn/err«
-*Service/handleConn/rrvar"services/opentsdb/service.go(˘0ß@RÂ{
-        "PkgName": "opentsdb",
-        "TypeString": "*bufio.Reader",
-        "UnderlyingTypeString": "*bufio.Reader",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleConn/rõ
-*Service/handleConn/ssvar"services/opentsdb/service.go(á0ë@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleConn/s€
-*Service/handleTelnetConnhandleTelnetConnfunc"services/opentsdb/service.go(Ä#0Õ2RÆ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func(conn net.Conn)",
-        "UnderlyingTypeString": "func(conn net.Conn)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z≤
-
-text/plain£handleTelnetConn accepts OpenTSDB's telnet protocol.
-Each telnet command consists of a line of the form:
-  put sys.cpu.user 1356998400 42.5 host=webserver01 cpu=0
-ä./Service/handleTelnetConnï
-D*BService/handleTelnetConn/$service0/$service0/$service5/$service0/kkvar"services/opentsdb/service.go(‰-0Ò-@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }äD./Service/handleTelnetConn/$service0/$service0/$service5/$service0/k•
-H*FService/handleTelnetConn/$service0/$service0/$service5/$service0/partspartsvar"services/opentsdb/service.go(§,0œ,@R€{
-        "PkgName": "opentsdb",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }äH./Service/handleTelnetConn/$service0/$service0/$service5/$service0/parts˚
-:*8Service/handleTelnetConn/$service0/$service0/$service5/ttvar"services/opentsdb/service.go(Ä#0Õ2@R—{
-        "PkgName": "opentsdb",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä:./Service/handleTelnetConn/$service0/$service0/$service5/tô
-<*:Service/handleTelnetConn/$service0/$service0/$service7/errerrvar"services/opentsdb/service.go(ö00ı1@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä<./Service/handleTelnetConn/$service0/$service0/$service7/errÖ
-2*0Service/handleTelnetConn/$service0/$service0/errerrvar"services/opentsdb/service.go(≈$0ﬁ$@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä2./Service/handleTelnetConn/$service0/$service0/errú
-5*3Service/handleTelnetConn/$service0/$service0/fieldsfieldsvar"services/opentsdb/service.go(ê.0∂.@R˜{
-        "PkgName": "opentsdb",
-        "TypeString": "map[string]interface{}",
-        "UnderlyingTypeString": "map[string]interface{}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä5./Service/handleTelnetConn/$service0/$service0/fieldsâ
-8*6Service/handleTelnetConn/$service0/$service0/inputStrs	inputStrsvar"services/opentsdb/service.go(Õ%0Ó%@R€{
-        "PkgName": "opentsdb",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä8./Service/handleTelnetConn/$service0/$service0/inputStrsˆ
-3*1Service/handleTelnetConn/$service0/$service0/linelinevar"services/opentsdb/service.go(≈$0ﬁ$@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä3./Service/handleTelnetConn/$service0/$service0/lineã
-:*8Service/handleTelnetConn/$service0/$service0/measurementmeasurementvar"services/opentsdb/service.go('0ã(@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä:./Service/handleTelnetConn/$service0/$service0/measurement£
-0*.Service/handleTelnetConn/$service0/$service0/ppvar"services/opentsdb/service.go(‰/0î0@Rç{
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/tsdb.Point",
-        "UnderlyingTypeString": "interface{AddField(name string, value interface{}); AddTag(key string, value string); Data() []byte; Fields() github.com/influxdb/influxdb/tsdb.Fields; HashID() uint64; Key() []byte; Name() string; SetData(buf []byte); SetName(string); SetTags(tags github.com/influxdb/influxdb/tsdb.Tags); SetTime(t time.Time); String() string; Tags() github.com/influxdb/influxdb/tsdb.Tags; Time() time.Time; UnixNano() int64}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä0./Service/handleTelnetConn/$service0/$service0/põ
-0*.Service/handleTelnetConn/$service0/$service0/ttvar"services/opentsdb/service.go(·(0Ï(@RÖ{
-        "PkgName": "opentsdb",
-        "TypeString": "time.Time",
-        "UnderlyingTypeString": "struct{sec int64; nsec int32; loc *time.Location}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä0./Service/handleTelnetConn/$service0/$service0/tÉ
-6*4Service/handleTelnetConn/$service0/$service0/tagStrstagStrsvar"services/opentsdb/service.go(¡(0Ÿ(@R€{
-        "PkgName": "opentsdb",
-        "TypeString": "[]string",
-        "UnderlyingTypeString": "[]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä6./Service/handleTelnetConn/$service0/$service0/tagStrså
-3*1Service/handleTelnetConn/$service0/$service0/tagstagsvar"services/opentsdb/service.go(Ê+0Ö,@RÌ{
-        "PkgName": "opentsdb",
-        "TypeString": "map[string]string",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä3./Service/handleTelnetConn/$service0/$service0/tagsÓ
-1*/Service/handleTelnetConn/$service0/$service0/tstsvar"services/opentsdb/service.go(Ô(0ô)@R’{
-        "PkgName": "opentsdb",
-        "TypeString": "int64",
-        "UnderlyingTypeString": "int64",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä1./Service/handleTelnetConn/$service0/$service0/ts˘
-4*2Service/handleTelnetConn/$service0/$service0/tsStrtsStrvar"services/opentsdb/service.go(é(0£(@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä4./Service/handleTelnetConn/$service0/$service0/tsStrÇ
-7*5Service/handleTelnetConn/$service0/$service0/valueStrvalueStrvar"services/opentsdb/service.go(¶(0æ(@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä7./Service/handleTelnetConn/$service0/$service0/valueStrø
-*Service/handleTelnetConn/connconnvar"services/opentsdb/service.go(£#0∞#@R»{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleTelnetConn/conn„
-*Service/handleTelnetConn/rrvar"services/opentsdb/service.go(å$0ª$@Rı{
-        "PkgName": "opentsdb",
-        "TypeString": "*net/textproto.Reader",
-        "UnderlyingTypeString": "*net/textproto.Reader",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleTelnetConn/rß
-*Service/handleTelnetConn/ssvar"services/opentsdb/service.go(Ü#0ê#@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/handleTelnetConn/sﬁ
-*Service/httplnhttplnfield"services/opentsdb/service.go(∫0ŒRÉ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/httpln±
-*
-Service/lnlnfield"services/opentsdb/service.go(ì0¶R‚{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "net.Listener",
-        "UnderlyingTypeString": "interface{Accept() (c net.Conn, err error); Addr() net.Addr; Close() error}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/lnß
-*Service/serveservefunc"services/opentsdb/service.go(ó0ºRî{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z:
-
-text/plain,serve serves the handler from the listener.
-ä./Service/serveÍ
-0*.Service/serve/$service0/$service0/$service0/okokvar"services/opentsdb/service.go(è0Æ@R”{
-        "PkgName": "opentsdb",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä0./Service/serve/$service0/$service0/$service0/okÉ
-3*1Service/serve/$service0/$service0/$service0/opErropErrvar"services/opentsdb/service.go(è0Æ@R„{
-        "PkgName": "opentsdb",
-        "TypeString": "*net.OpError",
-        "UnderlyingTypeString": "*net.OpError",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä3./Service/serve/$service0/$service0/$service0/opErr—
-(*&Service/serve/$service0/$service0/connconnvar"services/opentsdb/service.go(Ô0â@R»{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä(./Service/serve/$service0/$service0/connÔ
-'*%Service/serve/$service0/$service0/errerrvar"services/opentsdb/service.go(Ô0â@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä'./Service/serve/$service0/$service0/errë
-*Service/serve/ssvar"services/opentsdb/service.go(ù0ß@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/serve/sµ
-*Service/serveHTTP	serveHTTPfunc"services/opentsdb/service.go(Ä30ì5Rî{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*Service",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z<
-
-text/plain.serveHTTP handles connections in HTTP format.
-ä./Service/serveHTTPô
-*Service/serveHTTP/ssvar"services/opentsdb/service.go(Ü30ê3@Rπ{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.Service",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/serveHTTP/s—
-*Service/serveHTTP/srvsrvvar"services/opentsdb/service.go(°30¸4@RÎ{
-        "PkgName": "opentsdb",
-        "TypeString": "*net/http.Server",
-        "UnderlyingTypeString": "*net/http.Server",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/serveHTTP/srvÂ
-*Service/tlstlsfield"services/opentsdb/service.go(ñ0üRì{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/tls®
-*
-Service/wgwgfield"services/opentsdb/service.go(0ÉRŸ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "Service",
-        "TypeString": "sync.WaitGroup",
-        "UnderlyingTypeString": "struct{m sync.Mutex; counter int32; waiters int32; sema *uint32}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./Service/wg£
-*WaitForLeader$service782WaitForLeaderfunc"services/opentsdb/service.go(é0≤@R¨{
-        "PkgName": "opentsdb",
-        "Receiver": "interface{CreateDatabaseIfNotExists(name string) (*github.com/influxdb/influxdb/meta.DatabaseInfo, error); WaitForLeader(d time.Duration) error}",
-        "TypeString": "func(d time.Duration) error",
-        "UnderlyingTypeString": "func(d time.Duration) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./WaitForLeader$service782ª
-*WritePoints$handler377WritePointsfunc"services/opentsdb/handler.go(˘0©@R {
-        "PkgName": "opentsdb",
-        "Receiver": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
-        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./WritePoints$handler377ª
-*WritePoints$service705WritePointsfunc"services/opentsdb/service.go(¡0Ò@R {
-        "PkgName": "opentsdb",
-        "Receiver": "interface{WritePoints(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error}",
-        "TypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
-        "UnderlyingTypeString": "func(p *github.com/influxdb/influxdb/cluster.WritePointsRequest) error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./WritePoints$service705Ñ
-*chanListenerchanListenertype"services/opentsdb/handler.go(â0√R»{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "UnderlyingTypeString": "struct{addr net.Addr; ch chan net.Conn}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z^
-
-text/plainPchanListener represents a listener that receives connections through a channel.
-ä./chanListenerΩ
-*chanListener/AcceptAcceptfunc"services/opentsdb/handler.go(¸0»8R◊{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*chanListener",
-        "TypeString": "func() (net.Conn, error)",
-        "UnderlyingTypeString": "func() (net.Conn, error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/Acceptµ
-*chanListener/Accept/connconnvar"services/opentsdb/handler.go(≤0≈@R»{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/Accept/conn™
-*chanListener/Accept/lnlnvar"services/opentsdb/handler.go(Ç0í@R√{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/Accept/ln∫
-*chanListener/Accept/okokvar"services/opentsdb/handler.go(≤0≈@R”{
-        "PkgName": "opentsdb",
-        "TypeString": "bool",
-        "UnderlyingTypeString": "bool",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/Accept/okÁ
-*chanListener/AddrAddrfunc"services/opentsdb/handler.go(Ï0¶8R≈{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*chanListener",
-        "TypeString": "func() net.Addr",
-        "UnderlyingTypeString": "func() net.Addr",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z@
-
-text/plain2Addr returns the network address of the listener.
-ä./chanListener/Addr¶
-*chanListener/Addr/lnlnvar"services/opentsdb/handler.go(Ú0Ç@R√{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/Addr/ln◊
-*chanListener/CloseClosefunc"services/opentsdb/handler.go(Ú0µ8Rø{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*chanListener",
-        "TypeString": "func() error",
-        "UnderlyingTypeString": "func() error",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z3
-
-text/plain%Close closes the connection channel.
-ä./chanListener/Close®
-*chanListener/Close/lnlnvar"services/opentsdb/handler.go(¯0à@R√{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/Close/ln£
-*chanListener/addraddrfield"services/opentsdb/handler.go(†0≠Rƒ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "chanListener",
-        "TypeString": "net.Addr",
-        "UnderlyingTypeString": "interface{Network() string; String() string}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/addrÉ
-*chanListener/chchfield"services/opentsdb/handler.go(Ø0¡R™{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "chanListener",
-        "TypeString": "chan net.Conn",
-        "UnderlyingTypeString": "chan net.Conn",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./chanListener/chÂ
-*leaderWaitTimeoutleaderWaitTimeoutconst"services/opentsdb/service.go(î0∏R˘{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "time.Duration",
-        "UnderlyingTypeString": "int64",
-        "Kind": "const",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./leaderWaitTimeout≥
-*newChanListenernewChanListenerfunc"services/opentsdb/handler.go(Ä0˙RÜ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "func(addr net.Addr) *github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "UnderlyingTypeString": "func(addr net.Addr) *github.com/influxdb/influxdb/services/opentsdb.chanListener",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZF
-
-text/plain8newChanListener returns a new instance of chanListener.
-ä./newChanListener‰
-*newChanListener/addraddrvar"services/opentsdb/handler.go(ï0¢@Rˇ{
-        "PkgName": "opentsdb",
-        "TypeString": "net.Addr",
-        "UnderlyingTypeString": "interface{Network() string; String() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./newChanListener/addr—
-*pointpointtype"services/opentsdb/handler.go(— 0ì"RÃ{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.point",
-        "UnderlyingTypeString": "struct{Metric string \"json:\\\"metric\\\"\"; Time int64 \"json:\\\"timestamp\\\"\"; Value float64 \"json:\\\"value\\\"\"; Tags map[string]string \"json:\\\"tags,omitempty\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z<
-
-text/plain.point represents an incoming JSON data point.
-ä./pointà
-*point/MetricMetricfield"services/opentsdb/handler.go(· 0â!8RØ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "point",
-        "TypeString": "string",
-        "UnderlyingTypeString": "string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./point/Metricò
-*
-point/TagsTagsfield"services/opentsdb/handler.go(·!0ë"8R≈{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "point",
-        "TypeString": "map[string]string",
-        "UnderlyingTypeString": "map[string]string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./point/TagsÄ
-*
-point/TimeTimefield"services/opentsdb/handler.go(ã!0∂!8R≠{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "point",
-        "TypeString": "int64",
-        "UnderlyingTypeString": "int64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./point/Timeá
-*point/ValueValuefield"services/opentsdb/handler.go(∏!0ﬂ!8R±{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "point",
-        "TypeString": "float64",
-        "UnderlyingTypeString": "float64",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./point/Valueﬁ
-*
-readerConn
-readerConntype"services/opentsdb/handler.go(Ï0òRº{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "TypeString": "github.com/influxdb/influxdb/services/opentsdb.readerConn",
-        "UnderlyingTypeString": "struct{net.Conn; r io.Reader}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ZJ
-
-text/plain<readerConn represents a net.Conn with an assignable reader.
-ä./readerConnÇ
-*readerConn/ConnConnfield"services/opentsdb/handler.go(Å0â8R•{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "readerConn",
-        "TypeString": "net.Conn",
-        "UnderlyingTypeString": "interface{Close() error; LocalAddr() net.Addr; Read(b []byte) (n int, err error); RemoteAddr() net.Addr; SetDeadline(t time.Time) error; SetReadDeadline(t time.Time) error; SetWriteDeadline(t time.Time) error; Write(b []byte) (n int, err error)}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./readerConn/Conn¸
-*readerConn/ReadReadfunc"services/opentsdb/handler.go(∆0ô 8RÁ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "Receiver": "*readerConn",
-        "TypeString": "func(b []byte) (n int, err error)",
-        "UnderlyingTypeString": "func(b []byte) (n int, err error)",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }Z7
-
-text/plain)Read implements the io.Reader interface.
-ä./readerConn/Read≥
-*readerConn/Read/bbvar"services/opentsdb/handler.go(„0Î@R◊{
-        "PkgName": "opentsdb",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./readerConn/Read/b§
-*readerConn/Read/connconnvar"services/opentsdb/handler.go(Ã0‹@Rø{
-        "PkgName": "opentsdb",
-        "TypeString": "*github.com/influxdb/influxdb/services/opentsdb.readerConn",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/services/opentsdb.readerConn",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./readerConn/Read/connÀ
-*readerConn/Read/errerrvar"services/opentsdb/handler.go(ı0˛@RÈ{
-        "PkgName": "opentsdb",
-        "TypeString": "error",
-        "UnderlyingTypeString": "interface{Error() string}",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./readerConn/Read/err≠
-*readerConn/Read/nnvar"services/opentsdb/handler.go(Ó0Û@R—{
-        "PkgName": "opentsdb",
-        "TypeString": "int",
-        "UnderlyingTypeString": "int",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./readerConn/Read/nï
-*readerConn/rrfield"services/opentsdb/handler.go(ã0ñR√{
-        "PkgScope": true,
-        "PkgName": "opentsdb",
-        "FieldOfStruct": "readerConn",
-        "TypeString": "io.Reader",
-        "UnderlyingTypeString": "interface{Read(p []byte) (n int, err error)}",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/services/opentsdb"
-      }ä./readerConn/r

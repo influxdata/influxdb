@@ -1,509 +1,0 @@
-Ω
-*.internalpackage"tsdb/internal8R¡{
-        "Exported": true,
-        "PkgName": "internal",
-        "TypeString": "",
-        "Kind": "package",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }Z…
-
-text/plain∫Package internal is a generated protocol buffer package.
-
-It is generated from these files:
-	internal/meta.proto
-
-It has these top-level messages:
-	Series
-	Tag
-	MeasurementFields
-	Field
-ä.Ä
-*FieldFieldtype"tsdb/internal/meta.pb.go(Ô0ˇ8Rª{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "struct{ID *int32 \"protobuf:\\\"varint,1,req\\\" json:\\\"ID,omitempty\\\"\"; Name *string \"protobuf:\\\"bytes,2,req\\\" json:\\\"Name,omitempty\\\"\"; Type *int32 \"protobuf:\\\"varint,3,req\\\" json:\\\"Type,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./FieldÖ
-*Field/GetIDGetIDfunc"tsdb/internal/meta.pb.go(ú0˜8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() int32",
-        "UnderlyingTypeString": "func() int32",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/GetID˘
-*Field/GetID/mmvar"tsdb/internal/meta.pb.go(¢0™@R©{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/GetID/mç
-*Field/GetNameGetNamefunc"tsdb/internal/meta.pb.go(˘0‹8R∂{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/GetName˝
-*Field/GetName/mmvar"tsdb/internal/meta.pb.go(ˇ0á@R©{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/GetName/mã
-*Field/GetTypeGetTypefunc"tsdb/internal/meta.pb.go(ﬁ0ø8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() int32",
-        "UnderlyingTypeString": "func() int32",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/GetType˝
-*Field/GetType/mmvar"tsdb/internal/meta.pb.go(‰0Ï@R©{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/GetType/mÙ
-
-*Field/IDIDfield"tsdb/internal/meta.pb.go(ˇ0≈8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*int32",
-        "UnderlyingTypeString": "*int32",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä
-./Field/ID¸
-*
-Field/NameNamefield"tsdb/internal/meta.pb.go(«0é8R≠{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/Nameé
-*Field/ProtoMessageProtoMessagefunc"tsdb/internal/meta.pb.go(¯0ö8R®{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/ProtoMessage˘
-*Field/ResetResetfunc"tsdb/internal/meta.pb.go(Å0±8R®{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/Reset˘
-*Field/Reset/mmvar"tsdb/internal/meta.pb.go(á0è@R©{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/Reset/mä
-*Field/StringStringfunc"tsdb/internal/meta.pb.go(≤0˜8R∂{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Field",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/String˚
-*Field/String/mmvar"tsdb/internal/meta.pb.go(∏0¿@R©{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/String/m˙
-*
-Field/TypeTypefield"tsdb/internal/meta.pb.go(ê0ÿ8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "*int32",
-        "UnderlyingTypeString": "*int32",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/Typeû
-*Field/XXX_unrecognizedXXX_unrecognizedfield"tsdb/internal/meta.pb.go(⁄0˝8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Field",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Field/XXX_unrecognizedŒ
-*MeasurementFieldsMeasurementFieldstype"tsdb/internal/meta.pb.go(©0∑8RÂ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "UnderlyingTypeString": "struct{Fields []*github.com/influxdb/influxdb/tsdb/internal.Field \"protobuf:\\\"bytes,1,rep\\\" json:\\\"Fields,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields˛
-*MeasurementFields/FieldsFieldsfield"tsdb/internal/meta.pb.go(≈0è8Rë{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MeasurementFields",
-        "TypeString": "[]*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/Fieldsë
-*MeasurementFields/GetFields	GetFieldsfunc"tsdb/internal/meta.pb.go(Ñ0Ë8Rú{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MeasurementFields",
-        "TypeString": "func() []*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "UnderlyingTypeString": "func() []*github.com/influxdb/influxdb/tsdb/internal.Field",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/GetFields±
-*MeasurementFields/GetFields/mmvar"tsdb/internal/meta.pb.go(ä0û@R¡{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/GetFields/m≤
- *MeasurementFields/ProtoMessageProtoMessagefunc"tsdb/internal/meta.pb.go(‘0Ç8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MeasurementFields",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä ./MeasurementFields/ProtoMessageù
-*MeasurementFields/ResetResetfunc"tsdb/internal/meta.pb.go(π0Å8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MeasurementFields",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/Reset©
-*MeasurementFields/Reset/mmvar"tsdb/internal/meta.pb.go(ø0”@R¡{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/Reset/mÆ
-*MeasurementFields/StringStringfunc"tsdb/internal/meta.pb.go(Ç0”8R¬{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*MeasurementFields",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/String´
-*MeasurementFields/String/mmvar"tsdb/internal/meta.pb.go(à0ú@R¡{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.MeasurementFields",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./MeasurementFields/String/m¬
-$*"MeasurementFields/XXX_unrecognizedXXX_unrecognizedfield"tsdb/internal/meta.pb.go(ë0µ8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "MeasurementFields",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä$./MeasurementFields/XXX_unrecognizedÂ
-*SeriesSeriestype"tsdb/internal/meta.pb.go(ﬂ0¶8Rù{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/tsdb/internal.Series",
-        "UnderlyingTypeString": "struct{Key *string \"protobuf:\\\"bytes,1,req\\\" json:\\\"Key,omitempty\\\"\"; Tags []*github.com/influxdb/influxdb/tsdb/internal.Tag \"protobuf:\\\"bytes,2,rep\\\" json:\\\"Tags,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Seriesç
-*Series/GetKeyGetKeyfunc"tsdb/internal/meta.pb.go(«0®8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Series",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/GetKeyˇ
-*Series/GetKey/mmvar"tsdb/internal/meta.pb.go(Õ0÷@R´{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/GetKey/mÊ
-*Series/GetTagsGetTagsfunc"tsdb/internal/meta.pb.go(™0˝8Rç{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Series",
-        "TypeString": "func() []*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "func() []*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/GetTagsÅ
-*Series/GetTags/mmvar"tsdb/internal/meta.pb.go(∞0π@R´{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/GetTags/m¸
-*
-Series/KeyKeyfield"tsdb/internal/meta.pb.go(0∂8RÆ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Series",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/Keyë
-*Series/ProtoMessageProtoMessagefunc"tsdb/internal/meta.pb.go(¢0≈8R©{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Series",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/ProtoMessage¸
-*Series/ResetResetfunc"tsdb/internal/meta.pb.go(®0⁄8R©{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Series",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/Reset˝
-*Series/Reset/mmvar"tsdb/internal/meta.pb.go(Æ0∑@R´{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/Reset/mç
-*Series/StringStringfunc"tsdb/internal/meta.pb.go(€0°8R∑{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Series",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/Stringˇ
-*Series/String/mmvar"tsdb/internal/meta.pb.go(·0Í@R´{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Series",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/String/m”
-*Series/TagsTagsfield"tsdb/internal/meta.pb.go(∏0ˇ8RÇ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Series",
-        "TypeString": "[]*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "[]*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/Tags°
-*Series/XXX_unrecognizedXXX_unrecognizedfield"tsdb/internal/meta.pb.go(Å0§8R¨{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Series",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Series/XXX_unrecognized±
-*TagTagtype"tsdb/internal/meta.pb.go(Ñ0…	8RÚ{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "TypeString": "github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "struct{Key *string \"protobuf:\\\"bytes,1,req\\\" json:\\\"Key,omitempty\\\"\"; Value *string \"protobuf:\\\"bytes,2,req\\\" json:\\\"Value,omitempty\\\"\"; XXX_unrecognized []byte \"json:\\\"-\\\"\"}",
-        "Kind": "type",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./TagÑ
-*
-Tag/GetKeyGetKeyfunc"tsdb/internal/meta.pb.go(ﬁ
-0º8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/GetKeyÛ
-*Tag/GetKey/mmvar"tsdb/internal/meta.pb.go(‰
-0Í
-@R•{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/GetKey/mä
-*Tag/GetValueGetValuefunc"tsdb/internal/meta.pb.go(æ0¢8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/GetValue˜
-*Tag/GetValue/mmvar"tsdb/internal/meta.pb.go(ƒ0 @R•{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/GetValue/mÛ
-	*Tag/KeyKeyfield"tsdb/internal/meta.pb.go(í0ÿ8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Tag",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä	./Tag/Keyà
-*Tag/ProtoMessageProtoMessagefunc"tsdb/internal/meta.pb.go(º
-0‹
-8R¶{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/ProtoMessageÛ
-*	Tag/ResetResetfunc"tsdb/internal/meta.pb.go(À	0˜	8R¶{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/ResetÒ
-*Tag/Reset/mmvar"tsdb/internal/meta.pb.go(—	0◊	@R•{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/Reset/mÑ
-*
-Tag/StringStringfunc"tsdb/internal/meta.pb.go(¯	0ª
-8R¥{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "Receiver": "*Tag",
-        "TypeString": "func() string",
-        "UnderlyingTypeString": "func() string",
-        "Kind": "method",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/StringÛ
-*Tag/String/mmvar"tsdb/internal/meta.pb.go(˛	0Ñ
-@R•{
-        "PkgName": "internal",
-        "TypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "UnderlyingTypeString": "*github.com/influxdb/influxdb/tsdb/internal.Tag",
-        "Kind": "var",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/String/m˘
-*	Tag/ValueValuefield"tsdb/internal/meta.pb.go(⁄0¢	8R´{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Tag",
-        "TypeString": "*string",
-        "UnderlyingTypeString": "*string",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/Valueò
-*Tag/XXX_unrecognizedXXX_unrecognizedfield"tsdb/internal/meta.pb.go(§	0«	8R©{
-        "Exported": true,
-        "PkgScope": true,
-        "PkgName": "internal",
-        "FieldOfStruct": "Tag",
-        "TypeString": "[]byte",
-        "UnderlyingTypeString": "[]byte",
-        "Kind": "field",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./Tag/XXX_unrecognizedÆ
-*init$meta.pb2758initfunc"tsdb/internal/meta.pb.go(¡0–@R‘{
-        "PkgName": "internal",
-        "TypeString": "func()",
-        "UnderlyingTypeString": "func()",
-        "Kind": "func",
-        "PackageImportPath": "github.com/influxdb/influxdb/tsdb/internal"
-      }ä./init$meta.pb2758
