@@ -14,8 +14,8 @@ import (
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor.
 func TestMultiCursor_Single(t *testing.T) {
-	mc := tsdb.MultiCursor(true,
-		NewCursor(true, []CursorItem{
+	mc := tsdb.MultiCursor(tsdb.Forward,
+		NewCursor(tsdb.Forward, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x01}, Value: []byte{0x10}},
 			{Key: []byte{0x02}, Value: []byte{0x20}},
@@ -35,8 +35,8 @@ func TestMultiCursor_Single(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor in reverse order.
 func TestMultiCursor_Single_Reverse(t *testing.T) {
-	mc := tsdb.MultiCursor(false,
-		NewCursor(false, []CursorItem{
+	mc := tsdb.MultiCursor(tsdb.Reverse,
+		NewCursor(tsdb.Reverse, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x01}, Value: []byte{0x10}},
 			{Key: []byte{0x02}, Value: []byte{0x20}},
@@ -56,13 +56,13 @@ func TestMultiCursor_Single_Reverse(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple non-overlapping subcursors.
 func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
-	mc := tsdb.MultiCursor(true,
-		NewCursor(true, []CursorItem{
+	mc := tsdb.MultiCursor(tsdb.Forward,
+		NewCursor(tsdb.Forward, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x30}},
 			{Key: []byte{0x04}, Value: []byte{0x40}},
 		}),
-		NewCursor(true, []CursorItem{
+		NewCursor(tsdb.Forward, []CursorItem{
 			{Key: []byte{0x01}, Value: []byte{0x10}},
 			{Key: []byte{0x02}, Value: []byte{0x20}},
 		}),
@@ -85,13 +85,13 @@ func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple non-overlapping subcursors.
 func TestMultiCursor_Multiple_NonOverlapping_Reverse(t *testing.T) {
-	mc := tsdb.MultiCursor(false,
-		NewCursor(false, []CursorItem{
+	mc := tsdb.MultiCursor(tsdb.Reverse,
+		NewCursor(tsdb.Reverse, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x30}},
 			{Key: []byte{0x04}, Value: []byte{0x40}},
 		}),
-		NewCursor(false, []CursorItem{
+		NewCursor(tsdb.Reverse, []CursorItem{
 			{Key: []byte{0x01}, Value: []byte{0x10}},
 			{Key: []byte{0x02}, Value: []byte{0x20}},
 		}),
@@ -114,13 +114,13 @@ func TestMultiCursor_Multiple_NonOverlapping_Reverse(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple overlapping subcursors.
 func TestMultiCursor_Multiple_Overlapping(t *testing.T) {
-	mc := tsdb.MultiCursor(true,
-		NewCursor(true, []CursorItem{
+	mc := tsdb.MultiCursor(tsdb.Forward,
+		NewCursor(tsdb.Forward, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x03}},
 			{Key: []byte{0x04}, Value: []byte{0x04}},
 		}),
-		NewCursor(true, []CursorItem{
+		NewCursor(tsdb.Forward, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0xF0}},
 			{Key: []byte{0x02}, Value: []byte{0xF2}},
 			{Key: []byte{0x04}, Value: []byte{0xF4}},
@@ -142,13 +142,13 @@ func TestMultiCursor_Multiple_Overlapping(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple overlapping subcursors.
 func TestMultiCursor_Multiple_Overlapping_Reverse(t *testing.T) {
-	mc := tsdb.MultiCursor(false,
-		NewCursor(false, []CursorItem{
+	mc := tsdb.MultiCursor(tsdb.Reverse,
+		NewCursor(tsdb.Reverse, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x03}},
 			{Key: []byte{0x04}, Value: []byte{0x04}},
 		}),
-		NewCursor(false, []CursorItem{
+		NewCursor(tsdb.Reverse, []CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0xF0}},
 			{Key: []byte{0x02}, Value: []byte{0xF2}},
 			{Key: []byte{0x04}, Value: []byte{0xF4}},
@@ -196,7 +196,7 @@ func TestMultiCursor_Quick(t *testing.T) {
 		sort.Sort(byteSlices(exp))
 
 		// Create multi-cursor and iterate over all items.
-		mc := tsdb.MultiCursor(true, tsdbCursorSlice(cursors)...)
+		mc := tsdb.MultiCursor(tsdb.Forward, tsdbCursorSlice(cursors)...)
 		for k, v := mc.Seek(u64tob(seek)); k != nil; k, v = mc.Next() {
 			got = append(got, append(k, v...))
 		}
