@@ -3827,6 +3827,7 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 }
 
 func TestServer_ContinuousQuery(t *testing.T) {
+	t.Skip()
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
