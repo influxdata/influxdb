@@ -1073,9 +1073,16 @@ func (s *SelectStatement) validateFields() error {
 	return nil
 }
 
+func (s *SelectStatement) allowMixedAggregates(numAggregates int) error {
+	if numAggregates != 0 && numAggregates != len(s.Fields) {
+		return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
+	}
+	return nil
+}
+
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
-	// First, if 1 field is an aggregate, then all fields must be an aggregate. This is
-	// a explicit limitation of the current system.
+	// Curently most aggregates can be the ONLY thing in a select statement
+	// Others, like TOP/BOTTOM can mix aggregates and tags/fields
 	numAggregates := 0
 	for _, f := range s.Fields {
 		if _, ok := f.Expr.(*Call); ok {
@@ -1083,27 +1090,19 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 		}
 	}
 
-	allowMixedAggregates := func() error {
-		if numAggregates != 0 && numAggregates != len(s.Fields) {
-			return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
-		}
-		return nil
-	}
-
-	// Secondly, determine if specific calls have the correct number of arguments
 	for _, f := range s.Fields {
 		switch expr := f.Expr.(type) {
 		case *Call:
 			switch expr.Name {
 			case "derivative", "non_negative_derivative":
-				if err := allowMixedAggregates(); err != nil {
+				if err := s.allowMixedAggregates(numAggregates); err != nil {
 					return err
 				}
 				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
 			case "percentile":
-				if err := allowMixedAggregates(); err != nil {
+				if err := s.allowMixedAggregates(numAggregates); err != nil {
 					return err
 				}
 				if exp, got := 2, len(expr.Args); got != exp {
@@ -1134,7 +1133,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					}
 				}
 			default:
-				if err := allowMixedAggregates(); err != nil {
+				if err := s.allowMixedAggregates(numAggregates); err != nil {
 					return err
 				}
 				if exp, got := 1, len(expr.Args); got != exp {
@@ -1158,7 +1157,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 		}
 	}
 
-	// Now, check that we have valid duration and where clauses for aggregates
+	// Check that we have valid duration and where clauses for aggregates
 
 	// fetch the group by duration
 	groupByDuration, _ := s.GroupByInterval()
