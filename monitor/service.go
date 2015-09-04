@@ -186,7 +186,7 @@ func (m *Monitor) Statistics() ([]*statistic, error) {
 							return
 						}
 					case *expvar.Int:
-						f, err = strconv.ParseUint(v.String(), 10, 64)
+						f, err = strconv.ParseInt(v.String(), 10, 64)
 						if err != nil {
 							return
 						}
