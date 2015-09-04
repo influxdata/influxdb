@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cmd/influx_stress/runner"
+	"github.com/influxdb/influxdb/stress"
 )
 
 func TestTimer_StartTimer(t *testing.T) {
