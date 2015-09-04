@@ -18,7 +18,7 @@ func Test_ShardPrecreation(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ms := metaStore{
-		PrecreateShardGroupsFn: func(u time.Time) error {
+		PrecreateShardGroupsFn: func(v, u time.Time) error {
 			wg.Done()
 			if u != now.Add(advancePeriod) {
 				t.Fatalf("precreation called with wrong time, got %s, exp %s", u, now)
@@ -47,13 +47,13 @@ func Test_ShardPrecreation(t *testing.T) {
 
 // PointsWriter represents a mock impl of PointsWriter.
 type metaStore struct {
-	PrecreateShardGroupsFn func(cutoff time.Time) error
+	PrecreateShardGroupsFn func(now, cutoff time.Time) error
 }
 
 func (m metaStore) IsLeader() bool {
 	return true
 }
 
-func (m metaStore) PrecreateShardGroups(timestamp time.Time) error {
-	return m.PrecreateShardGroupsFn(timestamp)
+func (m metaStore) PrecreateShardGroups(now, cutoff time.Time) error {
+	return m.PrecreateShardGroupsFn(now, cutoff)
 }
