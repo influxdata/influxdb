@@ -498,8 +498,8 @@ func TestMapTop(t *testing.T) {
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					positionPoint{10, int64(99), map[string]string{"host": "a"}},
-					positionPoint{20, int64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -516,8 +516,8 @@ func TestMapTop(t *testing.T) {
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					positionPoint{10, int64(99), map[string]string{"host": "a"}},
-					positionPoint{20, int64(53), map[string]string{"host": "b"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, int64(53), map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -534,8 +534,8 @@ func TestMapTop(t *testing.T) {
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					positionPoint{10, int64(99), map[string]string{"host": "a"}},
-					positionPoint{20, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, int64(99), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -552,8 +552,8 @@ func TestMapTop(t *testing.T) {
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					positionPoint{10, int64(99), map[string]string{"host": "a"}},
-					positionPoint{10, int64(99), map[string]string{"host": "b"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
@@ -569,8 +569,8 @@ func TestMapTop(t *testing.T) {
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					positionPoint{10, int64(99), map[string]string{"host": "a"}},
-					positionPoint{20, uint64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -586,8 +586,8 @@ func TestMapTop(t *testing.T) {
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					positionPoint{10, float64(99), map[string]string{"host": "a"}},
-					positionPoint{20, uint64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
+					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -603,8 +603,8 @@ func TestMapTop(t *testing.T) {
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					positionPoint{10, float64(99), map[string]string{"host": "a"}},
-					positionPoint{10, int64(53), map[string]string{"host": "b"}},
+					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -620,8 +620,8 @@ func TestMapTop(t *testing.T) {
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					positionPoint{10, true, map[string]string{"host": "a"}},
-					positionPoint{10, true, map[string]string{"host": "b"}},
+					PositionPoint{10, true, map[string]string{"host": "a"}},
+					PositionPoint{10, true, map[string]string{"host": "b"}},
 				},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
@@ -661,8 +661,8 @@ func TestReduceTop(t *testing.T) {
 				},
 			},
 			exp: PositionPoints{
-				positionPoint{10, int64(99), map[string]string{"host": "a"}},
-				positionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
@@ -678,8 +678,8 @@ func TestReduceTop(t *testing.T) {
 				},
 			},
 			exp: PositionPoints{
-				positionPoint{10, int64(99), map[string]string{"host": "a"}},
-				positionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
@@ -694,8 +694,8 @@ func TestReduceTop(t *testing.T) {
 				nil,
 			},
 			exp: PositionPoints{
-				positionPoint{10, int64(99), map[string]string{"host": "a"}},
-				positionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},
@@ -710,8 +710,8 @@ func TestReduceTop(t *testing.T) {
 				nil,
 			},
 			exp: PositionPoints{
-				positionPoint{10, int64(99), map[string]string{"host": "a"}},
-				positionPoint{20, int64(88), map[string]string{}},
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), map[string]string{}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &VarRef{Val: "host"}, &NumberLiteral{Val: 2}}},
 		},
@@ -727,8 +727,8 @@ func TestReduceTop(t *testing.T) {
 				nil,
 			},
 			exp: PositionPoints{
-				positionPoint{10, int64(99), map[string]string{"host": "a"}},
-				positionPoint{20, int64(55), map[string]string{"host": "b"}},
+				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
+				PositionPoint{20, int64(55), map[string]string{"host": "b"}},
 			},
 			call: &Call{Name: "top", Args: []Expr{&VarRef{Val: "field1"}, &NumberLiteral{Val: 2}}},
 		},

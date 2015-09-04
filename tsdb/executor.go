@@ -645,29 +645,12 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 	for _, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
-			tMin := vals[0].(time.Time)
 			switch v := vals[j].(type) {
 			case influxql.PositionPoints:
+				tMin := vals[0].(time.Time)
 				for _, p := range v {
-					tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
-					// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
-					if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
-						tm = tMin.UTC().Format(time.RFC3339Nano)
-					}
-					vals := []interface{}{tm}
-					for _, c := range columnNames {
-						if c == call.Name {
-							vals = append(vals, p.Value)
-							continue
-						}
-						// TODO look in fields first for value
-
-						// look in the tags for a value
-						if t, ok := p.Tags[c]; ok {
-							vals = append(vals, t)
-						}
-					}
-					values = append(values, vals)
+					result := e.topBottomPointToQueryResult(p, tMin, call, columnNames)
+					values = append(values, result)
 				}
 			case nil:
 				continue
@@ -677,6 +660,29 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 		}
 	}
 	return values, nil
+}
+
+func (e *SelectExecutor) topBottomPointToQueryResult(p influxql.PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
+	tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+	// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
+	if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
+		tm = tMin.UTC().Format(time.RFC3339Nano)
+	}
+	vals := []interface{}{tm}
+	for _, c := range columnNames {
+		if c == call.Name {
+			vals = append(vals, p.Value)
+			continue
+		}
+		// TODO in the future fields will also be available to us.
+		// we should always favor fields over tags if there is a name collision
+
+		// look in the tags for a value
+		if t, ok := p.Tags[c]; ok {
+			vals = append(vals, t)
+		}
+	}
+	return vals
 }
 
 // limitedRowWriter accepts raw mapper values, and will emit those values as rows in chunks

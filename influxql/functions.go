@@ -1246,8 +1246,8 @@ func (p *positionOut) less(i, j int, sortFloat func(d1, d2 float64) bool, sortIn
 
 }
 
-type PositionPoints []positionPoint
-type positionPoint struct {
+type PositionPoints []PositionPoint
+type PositionPoint struct {
 	Time  int64
 	Value interface{}
 	Tags  map[string]string
@@ -1366,7 +1366,7 @@ func MapTop(itr Iterator, c *Call) interface{} {
 			if bt := itr.TMin(); bt > -1 {
 				t = bt
 			}
-			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
+			out.points = append(out.points, PositionPoint{t, v, itr.Tags()})
 		}
 
 		// If we have more than we asked for, only send back the top values
@@ -1404,14 +1404,16 @@ func MapTop(itr Iterator, c *Call) interface{} {
 		}
 		callArgs := c.Fields()
 		tags := itr.Tags()
-		// TODO send fields in
+		// TODO in the future we need to send in fields as well
+		// this will allow a user to query on both fields and tags
+		// fields will take the priority over tags if there is a name collision
 		key := mapKey(callArgs, nil, tags)
 		if out, ok := outMap[key]; ok {
-			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
+			out.points = append(out.points, PositionPoint{t, v, itr.Tags()})
 			outMap[key] = out
 		} else {
 			out = positionOut{callArgs: topCallArgs(c)}
-			out.points = append(out.points, positionPoint{t, v, itr.Tags()})
+			out.points = append(out.points, PositionPoint{t, v, itr.Tags()})
 			outMap[key] = out
 		}
 	}
