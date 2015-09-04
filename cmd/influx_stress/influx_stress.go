@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdb/influxdb/cmd/influx_stress/runner"
+	"github.com/influxdb/influxdb/stress"
 )
 
 var (
