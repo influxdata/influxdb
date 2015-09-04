@@ -1302,7 +1302,7 @@ type topReduceOut struct {
 func (t topReduceOut) Len() int      { return len(t.points) }
 func (t topReduceOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
 func (t topReduceOut) Less(i, j int) bool {
-	// Now sort by time first, not max
+	// Now sort by time first, not value
 	sortFloat := func(d1, d2 float64) bool {
 		k1, k2 := t.points[i].Time, t.points[j].Time
 		if k1 != k2 {
