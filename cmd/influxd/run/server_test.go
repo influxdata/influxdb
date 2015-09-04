@@ -2201,6 +2201,14 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			command: `SELECT sum(value)/2 FROM load`,
 			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",75]]}]}]}`,
 		},
+
+		// order by time desc
+		&Query{
+			name:    "order by time desc",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:00Z' group by time(10s) order by time desc`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:01:00Z",7],["2000-01-01T00:00:50Z",5],["2000-01-01T00:00:40Z",5],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
