@@ -23,20 +23,14 @@ const (
 	leaderWaitTimeout = 30 * time.Second
 )
 
-// expvar stats maintained by the Graphite package.
-var monitorOnce sync.Once
-var statMap = expvar.NewMap("graphite")
-var statMapTCP = expvar.NewMap("tcp")
-var statMapUDP = expvar.NewMap("udp")
-
 // Initialize the graphite stats and diags
 func init() {
-	statMap.Set("tcp", statMapTCP)
-	statMap.Set("udp", statMapUDP)
 	tcpConnections = make(map[string]*tcpConnectionDiag)
 }
 
 // Package-level tracking of connections for diagnostics.
+var monitorOnce sync.Once
+
 type tcpConnectionDiag struct {
 	conn        net.Conn
 	connectTime time.Time
@@ -158,19 +152,16 @@ func NewService(c Config) (*Service, error) {
 func (s *Service) Open() error {
 	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
 
-	// One Graphite service hooks up monitoring for all Graphite functionality.
+	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
+	// should be done before any data could arrive for the service.
+	s.setExpvar()
+
+	// // One Graphite service hooks up diagnostics for all Graphite functionality.
 	monitorOnce.Do(func() {
 		if s.Monitor == nil {
 			s.logger.Println("no monitor service available, no monitoring will be performed")
 			return
 		}
-
-		t := monitor.NewStatsMonitorClient(statMapTCP)
-		s.Monitor.RegisterStatsClient("graphite", map[string]string{"proto": "tcp"}, t)
-
-		u := monitor.NewStatsMonitorClient(statMapUDP)
-		s.Monitor.RegisterStatsClient("graphite", map[string]string{"proto": "udp"}, u)
-
 		s.Monitor.RegisterDiagnosticsClient("graphite", monitor.DiagsClientFunc(handleDiagnostics))
 	})
 
@@ -201,6 +192,13 @@ func (s *Service) Open() error {
 	}
 	if err != nil {
 		return err
+	}
+
+	// Register stats for this service, now that it has started successfully.
+	if s.Monitor != nil {
+		t := monitor.NewStatsMonitorClient(s.statMap)
+		s.Monitor.RegisterStatsClient("graphite",
+			map[string]string{"proto": s.protocol, "bind": s.bindAddress}, t)
 	}
 
 	s.logger.Printf("Listening on %s: %s", strings.ToUpper(s.protocol), s.addr.String())
@@ -238,9 +236,6 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 	}
 	s.ln = ln
 
-	// Point at the TCP stats.
-	s.statMap = statMapTCP
-
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -264,9 +259,9 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 
 // handleTCPConnection services an individual TCP connection for the Graphite input.
 func (s *Service) handleTCPConnection(conn net.Conn) {
+	defer s.wg.Done()
 	defer conn.Close()
 	defer removeConnection(conn)
-	defer s.wg.Done()
 	defer s.statMap.Add(statConnectionsActive, -1)
 	addConnection(conn)
 	s.statMap.Add(statConnectionsActive, 1)
@@ -301,9 +296,6 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Point at the UDP stats.
-	s.statMap = statMapUDP
 
 	buf := make([]byte, udpBufferSize)
 	s.wg.Add(1)
@@ -377,3 +369,22 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		}
 	}
 }
+
+// setExpvar configures the expvar based collection for this service. It must be done within a
+// lock so previous registrations for this key can be checked. Re-registering a key will result
+// in a panic.
+func (s *Service) setExpvar() {
+	expvarMu.Lock()
+	defer expvarMu.Unlock()
+
+	key := strings.Join([]string{"graphite", s.protocol, s.bindAddress}, ":")
+
+	// Add expvar for this service.
+	var m expvar.Var
+	if m = expvar.Get(key); m == nil {
+		m = expvar.NewMap(key)
+	}
+	s.statMap = m.(*expvar.Map)
+}
+
+var expvarMu sync.Mutex

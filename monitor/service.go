@@ -172,7 +172,7 @@ func (m *Monitor) RegisterStatsClient(name string, tags map[string]string, clien
 	}
 
 	m.statRegistrations = append(m.statRegistrations, c)
-	m.Logger.Printf(`'%s:%v' registered for monitoring`, name, tags)
+	m.Logger.Printf(`'%s:%v' registered for statistics monitoring`, name, tags)
 	return nil
 }
 
