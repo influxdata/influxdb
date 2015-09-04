@@ -867,7 +867,6 @@ func (s *SelectStatement) ColumnNames() []string {
 
 	// First walk each field
 	for _, field := range s.Fields {
-		// time is always first, and we already added it, so ignore it if they asked for it anywhere else.
 		switch f := field.Expr.(type) {
 		case *Call:
 			if f.Name == "top" || f.Name == "bottom" {
@@ -881,6 +880,7 @@ func (s *SelectStatement) ColumnNames() []string {
 			}
 			columnNames = append(columnNames, field.Name())
 		default:
+			// time is always first, and we already added it, so ignore it if they asked for it anywhere else.
 			if field.Name() != "time" {
 				columnNames = append(columnNames, field.Name())
 			}
