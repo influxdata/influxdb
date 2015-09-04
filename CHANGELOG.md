@@ -22,6 +22,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#4003](https://github.com/influxdb/influxdb/pull/4033): Add logrotate configuration.
 - [#4043](https://github.com/influxdb/influxdb/pull/4043): Add stats and batching to openTSDB input
 - [#4042](https://github.com/influxdb/influxdb/pull/4042): Add pending batches control to batcher
+- [#4006](https://github.com/influxdb/influxdb/pull/4006): Add basic statistics for shards
 
 ### Bugfixes
 - [#4042](https://github.com/influxdb/influxdb/pull/4042): Set UDP input batching defaults as needed.
