@@ -984,13 +984,6 @@ func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo)
 
 // CreateRetentionPolicyIfNotExists creates a new policy in the store if it doesn't already exist.
 func (s *Store) CreateRetentionPolicyIfNotExists(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
-	// Try to find policy locally first.
-	if rpi, err := s.RetentionPolicy(database, rpi.Name); err != nil {
-		return nil, err
-	} else if rpi != nil {
-		return rpi, nil
-	}
-
 	// Attempt to create policy.
 	other, err := s.CreateRetentionPolicy(database, rpi)
 	if err == ErrRetentionPolicyExists {
