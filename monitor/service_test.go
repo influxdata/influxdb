@@ -45,6 +45,9 @@ func (m *mockMetastore) WaitForLeader(d time.Duration) error { return nil }
 func (m *mockMetastore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
 	return nil, nil
 }
+func (m *mockMetastore) CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
+	return nil, nil
+}
 
 func openMonitor(t *testing.T) *Monitor {
 	monitor := New(NewConfig())
