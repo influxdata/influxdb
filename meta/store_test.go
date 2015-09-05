@@ -272,6 +272,22 @@ func TestStore_CreateRetentionPolicy(t *testing.T) {
 	}) {
 		t.Fatalf("unexpected policy: %#v", rpi)
 	}
+
+	// CreateRetentionPolicyIfNotExists should succeed, since it should do nothing.
+	if rpi, err := s.CreateRetentionPolicyIfNotExists("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		ReplicaN: 2,
+		Duration: 48 * time.Hour,
+	}); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{
+		Name:               "rp0",
+		ReplicaN:           2,
+		Duration:           48 * time.Hour,
+		ShardGroupDuration: 24 * time.Hour,
+	}) {
+		t.Fatalf("unexpected policy: %#v", rpi)
+	}
 }
 
 // Ensure the store can delete a retention policy.
