@@ -3,18 +3,13 @@ package wal
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
-
-	// "runtime"
-	// "sync"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
@@ -45,39 +40,50 @@ func TestWAL_WritePoints(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	verify := func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		k, v := c.Seek(inttob(1))
+	c := log.Cursor("cpu,host=A", tsdb.Forward)
+	k, v := c.Seek(inttob(1))
 
-		// ensure the series are there and points are in order
-		if bytes.Compare(v, p1.Data()) != 0 {
-			t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
-		}
-
-		k, v = c.Next()
-		if bytes.Compare(v, p2.Data()) != 0 {
-			t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
-		}
-
-		k, v = c.Next()
-		if k != nil {
-			t.Fatalf("expected nil on last seek: %v %v", k, v)
-		}
-
-		c = log.Cursor("cpu,host=B", tsdb.Forward)
-		k, v = c.Next()
-		if bytes.Compare(v, p3.Data()) != 0 {
-			t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
-		}
+	// ensure the series are there and points are in order
+	if bytes.Compare(v, p1.Data()) != 0 {
+		t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
 	}
 
-	verify()
+	k, v = c.Next()
+	if bytes.Compare(v, p2.Data()) != 0 {
+		t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
+	}
 
-	// ensure that we can close and re-open the log with points still there
+	k, v = c.Next()
+	if k != nil {
+		t.Fatalf("expected nil on last seek: %v %v", k, v)
+	}
+
+	c = log.Cursor("cpu,host=B", tsdb.Forward)
+	k, v = c.Next()
+	if bytes.Compare(v, p3.Data()) != 0 {
+		t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
+	}
+
+	// ensure that we can close and re-open the log with points getting to the index
 	log.Close()
-	log.Open()
 
-	verify()
+	points := make([]map[string][][]byte, 0)
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		points = append(points, pointsByKey)
+		return nil
+	}}
+
+	if err := log.Open(); err != nil {
+		t.Fatal("error opening log", err)
+	}
+
+	p := points[0]
+	if len(p["cpu,host=A"]) != 2 {
+		t.Fatal("expected two points for cpu,host=A flushed to index")
+	}
+	if len(p["cpu,host=B"]) != 1 {
+		t.Fatal("expected one point for cpu,host=B flushed to index")
+	}
 
 	// ensure we can write new points into the series
 	p4 := parsePoint("cpu,host=A value=1.0 7", codec)
@@ -91,38 +97,38 @@ func TestWAL_WritePoints(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	verify2 := func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		k, v := c.Next()
-		if bytes.Compare(v, p1.Data()) != 0 {
-			t.Fatalf("order wrong, expected p1, %v %v %v", v, k, p1.Data())
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p6.Data()) != 0 {
-			t.Fatal("order wrong, expected p6")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p2.Data()) != 0 {
-			t.Fatal("order wrong, expected p6")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p4.Data()) != 0 {
-			t.Fatal("order wrong, expected p6")
-		}
-
-		c = log.Cursor("cpu,host=C", tsdb.Forward)
-		_, v = c.Next()
-		if bytes.Compare(v, p5.Data()) != 0 {
-			t.Fatal("order wrong, expected p6")
-		}
+	c = log.Cursor("cpu,host=A", tsdb.Forward)
+	k, v = c.Next()
+	if bytes.Compare(v, p6.Data()) != 0 {
+		t.Fatal("order wrong, expected p6")
+	}
+	_, v = c.Next()
+	if bytes.Compare(v, p4.Data()) != 0 {
+		t.Fatal("order wrong, expected p6")
 	}
 
-	verify2()
+	c = log.Cursor("cpu,host=C", tsdb.Forward)
+	_, v = c.Next()
+	if bytes.Compare(v, p5.Data()) != 0 {
+		t.Fatal("order wrong, expected p6")
+	}
 
-	log.Close()
-	log.Open()
+	if err := log.Close(); err != nil {
+		t.Fatal("error closing log", err)
+	}
 
-	verify2()
+	points = make([]map[string][][]byte, 0)
+	if err := log.Open(); err != nil {
+		t.Fatal("error opening log", err)
+	}
+
+	p = points[0]
+	if len(p["cpu,host=A"]) != 2 {
+		t.Fatal("expected two points for cpu,host=A flushed to index")
+	}
+	if len(p["cpu,host=C"]) != 1 {
+		t.Fatal("expected one point for cpu,host=B flushed to index")
+	}
 }
 
 func TestWAL_CorruptDataLengthSize(t *testing.T) {
@@ -149,32 +155,38 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	verify := func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		_, v := c.Next()
-		if bytes.Compare(v, p1.Data()) != 0 {
-			t.Fatal("p1 value wrong")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p2.Data()) != 0 {
-			t.Fatal("p2 value wrong")
-		}
-		_, v = c.Next()
-		if v != nil {
-			t.Fatal("expected cursor to return nil")
-		}
+	c := log.Cursor("cpu,host=A", tsdb.Forward)
+	_, v := c.Next()
+	if bytes.Compare(v, p1.Data()) != 0 {
+		t.Fatal("p1 value wrong")
+	}
+	_, v = c.Next()
+	if bytes.Compare(v, p2.Data()) != 0 {
+		t.Fatal("p2 value wrong")
+	}
+	_, v = c.Next()
+	if v != nil {
+		t.Fatal("expected cursor to return nil")
 	}
 
-	verify()
-
 	// now write junk data and ensure that we can close, re-open and read
-	f := log.partitions[1].currentSegmentFile
+	f := log.partition.currentSegmentFile
 	f.Write([]byte{0x23, 0x12})
 	f.Sync()
 	log.Close()
+
+	points := make([]map[string][][]byte, 0)
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		points = append(points, pointsByKey)
+		return nil
+	}}
+
 	log.Open()
 
-	verify()
+	p := points[0]
+	if len(p["cpu,host=A"]) != 2 {
+		t.Fatal("expected two points for cpu,host=A")
+	}
 
 	// now write new data and ensure it's all good
 	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
@@ -182,26 +194,20 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
-	verify = func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		_, v := c.Next()
-		if bytes.Compare(v, p1.Data()) != 0 {
-			t.Fatal("p1 value wrong")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p2.Data()) != 0 {
-			t.Fatal("p2 value wrong")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p3.Data()) != 0 {
-			t.Fatal("p3 value wrong")
-		}
+	c = log.Cursor("cpu,host=A", tsdb.Forward)
+	_, v = c.Next()
+	if bytes.Compare(v, p3.Data()) != 0 {
+		t.Fatal("p3 value wrong")
 	}
 
-	verify()
 	log.Close()
+
+	points = make([]map[string][][]byte, 0)
 	log.Open()
-	verify()
+	p = points[0]
+	if len(p["cpu,host=A"]) != 1 {
+		t.Fatal("expected two points for cpu,host=A")
+	}
 }
 
 func TestWAL_CorruptDataBlock(t *testing.T) {
@@ -228,27 +234,23 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	verify := func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		_, v := c.Next()
-		if bytes.Compare(v, p1.Data()) != 0 {
-			t.Fatal("p1 value wrong")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p2.Data()) != 0 {
-			t.Fatal("p2 value wrong")
-		}
-		_, v = c.Next()
-		if v != nil {
-			t.Fatal("expected cursor to return nil")
-		}
+	c := log.Cursor("cpu,host=A", tsdb.Forward)
+	_, v := c.Next()
+	if bytes.Compare(v, p1.Data()) != 0 {
+		t.Fatal("p1 value wrong")
 	}
-
-	verify()
+	_, v = c.Next()
+	if bytes.Compare(v, p2.Data()) != 0 {
+		t.Fatal("p2 value wrong")
+	}
+	_, v = c.Next()
+	if v != nil {
+		t.Fatal("expected cursor to return nil")
+	}
 
 	// now write junk data and ensure that we can close, re-open and read
 
-	f := log.partitions[1].currentSegmentFile
+	f := log.partition.currentSegmentFile
 	f.Write(u64tob(23))
 	// now write a bunch of garbage
 	for i := 0; i < 1000; i++ {
@@ -257,51 +259,6 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 	f.Sync()
 
 	log.Close()
-	log.Open()
-
-	verify()
-
-	// now write new data and ensure it's all good
-	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
-		t.Fatalf("failed to write point: %s", err.Error())
-	}
-
-	verify = func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		_, v := c.Next()
-		if bytes.Compare(v, p1.Data()) != 0 {
-			t.Fatal("p1 value wrong")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p2.Data()) != 0 {
-			t.Fatal("p2 value wrong")
-		}
-		_, v = c.Next()
-		if bytes.Compare(v, p3.Data()) != 0 {
-			t.Fatal("p3 value wrong", p3.Data(), v)
-		}
-	}
-
-	verify()
-	log.Close()
-	log.Open()
-	verify()
-}
-
-// Ensure the wal flushes and compacts after a partition has enough series in
-// it with enough data to flush
-func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
-	log := openTestWAL()
-	log.partitionCount = 2
-	log.CompactionThreshold = 0.7
-	log.ReadySeriesSize = 1024
-
-	// set this high so that a flush doesn't automatically kick in and mess up our test
-	log.flushCheckInterval = time.Minute
-
-	defer log.Close()
-	defer os.RemoveAll(log.path)
 
 	points := make([]map[string][][]byte, 0)
 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
@@ -309,99 +266,38 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 		return nil
 	}}
 
-	if err := log.Open(); err != nil {
-		t.Fatalf("couldn't open wal: %s", err.Error())
-	}
-
-	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
-		"value": {
-			ID:   uint8(1),
-			Name: "value",
-			Type: influxql.Float,
-		},
-	})
-
-	numSeries := 100
-	b := make([]byte, 70*5000)
-	for i := 1; i <= 100; i++ {
-		buf := bytes.NewBuffer(b)
-		for j := 1; j <= numSeries; j++ {
-			buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", j, rand.Float64(), i))
-		}
-
-		// ensure that before we go over the threshold it isn't marked for flushing
-		if i < 50 {
-			// interleave data for some series that won't be ready to flush
-			buf.WriteString(fmt.Sprintf("cpu,host=A,region=useast1 value=%.3f %d\n", rand.Float64(), i))
-			buf.WriteString(fmt.Sprintf("cpu,host=A,region=useast3 value=%.3f %d\n", rand.Float64(), i))
-
-			// ensure that as a whole its not ready for flushing yet
-			if log.partitions[1].shouldFlush(tsdb.DefaultMaxSeriesSize, tsdb.DefaultCompactionThreshold) != noFlush {
-				t.Fatal("expected partition 1 to return false from shouldFlush")
-			}
-		}
-
-		// write the batch out
-		if err := log.WritePoints(parsePoints(buf.String(), codec), nil, nil); err != nil {
-			t.Fatalf("failed to write points: %s", err.Error())
-		}
-		buf = bytes.NewBuffer(b)
-	}
-
-	// ensure we have some data
-	c := log.Cursor("cpu,host=A,region=uswest23", tsdb.Forward)
-	k, v := c.Next()
-	if btou64(k) != 1 {
-		t.Fatalf("expected timestamp of 1, but got %v %v", k, v)
-	}
-
-	// ensure it is marked as should flush because of the threshold
-	if log.partitions[1].shouldFlush(tsdb.DefaultMaxSeriesSize, tsdb.DefaultCompactionThreshold) != thresholdFlush {
-		t.Fatal("expected partition 1 to return true from shouldFlush")
-	}
-
-	if err := log.partitions[1].flushAndCompact(thresholdFlush); err != nil {
-		t.Fatalf("error flushing and compacting: %s", err.Error())
-	}
-
-	// should be nil
-	c = log.Cursor("cpu,host=A,region=uswest23", tsdb.Forward)
-	k, v = c.Next()
-	if k != nil || v != nil {
-		t.Fatal("expected cache to be nil after flush: ", k, v)
-	}
-
-	c = log.Cursor("cpu,host=A,region=useast1", tsdb.Forward)
-	k, v = c.Next()
-	if btou64(k) != 1 {
-		t.Fatal("expected cache to be there after flush and compact: ", k, v)
-	}
-
-	if len(points) == 0 {
-		t.Fatal("expected points to be flushed to index")
-	}
-
-	// now close and re-open the wal and ensure the compacted data is gone and other data is still there
-	log.Close()
 	log.Open()
 
-	c = log.Cursor("cpu,host=A,region=uswest23", tsdb.Forward)
-	k, v = c.Next()
-	if k != nil || v != nil {
-		t.Fatal("expected cache to be nil after flush and re-open: ", k, v)
+	p := points[0]
+	if len(p["cpu,host=A"]) != 2 {
+		t.Fatal("expected two points for cpu,host=A")
 	}
 
-	c = log.Cursor("cpu,host=A,region=useast1", tsdb.Forward)
-	k, v = c.Next()
-	if btou64(k) != 1 {
-		t.Fatal("expected cache to be there after flush and compact: ", k, v)
+	// now write new data and ensure it's all good
+	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
+	if err := log.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write point: %s", err.Error())
+	}
+
+	c = log.Cursor("cpu,host=A", tsdb.Forward)
+	_, v = c.Next()
+	if bytes.Compare(v, p3.Data()) != 0 {
+		t.Fatal("p3 value wrong", p3.Data(), v)
+	}
+
+	log.Close()
+
+	points = make([]map[string][][]byte, 0)
+	log.Open()
+	p = points[0]
+	if len(p["cpu,host=A"]) != 1 {
+		t.Fatal("expected two points for cpu,host=A")
 	}
 }
 
 // Ensure the wal forces a full flush after not having a write in a given interval of time
 func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	log := openTestWAL()
-	log.partitionCount = 1
 
 	// set this low
 	log.flushCheckInterval = 10 * time.Millisecond
@@ -453,16 +349,16 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	// ensure that as a whole its not ready for flushing yet
-	if f := log.partitions[1].shouldFlush(tsdb.DefaultMaxSeriesSize, tsdb.DefaultCompactionThreshold); f != noFlush {
+	if f := log.partition.shouldFlush(); f != noFlush {
 		t.Fatalf("expected partition 1 to return noFlush from shouldFlush %v", f)
 	}
 
 	// ensure that the partition is empty
-	if log.partitions[1].memorySize != 0 || len(log.partitions[1].cache) != 0 {
+	if log.partition.memorySize != 0 || len(log.partition.cache) != 0 {
 		t.Fatal("expected partition to be empty")
 	}
 	// ensure that we didn't bother to open a new segment file
-	if log.partitions[1].currentSegmentFile != nil {
+	if log.partition.currentSegmentFile != nil {
 		t.Fatal("expected partition to not have an open segment file")
 	}
 }
@@ -592,10 +488,6 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	defer log.Close()
 	defer os.RemoveAll(log.path)
 
-	if err := log.Open(); err != nil {
-		t.Fatalf("couldn't open wal: %s", err.Error())
-	}
-
 	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
 		"value": {
 			ID:   uint8(1),
@@ -605,7 +497,9 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	})
 
 	var seriesToIndex []*tsdb.SeriesCreate
+	var points map[string][][]byte
 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		points = pointsByKey
 		seriesToIndex = append(seriesToIndex, seriesToCreate...)
 		return nil
 	}}
@@ -613,6 +507,10 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	seriesToCreate := []*tsdb.SeriesCreate{
 		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
 		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
+	}
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
 	}
 
 	// test that we can write to two different series
@@ -641,9 +539,15 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	}
 
 	// ensure data is there
+	if len(points["cpu,host=A"]) != 2 {
+		t.Fatal("expected cpu,host=A to be flushed to the index")
+	}
+	if len(points["cpu,host=B"]) != 0 {
+		t.Fatal("expected cpu,host=B to have no points in index")
+	}
 	c = log.Cursor("cpu,host=A", tsdb.Forward)
-	if k, _ := c.Next(); btou64(k) != 1 {
-		t.Fatal("expected data point for cpu,host=A")
+	if k, _ := c.Next(); k != nil {
+		t.Fatal("expected data to be out of the cache cpu,host=A")
 	}
 
 	// ensure series is deleted
@@ -670,111 +574,19 @@ func TestWAL_DeleteSeries(t *testing.T) {
 		t.Fatalf("error closing log: %s", err.Error())
 	}
 
+	points = make(map[string][][]byte)
 	if err := log.Open(); err != nil {
 		t.Fatalf("error opening log: %s", err.Error())
 	}
 
-	// ensure data is there
-	c = log.Cursor("cpu,host=A", tsdb.Forward)
-	if k, _ := c.Next(); btou64(k) != 1 {
-		t.Fatal("expected data point for cpu,host=A")
-	}
-
-	// ensure series is deleted
-	c = log.Cursor("cpu,host=B", tsdb.Forward)
-	if k, _ := c.Next(); k != nil {
-		t.Fatal("expected no data for cpu,host=B")
-	}
-}
-
-// Ensure a partial compaction can be recovered from.
-func TestWAL_Compact_Recovery(t *testing.T) {
-	log := openTestWAL()
-	log.partitionCount = 1
-	log.CompactionThreshold = 0.7
-	log.ReadySeriesSize = 1024
-	log.flushCheckInterval = time.Minute
-	defer log.Close()
-	defer os.RemoveAll(log.path)
-
-	points := make([]map[string][][]byte, 0)
-	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-		points = append(points, pointsByKey)
-		return nil
-	}}
-
-	if err := log.Open(); err != nil {
-		t.Fatalf("couldn't open wal: %s", err.Error())
-	}
-
-	// Retrieve partition.
-	p := log.partitions[1]
-
-	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
-		"value": {
-			ID:   uint8(1),
-			Name: "value",
-			Type: influxql.Float,
-		},
-	})
-
-	b := make([]byte, 70*5000)
-	for i := 1; i <= 100; i++ {
-		buf := bytes.NewBuffer(b)
-		for j := 1; j <= 1000; j++ {
-			buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", j, rand.Float64(), i))
-		}
-		buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", rand.Int(), rand.Float64(), i))
-
-		// Write the batch out.
-		if err := log.WritePoints(parsePoints(buf.String(), codec), nil, nil); err != nil {
-			t.Fatalf("failed to write points: %s", err.Error())
-		}
-	}
-
-	// Mock second open call to fail.
-	p.os.OpenSegmentFile = func(name string, flag int, perm os.FileMode) (file *os.File, err error) {
-		if filepath.Base(name) == "01.000001.wal" {
-			return os.OpenFile(name, flag, perm)
-		}
-		return nil, errors.New("marker")
-	}
-	if err := p.flushAndCompact(thresholdFlush); err == nil || err.Error() != "marker" {
-		t.Fatalf("unexpected flush error: %s", err)
-	}
-	p.os.OpenSegmentFile = os.OpenFile
-
-	// Append second file to simulate partial write.
-	func() {
-		f, err := os.OpenFile(p.compactionFileName(), os.O_RDWR|os.O_APPEND, 0666)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-
-		// Append filename and partial data.
-		if err := p.writeCompactionEntry(f, "01.000002.wal", []*entry{{key: []byte("foo"), data: []byte("bar"), timestamp: 100}}); err != nil {
-			t.Fatal(err)
-		}
-
-		// Truncate by a few bytes.
-		if fi, err := f.Stat(); err != nil {
-			t.Fatal(err)
-		} else if err = f.Truncate(fi.Size() - 2); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	// Now close and re-open the wal and ensure there are no errors.
-	log.Close()
-	if err := log.Open(); err != nil {
-		t.Fatalf("unexpected open error: %s", err)
+	// ensure data wasn't flushed on open
+	if len(points) != 0 {
+		t.Fatal("expected no data to be flushed on open")
 	}
 }
 
 func TestWAL_QueryDuringCompaction(t *testing.T) {
 	log := openTestWAL()
-	log.partitionCount = 1
 	defer log.Close()
 	defer os.RemoveAll(log.path)
 
@@ -914,98 +726,6 @@ func TestWAL_Cursor_Reverse(t *testing.T) {
 		t.Fatal("points out of order")
 	}
 }
-
-// test that partitions get compacted and flushed when number of series hits compaction threshold
-// test that partitions get compacted and flushed when a single series hits the compaction threshold
-// test that writes slow down when the partition size threshold is hit
-
-// func TestWAL_MultipleSegments(t *testing.T) {
-// 	runtime.GOMAXPROCS(8)
-
-// 	log := openTestWAL()
-// 	defer log.Close()
-// 	defer os.RemoveAll(log.path)
-// 	log.PartitionSizeThreshold = 1024 * 1024 * 100
-// 	flushCount := 0
-// 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
-// 		flushCount += 1
-// 		fmt.Println("FLUSH: ", len(pointsByKey))
-// 		return nil
-// 	}}
-
-// 	if err := log.Open(); err != nil {
-// 		t.Fatalf("couldn't open wal: ", err.Error())
-// 	}
-
-// 	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
-// 		"value": {
-// 			ID:   uint8(1),
-// 			Name: "value",
-// 			Type: influxql.Float,
-// 		},
-// 	})
-
-// 	startTime := time.Now()
-// 	numSeries := 5000
-// 	perPost := 5000
-// 	b := make([]byte, 70*5000)
-// 	totalPoints := 0
-// 	for i := 1; i <= 10000; i++ {
-// 		fmt.Println("WRITING: ", i*numSeries)
-// 		n := 0
-// 		buf := bytes.NewBuffer(b)
-// 		var wg sync.WaitGroup
-// 		for j := 1; j <= numSeries; j++ {
-// 			totalPoints += 1
-// 			n += 1
-// 			buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", j, rand.Float64(), i))
-// 			if n >= perPost {
-// 				go func(b string) {
-// 					wg.Add(1)
-// 					if err := log.WritePoints(parsePoints(b, codec)); err != nil {
-// 						t.Fatalf("failed to write points: %s", err.Error())
-// 					}
-// 					wg.Done()
-// 				}(buf.String())
-// 				buf = bytes.NewBuffer(b)
-// 				n = 0
-// 			}
-// 		}
-// 		wg.Wait()
-// 	}
-// 	fmt.Println("PATH: ", log.path)
-// 	dur := time.Now().Sub(startTime)
-// 	fmt.Println("TIME TO WRITE: ", totalPoints, dur, float64(totalPoints)/dur.Seconds())
-// 	fmt.Println("FLUSH COUNT: ", flushCount)
-// 	for _, p := range log.partitions {
-// 		fmt.Println("SIZE: ", p.memorySize/1024/1024)
-// 	}
-
-// 	max := 0
-// 	for _, p := range log.partitions {
-// 		for k, s := range p.cacheSizes {
-// 			if s > max {
-// 				fmt.Println(k, s)
-// 				max = s
-// 			}
-// 		}
-// 	}
-
-// 	fmt.Println("CLOSING")
-// 	log.Close()
-// 	fmt.Println("TEST OPENING")
-// 	startTime = time.Now()
-// 	log.Open()
-// 	fmt.Println("TIME TO OPEN: ", time.Now().Sub(startTime))
-// 	for _, p := range log.partitions {
-// 		fmt.Println("SIZE: ", p.memorySize)
-// 	}
-
-// 	c := log.Cursor("cpu,host=A,region=uswest10")
-// 	k, v := c.Seek(inttob(23))
-// 	fmt.Println("VALS: ", k, v)
-// 	time.Sleep(time.Minute)
-// }
 
 type testIndexWriter struct {
 	fn func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
