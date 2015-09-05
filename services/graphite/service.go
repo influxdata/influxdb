@@ -96,8 +96,9 @@ type Service struct {
 	logger  *log.Logger
 	statMap *expvar.Map
 
-	ln   net.Listener
-	addr net.Addr
+	ln      net.Listener
+	addr    net.Addr
+	udpConn *net.UDPConn
 
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -205,6 +206,9 @@ func (s *Service) Close() error {
 	if s.ln != nil {
 		s.ln.Close()
 	}
+	if s.udpConn != nil {
+		s.udpConn.Close()
+	}
 
 	s.batcher.Stop()
 	close(s.done)
@@ -287,7 +291,7 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 		return nil, err
 	}
 
-	conn, err := net.ListenUDP("udp", addr)
+	s.udpConn, err = net.ListenUDP("udp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -297,9 +301,9 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 	go func() {
 		defer s.wg.Done()
 		for {
-			n, _, err := conn.ReadFromUDP(buf)
+			n, _, err := s.udpConn.ReadFromUDP(buf)
 			if err != nil {
-				conn.Close()
+				s.udpConn.Close()
 				return
 			}
 
@@ -311,7 +315,7 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 			s.statMap.Add(statBytesReceived, int64(n))
 		}
 	}()
-	return conn.LocalAddr(), nil
+	return s.udpConn.LocalAddr(), nil
 }
 
 func (s *Service) handleLine(line string) {
