@@ -256,6 +256,7 @@ func (s *Store) Open() error {
 
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
+	<-s.ready
 	return s.WaitForLeader(0)
 }
 
