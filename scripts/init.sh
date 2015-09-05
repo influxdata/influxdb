@@ -103,7 +103,7 @@ function killproc() {
 
     PID=`cat $2`
 
-    kill -s $3 $PID
+    /bin/kill -s $3 $PID
     while true; do
         pidof `basename $DAEMON` >/dev/null
         if [ $? -ne 0 ]; then
@@ -113,7 +113,7 @@ function killproc() {
         sleep 1
         n=$(expr $n + 1)
         if [ $n -eq 30 ]; then
-            kill -s SIGKILL $PID
+            /bin/kill -s SIGKILL $PID
             return 0
         fi
     done
