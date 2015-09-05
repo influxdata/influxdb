@@ -86,7 +86,7 @@ reporting-disabled = false
 
 [retention]
   enabled = true
-  check-interval = "10m"
+  check-interval = "30m"
 
 ###
 ### Controls the system self-monitoring, statistics and diagnostics.
