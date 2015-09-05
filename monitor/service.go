@@ -63,16 +63,20 @@ type Monitor struct {
 
 	diagRegistrations map[string]DiagsClient
 
-	storeEnabled  bool
-	storeDatabase string
-	storeAddress  string
-	storeInterval time.Duration
+	storeEnabled           bool
+	storeDatabase          string
+	storeRetentionPolicy   string
+	storeRetentionDuration time.Duration
+	storeReplicationFactor int
+	storeAddress           string
+	storeInterval          time.Duration
 
 	MetaStore interface {
 		ClusterID() (uint64, error)
 		NodeID() uint64
 		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+		CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	}
 
 	PointsWriter interface {
@@ -85,12 +89,15 @@ type Monitor struct {
 // New returns a new instance of the monitor system.
 func New(c Config) *Monitor {
 	return &Monitor{
-		done:              make(chan struct{}),
-		diagRegistrations: make(map[string]DiagsClient),
-		storeEnabled:      c.StoreEnabled,
-		storeDatabase:     c.StoreDatabase,
-		storeInterval:     time.Duration(c.StoreInterval),
-		Logger:            log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+		done:                   make(chan struct{}),
+		diagRegistrations:      make(map[string]DiagsClient),
+		storeEnabled:           c.StoreEnabled,
+		storeDatabase:          c.StoreDatabase,
+		storeRetentionPolicy:   c.StoreRetentionPolicy,
+		storeRetentionDuration: time.Duration(c.StoreRetentionDuration),
+		storeReplicationFactor: c.StoreReplicationFactor,
+		storeInterval:          time.Duration(c.StoreInterval),
+		Logger:                 log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
 
@@ -255,8 +262,8 @@ func (m *Monitor) Diagnostics() (map[string]*Diagnostic, error) {
 // storeStatistics writes the statistics to an InfluxDB system.
 func (m *Monitor) storeStatistics() {
 	defer m.wg.Done()
-	m.Logger.Printf("storing statistics in database '%s', interval %s",
-		m.storeDatabase, m.storeInterval)
+	m.Logger.Printf("Storing statistics in database '%s' retention policy '%s', at interval %s",
+		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
 	if err := m.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
 		m.Logger.Printf("failed to detect a cluster leader, terminating storage: %s", err.Error())
@@ -266,6 +273,16 @@ func (m *Monitor) storeStatistics() {
 	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
 		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
 			m.storeDatabase, err.Error())
+		return
+	}
+
+	rpi := meta.NewRetentionPolicyInfo(m.storeRetentionPolicy)
+	rpi.Duration = m.storeRetentionDuration
+	rpi.ReplicaN = m.storeReplicationFactor
+
+	if _, err := m.MetaStore.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
+		m.Logger.Printf("failed to create retention policy '%s', terminating storage: %s",
+			m.storeRetentionPolicy, err.Error())
 		return
 	}
 
@@ -287,7 +304,7 @@ func (m *Monitor) storeStatistics() {
 
 			err = m.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 				Database:         m.storeDatabase,
-				RetentionPolicy:  "",
+				RetentionPolicy:  m.storeRetentionPolicy,
 				ConsistencyLevel: cluster.ConsistencyLevelOne,
 				Points:           points,
 			})
