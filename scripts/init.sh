@@ -77,25 +77,6 @@ if [ -r $DEFAULT ]; then
     source $DEFAULT
 fi
 
-function pidofproc() {
-    if [ $# -ne 3 ]; then
-        echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
-    fi
-
-    PID=`pgrep -f $3`
-    local PIDFILE=`cat $2`
-
-    if [ "x$PIDFILE" == "x" ]; then
-        return 1
-    fi
-
-    if [ "x$PID" != "x" -a "$PIDFILE" == "$PID" ]; then
-        return 0
-    fi
-
-    return 1
-}
-
 function killproc() {
     if [ $# -ne 3 ]; then
         echo "Expected three arguments, e.g. $0 -p pidfile signal"
