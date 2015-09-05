@@ -128,9 +128,6 @@ func NewServer(c *Config, version string) (*Server, error) {
 	// Initialize the monitor
 	s.Monitor.MetaStore = s.MetaStore
 	s.Monitor.PointsWriter = s.PointsWriter
-	if err := s.Monitor.Open(); err != nil {
-		return nil, err
-	}
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
@@ -345,6 +342,10 @@ func (s *Server) Open() error {
 
 		// Wait for the store to initialize.
 		<-s.MetaStore.Ready()
+
+		if err := s.Monitor.Open(); err != nil {
+			return fmt.Errorf("open monitor: %v", err)
+		}
 
 		// Open TSDB store.
 		if err := s.TSDBStore.Open(); err != nil {
