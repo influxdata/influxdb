@@ -759,17 +759,28 @@ func (p *Partition) Close() error {
 // This method will also add the points to the in memory cache
 func (p *Partition) Write(points []tsdb.Point) error {
 
-	if func() bool {
+	// Check if we should compact due to memory pressure and what the backoff time should be. Only
+	// run the compaction in a goroutine if it's not already running.
+	if shouldSleep, shouldCompact, sleepTime := func() (shouldSleep bool, shouldCompact bool, sleepTime time.Duration) {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
 		// pause writes for a bit if we've hit the size threshold
 		if p.memorySize > p.sizeThreshold {
-			return true
+			if !p.compactionRunning {
+				shouldCompact = true
+			}
+			shouldSleep = true
+
+			// sleep for an increasing amount of time based on the percentage over the memory threshold we are
+			// over := float64(p.memorySize-p.sizeThreshold) / float64(p.sizeThreshold) * float64(100)
+			sleepTime = 0 // time.Duration(2*int(over)) * time.Millisecond
 		}
-		return false
-	}() {
-		go p.flushAndCompact(memoryFlush)
-		time.Sleep(time.Millisecond * 20)
+		return
+	}(); shouldSleep {
+		if shouldCompact {
+			go p.flushAndCompact(memoryFlush)
+		}
+		time.Sleep(sleepTime)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -964,7 +975,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		for _, a := range c.seriesToFlush {
 			pointCount += len(a)
 		}
-		p.log.logger.Printf("Flush due to %s. Flushing %d series with %d points and %d bytes from partition %d. Compacting %d series\n", ftype, len(c.seriesToFlush), pointCount, c.flushSize, p.id, c.countCompacting)
+		p.log.logger.Printf("Flush due to %s. Flushing %d series with %d points and %d bytes from partition %d\n", ftype, len(c.seriesToFlush), pointCount, c.flushSize, p.id)
 	}
 
 	startTime := time.Now()
