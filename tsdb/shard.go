@@ -121,7 +121,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Load metadata index.
-		if err := s.engine.LoadMetadataIndex(s.index, s.measurementFields); err != nil {
+		if err := s.engine.LoadMetadataIndex(s, s.index, s.measurementFields); err != nil {
 			return fmt.Errorf("load metadata index: %s", err)
 		}
 
@@ -741,15 +741,22 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
-	fi := f.fieldByName(name)
+	fi := f.FieldByName(name)
 	if fi == nil {
 		return 0, ErrFieldNotFound
 	}
 	return f.DecodeByID(fi.ID, b)
 }
 
+func (f *FieldCodec) Fields() (a []*Field) {
+	for _, f := range f.fieldsByID {
+		a = append(a, f)
+	}
+	return
+}
+
 // FieldByName returns the field by its name. It will return a nil if not found
-func (f *FieldCodec) fieldByName(name string) *Field {
+func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
 }
 

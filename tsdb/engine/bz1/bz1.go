@@ -176,7 +176,7 @@ func (e *Engine) close() error {
 func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
 	if err := e.db.View(func(tx *bolt.Tx) error {
 		// Load measurement metadata
 		fields, err := e.readFields(tx)
