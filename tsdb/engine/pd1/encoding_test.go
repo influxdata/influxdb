@@ -23,16 +23,17 @@ func TestEncoding_FloatBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error decoding: %s", err.Error)
 	}
+
 	if !reflect.DeepEqual(decodedValues, values) {
-		t.Fatalf("values not equal:\n\tgot: %s\n\texp: %s", values, decodedValues)
+		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
 	}
 }
 
-func getTimes(n, step int, precision time.Duration) []int64 {
+func getTimes(n, step int, precision time.Duration) []time.Time {
 	t := time.Now().Round(precision)
-	a := make([]int64, n)
+	a := make([]time.Time, n)
 	for i := 0; i < n; i++ {
-		a[i] = t.Add(60 * precision).UnixNano()
+		a[i] = t.Add(60 * precision)
 	}
 	return a
 }

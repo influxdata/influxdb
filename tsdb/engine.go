@@ -24,7 +24,7 @@ type Engine interface {
 	Close() error
 
 	SetLogOutput(io.Writer)
-	LoadMetadataIndex(index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
+	LoadMetadataIndex(shard *Shard, index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
 	Begin(writable bool) (Tx, error)
 	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
@@ -60,6 +60,21 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 	// Only bolt-based backends are currently supported so open it and check the format.
 	var format string
 	if err := func() error {
+		// if it's a dir then it's a pd1 engine
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		fi, err := f.Stat()
+		f.Close()
+		if err != nil {
+			return err
+		}
+		if fi.Mode().IsDir() {
+			format = "pd1"
+			return nil
+		}
+
 		db, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
 		if err != nil {
 			return err
