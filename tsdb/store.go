@@ -13,7 +13,7 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-func NewStore(path string) *Store {
+func NewStore(path []string) *Store {
 	opts := NewEngineOptions()
 	opts.Config = NewConfig()
 
@@ -30,7 +30,7 @@ var (
 
 type Store struct {
 	mu   sync.RWMutex
-	path string
+	path []string
 
 	databaseIndexes map[string]*DatabaseIndex
 	shards          map[uint64]*Shard
@@ -41,7 +41,7 @@ type Store struct {
 }
 
 // Path returns the store's root path.
-func (s *Store) Path() string { return s.path }
+func (s *Store) Path() []string { return s.path }
 
 // DatabaseIndexN returns the number of databases indicies in the store.
 func (s *Store) DatabaseIndexN() int {
@@ -64,6 +64,10 @@ func (s *Store) ShardN() int {
 	return len(s.shards)
 }
 
+func (s *Store) pathPrefixOfShard(shardID uint64) string {
+	return s.path[shardID % uint64(len(s.path))]
+}
+
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -79,8 +83,9 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 		return nil
 	}
 
+	path := s.pathPrefixOfShard(shardID)
 	// created the db and retention policy dirs if they don't exist
-	if err := os.MkdirAll(filepath.Join(s.path, database, retentionPolicy), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Join(path, database, retentionPolicy), 0700); err != nil {
 		return err
 	}
 
@@ -97,7 +102,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 		s.databaseIndexes[database] = db
 	}
 
-	shardPath := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
+	shardPath := filepath.Join(path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(shardID, db, shardPath, walPath, s.EngineOptions)
 	if err := shard.Open(); err != nil {
 		return err
@@ -146,8 +151,10 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 			shard.Close()
 		}
 	}
-	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
-		return err
+        for _, path := range s.path {
+		if err := os.RemoveAll(filepath.Join(path, name)); err != nil {
+			return err
+		}
 	}
 	if err := os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, name)); err != nil {
 		return err
@@ -243,16 +250,18 @@ func (s *Store) deleteMeasurement(name string, seriesKeys []string) error {
 }
 
 func (s *Store) loadIndexes() error {
-	dbs, err := ioutil.ReadDir(s.path)
-	if err != nil {
-		return err
-	}
-	for _, db := range dbs {
-		if !db.IsDir() {
-			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
-			continue
+	for _, path := range s.path {
+		dbs, err := ioutil.ReadDir(path)
+		if err != nil {
+			return err
 		}
-		s.databaseIndexes[db.Name()] = NewDatabaseIndex()
+		for _, db := range dbs {
+			if !db.IsDir() {
+				s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
+				continue
+			}
+			s.databaseIndexes[db.Name()] = NewDatabaseIndex()
+		}
 	}
 	return nil
 }
@@ -260,39 +269,41 @@ func (s *Store) loadIndexes() error {
 func (s *Store) loadShards() error {
 	// loop through the current database indexes
 	for db := range s.databaseIndexes {
-		rps, err := ioutil.ReadDir(filepath.Join(s.path, db))
-		if err != nil {
-			return err
-		}
-
-		for _, rp := range rps {
-			// retention policies should be directories.  Skip anything that is not a dir.
-			if !rp.IsDir() {
-				s.Logger.Printf("Skipping retention policy dir: %s. Not a directory", rp.Name())
-				continue
-			}
-
-			shards, err := ioutil.ReadDir(filepath.Join(s.path, db, rp.Name()))
+		for _, path := range s.path {
+			rps, err := ioutil.ReadDir(filepath.Join(path, db))
 			if err != nil {
 				return err
 			}
-			for _, sh := range shards {
-				path := filepath.Join(s.path, db, rp.Name(), sh.Name())
-				walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp.Name(), sh.Name())
 
-				// Shard file names are numeric shardIDs
-				shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
-				if err != nil {
-					s.Logger.Printf("Skipping shard: %s. Not a valid path", rp.Name())
+			for _, rp := range rps {
+				// retention policies should be directories.  Skip anything that is not a dir.
+				if !rp.IsDir() {
+					s.Logger.Printf("Skipping retention policy dir: %s. Not a directory", rp.Name())
 					continue
 				}
 
-				shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
-				err = shard.Open()
+				shards, err := ioutil.ReadDir(filepath.Join(path, db, rp.Name()))
 				if err != nil {
-					return fmt.Errorf("failed to open shard %d: %s", shardID, err)
+					return err
 				}
-				s.shards[shardID] = shard
+				for _, sh := range shards {
+					path := filepath.Join(path, db, rp.Name(), sh.Name())
+					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp.Name(), sh.Name())
+
+					// Shard file names are numeric shardIDs
+					shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
+					if err != nil {
+						s.Logger.Printf("Skipping shard: %s. Not a valid path", rp.Name())
+						continue
+					}
+
+					shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
+					err = shard.Open()
+					if err != nil {
+						return fmt.Errorf("failed to open shard %d: %s", shardID, err)
+					}
+					s.shards[shardID] = shard
+				}
 			}
 		}
 	}
@@ -312,8 +323,10 @@ func (s *Store) Open() error {
 	s.Logger.Printf("Using data dir: %v", s.Path())
 
 	// Create directory.
-	if err := os.MkdirAll(s.path, 0777); err != nil {
-		return err
+	for _, path := range s.path {
+		if err := os.MkdirAll(path, 0777); err != nil {
+			return err
+		}
 	}
 
 	// TODO: Start AE for Node

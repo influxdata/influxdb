@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -44,9 +45,13 @@ func NewSnapshotWriter(meta []byte, store *Store) (*snapshot.Writer, error) {
 // appendShardSnapshotFiles adds snapshot files for each shard in the store.
 func appendShardSnapshotFiles(sw *snapshot.Writer, store *Store) error {
 	// Calculate absolute path of store to use for relative shard paths.
-	storePath, err := filepath.Abs(store.Path())
-	if err != nil {
-		return fmt.Errorf("store abs path: %s", err)
+	var storePaths []string
+	for _, path := range store.Path() {
+		storePath, err := filepath.Abs(path)
+		if err != nil {
+			return fmt.Errorf("store abs path: %s", err)
+		}
+		storePaths = append(storePaths, storePath)
 	}
 
 	// Create files for each shard.
@@ -62,13 +67,17 @@ func appendShardSnapshotFiles(sw *snapshot.Writer, store *Store) error {
 		if err != nil {
 			return fmt.Errorf("shard abs path: %s", err)
 		}
-		name, err := filepath.Rel(storePath, shardPath)
-		if err != nil {
-			return fmt.Errorf("shard rel path: %s", err)
-		}
-
-		if err := appendShardSnapshotFile(sw, sh, name); err != nil {
-			return fmt.Errorf("append shard: name=%s, err=%s", name, err)
+		for _, storePath := range storePaths {
+			name, err := filepath.Rel(storePath, shardPath)
+			if err != nil {
+				return fmt.Errorf("shard rel path: %s", err)
+			}
+			if !strings.HasPrefix(name, "..") {
+				if err := appendShardSnapshotFile(sw, sh, name); err != nil {
+					return fmt.Errorf("append shard: name=%s, err=%s", name, err)
+				}
+				break
+			}
 		}
 	}
 
