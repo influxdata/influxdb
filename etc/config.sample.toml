@@ -132,7 +132,7 @@ reporting-disabled = false
   # name-separator = "."
 
   # These next lines control how batching works. You should have this enabled
-  # otherwise you could get dropped metrics or poor performance. Batching 
+  # otherwise you could get dropped metrics or poor performance. Batching
   # will buffer points in memory if you have many coming in.
 
   # batch-size = 1000 # will flush if this many points get buffered
@@ -171,7 +171,7 @@ reporting-disabled = false
   # typesdb = ""
 
   # These next lines control how batching works. You should have this enabled
-  # otherwise you could get dropped metrics or poor performance. Batching 
+  # otherwise you could get dropped metrics or poor performance. Batching
   # will buffer points in memory if you have many coming in.
 
   # batch-size = 1000 # will flush if this many points get buffered
@@ -201,7 +201,7 @@ reporting-disabled = false
   # database = ""
 
   # These next lines control how batching works. You should have this enabled
-  # otherwise you could get dropped metrics or poor performance. Batching 
+  # otherwise you could get dropped metrics or poor performance. Batching
   # will buffer points in memory if you have many coming in.
 
   # batch-size = 1000 # will flush if this many points get buffered
