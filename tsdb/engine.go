@@ -18,6 +18,9 @@ var (
 	ErrFormatNotFound = errors.New("format not found")
 )
 
+// DefaultEngine is the default engine used by the shard when initializing.
+const DefaultEngine = "pd1"
+
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
 	Open() error

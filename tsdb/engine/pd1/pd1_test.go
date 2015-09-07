@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
@@ -18,37 +18,31 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
 
-	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
-		"value": {
-			ID:   uint8(1),
-			Name: "value",
-			Type: influxql.Float,
-		},
-	})
+	e.Shard = newFieldCodecMock(map[string]influxql.DataType{"value": influxql.Float})
 
-	p1 := parsePoint("cpu,host=A value=1.1 1000000000", codec)
-	p2 := parsePoint("cpu,host=B value=1.2 1000000000", codec)
-	p3 := parsePoint("cpu,host=A value=2.1 2000000000", codec)
-	p4 := parsePoint("cpu,host=B value=2.2 2000000000", codec)
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=B value=1.2 1000000000")
+	p3 := parsePoint("cpu,host=A value=2.1 2000000000")
+	p4 := parsePoint("cpu,host=B value=2.2 2000000000")
 
 	if err := e.WriteAndCompact([]tsdb.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	verify := func() {
+	verify := func(checkSingleBVal bool) {
 		c := e.Cursor("cpu,host=A", tsdb.Forward)
 		k, v := c.Next()
 		if btou64(k) != uint64(p1.UnixNano()) {
 			t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), btou64(k))
 		}
-		if !reflect.DeepEqual(v, p1.Data()) {
+		if 1.1 != btof64(v) {
 			t.Fatal("p1 data not equal")
 		}
 		k, v = c.Next()
 		if btou64(k) != uint64(p3.UnixNano()) {
 			t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), btou64(k))
 		}
-		if !reflect.DeepEqual(v, p3.Data()) {
+		if 2.1 != btof64(v) {
 			t.Fatal("p3 data not equal")
 		}
 		k, v = c.Next()
@@ -61,28 +55,56 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 		if btou64(k) != uint64(p2.UnixNano()) {
 			t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
 		}
-		if !reflect.DeepEqual(v, p2.Data()) {
+		if 1.2 != btof64(v) {
 			t.Fatal("p2 data not equal")
 		}
-		k, v = c.Next()
-		if k != nil {
-			t.Fatal("expected nil")
+
+		if checkSingleBVal {
+			k, v = c.Next()
+			if k != nil {
+				t.Fatal("expected nil")
+			}
 		}
 	}
-	verify()
+	verify(true)
 
 	if err := e.WriteAndCompact([]tsdb.Point{p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
-	verify()
+	verify(false)
 
 	c := e.Cursor("cpu,host=B", tsdb.Forward)
-	k, v := c.Seek(u64tob(2000000000))
-	if btou64(k) != uint64(p4.UnixNano()) {
-		t.Fatalf("p4 time wrong:\n\texp:%d\n\tgot:%d\n", p4.UnixNano(), btou64(k))
+	k, v := c.Next()
+	if btou64(k) != uint64(p2.UnixNano()) {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
 	}
-	if !reflect.DeepEqual(v, p4.Data()) {
-		t.Fatal("p4 data not equal")
+	if 1.2 != btof64(v) {
+		t.Fatal("p2 data not equal")
+	}
+	k, v = c.Next()
+	if btou64(k) != uint64(p4.UnixNano()) {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+	}
+	if 2.2 != btof64(v) {
+		t.Fatal("p2 data not equal")
+	}
+
+	// verify we can seek
+	k, v = c.Seek(u64tob(2000000000))
+	if btou64(k) != uint64(p4.UnixNano()) {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+	}
+	if 2.2 != btof64(v) {
+		t.Fatal("p2 data not equal")
+	}
+
+	c = e.Cursor("cpu,host=A", tsdb.Forward)
+	k, v = c.Seek(u64tob(0))
+	if btou64(k) != uint64(p1.UnixNano()) {
+		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), btou64(k))
+	}
+	if 1.1 != btof64(v) {
+		t.Fatal("p1 data not equal")
 	}
 }
 
@@ -95,17 +117,9 @@ func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
 
-	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
-		"value": {
-			ID:   uint8(1),
-			Name: "value",
-			Type: influxql.Float,
-		},
-	})
-
 	var points []tsdb.Point
 	for i := 0; i < 100000; i++ {
-		points = append(points, parsePoint(fmt.Sprintf("cpu%d value=22.1", i), codec))
+		points = append(points, parsePoint(fmt.Sprintf("cpu%d value=22.1", i)))
 	}
 
 	st := time.Now()
@@ -160,23 +174,35 @@ func (e *Engine) Close() error {
 	return nil
 }
 
-func parsePoints(buf string, codec *tsdb.FieldCodec) []tsdb.Point {
+func newFieldCodecMock(fields map[string]influxql.DataType) *FieldCodeMock {
+	m := make(map[string]*tsdb.Field)
+
+	for n, t := range fields {
+		m[n] = &tsdb.Field{Name: n, Type: t}
+	}
+	codec := tsdb.NewFieldCodec(m)
+
+	return &FieldCodeMock{codec: codec}
+}
+
+type FieldCodeMock struct {
+	codec *tsdb.FieldCodec
+}
+
+func (f *FieldCodeMock) FieldCodec(m string) *tsdb.FieldCodec {
+	return f.codec
+}
+
+func parsePoints(buf string) []tsdb.Point {
 	points, err := tsdb.ParsePointsString(buf)
 	if err != nil {
 		panic(fmt.Sprintf("couldn't parse points: %s", err.Error()))
 	}
-	for _, p := range points {
-		b, err := codec.EncodeFields(p.Fields())
-		if err != nil {
-			panic(fmt.Sprintf("couldn't encode fields: %s", err.Error()))
-		}
-		p.SetData(b)
-	}
 	return points
 }
 
-func parsePoint(buf string, codec *tsdb.FieldCodec) tsdb.Point {
-	return parsePoints(buf, codec)[0]
+func parsePoint(buf string) tsdb.Point {
+	return parsePoints(buf)[0]
 }
 
 func inttob(v int) []byte {
@@ -193,4 +219,8 @@ func u64tob(v uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, v)
 	return b
+}
+
+func btof64(b []byte) float64 {
+	return math.Float64frombits(binary.BigEndian.Uint64(b))
 }

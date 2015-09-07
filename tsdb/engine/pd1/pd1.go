@@ -55,9 +55,9 @@ const (
 	// DefaultBlockSize is the default size of uncompressed points blocks.
 	DefaultBlockSize = 512 * 1024 // 512KB
 
-	DefaultMaxFileSize = 50 * 1024 * 1024 // 50MB
+	DefaultMaxFileSize = 5 * 1024 * 1024 // 5MB
 
-	DefaultMaxPointsPerBlock = 5000
+	DefaultMaxPointsPerBlock = 1000
 
 	// MAP_POPULATE is for the mmap syscall. For some reason this isn't defined in golang's syscall
 	MAP_POPULATE = 0x8000
@@ -71,11 +71,14 @@ type Engine struct {
 	mu   sync.Mutex
 	path string
 
-	shard *tsdb.Shard
-
 	// HashSeriesField is a function that takes a series key and a field name
 	// and returns a hash identifier. It's not guaranteed to be unique.
 	HashSeriesField func(key string) uint64
+
+	// Shard is an interface that can pull back field type information based on measurement name
+	Shard interface {
+		FieldCodec(measurementName string) *tsdb.FieldCodec
+	}
 
 	filesLock     sync.RWMutex
 	files         dataFiles
@@ -108,11 +111,34 @@ func (e *Engine) Open() error {
 	// TODO: clean up previous names write
 	// TODO: clean up any data files that didn't get cleaned up
 
+	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", Format)))
+	if err != nil {
+		return err
+	}
+	for _, fn := range files {
+		f, err := os.OpenFile(fn, os.O_RDONLY, 0666)
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %s", fn, err.Error())
+		}
+		df, err := NewDataFile(f)
+		if err != nil {
+			return fmt.Errorf("error opening memory map for file %s: %s", fn, err.Error())
+		}
+		e.files = append(e.files, df)
+	}
+	sort.Sort(e.files)
+
 	return nil
 }
 
 // Close closes the engine.
 func (e *Engine) Close() error {
+	e.queryLock.Lock()
+	defer e.queryLock.Unlock()
+
+	for _, df := range e.files {
+		_ = df.Close()
+	}
 	return nil
 }
 
@@ -121,7 +147,7 @@ func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
-	e.shard = shard
+	e.Shard = shard
 	// TODO: write the metadata from the WAL
 
 	// Load measurement metadata
@@ -165,7 +191,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	// TODO: Write points to the WAL
 
-	return nil
+	return e.WriteAndCompact(points, measurementFieldsToSave, seriesToCreate)
 }
 
 func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
@@ -199,8 +225,6 @@ func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave ma
 			ids[e.HashSeriesField(n)] = n
 		}
 	}
-
-	fmt.Println("read names: ", len(names), len(ids))
 
 	// these are values that are newer than anything stored in the shard
 	valuesByID := make(map[uint64]*valueCollection)
@@ -288,7 +312,6 @@ func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave ma
 		}
 	}
 
-	fmt.Println("writing names:", len(names))
 	b, err = json.Marshal(names)
 	if err != nil {
 		return err
@@ -302,14 +325,13 @@ func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave ma
 	if overwriteNewestFile {
 		if err := e.rewriteFile(newestDataFile, valuesByID); err != nil {
 			return err
-		} else if err := e.rewriteFile(nil, valuesByID); err != nil {
-			return err
 		}
+	} else if err := e.rewriteFile(nil, valuesByID); err != nil {
+		return err
 	}
 
 	// flush each of the old ones
 	for df, vals := range dataFileToValues {
-		fmt.Println("writing vals to old file: ", df.f.Name())
 		if err := e.rewriteFile(df, vals); err != nil {
 			return err
 		}
@@ -374,6 +396,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 		f.Close()
 		return nil
 	}
+
 	// write the series ids and empty starting positions
 	for _, id := range ids {
 		if _, err := f.Write(append(u64tob(id), []byte{0x00, 0x00, 0x00, 0x00}...)); err != nil {
@@ -423,6 +446,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 		// if the values are not in the file, just write the new ones
 		fpos, ok := oldIDToPosition[id]
 		if !ok {
+			// TODO: ensure we encode only the amount in a block
 			block := newVals.Encode(buf)
 			if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
 				f.Close()
@@ -444,7 +468,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 				break
 			}
 			length := btou32(oldDF.mmap[fpos+8 : fpos+12])
-			block := oldDF.mmap[fpos : fpos+12+length]
+			block := oldDF.mmap[fpos+12 : fpos+12+length]
 			fpos += (12 + length)
 
 			// determine if there's a block after this with the same id and get its time
@@ -476,6 +500,21 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 			if fpos >= oldDF.size {
 				break
 			}
+		}
+
+		// TODO: ensure we encode only the amount in a block, refactor this wil line 450 into func
+		if len(newVals.floatValues) > 0 {
+			// TODO: ensure we encode only the amount in a block
+			block := newVals.Encode(buf)
+			if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
+				f.Close()
+				return err
+			}
+			if _, err := f.Write(block); err != nil {
+				f.Close()
+				return err
+			}
+			currentPosition += uint32(12 + len(block))
 		}
 	}
 
@@ -572,7 +611,6 @@ func (e *Engine) replaceCompressedFile(name string, data []byte) error {
 	if _, err := f.Write(b); err != nil {
 		return err
 	}
-	fmt.Println("compressed: ", len(b))
 	if err := f.Close(); err != nil {
 		return err
 	}
@@ -605,7 +643,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 // TODO: make the cursor take a field name
 func (e *Engine) Cursor(series string, direction tsdb.Direction) tsdb.Cursor {
 	measurementName := tsdb.MeasurementFromSeriesKey(series)
-	codec := e.shard.FieldCodec(measurementName)
+	codec := e.Shard.FieldCodec(measurementName)
 	if codec == nil {
 		return &cursor{}
 	}
@@ -658,7 +696,7 @@ func (e *Engine) writeFields(fields map[string]*tsdb.MeasurementFields) error {
 		return err
 	}
 
-	fn := e.path + "." + FieldsFileExtension + "tmp"
+	fn := filepath.Join(e.path, FieldsFileExtension+"tmp")
 	ff, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
@@ -670,7 +708,7 @@ func (e *Engine) writeFields(fields map[string]*tsdb.MeasurementFields) error {
 	if err := ff.Close(); err != nil {
 		return err
 	}
-	fieldsFileName := e.path + "." + FieldsFileExtension
+	fieldsFileName := filepath.Join(e.path, FieldsFileExtension)
 
 	if _, err := os.Stat(fieldsFileName); !os.IsNotExist(err) {
 		if err := os.Remove(fieldsFileName); err != nil {
@@ -684,7 +722,7 @@ func (e *Engine) writeFields(fields map[string]*tsdb.MeasurementFields) error {
 func (e *Engine) readFields() (map[string]*tsdb.MeasurementFields, error) {
 	fields := make(map[string]*tsdb.MeasurementFields)
 
-	f, err := os.OpenFile(e.path+"."+FieldsFileExtension, os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(e.path, FieldsFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return fields, nil
 	} else if err != nil {
@@ -732,7 +770,7 @@ func (e *Engine) writeSeries(series map[string]*tsdb.Series) error {
 		return err
 	}
 
-	fn := e.path + "." + SeriesFileExtension + "tmp"
+	fn := filepath.Join(e.path, SeriesFileExtension+"tmp")
 	ff, err := os.OpenFile(fn, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
@@ -744,7 +782,7 @@ func (e *Engine) writeSeries(series map[string]*tsdb.Series) error {
 	if err := ff.Close(); err != nil {
 		return err
 	}
-	seriesFileName := e.path + "." + SeriesFileExtension
+	seriesFileName := filepath.Join(e.path, SeriesFileExtension)
 
 	if _, err := os.Stat(seriesFileName); !os.IsNotExist(err) {
 		if err := os.Remove(seriesFileName); err != nil && err != os.ErrNotExist {
@@ -758,7 +796,7 @@ func (e *Engine) writeSeries(series map[string]*tsdb.Series) error {
 func (e *Engine) readSeries() (map[string]*tsdb.Series, error) {
 	series := make(map[string]*tsdb.Series)
 
-	f, err := os.OpenFile(e.path+"."+SeriesFileExtension, os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(e.path, SeriesFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return series, nil
 	} else if err != nil {
@@ -843,14 +881,15 @@ func (v *valueCollection) DecodeAndCombine(block, buf []byte, nextTime int64, ha
 		}
 
 		if hasFutureBlock {
-			for i, val := range v.floatValues {
-				if val.Time.UnixNano() > nextTime {
-					values = append(values, v.floatValues[:i]...)
-					v.floatValues = v.floatValues[i:]
-				}
-			}
+			// take all values that have times less than the future block and update the vals array
+			pos := sort.Search(len(v.floatValues), func(i int) bool {
+				return v.floatValues[i].Time.UnixNano() >= nextTime
+			})
+			values = append(values, v.floatValues[:pos]...)
+			v.floatValues = v.floatValues[pos:]
 		} else {
 			values = append(values, v.floatValues...)
+			v.floatValues = nil
 		}
 		sort.Sort(FloatValues(values))
 		// TODO: deduplicate values
@@ -955,7 +994,8 @@ func (d *dataFile) IDToPosition() map[uint64]uint32 {
 	for i := 0; i < count; i++ {
 		offset := 20 + (i * 12)
 		id := btou64(d.mmap[offset : offset+8])
-		m[id] = btou32(d.mmap[offset+8 : offset+12])
+		pos := btou32(d.mmap[offset+8 : offset+12])
+		m[id] = pos
 	}
 
 	return m
@@ -968,26 +1008,23 @@ func (d *dataFile) StartingPositionForID(id uint64) uint32 {
 	seriesCount := d.SeriesCount()
 
 	min := 0
-	max := seriesCount
-	// // set the minimum position to the first after the file header
-	// posMin := fileHeaderSize
-
-	// // set the maximum position to the end of the series header
-	// posMax := fileHeaderSize + (seriesCount * seriesHeaderSize)
+	max := int(seriesCount)
 
 	for min < max {
 		mid := (max-min)/2 + min
 
 		offset := mid*seriesHeaderSize + fileHeaderSize
-		checkID := btou64(d.mmap[offset:8])
+		checkID := btou64(d.mmap[offset : offset+8])
 
 		if checkID == id {
 			return btou32(d.mmap[offset+8 : offset+12])
 		} else if checkID < id {
 			min = mid + 1
+		} else {
+			max = mid
 		}
-		max = mid
 	}
+
 	return uint32(0)
 }
 
@@ -998,12 +1035,12 @@ func (a dataFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() }
 
 type cursor struct {
-	id          uint64
-	dataType    influxql.DataType
-	f           *dataFile
-	dataFilePos int
-	pos         uint32
-	vals        []FloatValues
+	id       uint64
+	dataType influxql.DataType
+	f        *dataFile
+	filesPos int // the index in the files slice we're looking at
+	pos      uint32
+	vals     FloatValues
 
 	direction tsdb.Direction
 
@@ -1013,29 +1050,136 @@ type cursor struct {
 
 func newCursor(id uint64, dataType influxql.DataType, files []*dataFile, direction tsdb.Direction) *cursor {
 	return &cursor{
-		ids:       id,
-		types:     dataType,
+		id:        id,
+		dataType:  dataType,
 		direction: direction,
 		files:     files,
 	}
 }
 
-func (c *cursor) Seek(seek []byte) (key, value []byte) { return nil, nil }
+func (c *cursor) Seek(seek []byte) (key, value []byte) {
+	t := int64(btou64(seek))
 
-func (c *cursor) Next() (key, value []byte) {
-	if vals == nil {
-		// loop until we find a file with some data
-		for dataFilePos < len(c.files) {
-			f = c.files[c.dataFilePos]
-			c.dataFilePos++
-
-			//			startPosition := f
+	if t < c.files[0].MinTime() {
+		c.filesPos = 0
+		c.f = c.files[0]
+	} else {
+		for i, f := range c.files {
+			if t >= f.MinTime() && t <= f.MaxTime() {
+				c.filesPos = i
+				c.f = f
+				break
+			}
 		}
 	}
-	return nil, nil
+
+	if c.f == nil {
+		return nil, nil
+	}
+
+	// TODO: make this for the reverse direction cursor
+
+	// now find the spot in the file we need to go
+	for {
+		pos := c.f.StartingPositionForID(c.id)
+
+		// if this id isn't in this file, move to next one or return
+		if pos == 0 {
+			c.filesPos++
+			if c.filesPos >= len(c.files) {
+				return nil, nil
+			}
+			c.f = c.files[c.filesPos]
+			continue
+		}
+
+		// seek to the block and values we're looking for
+		for {
+			// if the time is between this block and the next,
+			// decode this block and go, otherwise seek to next block
+			length := btou32(c.f.mmap[pos+8 : pos+12])
+
+			// if the next block has a time less than what we're seeking to,
+			// skip decoding this block and continue on
+			nextBlockPos := pos + 12 + length
+			if nextBlockPos < c.f.size {
+				nextBlockID := btou64(c.f.mmap[nextBlockPos : nextBlockPos+8])
+				if nextBlockID == c.id {
+					nextBlockTime := int64(btou64(c.f.mmap[nextBlockPos+12 : nextBlockPos+20]))
+					if nextBlockTime <= t {
+						pos = nextBlockPos
+						continue
+					}
+				}
+			}
+
+			// it must be in this block or not at all
+			tb, vb := c.decodeBlockAndGetValues(pos)
+			if int64(btou64(tb)) >= t {
+				return tb, vb
+			}
+
+			// wasn't in the first value popped out of the block, check the rest
+			for i, v := range c.vals {
+				if v.Time.UnixNano() >= t {
+					c.vals = c.vals[i+1:]
+					return v.TimeBytes(), v.ValueBytes()
+				}
+			}
+
+			// not in this one, let the top loop look for it in the next file
+			break
+		}
+	}
 }
 
-func (c *cursor) next(id uint64) (key, value []byte)
+func (c *cursor) Next() (key, value []byte) {
+	if len(c.vals) == 0 {
+		// if we have a file set, see if the next block is for this ID
+		if c.f != nil && c.pos < c.f.size {
+			nextBlockID := btou64(c.f.mmap[c.pos : c.pos+8])
+			if nextBlockID == c.id {
+				return c.decodeBlockAndGetValues(c.pos)
+			}
+		}
+
+		// if the file is nil we hit the end of the previous file, advance the file cursor
+		if c.f != nil {
+			c.filesPos++
+		}
+
+		// loop until we find a file with some data
+		for c.filesPos < len(c.files) {
+			f := c.files[c.filesPos]
+
+			startingPos := f.StartingPositionForID(c.id)
+			if startingPos == 0 {
+				continue
+			}
+			c.f = f
+			return c.decodeBlockAndGetValues(startingPos)
+		}
+
+		// we didn't get to a file that had a next value
+		return nil, nil
+	}
+
+	v := c.vals[0]
+	c.vals = c.vals[1:]
+
+	return v.TimeBytes(), v.ValueBytes()
+}
+
+func (c *cursor) decodeBlockAndGetValues(position uint32) ([]byte, []byte) {
+	length := btou32(c.f.mmap[position+8 : position+12])
+	block := c.f.mmap[position+12 : position+12+length]
+	c.vals, _ = DecodeFloatBlock(block)
+	c.pos = position + 12 + length
+
+	v := c.vals[0]
+	c.vals = c.vals[1:]
+	return v.TimeBytes(), v.ValueBytes()
+}
 
 func (c *cursor) Direction() tsdb.Direction { return c.direction }
 

@@ -229,28 +229,29 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	}
 
 	// make sure all data is encoded before attempting to save to bolt
-	for _, p := range points {
-		// Ignore if raw data has already been marshaled.
-		if p.Data() != nil {
-			continue
-		}
+	// TODO: make this only commented out for pd1 engine
+	// for _, p := range points {
+	// 	// Ignore if raw data has already been marshaled.
+	// 	if p.Data() != nil {
+	// 		continue
+	// 	}
 
-		// This was populated earlier, don't need to validate that it's there.
-		s.mu.RLock()
-		mf := s.measurementFields[p.Name()]
-		s.mu.RUnlock()
+	// 	// This was populated earlier, don't need to validate that it's there.
+	// 	s.mu.RLock()
+	// 	mf := s.measurementFields[p.Name()]
+	// 	s.mu.RUnlock()
 
-		// If a measurement is dropped while writes for it are in progress, this could be nil
-		if mf == nil {
-			return ErrFieldNotFound
-		}
+	// 	// If a measurement is dropped while writes for it are in progress, this could be nil
+	// 	if mf == nil {
+	// 		return ErrFieldNotFound
+	// 	}
 
-		data, err := mf.Codec.EncodeFields(p.Fields())
-		if err != nil {
-			return err
-		}
-		p.SetData(data)
-	}
+	// 	data, err := mf.Codec.EncodeFields(p.Fields())
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	p.SetData(data)
+	// }
 
 	// Write to the engine.
 	if err := s.engine.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
@@ -741,11 +742,14 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
-	fi := f.FieldByName(name)
-	if fi == nil {
-		return 0, ErrFieldNotFound
-	}
-	return f.DecodeByID(fi.ID, b)
+	// TODO: this is a hack for PD1 testing, please to remove
+	return math.Float64frombits(binary.BigEndian.Uint64(b)), nil
+
+	// fi := f.FieldByName(name)
+	// if fi == nil {
+	// 	return 0, ErrFieldNotFound
+	// }
+	// return f.DecodeByID(fi.ID, b)
 }
 
 func (f *FieldCodec) Fields() (a []*Field) {
