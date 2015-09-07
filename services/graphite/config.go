@@ -73,6 +73,12 @@ func (c *Config) WithDefaults() *Config {
 	if d.Protocol == "" {
 		d.Protocol = DefaultProtocol
 	}
+	if d.BatchSize == 0 {
+		d.BatchSize = DefaultBatchSize
+	}
+	if d.BatchTimeout == 0 {
+		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	}
 	if d.ConsistencyLevel == "" {
 		d.ConsistencyLevel = DefaultConsistencyLevel
 	}
