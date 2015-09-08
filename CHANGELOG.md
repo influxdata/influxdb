@@ -41,6 +41,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#4034](https://github.com/influxdb/influxdb/pull/4034): Rollback bolt tx on mapper open error
 - [#3848](https://github.com/influxdb/influxdb/issues/3848): restart influxdb causing panic
 - [#3881](https://github.com/influxdb/influxdb/issues/3881): panic: runtime error: invalid memory address or nil pointer dereference
+- [#3926](https://github.com/influxdb/influxdb/issues/3926): First or last value of `GROUP BY time(x)` is often null. Fixed by [#4038](https://github.com/influxdb/influxdb/pull/4038)
 
 ## v0.9.3 [2015-08-26]
 
