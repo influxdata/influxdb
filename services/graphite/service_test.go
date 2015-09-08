@@ -19,7 +19,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 
-	config := graphite.NewConfig()
+	config := graphite.Config{}
 	config.Database = "graphitedb"
 	config.BatchSize = 0 // No batching.
 	config.BatchTimeout = toml.Duration(time.Second)
@@ -87,7 +87,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 
-	config := graphite.NewConfig()
+	config := graphite.Config{}
 	config.Database = "graphitedb"
 	config.BatchSize = 0 // No batching.
 	config.BatchTimeout = toml.Duration(time.Second)
