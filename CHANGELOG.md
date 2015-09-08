@@ -20,6 +20,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3996](https://github.com/influxdb/influxdb/pull/3996): Add statistics to httpd package
 - [#4003](https://github.com/influxdb/influxdb/pull/4033): Add logrotate configuration.
 - [#4043](https://github.com/influxdb/influxdb/pull/4043): Add stats and batching to openTSDB input
+- [#4042](https://github.com/influxdb/influxdb/pull/4042): Add pending batches control to batcher
 
 ### Bugfixes
 - [#3785](https://github.com/influxdb/influxdb/issues/3785): Invalid time stamp in graphite metric causes panic
