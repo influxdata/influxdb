@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"expvar"
 	"io"
 	"log"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
@@ -22,12 +24,27 @@ import (
 
 const leaderWaitTimeout = 30 * time.Second
 
+// statistics gathered by the openTSDB package.
+const (
+	statHTTPConnectionsHandled   = "http_connections_handled"
+	statTelnetConnectionsActive  = "tl_connections_active"
+	statTelnetConnectionsHandled = "tl_connections_handled"
+	statTelnetPointsReceived     = "tl_points_rx"
+	statTelnetBytesReceived      = "tl_bytes_rx"
+	statBatchesTrasmitted        = "batches_tx"
+	statPointsTransmitted        = "points_tx"
+	statBatchesTransmitFail      = "batches_tx_fail"
+	statConnectionsActive        = "connections_active"
+	statConnectionsHandled       = "connections_handled"
+)
+
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
 	wg   sync.WaitGroup
+	done chan struct{}
 	err  chan error
 	tls  bool
 	cert string
@@ -45,7 +62,13 @@ type Service struct {
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 
-	Logger *log.Logger
+	// Points received over the telnet protocol are batched.
+	batchSize    int
+	batchTimeout time.Duration
+	batcher      *tsdb.PointBatcher
+
+	Logger  *log.Logger
+	statMap *expvar.Map
 }
 
 // NewService returns a new instance of Service.
@@ -56,6 +79,7 @@ func NewService(c Config) (*Service, error) {
 	}
 
 	s := &Service{
+		done:             make(chan struct{}),
 		tls:              c.TLSEnabled,
 		cert:             c.Certificate,
 		err:              make(chan error),
@@ -63,6 +87,8 @@ func NewService(c Config) (*Service, error) {
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,
 		ConsistencyLevel: consistencyLevel,
+		batchSize:        c.BatchSize,
+		batchTimeout:     time.Duration(c.BatchTimeout),
 		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
 	}
 	return s, nil
@@ -71,6 +97,12 @@ func NewService(c Config) (*Service, error) {
 // Open starts the service
 func (s *Service) Open() error {
 	s.Logger.Println("Starting OpenTSDB service")
+
+	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
+	// should be done before any data could arrive for the service.
+	key := strings.Join([]string{"opentsdb", s.BindAddress}, ":")
+	tags := map[string]string{"bind": s.BindAddress}
+	s.statMap = influxdb.NewStatistics(key, "opentsdb", tags)
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
 		s.Logger.Printf("Failed to detect a cluster leader: %s", err.Error())
@@ -81,6 +113,13 @@ func (s *Service) Open() error {
 		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Database, err.Error())
 		return err
 	}
+
+	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
+	s.batcher.Start()
+
+	// Start processing batches.
+	s.wg.Add(1)
+	go s.processBatches(s.batcher)
 
 	// Open listener.
 	if s.tls {
@@ -123,6 +162,8 @@ func (s *Service) Close() error {
 		return s.ln.Close()
 	}
 
+	s.batcher.Stop()
+	close(s.done)
 	s.wg.Wait()
 	return nil
 }
@@ -176,6 +217,7 @@ func (s *Service) handleConn(conn net.Conn) {
 
 	// If no HTTP parsing error occurred then process as HTTP.
 	if err == nil {
+		s.statMap.Add(statHTTPConnectionsHandled, 1)
 		s.httpln.ch <- conn
 		return
 	}
@@ -191,6 +233,9 @@ func (s *Service) handleConn(conn net.Conn) {
 func (s *Service) handleTelnetConn(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
+	defer s.statMap.Add(statTelnetConnectionsActive, -1)
+	s.statMap.Add(statTelnetConnectionsActive, 1)
+	s.statMap.Add(statTelnetConnectionsHandled, 1)
 
 	// Wrap connection in a text protocol reader.
 	r := textproto.NewReader(bufio.NewReader(conn))
@@ -200,6 +245,8 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			s.Logger.Println("error reading from openTSDB connection", err.Error())
 			return
 		}
+		s.statMap.Add(statTelnetPointsReceived, 1)
+		s.statMap.Add(statTelnetBytesReceived, int64(len(line)))
 
 		inputStrs := strings.Fields(line)
 
@@ -255,16 +302,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			continue
 		}
 
-		p := tsdb.NewPoint(measurement, tags, fields, t)
-		if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-			Database:         s.Database,
-			RetentionPolicy:  s.RetentionPolicy,
-			ConsistencyLevel: s.ConsistencyLevel,
-			Points:           []tsdb.Point{p},
-		}); err != nil {
-			s.Logger.Println("TSDB cannot write data: ", err)
-			continue
-		}
+		s.batcher.In() <- tsdb.NewPoint(measurement, tags, fields, t)
 	}
 }
 
@@ -278,4 +316,29 @@ func (s *Service) serveHTTP() {
 		Logger:           s.Logger,
 	}}
 	srv.Serve(s.httpln)
+}
+
+// processBatches continually drains the given batcher and writes the batches to the database.
+func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
+	defer s.wg.Done()
+	for {
+		select {
+		case batch := <-batcher.Out():
+			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
+				Database:         s.Database,
+				RetentionPolicy:  s.RetentionPolicy,
+				ConsistencyLevel: s.ConsistencyLevel,
+				Points:           batch,
+			}); err == nil {
+				s.statMap.Add(statBatchesTrasmitted, 1)
+				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
+			} else {
+				s.Logger.Printf("failed to write point batch to database %q: %s", s.Database, err)
+				s.statMap.Add(statBatchesTransmitFail, 1)
+			}
+
+		case <-s.done:
+			return
+		}
+	}
 }
