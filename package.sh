@@ -416,7 +416,7 @@ else
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
-COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR --config-files $LOGROTATE_DIR."
+COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR --config-files $LOGROTATE_DIR ."
 
 if [ -n "$DEB_WANTED" ]; then
     $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
