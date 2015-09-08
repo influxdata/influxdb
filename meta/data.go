@@ -132,7 +132,7 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 			return &di.RetentionPolicies[i], nil
 		}
 	}
-	return nil, ErrRetentionPolicyNotFound
+	return nil, nil
 }
 
 // CreateRetentionPolicy creates a new retention policy on a database.
