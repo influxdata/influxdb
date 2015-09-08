@@ -9,7 +9,7 @@ var expvarMu sync.Mutex
 
 // NewStatistics returns an expvar-based map with the given key. Within that map
 // is another map. Within there "name" is the Measurement name, "tags" are the tags,
-// and values are placed at the key "values.
+// and values are placed at the key "values".
 func NewStatistics(key, name string, tags map[string]string) *expvar.Map {
 	expvarMu.Lock()
 	defer expvarMu.Unlock()
