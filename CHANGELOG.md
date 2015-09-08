@@ -25,6 +25,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3886](https://github.com/influxdb/influxdb/pull/3886): Prevent write timeouts due to lock contention in WAL
 - [#3574](https://github.com/influxdb/influxdb/issues/3574): Querying data node causes panic
 - [#3913](https://github.com/influxdb/influxdb/issues/3913): Convert meta shard owners to objects
+- [#4026](https://github.com/influxdb/influxdb/pull/4026): Support multiple Graphite inputs. Fixes issue [#3636](https://github.com/influxdb/influxdb/issues/3636)
 - [#3927](https://github.com/influxdb/influxdb/issues/3927): Add WAL lock to prevent timing lock contention
 - [#3928](https://github.com/influxdb/influxdb/issues/3928): Write fails for multiple points when tag starts with quote
 - [#3901](https://github.com/influxdb/influxdb/pull/3901): Unblock relaxed write consistency level Thanks @takayuki!

@@ -47,19 +47,6 @@ type Config struct {
 	Separator        string        `toml:"separator"`
 }
 
-// NewConfig returns a new Config with defaults.
-func NewConfig() Config {
-	return Config{
-		BindAddress:      DefaultBindAddress,
-		Database:         DefaultDatabase,
-		Protocol:         DefaultProtocol,
-		BatchSize:        DefaultBatchSize,
-		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
-		ConsistencyLevel: DefaultConsistencyLevel,
-		Separator:        DefaultSeparator,
-	}
-}
-
 // WithDefaults takes the given config and returns a new config with any required
 // default values set.
 func (c *Config) WithDefaults() *Config {
@@ -72,6 +59,12 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.Protocol == "" {
 		d.Protocol = DefaultProtocol
+	}
+	if d.BatchSize == 0 {
+		d.BatchSize = DefaultBatchSize
+	}
+	if d.BatchTimeout == 0 {
+		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
 	}
 	if d.ConsistencyLevel == "" {
 		d.ConsistencyLevel = DefaultConsistencyLevel

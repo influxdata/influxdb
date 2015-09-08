@@ -51,7 +51,7 @@ tags=["region=us-east"]
 }
 
 func TestConfigValidateEmptyTemplate(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Templates = []string{""}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
@@ -64,7 +64,7 @@ func TestConfigValidateEmptyTemplate(t *testing.T) {
 }
 
 func TestConfigValidateTooManyField(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Templates = []string{"a measurement b c"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
@@ -72,7 +72,7 @@ func TestConfigValidateTooManyField(t *testing.T) {
 }
 
 func TestConfigValidateTemplatePatterns(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Templates = []string{"*measurement"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
@@ -85,7 +85,7 @@ func TestConfigValidateTemplatePatterns(t *testing.T) {
 }
 
 func TestConfigValidateFilter(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Templates = []string{".server measurement*"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
@@ -103,7 +103,7 @@ func TestConfigValidateFilter(t *testing.T) {
 }
 
 func TestConfigValidateTemplateTags(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Templates = []string{"*.server measurement* foo"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
@@ -126,7 +126,7 @@ func TestConfigValidateTemplateTags(t *testing.T) {
 }
 
 func TestConfigValidateDefaultTags(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Tags = []string{"foo"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
@@ -149,7 +149,7 @@ func TestConfigValidateDefaultTags(t *testing.T) {
 }
 
 func TestConfigValidateFilterDuplicates(t *testing.T) {
-	c := graphite.NewConfig()
+	c := &graphite.Config{}
 	c.Templates = []string{"foo measurement*", "foo .host.measurement"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")
