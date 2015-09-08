@@ -7,7 +7,7 @@ machine:
 
 dependencies:
     override:
-        - echo "Dummy override"
+        - mkdir -p ~/docker
     cache_directories:
         - "~/docker"
 test:
