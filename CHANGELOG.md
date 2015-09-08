@@ -23,6 +23,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#4042](https://github.com/influxdb/influxdb/pull/4042): Add pending batches control to batcher
 
 ### Bugfixes
+- [#4042](https://github.com/influxdb/influxdb/pull/4042): Set UDP input batching defaults as needed.
 - [#3785](https://github.com/influxdb/influxdb/issues/3785): Invalid time stamp in graphite metric causes panic
 - [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
 - [#3823](https://github.com/influxdb/influxdb/pull/3823): Deterministic ordering for first() and last()
