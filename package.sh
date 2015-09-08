@@ -382,7 +382,7 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 
-cp $LOGROTATE $TMP_WORK_DIR/$LOGROTATE_DIR/influxdb.conf
+cp $LOGROTATE $TMP_WORK_DIR/$LOGROTATE_DIR/influxdb
 if [ $? -ne 0 ]; then
     echo "Failed to copy logrotate configuration to packaging directory -- aborting."
     cleanup_exit 1
