@@ -186,7 +186,7 @@ do_build() {
     for b in ${BINS[*]}; do
         rm -f $GOPATH_INSTALL/bin/$b
     done
-    
+
     if [ -n "$WORKING_DIR" ]; then
         STASH=`git stash create -a`
         if [ $? -ne 0 ]; then
@@ -194,21 +194,21 @@ do_build() {
         fi
         git reset --hard
     fi
-        
+
     go get -u -f -d ./...
     if [ $? -ne 0 ]; then
         echo "WARNING: failed to 'go get' packages."
     fi
 
     git checkout $TARGET_BRANCH # go get switches to master, so ensure we're back.
-    
+
     if [ -n "$WORKING_DIR" ]; then
         git stash apply $STASH
         if [ $? -ne 0 ]; then #and apply previous uncommited local changes
             echo "WARNING: failed to restore uncommited local changes"
         fi
     fi
-        
+
     version=$1
     commit=`git rev-parse HEAD`
     branch=`current_branch`
@@ -266,7 +266,7 @@ EOF
 while :
 do
   case $1 in
-    -h | --help) 
+    -h | --help)
 	usage 0
 	;;
     -p | --packages-only)
@@ -292,7 +292,7 @@ do
 	PACKAGES_ONLY="PACKAGES_ONLY"
         WORKING_DIR="WORKING_DIR"
 	shift
-	;;        
+	;;
     -*)
         echo "Unknown option $1"
         usage 1
@@ -314,7 +314,7 @@ done
 if [ -z "$DEB_WANTED$RPM_WANTED$TAR_WANTED" ]; then
   TAR_WANTED="gz"
   DEB_WANTED="deb"
-  RPM_WANTED="rpm" 
+  RPM_WANTED="rpm"
 fi
 
 if [ -z "$VERSION" ]; then
