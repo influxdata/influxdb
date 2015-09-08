@@ -387,7 +387,8 @@ func (s *Server) Close() error {
 		s.Listener.Close()
 	}
 
-	// Close services to any inflight requests can be stopped
+	// Close services to allow any inflight requests to complete
+	// and prevent new requests from being accepted.
 	for _, service := range s.Services {
 		service.Close()
 	}
