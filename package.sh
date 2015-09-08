@@ -40,9 +40,11 @@ INSTALL_ROOT_DIR=/opt/influxdb
 INFLUXDB_LOG_DIR=/var/log/influxdb
 INFLUXDB_DATA_DIR=/var/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
+LOGROTATE_DIR=/etc/logrotate.d
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
 INITD_SCRIPT=scripts/init.sh
+LOGROTATE=scripts/logrotate
 
 TMP_WORK_DIR=`mktemp -d`
 POST_INSTALL_PATH=`mktemp`
@@ -177,6 +179,11 @@ make_dir_tree() {
     mkdir -p $work_dir/$CONFIG_ROOT_DIR
     if [ $? -ne 0 ]; then
         echo "Failed to create configuration directory -- aborting."
+        cleanup_exit 1
+    fi
+    mkdir -p $work_dir/$LOGROTATE_DIR
+    if [ $? -ne 0 ]; then
+        echo "Failed to create logrotate directory -- aborting."
         cleanup_exit 1
     fi
 }
@@ -375,6 +382,12 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 
+cp $LOGROTATE $TMP_WORK_DIR/$LOGROTATE_DIR/influxdb.conf
+if [ $? -ne 0 ]; then
+    echo "Failed to copy logrotate configuration to packaging directory -- aborting."
+    cleanup_exit 1
+fi
+
 generate_postinstall_script $VERSION
 
 ###########################################################################
@@ -403,7 +416,7 @@ else
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
-COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
+COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR --config-files $LOGROTATE_DIR."
 
 if [ -n "$DEB_WANTED" ]; then
     $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
