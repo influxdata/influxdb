@@ -861,6 +861,7 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	); err != nil {
 		return nil, err
 	}
+	s.Logger.Printf("database '%s' created", name)
 
 	if s.retentionAutoCreate {
 		// Read node count.
@@ -980,6 +981,7 @@ func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo)
 		return nil, err
 	}
 
+	s.Logger.Printf("retention policy '%s' for database '%s' created", rpi.Name, database)
 	return s.RetentionPolicy(database, rpi.Name)
 }
 
