@@ -36,6 +36,8 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3980](https://github.com/influxdb/influxdb/pull/3980): 'service stop' waits until service actually stops. Fixes issue #3548.
 - [#4016](https://github.com/influxdb/influxdb/pull/4016): Shutdown Graphite UDP on SIGTERM.
 - [#4034](https://github.com/influxdb/influxdb/pull/4034): Rollback bolt tx on mapper open error
+- [#3848](https://github.com/influxdb/influxdb/issues/3848): restart influxdb causing panic
+- [#3881](https://github.com/influxdb/influxdb/issues/3881): panic: runtime error: invalid memory address or nil pointer dereference
 
 ## v0.9.3 [2015-08-26]
 

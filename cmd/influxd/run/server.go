@@ -382,23 +382,33 @@ func (s *Server) Open() error {
 func (s *Server) Close() error {
 	stopProfile()
 
+	// Close the listener first to stop any new connections
 	if s.Listener != nil {
 		s.Listener.Close()
 	}
-	if s.MetaStore != nil {
-		s.MetaStore.Close()
+
+	// Close services to allow any inflight requests to complete
+	// and prevent new requests from being accepted.
+	for _, service := range s.Services {
+		service.Close()
 	}
-	if s.TSDBStore != nil {
-		s.TSDBStore.Close()
-	}
-	if s.HintedHandoff != nil {
-		s.HintedHandoff.Close()
-	}
+
 	if s.Monitor != nil {
 		s.Monitor.Close()
 	}
-	for _, service := range s.Services {
-		service.Close()
+
+	if s.HintedHandoff != nil {
+		s.HintedHandoff.Close()
+	}
+
+	// Close the TSDBStore, no more reads or writes at this point
+	if s.TSDBStore != nil {
+		s.TSDBStore.Close()
+	}
+
+	// Finally close the meta-store since everything else depends on it
+	if s.MetaStore != nil {
+		s.MetaStore.Close()
 	}
 
 	close(s.closing)

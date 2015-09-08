@@ -108,7 +108,7 @@ func (s *Service) Close() error {
 
 	// Shut down all handlers.
 	close(s.closing)
-	// s.wg.Wait() // FIXME(benbjohnson)
+	s.wg.Wait()
 
 	return nil
 }
