@@ -190,7 +190,7 @@ func (lm *SelectMapper) Open() error {
 				return nil
 			}
 
-			// Validate that ANY GROUP BY is not a field for thie measurement.
+			// Validate that ANY GROUP BY is not a field for the measurement.
 			if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
 				return err
 			}
@@ -414,11 +414,16 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 				Value: make([]interface{}, 0)}
 		}
 
-		// Always clamp tmin. This can happen as bucket-times are bucketed to the nearest
-		// interval, and this can be less than the times in the query.
+		// Always clamp tmin and tmax. This can happen as bucket-times are bucketed to the nearest
+		// interval. This is necessary to grab the "partial" buckets at the beginning and end of the time range
 		qmin := tmin
 		if qmin < lm.queryTMin {
 			qmin = lm.queryTMin
+		}
+		qmax := tmax
+		if qmax > lm.queryTMax {
+			// Need to offset by one nanosecond for the logic to work properly in the tagset cursor Next
+			qmax = lm.queryTMax + 1
 		}
 
 		tsc.pointHeap = newPointHeap()
@@ -428,7 +433,7 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			// changes to the mapper functions, which can come later.
 			// Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
-				k, v := tsc.cursors[i].SeekTo(tmin)
+				k, v := tsc.cursors[i].SeekTo(qmin)
 				if k == -1 || k > tmax {
 					continue
 				}
@@ -440,8 +445,8 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 				heap.Push(tsc.pointHeap, p)
 			}
 			// Wrap the tagset cursor so it implements the mapping functions interface.
-			nextf := func() (time int64, value interface{}) {
-				k, v := tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
+			nextf := func() (_ int64, value interface{}) {
+				k, v := tsc.Next(qmin, qmax, []string{lm.fieldNames[i]}, lm.whereFields)
 				return k, v
 			}
 
@@ -768,7 +773,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		p := heap.Pop(tsc.pointHeap).(*pointHeapItem)
 
 		// We're done if the point is outside the query's time range [tmin:tmax).
-		if p.timestamp != tmin && (tmin > p.timestamp || p.timestamp >= tmax) {
+		if p.timestamp != tmin && (p.timestamp < tmin || p.timestamp >= tmax) {
 			return -1, nil
 		}
 
