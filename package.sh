@@ -40,9 +40,11 @@ INSTALL_ROOT_DIR=/opt/influxdb
 INFLUXDB_LOG_DIR=/var/log/influxdb
 INFLUXDB_DATA_DIR=/var/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
+LOGROTATE_DIR=/etc/logrotate.d
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
 INITD_SCRIPT=scripts/init.sh
+LOGROTATE=scripts/logrotate
 
 TMP_WORK_DIR=`mktemp -d`
 POST_INSTALL_PATH=`mktemp`
@@ -179,6 +181,11 @@ make_dir_tree() {
         echo "Failed to create configuration directory -- aborting."
         cleanup_exit 1
     fi
+    mkdir -p $work_dir/$LOGROTATE_DIR
+    if [ $? -ne 0 ]; then
+        echo "Failed to create logrotate directory -- aborting."
+        cleanup_exit 1
+    fi
 }
 
 # do_build builds the code. The version and commit must be passed in.
@@ -186,7 +193,7 @@ do_build() {
     for b in ${BINS[*]}; do
         rm -f $GOPATH_INSTALL/bin/$b
     done
-    
+
     if [ -n "$WORKING_DIR" ]; then
         STASH=`git stash create -a`
         if [ $? -ne 0 ]; then
@@ -194,21 +201,21 @@ do_build() {
         fi
         git reset --hard
     fi
-        
+
     go get -u -f -d ./...
     if [ $? -ne 0 ]; then
         echo "WARNING: failed to 'go get' packages."
     fi
 
     git checkout $TARGET_BRANCH # go get switches to master, so ensure we're back.
-    
+
     if [ -n "$WORKING_DIR" ]; then
         git stash apply $STASH
         if [ $? -ne 0 ]; then #and apply previous uncommited local changes
             echo "WARNING: failed to restore uncommited local changes"
         fi
     fi
-        
+
     version=$1
     commit=`git rev-parse HEAD`
     branch=`current_branch`
@@ -266,7 +273,7 @@ EOF
 while :
 do
   case $1 in
-    -h | --help) 
+    -h | --help)
 	usage 0
 	;;
     -p | --packages-only)
@@ -292,7 +299,7 @@ do
 	PACKAGES_ONLY="PACKAGES_ONLY"
         WORKING_DIR="WORKING_DIR"
 	shift
-	;;        
+	;;
     -*)
         echo "Unknown option $1"
         usage 1
@@ -314,7 +321,7 @@ done
 if [ -z "$DEB_WANTED$RPM_WANTED$TAR_WANTED" ]; then
   TAR_WANTED="gz"
   DEB_WANTED="deb"
-  RPM_WANTED="rpm" 
+  RPM_WANTED="rpm"
 fi
 
 if [ -z "$VERSION" ]; then
@@ -375,6 +382,12 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 
+cp $LOGROTATE $TMP_WORK_DIR/$LOGROTATE_DIR/influxdb.conf
+if [ $? -ne 0 ]; then
+    echo "Failed to copy logrotate configuration to packaging directory -- aborting."
+    cleanup_exit 1
+fi
+
 generate_postinstall_script $VERSION
 
 ###########################################################################
@@ -403,7 +416,7 @@ else
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
-COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
+COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR --config-files $LOGROTATE_DIR."
 
 if [ -n "$DEB_WANTED" ]; then
     $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
