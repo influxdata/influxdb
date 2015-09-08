@@ -361,7 +361,9 @@ func (s *Store) Close() error {
 			return err
 		}
 	}
-	close(s.closing)
+	if s.closing != nil {
+		close(s.closing)
+	}
 	s.closing = nil
 	s.shards = nil
 	s.databaseIndexes = nil
