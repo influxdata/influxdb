@@ -16,6 +16,7 @@ enabled = true
 bind-address = ":4444"
 database = "awesomedb"
 batch-size = 100
+batch-pending = 9
 batch-timeout = "10ms"
 `, &c); err != nil {
 		t.Fatal(err)
@@ -30,6 +31,8 @@ batch-timeout = "10ms"
 		t.Fatalf("unexpected database: %s", c.Database)
 	} else if c.BatchSize != 100 {
 		t.Fatalf("unexpected batch size: %d", c.BatchSize)
+	} else if c.BatchPending != 9 {
+		t.Fatalf("unexpected batch pending: %d", c.BatchPending)
 	} else if time.Duration(c.BatchTimeout) != (10 * time.Millisecond) {
 		t.Fatalf("unexpected batch timeout: %v", c.BatchTimeout)
 	}

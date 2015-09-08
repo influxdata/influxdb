@@ -56,7 +56,7 @@ func NewService(c Config) *Service {
 	return &Service{
 		config:  c,
 		done:    make(chan struct{}),
-		batcher: tsdb.NewPointBatcher(c.BatchSize, time.Duration(c.BatchTimeout)),
+		batcher: tsdb.NewPointBatcher(c.BatchSize, c.BatchPending, time.Duration(c.BatchTimeout)),
 		Logger:  log.New(os.Stderr, "[udp] ", log.LstdFlags),
 	}
 }

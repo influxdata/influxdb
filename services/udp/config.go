@@ -8,5 +8,6 @@ type Config struct {
 
 	Database     string        `toml:"database"`
 	BatchSize    int           `toml:"batch-size"`
+	BatchPending int           `toml:"batch-pending"`
 	BatchTimeout toml.Duration `toml:"batch-timeout"`
 }

@@ -17,6 +17,7 @@ database = "mydb"
 enabled = true
 protocol = "tcp"
 batch-size=100
+batch-pending=77
 batch-timeout="1s"
 consistency-level="one"
 templates=["servers.* .host.measurement*"]
@@ -36,6 +37,8 @@ tags=["region=us-east"]
 		t.Fatalf("unexpected graphite protocol: %s", c.Protocol)
 	} else if c.BatchSize != 100 {
 		t.Fatalf("unexpected graphite batch size: %d", c.BatchSize)
+	} else if c.BatchPending != 77 {
+		t.Fatalf("unexpected graphite batch pending: %d", c.BatchPending)
 	} else if time.Duration(c.BatchTimeout) != time.Second {
 		t.Fatalf("unexpected graphite batch timeout: %v", c.BatchTimeout)
 	} else if c.ConsistencyLevel != "one" {

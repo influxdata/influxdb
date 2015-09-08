@@ -13,7 +13,9 @@ const (
 
 	DefaultRetentionPolicy = ""
 
-	DefaultBatchSize = 5000
+	DefaultBatchSize = 1000
+
+	DefaultBatchPending = 5
 
 	DefaultBatchDuration = toml.Duration(10 * time.Second)
 
@@ -27,6 +29,7 @@ type Config struct {
 	Database        string        `toml:"database"`
 	RetentionPolicy string        `toml:"retention-policy"`
 	BatchSize       int           `toml:"batch-size"`
+	BatchPending    int           `toml:"batch-pending"`
 	BatchDuration   toml.Duration `toml:"batch-timeout"`
 	TypesDB         string        `toml:"typesdb"`
 }
@@ -38,6 +41,7 @@ func NewConfig() Config {
 		Database:        DefaultDatabase,
 		RetentionPolicy: DefaultRetentionPolicy,
 		BatchSize:       DefaultBatchSize,
+		BatchPending:    DefaultBatchPending,
 		BatchDuration:   DefaultBatchDuration,
 		TypesDB:         DefaultTypesDB,
 	}

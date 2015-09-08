@@ -87,6 +87,7 @@ type Service struct {
 	database         string
 	protocol         string
 	batchSize        int
+	batchPending     int
 	batchTimeout     time.Duration
 	consistencyLevel cluster.ConsistencyLevel
 
@@ -125,6 +126,7 @@ func NewService(c Config) (*Service, error) {
 		database:     d.Database,
 		protocol:     d.Protocol,
 		batchSize:    d.BatchSize,
+		batchPending: d.BatchPending,
 		batchTimeout: time.Duration(d.BatchTimeout),
 		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		done:         make(chan struct{}),
@@ -178,7 +180,7 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
+	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
 	s.batcher.Start()
 
 	// Start processing batches.
