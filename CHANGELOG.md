@@ -35,6 +35,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3960](https://github.com/influxdb/influxdb/issues/3960): possible "catch up" bug with nodes down in a cluster
 - [#3980](https://github.com/influxdb/influxdb/pull/3980): 'service stop' waits until service actually stops. Fixes issue #3548.
 - [#4016](https://github.com/influxdb/influxdb/pull/4016): Shutdown Graphite UDP on SIGTERM.
+- [#4034](https://github.com/influxdb/influxdb/pull/4034): Rollback bolt tx on mapper open error
 
 ## v0.9.3 [2015-08-26]
 
