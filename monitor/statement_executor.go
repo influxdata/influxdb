@@ -9,7 +9,7 @@ import (
 // StatementExecutor translates InfluxQL queries to Monitor methods.
 type StatementExecutor struct {
 	Monitor interface {
-		Statistics() ([]*statistic, error)
+		Statistics(map[string]string) ([]*statistic, error)
 		Diagnostics() (map[string]*Diagnostic, error)
 	}
 }
@@ -27,7 +27,7 @@ func (s *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 }
 
 func (s *StatementExecutor) executeShowStatistics() *influxql.Result {
-	stats, err := s.Monitor.Statistics()
+	stats, err := s.Monitor.Statistics(nil)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}

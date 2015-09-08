@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"expvar"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -144,8 +145,9 @@ func (m *Monitor) RegisterDiagnosticsClient(name string, client DiagsClient) err
 	return nil
 }
 
-// statistics returns the combined statistics for all expvar data.
-func (m *Monitor) Statistics() ([]*statistic, error) {
+// Statistics returns the combined statistics for all expvar data. The given
+// tags are added to each of the returned statistics.
+func (m *Monitor) Statistics(tags map[string]string) ([]*statistic, error) {
 	statistics := make([]*statistic, 0)
 
 	expvar.Do(func(kv expvar.KeyValue) {
@@ -157,6 +159,11 @@ func (m *Monitor) Statistics() ([]*statistic, error) {
 		statistic := &statistic{
 			Tags:   make(map[string]string),
 			Values: make(map[string]interface{}),
+		}
+
+		// Add any supplied tags.
+		for k, v := range tags {
+			statistic.Tags[k] = v
 		}
 
 		// Every other top-level expvar value is a map.
@@ -270,6 +277,16 @@ func (m *Monitor) storeStatistics() {
 		return
 	}
 
+	// Get cluster-level metadata. Nothing different is going to happen if errors occur.
+	clusterID, _ := m.MetaStore.ClusterID()
+	nodeID := m.MetaStore.NodeID()
+	hostname, _ := os.Hostname()
+	clusterTags := map[string]string{
+		"clusterID": fmt.Sprintf("%d", clusterID),
+		"nodeID":    fmt.Sprintf("%d", nodeID),
+		"hostname":  hostname,
+	}
+
 	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
 		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
 			m.storeDatabase, err.Error())
@@ -291,7 +308,7 @@ func (m *Monitor) storeStatistics() {
 	for {
 		select {
 		case <-tick.C:
-			stats, err := m.Statistics()
+			stats, err := m.Statistics(clusterTags)
 			if err != nil {
 				m.Logger.Printf("failed to retrieve registered statistics: %s", err)
 				continue
