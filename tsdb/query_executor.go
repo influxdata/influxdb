@@ -211,11 +211,14 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
 	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
 
+	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
+	now := time.Now().UTC()
+
 	// Replace instances of "now()" with the current time, and check the resultant times.
-	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
+	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
 	tmin, tmax := influxql.TimeRange(stmt.Condition)
 	if tmax.IsZero() {
-		tmax = time.Now()
+		tmax = now
 	}
 	if tmin.IsZero() {
 		tmin = time.Unix(0, 0)
