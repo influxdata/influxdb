@@ -52,6 +52,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3926](https://github.com/influxdb/influxdb/issues/3926): First or last value of `GROUP BY time(x)` is often null. Fixed by [#4038](https://github.com/influxdb/influxdb/pull/4038)
 - [#4053](https://github.com/influxdb/influxdb/pull/4053): Prohibit dropping default retention policy.
 - [#4060](https://github.com/influxdb/influxdb/pull/4060): Don't log EOF error in openTSDB input.
+- [#3978](https://github.com/influxdb/influxdb/issues/3978): [0.9.3] (regression) cannot use GROUP BY * with more than a single field in SELECT clause
 
 ## v0.9.3 [2015-08-26]
 
