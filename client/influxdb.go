@@ -79,6 +79,7 @@ type Config struct {
 	Password  string
 	UserAgent string
 	Timeout   time.Duration
+	Precision string
 }
 
 // NewConfig will create a config to be used in connecting to the client
@@ -95,6 +96,7 @@ type Client struct {
 	password   string
 	httpClient *http.Client
 	userAgent  string
+	precision  string
 }
 
 const (
@@ -112,6 +114,7 @@ func NewClient(c Config) (*Client, error) {
 		password:   c.Password,
 		httpClient: &http.Client{Timeout: c.Timeout},
 		userAgent:  c.UserAgent,
+		precision:  c.Precision,
 	}
 	if client.userAgent == "" {
 		client.userAgent = "InfluxDBClient"
@@ -142,6 +145,10 @@ func (c *Client) Query(q Query) (*Response, error) {
 	req.Header.Set("User-Agent", c.userAgent)
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
+	}
+	
+	if c.precision != "" {
+		req.Header.Set("epoch", c.precision)
 	}
 
 	resp, err := c.httpClient.Do(req)

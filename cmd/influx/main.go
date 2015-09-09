@@ -30,6 +30,8 @@ var (
 const (
 	// defaultFormat is the default format of the results when issuing queries
 	defaultFormat = "column"
+	
+	defaultPrecision = ""
 
 	// defaultPPS is the default points per second that the import will throttle at
 	// by default it's 0, which means it will not throttle
@@ -49,6 +51,7 @@ type CommandLine struct {
 	Version          string
 	Pretty           bool   // controls pretty print for json
 	Format           string // controls the output format.  Valid values are json, csv, or column
+	Precision        string
 	WriteConsistency string
 	Execute          string
 	ShowVersion      bool
@@ -69,6 +72,7 @@ func main() {
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
+	fs.StringVar(&c.Precision, "precision", defaultPrecision, "Format specifies the format of the server responses:  json, csv, or column.")
 	fs.StringVar(&c.WriteConsistency, "consistency", "any", "Set write consistency level: any, one, quorum, or all.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
@@ -99,6 +103,8 @@ func main() {
        Execute command and quit.
   -format 'json|csv|column'
        Format specifies the format of the server responses:  json, csv, or column.
+  -precision 'h|m|s|ms|u|ns'
+       Format specifies the format of the timestamp:  h|m|s|ms|u|ns.
   -consistency 'any|one|quorum|all'
        Set write consistency level: any, one, quorum, or all
   -pretty
@@ -184,6 +190,7 @@ Examples:
 		config.URL = u
 		config.Compressed = c.Compressed
 		config.PPS = c.PPS
+		config.Precision = c.Precision
 
 		i := v8.NewImporter(config)
 		if err := i.Import(); err != nil {
@@ -249,6 +256,8 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		c.help()
 	case strings.HasPrefix(lcmd, "format"):
 		c.SetFormat(cmd)
+	case strings.HasPrefix(lcmd, "precision"):
+		c.SetPrecision(cmd)
 	case strings.HasPrefix(lcmd, "consistency"):
 		c.SetWriteConsistency(cmd)
 	case strings.HasPrefix(lcmd, "settings"):
@@ -349,6 +358,10 @@ func (c *CommandLine) use(cmd string) {
 	d := args[1]
 	c.Database = d
 	fmt.Printf("Using database %s\n", d)
+}
+
+func (c *CommandLine) SetPrecision(cmd string) {
+	c.Precision = cmd
 }
 
 func (c *CommandLine) SetFormat(cmd string) {
@@ -674,6 +687,7 @@ func (c *CommandLine) help() {
         pretty                toggle pretty print
         use <db_name>         set current databases
         format <format>       set the output format: json, csv, or column
+        precision <format>    set the timestamp format: h,m,s,ms,u,ns
         consistency <level>   set write consistency level: any, one, quorum, or all
         settings              output the current settings for the shell
         exit                  quit the influx shell
