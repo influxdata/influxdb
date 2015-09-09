@@ -4,6 +4,7 @@
 With this release InfluxDB is moving to Go 1.5.
 
 ### Features
+- [#4050](https://github.com/influxdb/influxdb/pull/4050): Add stats to collectd
 - [#3771](https://github.com/influxdb/influxdb/pull/3771): Close idle Graphite TCP connections
 - [#3755](https://github.com/influxdb/influxdb/issues/3755): Add option to build script. Thanks @fg2it
 - [#3863](https://github.com/influxdb/influxdb/pull/3863): Move to Go 1.5
