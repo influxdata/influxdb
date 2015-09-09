@@ -201,6 +201,13 @@ reporting-disabled = false
   # database = ""
   # retention-policy = ""
 
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Only points
+  # metrics received over the telnet protocol undergo batching.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+
 ###
 ### [[udp]]
 ###
