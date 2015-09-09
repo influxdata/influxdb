@@ -18,6 +18,7 @@ var (
 	batchInterval = flag.Duration("batchinterval", 0*time.Second, "duration between batches")
 	database      = flag.String("database", "stress", "name of database")
 	address       = flag.String("addr", "localhost:8086", "IP address and port of database (e.g., localhost:8086)")
+	precision     = flag.String("precision", "n", "The precision that points in the database will be with")
 )
 
 var ms runner.Measurements
@@ -43,6 +44,7 @@ func main() {
 		BatchInterval: *batchInterval,
 		Database:      *database,
 		Address:       *address,
+		Precision:     *precision,
 	}
 
 	totalPoints, responseTimes, timer := runner.Run(cfg)
