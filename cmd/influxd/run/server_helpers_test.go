@@ -31,7 +31,12 @@ type Server struct {
 
 // NewServer returns a new instance of Server.
 func NewServer(c *run.Config) *Server {
-	srv, _ := run.NewServer(c, "testServer")
+	buildInfo := &run.BuildInfo{
+		Version: "testServer",
+		Commit:  "testCommit",
+		Branch:  "testBranch",
+	}
+	srv, _ := run.NewServer(c, buildInfo)
 	s := Server{
 		Server: srv,
 		Config: c,
@@ -54,7 +59,12 @@ func OpenServer(c *run.Config, joinURLs string) *Server {
 
 // OpenServerWithVersion opens a test server with a specific version.
 func OpenServerWithVersion(c *run.Config, version string) *Server {
-	srv, _ := run.NewServer(c, version)
+	buildInfo := &run.BuildInfo{
+		Version: version,
+		Commit:  "",
+		Branch:  "",
+	}
+	srv, _ := run.NewServer(c, buildInfo)
 	s := Server{
 		Server: srv,
 		Config: c,
