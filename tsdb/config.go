@@ -42,7 +42,7 @@ const (
 	// we'll need to create backpressure, otherwise we'll fill up the memory and die.
 	// This number multiplied by the parition count is roughly the max possible memory
 	// size for the in-memory WAL cache.
-	DefaultPartitionSizeThreshold = 20 * 1024 * 1024 // 20MB
+	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 )
 
 type Config struct {
