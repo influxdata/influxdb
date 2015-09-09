@@ -11,6 +11,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3916](https://github.com/influxdb/influxdb/pull/3916): New statistics and diagnostics support. Graphite first to be instrumented.
 - [#3901](https://github.com/influxdb/influxdb/pull/3901): Add consistency level option to influx cli Thanks @takayuki
 - [#4048](https://github.com/influxdb/influxdb/pull/4048): Add statistics to Continuous Query service
+- [#4049](https://github.com/influxdb/influxdb/pull/4049): Add stats to the UDP input
 - [#3876](https://github.com/influxdb/influxdb/pull/3876): Allow the following syntax in CQs: INTO "1hPolicy".:MEASUREMENT
 - [#3975](https://github.com/influxdb/influxdb/pull/3975): Add shard copy service
 - [#3986](https://github.com/influxdb/influxdb/pull/3986): Support sorting by time desc
