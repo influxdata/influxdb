@@ -2,18 +2,32 @@ package udp
 
 import (
 	"errors"
+	"expvar"
 	"log"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
 	UDPBufferSize = 65536
+)
+
+// statistics gathered by the UDP package.
+const (
+	statPointsReceived      = "points_rx"
+	statBytesReceived       = "bytes_rx"
+	statPointsParseFail     = "points_parse_fail"
+	statReadFail            = "read_fail"
+	statBatchesTrasmitted   = "batches_tx"
+	statPointsTransmitted   = "points_tx"
+	statBatchesTransmitFail = "batches_tx_fail"
 )
 
 //
@@ -34,7 +48,8 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 
-	Logger *log.Logger
+	Logger  *log.Logger
+	statMap *expvar.Map
 }
 
 func NewService(c Config) *Service {
@@ -47,6 +62,12 @@ func NewService(c Config) *Service {
 }
 
 func (s *Service) Open() (err error) {
+	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
+	// should be done before any data could arrive for the service.
+	key := strings.Join([]string{"udp", s.config.BindAddress}, ":")
+	tags := map[string]string{"bind": s.config.BindAddress}
+	s.statMap = influxdb.NewStatistics(key, "udp", tags)
+
 	if s.config.BindAddress == "" {
 		return errors.New("bind address has to be specified in config")
 	}
@@ -81,14 +102,17 @@ func (s *Service) writePoints() {
 	for {
 		select {
 		case batch := <-s.batcher.Out():
-			err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
+			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 				Database:         s.config.Database,
 				RetentionPolicy:  "",
 				ConsistencyLevel: cluster.ConsistencyLevelOne,
 				Points:           batch,
-			})
-			if err != nil {
-				s.Logger.Printf("Failed to write points batch to database %s: %s", s.config.Database, err)
+			}); err == nil {
+				s.statMap.Add(statBatchesTrasmitted, 1)
+				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
+			} else {
+				s.Logger.Printf("failed to write point batch to database %q: %s", s.config.Database, err)
+				s.statMap.Add(statBatchesTransmitFail, 1)
 			}
 
 		case <-s.done:
@@ -114,12 +138,15 @@ func (s *Service) serve() {
 
 		n, _, err := s.conn.ReadFromUDP(buf)
 		if err != nil {
+			s.statMap.Add(statReadFail, 1)
 			s.Logger.Printf("Failed to read UDP message: %s", err)
 			continue
 		}
+		s.statMap.Add(statBytesReceived, int64(n))
 
 		points, err := tsdb.ParsePoints(buf[:n])
 		if err != nil {
+			s.statMap.Add(statPointsParseFail, 1)
 			s.Logger.Printf("Failed to parse points: %s", err)
 			continue
 		}
@@ -127,6 +154,7 @@ func (s *Service) serve() {
 		for _, point := range points {
 			s.batcher.In() <- point
 		}
+		s.statMap.Add(statPointsReceived, int64(len(points)))
 	}
 }
 
