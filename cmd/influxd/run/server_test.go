@@ -370,14 +370,34 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
-				name:    "drop retention policy should succeed",
+				name:    "dropping default retention policy should not succeed",
 				command: `DROP RETENTION POLICY rp0 ON db0`,
+				exp:     `{"results":[{"error":"retention policy is default"}]}`,
+			},
+			&Query{
+				name:    "show retention policy should still show policy",
+				command: `SHOW RETENTION POLICIES ON db0`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
+			},
+			&Query{
+				name:    "create a second non-default retention policy",
+				command: `CREATE RETENTION POLICY rp2 ON db0 DURATION 1h REPLICATION 1`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "show retention policy should be empty after dropping them",
+				name:    "show retention policy should show both",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true],["rp2","1h0m0s",1,false]]}]}]}`,
+			},
+			&Query{
+				name:    "dropping non-default retention policy succeed",
+				command: `DROP RETENTION POLICY rp2 ON db0`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "show retention policy should show just default",
+				command: `SHOW RETENTION POLICIES ON db0`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
 				name:    "Ensure retention policy with unacceptable retention cannot be created",
