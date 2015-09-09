@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,18 +74,22 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 // Username/Password are optional.  They will be passed via basic auth if provided.
 // UserAgent: If not provided, will default "InfluxDBClient",
 // Timeout: If not provided, will default to 0 (no timeout)
+// InsecureSkipVerify: controls whether a client verifies the
+// server's certificate chain and host name.
 type Config struct {
-	URL       url.URL
-	Username  string
-	Password  string
-	UserAgent string
-	Timeout   time.Duration
+	URL                url.URL
+	Username           string
+	Password           string
+	UserAgent          string
+	Timeout            time.Duration
+	InsecureSkipVerify bool
 }
 
 // NewConfig will create a config to be used in connecting to the client
 func NewConfig() Config {
 	return Config{
-		Timeout: DefaultTimeout,
+		Timeout:            DefaultTimeout,
+		InsecureSkipVerify: false,
 	}
 }
 
@@ -115,6 +120,12 @@ func NewClient(c Config) (*Client, error) {
 	}
 	if client.userAgent == "" {
 		client.userAgent = "InfluxDBClient"
+	}
+	if c.InsecureSkipVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		client.httpClient.Transport = tr
 	}
 	return &client, nil
 }
