@@ -133,6 +133,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
 	// Initialize the monitor
+	s.Monitor.Version = s.buildInfo.Version
+	s.Monitor.Commit = s.buildInfo.Commit
+	s.Monitor.Branch = s.buildInfo.Branch
 	s.Monitor.MetaStore = s.MetaStore
 	s.Monitor.PointsWriter = s.PointsWriter
 
