@@ -2748,6 +2748,30 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			command: `SELECT mean(value) FROM wgroup WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:00Z' GROUP BY *,TIME(1m)`,
 			exp:     `{"results":[{"series":[{"name":"wgroup","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"wgroup","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
 		},
+		&Query{
+			name:    "wildcard and field in select",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value, * FROM wildcard`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","region","value","valx"],"values":[["2000-01-01T00:00:00Z","us-east",10,null],["2000-01-01T00:00:10Z","us-east",null,20],["2000-01-01T00:00:20Z","us-east",30,40]]}]}]}`,
+		},
+		&Query{
+			name:    "field and wildcard in select",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value, * FROM wildcard`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","region","value","valx"],"values":[["2000-01-01T00:00:00Z","us-east",10,null],["2000-01-01T00:00:10Z","us-east",null,20],["2000-01-01T00:00:20Z","us-east",30,40]]}]}]}`,
+		},
+		&Query{
+			name:    "field and wildcard in group by",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM wildcard GROUP BY region, *`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","tags":{"region":"us-east"},"columns":["time","value","valx"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}]}`,
+		},
+		&Query{
+			name:    "wildcard and field in group by",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM wildcard GROUP BY *, region`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","tags":{"region":"us-east"},"columns":["time","value","valx"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
