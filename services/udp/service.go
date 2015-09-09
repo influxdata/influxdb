@@ -53,10 +53,11 @@ type Service struct {
 }
 
 func NewService(c Config) *Service {
+	d := *c.WithDefaults()
 	return &Service{
-		config:  c,
+		config:  d,
 		done:    make(chan struct{}),
-		batcher: tsdb.NewPointBatcher(c.BatchSize, time.Duration(c.BatchTimeout)),
+		batcher: tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
 		Logger:  log.New(os.Stderr, "[udp] ", log.LstdFlags),
 	}
 }

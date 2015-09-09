@@ -10,7 +10,30 @@ import (
 // TestBatch_Size ensures that a batcher generates a batch when the size threshold is reached.
 func TestBatch_Size(t *testing.T) {
 	batchSize := 5
-	batcher := tsdb.NewPointBatcher(batchSize, time.Hour)
+	batcher := tsdb.NewPointBatcher(batchSize, 0, time.Hour)
+	if batcher == nil {
+		t.Fatal("failed to create batcher for size test")
+	}
+
+	batcher.Start()
+
+	var p tsdb.Point
+	go func() {
+		for i := 0; i < batchSize; i++ {
+			batcher.In() <- p
+		}
+	}()
+	batch := <-batcher.Out()
+	if len(batch) != batchSize {
+		t.Errorf("received batch has incorrect length exp %d, got %d", batchSize, len(batch))
+	}
+	checkPointBatcherStats(t, batcher, -1, batchSize, 1, 0)
+}
+
+// TestBatch_Size ensures that a buffered batcher generates a batch when the size threshold is reached.
+func TestBatch_SizeBuffered(t *testing.T) {
+	batchSize := 5
+	batcher := tsdb.NewPointBatcher(batchSize, 5, time.Hour)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for size test")
 	}
@@ -33,7 +56,7 @@ func TestBatch_Size(t *testing.T) {
 // TestBatch_Size ensures that a batcher generates a batch when the timeout triggers.
 func TestBatch_Timeout(t *testing.T) {
 	batchSize := 5
-	batcher := tsdb.NewPointBatcher(batchSize+1, 100*time.Millisecond)
+	batcher := tsdb.NewPointBatcher(batchSize+1, 0, 100*time.Millisecond)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for timeout test")
 	}
@@ -56,7 +79,7 @@ func TestBatch_Timeout(t *testing.T) {
 // TestBatch_Flush ensures that a batcher generates a batch when flushed
 func TestBatch_Flush(t *testing.T) {
 	batchSize := 2
-	batcher := tsdb.NewPointBatcher(batchSize, time.Hour)
+	batcher := tsdb.NewPointBatcher(batchSize, 0, time.Hour)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for flush test")
 	}
@@ -78,7 +101,7 @@ func TestBatch_Flush(t *testing.T) {
 // TestBatch_MultipleBatches ensures that a batcher correctly processes multiple batches.
 func TestBatch_MultipleBatches(t *testing.T) {
 	batchSize := 2
-	batcher := tsdb.NewPointBatcher(batchSize, 100*time.Millisecond)
+	batcher := tsdb.NewPointBatcher(batchSize, 0, 100*time.Millisecond)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for size test")
 	}

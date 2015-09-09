@@ -64,6 +64,7 @@ type Service struct {
 
 	// Points received over the telnet protocol are batched.
 	batchSize    int
+	batchPending int
 	batchTimeout time.Duration
 	batcher      *tsdb.PointBatcher
 
@@ -88,6 +89,7 @@ func NewService(c Config) (*Service, error) {
 		RetentionPolicy:  c.RetentionPolicy,
 		ConsistencyLevel: consistencyLevel,
 		batchSize:        c.BatchSize,
+		batchPending:     c.BatchPending,
 		batchTimeout:     time.Duration(c.BatchTimeout),
 		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
 	}
@@ -114,7 +116,7 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
+	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
 	s.batcher.Start()
 
 	// Start processing batches.

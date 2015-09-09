@@ -29,6 +29,9 @@ const (
 	// DefaultBatchSize is the default Graphite batch size.
 	DefaultBatchSize = 1000
 
+	// DefaultBatchPending is the default number of pending Graphite batches.
+	DefaultBatchPending = 5
+
 	// DefaultBatchTimeout is the default Graphite batch timeout.
 	DefaultBatchTimeout = time.Second
 )
@@ -40,6 +43,7 @@ type Config struct {
 	Enabled          bool          `toml:"enabled"`
 	Protocol         string        `toml:"protocol"`
 	BatchSize        int           `toml:"batch-size"`
+	BatchPending     int           `toml:"batch-pending"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
 	ConsistencyLevel string        `toml:"consistency-level"`
 	Templates        []string      `toml:"templates"`
@@ -62,6 +66,9 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.BatchSize == 0 {
 		d.BatchSize = DefaultBatchSize
+	}
+	if d.BatchPending == 0 {
+		d.BatchPending = DefaultBatchPending
 	}
 	if d.BatchTimeout == 0 {
 		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
