@@ -211,15 +211,12 @@ func (l *Log) Open() error {
 func (l *Log) DiskSize() (int64, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	var size int64
-	for _, partition := range l.partitions {
-		stat, err := os.Stat(partition.path)
-		if err != nil {
-			return 0, err
-		}
-		size += stat.Size()
+
+	stat, err := os.Stat(l.path)
+	if err != nil {
+		return 0, err
 	}
-	return size, nil
+	return stat.Size(), nil
 }
 
 // Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given
