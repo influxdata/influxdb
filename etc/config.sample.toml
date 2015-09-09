@@ -98,7 +98,7 @@ reporting-disabled = false
   store-retention-policy = "monitor" # The destination retention policy
   store-retention-duration = "168h" # How long to keep the data
   store-replication-factor = 1 # How many copies of the data to keep
-  store-interval = "1m" # The interval at which to record statistics
+  store-interval = "10s" # The interval at which to record statistics
 
 ###
 ### [admin]
