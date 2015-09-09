@@ -389,25 +389,14 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 			return fmt.Errorf("new blocks: %s", err)
 		}
 		return nil
-	} else {
-		// Determine uncompressed block size.
-		sz, err := snappy.DecodedLen(v[8:])
-		if err != nil {
-			return fmt.Errorf("snappy decoded len: %s", err)
-		}
 
-		// Append new blocks if our time range is past the last on-disk time
-		// and if our previous block was at least the minimum block size.
-		if int64(btou64(v[0:8])) < tmin && sz >= e.BlockSize {
-			bkt.FillPercent = 1.0
-			if err := e.writeBlocks(bkt, a); err != nil {
-				return fmt.Errorf("append blocks: %s", err)
-			}
-			return nil
+	} else if int64(btou64(v[0:8])) < tmin {
+		// Append new blocks if our time range is past the last on-disk time.
+		bkt.FillPercent = 1.0
+		if err := e.writeBlocks(bkt, a); err != nil {
+			return fmt.Errorf("append blocks: %s", err)
 		}
-
-		// Otherwise fallthrough to slower insert mode.
-		e.statMap.Add(statSlowInsert, 1)
+		return nil
 	}
 
 	// Generate map of inserted keys.
