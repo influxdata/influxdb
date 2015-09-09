@@ -25,7 +25,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	p3 := parsePoint("cpu,host=A value=2.1 2000000000")
 	p4 := parsePoint("cpu,host=B value=2.2 2000000000")
 
-	if err := e.WriteAndCompact([]tsdb.Point{p1, p2, p3}, nil, nil); err != nil {
+	if err := e.WritePoints([]tsdb.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -68,7 +68,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	}
 	verify(true)
 
-	if err := e.WriteAndCompact([]tsdb.Point{p4}, nil, nil); err != nil {
+	if err := e.WritePoints([]tsdb.Point{p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	verify(false)
@@ -123,13 +123,13 @@ func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	}
 
 	st := time.Now()
-	if err := e.WriteAndCompact(points, nil, nil); err != nil {
+	if err := e.WritePoints(points, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	fmt.Println("took: ", time.Since(st))
 
 	st = time.Now()
-	if err := e.WriteAndCompact(points, nil, nil); err != nil {
+	if err := e.WritePoints(points, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	fmt.Println("took: ", time.Since(st))
@@ -161,6 +161,7 @@ func OpenEngine(opt tsdb.EngineOptions) *Engine {
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
+	e.WAL.SkipCache = true
 	return e
 }
 

@@ -1,7 +1,6 @@
 package pd1
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -12,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -29,13 +26,13 @@ const (
 
 	// FieldsFileExtension is the extension for the file that stores compressed field
 	// encoding data for this db
-	FieldsFileExtension = "fld"
+	FieldsFileExtension = "fields"
 
 	// SeriesFileExtension is the extension for the file that stores the compressed
 	// series metadata for series in this db
-	SeriesFileExtension = "srs"
+	SeriesFileExtension = "series"
 
-	CollisionsFileExtension = "col"
+	CollisionsFileExtension = "collisions"
 )
 
 type TimePrecision uint8
@@ -55,7 +52,7 @@ const (
 	// DefaultBlockSize is the default size of uncompressed points blocks.
 	DefaultBlockSize = 512 * 1024 // 512KB
 
-	DefaultMaxFileSize = 5 * 1024 * 1024 // 5MB
+	DefaultMaxFileSize = 10 * 1024 * 1024 // 10MB
 
 	DefaultMaxPointsPerBlock = 1000
 
@@ -80,6 +77,8 @@ type Engine struct {
 		FieldCodec(measurementName string) *tsdb.FieldCodec
 	}
 
+	WAL *Log
+
 	filesLock     sync.RWMutex
 	files         dataFiles
 	currentFileID int
@@ -88,11 +87,19 @@ type Engine struct {
 
 // NewEngine returns a new instance of Engine.
 func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
+	w := NewLog(path)
+	w.FlushColdInterval = time.Duration(opt.Config.WALFlushColdInterval)
+	w.MemorySizeThreshold = int(opt.Config.WALPartitionSizeThreshold)
+	w.LoggingEnabled = opt.Config.WALLoggingEnabled
+
 	e := &Engine{
 		path: path,
 
+		// TODO: this is the function where we can inject a check against the in memory collisions
 		HashSeriesField: hashSeriesField,
+		WAL:             w,
 	}
+	e.WAL.Index = e
 
 	return e
 }
@@ -116,6 +123,13 @@ func (e *Engine) Open() error {
 		return err
 	}
 	for _, fn := range files {
+		id, err := idFromFileName(fn)
+		if err != nil {
+			return err
+		}
+		if id >= e.currentFileID {
+			e.currentFileID = id + 1
+		}
 		f, err := os.OpenFile(fn, os.O_RDONLY, 0666)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %s", fn, err.Error())
@@ -127,6 +141,10 @@ func (e *Engine) Open() error {
 		e.files = append(e.files, df)
 	}
 	sort.Sort(e.files)
+
+	if err := e.WAL.Open(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -189,12 +207,10 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-	// TODO: Write points to the WAL
-
-	return e.WriteAndCompact(points, measurementFieldsToSave, seriesToCreate)
+	return e.WAL.WritePoints(points, measurementFieldsToSave, seriesToCreate)
 }
 
-func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+func (e *Engine) WriteAndCompact(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -205,31 +221,70 @@ func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave ma
 		return err
 	}
 
-	if len(points) == 0 {
+	if len(pointsByKey) == 0 {
 		return nil
 	}
 
-	b, err := e.readCompressedFile("names")
+	// read in keys and assign any that aren't defined
+	b, err := e.readCompressedFile("ids")
 	if err != nil {
 		return err
 	}
-	ids := make(map[uint64]string)
-
-	var names []string
+	ids := make(map[string]uint64)
 	if b != nil {
-		if err := json.Unmarshal(b, &names); err != nil {
+		if err := json.Unmarshal(b, &ids); err != nil {
 			return err
-		}
-
-		for _, n := range names {
-			ids[e.HashSeriesField(n)] = n
 		}
 	}
 
 	// these are values that are newer than anything stored in the shard
-	valuesByID := make(map[uint64]*valueCollection)
-	// map the points to the data file they belong to if they overlap
-	dataFileToValues := make(map[*dataFile]map[uint64]*valueCollection)
+	valuesByID := make(map[uint64]Values)
+
+	idToKey := make(map[uint64]string) // we only use this map if new ids are being created
+	newKeys := false
+	for k, values := range pointsByKey {
+		var id uint64
+		var ok bool
+		if id, ok = ids[k]; !ok {
+			// populate the map if we haven't already
+			if len(idToKey) == 0 {
+				for n, id := range ids {
+					idToKey[id] = n
+				}
+			}
+
+			// now see if the hash id collides with a different key
+			hashID := hashSeriesField(k)
+			existingKey, idInMap := idToKey[hashID]
+			if idInMap {
+				// we only care if the keys are different. if so, it's a hash collision we have to keep track of
+				if k != existingKey {
+					// we have a collision, give this new key a different id and move on
+					// TODO: handle collisions
+					panic("name collision, not implemented yet!")
+				}
+			} else {
+				newKeys = true
+				ids[k] = hashID
+				idToKey[id] = k
+				id = hashID
+			}
+		}
+
+		valuesByID[id] = values
+	}
+
+	if newKeys {
+		b, err := json.Marshal(ids)
+		if err != nil {
+			return err
+		}
+		if err := e.replaceCompressedFile("ids", b); err != nil {
+			return err
+		}
+	}
+
+	// TODO: handle values written in the past that force an old data file to get rewritten
 
 	// we keep track of the newest data file and if it should be
 	// rewritten with new data.
@@ -238,87 +293,6 @@ func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave ma
 	if len(e.files) > 0 {
 		newestDataFile = e.files[len(e.files)-1]
 		overwriteNewestFile = newestDataFile.size < DefaultMaxFileSize
-	}
-
-	// compute ids of new keys and arrange for insertion
-	for _, p := range points {
-		for fn, val := range p.Fields() {
-			n := seriesFieldKey(string(p.Key()), fn)
-			id := e.HashSeriesField(n)
-			if series, ok := ids[id]; !ok {
-				names = append(names, n)
-			} else { // possible collision?
-				if n != series {
-					// TODO: implement collision detection
-					panic("name collision!")
-				}
-			}
-
-			ids[id] = n
-
-			vals := valuesByID[id]
-			if vals == nil {
-				// TODO: deal with situation where there are already files,
-				//       but the user is inserting a bunch of data that predates
-				//       any of them. It's ok to rewrite the first file, but
-				//       only to max size. Then we should create a new one
-
-				// points always come in time increasing order. This is
-				// the first point we've seen for this key. So it might
-				// need to get put into an older file instead of a new
-				// one. Check and set accordingly
-				var df *dataFile
-				for i := len(e.files) - 1; i >= 0; i-- {
-					if p.UnixNano() > e.files[i].MaxTime() {
-						break
-					}
-					df = e.files[i]
-				}
-				vals = &valueCollection{}
-
-				if df == nil || (df == newestDataFile && overwriteNewestFile) {
-					// this point is newer than anything we have stored
-					// or it belongs in the most recent file, which should get
-					// rewritten
-					valuesByID[id] = vals
-				} else {
-					// it overlaps with another file so mark it and it can be compacted
-					dfm := dataFileToValues[df]
-					if dfm == nil {
-						dfm = make(map[uint64]*valueCollection)
-						dataFileToValues[df] = dfm
-					}
-
-					if vc := dfm[id]; vc == nil {
-						dfm[id] = vals
-					} else {
-						vals = vc
-					}
-				}
-			}
-
-			switch t := val.(type) {
-			case float64:
-				vals.floatValues = append(vals.floatValues, FloatValue{Time: p.Time(), Value: t})
-			case int64:
-				vals.intValues = append(vals.intValues, Int64Value{Time: p.Time(), Value: t})
-			case bool:
-				vals.boolValues = append(vals.boolValues, BoolValue{Time: p.Time(), Value: t})
-			case string:
-				vals.stringValues = append(vals.stringValues, StringValue{Time: p.Time(), Value: t})
-			default:
-				panic("unsupported type")
-			}
-		}
-	}
-
-	b, err = json.Marshal(names)
-	if err != nil {
-		return err
-	}
-
-	if err := e.replaceCompressedFile("names", b); err != nil {
-		return err
 	}
 
 	// flush values by id to either a new file or rewrite the old one
@@ -330,21 +304,14 @@ func (e *Engine) WriteAndCompact(points []tsdb.Point, measurementFieldsToSave ma
 		return err
 	}
 
-	// flush each of the old ones
-	for df, vals := range dataFileToValues {
-		if err := e.rewriteFile(df, vals); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
-func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection) error {
+func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) error {
 	// we need the values in sorted order so that we can merge them into the
 	// new file as we read the old file
-	ids := make([]uint64, 0, len(values))
-	for id, _ := range values {
+	ids := make([]uint64, 0, len(valuesByID))
+	for id, _ := range valuesByID {
 		ids = append(ids, id)
 	}
 
@@ -358,18 +325,18 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 		minTime = oldDF.MinTime()
 		maxTime = oldDF.MaxTime()
 	}
-	for _, v := range values {
-		if minTime > v.MinTime().UnixNano() {
-			minTime = v.MinTime().UnixNano()
+	for _, v := range valuesByID {
+		if minTime > v.MinTime() {
+			minTime = v.MinTime()
 		}
-		if maxTime < v.MaxTime().UnixNano() {
-			maxTime = v.MaxTime().UnixNano()
+		if maxTime < v.MaxTime() {
+			maxTime = v.MaxTime()
 		}
 	}
 
 	// add any ids that are in the file that aren't getting flushed here
 	for id, _ := range oldIDToPosition {
-		if _, ok := values[id]; !ok {
+		if _, ok := valuesByID[id]; !ok {
 			ids = append(ids, id)
 		}
 	}
@@ -414,10 +381,10 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 		// mark the position for this ID
 		newPositions[i] = currentPosition
 
-		newVals := values[id]
+		newVals := valuesByID[id]
 
 		// if this id is only in the file and not in the new values, just copy over from old file
-		if newVals == nil {
+		if len(newVals) == 0 {
 			fpos := oldIDToPosition[id]
 
 			// write the blocks until we hit whatever the next id is
@@ -482,7 +449,8 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 				}
 			}
 
-			newBlock, err := newVals.DecodeAndCombine(block, buf[:0], nextTime, hasFutureBlock)
+			nv, newBlock, err := e.DecodeAndCombine(newVals, block, buf[:0], nextTime, hasFutureBlock)
+			newVals = nv
 			if err != nil {
 				return err
 			}
@@ -503,7 +471,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, values map[uint64]*valueCollection
 		}
 
 		// TODO: ensure we encode only the amount in a block, refactor this wil line 450 into func
-		if len(newVals.floatValues) > 0 {
+		if len(newVals) > 0 {
 			// TODO: ensure we encode only the amount in a block
 			block := newVals.Encode(buf)
 			if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
@@ -820,96 +788,39 @@ func (e *Engine) readSeries() (map[string]*tsdb.Series, error) {
 	return series, nil
 }
 
-type valueCollection struct {
-	floatValues  []FloatValue
-	boolValues   []BoolValue
-	intValues    []Int64Value
-	stringValues []StringValue
-}
-
-func (v *valueCollection) MinTime() time.Time {
-	if v.floatValues != nil {
-		return v.floatValues[0].Time
-	} else if v.boolValues != nil {
-		return v.boolValues[0].Time
-	} else if v.intValues != nil {
-		return v.intValues[0].Time
-	} else if v.stringValues != nil {
-		return v.stringValues[0].Time
-	}
-
-	return time.Unix(0, 0)
-}
-
-func (v *valueCollection) MaxTime() time.Time {
-	if v.floatValues != nil {
-		return v.floatValues[len(v.floatValues)-1].Time
-	} else if v.boolValues != nil {
-		return v.boolValues[len(v.boolValues)-1].Time
-	} else if v.intValues != nil {
-		return v.intValues[len(v.intValues)-1].Time
-	} else if v.stringValues != nil {
-		return v.stringValues[len(v.stringValues)-1].Time
-	}
-
-	return time.Unix(0, 0)
-}
-
-func (v *valueCollection) Encode(buf []byte) []byte {
-	if v.floatValues != nil {
-		return EncodeFloatBlock(buf, v.floatValues)
-	} else if v.boolValues != nil {
-		return EncodeBoolBlock(buf, v.boolValues)
-	} else if v.intValues != nil {
-		return EncodeInt64Block(buf, v.intValues)
-	} else if v.stringValues != nil {
-		return EncodeStringBlock(buf, v.stringValues)
-	}
-
-	return nil
-}
-
 // DecodeAndCombine take an encoded block from a file, decodes it and interleaves the file
-// values with the values in this collection. nextTime and hasNext refer to if the file
+// values with the values passed in. nextTime and hasNext refer to if the file
 // has future encoded blocks so that this method can know how much of its values can be
 // combined and output in the resulting encoded block.
-func (v *valueCollection) DecodeAndCombine(block, buf []byte, nextTime int64, hasFutureBlock bool) ([]byte, error) {
-	if v.floatValues != nil {
-		values, err := DecodeFloatBlock(block)
-		if err != nil {
-			return nil, err
-		}
+func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime int64, hasFutureBlock bool) (Values, []byte, error) {
+	values := newValues.DecodeSameTypeBlock(block)
 
-		if hasFutureBlock {
-			// take all values that have times less than the future block and update the vals array
-			pos := sort.Search(len(v.floatValues), func(i int) bool {
-				return v.floatValues[i].Time.UnixNano() >= nextTime
-			})
-			values = append(values, v.floatValues[:pos]...)
-			v.floatValues = v.floatValues[pos:]
-		} else {
-			values = append(values, v.floatValues...)
-			v.floatValues = nil
-		}
-		sort.Sort(FloatValues(values))
-		// TODO: deduplicate values
+	var remainingValues Values
 
-		if len(values) > DefaultMaxPointsPerBlock {
-			v.floatValues = values[DefaultMaxPointsPerBlock:]
-			values = values[:DefaultMaxPointsPerBlock]
+	if hasFutureBlock {
+		// take all values that have times less than the future block and update the vals array
+		pos := sort.Search(len(newValues), func(i int) bool {
+			return newValues[i].Time().UnixNano() >= nextTime
+		})
+		values = append(values, newValues[:pos]...)
+		remainingValues = newValues[pos:]
+		sort.Sort(values)
+	} else {
+		requireSort := values.MaxTime() > newValues.MinTime()
+		values = append(values, newValues...)
+		if requireSort {
+			sort.Sort(values)
 		}
-
-		return EncodeFloatBlock(buf, values), nil
-	} else if v.boolValues != nil {
-		// TODO: wire up the other value types
-		return nil, fmt.Errorf("not implemented")
-	} else if v.intValues != nil {
-		return nil, fmt.Errorf("not implemented")
-	} else if v.stringValues != nil {
-		return nil, fmt.Errorf("not implemented")
 	}
 
-	return nil, nil
+	// TODO: deduplicate values
+
+	if len(values) > DefaultMaxPointsPerBlock {
+		remainingValues = values[DefaultMaxPointsPerBlock:]
+		values = values[:DefaultMaxPointsPerBlock]
+	}
+
+	return remainingValues, values.Encode(buf), nil
 }
 
 type dataFile struct {
@@ -1040,7 +951,7 @@ type cursor struct {
 	f        *dataFile
 	filesPos int // the index in the files slice we're looking at
 	pos      uint32
-	vals     FloatValues
+	vals     Values
 
 	direction tsdb.Direction
 
@@ -1121,7 +1032,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 
 			// wasn't in the first value popped out of the block, check the rest
 			for i, v := range c.vals {
-				if v.Time.UnixNano() >= t {
+				if v.Time().UnixNano() >= t {
 					c.vals = c.vals[i+1:]
 					return v.TimeBytes(), v.ValueBytes()
 				}
@@ -1220,180 +1131,3 @@ type uint64slice []uint64
 func (a uint64slice) Len() int           { return len(a) }
 func (a uint64slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64slice) Less(i, j int) bool { return a[i] < a[j] }
-
-/* TODO: REMOVE THIS STUFF */
-func (e *Engine) pointsToBlocks(points [][]byte) []byte {
-	var b bytes.Buffer
-	block := make([]byte, 0)
-	for _, p := range points {
-		block = append(block, p[0:8]...)
-		block = append(block, u32tob(uint32(len(p)-8))...)
-		block = append(block, p[8:]...)
-		if len(block) > DefaultBlockSize {
-			e.writeBlockToBuffer(block, &b)
-			block = make([]byte, 0)
-		}
-	}
-	if len(block) > 0 {
-		e.writeBlockToBuffer(block, &b)
-	}
-
-	return b.Bytes()
-}
-
-func (e *Engine) writeBlockToBuffer(block []byte, b *bytes.Buffer) {
-	// write the min time
-	if _, err := b.Write(block[0:8]); err != nil {
-		panic(err)
-	}
-
-	// write the length of the compressed data
-	data := snappy.Encode(nil, block)
-	if _, err := b.Write(u32tob(uint32(len(data)))); err != nil {
-		panic(err)
-	}
-
-	// write the compressed data
-	if _, err := b.Write(data); err != nil {
-		panic(err)
-	}
-}
-
-func (e *Engine) readPointsFromFile(f *os.File) (map[uint64][][]byte, error) {
-	buf := make([]byte, 8)
-	if _, err := io.ReadFull(f, buf); err != nil {
-		return nil, err
-	}
-	seriesCount := btou64(buf)
-	positions := make([]uint64, seriesCount, seriesCount)
-	ids := make([]uint64, seriesCount, seriesCount)
-
-	// read the series index file header
-	position := uint64(8)
-	for i := 0; uint64(i) < seriesCount; i++ {
-		// read the id of the series
-		if _, err := io.ReadFull(f, buf); err != nil {
-			return nil, err
-		}
-		ids[i] = btou64(buf)
-
-		// read the min time and ignore
-		if _, err := io.ReadFull(f, buf); err != nil {
-			return nil, err
-		}
-		if _, err := io.ReadFull(f, buf); err != nil {
-			return nil, err
-		}
-
-		// read the starting position of this id
-		if _, err := io.ReadFull(f, buf); err != nil {
-			return nil, err
-		}
-		positions[i] = btou64(buf)
-		position += 32
-	}
-
-	if position != positions[0] {
-		panic("we aren't at the right place")
-	}
-
-	// read the raw data
-	seriesData := make(map[uint64][][]byte)
-	compressedBuff := make([]byte, DefaultBlockSize)
-	seriesPosition := 0
-	for {
-		// read the min time and ignore
-		if _, err := io.ReadFull(f, buf); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-
-		// read the length of the compressed block
-		if _, err := io.ReadFull(f, buf[:4]); err != nil {
-			return nil, err
-		}
-		length := btou32(buf)
-
-		if length > uint32(len(compressedBuff)) {
-			compressedBuff = make([]byte, length)
-		}
-		if _, err := io.ReadFull(f, compressedBuff[:length]); err != nil {
-			return nil, err
-		}
-
-		data, err := snappy.Decode(nil, compressedBuff[:length])
-		if err != nil {
-			return nil, err
-		}
-		id := ids[seriesPosition]
-		seriesData[id] = append(seriesData[id], e.pointsFromDataBlock(data)...)
-		position += uint64(12 + length)
-
-		if seriesPosition+1 >= len(positions) {
-			continue
-		}
-		if positions[seriesPosition+1] == position {
-			seriesPosition += 1
-		}
-	}
-
-	return seriesData, nil
-}
-
-func (e *Engine) pointsFromDataBlock(data []byte) [][]byte {
-	a := make([][]byte, 0)
-	for {
-		length := entryDataSize(data)
-		p := append(data[:8], data[12:12+length]...)
-		a = append(a, p)
-		data = data[12+length:]
-		if len(data) == 0 {
-			break
-		}
-	}
-	return a
-}
-
-func entryDataSize(v []byte) int { return int(binary.BigEndian.Uint32(v[8:12])) }
-
-func (e *Engine) lastFileAndNewFile() (*os.File, *os.File, error) {
-	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", Format)))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(files) == 0 {
-		newFile, err := os.OpenFile(filepath.Join(e.path, fmt.Sprintf("%07d.%s", 1, Format)), os.O_CREATE|os.O_RDWR, 0666)
-		if err != nil {
-			return nil, nil, err
-		}
-		return nil, newFile, nil
-	}
-
-	oldFile, err := os.OpenFile(files[len(files)-1], os.O_RDONLY, 0666)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	info, err := oldFile.Stat()
-	if err != nil {
-		_ = oldFile.Close()
-		return nil, nil, err
-	}
-
-	num := strings.Split(filepath.Base(files[len(files)-1]), ".")[0]
-	n, err := strconv.ParseUint(num, 10, 32)
-	if err != nil {
-		return nil, nil, err
-	}
-	newFile, err := os.OpenFile(filepath.Join(e.path, fmt.Sprintf("%07d.%s", n+1, Format)), os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return nil, nil, err
-	}
-	if info.Size() >= DefaultMaxFileSize {
-		oldFile.Close()
-		return nil, newFile, nil
-	}
-	return oldFile, newFile, nil
-}
