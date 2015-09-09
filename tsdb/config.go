@@ -30,7 +30,7 @@ const (
 
 	// DefaultFlushColdInterval specifies how long after a partition has been cold
 	// for writes that a full flush and compaction are forced
-	DefaultFlushColdInterval = 5 * time.Minute
+	DefaultFlushColdInterval = 5 * time.Second
 
 	// DefaultParititionSizeThreshold specifies when a partition gets to this size in
 	// memory, we should slow down writes until it gets a chance to compact.
