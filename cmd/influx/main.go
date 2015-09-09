@@ -72,7 +72,7 @@ func main() {
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
-	fs.StringVar(&c.Precision, "precision", defaultPrecision, "Format specifies the format of the server responses:  json, csv, or column.")
+	fs.StringVar(&c.Precision, "precision", defaultPrecision, "Precision specifies the format of the timestamp:  h,m,s,ms,u or ns.")
 	fs.StringVar(&c.WriteConsistency, "consistency", "any", "Set write consistency level: any, one, quorum, or all.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
@@ -104,7 +104,7 @@ func main() {
   -format 'json|csv|column'
        Format specifies the format of the server responses:  json, csv, or column.
   -precision 'h|m|s|ms|u|ns'
-       Format specifies the format of the timestamp:  h|m|s|ms|u|ns.
+       Precision specifies the format of the timestamp:  h, m, s, ms, u or ns.
   -consistency 'any|one|quorum|all'
        Set write consistency level: any, one, quorum, or all
   -pretty
@@ -304,6 +304,7 @@ func (c *CommandLine) connect(cmd string) error {
 	config.Username = c.Username
 	config.Password = c.Password
 	config.UserAgent = "InfluxDBShell/" + version
+	config.Precision = c.Precision
 	cl, err := client.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("Could not create client %s", err)
@@ -361,7 +362,17 @@ func (c *CommandLine) use(cmd string) {
 }
 
 func (c *CommandLine) SetPrecision(cmd string) {
-	c.Precision = cmd
+	// Remove the "precision" keyword if it exists
+	cmd = strings.TrimSpace(strings.Replace(cmd, "precision", "", -1))
+	// normalize cmd
+	cmd = strings.ToLower(cmd)
+
+	switch cmd {
+	case "h","m","s","ms","u","ns":
+		c.Precision = cmd
+	default:
+		fmt.Printf("Unknown precision %q. Please use h, m , s, ms, u or ns.\n", cmd)
+	}
 }
 
 func (c *CommandLine) SetFormat(cmd string) {

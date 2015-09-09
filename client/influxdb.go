@@ -136,6 +136,9 @@ func (c *Client) Query(q Query) (*Response, error) {
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
+	if c.precision != "" {
+		values.Set("epoch", c.precision)
+	}
 	u.RawQuery = values.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
@@ -145,10 +148,6 @@ func (c *Client) Query(q Query) (*Response, error) {
 	req.Header.Set("User-Agent", c.userAgent)
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
-	}
-	
-	if c.precision != "" {
-		req.Header.Set("epoch", c.precision)
 	}
 
 	resp, err := c.httpClient.Do(req)
