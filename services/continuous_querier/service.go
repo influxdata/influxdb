@@ -2,6 +2,7 @@ package continuous_querier
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -18,6 +20,13 @@ import (
 const (
 	// When planning a select statement, passing zero tells it not to chunk results. Only applies to raw queries
 	NoChunkingSize = 0
+)
+
+// Statistics for the CQ service.
+const (
+	statQueryOK       = "query_ok"
+	statQueryFail     = "query_fail"
+	statPointsWritten = "points_written"
 )
 
 // ContinuousQuerier represents a service that executes continuous queries.
@@ -76,6 +85,7 @@ type Service struct {
 	RunCh          chan *RunRequest
 	Logger         *log.Logger
 	loggingEnabled bool
+	statMap        *expvar.Map
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
@@ -90,6 +100,7 @@ func NewService(c Config) *Service {
 		RunInterval:    time.Second,
 		RunCh:          make(chan *RunRequest),
 		loggingEnabled: c.LogEnabled,
+		statMap:        influxdb.NewStatistics("cq", "cq", nil),
 		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
 		lastRuns:       map[string]time.Time{},
 	}
@@ -99,7 +110,6 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-
 	s.Logger.Println("Starting continuous query service")
 
 	if s.stop != nil {
@@ -213,6 +223,9 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 			}
 			if err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
 				s.Logger.Printf("error executing query: %s: err = %s", cq.Query, err)
+				s.statMap.Add(statQueryFail, 1)
+			} else {
+				s.statMap.Add(statQueryOK, 1)
 			}
 		}
 	}
@@ -374,6 +387,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 		return err
 	}
 
+	s.statMap.Add(statPointsWritten, int64(len(points)))
 	if s.loggingEnabled {
 		s.Logger.Printf("wrote %d point(s) to %s.%s", len(points), cq.intoDB(), cq.intoRP())
 	}
