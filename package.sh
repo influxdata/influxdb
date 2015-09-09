@@ -44,6 +44,7 @@ LOGROTATE_DIR=/etc/logrotate.d
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
 INITD_SCRIPT=scripts/init.sh
+SYSTEMD_SCRIPT=scripts/influxdb.service
 LOGROTATE=scripts/logrotate
 
 TMP_WORK_DIR=`mktemp -d`
@@ -244,19 +245,29 @@ ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
 ln -s $INSTALL_ROOT_DIR/versions/$version/influx $INSTALL_ROOT_DIR/influx
 ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
-rm -f /etc/init.d/influxdb
-ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
-chmod +x /etc/init.d/influxdb
-if which update-rc.d > /dev/null 2>&1 ; then
-    update-rc.d -f influxdb remove
-    update-rc.d influxdb defaults
-else
-    chkconfig --add influxdb
-fi
-
 if ! id influxdb >/dev/null 2>&1; then
         useradd --system -U -M influxdb
 fi
+
+# Systemd
+if which systemctl > /dev/null 2>&1 ; then
+    cp $INSTALL_ROOT_DIR/versions/$version/scripts/influxdb.service \
+        /lib/systemd/system/influxdb.service
+    systemctl enable influxdb
+
+# Sysv
+else
+    rm -f /etc/init.d/influxdb
+    ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
+    chmod +x /etc/init.d/influxdb
+    if which update-rc.d > /dev/null 2>&1 ; then
+        update-rc.d -f influxdb remove
+        update-rc.d influxdb defaults
+    else
+        chkconfig --add influxdb
+    fi
+fi
+
 chown -R -L influxdb:influxdb $INSTALL_ROOT_DIR
 chmod -R a+rX $INSTALL_ROOT_DIR
 
@@ -310,7 +321,7 @@ do
            VERSION_UNDERSCORED=`echo "$VERSION" | tr - _`
            shift
         else
-           echo "$1 : aborting version already set to $VERSION" 
+           echo "$1 : aborting version already set to $VERSION"
            usage 1
         fi
         ;;
@@ -375,6 +386,13 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
+
+cp $SYSTEMD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
+if [ $? -ne 0 ]; then
+    echo "Failed to copy systemd script to packaging directory -- aborting."
+    cleanup_exit 1
+fi
+echo "$SYSTEMD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
 
 cp $SAMPLE_CONFIGURATION $TMP_WORK_DIR/$CONFIG_ROOT_DIR/influxdb.conf
 if [ $? -ne 0 ]; then
