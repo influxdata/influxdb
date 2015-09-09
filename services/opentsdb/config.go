@@ -24,6 +24,9 @@ const (
 
 	// DefaultBatchTimeout is the default Graphite batch timeout.
 	DefaultBatchTimeout = time.Second
+
+	// DefaultBatchPending is the default number of batches that can be in the queue.
+	DefaultBatchPending = 5
 )
 
 type Config struct {
@@ -35,6 +38,7 @@ type Config struct {
 	TLSEnabled       bool          `toml:"tls-enabled"`
 	Certificate      string        `toml:"certificate"`
 	BatchSize        int           `toml:"batch-size"`
+	BatchPending     int           `toml:"batch-pending"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
 }
 
@@ -47,6 +51,7 @@ func NewConfig() Config {
 		TLSEnabled:       false,
 		Certificate:      "/etc/ssl/influxdb.pem",
 		BatchSize:        DefaultBatchSize,
+		BatchPending:     DefaultBatchPending,
 		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
 	}
 }

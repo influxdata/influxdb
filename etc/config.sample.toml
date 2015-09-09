@@ -208,6 +208,7 @@ reporting-disabled = false
   # metrics received over the telnet protocol undergo batching.
 
   # batch-size = 1000 # will flush if this many points get buffered
+  # batch-pending = 5 # number of batches that may be pending in memory
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
 
 ###
