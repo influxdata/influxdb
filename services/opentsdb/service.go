@@ -31,6 +31,7 @@ type Service struct {
 	err  chan error
 	tls  bool
 	cert string
+	done chan struct{}
 
 	BindAddress      string
 	Database         string
@@ -44,6 +45,7 @@ type Service struct {
 		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
+	batcher *tsdb.PointBatcher
 
 	Logger *log.Logger
 }
@@ -59,10 +61,12 @@ func NewService(c Config) (*Service, error) {
 		tls:              c.TLSEnabled,
 		cert:             c.Certificate,
 		err:              make(chan error),
+		done:             make(chan struct{}),
 		BindAddress:      c.BindAddress,
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,
 		ConsistencyLevel: consistencyLevel,
+		batcher:          tsdb.NewPointBatcher(c.BatchSize, time.Duration(c.BatchDuration)),
 		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
 	}
 	return s, nil
@@ -110,7 +114,9 @@ func (s *Service) Open() error {
 	s.httpln = newChanListener(s.ln.Addr())
 
 	// Begin listening for connections.
-	s.wg.Add(2)
+	s.wg.Add(3)
+	s.batcher.Start()
+	go s.writePoints()
 	go s.serveHTTP()
 	go s.serve()
 
@@ -122,9 +128,17 @@ func (s *Service) Close() error {
 	if s.ln != nil {
 		return s.ln.Close()
 	}
+	s.batcher.Flush()
+	close(s.done)
+	s.batcher.Stop()
 
 	s.wg.Wait()
 	return nil
+}
+
+// Flush batcher to PointsWriter for testing
+func (s *Service) Flush() {
+	s.batcher.Flush()
 }
 
 // SetLogger sets the internal logger to the logger passed in.
@@ -139,6 +153,28 @@ func (s *Service) Addr() net.Addr {
 		return nil
 	}
 	return s.ln.Addr()
+}
+
+func (s *Service) writePoints() {
+	defer s.wg.Done()
+
+	for {
+		select {
+		case batch := <-s.batcher.Out():
+			err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
+				Database:         s.Database,
+				RetentionPolicy:  s.RetentionPolicy,
+				ConsistencyLevel: s.ConsistencyLevel,
+				Points:           batch,
+			})
+			if err != nil {
+				s.Logger.Printf("Failed to write points batch to database %s: %s", s.Database, err)
+			}
+
+		case <-s.done:
+			return
+		}
+	}
 }
 
 // serve serves the handler from the listener.
@@ -256,15 +292,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		}
 
 		p := tsdb.NewPoint(measurement, tags, fields, t)
-		if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-			Database:         s.Database,
-			RetentionPolicy:  s.RetentionPolicy,
-			ConsistencyLevel: s.ConsistencyLevel,
-			Points:           []tsdb.Point{p},
-		}); err != nil {
-			s.Logger.Println("TSDB cannot write data: ", err)
-			continue
-		}
+		s.batcher.In() <- p
 	}
 }
 
@@ -274,7 +302,7 @@ func (s *Service) serveHTTP() {
 		Database:         s.Database,
 		RetentionPolicy:  s.RetentionPolicy,
 		ConsistencyLevel: s.ConsistencyLevel,
-		PointsWriter:     s.PointsWriter,
+		batcher:          s.batcher,
 		Logger:           s.Logger,
 	}}
 	srv.Serve(s.httpln)

@@ -65,7 +65,9 @@ func TestService_Telnet(t *testing.T) {
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	s.Flush()
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify that the writer was called.
 	if atomic.LoadInt32(&called) == 0 {
@@ -116,6 +118,8 @@ func TestService_HTTP(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("unexpected status code: %d", resp.StatusCode)
 	}
+	s.Flush()
+	time.Sleep(100 * time.Millisecond)
 
 	// Verify that the writer was called.
 	if !called {
