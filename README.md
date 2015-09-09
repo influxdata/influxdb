@@ -32,7 +32,7 @@ For those adventurous enough, you can
 
 ### Starting InfluxDB
 * `service influxdb start` if you have installed InfluxDB using an official Debian or RPM package.
-* `systemctl start influxdb` if you have InfluxDB using an official Debian or RPM package, and are running a distro with `systemd`.
+* `systemctl start influxdb` if you have installed InfluxDB using an official Debian or RPM package, and are running a distro with `systemd`. For example, Ubuntu 15 or later.
 * `$GOPATH/bin/influxd` if you have built InfluxDB from source.
 
 ### Creating your first database
