@@ -31,6 +31,7 @@ const (
 	statTelnetConnectionsHandled = "tl_connections_handled"
 	statTelnetPointsReceived     = "tl_points_rx"
 	statTelnetBytesReceived      = "tl_bytes_rx"
+	statTelnetReadError          = "tl_read_err"
 	statBatchesTrasmitted        = "batches_tx"
 	statPointsTransmitted        = "points_tx"
 	statBatchesTransmitFail      = "batches_tx_fail"
@@ -244,7 +245,10 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 	for {
 		line, err := r.ReadLine()
 		if err != nil {
-			s.Logger.Println("error reading from openTSDB connection", err.Error())
+			if err != io.EOF {
+				s.statMap.Add(statTelnetReadError, 1)
+				s.Logger.Println("error reading from openTSDB connection", err.Error())
+			}
 			return
 		}
 		s.statMap.Add(statTelnetPointsReceived, 1)
