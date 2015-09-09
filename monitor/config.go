@@ -24,7 +24,7 @@ const (
 	DefaultStoreReplicationFactor = 1
 
 	// DefaultStoreInterval is the period between storing gathered information.
-	DefaultStoreInterval = time.Minute
+	DefaultStoreInterval = 10 * time.Second
 )
 
 // Config represents the configuration for the monitor service.
