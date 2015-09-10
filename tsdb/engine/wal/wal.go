@@ -57,6 +57,12 @@ const (
 	// flushed to the index
 	MetaFlushInterval = 10 * time.Minute
 
+	// FailWriteMemoryThreshold will start returning errors on writes if the memory gets more
+	// than this multiple above the maximum threshold. This is set to 5 because previously
+	// the memory threshold was for 5 partitions, but when this was introduce the partition
+	// count was reduced to 1 so we know that it can handle at least this much extra memory
+	FailWriteMemoryThreshold = 5
+
 	// defaultFlushCheckInterval is how often flushes are triggered automatically by the flush criteria
 	defaultFlushCheckInterval = time.Second
 )
@@ -756,28 +762,24 @@ func (p *Partition) Close() error {
 // This method will also add the points to the in memory cache
 func (p *Partition) Write(points []tsdb.Point) error {
 
-	// Check if we should compact due to memory pressure and what the backoff time should be. Only
-	// run the compaction in a goroutine if it's not already running.
-	if shouldSleep, shouldCompact, sleepTime := func() (shouldSleep bool, shouldCompact bool, sleepTime time.Duration) {
+	// Check if we should compact due to memory pressure and if we should fail the write if
+	// we're way too far over the threshold.
+	if shouldFailWrite, shouldCompact := func() (shouldFailWrite bool, shouldCompact bool) {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
 		// pause writes for a bit if we've hit the size threshold
 		if p.memorySize > p.sizeThreshold {
 			if !p.compactionRunning {
 				shouldCompact = true
+			} else if p.memorySize > p.sizeThreshold*FailWriteMemoryThreshold {
+				shouldFailWrite = true
 			}
-			shouldSleep = true
-
-			// sleep for an increasing amount of time based on the percentage over the memory threshold we are
-			// over := float64(p.memorySize-p.sizeThreshold) / float64(p.sizeThreshold) * float64(100)
-			sleepTime = 0 // time.Duration(2*int(over)) * time.Millisecond
 		}
 		return
-	}(); shouldSleep {
-		if shouldCompact {
-			go p.flushAndCompact(memoryFlush)
-		}
-		time.Sleep(sleepTime)
+	}(); shouldCompact {
+		go p.flushAndCompact(memoryFlush)
+	} else if shouldFailWrite {
+		return fmt.Errorf("write throughput too high. backoff and retry")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
