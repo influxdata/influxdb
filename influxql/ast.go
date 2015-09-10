@@ -1091,14 +1091,11 @@ func (s *SelectStatement) validateDimensions() error {
 			} else {
 				dur = lit.Val
 			}
-			continue
 		case *VarRef:
 			if strings.ToLower(expr.Val) == "time" {
 				return errors.New("time() is a function and expects at least one argument")
 			}
-			continue
 		case *Wildcard:
-			continue
 		default:
 			return errors.New("only time and tag dimensions allowed")
 		}
