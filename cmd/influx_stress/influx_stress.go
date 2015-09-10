@@ -40,7 +40,9 @@ func main() {
 	var wg sync.WaitGroup
 	responseTimes := make([]int, 0)
 
+	failedRequests := 0
 	totalPoints := 0
+	lastSuccess := true
 
 	batch := &client.BatchPoints{
 		Database:         *database,
@@ -63,9 +65,20 @@ func main() {
 				go func(b *client.BatchPoints, total int) {
 					st := time.Now()
 					if _, err := c.Write(*b); err != nil {
-						fmt.Println("ERROR: ", err.Error())
+						mu.Lock()
+						if lastSuccess {
+							fmt.Println("ERROR: ", err.Error())
+						}
+						failedRequests += 1
+						totalPoints -= len(b.Points)
+						lastSuccess = false
+						mu.Unlock()
 					} else {
 						mu.Lock()
+						if !lastSuccess {
+							fmt.Println("success in ", time.Since(st))
+						}
+						lastSuccess = true
 						responseTimes = append(responseTimes, int(time.Since(st).Nanoseconds()))
 						mu.Unlock()
 					}
@@ -96,6 +109,7 @@ func main() {
 	mean := total / int64(len(responseTimes))
 
 	fmt.Printf("Wrote %d points at average rate of %.0f\n", totalPoints, float64(totalPoints)/time.Since(startTime).Seconds())
+	fmt.Printf("%d requests failed for %d total points that didn't get posted.\n", failedRequests, failedRequests**batchSize)
 	fmt.Println("Average response time: ", time.Duration(mean))
 	fmt.Println("Slowest response times:")
 	for _, r := range responseTimes[:100] {
