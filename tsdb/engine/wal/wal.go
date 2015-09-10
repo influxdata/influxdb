@@ -185,7 +185,7 @@ func NewLog(path string) *Log {
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
 	// should be done before any data could arrive for the service.
 	key := strings.Join([]string{"wal", path}, ":")
-	tags := map[string]string{"bind": path}
+	tags := map[string]string{"path": path}
 
 	return &Log{
 		path:  path,
