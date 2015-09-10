@@ -78,56 +78,62 @@ if [ -r $DEFAULT ]; then
 fi
 
 if ! typeset -F pidofproc &>/dev/null; then
-  function pidofproc() {
-      if [ $# -ne 3 ]; then
-          echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
-      fi
+    function pidofproc() {
+        if [ $# -ne 3 ]; then
+            echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
+        fi
 
-      pid=`pgrep -f "^$3"`
-      local pidfile=`cat $2`
+        pid=`pgrep -f "^$3"`
+        local pidfile=`cat $2`
 
-      if [ "x$pidfile" == "x" ]; then
-          return 1
-      fi
+        if [ "x$pidfile" == "x" ]; then
+            return 1
+        fi
 
-      if [ "x$pid" != "x" -a "$pidfile" == "$pid" ]; then
-          return 0
-      fi
+        if [ "x$pid" != "x" -a "$pidfile" == "$pid" ]; then
+            return 0
+        fi
 
-      return 1
-  }
+        return 1
+    }
 fi
 
-function killproc() {
-    if [ $# -ne 3 ]; then
-        echo "Expected three arguments, e.g. $0 -p pidfile signal"
-    fi
-
-    PID=`cat $2`
-
-    /bin/kill -s $3 $PID
-    while true; do
-        pidof `basename $DAEMON` >/dev/null
-        if [ $? -ne 0 ]; then
-            return 0
+if ! typeset -F killproc &>/dev/null; then
+    function killproc() {
+        if [ $# -ne 3 ]; then
+            echo "Expected three arguments, e.g. $0 -p pidfile signal"
         fi
 
-        sleep 1
-        n=$(expr $n + 1)
-        if [ $n -eq 30 ]; then
-            /bin/kill -s SIGKILL $PID
-            return 0
-        fi
-    done
-}
+        PID=`cat $2`
 
-function log_failure_msg() {
-    echo "$@" "[ FAILED ]"
-}
+        /bin/kill -s $3 $PID
+        while true; do
+            pidof `basename $DAEMON` >/dev/null
+            if [ $? -ne 0 ]; then
+                return 0
+            fi
 
-function log_success_msg() {
-    echo "$@" "[ OK ]"
-}
+            sleep 1
+            n=$(expr $n + 1)
+            if [ $n -eq 30 ]; then
+                /bin/kill -s SIGKILL $PID
+                return 0
+            fi
+        done
+    }
+fi
+
+if ! typeset -F log_failure_msg &>/dev/null; then
+    function log_failure_msg() {
+        echo "$@" "[ FAILED ]"
+    }
+fi
+
+if ! typeset -F log_success_msg &>/dev/null; then
+    function log_success_msg() {
+        echo "$@" "[ OK ]"
+    }
+fi
 
 case $1 in
     start)
