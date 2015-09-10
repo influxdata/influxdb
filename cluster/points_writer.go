@@ -29,6 +29,7 @@ const (
 	statWritePartial        = "write_partial"
 	statWriteTimeout        = "write_timeout"
 	statWriteErr            = "write_error"
+	statWriteRecover        = "write_recover"
 	statWritePointReqHH     = "point_req_hh"
 )
 
@@ -261,6 +262,12 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	for _, owner := range shard.Owners {
 		go func(shardID uint64, owner meta.ShardOwner, points []tsdb.Point) {
+			defer func() {
+				if r := recover(); r != nil {
+					w.statMap.Add(statWriteRecover, 1)
+					w.Logger.Panicf("Recovered from write failure. Points:\n%v\n", points)
+				}
+			}()
 			if w.MetaStore.NodeID() == owner.NodeID {
 				w.statMap.Add(statPointWriteReqLocal, int64(len(points)))
 
