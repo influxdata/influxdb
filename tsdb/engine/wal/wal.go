@@ -59,7 +59,7 @@ const (
 
 	// FailWriteMemoryThreshold will start returning errors on writes if the memory gets more
 	// than this multiple above the maximum threshold. This is set to 5 because previously
-	// the memory threshold was for 5 partitions, but when this was introduce the partition
+	// the memory threshold was for 5 partitions, but when this was introduced the partition
 	// count was reduced to 1 so we know that it can handle at least this much extra memory
 	FailWriteMemoryThreshold = 5
 
@@ -767,7 +767,7 @@ func (p *Partition) Write(points []tsdb.Point) error {
 	if shouldFailWrite, shouldCompact := func() (shouldFailWrite bool, shouldCompact bool) {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
-		// pause writes for a bit if we've hit the size threshold
+		// Return an error if memory threshold has been reached.
 		if p.memorySize > p.sizeThreshold {
 			if !p.compactionRunning {
 				shouldCompact = true
