@@ -1473,13 +1473,6 @@ func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatem
 func (p *Parser) parseFields() (Fields, error) {
 	var fields Fields
 
-	// Check for "*" (i.e., "all fields")
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == MUL {
-		fields = append(fields, &Field{&Wildcard{}, ""})
-		return fields, nil
-	}
-	p.unscan()
-
 	for {
 		// Parse the field.
 		f, err := p.parseField()
