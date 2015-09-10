@@ -14,9 +14,6 @@ func TestConfig_Parse(t *testing.T) {
 	if _, err := toml.Decode(`
 store-enabled=true
 store-database="the_db"
-store-retention-policy="the_rp"
-store-retention-duration="1h"
-store-replication-factor=1234
 store-interval="10m"
 `, &c); err != nil {
 		t.Fatal(err)

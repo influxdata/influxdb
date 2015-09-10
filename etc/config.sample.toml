@@ -91,13 +91,14 @@ reporting-disabled = false
 ###
 ### Controls the system self-monitoring, statistics and diagnostics.
 ###
+### The retention policy for this data is the default retention policy within
+### the internal database. The internal database is created automatically if
+### if it does not already exist, as is the default retention policy. If you
+### want to use a non-default retention policy, it must be explicitly created.
 
 [monitor]
   store-enabled = true # Whether to record statistics internally.
   store-database = "_internal" # The destination database for recorded statistics
-  store-retention-policy = "monitor" # The destination retention policy
-  store-retention-duration = "168h" # How long to keep the data
-  store-replication-factor = 1 # How many copies of the data to keep
   store-interval = "10s" # The interval at which to record statistics
 
 ###
