@@ -2718,6 +2718,9 @@ func TestServer_Query_Wildcards(t *testing.T) {
 		fmt.Sprintf(`wgroup,region=us-east value=10.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 		fmt.Sprintf(`wgroup,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
 		fmt.Sprintf(`wgroup,region=us-west value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+
+		fmt.Sprintf(`m1,region=us-east value=10.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`m2,host=server01 field=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -2771,6 +2774,24 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT * FROM wildcard GROUP BY *, region`,
 			exp:     `{"results":[{"series":[{"name":"wildcard","tags":{"region":"us-east"},"columns":["time","value","valx"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}]}`,
+		},
+		&Query{
+			name:    "wildcard with multiple measurements",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM m1, m2`,
+			exp:     `{"results":[{"series":[{"name":"m1","columns":["time","field","host","region","value"],"values":[["2000-01-01T00:00:00Z",null,null,"us-east",10]]},{"name":"m2","columns":["time","field","host","region","value"],"values":[["2000-01-01T00:00:01Z",20,"server01",null,null]]}]}]}`,
+		},
+		&Query{
+			name:    "wildcard with multiple measurements via regex",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM /^m.*/`,
+			exp:     `{"results":[{"series":[{"name":"m1","columns":["time","field","host","region","value"],"values":[["2000-01-01T00:00:00Z",null,null,"us-east",10]]},{"name":"m2","columns":["time","field","host","region","value"],"values":[["2000-01-01T00:00:01Z",20,"server01",null,null]]}]}]}`,
+		},
+		&Query{
+			name:    "wildcard with multiple measurements via regex and limit",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM db0../^m.*/ LIMIT 2`,
+			exp:     `{"results":[{"series":[{"name":"m1","columns":["time","field","host","region","value"],"values":[["2000-01-01T00:00:00Z",null,null,"us-east",10]]},{"name":"m2","columns":["time","field","host","region","value"],"values":[["2000-01-01T00:00:01Z",20,"server01",null,null]]}]}]}`,
 		},
 	}...)
 
