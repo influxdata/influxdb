@@ -964,10 +964,7 @@ func expandSources(sources influxql.Sources, di *DatabaseIndex) (influxql.Source
 // createTagSetsAndFields returns the tagsets and various fields given a measurement and
 // SELECT statement.
 func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*tagSetsAndFields, error) {
-	_, tagKeys, err := stmt.Dimensions.Normalize()
-	if err != nil {
-		return nil, err
-	}
+	_, tagKeys := stmt.Dimensions.Normalize()
 
 	sfs := newStringSet()
 	sts := newStringSet()
