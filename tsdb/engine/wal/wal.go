@@ -222,7 +222,7 @@ func (l *Log) Open() error {
 	}
 
 	// open the partition
-	p, err := NewPartition(uint8(1), l.path, l.SegmentSize, l.PartitionSizeThreshold, l.ReadySeriesSize, l.FlushColdInterval, l.Index)
+	p, err := NewPartition(uint8(1), l.path, l.SegmentSize, l.PartitionSizeThreshold, l.ReadySeriesSize, l.FlushColdInterval, l.Index, l.statMap)
 	if err != nil {
 		return err
 	}
@@ -753,11 +753,8 @@ type Partition struct {
 
 const partitionBufLen = 16 << 10 // 16kb
 
-func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64, readySeriesSize int, flushColdInterval time.Duration, index IndexWriter) (*Partition, error) {
-	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
-	// should be done before any data could arrive for the service.
-	key := strings.Join([]string{"partition", strconv.Itoa(int(id)), path}, ":")
-	tags := map[string]string{"partition": path, "id": strconv.Itoa(int(id))}
+func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64, readySeriesSize int,
+	flushColdInterval time.Duration, index IndexWriter, statMap *expvar.Map) (*Partition, error) {
 
 	p := &Partition{
 		id:                id,
@@ -769,7 +766,7 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 		readySeriesSize:   readySeriesSize,
 		index:             index,
 		flushColdInterval: flushColdInterval,
-		statMap:           influxdb.NewStatistics(key, "partition", tags),
+		statMap:           statMap,
 	}
 
 	p.os.OpenCompactionFile = os.OpenFile
