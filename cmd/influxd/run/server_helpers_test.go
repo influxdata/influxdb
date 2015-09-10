@@ -344,6 +344,7 @@ func configureLogging(s *Server) {
 		s.TSDBStore.Logger = nullLogger
 		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
+		s.QueryExecutor.SetLogger(nullLogger)
 		for _, service := range s.Services {
 			if service, ok := service.(logSetter); ok {
 				service.SetLogger(nullLogger)
