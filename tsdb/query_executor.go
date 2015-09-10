@@ -60,6 +60,11 @@ func NewQueryExecutor(store *Store) *QueryExecutor {
 	}
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (q *QueryExecutor) SetLogger(l *log.Logger) {
+	q.Logger = l
+}
+
 // Authorize user u to execute query q on database.
 // database can be "" for queries that do not require a database.
 // If no user is provided it will return an error unless the query's first statement is to create
@@ -144,6 +149,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				results <- &influxql.Result{Err: err}
 				break
 			}
+
+			// Log each normalized statement.
+			q.Logger.Println(stmt.String())
 
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
