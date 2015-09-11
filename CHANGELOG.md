@@ -56,6 +56,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3978](https://github.com/influxdb/influxdb/issues/3978): [0.9.3] (regression) cannot use GROUP BY * with more than a single field in SELECT clause
 - [#4058](https://github.com/influxdb/influxdb/pull/4058): Disable bz1 recompression
 - [#3902](https://github.com/influxdb/influxdb/issues/3902): [0.9.3] DB should not crash when using invalid expression "GROUP BY time"
+- [#3718](https://github.com/influxdb/influxdb/issues/3718): Derivative query with group by time but no aggregate function should fail parse
 
 ## v0.9.3 [2015-08-26]
 
