@@ -1042,6 +1042,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateDimensions(); err != nil {
+		return err
+	}
+
 	if err := s.validateDistinct(); err != nil {
 		return err
 	}
@@ -1065,6 +1069,36 @@ func (s *SelectStatement) validateFields() error {
 	ns := s.NamesInSelect()
 	if len(ns) == 1 && ns[0] == "time" {
 		return fmt.Errorf("at least 1 non-time field must be queried")
+	}
+	return nil
+}
+
+func (s *SelectStatement) validateDimensions() error {
+	var dur time.Duration
+	for _, dim := range s.Dimensions {
+		switch expr := dim.Expr.(type) {
+		case *Call:
+			// Ensure the call is time() and it only has one duration argument.
+			// If we already have a duration
+			if expr.Name != "time" {
+				return errors.New("only time() calls allowed in dimensions")
+			} else if len(expr.Args) != 1 {
+				return errors.New("time dimension expected one argument")
+			} else if lit, ok := expr.Args[0].(*DurationLiteral); !ok {
+				return errors.New("time dimension must have one duration argument")
+			} else if dur != 0 {
+				return errors.New("multiple time dimensions not allowed")
+			} else {
+				dur = lit.Val
+			}
+		case *VarRef:
+			if strings.ToLower(expr.Val) == "time" {
+				return errors.New("time() is a function and expects at least one argument")
+			}
+		case *Wildcard:
+		default:
+			return errors.New("only time and tag dimensions allowed")
+		}
 	}
 	return nil
 }
@@ -2212,37 +2246,21 @@ func (a Dimensions) String() string {
 
 // Normalize returns the interval and tag dimensions separately.
 // Returns 0 if no time interval is specified.
-// Returns an error if multiple time dimensions exist or if non-VarRef dimensions are specified.
-func (a Dimensions) Normalize() (time.Duration, []string, error) {
+func (a Dimensions) Normalize() (time.Duration, []string) {
 	var dur time.Duration
 	var tags []string
 
 	for _, dim := range a {
 		switch expr := dim.Expr.(type) {
 		case *Call:
-			// Ensure the call is time() and it only has one duration argument.
-			// If we already have a duration
-			if expr.Name != "time" {
-				return 0, nil, errors.New("only time() calls allowed in dimensions")
-			} else if len(expr.Args) != 1 {
-				return 0, nil, errors.New("time dimension expected one argument")
-			} else if lit, ok := expr.Args[0].(*DurationLiteral); !ok {
-				return 0, nil, errors.New("time dimension must have one duration argument")
-			} else if dur != 0 {
-				return 0, nil, errors.New("multiple time dimensions not allowed")
-			} else {
-				dur = lit.Val
-			}
-
+			lit, _ := expr.Args[0].(*DurationLiteral)
+			dur = lit.Val
 		case *VarRef:
 			tags = append(tags, expr.Val)
-
-		default:
-			return 0, nil, errors.New("only time and tag dimensions allowed")
 		}
 	}
 
-	return dur, tags, nil
+	return dur, tags
 }
 
 // Dimension represents an expression that a select statement is grouped by.
