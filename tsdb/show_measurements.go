@@ -176,10 +176,7 @@ func (m *ShowMeasurementsMapper) Open() error {
 }
 
 // SetRemote sets the remote mapper to use.
-func (m *ShowMeasurementsMapper) SetRemote(remote Mapper) error {
-	m.remote = remote
-	return nil
-}
+func (m *ShowMeasurementsMapper) SetRemote(remote Mapper) { m.remote = remote }
 
 // TagSets is only implemented on this mapper to satisfy the Mapper interface.
 func (m *ShowMeasurementsMapper) TagSets() []string { return nil }

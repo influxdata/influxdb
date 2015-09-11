@@ -30,7 +30,7 @@ type Executor interface {
 // Mapper is the interface all Mapper types must implement.
 type Mapper interface {
 	Open() error
-	SetRemote(m Mapper) error
+	SetRemote(m Mapper)
 	TagSets() []string
 	Fields() []string
 	NextChunk() (interface{}, error)

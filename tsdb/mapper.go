@@ -110,8 +110,7 @@ func (mo *MapperOutput) key() string {
 type SelectMapper struct {
 	shard           *Shard
 	remote          Mapper
-	stmt            influxql.Statement
-	selectStmt      *influxql.SelectStatement
+	stmt            *influxql.SelectStatement
 	rawMode         bool
 	chunkSize       int
 	tx              Tx              // Read transaction for this shard.
@@ -135,7 +134,7 @@ type SelectMapper struct {
 }
 
 // NewSelectMapper returns a mapper for the given shard, which will return data for the SELECT statement.
-func NewSelectMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *SelectMapper {
+func NewSelectMapper(shard *Shard, stmt *influxql.SelectStatement, chunkSize int) *SelectMapper {
 	return &SelectMapper{
 		shard:     shard,
 		stmt:      stmt,
@@ -144,14 +143,9 @@ func NewSelectMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *Sele
 	}
 }
 
-// openMeta opens the mapper for a meta query.
-func (lm *SelectMapper) openMeta() error {
-	return errors.New("not implemented")
-}
-
 func (lm *SelectMapper) timeDirection() Direction {
-	if len(lm.selectStmt.SortFields) > 0 {
-		if lm.selectStmt.SortFields[0].Ascending {
+	if len(lm.stmt.SortFields) > 0 {
+		if lm.stmt.SortFields[0].Ascending {
 			return Forward
 		} else {
 			return Reverse
@@ -190,23 +184,19 @@ func (lm *SelectMapper) Open() error {
 	lm.tx = tx
 
 	if err := func() error {
-		if s, ok := lm.stmt.(*influxql.SelectStatement); ok {
-			stmt, err := lm.rewriteSelectStatement(s)
-			if err != nil {
-				return err
-			}
-			lm.selectStmt = stmt
-			lm.rawMode = (s.IsRawQuery && !s.HasDistinct()) || s.IsSimpleDerivative()
-		} else {
-			return lm.openMeta()
+		stmt, err := lm.rewriteSelectStatement(lm.stmt)
+		if err != nil {
+			return err
 		}
+		lm.stmt = stmt
+		lm.rawMode = (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative()
 
 		// Set all time-related parameters on the mapper.
-		lm.queryTMin, lm.queryTMax = influxql.TimeRangeAsEpochNano(lm.selectStmt.Condition)
+		lm.queryTMin, lm.queryTMax = influxql.TimeRangeAsEpochNano(lm.stmt.Condition)
 
 		if !lm.rawMode {
 			// For GROUP BY time queries, limit the number of data points returned by the limit and offset
-			d, err := lm.selectStmt.GroupByInterval()
+			d, err := lm.stmt.GroupByInterval()
 			if err != nil {
 				return err
 			}
@@ -220,16 +210,16 @@ func (lm *SelectMapper) Open() error {
 				lm.numIntervals = int((intervalTop - intervalBottom) / lm.intervalSize)
 			}
 
-			if lm.selectStmt.Limit > 0 || lm.selectStmt.Offset > 0 {
+			if lm.stmt.Limit > 0 || lm.stmt.Offset > 0 {
 				// ensure that the offset isn't higher than the number of points we'd get
-				if lm.selectStmt.Offset > lm.numIntervals {
+				if lm.stmt.Offset > lm.numIntervals {
 					return nil
 				}
 
 				// Take the lesser of either the pre computed number of GROUP BY buckets that
 				// will be in the result or the limit passed in by the user
-				if lm.selectStmt.Limit < lm.numIntervals {
-					lm.numIntervals = lm.selectStmt.Limit
+				if lm.stmt.Limit < lm.numIntervals {
+					lm.numIntervals = lm.stmt.Limit
 				}
 			}
 
@@ -250,7 +240,7 @@ func (lm *SelectMapper) Open() error {
 		whereFields := newStringSet()
 
 		// Create the TagSet cursors for the Mapper.
-		for _, src := range lm.selectStmt.Sources {
+		for _, src := range lm.stmt.Sources {
 			mm, ok := src.(*influxql.Measurement)
 			if !ok {
 				return fmt.Errorf("invalid source type: %#v", src)
@@ -264,12 +254,12 @@ func (lm *SelectMapper) Open() error {
 			}
 
 			// Validate that ANY GROUP BY is not a field for the measurement.
-			if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
+			if err := m.ValidateGroupBy(lm.stmt); err != nil {
 				return err
 			}
 
 			// Create tagset cursors and determine various field types within SELECT statement.
-			tsf, err := createTagSetsAndFields(m, lm.selectStmt)
+			tsf, err := createTagSetsAndFields(m, lm.stmt)
 			if err != nil {
 				return err
 			}
@@ -284,20 +274,20 @@ func (lm *SelectMapper) Open() error {
 			}
 
 			// Validate that any GROUP BY is not on a field
-			if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
+			if err := m.ValidateGroupBy(lm.stmt); err != nil {
 				return err
 			}
 
 			// SLIMIT and SOFFSET the unique series
-			if lm.selectStmt.SLimit > 0 || lm.selectStmt.SOffset > 0 {
-				if lm.selectStmt.SOffset > len(tagSets) {
+			if lm.stmt.SLimit > 0 || lm.stmt.SOffset > 0 {
+				if lm.stmt.SOffset > len(tagSets) {
 					tagSets = nil
 				} else {
-					if lm.selectStmt.SOffset+lm.selectStmt.SLimit > len(tagSets) {
-						lm.selectStmt.SLimit = len(tagSets) - lm.selectStmt.SOffset
+					if lm.stmt.SOffset+lm.stmt.SLimit > len(tagSets) {
+						lm.stmt.SLimit = len(tagSets) - lm.stmt.SOffset
 					}
 
-					tagSets = tagSets[lm.selectStmt.SOffset : lm.selectStmt.SOffset+lm.selectStmt.SLimit]
+					tagSets = tagSets[lm.stmt.SOffset : lm.stmt.SOffset+lm.stmt.SLimit]
 				}
 			}
 
@@ -376,10 +366,7 @@ func (lm *SelectMapper) Open() error {
 	return nil
 }
 
-func (lm *SelectMapper) SetRemote(m Mapper) error {
-	lm.remote = m
-	return nil
-}
+func (lm *SelectMapper) SetRemote(m Mapper) { lm.remote = m }
 
 func (lm *SelectMapper) NextChunk() (interface{}, error) {
 	// If set, use remote mapper.
@@ -575,10 +562,10 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			}
 
 			tminf := func() int64 {
-				if len(lm.selectStmt.Dimensions) == 0 {
+				if len(lm.stmt.Dimensions) == 0 {
 					return -1
 				}
-				if !lm.selectStmt.HasTimeFieldSpecified() {
+				if !lm.stmt.HasTimeFieldSpecified() {
 					return tmin
 				}
 				return -1
@@ -602,7 +589,7 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 // nextInterval returns the next interval for which to return data. If start is less than 0
 // there are no more intervals.
 func (lm *SelectMapper) nextInterval() (start, end int64) {
-	t := lm.queryTMinWindow + int64(lm.currInterval+lm.selectStmt.Offset)*lm.intervalSize
+	t := lm.queryTMinWindow + int64(lm.currInterval+lm.stmt.Offset)*lm.intervalSize
 
 	// Onto next interval.
 	lm.currInterval++
@@ -619,12 +606,7 @@ func (lm *SelectMapper) nextInterval() (start, end int64) {
 func (lm *SelectMapper) initializeMapFunctions() error {
 	var err error
 	// Set up each mapping function for this statement.
-	selectStmt, ok := lm.stmt.(*influxql.SelectStatement)
-	if !ok {
-		return fmt.Errorf("No map functions for non-SELECT statement: %s", lm.stmt.String())
-	}
-
-	aggregates := selectStmt.FunctionCalls()
+	aggregates := lm.stmt.FunctionCalls()
 	lm.mapFuncs = make([]mapFunc, len(aggregates))
 	lm.mapUnmarshallers = make([]unmarshalFunc, len(aggregates))
 	lm.fieldNames = make([]string, len(lm.mapFuncs))
@@ -661,19 +643,21 @@ func (lm *SelectMapper) initializeMapFunctions() error {
 
 // rewriteSelectStatement performs any necessary query re-writing.
 func (lm *SelectMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
-	var err error
 	// Expand regex expressions in the FROM clause.
 	sources, err := expandSources(stmt.Sources, lm.shard.index)
 	if err != nil {
 		return nil, err
 	}
 	stmt.Sources = sources
+
 	// Expand wildcards in the fields or GROUP BY.
 	stmt, err = lm.expandWildcards(stmt)
 	if err != nil {
 		return nil, err
 	}
+
 	stmt.RewriteDistinct()
+
 	return stmt, nil
 }
 
