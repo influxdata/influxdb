@@ -12,7 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
-	
+
 	"github.com/influxdb/influxdb/influxql"
 )
 

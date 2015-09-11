@@ -59,12 +59,12 @@ type SelectMapper struct {
 
 	// The following attributes are only used when mappers are for aggregate queries.
 
-	queryTMinWindow int64              // Minimum time of the query floored to start of interval.
-	intervalSize    int64              // Size of each interval.
-	numIntervals    int                // Maximum number of intervals to return.
-	currInterval    int                // Current interval for which data is being fetched.
+	queryTMinWindow int64     // Minimum time of the query floored to start of interval.
+	intervalSize    int64     // Size of each interval.
+	numIntervals    int       // Maximum number of intervals to return.
+	currInterval    int       // Current interval for which data is being fetched.
 	mapFuncs        []mapFunc // The mapping functions.
-	fieldNames      []string           // the field name being read for mapping.
+	fieldNames      []string  // the field name being read for mapping.
 }
 
 // NewSelectMapper returns a mapper for the given shard, which will return data for the SELECT statement.
