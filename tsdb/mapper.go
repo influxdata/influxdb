@@ -59,12 +59,12 @@ type SelectMapper struct {
 
 	// The following attributes are only used when mappers are for aggregate queries.
 
-	queryTMinWindow int64              // Minimum time of the query floored to start of interval.
-	intervalSize    int64              // Size of each interval.
-	numIntervals    int                // Maximum number of intervals to return.
-	currInterval    int                // Current interval for which data is being fetched.
-	mapFuncs        []influxql.MapFunc // The mapping functions.
-	fieldNames      []string           // the field name being read for mapping.
+	queryTMinWindow int64     // Minimum time of the query floored to start of interval.
+	intervalSize    int64     // Size of each interval.
+	numIntervals    int       // Maximum number of intervals to return.
+	currInterval    int       // Current interval for which data is being fetched.
+	mapFuncs        []mapFunc // The mapping functions.
+	fieldNames      []string  // the field name being read for mapping.
 }
 
 // NewSelectMapper returns a mapper for the given shard, which will return data for the SELECT statement.
@@ -500,10 +500,10 @@ func (lm *SelectMapper) initializeMapFunctions() error {
 	var err error
 	// Set up each mapping function for this statement.
 	aggregates := lm.selectStmt.FunctionCalls()
-	lm.mapFuncs = make([]influxql.MapFunc, len(aggregates))
+	lm.mapFuncs = make([]mapFunc, len(aggregates))
 	lm.fieldNames = make([]string, len(lm.mapFuncs))
 	for i, c := range aggregates {
-		lm.mapFuncs[i], err = influxql.InitializeMapFunc(c)
+		lm.mapFuncs[i], err = initializeMapFunc(c)
 		if err != nil {
 			return err
 		}
@@ -964,10 +964,7 @@ func expandSources(sources influxql.Sources, di *DatabaseIndex) (influxql.Source
 // createTagSetsAndFields returns the tagsets and various fields given a measurement and
 // SELECT statement.
 func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*tagSetsAndFields, error) {
-	_, tagKeys, err := stmt.Dimensions.Normalize()
-	if err != nil {
-		return nil, err
-	}
+	_, tagKeys := stmt.Dimensions.Normalize()
 
 	sfs := newStringSet()
 	sts := newStringSet()

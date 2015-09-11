@@ -23,6 +23,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#4043](https://github.com/influxdb/influxdb/pull/4043): Add stats and batching to openTSDB input
 - [#4042](https://github.com/influxdb/influxdb/pull/4042): Add pending batches control to batcher
 - [#4006](https://github.com/influxdb/influxdb/pull/4006): Add basic statistics for shards
+- [#4072](https://github.com/influxdb/influxdb/pull/4072): Add statistics for the WAL.
 
 ### Bugfixes
 - [#4042](https://github.com/influxdb/influxdb/pull/4042): Set UDP input batching defaults as needed.
@@ -51,6 +52,11 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3881](https://github.com/influxdb/influxdb/issues/3881): panic: runtime error: invalid memory address or nil pointer dereference
 - [#3926](https://github.com/influxdb/influxdb/issues/3926): First or last value of `GROUP BY time(x)` is often null. Fixed by [#4038](https://github.com/influxdb/influxdb/pull/4038)
 - [#4053](https://github.com/influxdb/influxdb/pull/4053): Prohibit dropping default retention policy.
+- [#4060](https://github.com/influxdb/influxdb/pull/4060): Don't log EOF error in openTSDB input.
+- [#3978](https://github.com/influxdb/influxdb/issues/3978): [0.9.3] (regression) cannot use GROUP BY * with more than a single field in SELECT clause
+- [#4058](https://github.com/influxdb/influxdb/pull/4058): Disable bz1 recompression
+- [#3902](https://github.com/influxdb/influxdb/issues/3902): [0.9.3] DB should not crash when using invalid expression "GROUP BY time"
+- [#3718](https://github.com/influxdb/influxdb/issues/3718): Derivative query with group by time but no aggregate function should fail parse
 
 ## v0.9.3 [2015-08-26]
 

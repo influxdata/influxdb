@@ -73,6 +73,41 @@ func TestParser_ParseStatement(t *testing.T) {
 				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 			},
 		},
+		{
+			s: `SELECT * FROM myseries GROUP BY *`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Wildcard{}},
+				},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Wildcard{}}},
+			},
+		},
+		{
+			s: `SELECT field1, * FROM myseries GROUP BY *`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "field1"}},
+					{Expr: &influxql.Wildcard{}},
+				},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Wildcard{}}},
+			},
+		},
+		{
+			s: `SELECT *, field1 FROM myseries GROUP BY *`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Wildcard{}},
+					{Expr: &influxql.VarRef{Val: "field1"}},
+				},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Wildcard{}}},
+			},
+		},
 
 		// SELECT statement
 		{
@@ -1339,6 +1374,11 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT count(value), value FROM foo`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `SELECT count(value) FROM foo group by time(1s)`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
 		{s: `SELECT count(value) FROM foo group by time(1s) where host = 'hosta.influxdb.org'`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
+		{s: `SELECT count(value) FROM foo group by time`, err: `time() is a function and expects at least one argument`},
+		{s: `SELECT count(value) FROM foo group by 'time'`, err: `only time and tag dimensions allowed`},
+		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time()`, err: `time dimension expected one argument`},
+		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(b)`, err: `time dimension must have one duration argument`},
+		{s: `SELECT count(value) FROM foo where time > now() and time < now() group by time(1s), time(2s)`, err: `multiple time dimensions not allowed`},
 		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier at line 1, char 20`},
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
@@ -1355,16 +1395,15 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT derivative(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `select derivative() from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 0`},
 		{s: `select derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3`},
+		{s: `SELECT derivative(value) FROM myseries where time < now() and time > now() - 1d`, err: `aggregate function required inside the call to derivative`},
 		{s: `SELECT non_negative_derivative(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `select non_negative_derivative() from myseries`, err: `invalid number of arguments for non_negative_derivative, expected at least 1 but no more than 2, got 0`},
 		{s: `select non_negative_derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for non_negative_derivative, expected at least 1 but no more than 2, got 3`},
+		{s: `SELECT non_negative_derivative(value) FROM myseries where time < now() and time > now() - 1d`, err: `aggregate function required inside the call to non_negative_derivative`},
 		{s: `SELECT field1 from myseries WHERE host =~ 'asd' LIMIT 1`, err: `found asd, expected regex at line 1, char 42`},
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT s =~ /foo/ FROM cpu`, err: `invalid operator =~ in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
-		{s: `SELECT foo, * from cpu`, err: `wildcards can not be combined with other fields`},
-		{s: `SELECT *, * from cpu`, err: `found ,, expected FROM at line 1, char 9`},
-		{s: `SELECT *, foo from cpu`, err: `found ,, expected FROM at line 1, char 9`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},

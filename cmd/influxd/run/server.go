@@ -32,11 +32,18 @@ import (
 	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
 
+// BuildInfo represents the build details for the server code.
+type BuildInfo struct {
+	Version string
+	Commit  string
+	Branch  string
+}
+
 // Server represents a container for the metadata and storage data and services.
 // It is built using a Config and it manages the startup and shutdown of all
 // services in the proper order.
 type Server struct {
-	version string // Build version
+	buildInfo BuildInfo
 
 	err     chan error
 	closing chan struct{}
@@ -71,15 +78,15 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server built from a config.
-func NewServer(c *Config, version string) (*Server, error) {
+func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Construct base meta store and data store.
 	tsdbStore := tsdb.NewStore(c.Data.Dir)
 	tsdbStore.EngineOptions.Config = c.Data
 
 	s := &Server{
-		version: version,
-		err:     make(chan error),
-		closing: make(chan struct{}),
+		buildInfo: *buildInfo,
+		err:       make(chan error),
+		closing:   make(chan struct{}),
 
 		Hostname:    c.Meta.Hostname,
 		BindAddress: c.Meta.BindAddress,
@@ -126,6 +133,9 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
 	// Initialize the monitor
+	s.Monitor.Version = s.buildInfo.Version
+	s.Monitor.Commit = s.buildInfo.Commit
+	s.Monitor.Branch = s.buildInfo.Branch
 	s.Monitor.MetaStore = s.MetaStore
 	s.Monitor.PointsWriter = s.PointsWriter
 
@@ -203,7 +213,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
-	srv.Handler.Version = s.version
+	srv.Handler.Version = s.buildInfo.Version
 
 	// If a ContinuousQuerier service has been started, attach it.
 	for _, srvc := range s.Services {
@@ -465,7 +475,7 @@ func (s *Server) reportServer() {
     "name":"reports",
     "columns":["os", "arch", "version", "server_id", "cluster_id", "num_series", "num_measurements", "num_databases"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
-  }]`, runtime.GOOS, runtime.GOARCH, s.version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
+  }]`, runtime.GOOS, runtime.GOARCH, s.buildInfo.Version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
 
 	data := bytes.NewBufferString(json)
 

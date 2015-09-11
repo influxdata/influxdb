@@ -104,7 +104,8 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Create server from config and start it.
-	s, err := NewServer(config, cmd.Version)
+	buildInfo := &BuildInfo{Version: cmd.Version, Commit: cmd.Commit, Branch: cmd.Branch}
+	s, err := NewServer(config, buildInfo)
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}

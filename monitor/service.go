@@ -58,6 +58,11 @@ func (d *Diagnostic) AddRow(r []interface{}) {
 
 // Monitor represents an instance of the monitor system.
 type Monitor struct {
+	// Build information for diagnostics.
+	Version string
+	Commit  string
+	Branch  string
+
 	wg   sync.WaitGroup
 	done chan struct{}
 	mu   sync.Mutex
@@ -77,7 +82,6 @@ type Monitor struct {
 		NodeID() uint64
 		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
-		CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	}
 
 	PointsWriter interface {
@@ -90,15 +94,12 @@ type Monitor struct {
 // New returns a new instance of the monitor system.
 func New(c Config) *Monitor {
 	return &Monitor{
-		done:                   make(chan struct{}),
-		diagRegistrations:      make(map[string]DiagsClient),
-		storeEnabled:           c.StoreEnabled,
-		storeDatabase:          c.StoreDatabase,
-		storeRetentionPolicy:   c.StoreRetentionPolicy,
-		storeRetentionDuration: time.Duration(c.StoreRetentionDuration),
-		storeReplicationFactor: c.StoreReplicationFactor,
-		storeInterval:          time.Duration(c.StoreInterval),
-		Logger:                 log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+		done:              make(chan struct{}),
+		diagRegistrations: make(map[string]DiagsClient),
+		storeEnabled:      c.StoreEnabled,
+		storeDatabase:     c.StoreDatabase,
+		storeInterval:     time.Duration(c.StoreInterval),
+		Logger:            log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
 
@@ -108,6 +109,11 @@ func (m *Monitor) Open() error {
 	m.Logger.Printf("Starting monitor system")
 
 	// Self-register various stats and diagnostics.
+	m.RegisterDiagnosticsClient("build", &build{
+		Version: m.Version,
+		Commit:  m.Commit,
+		Branch:  m.Branch,
+	})
 	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
@@ -290,16 +296,6 @@ func (m *Monitor) storeStatistics() {
 	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
 		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
 			m.storeDatabase, err.Error())
-		return
-	}
-
-	rpi := meta.NewRetentionPolicyInfo(m.storeRetentionPolicy)
-	rpi.Duration = m.storeRetentionDuration
-	rpi.ReplicaN = m.storeReplicationFactor
-
-	if _, err := m.MetaStore.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
-		m.Logger.Printf("failed to create retention policy '%s', terminating storage: %s",
-			m.storeRetentionPolicy, err.Error())
 		return
 	}
 
