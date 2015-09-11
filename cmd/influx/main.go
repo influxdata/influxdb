@@ -31,7 +31,8 @@ const (
 	// defaultFormat is the default format of the results when issuing queries
 	defaultFormat = "column"
 	
-	defaultPrecision = ""
+	// defaultPrecision is the default timestamp format of the results when issuing queries 
+	defaultPrecision = "ns"
 
 	// defaultPPS is the default points per second that the import will throttle at
 	// by default it's 0, which means it will not throttle
@@ -72,7 +73,7 @@ func main() {
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
-	fs.StringVar(&c.Precision, "precision", defaultPrecision, "Precision specifies the format of the timestamp:  h,m,s,ms,u or ns.")
+	fs.StringVar(&c.Precision, "precision", defaultPrecision, "Precision specifies the format of the timestamp:  rfc3339,h,m,s,ms,u or ns.")
 	fs.StringVar(&c.WriteConsistency, "consistency", "any", "Set write consistency level: any, one, quorum, or all.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
@@ -103,8 +104,8 @@ func main() {
        Execute command and quit.
   -format 'json|csv|column'
        Format specifies the format of the server responses:  json, csv, or column.
-  -precision 'h|m|s|ms|u|ns'
-       Precision specifies the format of the timestamp:  h, m, s, ms, u or ns.
+  -precision 'rfc3339|h|m|s|ms|u|ns'
+       Precision specifies the format of the timestamp:  rfc3339, h, m, s, ms, u or ns.
   -consistency 'any|one|quorum|all'
        Set write consistency level: any, one, quorum, or all
   -pretty
@@ -370,8 +371,10 @@ func (c *CommandLine) SetPrecision(cmd string) {
 	switch cmd {
 	case "h","m","s","ms","u","ns":
 		c.Precision = cmd
+	case "rfc3339":
+		c.Precision = ""; 
 	default:
-		fmt.Printf("Unknown precision %q. Please use h, m , s, ms, u or ns.\n", cmd)
+		fmt.Printf("Unknown precision %q. Please use rfc3339, h, m, s, ms, u or ns.\n", cmd)
 	}
 }
 
