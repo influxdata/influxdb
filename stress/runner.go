@@ -133,7 +133,7 @@ func (cfg *Config) NewClient() (*client.Client, error) {
 // It returns the total number of points that were during the test,
 // an slice of all of the stress tests response times,
 // and the times that the test started at and ended as a `Timer`
-func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Timer) {
+func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
 	timer = NewTimer()
 	defer timer.StopTimer()
 
@@ -148,7 +148,11 @@ func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Time
 	var wg sync.WaitGroup
 	responseTimes = make(ResponseTimes, 0)
 
+	failedRequests = 0
+
 	totalPoints = 0
+
+	lastSuccess := true
 
 	batch := &client.BatchPoints{
 		Database:         cfg.Database,
@@ -173,9 +177,20 @@ func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Time
 					go func(b *client.BatchPoints, total int) {
 						st := time.Now()
 						if _, err := c.Write(*b); err != nil {
-							fmt.Println("ERROR: ", err.Error())
+							mu.Lock()
+							if lastSuccess {
+								fmt.Println("ERROR: ", err.Error())
+							}
+							failedRequests += 1
+							totalPoints -= len(b.Points)
+							lastSuccess = false
+							mu.Unlock()
 						} else {
 							mu.Lock()
+							if !lastSuccess {
+								fmt.Println("success in ", time.Since(st))
+							}
+							lastSuccess = true
 							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
 							mu.Unlock()
 						}

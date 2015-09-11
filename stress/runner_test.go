@@ -184,7 +184,7 @@ func TestRun(t *testing.T) {
 		Address:       url,
 	}
 
-	tp, rts, tmr := runner.Run(cfg)
+	tp, _, rts, tmr := runner.Run(cfg)
 
 	ps := cfg.SeriesCount * cfg.PointCount * len(cfg.Measurements)
 

@@ -47,7 +47,7 @@ func main() {
 		Precision:     *precision,
 	}
 
-	totalPoints, responseTimes, timer := runner.Run(cfg)
+	totalPoints, failedRequests, responseTimes, timer := runner.Run(cfg)
 
 	sort.Sort(sort.Reverse(sort.Interface(responseTimes)))
 
@@ -58,6 +58,7 @@ func main() {
 	mean := total / int64(len(responseTimes))
 
 	fmt.Printf("Wrote %d points at average rate of %.0f\n", totalPoints, float64(totalPoints)/timer.Elapsed().Seconds())
+	fmt.Printf("%d requests failed for %d total points that didn't get posted.\n", failedRequests, failedRequests**batchSize)
 	fmt.Println("Average response time: ", time.Duration(mean))
 	fmt.Println("Slowest response times:")
 	for _, r := range responseTimes[:100] {
