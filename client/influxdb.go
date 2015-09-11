@@ -128,6 +128,11 @@ func (c *Client) SetAuth(u, p string) {
 	c.password = p
 }
 
+// SetPrecision will update the precision
+func (c *Client) SetPrecision(precision string) {
+        c.precision = precision
+}
+
 // Query sends a command to the server and returns the Response
 func (c *Client) Query(q Query) (*Response, error) {
 	u := c.url

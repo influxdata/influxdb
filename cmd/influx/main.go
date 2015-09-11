@@ -165,6 +165,8 @@ Examples:
 	}
 
 	if c.Execute != "" {
+		// Modify precision before executing query
+		c.SetPrecision(c.Precision)
 		if err := c.ExecuteQuery(c.Execute); err != nil {
 			c.Line.Close()
 			os.Exit(1)
@@ -371,8 +373,10 @@ func (c *CommandLine) SetPrecision(cmd string) {
 	switch cmd {
 	case "h","m","s","ms","u","ns":
 		c.Precision = cmd
+		c.Client.SetPrecision(c.Precision)
 	case "rfc3339":
-		c.Precision = ""; 
+		c.Precision = ""
+		c.Client.SetPrecision(c.Precision)
 	default:
 		fmt.Printf("Unknown precision %q. Please use rfc3339, h, m, s, ms, u or ns.\n", cmd)
 	}
