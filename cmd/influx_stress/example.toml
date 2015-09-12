@@ -1,0 +1,73 @@
+[write]
+  concurrency = 10
+  batch_size = 5000
+  batch_interval = "0s"
+  database = "stress"
+  reset_database = true
+  starting_point = "6m" # how far back in time to go
+
+## Fine grained control over what series gets written
+[[series]]
+  point_count = 1000 # number of points that will be written for each of the series
+  measurement = "cpu"
+
+  [[series.tag]]
+    key = "host"
+    values = ["idk", "wtf"]
+
+  [[series.tag]]
+    key = "location"
+    values = ["lame", "ness"]
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  [[series.field]]
+    key = "loc"
+    type = "bool"
+
+## Generate large number of series with a generic tags
+[[series]]
+  point_count = 100
+  measurement = "mem"
+  generic_tagst_cardinality = 100000 # defaults to 0. needs to be power of 10.
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+## Combined specific and generic
+[[series]]
+  point_count = 1000 # number of points that will be written for each of the series
+  measurement = "cpu"
+  generic_tagst_cardinality = 1000 # defaults to 0. needs to be a power of 10.
+
+  [[series.tag]]
+    key = "host"
+    values = ["idk", "wtf"]
+
+  [[series.tag]]
+    key = "location"
+    values = ["lame", "ness"]
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  [[series.field]]
+    key = "loc"
+    type = "bool"
+
+
+[[query]]
+  concurrency = 10
+  measurement = "cpu"
+  tag_key = "host"
+  time_frame = "5m" # defaults to 0 which will query over all time
+  statement = "SELECT count(value) FROM #{measurement} WHERE #{tag_key}=#{tag_value}" # needs work
+
+[[query]]
+  concurrency = 1
+  statement = "SELECT count(value) FROM cpu" # needs work
+
