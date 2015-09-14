@@ -20,7 +20,7 @@ All statistics are written, by default, by each node to a "monitor" database wit
 All statistical information is available at HTTP API endpoint `/debug/vars`, in [expvar](https://golang.org/pkg/expvar/) format, allowing external systems to monitor an InfluxDB node. By default, the full path to this endpoint is `http://localhost:8086/debug/vars`.
 
 ## Configuration
-The `monitor` module allow the following configuration:
+The `monitor` module allows the following configuration:
 
  * Whether to write statistical and diagnostic information to an InfluxDB system. This is enabled by default.
  * The name of the database to where this information should be written. Defaults to `_internal`. The information is written to the default retention policy for the given database. 
