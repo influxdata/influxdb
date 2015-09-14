@@ -1,4 +1,6 @@
-## v0.9.4 [unreleased]
+## v0.9.5 [unreleased]
+
+## v0.9.4 [2015-09-14]
 
 ### Release Notes
 With this release InfluxDB is moving to Go 1.5.
