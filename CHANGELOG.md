@@ -6,6 +6,7 @@
 With this release InfluxDB is moving to Go 1.5.
 
 ### Features
+- [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client 
 - [#4050](https://github.com/influxdb/influxdb/pull/4050): Add stats to collectd
 - [#3771](https://github.com/influxdb/influxdb/pull/3771): Close idle Graphite TCP connections
 - [#3755](https://github.com/influxdb/influxdb/issues/3755): Add option to build script. Thanks @fg2it
