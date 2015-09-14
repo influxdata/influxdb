@@ -10,5 +10,5 @@ cd $GOPATH/src/github.com/influxdb
 git clone https://github.com/influxdb/influxdb.git
 
 cd $GOPATH/src/github.com/influxdb/influxdb
-NIGHTLY_BUILD=true ./package.sh 0.9.4-nightly-`git log --pretty=format:'%h' -n 1`
+NIGHTLY_BUILD=true ./package.sh 0.9.5-nightly-`git log --pretty=format:'%h' -n 1`
 rm -rf $REPO_DIR
