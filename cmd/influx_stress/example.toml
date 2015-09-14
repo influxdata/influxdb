@@ -3,13 +3,17 @@
   batch_size = 5000
   batch_interval = "0s"
   database = "stress"
+  precision = "1s"
+  address = "localhost:8086"
   reset_database = true
   starting_point = "6m" # how far back in time to go
 
 ## Fine grained control over what series gets written
 [[series]]
-  point_count = 1000 # number of points that will be written for each of the series
+  point_count = 100 # number of points that will be written for each of the series
   measurement = "cpu"
+  # series count
+  generic_tagset_cardinality = 100000 # defaults to 0. needs to be power of 10.
 
   [[series.tag]]
     key = "host"

@@ -2,7 +2,7 @@ package runner
 
 import (
 	"fmt"
-	"math/rand"
+	//"math/rand"
 	"net/url"
 	"strings"
 	"sync"
@@ -120,8 +120,9 @@ type Config struct {
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
-func (cfg *Config) NewClient() (*client.Client, error) {
-	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Address))
+func (cfg *StressTest) NewClient() (*client.Client, error) {
+	fmt.Printf("CFG: %#v\n", cfg)
+	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Write.Address))
 	c, err := client.NewClient(client.Config{URL: *u})
 	if err != nil {
 		return nil, err
@@ -133,7 +134,8 @@ func (cfg *Config) NewClient() (*client.Client, error) {
 // It returns the total number of points that were during the test,
 // an slice of all of the stress tests response times,
 // and the times that the test started at and ended as a `Timer`
-func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
+func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
+
 	timer = NewTimer()
 	defer timer.StopTimer()
 
@@ -142,7 +144,7 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 		panic(err)
 	}
 
-	counter := NewConcurrencyLimiter(cfg.Concurrency)
+	counter := NewConcurrencyLimiter(cfg.Write.Concurrency)
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -155,25 +157,23 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 	lastSuccess := true
 
 	batch := &client.BatchPoints{
-		Database:         cfg.Database,
+		Database:         cfg.Write.Database,
 		WriteConsistency: "any",
 		Time:             time.Now(),
-		Precision:        cfg.Precision,
+		Precision:        cfg.Write.Precision, // Should be cfg.Write.Precision
 	}
 
-	for i := 1; i <= cfg.PointCount; i++ {
-		for j := 1; j <= cfg.SeriesCount; j++ {
-			for _, m := range cfg.Measurements {
-				p := client.Point{
-					Measurement: m,
-					Tags:        map[string]string{"region": "uswest", "host": fmt.Sprintf("host-%d", j)},
-					Fields:      map[string]interface{}{"value": rand.Float64()},
-				}
+	for _, testSeries := range cfg.Series {
+		for i := 0; i < testSeries.PointCount; i++ {
+			iter := testSeries.Iter()
+			var p client.Point
+			for ok := true; ok; p, ok = iter.Next() {
 				batch.Points = append(batch.Points, p)
-				if len(batch.Points) >= cfg.BatchSize {
+				if len(batch.Points) >= cfg.Write.BatchSize {
 					wg.Add(1)
 					counter.Increment()
 					totalPoints += len(batch.Points)
+
 					go func(b *client.BatchPoints, total int) {
 						st := time.Now()
 						if _, err := c.Write(*b); err != nil {
@@ -194,16 +194,17 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
 							mu.Unlock()
 						}
-						time.Sleep(cfg.BatchInterval)
+						//time.Sleep(cfg.Write.BatchInterval)
+						time.Sleep(0 * time.Second)
 						wg.Done()
 						counter.Decrement()
 						if total%500000 == 0 {
-							fmt.Printf("%d total points. %d in %s\n", total, cfg.BatchSize, time.Since(st))
+							fmt.Printf("%d total points. %d in %s\n", total, cfg.Write.BatchSize, time.Since(st))
 						}
 					}(batch, totalPoints)
 
 					batch = &client.BatchPoints{
-						Database:         cfg.Database,
+						Database:         cfg.Write.Database,
 						WriteConsistency: "any",
 						Precision:        "n",
 						Time:             time.Now(),
