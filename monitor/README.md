@@ -19,6 +19,14 @@ All statistics are written, by default, by each node to a "monitor" database wit
 ## Standard expvar support
 All statistical information is available at HTTP API endpoint `/debug/vars`, in [expvar](https://golang.org/pkg/expvar/) format, allowing external systems to monitor an InfluxDB node. By default, the full path to this endpoint is `http://localhost:8086/debug/vars`.
 
+## Configuration
+The `monitor` module allow the following configuration:
+
+ * Whether to write statistical and diagnostic information to an InfluxDB system. This is enabled by default.
+ * The name of the database to where this information should be written. Defaults to `_internal`. The information is written to the default retention policy for the given database. 
+ * The name of the retention policy, along with full configuration control of the retention policy, if the default retention policy is not suitable.
+ * The rate at which this information should be written. The default rate is once every 10 seconds.
+
 # Design and Implementation
 
 A new module named `monitor` supports all basic statistics and diagnostic functionality. This includes:
@@ -37,11 +45,3 @@ To export statistical information with the `monitor` system, code simply calls `
 Statistical information is gathered by each package using [expvar](https://golang.org/pkg/expvar). Each package registers a map using its package name.
 
 Due to the nature of `expvar`, statistical information is reset to its initial state when a server is restarted.
-
-## Configuration
-The `monitor` module allow the following configuration:
-
- * Whether to write statistical and diagnostic information to an InfluxDB system. This is enabled by default.
- * The name of the database to where this information should be written. Defaults to `_internal`. The information is written to the default retention policy for the given database. 
- * The name of the retention policy, along with full configuration control of the retention policy, if the default retention policy is not suitable.
- * The rate at which this information should be written. The default rate is once every 10 seconds.
