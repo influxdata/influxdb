@@ -30,8 +30,8 @@ var (
 const (
 	// defaultFormat is the default format of the results when issuing queries
 	defaultFormat = "column"
-	
-	// defaultPrecision is the default timestamp format of the results when issuing queries 
+
+	// defaultPrecision is the default timestamp format of the results when issuing queries
 	defaultPrecision = "ns"
 
 	// defaultPPS is the default points per second that the import will throttle at
@@ -371,7 +371,7 @@ func (c *CommandLine) SetPrecision(cmd string) {
 	cmd = strings.ToLower(cmd)
 
 	switch cmd {
-	case "h","m","s","ms","u","ns":
+	case "h", "m", "s", "ms", "u", "ns":
 		c.Precision = cmd
 		c.Client.SetPrecision(c.Precision)
 	case "rfc3339":
