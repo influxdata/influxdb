@@ -2470,14 +2470,14 @@ func TestServer_Query_AggregatesIdenticalTime(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT last(value) FROM "series"`,
 			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
-			repeat:  20,
+			repeat:  100,
 		},
 		&Query{
 			name:    "first from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT first(value) FROM "series"`,
 			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
-			repeat:  20,
+			repeat:  100,
 		},
 	}...)
 
