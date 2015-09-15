@@ -177,9 +177,9 @@ func TestMapDistinct(t *testing.T) {
 	sort.Sort(values)
 
 	exp := interfaceValues{
+		"1",
 		uint64(1),
 		float64(1),
-		"1",
 	}
 
 	if !reflect.DeepEqual(values, exp) {
@@ -212,14 +212,14 @@ func TestReduceDistinct(t *testing.T) {
 	}
 
 	expect := interfaceValues{
+		"1",
+		"2",
+		false,
+		true,
 		uint64(1),
 		float64(1),
 		uint64(2),
 		float64(2),
-		false,
-		true,
-		"1",
-		"2",
 	}
 
 	got := ReduceDistinct([]interface{}{v1, v1, expect})
@@ -278,14 +278,14 @@ func Test_distinctValues_Sort(t *testing.T) {
 	}
 
 	expect := interfaceValues{
+		"1",
+		"2",
+		false,
+		true,
 		uint64(1),
 		float64(1),
 		uint64(2),
 		float64(2),
-		false,
-		true,
-		"1",
-		"2",
 	}
 
 	sort.Sort(values)
