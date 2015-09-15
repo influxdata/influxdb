@@ -4342,7 +4342,6 @@ func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.
 
 	test.addQueries([]*Query{
 		&Query{
-			skip:    true,
 			name:    "baseline",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select * from foo`,
