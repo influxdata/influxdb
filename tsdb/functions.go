@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 
 	"github.com/influxdb/influxdb/influxql"
 )
@@ -226,153 +227,7 @@ type interfaceValues []interface{}
 func (d interfaceValues) Len() int      { return len(d) }
 func (d interfaceValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 func (d interfaceValues) Less(i, j int) bool {
-	// Sort by type if types match
-
-	// Sort by float64/int64 first as that is the most likely match
-	{
-		d1, ok1 := d[i].(float64)
-		d2, ok2 := d[j].(float64)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(int64)
-		d2, ok2 := d[j].(int64)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	// Sort by every numeric type left
-	{
-		d1, ok1 := d[i].(float32)
-		d2, ok2 := d[j].(float32)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(uint64)
-		d2, ok2 := d[j].(uint64)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(uint32)
-		d2, ok2 := d[j].(uint32)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(uint16)
-		d2, ok2 := d[j].(uint16)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(uint8)
-		d2, ok2 := d[j].(uint8)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(int32)
-		d2, ok2 := d[j].(int32)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(int16)
-		d2, ok2 := d[j].(int16)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(int8)
-		d2, ok2 := d[j].(int8)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(bool)
-		d2, ok2 := d[j].(bool)
-		if ok1 && ok2 {
-			return d1 == false && d2 == true
-		}
-	}
-
-	{
-		d1, ok1 := d[i].(string)
-		d2, ok2 := d[j].(string)
-		if ok1 && ok2 {
-			return d1 < d2
-		}
-	}
-
-	// Types did not match, need to sort based on arbitrary weighting of type
-	const (
-		intWeight = iota
-		floatWeight
-		boolWeight
-		stringWeight
-	)
-
-	infer := func(val interface{}) (int, float64) {
-		switch v := val.(type) {
-		case uint64:
-			return intWeight, float64(v)
-		case uint32:
-			return intWeight, float64(v)
-		case uint16:
-			return intWeight, float64(v)
-		case uint8:
-			return intWeight, float64(v)
-		case int64:
-			return intWeight, float64(v)
-		case int32:
-			return intWeight, float64(v)
-		case int16:
-			return intWeight, float64(v)
-		case int8:
-			return intWeight, float64(v)
-		case float64:
-			return floatWeight, float64(v)
-		case float32:
-			return floatWeight, float64(v)
-		case bool:
-			return boolWeight, 0
-		case string:
-			return stringWeight, 0
-		}
-		panic("interfaceValues.Less - unreachable code")
-	}
-
-	w1, n1 := infer(d[i])
-	w2, n2 := infer(d[j])
-
-	// If we had "numeric" data, use that for comparison
-	if n1 != n2 && (w1 == intWeight && w2 == floatWeight) || (w1 == floatWeight && w2 == intWeight) {
-		return n1 < n2
-	}
-
-	return w1 < w2
+	return interfaceCompare(d[i], d[j]) < 0
 }
 
 // MapDistinct computes the unique values in an iterator.
@@ -1099,111 +954,143 @@ func (p *positionOut) lessKey(i, j int) bool {
 	return false
 }
 
-func (p *positionOut) less(i, j int, sortFloat func(d1, d2 float64) bool, sortInt64 func(d1, d2 int64) bool, sortUint64 func(d1, d2 uint64) bool) bool {
-	// Sort by float64/int64 first as that is the most likely match
+func cmpFloat(a, b float64) int {
+	if a == b {
+		return 0
+	} else if a < b {
+		return -1
+	}
+	return 1
+}
+
+func cmpInt(a, b int64) int {
+	if a == b {
+		return 0
+	} else if a < b {
+		return -1
+	}
+	return 1
+}
+
+func cmpUint(a, b uint64) int {
+	if a == b {
+		return 0
+	} else if a < b {
+		return -1
+	}
+	return 1
+}
+
+func interfaceCompare(a, b interface{}) int {
+	// compare by float64/int64 first as that is the most likely match
 	{
-		d1, ok1 := p.points[i].Value.(float64)
-		d2, ok2 := p.points[j].Value.(float64)
+		d1, ok1 := a.(float64)
+		d2, ok2 := b.(float64)
 		if ok1 && ok2 {
-			return sortFloat(d1, d2)
+			return cmpFloat(d1, d2)
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(int64)
-		d2, ok2 := p.points[j].Value.(int64)
+		d1, ok1 := a.(int64)
+		d2, ok2 := b.(int64)
 		if ok1 && ok2 {
-			return sortInt64(d1, d2)
+			return cmpInt(d1, d2)
 		}
 	}
 
-	// Sort by every numeric type left
+	// compare by every numeric type left
 	{
-		d1, ok1 := p.points[i].Value.(float32)
-		d2, ok2 := p.points[j].Value.(float32)
+		d1, ok1 := a.(float32)
+		d2, ok2 := b.(float32)
 		if ok1 && ok2 {
-			return sortFloat(float64(d1), float64(d2))
-		}
-	}
-
-	{
-		d1, ok1 := p.points[i].Value.(uint64)
-		d2, ok2 := p.points[j].Value.(uint64)
-		if ok1 && ok2 {
-			return sortUint64(d1, d2)
+			return cmpFloat(float64(d1), float64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(uint32)
-		d2, ok2 := p.points[j].Value.(uint32)
+		d1, ok1 := a.(uint64)
+		d2, ok2 := b.(uint64)
 		if ok1 && ok2 {
-			return sortUint64(uint64(d1), uint64(d2))
+			return cmpUint(d1, d2)
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(uint16)
-		d2, ok2 := p.points[j].Value.(uint16)
+		d1, ok1 := a.(uint32)
+		d2, ok2 := b.(uint32)
 		if ok1 && ok2 {
-			return sortUint64(uint64(d1), uint64(d2))
+			return cmpUint(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(uint8)
-		d2, ok2 := p.points[j].Value.(uint8)
+		d1, ok1 := a.(uint16)
+		d2, ok2 := b.(uint16)
 		if ok1 && ok2 {
-			return sortUint64(uint64(d1), uint64(d2))
+			return cmpUint(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(int32)
-		d2, ok2 := p.points[j].Value.(int32)
+		d1, ok1 := a.(uint8)
+		d2, ok2 := b.(uint8)
 		if ok1 && ok2 {
-			return sortInt64(int64(d1), int64(d2))
+			return cmpUint(uint64(d1), uint64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(int16)
-		d2, ok2 := p.points[j].Value.(int16)
+		d1, ok1 := a.(int32)
+		d2, ok2 := b.(int32)
 		if ok1 && ok2 {
-			return sortInt64(int64(d1), int64(d2))
+			return cmpInt(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(int8)
-		d2, ok2 := p.points[j].Value.(int8)
+		d1, ok1 := a.(int16)
+		d2, ok2 := b.(int16)
 		if ok1 && ok2 {
-			return sortInt64(int64(d1), int64(d2))
+			return cmpInt(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(bool)
-		d2, ok2 := p.points[j].Value.(bool)
+		d1, ok1 := a.(int8)
+		d2, ok2 := b.(int8)
 		if ok1 && ok2 {
-			return d1 == true && d2 == false
+			return cmpInt(int64(d1), int64(d2))
 		}
 	}
 
 	{
-		d1, ok1 := p.points[i].Value.(string)
-		d2, ok2 := p.points[j].Value.(string)
+		d1, ok1 := a.(bool)
+		d2, ok2 := b.(bool)
 		if ok1 && ok2 {
-			return d1 < d2
+			if d1 == d2 {
+				return 0
+			} else if d1 == true && d2 == false {
+				return 1
+			}
+			return -1
+		}
+	}
+
+	{
+		d1, ok1 := a.(string)
+		d2, ok2 := b.(string)
+		if ok1 && ok2 {
+			return strings.Compare(d1, d2)
 		}
 	}
 
 	// Types did not match, need to sort based on arbitrary weighting of type
 	const (
-		intWeight = iota
-		floatWeight
+		stringWeight = iota
 		boolWeight
-		stringWeight
+		intWeight
+		floatWeight
 	)
 
 	infer := func(val interface{}) (int, float64) {
@@ -1236,16 +1123,30 @@ func (p *positionOut) less(i, j int, sortFloat func(d1, d2 float64) bool, sortIn
 		panic("interfaceValues.Less - unreachable code")
 	}
 
-	w1, n1 := infer(p.points[i].Value)
-	w2, n2 := infer(p.points[j].Value)
+	w1, n1 := infer(a)
+	w2, n2 := infer(b)
 
 	// If we had "numeric" data, use that for comparison
 	if (w1 == floatWeight || w1 == intWeight) && (w2 == floatWeight || w2 == intWeight) {
-		return sortFloat(n1, n2)
+		cmp := cmpFloat(n1, n2)
+		// break ties
+		if cmp == 0 {
+			if w1 < w2 {
+				return -1
+			}
+			return 1
+		}
+		return cmp
 	}
 
-	return w1 < w2
-
+	if w1 == w2 {
+		// this should never happen, since equal weight means
+		// it should have been handled at the start of this function.
+		panic("unreachable")
+	} else if w1 < w2 {
+		return -1
+	}
+	return 1
 }
 
 type PositionPoints []PositionPoint
@@ -1262,39 +1163,18 @@ type topMapOut struct {
 func (t topMapOut) Len() int      { return len(t.points) }
 func (t topMapOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
 func (t topMapOut) Less(i, j int) bool {
-	sortFloat := func(d1, d2 float64) bool {
-		if d1 != d2 {
-			return d1 > d2
-		}
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		return t.lessKey(i, j)
+	// old C trick makes this code easier to read. Imagine
+	// that the OP in "cmp(i, j) OP 0" is the comparison you want
+	// between i and j
+	cmp := interfaceCompare(t.points[i].Value, t.points[j].Value)
+	if cmp != 0 {
+		return cmp > 0
 	}
-
-	sortInt64 := func(d1, d2 int64) bool {
-		if d1 != d2 {
-			return d1 > d2
-		}
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		return t.lessKey(i, j)
+	k1, k2 := t.points[i].Time, t.points[j].Time
+	if k1 != k2 {
+		return k1 < k2
 	}
-
-	sortUint64 := func(d1, d2 uint64) bool {
-		if d1 != d2 {
-			return d1 > d2
-		}
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		return t.lessKey(i, j)
-	}
-	return t.less(i, j, sortFloat, sortInt64, sortUint64)
+	return t.lessKey(i, j)
 }
 
 type topReduceOut struct {
@@ -1305,39 +1185,16 @@ func (t topReduceOut) Len() int      { return len(t.points) }
 func (t topReduceOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
 func (t topReduceOut) Less(i, j int) bool {
 	// Now sort by time first, not value
-	sortFloat := func(d1, d2 float64) bool {
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		if d1 != d2 {
-			return d1 > d2
-		}
-		return t.lessKey(i, j)
-	}
 
-	sortInt64 := func(d1, d2 int64) bool {
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		if d1 != d2 {
-			return d1 > d2
-		}
-		return t.lessKey(i, j)
+	k1, k2 := t.points[i].Time, t.points[j].Time
+	if k1 != k2 {
+		return k1 < k2
 	}
-
-	sortUint64 := func(d1, d2 uint64) bool {
-		k1, k2 := t.points[i].Time, t.points[j].Time
-		if k1 != k2 {
-			return k1 < k2
-		}
-		if d1 != d2 {
-			return d1 > d2
-		}
-		return t.lessKey(i, j)
+	cmp := interfaceCompare(t.points[i].Value, t.points[j].Value)
+	if cmp != 0 {
+		return cmp > 0
 	}
-	return t.less(i, j, sortFloat, sortInt64, sortUint64)
+	return t.lessKey(i, j)
 }
 
 // callArgs will get any additional field/tag names that may be needed to sort with
