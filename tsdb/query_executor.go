@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
@@ -855,22 +854,6 @@ func (q *QueryExecutor) normalizeStatement(stmt influxql.Statement, defaultDatab
 			prefixes[n.Name] = n.Name
 		}
 	})
-	if err != nil {
-		return err
-	}
-
-	// Replace all variable references that used measurement prefixes.
-	influxql.WalkFunc(stmt, func(n influxql.Node) {
-		switch n := n.(type) {
-		case *influxql.VarRef:
-			for k, v := range prefixes {
-				if strings.HasPrefix(n.Val, k+".") {
-					n.Val = v + "." + influxql.QuoteIdent(n.Val[len(k)+1:])
-				}
-			}
-		}
-	})
-
 	return
 }
 

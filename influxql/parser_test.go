@@ -141,6 +141,26 @@ func TestParser_ParseStatement(t *testing.T) {
 				Offset: 10,
 			},
 		},
+		{
+			s: `SELECT "foo.bar.baz" AS foo FROM myseries`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "foo.bar.baz"}, Alias: "foo"},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+		{
+			s: `SELECT "foo.bar.baz" AS foo FROM foo`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "foo.bar.baz"}, Alias: "foo"},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "foo"}},
+			},
+		},
 
 		// derivative
 		{
