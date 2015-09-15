@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -110,61 +111,14 @@ func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp t
 }
 
 func (w *WriteShardRequest) AddPoints(points []tsdb.Point) {
-	w.pb.Points = append(w.pb.Points, w.marshalPoints(points)...)
+	for _, p := range points {
+		w.pb.Points = append(w.pb.Points, []byte(p.String()))
+	}
 }
 
 // MarshalBinary encodes the object to a binary format.
 func (w *WriteShardRequest) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(&w.pb)
-}
-
-func (w *WriteShardRequest) marshalPoints(points []tsdb.Point) []*internal.Point {
-	pts := make([]*internal.Point, len(points))
-	for i, p := range points {
-		fields := []*internal.Field{}
-		for k, v := range p.Fields() {
-			name := k
-			f := &internal.Field{
-				Name: &name,
-			}
-			switch t := v.(type) {
-			case int:
-				f.Int64 = proto.Int64(int64(t))
-			case int32:
-				f.Int32 = proto.Int32(t)
-			case int64:
-				f.Int64 = proto.Int64(t)
-			case float64:
-				f.Float64 = proto.Float64(t)
-			case bool:
-				f.Bool = proto.Bool(t)
-			case string:
-				f.String_ = proto.String(t)
-			case []byte:
-				f.Bytes = t
-			}
-			fields = append(fields, f)
-		}
-
-		tags := []*internal.Tag{}
-		for k, v := range p.Tags() {
-			key := k
-			value := v
-			tags = append(tags, &internal.Tag{
-				Key:   &key,
-				Value: &value,
-			})
-		}
-		name := p.Name()
-		pts[i] = &internal.Point{
-			Name:   &name,
-			Time:   proto.Int64(p.Time().UnixNano()),
-			Fields: fields,
-			Tags:   tags,
-		}
-
-	}
-	return pts
 }
 
 // UnmarshalBinary populates WritePointRequest from a binary format.
@@ -178,33 +132,14 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 func (w *WriteShardRequest) unmarshalPoints() []tsdb.Point {
 	points := make([]tsdb.Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
-		pt := tsdb.NewPoint(
-			p.GetName(), map[string]string{},
-			map[string]interface{}{}, time.Unix(0, p.GetTime()))
-
-		for _, f := range p.GetFields() {
-			n := f.GetName()
-			if f.Int32 != nil {
-				pt.AddField(n, f.GetInt32())
-			} else if f.Int64 != nil {
-				pt.AddField(n, f.GetInt64())
-			} else if f.Float64 != nil {
-				pt.AddField(n, f.GetFloat64())
-			} else if f.Bool != nil {
-				pt.AddField(n, f.GetBool())
-			} else if f.String_ != nil {
-				pt.AddField(n, f.GetString_())
-			} else {
-				pt.AddField(n, f.GetBytes())
-			}
+		pt, err := tsdb.ParsePoints(p)
+		if err != nil {
+			// A error here means that one node parsed the point correctly but sent an
+			// unparseable version to another node.  We could log and drop the point and allow
+			// anti-entropy to resolve the discrepancy but this shouldn't ever happen.
+			panic(fmt.Sprintf("failed to parse point: `%v`: %v", string(p), err))
 		}
-
-		tags := tsdb.Tags{}
-		for _, t := range p.GetTags() {
-			tags[t.GetKey()] = t.GetValue()
-		}
-		pt.SetTags(tags)
-		points[i] = pt
+		points[i] = pt[0]
 	}
 	return points
 }
