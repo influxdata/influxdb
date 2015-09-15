@@ -878,10 +878,6 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]tsdb.Point, error) {
 				p.Time = bp.Time
 			}
 		}
-		if p.Precision == "" && bp.Precision != "" {
-			p.Precision = bp.Precision
-		}
-		p.Time = client.SetPrecision(p.Time, p.Precision)
 		if len(bp.Tags) > 0 {
 			if p.Tags == nil {
 				p.Tags = make(map[string]string)

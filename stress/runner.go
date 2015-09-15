@@ -114,7 +114,6 @@ type Config struct {
 	BatchInterval time.Duration
 	Database      string
 	Address       string
-	Precision     string
 }
 
 // newClient returns a pointer to an InfluxDB client for
@@ -158,7 +157,6 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 		Database:         cfg.Database,
 		WriteConsistency: "any",
 		Time:             time.Now(),
-		Precision:        cfg.Precision,
 	}
 
 	for i := 1; i <= cfg.PointCount; i++ {
@@ -205,7 +203,6 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 					batch = &client.BatchPoints{
 						Database:         cfg.Database,
 						WriteConsistency: "any",
-						Precision:        "n",
 						Time:             time.Now(),
 					}
 				}

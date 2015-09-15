@@ -224,7 +224,8 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	params := req.URL.Query()
 	params.Set("db", bp.Database)
 	params.Set("rp", bp.RetentionPolicy)
-	params.Set("precision", bp.Precision)
+	// Always write nanoseconds, users of influxdb client must truncate
+	params.Set("precision", "ns")
 	params.Set("consistency", bp.WriteConsistency)
 	req.URL.RawQuery = params.Encode()
 
@@ -425,100 +426,16 @@ func (r Response) Error() error {
 
 // Point defines the fields that will be written to the database
 // Measurement, Time, and Fields are required
-// Precision can be specified if the time is in epoch format (integer).
-// Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
 	Measurement string
 	Tags        map[string]string
 	Time        time.Time
 	Fields      map[string]interface{}
-	Precision   string
 	Raw         string
-}
-
-// MarshalJSON will format the time in RFC3339Nano
-// Precision is also ignored as it is only used for writing, not reading
-// Or another way to say it is we always send back in nanosecond precision
-func (p *Point) MarshalJSON() ([]byte, error) {
-	point := struct {
-		Measurement string                 `json:"measurement,omitempty"`
-		Tags        map[string]string      `json:"tags,omitempty"`
-		Time        string                 `json:"time,omitempty"`
-		Fields      map[string]interface{} `json:"fields,omitempty"`
-		Precision   string                 `json:"precision,omitempty"`
-	}{
-		Measurement: p.Measurement,
-		Tags:        p.Tags,
-		Fields:      p.Fields,
-		Precision:   p.Precision,
-	}
-	// Let it omit empty if it's really zero
-	if !p.Time.IsZero() {
-		point.Time = p.Time.UTC().Format(time.RFC3339Nano)
-	}
-	return json.Marshal(&point)
 }
 
 func (p *Point) MarshalString() string {
 	return tsdb.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time).String()
-}
-
-// UnmarshalJSON decodes the data into the Point struct
-func (p *Point) UnmarshalJSON(b []byte) error {
-	var normal struct {
-		Measurement string                 `json:"measurement"`
-		Tags        map[string]string      `json:"tags"`
-		Time        time.Time              `json:"time"`
-		Precision   string                 `json:"precision"`
-		Fields      map[string]interface{} `json:"fields"`
-	}
-	var epoch struct {
-		Measurement string                 `json:"measurement"`
-		Tags        map[string]string      `json:"tags"`
-		Time        *int64                 `json:"time"`
-		Precision   string                 `json:"precision"`
-		Fields      map[string]interface{} `json:"fields"`
-	}
-
-	if err := func() error {
-		var err error
-		dec := json.NewDecoder(bytes.NewBuffer(b))
-		dec.UseNumber()
-		if err = dec.Decode(&epoch); err != nil {
-			return err
-		}
-		// Convert from epoch to time.Time, but only if Time
-		// was actually set.
-		var ts time.Time
-		if epoch.Time != nil {
-			ts, err = EpochToTime(*epoch.Time, epoch.Precision)
-			if err != nil {
-				return err
-			}
-		}
-		p.Measurement = epoch.Measurement
-		p.Tags = epoch.Tags
-		p.Time = ts
-		p.Precision = epoch.Precision
-		p.Fields = normalizeFields(epoch.Fields)
-		return nil
-	}(); err == nil {
-		return nil
-	}
-
-	dec := json.NewDecoder(bytes.NewBuffer(b))
-	dec.UseNumber()
-	if err := dec.Decode(&normal); err != nil {
-		return err
-	}
-	normal.Time = SetPrecision(normal.Time, normal.Precision)
-	p.Measurement = normal.Measurement
-	p.Tags = normal.Tags
-	p.Time = normal.Time
-	p.Precision = normal.Precision
-	p.Fields = normalizeFields(normal.Fields)
-
-	return nil
 }
 
 // Remove any notion of json.Number
@@ -545,73 +462,13 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 // If no retention policy is specified, it will use the databases default retention policy.
 // If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
 // If time is specified, it will be applied to any point with an empty time.
-// Precision can be specified if the time is in epoch format (integer).
-// Valid values for Precision are n, u, ms, s, m, and h
 type BatchPoints struct {
 	Points           []Point           `json:"points,omitempty"`
 	Database         string            `json:"database,omitempty"`
 	RetentionPolicy  string            `json:"retentionPolicy,omitempty"`
 	Tags             map[string]string `json:"tags,omitempty"`
 	Time             time.Time         `json:"time,omitempty"`
-	Precision        string            `json:"precision,omitempty"`
 	WriteConsistency string            `json:"-"`
-}
-
-// UnmarshalJSON decodes the data into the BatchPoints struct
-func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
-	var normal struct {
-		Points          []Point           `json:"points"`
-		Database        string            `json:"database"`
-		RetentionPolicy string            `json:"retentionPolicy"`
-		Tags            map[string]string `json:"tags"`
-		Time            time.Time         `json:"time"`
-		Precision       string            `json:"precision"`
-	}
-	var epoch struct {
-		Points          []Point           `json:"points"`
-		Database        string            `json:"database"`
-		RetentionPolicy string            `json:"retentionPolicy"`
-		Tags            map[string]string `json:"tags"`
-		Time            *int64            `json:"time"`
-		Precision       string            `json:"precision"`
-	}
-
-	if err := func() error {
-		var err error
-		if err = json.Unmarshal(b, &epoch); err != nil {
-			return err
-		}
-		// Convert from epoch to time.Time
-		var ts time.Time
-		if epoch.Time != nil {
-			ts, err = EpochToTime(*epoch.Time, epoch.Precision)
-			if err != nil {
-				return err
-			}
-		}
-		bp.Points = epoch.Points
-		bp.Database = epoch.Database
-		bp.RetentionPolicy = epoch.RetentionPolicy
-		bp.Tags = epoch.Tags
-		bp.Time = ts
-		bp.Precision = epoch.Precision
-		return nil
-	}(); err == nil {
-		return nil
-	}
-
-	if err := json.Unmarshal(b, &normal); err != nil {
-		return err
-	}
-	normal.Time = SetPrecision(normal.Time, normal.Precision)
-	bp.Points = normal.Points
-	bp.Database = normal.Database
-	bp.RetentionPolicy = normal.RetentionPolicy
-	bp.Tags = normal.Tags
-	bp.Time = normal.Time
-	bp.Precision = normal.Precision
-
-	return nil
 }
 
 // utility functions
@@ -619,49 +476,4 @@ func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 // Addr provides the current url as a string of the server the client is connected to.
 func (c *Client) Addr() string {
 	return c.url.String()
-}
-
-// helper functions
-
-// EpochToTime takes a unix epoch time and uses precision to return back a time.Time
-func EpochToTime(epoch int64, precision string) (time.Time, error) {
-	if precision == "" {
-		precision = "s"
-	}
-	var t time.Time
-	switch precision {
-	case "h":
-		t = time.Unix(0, epoch*int64(time.Hour))
-	case "m":
-		t = time.Unix(0, epoch*int64(time.Minute))
-	case "s":
-		t = time.Unix(0, epoch*int64(time.Second))
-	case "ms":
-		t = time.Unix(0, epoch*int64(time.Millisecond))
-	case "u":
-		t = time.Unix(0, epoch*int64(time.Microsecond))
-	case "n":
-		t = time.Unix(0, epoch)
-	default:
-		return time.Time{}, fmt.Errorf("Unknown precision %q", precision)
-	}
-	return t, nil
-}
-
-// SetPrecision will round a time to the specified precision
-func SetPrecision(t time.Time, precision string) time.Time {
-	switch precision {
-	case "n":
-	case "u":
-		return t.Round(time.Microsecond)
-	case "ms":
-		return t.Round(time.Millisecond)
-	case "s":
-		return t.Round(time.Second)
-	case "m":
-		return t.Round(time.Minute)
-	case "h":
-		return t.Round(time.Hour)
-	}
-	return t
 }
