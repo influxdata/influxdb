@@ -18,6 +18,11 @@ import (
 
 const leaderWaitTimeout = 30 * time.Second
 
+const (
+	MonitorRetentionPolicy         = "monitor"
+	MonitorRetentionPolicyDuration = 7 * 24 * time.Hour
+)
+
 // DiagsClient is the interface modules implement if they register diags with monitor.
 type DiagsClient interface {
 	Diagnostics() (*Diagnostic, error)
@@ -82,6 +87,9 @@ type Monitor struct {
 		NodeID() uint64
 		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+		CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+		SetDefaultRetentionPolicy(database, name string) error
+		DropRetentionPolicy(database, name string) error
 	}
 
 	PointsWriter interface {
@@ -296,6 +304,26 @@ func (m *Monitor) storeStatistics() {
 	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
 		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
 			m.storeDatabase, err.Error())
+		return
+	}
+
+	rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
+	rpi.Duration = MonitorRetentionPolicyDuration
+	rpi.ReplicaN = 1
+	if _, err := m.MetaStore.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
+		m.Logger.Printf("failed to create retention policy '%s', terminating storage: %s",
+			rpi.Name, err.Error())
+		return
+	}
+
+	if err := m.MetaStore.SetDefaultRetentionPolicy(m.storeDatabase, rpi.Name); err != nil {
+		m.Logger.Printf("failed to set default retention policy on '%s', terminating storage: %s",
+			m.storeDatabase, err.Error())
+		return
+	}
+
+	if err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default"); err != nil && err != meta.ErrRetentionPolicyNotFound {
+		m.Logger.Printf("failed to delete retention policy 'default', terminating storage: %s", err.Error())
 		return
 	}
 
