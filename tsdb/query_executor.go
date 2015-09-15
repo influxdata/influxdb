@@ -701,59 +701,6 @@ func (q *QueryExecutor) executeShowMeasurementsStatement(statementID int, stmt *
 	return nil
 }
 
-func (q *QueryExecutor) executeShowTagKeysStatemen(stmt *influxql.ShowTagKeysStatement, database string) *influxql.Result {
-	// Find the database.
-	db := q.Store.DatabaseIndex(database)
-	if db == nil {
-		return &influxql.Result{}
-	}
-
-	// Expand regex expressions in the FROM clause.
-	sources, err := q.expandSources(stmt.Sources)
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
-
-	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourcesOrDB(db, sources...)
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
-
-	// Make result.
-	result := &influxql.Result{
-		Series: make(models.Rows, 0, len(measurements)),
-	}
-
-	// Add one row per measurement to the result.
-	for _, m := range measurements {
-		// TODO: filter tag keys by stmt.Condition
-
-		// Get the tag keys in sorted order.
-		keys := m.TagKeys()
-
-		// Convert keys to an [][]interface{}.
-		values := make([][]interface{}, 0, len(m.seriesByTagKeyValue))
-		for _, k := range keys {
-			v := interface{}(k)
-			values = append(values, []interface{}{v})
-		}
-
-		// Make a result row for the measurement.
-		r := &models.Row{
-			Name:    m.Name,
-			Columns: []string{"tagKey"},
-			Values:  values,
-		}
-
-		result.Series = append(result.Series, r)
-	}
-
-	// TODO: LIMIT & OFFSET
-
-	return result
-}
-
 func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) *influxql.Result {
 	// Find the database.
 	db := q.Store.DatabaseIndex(database)
