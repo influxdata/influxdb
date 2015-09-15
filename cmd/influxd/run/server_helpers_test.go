@@ -184,8 +184,8 @@ func (s *Server) Write(db, rp, body string, params url.Values) (results string, 
 func NewConfig() *run.Config {
 	c := run.NewConfig()
 	c.ReportingDisabled = true
-	c.Cluster.ShardWriterTimeout = "30s"
-	c.Cluster.WriteTimeout = "30s"
+	c.Cluster.ShardWriterTimeout = toml.Duration(30 * time.Second)
+	c.Cluster.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = "127.0.0.1:0"
 	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
