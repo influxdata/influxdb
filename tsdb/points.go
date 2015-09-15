@@ -33,7 +33,15 @@ type Point interface {
 	Data() []byte
 	SetData(buf []byte)
 
+	// String returns a string representation of the point object, if there is a
+	// timestamp associated with the point then it will be specified with the default
+	// precision of nanoseconds
 	String() string
+
+	// PrecisionString returns a string representation of the point object, if there
+	// is a timestamp associated with the point then it will be specified in the
+	// given unit
+	PrecisionString(precision string) string
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -1164,6 +1172,14 @@ func (p *point) String() string {
 		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
 	}
 	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields), p.UnixNano())
+}
+
+func (p *point) PrecisionString(precision string) string {
+	if p.Time().IsZero() {
+		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
+	}
+	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields),
+		p.UnixNano()/p.GetPrecisionMultiplier(precision))
 }
 
 func (p *point) unmarshalBinary() Fields {

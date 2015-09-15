@@ -1357,3 +1357,59 @@ func TestMakeKeyEscaped(t *testing.T) {
 	}
 
 }
+
+func TestPrecisionString(t *testing.T) {
+	tags := map[string]interface{}{"value": float64(1)}
+	tm, _ := time.Parse(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z")
+	tests := []struct {
+		name      string
+		precision string
+		exp       string
+	}{
+		{
+			name:      "no precision",
+			precision: "",
+			exp:       "cpu value=1 946730096789012345",
+		},
+		{
+			name:      "nanosecond precision",
+			precision: "ns",
+			exp:       "cpu value=1 946730096789012345",
+		},
+		{
+			name:      "microsecond precision",
+			precision: "u",
+			exp:       "cpu value=1 946730096789012",
+		},
+		{
+			name:      "millisecond precision",
+			precision: "ms",
+			exp:       "cpu value=1 946730096789",
+		},
+		{
+			name:      "second precision",
+			precision: "s",
+			exp:       "cpu value=1 946730096",
+		},
+		{
+			name:      "minute precision",
+			precision: "m",
+			exp:       "cpu value=1 15778834",
+		},
+		{
+			name:      "hour precision",
+			precision: "h",
+			exp:       "cpu value=1 262980",
+		},
+	}
+
+	for _, test := range tests {
+		pt := tsdb.NewPoint("cpu", nil, tags, tm)
+		act := pt.PrecisionString(test.precision)
+
+		if act != test.exp {
+			t.Errorf("%s: PrecisionString() mismatch:\n actual:	%v\n exp:		%v",
+				test.name, act, test.exp)
+		}
+	}
+}
