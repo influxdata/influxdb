@@ -285,12 +285,14 @@ while :
 do
   case $1 in
     -h | --help)
-	usage 0
-	;;
+	    usage 0
+	    ;;
+
     -p | --packages-only)
-	PACKAGES_ONLY="PACKAGES_ONLY"
-	shift
-	;;
+	    PACKAGES_ONLY="PACKAGES_ONLY"
+	    shift
+	    ;;
+
     -t | --target)
         case "$2" in
             'tar') TAR_WANTED="gz"
@@ -306,15 +308,18 @@ do
         esac
         shift 2
         ;;
+
     -w | --working-directory)
 	PACKAGES_ONLY="PACKAGES_ONLY"
         WORKING_DIR="WORKING_DIR"
-	shift
-	;;
+	    shift
+	    ;;
+
     -*)
         echo "Unknown option $1"
         usage 1
         ;;
+
     ?*)
         if [ -z $VERSION ]; then
            VERSION=$1
@@ -325,6 +330,7 @@ do
            usage 1
         fi
         ;;
+
      *) break
   esac
 done
