@@ -539,7 +539,7 @@ func TestMapTop(t *testing.T) {
 					PositionPoint{20, int64(99), map[string]string{"host": "a"}},
 				},
 			},
-			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
+			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
 		{
 			name: "int64 - tie on value, time, resolve based on tags",
@@ -657,8 +657,8 @@ func TestReduceTop(t *testing.T) {
 			values: []interface{}{
 				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
 				},
 			},
 			exp: PositionPoints{
@@ -674,8 +674,8 @@ func TestReduceTop(t *testing.T) {
 					{10, int64(99), map[string]string{"host": "a"}},
 				},
 				PositionPoints{
-					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
 				},
 			},
 			exp: PositionPoints{
@@ -689,8 +689,8 @@ func TestReduceTop(t *testing.T) {
 			values: []interface{}{
 				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{"host": "a"}},
+					{10, int64(53), map[string]string{"host": "b"}},
 				},
 				nil,
 			},
@@ -705,8 +705,8 @@ func TestReduceTop(t *testing.T) {
 			values: []interface{}{
 				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{}},
+					{10, int64(53), map[string]string{"host": "b"}},
 				},
 				nil,
 			},
@@ -722,8 +722,8 @@ func TestReduceTop(t *testing.T) {
 			values: []interface{}{
 				PositionPoints{
 					{10, int64(99), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
 					{20, int64(88), map[string]string{}},
+					{10, int64(53), map[string]string{"host": "b"}},
 				},
 				nil,
 			},
