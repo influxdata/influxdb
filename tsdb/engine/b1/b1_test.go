@@ -66,7 +66,7 @@ func TestEngine_WritePoints(t *testing.T) {
 	tx := e.MustBegin(false)
 	defer tx.Rollback()
 
-	c := tx.Cursor("temperature", tsdb.Forward)
+	c := tx.Cursor("temperature", true)
 	if k, v := c.Seek([]byte{0}); !bytes.Equal(k, u64tob(uint64(time.Unix(1434059627, 0).UnixNano()))) {
 		t.Fatalf("unexpected key: %#v", k)
 	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {
@@ -131,7 +131,7 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 	tx := e.MustBegin(false)
 	defer tx.Rollback()
 
-	c := tx.Cursor("temperature", tsdb.Reverse)
+	c := tx.Cursor("temperature", false)
 	if k, _ := c.Seek(u64tob(math.MaxInt64)); !bytes.Equal(k, u64tob(uint64(time.Unix(1, 0).UnixNano()))) {
 		t.Fatalf("unexpected key: %v", btou64(k))
 	} else if k, v := c.Next(); !bytes.Equal(k, u64tob(uint64(time.Unix(0, 0).UnixNano()))) {

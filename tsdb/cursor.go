@@ -10,31 +10,11 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// Direction represents a cursor navigation direction.
-type Direction bool
-
-const (
-	// Forward indicates that a cursor will move forward over its values.
-	Forward Direction = true
-	// Reverse indicates that a cursor will move backwards over its values.
-	Reverse Direction = false
-)
-
-func (d Direction) String() string {
-	if d.Forward() {
-		return "forward"
-	}
-	return "reverse"
-}
-
-// Forward returns true if direction is forward
-func (d Direction) Forward() bool {
-	return d == Forward
-}
-
-// Forward returns true if direction is reverse
-func (d Direction) Reverse() bool {
-	return d == Reverse
+// Cursor represents an iterator over a series.
+type Cursor interface {
+	Seek(seek []byte) (key, value []byte)
+	Next() (key, value []byte)
+	Ascending() bool
 }
 
 // MultiCursor returns a single cursor that combines the results of all cursors in order.
@@ -42,16 +22,17 @@ func (d Direction) Reverse() bool {
 // If the same key is returned from multiple cursors then the first cursor
 // specified will take precendence. A key will only be returned once from the
 // returned cursor.
-func MultiCursor(d Direction, cursors ...Cursor) Cursor {
-	return &multiCursor{cursors: cursors, direction: d}
+func MultiCursor(cursors ...Cursor) Cursor {
+	return &multiCursor{
+		cursors: cursors,
+	}
 }
 
 // multiCursor represents a cursor that combines multiple cursors into one.
 type multiCursor struct {
-	cursors   []Cursor
-	heap      cursorHeap
-	prev      []byte
-	direction Direction
+	cursors []Cursor
+	heap    cursorHeap
+	prev    []byte
 }
 
 // Seek moves the cursor to a given key.
@@ -81,7 +62,13 @@ func (mc *multiCursor) Seek(seek []byte) (key, value []byte) {
 	return mc.pop()
 }
 
-func (mc *multiCursor) Direction() Direction { return mc.direction }
+// Ascending returns the direction of the first cursor.
+func (mc *multiCursor) Ascending() bool {
+	if len(mc.cursors) == 0 {
+		return true
+	}
+	return mc.cursors[0].Ascending()
+}
 
 // Next returns the next key/value from the cursor.
 func (mc *multiCursor) Next() (key, value []byte) { return mc.pop() }
@@ -126,7 +113,7 @@ func (h cursorHeap) Len() int      { return len(h) }
 func (h cursorHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h cursorHeap) Less(i, j int) bool {
 	dir := -1
-	if !h[i].cursor.Direction() {
+	if !h[i].cursor.Ascending() {
 		dir = 1
 	}
 

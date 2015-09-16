@@ -551,7 +551,7 @@ type Tx struct {
 }
 
 // Cursor returns an iterator for a key.
-func (tx *Tx) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
+func (tx *Tx) Cursor(key string, ascending bool) tsdb.Cursor {
 	// Retrieve key bucket.
 	b := tx.Bucket([]byte(key))
 
@@ -569,13 +569,13 @@ func (tx *Tx) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
 	copy(cache, tx.engine.cache[partitionID][key])
 
 	// Build a cursor that merges the bucket and cache together.
-	cur := &Cursor{cache: cache, direction: direction}
+	cur := &Cursor{cache: cache, ascending: ascending}
 	if b != nil {
 		cur.cursor = b.Cursor()
 	}
 
 	// If it's a reverse cursor, set the current location to the end.
-	if direction.Reverse() {
+	if !ascending {
 		cur.index = len(cache) - 1
 		if cur.cursor != nil {
 			cur.cursor.Last()
@@ -600,10 +600,10 @@ type Cursor struct {
 	prev []byte
 
 	// The direction the cursor pointer moves after each call to Next()
-	direction tsdb.Direction
+	ascending bool
 }
 
-func (c *Cursor) Direction() tsdb.Direction { return c.direction }
+func (c *Cursor) Ascending() bool { return c.ascending }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
@@ -619,7 +619,7 @@ func (c *Cursor) Seek(seek []byte) (key, value []byte) {
 
 	// Search will return an index after the length of cache if the seek value is greater
 	// than all the values.  Clamp it to the end of the cache.
-	if c.direction.Reverse() && c.index >= len(c.cache) {
+	if !c.ascending && c.index >= len(c.cache) {
 		c.index = len(c.cache) - 1
 	}
 
@@ -636,7 +636,7 @@ func (c *Cursor) Next() (key, value []byte) {
 func (c *Cursor) read() (key, value []byte) {
 	// Continue skipping ahead through duplicate keys in the cache list.
 	for {
-		if c.direction.Forward() {
+		if c.ascending {
 			key, value = c.readForward()
 		} else {
 			key, value = c.readReverse()

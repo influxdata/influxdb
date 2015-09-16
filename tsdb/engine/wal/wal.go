@@ -255,11 +255,10 @@ func (l *Log) DiskSize() (int64, error) {
 }
 
 // Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given
-func (l *Log) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
+func (l *Log) Cursor(key string, ascending bool) tsdb.Cursor {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-
-	return l.partition.cursor(key, direction)
+	return l.partition.cursor(key, ascending)
 }
 
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
@@ -1215,7 +1214,7 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 }
 
 // cursor will combine the in memory cache and flush cache (if a flush is currently happening) to give a single ordered cursor for the key
-func (p *Partition) cursor(key string, direction tsdb.Direction) *cursor {
+func (p *Partition) cursor(key string, ascending bool) *cursor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -1233,7 +1232,7 @@ func (p *Partition) cursor(key string, direction tsdb.Direction) *cursor {
 			c = append(c, entry.points...)
 
 			dedupe := tsdb.DedupeEntries(c)
-			return newCursor(dedupe, direction)
+			return newCursor(dedupe, ascending)
 		}
 	}
 
@@ -1245,7 +1244,7 @@ func (p *Partition) cursor(key string, direction tsdb.Direction) *cursor {
 	// build a copy so modifications to the partition don't change the result set
 	a := make([][]byte, len(entry.points))
 	copy(a, entry.points)
-	return newCursor(a, direction)
+	return newCursor(a, ascending)
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -1408,20 +1407,24 @@ type entry struct {
 type cursor struct {
 	cache     [][]byte
 	position  int
-	direction tsdb.Direction
+	ascending bool
 }
 
-func newCursor(cache [][]byte, direction tsdb.Direction) *cursor {
+func newCursor(cache [][]byte, ascending bool) *cursor {
 	// position is set such that a call to Next will successfully advance
 	// to the next postion and return the value.
-	c := &cursor{cache: cache, direction: direction, position: -1}
-	if direction.Reverse() {
+	c := &cursor{
+		cache:     cache,
+		ascending: ascending,
+		position:  -1,
+	}
+	if !ascending {
 		c.position = len(c.cache)
 	}
 	return c
 }
 
-func (c *cursor) Direction() tsdb.Direction { return c.direction }
+func (c *cursor) Ascending() bool { return c.ascending }
 
 // Seek will point the cursor to the given time (or key)
 func (c *cursor) Seek(seek []byte) (key, value []byte) {
@@ -1431,7 +1434,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 	})
 
 	// If seek is not in the cache, return the last value in the cache
-	if c.direction.Reverse() && c.position >= len(c.cache) {
+	if !c.ascending && c.position >= len(c.cache) {
 		c.position = len(c.cache)
 	}
 
@@ -1452,7 +1455,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 // Next moves the cursor to the next key/value. will return nil if at the end
 func (c *cursor) Next() (key, value []byte) {
 	var v []byte
-	if c.direction.Forward() {
+	if c.ascending {
 		v = c.nextForward()
 	} else {
 		v = c.nextReverse()

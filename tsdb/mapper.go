@@ -229,12 +229,12 @@ func (m *RawMapper) openMeasurement(mm *Measurement) (SelectInfo, error) {
 	}
 
 	// Create all cursors for reading the data from this shard.
-	direction := Direction(m.stmt.TimeAscending())
+	ascending := m.stmt.TimeAscending()
 	for _, t := range info.TagSets {
 		cursors := []*seriesCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, direction)
+			c := m.tx.Cursor(key, ascending)
 			if c == nil {
 				continue
 			}
@@ -245,7 +245,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) (SelectInfo, error) {
 		}
 
 		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors, m.shard.FieldCodec(mm.Name))
-		if direction.Forward() {
+		if ascending {
 			tsc.SeekTo(m.qmin)
 		} else {
 			tsc.SeekTo(m.qmax)
@@ -460,7 +460,7 @@ func (m *AggregateMapper) openMeasurement(mm *Measurement) (SelectInfo, error) {
 		cursors := []*seriesCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, Forward)
+			c := m.tx.Cursor(key, true)
 			if c == nil {
 				continue
 			}

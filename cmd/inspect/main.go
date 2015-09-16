@@ -78,7 +78,7 @@ func main() {
 				for _, key := range series {
 					fieldSummary := []string{}
 
-					cursor := tx.Cursor(key, tsdb.Forward)
+					cursor := tx.Cursor(key, true)
 
 					// Series doesn't exist in this shard
 					if cursor == nil {

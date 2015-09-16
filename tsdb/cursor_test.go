@@ -14,13 +14,11 @@ import (
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor.
 func TestMultiCursor_Single(t *testing.T) {
-	mc := tsdb.MultiCursor(tsdb.Forward,
-		NewCursor(tsdb.Forward, []CursorItem{
-			{Key: []byte{0x00}, Value: []byte{0x00}},
-			{Key: []byte{0x01}, Value: []byte{0x10}},
-			{Key: []byte{0x02}, Value: []byte{0x20}},
-		}),
-	)
+	mc := tsdb.MultiCursor(NewCursor([]CursorItem{
+		{Key: []byte{0x00}, Value: []byte{0x00}},
+		{Key: []byte{0x01}, Value: []byte{0x10}},
+		{Key: []byte{0x02}, Value: []byte{0x20}},
+	}, true))
 
 	if k, v := mc.Seek([]byte{0x00}); !bytes.Equal(k, []byte{0x00}) || !bytes.Equal(v, []byte{0x00}) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -35,13 +33,11 @@ func TestMultiCursor_Single(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor in reverse order.
 func TestMultiCursor_Single_Reverse(t *testing.T) {
-	mc := tsdb.MultiCursor(tsdb.Reverse,
-		NewCursor(tsdb.Reverse, []CursorItem{
-			{Key: []byte{0x00}, Value: []byte{0x00}},
-			{Key: []byte{0x01}, Value: []byte{0x10}},
-			{Key: []byte{0x02}, Value: []byte{0x20}},
-		}),
-	)
+	mc := tsdb.MultiCursor(NewCursor([]CursorItem{
+		{Key: []byte{0x00}, Value: []byte{0x00}},
+		{Key: []byte{0x01}, Value: []byte{0x10}},
+		{Key: []byte{0x02}, Value: []byte{0x20}},
+	}, false))
 
 	if k, v := mc.Seek([]byte{0x02}); !bytes.Equal(k, []byte{0x02}) || !bytes.Equal(v, []byte{0x20}) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -56,16 +52,16 @@ func TestMultiCursor_Single_Reverse(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple non-overlapping subcursors.
 func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
-	mc := tsdb.MultiCursor(tsdb.Forward,
-		NewCursor(tsdb.Forward, []CursorItem{
+	mc := tsdb.MultiCursor(
+		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x30}},
 			{Key: []byte{0x04}, Value: []byte{0x40}},
-		}),
-		NewCursor(tsdb.Forward, []CursorItem{
+		}, true),
+		NewCursor([]CursorItem{
 			{Key: []byte{0x01}, Value: []byte{0x10}},
 			{Key: []byte{0x02}, Value: []byte{0x20}},
-		}),
+		}, true),
 	)
 
 	if k, v := mc.Seek([]byte{0x00}); !bytes.Equal(k, []byte{0x00}) || !bytes.Equal(v, []byte{0x00}) {
@@ -85,16 +81,16 @@ func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple non-overlapping subcursors.
 func TestMultiCursor_Multiple_NonOverlapping_Reverse(t *testing.T) {
-	mc := tsdb.MultiCursor(tsdb.Reverse,
-		NewCursor(tsdb.Reverse, []CursorItem{
+	mc := tsdb.MultiCursor(
+		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x30}},
 			{Key: []byte{0x04}, Value: []byte{0x40}},
-		}),
-		NewCursor(tsdb.Reverse, []CursorItem{
+		}, false),
+		NewCursor([]CursorItem{
 			{Key: []byte{0x01}, Value: []byte{0x10}},
 			{Key: []byte{0x02}, Value: []byte{0x20}},
-		}),
+		}, false),
 	)
 
 	if k, v := mc.Seek([]byte{0x04}); !bytes.Equal(k, []byte{0x04}) || !bytes.Equal(v, []byte{0x40}) {
@@ -114,17 +110,17 @@ func TestMultiCursor_Multiple_NonOverlapping_Reverse(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple overlapping subcursors.
 func TestMultiCursor_Multiple_Overlapping(t *testing.T) {
-	mc := tsdb.MultiCursor(tsdb.Forward,
-		NewCursor(tsdb.Forward, []CursorItem{
+	mc := tsdb.MultiCursor(
+		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x03}},
 			{Key: []byte{0x04}, Value: []byte{0x04}},
-		}),
-		NewCursor(tsdb.Forward, []CursorItem{
+		}, true),
+		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0xF0}},
 			{Key: []byte{0x02}, Value: []byte{0xF2}},
 			{Key: []byte{0x04}, Value: []byte{0xF4}},
-		}),
+		}, true),
 	)
 
 	if k, v := mc.Seek([]byte{0x00}); !bytes.Equal(k, []byte{0x00}) || !bytes.Equal(v, []byte{0x00}) {
@@ -142,17 +138,17 @@ func TestMultiCursor_Multiple_Overlapping(t *testing.T) {
 
 // Ensure the multi-cursor can correctly iterate across multiple overlapping subcursors.
 func TestMultiCursor_Multiple_Overlapping_Reverse(t *testing.T) {
-	mc := tsdb.MultiCursor(tsdb.Reverse,
-		NewCursor(tsdb.Reverse, []CursorItem{
+	mc := tsdb.MultiCursor(
+		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0x00}},
 			{Key: []byte{0x03}, Value: []byte{0x03}},
 			{Key: []byte{0x04}, Value: []byte{0x04}},
-		}),
-		NewCursor(tsdb.Reverse, []CursorItem{
+		}, false),
+		NewCursor([]CursorItem{
 			{Key: []byte{0x00}, Value: []byte{0xF0}},
 			{Key: []byte{0x02}, Value: []byte{0xF2}},
 			{Key: []byte{0x04}, Value: []byte{0xF4}},
-		}),
+		}, false),
 	)
 
 	if k, v := mc.Seek([]byte{0x04}); !bytes.Equal(k, []byte{0x04}) || !bytes.Equal(v, []byte{0x04}) {
@@ -196,7 +192,7 @@ func TestMultiCursor_Quick(t *testing.T) {
 		sort.Sort(byteSlices(exp))
 
 		// Create multi-cursor and iterate over all items.
-		mc := tsdb.MultiCursor(tsdb.Forward, tsdbCursorSlice(cursors)...)
+		mc := tsdb.MultiCursor(tsdbCursorSlice(cursors)...)
 		for k, v := mc.Seek(u64tob(seek)); k != nil; k, v = mc.Next() {
 			got = append(got, append(k, v...))
 		}
@@ -212,27 +208,31 @@ func TestMultiCursor_Quick(t *testing.T) {
 
 // Cursor represents an in-memory test cursor.
 type Cursor struct {
-	direction tsdb.Direction
 	items     []CursorItem
 	index     int
+	ascending bool
 }
 
 // NewCursor returns a new instance of Cursor.
-func NewCursor(direction tsdb.Direction, items []CursorItem) *Cursor {
+func NewCursor(items []CursorItem, ascending bool) *Cursor {
 	index := 0
 	sort.Sort(CursorItems(items))
 
-	if direction.Reverse() {
+	if !ascending {
 		index = len(items)
 	}
-	return &Cursor{direction: direction, items: items, index: index}
+	return &Cursor{
+		items:     items,
+		index:     index,
+		ascending: ascending,
+	}
 }
 
-func (c *Cursor) Direction() tsdb.Direction { return c.direction }
+func (c *Cursor) Ascending() bool { return c.ascending }
 
 // Seek seeks to an item by key.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
-	if c.direction.Forward() {
+	if c.ascending {
 		return c.seekForward(seek)
 	}
 	return c.seekReverse(seek)
@@ -260,17 +260,17 @@ func (c *Cursor) seekReverse(seek []byte) (key, value []byte) {
 
 // Next returns the next key/value pair.
 func (c *Cursor) Next() (key, value []byte) {
-	if c.direction.Reverse() && c.index < 0 {
+	if !c.ascending && c.index < 0 {
 		return nil, nil
 	}
 
-	if c.direction.Forward() && c.index >= len(c.items) {
+	if c.ascending && c.index >= len(c.items) {
 		return nil, nil
 	}
 
 	k, v := c.items[c.index].Key, c.items[c.index].Value
 
-	if c.direction.Forward() {
+	if c.ascending {
 		c.index++
 	} else {
 		c.index--
@@ -281,7 +281,7 @@ func (c *Cursor) Next() (key, value []byte) {
 // Generate returns a randomly generated cursor. Implements quick.Generator.
 func (c Cursor) Generate(rand *rand.Rand, size int) reflect.Value {
 	c.index = 0
-	c.direction = tsdb.Forward
+	c.ascending = true
 
 	c.items = make([]CursorItem, rand.Intn(size))
 	for i := range c.items {
