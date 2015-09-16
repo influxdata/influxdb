@@ -3,6 +3,9 @@
 ### Features
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
 
+### Bugfixes
+- [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
+
 ## v0.9.4 [2015-09-14]
 
 ### Release Notes
