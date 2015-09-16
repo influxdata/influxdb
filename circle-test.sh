@@ -21,6 +21,25 @@ function exit_if_fail {
     fi
 }
 
+# Check that go fmt has been run.
+function check_go_fmt {
+	fmtcount=`git ls-files | grep '.go$' | xargs gofmt -l 2>&1 | wc -l`
+	if [ $fmtcount -gt 0 ]; then
+	    echo "run 'go fmt ./...' to format your source code."
+	    exit 1
+	fi
+}
+
+# Check that go vet passes.
+function check_go_vet {
+	# Due to the way composites work, vet will fail for some of our tests so we ignore it
+	vetcount=`go tool vet --composites=false ./ 2>&1  | wc -l`
+	if [ $vetcount -gt 0 ]; then
+	    echo "run 'go tool vet --composites=false ./' to see the errors it flags and correct your source code."
+	    exit 1
+	fi
+}
+
 source $HOME/.gvm/scripts/gvm
 exit_if_fail gvm use $GO_VERSION
 
@@ -45,12 +64,13 @@ exit_if_fail git branch --set-upstream-to=origin/$CIRCLE_BRANCH $CIRCLE_BRANCH
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
 exit_if_fail go get -t -d -v ./...
 exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew? Switch back.
+check_go_fmt
+check_go_vet
 exit_if_fail go build -v ./...
 
 # Run the tests.
 case $CIRCLE_NODE_INDEX in
     0)
-        exit_if_fail go tool vet --composites=false .
         go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
         rc=${PIPESTATUS[0]}
         ;;
