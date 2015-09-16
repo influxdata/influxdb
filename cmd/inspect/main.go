@@ -22,9 +22,11 @@ func main() {
 	flag.StringVar(&path, "p", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
 	flag.Parse()
 
-	tstore := tsdb.NewStore(filepath.Join(path, "data"))
+	var paths []string
+	paths = append(paths, filepath.Join(path, "data"))
+	tstore := tsdb.NewStore(paths)
 	tstore.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
-	tstore.EngineOptions.Config.Dir = filepath.Join(path, "data")
+	tstore.EngineOptions.Config.Dir = paths
 	tstore.EngineOptions.Config.WALLoggingEnabled = false
 	tstore.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
 	if err := tstore.Open(); err != nil {

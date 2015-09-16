@@ -44,8 +44,12 @@ func (cmd *Command) Restore(config *Config, path string) error {
 	// Remove meta and data directories.
 	if err := os.RemoveAll(config.Meta.Dir); err != nil {
 		return fmt.Errorf("remove meta dir: %s", err)
-	} else if err := os.RemoveAll(config.Data.Dir); err != nil {
-		return fmt.Errorf("remove data dir: %s", err)
+	} else {
+		for _, dir := range config.Data.Dir {
+			if err := os.RemoveAll(dir); err != nil {
+				return fmt.Errorf("remove data dir: %s", err)
+			}
+		}
 	}
 
 	// Open snapshot file and all incremental backups.
@@ -195,7 +199,7 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 }
 
 func (cmd *Command) unpackData(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
-	path := filepath.Join(config.Data.Dir, sf.Name)
+	path := filepath.Join(config.Data.Dir[0], sf.Name)
 	// Create parent directory for output file.
 	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
 		return fmt.Errorf("mkdir: entry=%s, err=%s", sf.Name, err)
