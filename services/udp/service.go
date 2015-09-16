@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -145,7 +146,7 @@ func (s *Service) serve() {
 		}
 		s.statMap.Add(statBytesReceived, int64(n))
 
-		points, err := tsdb.ParsePoints(buf[:n])
+		points, err := models.ParsePoints(buf[:n])
 		if err != nil {
 			s.statMap.Add(statPointsParseFail, 1)
 			s.Logger.Printf("Failed to parse points: %s", err)

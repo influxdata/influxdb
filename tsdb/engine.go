@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/models"
 )
 
 var (
@@ -29,7 +30,7 @@ type Engine interface {
 	LoadMetadataIndex(index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
 	Begin(writable bool) (Tx, error)
-	WritePoints(points []Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
+	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)

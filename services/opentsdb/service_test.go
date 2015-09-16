@@ -14,8 +14,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/opentsdb"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 // Ensure a point can be written via the telnet protocol.
@@ -37,8 +37,8 @@ func TestService_Telnet(t *testing.T) {
 			t.Fatalf("unexpected database: %s", req.Database)
 		} else if req.RetentionPolicy != "" {
 			t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-		} else if !reflect.DeepEqual(req.Points, []tsdb.Point{
-			tsdb.NewPoint(
+		} else if !reflect.DeepEqual(req.Points, []models.Point{
+			models.NewPoint(
 				"sys.cpu.user",
 				map[string]string{"host": "webserver01", "cpu": "0"},
 				map[string]interface{}{"value": 42.5},
@@ -91,8 +91,8 @@ func TestService_HTTP(t *testing.T) {
 			t.Fatalf("unexpected database: %s", req.Database)
 		} else if req.RetentionPolicy != "" {
 			t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-		} else if !reflect.DeepEqual(req.Points, []tsdb.Point{
-			tsdb.NewPoint(
+		} else if !reflect.DeepEqual(req.Points, []models.Point{
+			models.NewPoint(
 				"sys.cpu.nice",
 				map[string]string{"dc": "lga", "host": "web01"},
 				map[string]interface{}{"value": 18.0},

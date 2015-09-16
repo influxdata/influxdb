@@ -17,6 +17,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/golang/snappy"
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
@@ -70,7 +71,7 @@ type Engine struct {
 
 // WAL represents a write ahead log that can be queried
 type WAL interface {
-	WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
+	WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 	LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error
 	DeleteSeries(keys []string) error
 	Cursor(key string, direction tsdb.Direction) tsdb.Cursor
@@ -225,7 +226,7 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
-func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	// Write points to the WAL.
 	if err := e.WAL.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
 		return fmt.Errorf("write points: %s", err)

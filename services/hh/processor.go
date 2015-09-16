@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -103,7 +104,7 @@ func (p *Processor) addQueue(nodeID uint64) (*queue, error) {
 	return queue, nil
 }
 
-func (p *Processor) WriteShard(shardID, ownerID uint64, points []tsdb.Point) error {
+func (p *Processor) WriteShard(shardID, ownerID uint64, points []models.Point) error {
 	queue, ok := p.queues[ownerID]
 	if !ok {
 		var err error
@@ -186,7 +187,7 @@ func (p *Processor) Process() error {
 	return nil
 }
 
-func (p *Processor) marshalWrite(shardID uint64, points []tsdb.Point) []byte {
+func (p *Processor) marshalWrite(shardID uint64, points []models.Point) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, shardID)
 	for _, p := range points {
@@ -196,12 +197,12 @@ func (p *Processor) marshalWrite(shardID uint64, points []tsdb.Point) []byte {
 	return b
 }
 
-func (p *Processor) unmarshalWrite(b []byte) (uint64, []tsdb.Point, error) {
+func (p *Processor) unmarshalWrite(b []byte) (uint64, []models.Point, error) {
 	if len(b) < 8 {
 		return 0, nil, fmt.Errorf("too short: len = %d", len(b))
 	}
 	ownerID := binary.BigEndian.Uint64(b[:8])
-	points, err := tsdb.ParsePoints(b[8:])
+	points, err := models.ParsePoints(b[8:])
 	return ownerID, points, err
 }
 

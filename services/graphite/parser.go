@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 var (
@@ -28,14 +28,14 @@ func init() {
 // Parser encapsulates a Graphite Parser.
 type Parser struct {
 	matcher *matcher
-	tags    tsdb.Tags
+	tags    models.Tags
 }
 
 // Options are configurable values that can be provided to a Parser
 type Options struct {
 	Separator   string
 	Templates   []string
-	DefaultTags tsdb.Tags
+	DefaultTags models.Tags
 }
 
 // NewParserWithOptions returns a graphite parser using the given options
@@ -60,7 +60,7 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 		}
 
 		// Parse out the default tags specific to this template
-		tags := tsdb.Tags{}
+		tags := models.Tags{}
 		if strings.Contains(parts[len(parts)-1], "=") {
 			tagStrs := strings.Split(parts[len(parts)-1], ",")
 			for _, kv := range tagStrs {
@@ -79,7 +79,7 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 }
 
 // NewParser returns a GraphiteParser instance.
-func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
+func NewParser(templates []string, defaultTags models.Tags) (*Parser, error) {
 	return NewParserWithOptions(
 		Options{
 			Templates:   templates,
@@ -89,7 +89,7 @@ func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 }
 
 // Parse performs Graphite parsing of a single line.
-func (p *Parser) Parse(line string) (tsdb.Point, error) {
+func (p *Parser) Parse(line string) (models.Point, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
 	if len(fields) != 2 && len(fields) != 3 {
@@ -140,7 +140,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 			tags[k] = v
 		}
 	}
-	point := tsdb.NewPoint(measurement, tags, fieldValues, timestamp)
+	point := models.NewPoint(measurement, tags, fieldValues, timestamp)
 
 	return point, nil
 }
@@ -148,12 +148,12 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 // template represents a pattern and tags to map a graphite metric string to a influxdb Point
 type template struct {
 	tags              []string
-	defaultTags       tsdb.Tags
+	defaultTags       models.Tags
 	greedyMeasurement bool
 	separator         string
 }
 
-func NewTemplate(pattern string, defaultTags tsdb.Tags, separator string) (*template, error) {
+func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*template, error) {
 	tags := strings.Split(pattern, ".")
 	hasMeasurement := false
 	template := &template{tags: tags, defaultTags: defaultTags, separator: separator}

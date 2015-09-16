@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 type fakeShardWriter struct {
-	ShardWriteFn func(shardID, nodeID uint64, points []tsdb.Point) error
+	ShardWriteFn func(shardID, nodeID uint64, points []models.Point) error
 }
 
-func (f *fakeShardWriter) WriteShard(shardID, nodeID uint64, points []tsdb.Point) error {
+func (f *fakeShardWriter) WriteShard(shardID, nodeID uint64, points []models.Point) error {
 	return f.ShardWriteFn(shardID, nodeID, points)
 }
 
@@ -24,10 +24,10 @@ func TestProcessorProcess(t *testing.T) {
 
 	// expected data to be queue and sent to the shardWriter
 	var expShardID, expNodeID, count = uint64(100), uint64(200), 0
-	pt := tsdb.NewPoint("cpu", tsdb.Tags{"foo": "bar"}, tsdb.Fields{"value": 1.0}, time.Unix(0, 0))
+	pt := models.NewPoint("cpu", models.Tags{"foo": "bar"}, models.Fields{"value": 1.0}, time.Unix(0, 0))
 
 	sh := &fakeShardWriter{
-		ShardWriteFn: func(shardID, nodeID uint64, points []tsdb.Point) error {
+		ShardWriteFn: func(shardID, nodeID uint64, points []models.Point) error {
 			count += 1
 			if shardID != expShardID {
 				t.Errorf("Process() shardID mismatch: got %v, exp %v", shardID, expShardID)
@@ -54,7 +54,7 @@ func TestProcessorProcess(t *testing.T) {
 	}
 
 	// This should queue the writes
-	if err := p.WriteShard(expShardID, expNodeID, []tsdb.Point{pt}); err != nil {
+	if err := p.WriteShard(expShardID, expNodeID, []models.Point{pt}); err != nil {
 		t.Fatalf("Process() failed to write points: %v", err)
 	}
 

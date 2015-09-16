@@ -13,6 +13,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
@@ -257,7 +258,7 @@ func (s *Service) writePoints() {
 }
 
 // Unmarshal translates a collectd packet into InfluxDB data points.
-func Unmarshal(packet *gollectd.Packet) []tsdb.Point {
+func Unmarshal(packet *gollectd.Packet) []models.Point {
 	// Prefer high resolution timestamp.
 	var timestamp time.Time
 	if packet.TimeHR > 0 {
@@ -272,7 +273,7 @@ func Unmarshal(packet *gollectd.Packet) []tsdb.Point {
 		timestamp = time.Unix(int64(packet.Time), 0).UTC()
 	}
 
-	var points []tsdb.Point
+	var points []models.Point
 	for i := range packet.Values {
 		name := fmt.Sprintf("%s_%s", packet.Plugin, packet.Values[i].Name)
 		tags := make(map[string]string)
@@ -292,7 +293,7 @@ func Unmarshal(packet *gollectd.Packet) []tsdb.Point {
 		if packet.TypeInstance != "" {
 			tags["type_instance"] = packet.TypeInstance
 		}
-		p := tsdb.NewPoint(name, tags, fields, timestamp)
+		p := models.NewPoint(name, tags, fields, timestamp)
 
 		points = append(points, p)
 	}

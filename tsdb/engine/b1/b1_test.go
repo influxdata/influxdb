@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/b1"
 )
@@ -23,11 +24,11 @@ func TestEngine_WritePoints(t *testing.T) {
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
 	mf.CreateFieldIfNotExists("value", influxql.Float)
 	seriesToCreate := []*tsdb.SeriesCreate{
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("temperature"), nil)), nil)},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("temperature"), nil)), nil)},
 	}
 
 	// Parse point.
-	points, err := tsdb.ParsePointsWithPrecision([]byte("temperature value=100 1434059627"), time.Now().UTC(), "s")
+	points, err := models.ParsePointsWithPrecision([]byte("temperature value=100 1434059627"), time.Now().UTC(), "s")
 	if err != nil {
 		t.Fatal(err)
 	} else if data, err := mf.Codec.EncodeFields(points[0].Fields()); err != nil {
@@ -47,7 +48,7 @@ func TestEngine_WritePoints(t *testing.T) {
 	}
 
 	// Parse new point.
-	points, err = tsdb.ParsePointsWithPrecision([]byte("temperature value=200 1434059627"), time.Now().UTC(), "s")
+	points, err = models.ParsePointsWithPrecision([]byte("temperature value=200 1434059627"), time.Now().UTC(), "s")
 	if err != nil {
 		t.Fatal(err)
 	} else if data, err := mf.Codec.EncodeFields(points[0].Fields()); err != nil {
@@ -88,11 +89,11 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
 	mf.CreateFieldIfNotExists("value", influxql.Float)
 	seriesToCreate := []*tsdb.SeriesCreate{
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("temperature"), nil)), nil)},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("temperature"), nil)), nil)},
 	}
 
 	// Parse point.
-	points, err := tsdb.ParsePointsWithPrecision([]byte("temperature value=100 0"), time.Now().UTC(), "s")
+	points, err := models.ParsePointsWithPrecision([]byte("temperature value=100 0"), time.Now().UTC(), "s")
 	if err != nil {
 		t.Fatal(err)
 	} else if data, err := mf.Codec.EncodeFields(points[0].Fields()); err != nil {
@@ -112,7 +113,7 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 	}
 
 	// Parse new point.
-	points, err = tsdb.ParsePointsWithPrecision([]byte("temperature value=200 1"), time.Now().UTC(), "s")
+	points, err = models.ParsePointsWithPrecision([]byte("temperature value=200 1"), time.Now().UTC(), "s")
 	if err != nil {
 		t.Fatal(err)
 	} else if data, err := mf.Codec.EncodeFields(points[0].Fields()); err != nil {

@@ -8,6 +8,7 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -27,12 +28,12 @@ type testService struct {
 	nodeID           uint64
 	ln               net.Listener
 	muxln            net.Listener
-	writeShardFunc   func(shardID uint64, points []tsdb.Point) error
+	writeShardFunc   func(shardID uint64, points []models.Point) error
 	createShardFunc  func(database, policy string, shardID uint64) error
 	createMapperFunc func(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 }
 
-func newTestWriteService(f func(shardID uint64, points []tsdb.Point) error) testService {
+func newTestWriteService(f func(shardID uint64, points []models.Point) error) testService {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
@@ -59,10 +60,10 @@ type serviceResponses []serviceResponse
 type serviceResponse struct {
 	shardID uint64
 	ownerID uint64
-	points  []tsdb.Point
+	points  []models.Point
 }
 
-func (t testService) WriteToShard(shardID uint64, points []tsdb.Point) error {
+func (t testService) WriteToShard(shardID uint64, points []models.Point) error {
 	return t.writeShardFunc(shardID, points)
 }
 
@@ -74,7 +75,7 @@ func (t testService) CreateMapper(shardID uint64, stmt influxql.Statement, chunk
 	return t.createMapperFunc(shardID, stmt, chunkSize)
 }
 
-func writeShardSuccess(shardID uint64, points []tsdb.Point) error {
+func writeShardSuccess(shardID uint64, points []models.Point) error {
 	responses <- &serviceResponse{
 		shardID: shardID,
 		points:  points,
@@ -82,7 +83,7 @@ func writeShardSuccess(shardID uint64, points []tsdb.Point) error {
 	return nil
 }
 
-func writeShardFail(shardID uint64, points []tsdb.Point) error {
+func writeShardFail(shardID uint64, points []models.Point) error {
 	return fmt.Errorf("failed to write")
 }
 

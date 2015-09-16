@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 const (
@@ -460,7 +460,7 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 }
 
 func (p *Point) MarshalString() string {
-	pt := tsdb.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+	pt := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
 	if p.Precision == "" || p.Precision == "ns" || p.Precision == "n" {
 		return pt.String()
 	}
