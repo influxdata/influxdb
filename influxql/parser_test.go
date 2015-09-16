@@ -9,8 +9,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
 )
+
+var cover *testing.Cover
+
+func init() {
+	cover = &testing.Cover{
+		Mode:            "set",
+		Counters:        make(map[string][]uint32),
+		Blocks:          make(map[string][]testing.CoverBlock),
+		CoveredPackages: "influxql",
+	}
+	testing.RegisterCover(*cover)
+}
 
 // Ensure the parser can parse a multi-statement query.
 func TestParser_ParseQuery(t *testing.T) {
@@ -21,6 +34,7 @@ func TestParser_ParseQuery(t *testing.T) {
 	} else if len(q.Statements) != 2 {
 		t.Fatalf("unexpected statement count: %d", len(q.Statements))
 	}
+	spew.Dump(cover)
 }
 
 func TestParser_ParseQuery_TrailingSemicolon(t *testing.T) {
