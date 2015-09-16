@@ -743,6 +743,11 @@ func (s *SelectStatement) IsSimpleDerivative() bool {
 	return false
 }
 
+// TimeAscending returns true if the time field is sorted in chronological order.
+func (s *SelectStatement) TimeAscending() bool {
+	return len(s.SortFields) == 0 || s.SortFields[0].Ascending
+}
+
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
 	clone := &SelectStatement{
@@ -2935,6 +2940,13 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 		}
 	}
 	return nil
+}
+
+// EvalBool evaluates expr and returns true if result is a boolean true.
+// Otherwise returns false.
+func EvalBool(expr Expr, m map[string]interface{}) bool {
+	v, _ := Eval(expr, m).(bool)
+	return v
 }
 
 // Reduce evaluates expr using the available values in valuer.

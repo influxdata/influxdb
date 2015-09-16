@@ -27,39 +27,6 @@ type Executor interface {
 	Execute() <-chan *models.Row
 }
 
-// Mapper is the interface all Mapper types must implement.
-type Mapper interface {
-	Open() error
-	SetRemote(m Mapper)
-	TagSets() []string
-	Fields() []string
-	NextChunk() (interface{}, error)
-	Close()
-}
-
-// StatefulMapper encapsulates a Mapper and some state that the executor needs to
-// track for that mapper.
-type StatefulMapper struct {
-	Mapper
-	bufferedChunk *MapperOutput // Last read chunk.
-	drained       bool
-}
-
-// NextChunk wraps a RawMapper and some state.
-func (sm *StatefulMapper) NextChunk() (*MapperOutput, error) {
-	c, err := sm.Mapper.NextChunk()
-	if err != nil {
-		return nil, err
-	}
-	chunk, ok := c.(*MapperOutput)
-	if !ok {
-		if chunk == interface{}(nil) {
-			return nil, nil
-		}
-	}
-	return chunk, nil
-}
-
 type SelectExecutor struct {
 	stmt           *influxql.SelectStatement
 	mappers        []*StatefulMapper

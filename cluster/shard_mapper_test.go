@@ -80,13 +80,9 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
 	}
-	b, ok := chunk.([]byte)
+	output, ok := chunk.(*tsdb.MapperOutput)
 	if !ok {
 		t.Fatal("chunk is not of expected type")
-	}
-	output := &tsdb.MapperOutput{}
-	if err := json.Unmarshal(b, output); err != nil {
-		t.Fatal(err)
 	}
 	if output.Name != "cpu" {
 		t.Fatalf("received output incorrect, exp: %v, got %v", expOutput, output)
