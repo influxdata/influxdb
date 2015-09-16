@@ -665,11 +665,11 @@ func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statemen
 			return row.Err
 		}
 		resultSent = true
-		results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
+		results <- &influxql.Result{StatementID: statementID, Series: []*models.Row{row}}
 	}
 
 	if !resultSent {
-		results <- &influxql.Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
+		results <- &influxql.Result{StatementID: statementID, Series: make([]*models.Row, 0)}
 	}
 
 	return nil

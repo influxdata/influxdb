@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 )
 
 // ShowTagKeysExecutor implements the Executor interface for a SHOW MEASUREMENTS statement.
@@ -25,9 +26,9 @@ func NewShowTagKeysExecutor(stmt *influxql.ShowTagKeysStatement, mappers []Mappe
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *ShowTagKeysExecutor) Execute() <-chan *influxql.Row {
+func (e *ShowTagKeysExecutor) Execute() <-chan *models.Row {
 	// Create output channel and stream data in a separate goroutine.
-	out := make(chan *influxql.Row, 0)
+	out := make(chan *models.Row, 0)
 
 	// It's important that all resources are released when execution completes.
 	defer e.close()
@@ -37,7 +38,7 @@ func (e *ShowTagKeysExecutor) Execute() <-chan *influxql.Row {
 		// Open the mappers.
 		for _, m := range e.mappers {
 			if err := m.Open(); err != nil {
-				out <- &influxql.Row{Err: err}
+				out <- &models.Row{Err: err}
 				return
 			}
 		}
@@ -50,7 +51,7 @@ func (e *ShowTagKeysExecutor) Execute() <-chan *influxql.Row {
 			for {
 				c, err := m.NextChunk()
 				if err != nil {
-					out <- &influxql.Row{Err: err}
+					out <- &models.Row{Err: err}
 					return
 				} else if c == nil {
 					// Mapper has been drained.
@@ -60,7 +61,7 @@ func (e *ShowTagKeysExecutor) Execute() <-chan *influxql.Row {
 				// Convert the mapper chunk to an array of measurements with tag keys.
 				mtks, ok := c.(MeasurementsTagKeys)
 				if !ok {
-					out <- &influxql.Row{Err: fmt.Errorf("show tag keys mapper returned invalid type: %T", c)}
+					out <- &models.Row{Err: fmt.Errorf("show tag keys mapper returned invalid type: %T", c)}
 					return
 				}
 
@@ -91,26 +92,19 @@ func (e *ShowTagKeysExecutor) Execute() <-chan *influxql.Row {
 		// Sort by measurement name.
 		sort.Sort(mstks)
 
-		// Calculate OFFSET and LIMIT.
-		off := e.stmt.Offset
-		lim := len(mstks)
-		stmtLim := e.stmt.Limit
-
-		if stmtLim > 0 && off+stmtLim < lim {
-			lim = off + stmtLim
-		} else if off > lim {
-			off, lim = 0, 0
-		}
+		slim, soff := limitAndOffset(e.stmt.SLimit, e.stmt.SOffset, len(mstks))
 
 		// Send results.
-		for _, mtks := range mstks[off:lim] {
-			row := &influxql.Row{
+		for _, mtks := range mstks[soff:slim] {
+			lim, off := limitAndOffset(e.stmt.Limit, e.stmt.Offset, len(mtks.TagKeys))
+
+			row := &models.Row{
 				Name:    mtks.Measurement,
 				Columns: []string{"tagKey"},
-				Values:  make([][]interface{}, 0, len(mtks.TagKeys)),
+				Values:  make([][]interface{}, 0, lim-off),
 			}
 
-			for _, tk := range mtks.TagKeys {
+			for _, tk := range mtks.TagKeys[off:lim] {
 				v := []interface{}{tk}
 				row.Values = append(row.Values, v)
 			}
@@ -119,6 +113,26 @@ func (e *ShowTagKeysExecutor) Execute() <-chan *influxql.Row {
 		}
 	}()
 	return out
+}
+
+// limitAndOffset calculates the limit and offset indexes for n things.
+func limitAndOffset(lim, off, n int) (int, int) {
+	if off >= n {
+		return 0, 0
+	}
+
+	o := off
+	l := n
+
+	if lim > 0 && o+lim < l {
+		l = o + lim
+	}
+
+	if o > l {
+		return 0, 0
+	}
+
+	return l, o
 }
 
 // Close closes the executor such that all resources are released. Once closed,

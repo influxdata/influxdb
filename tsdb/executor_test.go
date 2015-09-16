@@ -252,7 +252,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 
 // Test to ensure the engine handles query re-writing across stores.
 func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
-	// Create two distinct stores, ensuring shard mappers will shard nothing.
+	// Create two distinct stores, ensuring shard mappers will share nothing.
 	store0 := testStore()
 	defer os.RemoveAll(store0.Path())
 	store1 := testStore()
@@ -435,7 +435,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 
 // Test to ensure the engine handles measurements across stores.
 func TestShowMeasurementsMultipleShards(t *testing.T) {
-	// Create two distinct stores, ensuring shard mappers will shard nothing.
+	// Create two distinct stores, ensuring shard mappers will share nothing.
 	store0 := testStore()
 	defer os.RemoveAll(store0.Path())
 	store1 := testStore()
@@ -515,7 +515,7 @@ func TestShowMeasurementsMultipleShards(t *testing.T) {
 
 // Test to ensure the engine handles tag keys across stores.
 func TestShowShowTagKeysMultipleShards(t *testing.T) {
-	// Create two distinct stores, ensuring shard mappers will shard nothing.
+	// Create two distinct stores, ensuring shard mappers will share nothing.
 	store0 := testStore()
 	defer os.RemoveAll(store0.Path())
 	store1 := testStore()
@@ -529,14 +529,14 @@ func TestShowShowTagKeysMultipleShards(t *testing.T) {
 
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
-	if err := store0.WriteToShard(sID0, []tsdb.Point{
-		tsdb.NewPoint(
+	if err := store0.WriteToShard(sID0, []models.Point{
+		models.NewPoint(
 			"cpu",
 			map[string]string{"host": "serverA", "region": "uswest"},
 			map[string]interface{}{"value1": 100},
 			pt1time,
 		),
-		tsdb.NewPoint(
+		models.NewPoint(
 			"cpu",
 			map[string]string{"host": "serverB", "region": "useast"},
 			map[string]interface{}{"value1": 100},
@@ -546,14 +546,14 @@ func TestShowShowTagKeysMultipleShards(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store1.WriteToShard(sID1, []tsdb.Point{
-		tsdb.NewPoint(
+	if err := store1.WriteToShard(sID1, []models.Point{
+		models.NewPoint(
 			"cpu",
 			map[string]string{"host": "serverB", "region": "useast", "rack": "12"},
 			map[string]interface{}{"value1": 100},
 			pt1time,
 		),
-		tsdb.NewPoint(
+		models.NewPoint(
 			"mem",
 			map[string]string{"host": "serverB"},
 			map[string]interface{}{"value2": 200},
@@ -570,6 +570,30 @@ func TestShowShowTagKeysMultipleShards(t *testing.T) {
 		{
 			stmt:     `SHOW TAG KEYS`,
 			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"],["rack"],["region"]]},{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS SLIMIT 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"],["rack"],["region"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS SLIMIT 1 SOFFSET 1`,
+			expected: `[{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS SOFFSET 1`,
+			expected: `[{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS LIMIT 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"]]},{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS LIMIT 1 OFFSET 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["rack"]]},{"name":"mem","columns":["tagKey"]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS OFFSET 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["rack"],["region"]]},{"name":"mem","columns":["tagKey"]}]`,
 		},
 		{
 			stmt:     `SHOW TAG KEYS FROM cpu`,

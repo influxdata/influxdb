@@ -751,6 +751,15 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG KEYS with LIMIT
+		{
+			s: `SHOW TAG KEYS FROM src LIMIT 2`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Limit:   2,
+			},
+		},
+
 		// SHOW TAG KEYS FROM /<regex>/
 		{
 			s: `SHOW TAG KEYS FROM /[cg]pu/`,
@@ -1554,6 +1563,9 @@ func TestParser_ParseStatement(t *testing.T) {
 	}
 
 	for i, tt := range tests {
+		if tt.s != `SHOW TAG KEYS FROM src LIMIT 2` {
+			continue
+		}
 		if tt.skip {
 			t.Logf("skipping test of '%s'", tt.s)
 			continue
