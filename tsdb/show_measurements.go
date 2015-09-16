@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 )
 
 // ShowMeasurementsExecutor implements the Executor interface for a SHOW MEASUREMENTS statement.
@@ -25,15 +26,15 @@ func NewShowMeasurementsExecutor(stmt *influxql.ShowMeasurementsStatement, mappe
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
+func (e *ShowMeasurementsExecutor) Execute() <-chan *models.Row {
 	// Create output channel and stream data in a separate goroutine.
-	out := make(chan *influxql.Row, 0)
+	out := make(chan *models.Row, 0)
 
 	go func() {
 		// Open the mappers.
 		for _, m := range e.mappers {
 			if err := m.Open(); err != nil {
-				out <- &influxql.Row{Err: err}
+				out <- &models.Row{Err: err}
 				return
 			}
 		}
@@ -45,7 +46,7 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 			// Get the data from the mapper.
 			c, err := m.NextChunk()
 			if err != nil {
-				out <- &influxql.Row{Err: err}
+				out <- &models.Row{Err: err}
 				return
 			} else if c == nil {
 				// Mapper had no data.
@@ -55,7 +56,7 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 			// Convert the mapper chunk to a string array of measurement names.
 			mms, ok := c.([]string)
 			if !ok {
-				out <- &influxql.Row{Err: fmt.Errorf("show measurements mapper returned invalid type: %T", c)}
+				out <- &models.Row{Err: fmt.Errorf("show measurements mapper returned invalid type: %T", c)}
 				return
 			}
 
@@ -85,7 +86,7 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 		}
 
 		// Put the results in a row and send it.
-		row := &influxql.Row{
+		row := &models.Row{
 			Name:    "measurements",
 			Columns: []string{"name"},
 			Values:  make([][]interface{}, 0, len(measurements)),

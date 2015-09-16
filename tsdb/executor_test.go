@@ -1062,7 +1062,7 @@ func (t *testQEShardMapper) CreateMapper(shard meta.ShardInfo, stmt influxql.Sta
 func executeAndGetResults(executor tsdb.Executor) string {
 	ch := executor.Execute()
 
-	var rows []*influxql.Row
+	var rows []*models.Row
 	for r := range ch {
 		rows = append(rows, r)
 	}

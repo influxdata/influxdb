@@ -398,7 +398,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
 // Used for continuous and INTO queries
-func (s *Service) convertRowToPoints(measurementName string, row *influxql.Row) ([]models.Point, error) {
+func (s *Service) convertRowToPoints(measurementName string, row *models.Row) ([]models.Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)

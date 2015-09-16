@@ -13,6 +13,7 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 )
 
 var (
@@ -499,7 +500,7 @@ func (pw *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
 
 // genResult generates a dummy query result.
 func genResult(rowCnt, valCnt int) *influxql.Result {
-	rows := make(influxql.Rows, 0, rowCnt)
+	rows := make(models.Rows, 0, rowCnt)
 	now := time.Now()
 	for n := 0; n < rowCnt; n++ {
 		vals := make([][]interface{}, 0, valCnt)
@@ -507,7 +508,7 @@ func genResult(rowCnt, valCnt int) *influxql.Result {
 			vals = append(vals, []interface{}{now, float64(m)})
 			now.Add(time.Second)
 		}
-		row := &influxql.Row{
+		row := &models.Row{
 			Name:    "cpu",
 			Tags:    map[string]string{"host": "server01"},
 			Columns: []string{"time", "value"},

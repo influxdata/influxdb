@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 )
 
@@ -325,7 +324,7 @@ func (c *Client) Ping() (time.Duration, string, error) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Series []influxql.Row
+	Series []models.Row
 	Err    error
 }
 
@@ -333,8 +332,8 @@ type Result struct {
 func (r *Result) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Series []influxql.Row `json:"series,omitempty"`
-		Err    string         `json:"error,omitempty"`
+		Series []models.Row `json:"series,omitempty"`
+		Err    string       `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
@@ -349,8 +348,8 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Result struct
 func (r *Result) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Series []influxql.Row `json:"series,omitempty"`
-		Err    string         `json:"error,omitempty"`
+		Series []models.Row `json:"series,omitempty"`
+		Err    string       `json:"error,omitempty"`
 	}
 
 	dec := json.NewDecoder(bytes.NewBuffer(b))
