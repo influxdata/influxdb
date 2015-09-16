@@ -767,6 +767,10 @@ func cors(inner http.Handler) http.Handler {
 				`X-CSRF-Token`,
 				`X-HTTP-Method-Override`,
 			}, ", "))
+
+			w.Header().Set(`Access-Control-Expose-Headers`, strings.Join([]string{
+				`X-Influxdb-Version`,
+			}, ", "))
 		}
 
 		if r.Method == "OPTIONS" {
