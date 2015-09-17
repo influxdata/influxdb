@@ -89,7 +89,8 @@ type Engine struct {
 func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewLog(path)
 	w.FlushColdInterval = time.Duration(opt.Config.WALFlushColdInterval)
-	w.MemorySizeThreshold = int(opt.Config.WALPartitionSizeThreshold)
+	w.FlushMemorySizeThreshold = opt.Config.WALFlushMemorySizeThreshold
+	w.MaxMemorySizeThreshold = opt.Config.WALMaxMemorySizeThreshold
 	w.LoggingEnabled = opt.Config.WALLoggingEnabled
 
 	e := &Engine{
