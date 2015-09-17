@@ -43,6 +43,10 @@ const (
 	// This number multiplied by the parition count is roughly the max possible memory
 	// size for the in-memory WAL cache.
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
+
+	// Default WAL settings for the PD1 WAL
+	DefaultFlushMemorySizeThreshold = 50 * 1024 * 1024  // 50MB
+	DefaultMaxMemorySizeThreshold   = 200 * 1024 * 1024 // 200MB
 )
 
 type Config struct {
@@ -63,6 +67,10 @@ type Config struct {
 	WALFlushColdInterval      toml.Duration `toml:"wal-flush-cold-interval"`
 	WALPartitionSizeThreshold uint64        `toml:"wal-partition-size-threshold"`
 
+	// WAL configuration options for pd1 introduced in 0.9.5
+	WALFlushMemorySizeThreshold int `toml:"wal-flush-memory-size-threshold"`
+	WALMaxMemorySizeThreshold   int `toml:"wal-max-memory-size-threshold"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 }
@@ -74,12 +82,14 @@ func NewConfig() Config {
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
 
-		WALLoggingEnabled:         true,
-		WALReadySeriesSize:        DefaultReadySeriesSize,
-		WALCompactionThreshold:    DefaultCompactionThreshold,
-		WALMaxSeriesSize:          DefaultMaxSeriesSize,
-		WALFlushColdInterval:      toml.Duration(DefaultFlushColdInterval),
-		WALPartitionSizeThreshold: DefaultPartitionSizeThreshold,
+		WALLoggingEnabled:           true,
+		WALReadySeriesSize:          DefaultReadySeriesSize,
+		WALCompactionThreshold:      DefaultCompactionThreshold,
+		WALMaxSeriesSize:            DefaultMaxSeriesSize,
+		WALFlushColdInterval:        toml.Duration(DefaultFlushColdInterval),
+		WALPartitionSizeThreshold:   DefaultPartitionSizeThreshold,
+		WALFlushMemorySizeThreshold: DefaultFlushMemorySizeThreshold,
+		WALMaxMemorySizeThreshold:   DefaultMaxMemorySizeThreshold,
 
 		QueryLogEnabled: true,
 	}
