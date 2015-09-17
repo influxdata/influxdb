@@ -1,6 +1,7 @@
 ## v0.9.5 [unreleased]
 
 ### Features
+- [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
 
 ### Bugfixes
