@@ -274,6 +274,47 @@ func TestStore_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
+// Ensure the store can create and get a retention policy on a database.
+func TestStore_CreateAndGetRetentionPolicy(t *testing.T) {
+	t.Parallel()
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create an additional nodes and database.
+	if _, err := s.CreateNode("hostX"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create policy on database.
+	if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		ReplicaN: 2,
+		Duration: 48 * time.Hour,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the policy on database.
+	if rpi, err := s.RetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{
+		Name:               "rp0",
+		ReplicaN:           2,
+		Duration:           48 * time.Hour,
+		ShardGroupDuration: 24 * time.Hour,
+	}) {
+		t.Fatalf("unexpected policy: %#v", rpi)
+	}
+
+	// Get non-existent policies.
+	if _, err := s.RetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+}
+
 // Ensure the store can delete a retention policy.
 func TestStore_DropRetentionPolicy(t *testing.T) {
 	t.Parallel()
