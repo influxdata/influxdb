@@ -238,6 +238,7 @@ do_build() {
 generate_postinstall_script() {
     version=$1
     cat  <<EOF >$POST_INSTALL_PATH
+#!/bin/sh
 rm -f $INSTALL_ROOT_DIR/influxd
 rm -f $INSTALL_ROOT_DIR/influx
 rm -f $INSTALL_ROOT_DIR/init.sh
