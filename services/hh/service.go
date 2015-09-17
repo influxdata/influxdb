@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 var ErrHintedHandoffDisabled = fmt.Errorf("hinted handoff disabled")
@@ -24,14 +24,14 @@ type Service struct {
 	ShardWriter shardWriter
 
 	HintedHandoff interface {
-		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
+		WriteShard(shardID, ownerID uint64, points []models.Point) error
 		Process() error
 		PurgeOlderThan(when time.Duration) error
 	}
 }
 
 type shardWriter interface {
-	WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
+	WriteShard(shardID, ownerID uint64, points []models.Point) error
 }
 
 // NewService returns a new instance of Service.
@@ -87,7 +87,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 }
 
 // WriteShard queues the points write for shardID to node ownerID to handoff queue
-func (s *Service) WriteShard(shardID, ownerID uint64, points []tsdb.Point) error {
+func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) error {
 	if !s.cfg.Enabled {
 		return ErrHintedHandoffDisabled
 	}

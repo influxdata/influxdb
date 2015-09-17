@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/b1"
 )
@@ -29,20 +30,20 @@ func TestShardWriteAndIndex(t *testing.T) {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
 
-	pt := tsdb.NewPoint(
+	pt := models.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]tsdb.Point{pt})
+	err := sh.WritePoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
 	pt.SetTime(time.Unix(2, 3))
-	err = sh.WritePoints([]tsdb.Point{pt})
+	err = sh.WritePoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -76,7 +77,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	// and ensure that we can still write data
 	pt.SetTime(time.Unix(2, 6))
-	err = sh.WritePoints([]tsdb.Point{pt})
+	err = sh.WritePoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -98,26 +99,26 @@ func TestShardWriteAddNewField(t *testing.T) {
 	}
 	defer sh.Close()
 
-	pt := tsdb.NewPoint(
+	pt := models.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]tsdb.Point{pt})
+	err := sh.WritePoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	pt = tsdb.NewPoint(
+	pt = models.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0, "value2": 2.0},
 		time.Unix(1, 2),
 	)
 
-	err = sh.WritePoints([]tsdb.Point{pt})
+	err = sh.WritePoints([]models.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -158,7 +159,7 @@ func TestShard_Autoflush(t *testing.T) {
 
 	// Write a bunch of points.
 	for i := 0; i < 100; i++ {
-		if err := sh.WritePoints([]tsdb.Point{tsdb.NewPoint(
+		if err := sh.WritePoints([]models.Point{models.NewPoint(
 			fmt.Sprintf("cpu%d", i),
 			map[string]string{"host": "server"},
 			map[string]interface{}{"value": 1.0},
@@ -198,7 +199,7 @@ func TestShard_Autoflush_FlushInterval(t *testing.T) {
 
 	// Write some points.
 	for i := 0; i < 100; i++ {
-		if err := sh.WritePoints([]tsdb.Point{tsdb.NewPoint(
+		if err := sh.WritePoints([]models.Point{models.NewPoint(
 			fmt.Sprintf("cpu%d", i),
 			map[string]string{"host": "server"},
 			map[string]interface{}{"value": 1.0},
@@ -252,10 +253,10 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Create index for the shard to use.
 	index := tsdb.NewDatabaseIndex()
 	// Generate point data to write to the shard.
-	points := []tsdb.Point{}
+	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := tsdb.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -293,10 +294,10 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	// Create index for the shard to use.
 	index := tsdb.NewDatabaseIndex()
 	// Generate point data to write to the shard.
-	points := []tsdb.Point{}
+	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := tsdb.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -326,7 +327,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	}
 }
 
-func chunkedWrite(shard *tsdb.Shard, points []tsdb.Point) {
+func chunkedWrite(shard *tsdb.Shard, points []models.Point) {
 	nPts := len(points)
 	chunkSz := 10000
 	start := 0

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/graphite"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 func BenchmarkParse(b *testing.B) {
@@ -229,9 +229,9 @@ func TestParseNaN(t *testing.T) {
 		t.Fatalf("parse error: %v", err)
 	}
 
-	exp := tsdb.NewPoint("servers.localhost.cpu_load",
-		tsdb.Tags{},
-		tsdb.Fields{"value": math.NaN()},
+	exp := models.NewPoint("servers.localhost.cpu_load",
+		models.Tags{},
+		models.Fields{"value": math.NaN()},
 		time.Unix(1435077219, 0))
 
 	if exp.String() != pt.String() {
@@ -249,9 +249,9 @@ func TestFilterMatchDefault(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("miss.servers.localhost.cpu_load",
-		tsdb.Tags{},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("miss.servers.localhost.cpu_load",
+		models.Tags{},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("miss.servers.localhost.cpu_load 11 1435077219")
@@ -270,9 +270,9 @@ func TestFilterMatchMultipleMeasurement(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu.cpu_load.10",
-		tsdb.Tags{"host": "localhost"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu.cpu_load.10",
+		models.Tags{"host": "localhost"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu.cpu_load.10 11 1435077219")
@@ -294,9 +294,9 @@ func TestFilterMatchMultipleMeasurementSeparator(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_cpu_load_10",
-		tsdb.Tags{"host": "localhost"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_cpu_load_10",
+		models.Tags{"host": "localhost"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu.cpu_load.10 11 1435077219")
@@ -315,9 +315,9 @@ func TestFilterMatchSingle(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
@@ -336,9 +336,9 @@ func TestParseNoMatch(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("servers.localhost.memory.VmallocChunk",
-		tsdb.Tags{},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("servers.localhost.memory.VmallocChunk",
+		models.Tags{},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.memory.VmallocChunk 11 1435077219")
@@ -357,9 +357,9 @@ func TestFilterMatchWildcard(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
@@ -380,9 +380,9 @@ func TestFilterMatchExactBeforeWildcard(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
@@ -408,9 +408,9 @@ func TestFilterMatchMostLongestFilter(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost", "resource": "cpu"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost", "resource": "cpu"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu.cpu_load 11 1435077219")
@@ -435,9 +435,9 @@ func TestFilterMatchMultipleWildcards(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "server01"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "server01"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.server01.cpu_load 11 1435077219")
@@ -451,7 +451,7 @@ func TestFilterMatchMultipleWildcards(t *testing.T) {
 }
 
 func TestParseDefaultTags(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, tsdb.Tags{
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, models.Tags{
 		"region": "us-east",
 		"zone":   "1c",
 		"host":   "should not set",
@@ -460,9 +460,9 @@ func TestParseDefaultTags(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
@@ -476,7 +476,7 @@ func TestParseDefaultTags(t *testing.T) {
 }
 
 func TestParseDefaultTemplateTags(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement* zone=1c"}, tsdb.Tags{
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement* zone=1c"}, models.Tags{
 		"region": "us-east",
 		"host":   "should not set",
 	})
@@ -484,9 +484,9 @@ func TestParseDefaultTemplateTags(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
@@ -500,7 +500,7 @@ func TestParseDefaultTemplateTags(t *testing.T) {
 }
 
 func TestParseDefaultTemplateTagsOverridGlobal(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement* zone=1c,region=us-east"}, tsdb.Tags{
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement* zone=1c,region=us-east"}, models.Tags{
 		"region": "shot not be set",
 		"host":   "should not set",
 	})
@@ -508,9 +508,9 @@ func TestParseDefaultTemplateTagsOverridGlobal(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
@@ -524,7 +524,7 @@ func TestParseDefaultTemplateTagsOverridGlobal(t *testing.T) {
 }
 
 func TestParseTemplateWhitespace(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.localhost        .host.measurement*           zone=1c"}, tsdb.Tags{
+	p, err := graphite.NewParser([]string{"servers.localhost        .host.measurement*           zone=1c"}, models.Tags{
 		"region": "us-east",
 		"host":   "should not set",
 	})
@@ -532,9 +532,9 @@ func TestParseTemplateWhitespace(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
-		tsdb.Fields{"value": float64(11)},
+	exp := models.NewPoint("cpu_load",
+		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
 	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")

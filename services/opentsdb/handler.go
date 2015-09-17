@@ -13,7 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 type Handler struct {
@@ -96,7 +96,7 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert points into TSDB points.
-	points := make([]tsdb.Point, 0, len(dps))
+	points := make([]models.Point, 0, len(dps))
 	for i := range dps {
 		p := dps[i]
 
@@ -109,7 +109,7 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 			ts = time.Unix(p.Time/1000, (p.Time%1000)*1000)
 		}
 
-		points = append(points, tsdb.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts))
+		points = append(points, models.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts))
 	}
 
 	// Write points.

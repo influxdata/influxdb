@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -36,7 +37,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
 	p3 := parsePoint("cpu,host=B value=1.0 1", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2, p3}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -93,7 +94,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	p6 := parsePoint("cpu,host=A value=1.3 2", codec)
 	// // ensure we can write to a new partition
 	// p7 := parsePoint("cpu,region=west value=2.2", codec)
-	if err := log.WritePoints([]tsdb.Point{p4, p5, p6}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p4, p5, p6}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -151,7 +152,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 	// test that we can write to two different series
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -190,7 +191,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 
 	// now write new data and ensure it's all good
 	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
@@ -230,7 +231,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 	// test that we can write to two different series
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -275,7 +276,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 
 	// now write new data and ensure it's all good
 	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
@@ -394,8 +395,8 @@ func TestWAL_SeriesAndFieldsGetPersisted(t *testing.T) {
 	p3 := parsePoint("cpu,host=B value=1.0 1", codec)
 
 	seriesToCreate := []*tsdb.SeriesCreate{
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
 	}
 
 	measaurementsToCreate := map[string]*tsdb.MeasurementFields{
@@ -406,7 +407,7 @@ func TestWAL_SeriesAndFieldsGetPersisted(t *testing.T) {
 		},
 	}
 
-	if err := log.WritePoints([]tsdb.Point{p1, p2, p3}, measaurementsToCreate, seriesToCreate); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2, p3}, measaurementsToCreate, seriesToCreate); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -505,8 +506,8 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	}}
 
 	seriesToCreate := []*tsdb.SeriesCreate{
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
 	}
 
 	if err := log.Open(); err != nil {
@@ -518,7 +519,7 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	p2 := parsePoint("cpu,host=B value=0.9 2", codec)
 	p3 := parsePoint("cpu,host=A value=25.3 4", codec)
 	p4 := parsePoint("cpu,host=B value=1.0 3", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2, p3, p4}, nil, seriesToCreate); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2, p3, p4}, nil, seriesToCreate); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -612,7 +613,7 @@ func TestWAL_QueryDuringCompaction(t *testing.T) {
 
 	// test that we can write to two different series
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
-	if err := log.WritePoints([]tsdb.Point{p1}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p1}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -659,7 +660,7 @@ func TestWAL_PointsSorted(t *testing.T) {
 	p2 := parsePoint("cpu,host=A value=4.4 4", codec)
 	p3 := parsePoint("cpu,host=A value=2.2 2", codec)
 	p4 := parsePoint("cpu,host=A value=6.6 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2, p3, p4}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2, p3, p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -704,7 +705,7 @@ func TestWAL_Cursor_Reverse(t *testing.T) {
 	p2 := parsePoint("cpu,host=A value=4.4 4", codec)
 	p3 := parsePoint("cpu,host=A value=2.2 2", codec)
 	p4 := parsePoint("cpu,host=A value=6.6 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2, p3, p4}, nil, nil); err != nil {
+	if err := log.WritePoints([]models.Point{p1, p2, p3, p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -743,8 +744,8 @@ func openTestWAL() *Log {
 	return NewLog(dir)
 }
 
-func parsePoints(buf string, codec *tsdb.FieldCodec) []tsdb.Point {
-	points, err := tsdb.ParsePointsString(buf)
+func parsePoints(buf string, codec *tsdb.FieldCodec) []models.Point {
+	points, err := models.ParsePointsString(buf)
 	if err != nil {
 		panic(fmt.Sprintf("couldn't parse points: %s", err.Error()))
 	}
@@ -758,7 +759,7 @@ func parsePoints(buf string, codec *tsdb.FieldCodec) []tsdb.Point {
 	return points
 }
 
-func parsePoint(buf string, codec *tsdb.FieldCodec) tsdb.Point {
+func parsePoint(buf string, codec *tsdb.FieldCodec) models.Point {
 	return parsePoints(buf, codec)[0]
 }
 

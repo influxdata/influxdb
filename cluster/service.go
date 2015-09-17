@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -37,7 +38,7 @@ type Service struct {
 
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
-		WriteToShard(shardID uint64, points []tsdb.Point) error
+		WriteToShard(shardID uint64, points []models.Point) error
 		CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 

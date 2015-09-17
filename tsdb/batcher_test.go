@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -17,7 +18,7 @@ func TestBatch_Size(t *testing.T) {
 
 	batcher.Start()
 
-	var p tsdb.Point
+	var p models.Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
 			batcher.In() <- p
@@ -40,7 +41,7 @@ func TestBatch_SizeBuffered(t *testing.T) {
 
 	batcher.Start()
 
-	var p tsdb.Point
+	var p models.Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
 			batcher.In() <- p
@@ -63,7 +64,7 @@ func TestBatch_Timeout(t *testing.T) {
 
 	batcher.Start()
 
-	var p tsdb.Point
+	var p models.Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
 			batcher.In() <- p
@@ -86,7 +87,7 @@ func TestBatch_Flush(t *testing.T) {
 
 	batcher.Start()
 
-	var p tsdb.Point
+	var p models.Point
 	go func() {
 		batcher.In() <- p
 		batcher.Flush()
@@ -108,8 +109,8 @@ func TestBatch_MultipleBatches(t *testing.T) {
 
 	batcher.Start()
 
-	var p tsdb.Point
-	var b []tsdb.Point
+	var p models.Point
+	var b []models.Point
 
 	batcher.In() <- p
 	batcher.In() <- p

@@ -23,8 +23,8 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/continuous_querier"
-	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/uuid"
 )
 
@@ -473,7 +473,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		precision = "n"
 	}
 
-	points, err := tsdb.ParsePointsWithPrecision(body, time.Now().UTC(), precision)
+	points, err := models.ParsePointsWithPrecision(body, time.Now().UTC(), precision)
 	if err != nil {
 		if err.Error() == "EOF" {
 			w.WriteHeader(http.StatusOK)
@@ -872,8 +872,8 @@ func (r *Response) Error() error {
 // NormalizeBatchPoints returns a slice of Points, created by populating individual
 // points within the batch, which do not have times or tags, with the top-level
 // values.
-func NormalizeBatchPoints(bp client.BatchPoints) ([]tsdb.Point, error) {
-	points := []tsdb.Point{}
+func NormalizeBatchPoints(bp client.BatchPoints) ([]models.Point, error) {
+	points := []models.Point{}
 	for _, p := range bp.Points {
 		if p.Time.IsZero() {
 			if bp.Time.IsZero() {
@@ -905,7 +905,7 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]tsdb.Point, error) {
 			return points, fmt.Errorf("missing fields")
 		}
 		// Need to convert from a client.Point to a influxdb.Point
-		points = append(points, tsdb.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time))
+		points = append(points, models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time))
 	}
 
 	return points, nil

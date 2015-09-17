@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -236,7 +237,7 @@ func TestStoreEnsureSeriesPersistedInNewShards(t *testing.T) {
 		t.Fatalf("error creating shard: %v", err)
 	}
 
-	p, _ := tsdb.ParsePoints([]byte("cpu val=1"))
+	p, _ := models.ParsePoints([]byte("cpu val=1"))
 	if err := s.WriteToShard(1, p); err != nil {
 		t.Fatalf("error writing to shard: %v", err)
 	}
@@ -282,10 +283,10 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
 	// Generate point data to write to the shards.
-	points := []tsdb.Point{}
+	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := tsdb.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -324,7 +325,7 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 	}
 }
 
-func chunkedWriteStoreShard(store *tsdb.Store, shardID int, points []tsdb.Point) {
+func chunkedWriteStoreShard(store *tsdb.Store, shardID int, points []models.Point) {
 	nPts := len(points)
 	chunkSz := 10000
 	start := 0

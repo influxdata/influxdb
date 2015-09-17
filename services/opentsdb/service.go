@@ -19,6 +19,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -324,7 +325,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			continue
 		}
 
-		s.batcher.In() <- tsdb.NewPoint(measurement, tags, fields, t)
+		s.batcher.In() <- models.NewPoint(measurement, tags, fields, t)
 	}
 }
 

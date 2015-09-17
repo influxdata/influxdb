@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/bz1"
 	"github.com/influxdb/influxdb/tsdb/engine/wal"
@@ -40,11 +41,11 @@ func TestEngine_LoadMetadataIndex_Series(t *testing.T) {
 
 	// Setup mock that writes the index
 	seriesToCreate := []*tsdb.SeriesCreate{
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server0"})), map[string]string{"host": "server0"})},
-		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server1"})), map[string]string{"host": "server1"})},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), map[string]string{"host": "server0"})), map[string]string{"host": "server0"})},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), map[string]string{"host": "server1"})), map[string]string{"host": "server1"})},
 		{Series: tsdb.NewSeries("series with spaces", nil)},
 	}
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return e.WriteIndex(nil, nil, seriesToCreate) }
+	e.PointsWriter.WritePointsFn = func(a []models.Point) error { return e.WriteIndex(nil, nil, seriesToCreate) }
 
 	// Write series metadata.
 	if err := e.WritePoints(nil, nil, seriesToCreate); err != nil {
@@ -86,7 +87,7 @@ func TestEngine_LoadMetadataIndex_Fields(t *testing.T) {
 			},
 		},
 	}
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return e.WriteIndex(nil, fields, nil) }
+	e.PointsWriter.WritePointsFn = func(a []models.Point) error { return e.WriteIndex(nil, fields, nil) }
 
 	// Write series metadata.
 	if err := e.WritePoints(nil, fields, nil); err != nil {
@@ -113,17 +114,17 @@ func TestEngine_WritePoints_PointsWriter(t *testing.T) {
 	defer e.Close()
 
 	// Points to be inserted.
-	points := []tsdb.Point{
-		tsdb.NewPoint("cpu", tsdb.Tags{}, tsdb.Fields{}, time.Unix(0, 1)),
-		tsdb.NewPoint("cpu", tsdb.Tags{}, tsdb.Fields{}, time.Unix(0, 0)),
-		tsdb.NewPoint("cpu", tsdb.Tags{}, tsdb.Fields{}, time.Unix(1, 0)),
+	points := []models.Point{
+		models.NewPoint("cpu", models.Tags{}, models.Fields{}, time.Unix(0, 1)),
+		models.NewPoint("cpu", models.Tags{}, models.Fields{}, time.Unix(0, 0)),
+		models.NewPoint("cpu", models.Tags{}, models.Fields{}, time.Unix(1, 0)),
 
-		tsdb.NewPoint("cpu", tsdb.Tags{"host": "serverA"}, tsdb.Fields{}, time.Unix(0, 0)),
+		models.NewPoint("cpu", models.Tags{"host": "serverA"}, models.Fields{}, time.Unix(0, 0)),
 	}
 
 	// Mock points writer to ensure points are passed through.
 	var invoked bool
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error {
+	e.PointsWriter.WritePointsFn = func(a []models.Point) error {
 		invoked = true
 		if !reflect.DeepEqual(points, a) {
 			t.Fatalf("unexpected points: %#v", a)
@@ -145,7 +146,7 @@ func TestEngine_WritePoints_ErrPointsWriter(t *testing.T) {
 	defer e.Close()
 
 	// Ensure points writer returns an error.
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return errors.New("marker") }
+	e.PointsWriter.WritePointsFn = func(a []models.Point) error { return errors.New("marker") }
 
 	// Write to engine.
 	if err := e.WritePoints(nil, nil, nil); err == nil || err.Error() != `write points: marker` {
@@ -490,7 +491,7 @@ func benchmarkEngine_WriteIndex(b *testing.B, blockSize int) {
 	a := make(map[string][][]byte)
 	a["cpu"] = make([][]byte, b.N)
 	for i := 0; i < b.N; i++ {
-		a["cpu"][i] = wal.MarshalEntry(int64(i), MustEncodeFields(codec, tsdb.Fields{"value": float64(i)}))
+		a["cpu"][i] = wal.MarshalEntry(int64(i), MustEncodeFields(codec, models.Fields{"value": float64(i)}))
 	}
 
 	b.ResetTimer()
@@ -565,10 +566,10 @@ func (e *Engine) MustBegin(writable bool) tsdb.Tx {
 
 // EnginePointsWriter represents a mock that implements Engine.PointsWriter.
 type EnginePointsWriter struct {
-	WritePointsFn func(points []tsdb.Point) error
+	WritePointsFn func(points []models.Point) error
 }
 
-func (w *EnginePointsWriter) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+func (w *EnginePointsWriter) WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return w.WritePointsFn(points)
 }
 
@@ -674,7 +675,7 @@ func MergePoints(a []Points) Points {
 }
 
 // MustEncodeFields encodes fields with codec. Panic on error.
-func MustEncodeFields(codec *tsdb.FieldCodec, fields tsdb.Fields) []byte {
+func MustEncodeFields(codec *tsdb.FieldCodec, fields models.Fields) []byte {
 	b, err := codec.EncodeFields(fields)
 	if err != nil {
 		panic(err)

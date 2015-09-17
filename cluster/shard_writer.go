@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 	"gopkg.in/fatih/pool.v2"
 )
 
@@ -35,7 +35,7 @@ func NewShardWriter(timeout time.Duration) *ShardWriter {
 	}
 }
 
-func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []tsdb.Point) error {
+func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point) error {
 	c, err := w.dial(ownerID)
 	if err != nil {
 		return err

@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 )
 
 func NewStore(path string) *Store {
@@ -328,7 +329,7 @@ func (s *Store) Open() error {
 	return nil
 }
 
-func (s *Store) WriteToShard(shardID uint64, points []Point) error {
+func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	sh, ok := s.shards[shardID]

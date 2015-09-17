@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -94,15 +95,15 @@ type PointsWriter struct {
 
 	TSDBStore interface {
 		CreateShard(database, retentionPolicy string, shardID uint64) error
-		WriteToShard(shardID uint64, points []tsdb.Point) error
+		WriteToShard(shardID uint64, points []models.Point) error
 	}
 
 	ShardWriter interface {
-		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
+		WriteShard(shardID, ownerID uint64, points []models.Point) error
 	}
 
 	HintedHandoff interface {
-		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
+		WriteShard(shardID, ownerID uint64, points []models.Point) error
 	}
 
 	statMap *expvar.Map
@@ -120,23 +121,23 @@ func NewPointsWriter() *PointsWriter {
 
 // ShardMapping contains a mapping of a shards to a points.
 type ShardMapping struct {
-	Points map[uint64][]tsdb.Point    // The points associated with a shard ID
+	Points map[uint64][]models.Point  // The points associated with a shard ID
 	Shards map[uint64]*meta.ShardInfo // The shards that have been mapped, keyed by shard ID
 }
 
 // NewShardMapping creates an empty ShardMapping
 func NewShardMapping() *ShardMapping {
 	return &ShardMapping{
-		Points: map[uint64][]tsdb.Point{},
+		Points: map[uint64][]models.Point{},
 		Shards: map[uint64]*meta.ShardInfo{},
 	}
 }
 
 // MapPoint maps a point to shard
-func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p tsdb.Point) {
+func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	points, ok := s.Points[shardInfo.ID]
 	if !ok {
-		s.Points[shardInfo.ID] = []tsdb.Point{p}
+		s.Points[shardInfo.ID] = []models.Point{p}
 	} else {
 		s.Points[shardInfo.ID] = append(points, p)
 	}
@@ -224,7 +225,7 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 	// as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
-		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []tsdb.Point) {
+		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
 			ch <- w.writeToShard(shard, p.Database, p.RetentionPolicy, p.ConsistencyLevel, points)
 		}(shardMappings.Shards[shardID], p.Database, p.RetentionPolicy, points)
 	}
@@ -245,7 +246,7 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 // writeToShards writes points to a shard and ensures a write consistency level has been met.  If the write
 // partially succeeds, ErrPartialWrite is returned.
 func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string,
-	consistency ConsistencyLevel, points []tsdb.Point) error {
+	consistency ConsistencyLevel, points []models.Point) error {
 	// The required number of writes to achieve the requested consistency level
 	required := len(shard.Owners)
 	switch consistency {
@@ -263,7 +264,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	ch := make(chan *AsyncWriteResult, len(shard.Owners))
 
 	for _, owner := range shard.Owners {
-		go func(shardID uint64, owner meta.ShardOwner, points []tsdb.Point) {
+		go func(shardID uint64, owner meta.ShardOwner, points []models.Point) {
 			if w.MetaStore.NodeID() == owner.NodeID {
 				w.statMap.Add(statPointWriteReqLocal, int64(len(points)))
 
