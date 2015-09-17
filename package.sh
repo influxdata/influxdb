@@ -49,6 +49,7 @@ LOGROTATE=scripts/logrotate
 
 TMP_WORK_DIR=`mktemp -d`
 POST_INSTALL_PATH=`mktemp`
+POST_UNINSTALL_PATH=`mktemp`
 ARCH=`uname -i`
 LICENSE=MIT
 URL=influxdb.com
@@ -128,6 +129,7 @@ rpm_release() {
 cleanup_exit() {
     rm -r $TMP_WORK_DIR
     rm $POST_INSTALL_PATH
+    rm $POST_UNINSTALL_PATH
     exit $1
 }
 
@@ -316,6 +318,21 @@ EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }
 
+generate_postuninstall_script() {
+    cat << EOF >$POST_UNINSTALL_PATH
+#!/bin/sh
+if [ -d $INSTALL_ROOT_DIR ]; then
+    rm -r "$INSTALL_ROOT_DIR"
+fi
+
+id influxdb 2>/dev/null 1>/dev/null
+if [ $? -eq 0 ]; then
+    userdel -r influxdb
+fi
+EOF
+    echo "Post-uninstall script created successfully at $POST_UNINSTALL_PATH"
+}
+
 ###########################################################################
 # Process options
 while :
@@ -465,6 +482,7 @@ if [ $? -ne 0 ]; then
 fi
 
 generate_postinstall_script `full_version $VERSION $RC`
+generate_postuninstall_script
 
 ###########################################################################
 # Create the actual packages.
@@ -500,6 +518,7 @@ COMMON_FPM_ARGS="\
 --license $LICENSE \
 --maintainer $MAINTAINER \
 --after-install $POST_INSTALL_PATH \
+--after-remove $POST_UNINSTALL_PATH \
 --name influxdb \
 --config-files $CONFIG_ROOT_DIR \
 --config-files $LOGROTATE_DIR"
