@@ -75,7 +75,12 @@ BINS=(
 # usage prints simple usage information.
 usage() {
     cat << EOF >&2
-$0 [-h] [-p|-w] [-t <dist>] <version>
+$0 [-h] [-p|-w] [-t <dist>] [-r <number>] <version>
+
+    <version> should be a dotted version such as 0.9.5.
+
+    -r release candidate number, if any.
+       Example: -r 7
     -p just build packages
     -w build packages for current working directory
        imply -p
@@ -83,8 +88,39 @@ $0 [-h] [-p|-w] [-t <dist>] <version>
        build package for <dist>
        <dist> can be rpm, tar or deb
        can have multiple -t
+
+    Examples:
+
+        $0 0.9.5 -r 9 # Creates 0.9.5-rc9
+        $0 0.9.4      # Creates 0.9.4
+
 EOF
     cleanup_exit $1
+}
+
+# full_version echoes the full version string, given a version and an optiona;l
+# RC number. If the just the version is present, that is echoed. If the RC is
+# also provided, then "rc" and the number is concatenated with the version.
+# For example, 0.9.4rc4 would be returned if version was 0.9.4 and the RC number
+# was 4.
+full_version() {
+    version=$1
+    rc=$2
+    if [ -z "$rc" ]; then
+        echo $version
+    else
+        echo ${VERSION}-rc${RC}
+    fi
+}
+
+# rpm_release echoes the RPM release or "iteration" given an RC number.
+rpm_release() {
+    rc=$1
+    if [ -z "$rc" ]; then
+        echo 1
+    else
+        echo 0.1.rc${rc}
+    fi
 }
 
 # cleanup_exit removes all resources created during the process and exits with
@@ -310,6 +346,14 @@ do
         shift 2
         ;;
 
+    -r)
+        RC=$2
+        if [ -z "$RC" ]; then
+            echo "RC number required"
+        fi
+        shift 2
+        ;;
+
     -w | --working-directory)
 	PACKAGES_ONLY="PACKAGES_ONLY"
         WORKING_DIR="WORKING_DIR"
@@ -324,11 +368,18 @@ do
     ?*)
         if [ -z $VERSION ]; then
            VERSION=$1
-           VERSION_UNDERSCORED=`echo "$VERSION" | tr - _`
            shift
         else
            echo "$1 : aborting version already set to $VERSION"
            usage 1
+        fi
+
+        echo $VERSION | grep -i '[r|c]' 2>&1 >/dev/null
+        if [ $? -ne 1 -a -z "$NIGHTLY_BUILD" ]; then
+            echo
+            echo "$VERSION contains reference to RC - specify RC separately"
+            echo
+            usage 1
         fi
         ;;
 
@@ -369,37 +420,37 @@ check_gopath
 if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
        check_clean_tree
        update_tree
-       check_tag_exists $VERSION
+       check_tag_exists `full_version $VERSION $RC`
 fi
 
-do_build $VERSION
-make_dir_tree $TMP_WORK_DIR $VERSION
+do_build `full_version $VERSION $RC`
+make_dir_tree $TMP_WORK_DIR `full_version $VERSION $RC`
 
 ###########################################################################
 # Copy the assets to the installation directories.
 
 for b in ${BINS[*]}; do
-    cp $GOPATH_INSTALL/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
+    cp $GOPATH_INSTALL/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`
     if [ $? -ne 0 ]; then
         echo "Failed to copy binaries to packaging directory -- aborting."
         cleanup_exit 1
     fi
 done
-echo "${BINS[*]} copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION"
+echo "${BINS[*]} copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`"
 
-cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
+cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts
 if [ $? -ne 0 ]; then
     echo "Failed to copy init.d script to packaging directory -- aborting."
     cleanup_exit 1
 fi
-echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
+echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts"
 
-cp $SYSTEMD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
+cp $SYSTEMD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts
 if [ $? -ne 0 ]; then
     echo "Failed to copy systemd script to packaging directory -- aborting."
     cleanup_exit 1
 fi
-echo "$SYSTEMD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
+echo "$SYSTEMD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts"
 
 cp $SAMPLE_CONFIGURATION $TMP_WORK_DIR/$CONFIG_ROOT_DIR/influxdb.conf
 if [ $? -ne 0 ]; then
@@ -413,13 +464,13 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 
-generate_postinstall_script $VERSION
+generate_postinstall_script `full_version $VERSION $RC`
 
 ###########################################################################
 # Create the actual packages.
 
 if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
-    echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
+    echo -n "Commence creation of $ARCH packages, version `full_version $VERSION $RC`? [Y/n] "
     read response
     response=`echo $response | tr 'A-Z' 'a-z'`
     if [ "x$response" == "xn" ]; then
@@ -430,21 +481,31 @@ fi
 
 if [ $ARCH == "i386" ]; then
     rpm_package=influxdb-${VERSION}-1.i686.rpm # RPM packages use 1 for default package release.
-    debian_package=influxdb_${VERSION}_i686.deb
+    debian_package=influxdb_`full_version $VERSION $RC`_i686.deb
     deb_args="-a i686"
     rpm_args="setarch i686"
 elif [ $ARCH == "arm" ]; then
     rpm_package=influxdb-${VERSION}-1.armel.rpm
-    debian_package=influxdb_${VERSION}_armel.deb
+    debian_package=influxdb_`full_version $VERSION $RC`_armel.deb
 else
     rpm_package=influxdb-${VERSION}-1.x86_64.rpm
-    debian_package=influxdb_${VERSION}_amd64.deb
+    debian_package=influxdb_`full_version $VERSION $RC`_amd64.deb
 fi
 
-COMMON_FPM_ARGS="--log error -C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR --config-files $LOGROTATE_DIR ."
+COMMON_FPM_ARGS="\
+--log error \
+-C $TMP_WORK_DIR \
+--vendor $VENDOR \
+--url $URL \
+--license $LICENSE \
+--maintainer $MAINTAINER \
+--after-install $POST_INSTALL_PATH \
+--name influxdb \
+--config-files $CONFIG_ROOT_DIR \
+--config-files $LOGROTATE_DIR"
 
 if [ -n "$DEB_WANTED" ]; then
-    $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
+    $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS --version `full_version $VERSION $RC` .
     if [ $? -ne 0 ]; then
         echo "Failed to create Debian package -- aborting."
         cleanup_exit 1
@@ -453,7 +514,7 @@ if [ -n "$DEB_WANTED" ]; then
 fi
 
 if [ -n "$TAR_WANTED" ]; then
-    $FPM -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
+    $FPM -s dir -t tar --prefix influxdb_`full_version $VERSION $RC`_${ARCH} -p influxdb_`full_version $VERSION $RC`_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS --version `full_version $VERSION $RC ` .
     if [ $? -ne 0 ]; then
         echo "Failed to create Tar package -- aborting."
         cleanup_exit 1
@@ -462,7 +523,7 @@ if [ -n "$TAR_WANTED" ]; then
 fi
 
 if [ -n "$RPM_WANTED" ]; then
-    $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" --depends coreutils $COMMON_FPM_ARGS
+    $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS --depends coreutils --version $VERSION --iteration `rpm_release $RC` .
     if [ $? -ne 0 ]; then
         echo "Failed to create RPM package -- aborting."
         cleanup_exit 1
@@ -474,25 +535,25 @@ fi
 # Offer to tag the repo.
 
 if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
-    echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
+    echo -n "Tag source tree with v`full_version $VERSION $RC` and push to repo? [y/N] "
     read response
     response=`echo $response | tr 'A-Z' 'a-z'`
     if [ "x$response" == "xy" ]; then
-        echo "Creating tag v$VERSION and pushing to repo"
-        git tag v$VERSION
+        echo "Creating tag v`full_version $VERSION $RC` and pushing to repo"
+        git tag v`full_version $VERSION $RC`
         if [ $? -ne 0 ]; then
-            echo "Failed to create tag v$VERSION -- aborting"
+            echo "Failed to create tag v`full_version $VERSION $RC` -- aborting"
             cleanup_exit 1
         fi
-        echo "Tag v$VERSION created"
-        git push origin v$VERSION
+        echo "Tag v`full_version $VERSION $RC` created"
+        git push origin v`full_version $VERSION $RC`
         if [ $? -ne 0 ]; then
-            echo "Failed to push tag v$VERSION to repo -- aborting"
+            echo "Failed to push tag v`full_version $VERSION $RC` to repo -- aborting"
             cleanup_exit 1
         fi
-        echo "Tag v$VERSION pushed to repo"
+        echo "Tag v`full_version $VERSION $RC` pushed to repo"
     else
-        echo "Not creating tag v$VERSION."
+        echo "Not creating tag v`full_version $VERSION $RC`."
     fi
 fi
 
@@ -514,10 +575,20 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
 
     for filepath in `ls *.{$DEB_WANTED,$RPM_WANTED,$TAR_WANTED} 2> /dev/null`; do
         filename=`basename $filepath`
+
         if [ -n "$NIGHTLY_BUILD" ]; then
-            filename=`echo $filename | sed s/$VERSION/nightly/`
-            filename=`echo $filename | sed s/$VERSION_UNDERSCORED/nightly/`
+            # Replace the version string in the filename with "nightly".
+            v=`full_version $VERSION $RC`
+            v_underscored=`echo "$v" | tr - _`
+            v_rpm=$VERSION-`rpm_release $RC`
+
+            # It's ok to run each of these since only 1 will match, leaving
+            # filename untouched otherwise.
+            filename=`echo $filename | sed s/$v/nightly/`
+            filename=`echo $filename | sed s/$v_underscored/nightly/`
+            filename=`echo $filename | sed s/$v_rpm/nightly-1/`
         fi
+
         AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
         if [ $? -ne 0 ]; then
             echo "Upload failed ($filename) -- aborting".
