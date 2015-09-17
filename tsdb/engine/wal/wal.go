@@ -781,6 +781,9 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 
 // Close resets the caches and closes the currently open segment file
 func (p *Partition) Close() error {
+	if p == nil {
+		return nil
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
