@@ -801,12 +801,16 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		l := &responseLogger{w: w}
+
+		defer func() {
+			if err := recover(); err != nil {
+				logLine := buildLogLine(l, r, start)
+				logLine = fmt.Sprintf(`%s [panic:%s]`, logLine, err)
+				weblog.Println(logLine)
+			}
+		}()
+
 		inner.ServeHTTP(l, r)
-		if err := recover(); err != nil {
-			logLine := buildLogLine(l, r, start)
-			logLine = fmt.Sprintf(`%s [err:%s]`, logLine, err)
-			weblog.Println(logLine)
-		}
 	})
 }
 
