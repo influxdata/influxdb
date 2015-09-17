@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -228,7 +229,12 @@ type interfaceValues []interface{}
 func (d interfaceValues) Len() int      { return len(d) }
 func (d interfaceValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 func (d interfaceValues) Less(i, j int) bool {
-	return interfaceCompare(d[i], d[j]) < 0
+	cmpt, a, b := typeCompare(d[i], d[j])
+	cmpv := valueCompare(a, b)
+	if cmpv == 0 {
+		return cmpt < 0
+	}
+	return cmpv < 0
 }
 
 // MapDistinct computes the unique values in an iterator.
@@ -945,14 +951,68 @@ type positionOut struct {
 	callArgs []string // ordered args in the call
 }
 
-func (p *positionOut) lessKey(i, j int) bool {
-	t1, t2 := p.points[i].Tags, p.points[j].Tags
+func (p *positionOut) lessKey(a, b *PositionPoint) bool {
+	t1, t2 := a.Tags, b.Tags
 	for _, k := range p.callArgs {
 		if t1[k] != t2[k] {
 			return t1[k] < t2[k]
 		}
 	}
 	return false
+}
+
+// compares types and if they differ, attempts to coerce them to
+// floating point. Returns the value unchanged if it cannot be converted.
+func typeCompare(a, b interface{}) (int, interface{}, interface{}) {
+	const (
+		stringWeight = iota
+		boolWeight
+		intWeight
+		floatWeight
+	)
+
+	va := reflect.ValueOf(a)
+	vb := reflect.ValueOf(b)
+
+	vakind := va.Type().Kind()
+	vbkind := vb.Type().Kind()
+
+	// same kind. Ordering is dependent on value
+	if vakind == vbkind {
+		return 0, a, b
+	}
+	wa, a := inferFloat(va)
+	wb, b := inferFloat(vb)
+	if wa < wb {
+		return -1, a, b
+	} else if wa == wb {
+		return 0, a, b
+	}
+	return 1, a, b
+}
+
+// returns a weighting and if applicable, the value coerced to a float
+func inferFloat(v reflect.Value) (weight int, value interface{}) {
+	const (
+		stringWeight = iota
+		boolWeight
+		intWeight
+		floatWeight
+	)
+	kind := v.Kind()
+	switch kind {
+	case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8:
+		return intWeight, float64(v.Uint())
+	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8:
+		return intWeight, float64(v.Int())
+	case reflect.Float64, reflect.Float32:
+		return floatWeight, v.Float()
+	case reflect.Bool:
+		return boolWeight, v.Interface()
+	case reflect.String:
+		return stringWeight, v.Interface()
+	}
+	panic(fmt.Sprintf("interfaceValues.Less - unreachable code; type was %T", v.Interface()))
 }
 
 func cmpFloat(a, b float64) int {
@@ -982,7 +1042,12 @@ func cmpUint(a, b uint64) int {
 	return 1
 }
 
-func interfaceCompare(a, b interface{}) int {
+// valueCompare returns -1 if a < b , 0 if a == b, or 1 if a > b
+// If the interfaces are 2 different types, then 0 is returned
+func valueCompare(a, b interface{}) int {
+	if reflect.TypeOf(a).Kind() != reflect.TypeOf(b).Kind() {
+		return 0
+	}
 	// compare by float64/int64 first as that is the most likely match
 	{
 		d1, ok1 := a.(float64)
@@ -1085,69 +1150,7 @@ func interfaceCompare(a, b interface{}) int {
 			return strings.Compare(d1, d2)
 		}
 	}
-
-	// Types did not match, need to sort based on arbitrary weighting of type
-	const (
-		stringWeight = iota
-		boolWeight
-		intWeight
-		floatWeight
-	)
-
-	infer := func(val interface{}) (int, float64) {
-		switch v := val.(type) {
-		case uint64:
-			return intWeight, float64(v)
-		case uint32:
-			return intWeight, float64(v)
-		case uint16:
-			return intWeight, float64(v)
-		case uint8:
-			return intWeight, float64(v)
-		case int64:
-			return intWeight, float64(v)
-		case int32:
-			return intWeight, float64(v)
-		case int16:
-			return intWeight, float64(v)
-		case int8:
-			return intWeight, float64(v)
-		case float64:
-			return floatWeight, float64(v)
-		case float32:
-			return floatWeight, float64(v)
-		case bool:
-			return boolWeight, 0
-		case string:
-			return stringWeight, 0
-		}
-		panic(fmt.Sprintf("interfaceValues.Less - unreachable code; type was %t", val))
-	}
-
-	w1, n1 := infer(a)
-	w2, n2 := infer(b)
-
-	// If we had "numeric" data, use that for comparison
-	if (w1 == floatWeight || w1 == intWeight) && (w2 == floatWeight || w2 == intWeight) {
-		cmp := cmpFloat(n1, n2)
-		// break ties
-		if cmp == 0 {
-			if w1 < w2 {
-				return -1
-			}
-			return 1
-		}
-		return cmp
-	}
-
-	if w1 == w2 {
-		// this should never happen, since equal weight means
-		// it should have been handled at the start of this function.
-		panic("unreachable")
-	} else if w1 < w2 {
-		return -1
-	}
-	return 1
+	panic(fmt.Sprintf("unreachable code; types were %T, %T", a, b))
 }
 
 type PositionPoints []PositionPoint
@@ -1164,18 +1167,26 @@ type topMapOut struct {
 func (t *topMapOut) Len() int      { return len(t.points) }
 func (t *topMapOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
 func (t *topMapOut) Less(i, j int) bool {
+	return t.positionPointLess(&t.points[i], &t.points[j])
+}
+
+func (t *topMapOut) positionPointLess(pa, pb *PositionPoint) bool {
 	// old C trick makes this code easier to read. Imagine
 	// that the OP in "cmp(i, j) OP 0" is the comparison you want
 	// between i and j
-	cmp := interfaceCompare(t.points[i].Value, t.points[j].Value)
-	if cmp != 0 {
-		return cmp < 0
+	cmpt, a, b := typeCompare(pa.Value, pb.Value)
+	cmpv := valueCompare(a, b)
+	if cmpv != 0 {
+		return cmpv < 0
 	}
-	k1, k2 := t.points[i].Time, t.points[j].Time
+	if cmpt != 0 {
+		return cmpt < 0
+	}
+	k1, k2 := pa.Time, pb.Time
 	if k1 != k2 {
 		return k1 > k2
 	}
-	return !t.lessKey(i, j)
+	return !t.lessKey(pa, pb)
 }
 
 // We never use this function, so make it a no-op.
@@ -1208,11 +1219,15 @@ func (t topReduceOut) Less(i, j int) bool {
 	if k1 != k2 {
 		return k1 < k2
 	}
-	cmp := interfaceCompare(t.points[i].Value, t.points[j].Value)
-	if cmp != 0 {
-		return cmp > 0
+	cmpt, a, b := typeCompare(t.points[i].Value, t.points[j].Value)
+	cmpv := valueCompare(a, b)
+	if cmpv != 0 {
+		return cmpv > 0
 	}
-	return t.lessKey(i, j)
+	if cmpt != 0 {
+		return cmpt < 0
+	}
+	return t.lessKey(&t.points[i], &t.points[j])
 }
 
 // callArgs will get any additional field/tag names that may be needed to sort with
@@ -1284,12 +1299,15 @@ func MapTop(itr iterator, c *influxql.Call) interface{} {
 	minheap := topMapOut{&out}
 	tagmap := make(map[string]PositionPoint)
 
+	// buffer so we don't allocate every time through
+	var pp PositionPoint
 	if len(c.Args) > 2 {
 		// this is a tag aggregating query.
 		// For each unique permutation of the tags given,
 		// select the max and then fall through to select top of those
 		// points
 		for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+			pp = PositionPoint{k, v, itr.Tags()}
 			callArgs := c.Fields()
 			tags := itr.Tags()
 			// TODO in the future we need to send in fields as well
@@ -1297,8 +1315,8 @@ func MapTop(itr iterator, c *influxql.Call) interface{} {
 			// fields will take the priority over tags if there is a name collision
 			key := tagkeytop(callArgs, nil, tags)
 			p, ok := tagmap[key]
-			if !ok || interfaceCompare(p.Value, v) < 0 {
-				tagmap[key] = PositionPoint{k, v, itr.Tags()}
+			if !ok || minheap.positionPointLess(&p, &pp) {
+				tagmap[key] = pp
 			}
 		}
 		itr = &mapIter{
@@ -1306,7 +1324,6 @@ func MapTop(itr iterator, c *influxql.Call) interface{} {
 			tmin: itr.TMin(),
 		}
 	}
-
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
 		t := k
 		if bt := itr.TMin(); bt > -1 {
@@ -1320,15 +1337,10 @@ func MapTop(itr iterator, c *influxql.Call) interface{} {
 		} else {
 			// we're over the limit, so find out if we're bigger than the
 			// smallest point in the set and eject it if we are
-			p := &out.points[0]
-			cmp := interfaceCompare(p.Value, v)
-			if cmp == 0 {
-				// equal values, insert if the highest timestamp
-				if k > p.Time {
-					minheap.insert(PositionPoint{t, v, itr.Tags()})
-				}
-			} else if cmp < 0 {
-				minheap.insert(PositionPoint{t, v, itr.Tags()})
+			minval := &out.points[0]
+			pp = PositionPoint{t, v, itr.Tags()}
+			if minheap.positionPointLess(minval, &pp) {
+				minheap.insert(pp)
 			}
 		}
 	}
@@ -1368,6 +1380,7 @@ func ReduceTop(values []interface{}, c *influxql.Call) interface{} {
 	limit := int(lit.Val)
 
 	out := positionOut{callArgs: topCallArgs(c)}
+	minheap := topMapOut{&out}
 	results := make([]PositionPoints, 0, len(values))
 	out.points = make([]PositionPoint, 0, limit)
 	for _, v := range values {
@@ -1383,11 +1396,11 @@ func ReduceTop(values []interface{}, c *influxql.Call) interface{} {
 	// so we can grab the top value out of all of them
 	// to figure out the top X ones.
 	for i := 0; i < limit; i++ {
-		max := interface{}(nil)
+		var max *PositionPoint
 		whichselected := -1
 		for iter, v := range results {
-			if len(v) > 0 && (max == nil || interfaceCompare(max, v[0].Value) < 0) {
-				max = v[0].Value
+			if len(v) > 0 && (max == nil || minheap.positionPointLess(max, &v[0])) {
+				max = &v[0]
 				whichselected = iter
 			}
 		}
