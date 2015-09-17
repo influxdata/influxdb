@@ -461,7 +461,7 @@ if [ -n "$TAR_WANTED" ]; then
 fi
 
 if [ -n "$RPM_WANTED" ]; then
-    $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
+    $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" --depends coreutils $COMMON_FPM_ARGS
     if [ $? -ne 0 ]; then
         echo "Failed to create RPM package -- aborting."
         cleanup_exit 1
