@@ -58,6 +58,9 @@ type Config struct {
 	WALMaxSeriesSize          int           `toml:"wal-max-series-size"`
 	WALFlushColdInterval      toml.Duration `toml:"wal-flush-cold-interval"`
 	WALPartitionSizeThreshold uint64        `toml:"wal-partition-size-threshold"`
+
+	// Query logging
+	QueryLogEnabled bool `toml:"query-log-enabled"`
 }
 
 func NewConfig() Config {
@@ -72,5 +75,7 @@ func NewConfig() Config {
 		WALMaxSeriesSize:          DefaultMaxSeriesSize,
 		WALFlushColdInterval:      toml.Duration(DefaultFlushColdInterval),
 		WALPartitionSizeThreshold: DefaultPartitionSizeThreshold,
+
+		QueryLogEnabled: true,
 	}
 }

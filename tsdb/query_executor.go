@@ -45,7 +45,8 @@ type QueryExecutor struct {
 		CreateMapper(shard meta.ShardInfo, stmt influxql.Statement, chunkSize int) (Mapper, error)
 	}
 
-	Logger *log.Logger
+	Logger          *log.Logger
+	QueryLogEnabled bool
 
 	// the local data store
 	Store *Store
@@ -150,7 +151,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			}
 
 			// Log each normalized statement.
-			q.Logger.Println(stmt.String())
+			if q.QueryLogEnabled {
+				q.Logger.Println(stmt.String())
+			}
 
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
