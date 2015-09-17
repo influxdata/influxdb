@@ -174,6 +174,9 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	if err != nil {
 		return nil, err
 	}
+	if rp == nil {
+		return nil, influxdb.ErrRetentionPolicyNotFound(wp.RetentionPolicy)
+	}
 
 	for _, p := range wp.Points {
 		timeRanges[p.Time().Truncate(rp.ShardGroupDuration)] = nil
