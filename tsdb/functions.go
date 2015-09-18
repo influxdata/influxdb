@@ -77,9 +77,9 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 		return MapFirst, nil
 	case "last":
 		return MapLast, nil
-	case "top":
+	case "top", "bottom":
 		return func(itr iterator) interface{} {
-			return MapTop(itr, c)
+			return MapTopBottom(itr, c)
 		}, nil
 	case "percentile":
 		return MapEcho, nil
@@ -129,9 +129,9 @@ func initializeReduceFunc(c *influxql.Call) (reduceFunc, error) {
 		return ReduceFirst, nil
 	case "last":
 		return ReduceLast, nil
-	case "top":
+	case "top", "bottom":
 		return func(values []interface{}) interface{} {
-			return ReduceTop(values, c)
+			return ReduceTopBottom(values, c)
 		}, nil
 	case "percentile":
 		return func(values []interface{}) interface{} {
@@ -1160,23 +1160,27 @@ type PositionPoint struct {
 	Tags  map[string]string
 }
 
-type topMapOut struct {
+type topBottomMapOut struct {
 	*positionOut
+	bottom bool
 }
 
-func (t *topMapOut) Len() int      { return len(t.points) }
-func (t *topMapOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
-func (t *topMapOut) Less(i, j int) bool {
+func (t *topBottomMapOut) Len() int      { return len(t.points) }
+func (t *topBottomMapOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
+func (t *topBottomMapOut) Less(i, j int) bool {
 	return t.positionPointLess(&t.points[i], &t.points[j])
 }
 
-func (t *topMapOut) positionPointLess(pa, pb *PositionPoint) bool {
+func (t *topBottomMapOut) positionPointLess(pa, pb *PositionPoint) bool {
 	// old C trick makes this code easier to read. Imagine
 	// that the OP in "cmp(i, j) OP 0" is the comparison you want
 	// between i and j
 	cmpt, a, b := typeCompare(pa.Value, pb.Value)
 	cmpv := valueCompare(a, b)
 	if cmpv != 0 {
+		if t.bottom {
+			return cmpv > 0
+		}
 		return cmpv < 0
 	}
 	if cmpt != 0 {
@@ -1190,24 +1194,25 @@ func (t *topMapOut) positionPointLess(pa, pb *PositionPoint) bool {
 }
 
 // We never use this function, so make it a no-op.
-func (t *topMapOut) Push(i interface{}) {
+func (t *topBottomMapOut) Push(i interface{}) {
 	panic("someone used the function")
 }
 
 // this function doesn't return anything meaningful, since we don't look at the
 // return value and we don't want to allocate for generating an interface.
-func (t *topMapOut) Pop() interface{} {
+func (t *topBottomMapOut) Pop() interface{} {
 	t.points = t.points[:len(t.points)-1]
 	return nil
 }
 
-func (t *topMapOut) insert(p PositionPoint) {
+func (t *topBottomMapOut) insert(p PositionPoint) {
 	t.points[0] = p
 	heap.Fix(t, 0)
 }
 
 type topReduceOut struct {
 	positionOut
+	bottom bool
 }
 
 func (t topReduceOut) Len() int      { return len(t.points) }
@@ -1222,6 +1227,9 @@ func (t topReduceOut) Less(i, j int) bool {
 	cmpt, a, b := typeCompare(t.points[i].Value, t.points[j].Value)
 	cmpv := valueCompare(a, b)
 	if cmpv != 0 {
+		if t.bottom {
+			return cmpv < 0
+		}
 		return cmpv > 0
 	}
 	if cmpt != 0 {
@@ -1288,16 +1296,23 @@ func (m *mapIter) Next() (time int64, value interface{}) {
 	return -1, nil
 }
 
-// MapTop emits the top data points for each group by interval
-func MapTop(itr iterator, c *influxql.Call) interface{} {
+// MapTopBottom emits the top/bottom data points for each group by interval
+func MapTopBottom(itr iterator, c *influxql.Call) interface{} {
 	// Capture the limit if it was specified in the call
 	lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
 	limit := int(lit.Val)
 
 	out := positionOut{callArgs: topCallArgs(c)}
 	out.points = make([]PositionPoint, 0, limit)
-	minheap := topMapOut{&out}
+	minheap := topBottomMapOut{
+		&out,
+		c.Name == "bottom",
+	}
 	tagmap := make(map[string]PositionPoint)
+
+	// throughout this function, we refer to max and top. This is by the ordering specified by
+	// minheap, not the ordering based on value. Since this function handles both top and bottom
+	// max can be the lowest valued entry.
 
 	// buffer so we don't allocate every time through
 	var pp PositionPoint
@@ -1353,7 +1368,7 @@ func MapTop(itr iterator, c *influxql.Call) interface{} {
 		// rid of another sort order.
 		heap.Init(&minheap)
 	}
-	// minheap should now contain the largest values that were encountered
+	// minheap should now contain the largest/smallest values that were encountered
 	// during iteration.
 	//
 	// we want these values in ascending sorted order. We can achieve this by iteratively
@@ -1375,12 +1390,12 @@ func MapTop(itr iterator, c *influxql.Call) interface{} {
 
 // ReduceTop computes the top values for each key.
 // This function assumes that its inputs are in sorted ascending order.
-func ReduceTop(values []interface{}, c *influxql.Call) interface{} {
+func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
 	lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
 	limit := int(lit.Val)
 
 	out := positionOut{callArgs: topCallArgs(c)}
-	minheap := topMapOut{&out}
+	minheap := topBottomMapOut{&out, c.Name == "bottom"}
 	results := make([]PositionPoints, 0, len(values))
 	out.points = make([]PositionPoint, 0, limit)
 	for _, v := range values {
@@ -1407,7 +1422,7 @@ func ReduceTop(values []interface{}, c *influxql.Call) interface{} {
 		if whichselected == -1 {
 			// none of the points have any values
 			// so we can return what we have now
-			sort.Sort(topReduceOut{out})
+			sort.Sort(topReduceOut{out, c.Name == "bottom"})
 			return out.points
 		}
 		v := results[whichselected]
@@ -1416,7 +1431,7 @@ func ReduceTop(values []interface{}, c *influxql.Call) interface{} {
 	}
 
 	// now we need to resort the tops by time
-	sort.Sort(topReduceOut{out})
+	sort.Sort(topReduceOut{out, c.Name == "bottom"})
 	return out.points
 }
 
