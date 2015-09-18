@@ -87,14 +87,12 @@ type seriesIter struct {
 	count int
 }
 
-// Given a series, Iter will create
-// a new seriesIter.
+// Iter returns a pointer to a seriesIter
 func (s *series) Iter() *seriesIter {
 	return &seriesIter{s: s, count: -1}
 }
 
-// Given a series and an integer i, newTagMap returns
-// the tagset.
+// newTagMap returns a tagset
 func (s *series) newTagMap(i int) map[string]string {
 	m := map[string]string{}
 
@@ -105,8 +103,8 @@ func (s *series) newTagMap(i int) map[string]string {
 	return m
 }
 
-// Given a series and an integer i, newFieldMap returns
-// the tagset.
+// newFieldMap returns a new field set for
+// a given series
 func (s *series) newFieldMap() map[string]interface{} {
 	m := map[string]interface{}{}
 
@@ -128,8 +126,7 @@ func (s *series) newFieldMap() map[string]interface{} {
 	return m
 }
 
-// Given a seriesIter, Next returns a new point
-// for a series.
+// Next returns a new point for a series.
 // Currently, there is an off by one bug here.
 // When I try to fix it, I end up creating another off
 // by one bug.

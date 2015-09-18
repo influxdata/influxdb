@@ -103,19 +103,6 @@ func (ms *Measurements) Set(value string) error {
 	return nil
 }
 
-// Config is a struct that is passed into the `Run()` function.
-// type Config struct {
-// 	BatchSize     int
-// 	Measurements  Measurements
-// 	SeriesCount   int
-// 	PointCount    int
-// 	Concurrency   int
-// 	BatchInterval time.Duration
-// 	Database      string
-// 	Address       string
-// 	Precision     string
-// }
-
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
