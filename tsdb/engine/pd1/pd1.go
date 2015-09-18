@@ -70,6 +70,10 @@ type Engine struct {
 	mu   sync.Mutex
 	path string
 
+	// deletesPending mark how many old data files are waiting to be deleted. This will
+	// keep a close from returning until all deletes finish
+	deletesPending sync.WaitGroup
+
 	// HashSeriesField is a function that takes a series key and a field name
 	// and returns a hash identifier. It's not guaranteed to be unique.
 	HashSeriesField func(key string) uint64
@@ -157,9 +161,13 @@ func (e *Engine) Close() error {
 	e.queryLock.Lock()
 	defer e.queryLock.Unlock()
 
+	e.deletesPending.Wait()
+
 	for _, df := range e.files {
 		_ = df.Close()
 	}
+	e.files = nil
+	e.currentFileID = 0
 	return nil
 }
 
@@ -530,11 +538,13 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	// remove the old data file. no need to block returning the write,
 	// but we need to let any running queries finish before deleting it
 	if oldDF != nil {
-		go func(df *dataFile) {
+		e.deletesPending.Add(1)
+		go func() {
 			if err := oldDF.Delete(); err != nil {
 				// TODO: log this error
 			}
-		}(oldDF)
+			e.deletesPending.Done()
+		}()
 	}
 
 	return nil
