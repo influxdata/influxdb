@@ -246,6 +246,8 @@ func init() {
 	for _, tok := range []Token{AND, OR} {
 		keywords[strings.ToLower(tokens[tok])] = tok
 	}
+	keywords["t"] = TRUE
+	keywords["f"] = FALSE
 	keywords["true"] = TRUE
 	keywords["false"] = FALSE
 }
