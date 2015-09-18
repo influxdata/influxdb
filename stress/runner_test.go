@@ -1,4 +1,4 @@
-package runner_test
+package runner
 
 import (
 	"encoding/json"
@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/stress"
 )
 
 func TestTimer_StartTimer(t *testing.T) {
 	var epoch time.Time
 
-	tmr := &runner.Timer{}
+	tmr := &Timer{}
 
 	tmr.StartTimer()
 
@@ -28,7 +27,7 @@ func TestTimer_StartTimer(t *testing.T) {
 func TestNewTimer(t *testing.T) {
 	var epoch time.Time
 
-	tmr := runner.NewTimer()
+	tmr := NewTimer()
 
 	s := tmr.Start()
 
@@ -46,7 +45,7 @@ func TestNewTimer(t *testing.T) {
 func TestTimer_StopTimer(t *testing.T) {
 	var epoch time.Time
 
-	tmr := runner.NewTimer()
+	tmr := NewTimer()
 
 	tmr.StopTimer()
 
@@ -59,7 +58,7 @@ func TestTimer_StopTimer(t *testing.T) {
 
 func TestTimer_Elapsed(t *testing.T) {
 
-	tmr := runner.NewTimer()
+	tmr := NewTimer()
 	time.Sleep(2 * time.Second)
 	tmr.StopTimer()
 
@@ -72,7 +71,7 @@ func TestTimer_Elapsed(t *testing.T) {
 }
 
 func TestNewResponseTime(t *testing.T) {
-	r := runner.NewResponseTime(100)
+	r := NewResponseTime(100)
 
 	if r.Value != 100 {
 		t.Errorf("expected Value to be %v, got %v", 100, r.Value)
@@ -87,7 +86,7 @@ func TestNewResponseTime(t *testing.T) {
 }
 
 func TestMeasurments_Set(t *testing.T) {
-	ms := make(runner.Measurements, 0)
+	ms := make(Measurements, 0)
 
 	ms.Set("this,is,a,test")
 
@@ -118,21 +117,14 @@ func TestConfig_newClient(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	ms := make(runner.Measurements, 0)
+	ms := make(Measurements, 0)
 	ms.Set("this,is,a,test")
 
 	url := ts.URL[7:]
 
-	cfg := &runner.Config{
-		BatchSize:     5000,
-		Measurements:  ms,
-		SeriesCount:   10000,
-		PointCount:    100,
-		Concurrency:   10,
-		BatchInterval: time.Duration(0),
-		Database:      "stress",
-		Address:       url,
-	}
+	cfg, _ := DecodeFile("test.toml")
+
+	cfg.Write.Address = url
 
 	// the client.NewClient method in the influxdb go
 	// client never returns an error that is not nil.
@@ -168,32 +160,25 @@ func TestRun(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	ms := make(runner.Measurements, 0)
+	ms := make(Measurements, 0)
 	ms.Set("this,is,a,test")
 
 	url := ts.URL[7:]
 
-	cfg := &runner.Config{
-		BatchSize:     5000,
-		Measurements:  ms,
-		SeriesCount:   10000,
-		PointCount:    10,
-		Concurrency:   10,
-		BatchInterval: time.Duration(0),
-		Database:      "stress",
-		Address:       url,
-	}
+	cfg, _ := DecodeFile("test.toml")
 
-	tp, _, rts, tmr := runner.Run(cfg)
+	cfg.Write.Address = url
 
-	ps := cfg.SeriesCount * cfg.PointCount * len(cfg.Measurements)
+	tp, _, rts, tmr := Run(cfg)
+
+	ps := cfg.Series[0].SeriesCount * cfg.Series[0].PointCount
 
 	if tp != ps {
 		t.Fatalf("unexpected error. expected %v, actual %v", ps, tp)
 	}
 
-	if len(rts) != ps/cfg.BatchSize {
-		t.Fatalf("unexpected error. expected %v, actual %v", ps/cfg.BatchSize, len(rts))
+	if len(rts) != ps/cfg.Write.BatchSize {
+		t.Fatalf("unexpected error. expected %v, actual %v", ps/cfg.Write.BatchSize, len(rts))
 	}
 
 	var epoch time.Time
