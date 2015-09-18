@@ -2,7 +2,6 @@ package runner
 
 import (
 	"fmt"
-	//"math/rand"
 	"net/url"
 	"strings"
 	"sync"
@@ -105,22 +104,22 @@ func (ms *Measurements) Set(value string) error {
 }
 
 // Config is a struct that is passed into the `Run()` function.
-type Config struct {
-	BatchSize     int
-	Measurements  Measurements
-	SeriesCount   int
-	PointCount    int
-	Concurrency   int
-	BatchInterval time.Duration
-	Database      string
-	Address       string
-	Precision     string
-}
+// type Config struct {
+// 	BatchSize     int
+// 	Measurements  Measurements
+// 	SeriesCount   int
+// 	PointCount    int
+// 	Concurrency   int
+// 	BatchInterval time.Duration
+// 	Database      string
+// 	Address       string
+// 	Precision     string
+// }
 
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
-func (cfg *StressTest) NewClient() (*client.Client, error) {
+func (cfg *Config) NewClient() (*client.Client, error) {
 	fmt.Printf("CFG: %#v\n", cfg)
 	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Write.Address))
 	c, err := client.NewClient(client.Config{URL: *u})
@@ -130,11 +129,23 @@ func (cfg *StressTest) NewClient() (*client.Client, error) {
 	return c, nil
 }
 
+func resetDB(c *client.Client, database string) error {
+	_, err := c.Query(client.Query{
+		Command: fmt.Sprintf("DROP DATABASE %s", database),
+	})
+
+	if err != nil && !strings.Contains(err.Error(), "database not found") {
+		return err
+	}
+
+	return nil
+}
+
 // Run runs the stress test that is specified by a `Config`.
 // It returns the total number of points that were during the test,
 // an slice of all of the stress tests response times,
 // and the times that the test started at and ended as a `Timer`
-func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
+func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
 
 	timer = NewTimer()
 	defer timer.StopTimer()
@@ -142,6 +153,18 @@ func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes Re
 	c, err := cfg.NewClient()
 	if err != nil {
 		panic(err)
+	}
+
+	if cfg.Write.ResetDatabase {
+		resetDB(c, cfg.Write.Database)
+	}
+
+	_, err = c.Query(client.Query{
+		Command: fmt.Sprintf("CREATE DATABASE %s", cfg.Write.Database),
+	})
+
+	if err != nil && !strings.Contains(err.Error(), "database already exists") {
+		fmt.Println(err)
 	}
 
 	counter := NewConcurrencyLimiter(cfg.Write.Concurrency)
@@ -160,7 +183,7 @@ func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes Re
 		Database:         cfg.Write.Database,
 		WriteConsistency: "any",
 		Time:             time.Now(),
-		Precision:        cfg.Write.Precision, // Should be cfg.Write.Precision
+		Precision:        cfg.Write.Precision,
 	}
 
 	for _, testSeries := range cfg.Series {
@@ -176,7 +199,7 @@ func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes Re
 
 					go func(b *client.BatchPoints, total int) {
 						st := time.Now()
-						if _, err := c.Write(*b); err != nil {
+						if _, err := c.Write(*b); err != nil { // Should retry write if failed
 							mu.Lock()
 							if lastSuccess {
 								fmt.Println("ERROR: ", err.Error())
@@ -194,8 +217,8 @@ func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes Re
 							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
 							mu.Unlock()
 						}
-						//time.Sleep(cfg.Write.BatchInterval)
-						time.Sleep(0 * time.Second)
+						batchInterval, _ := time.ParseDuration(cfg.Write.BatchInterval)
+						time.Sleep(batchInterval)
 						wg.Done()
 						counter.Decrement()
 						if total%500000 == 0 {
@@ -206,7 +229,7 @@ func Run(cfg *StressTest) (totalPoints int, failedRequests int, responseTimes Re
 					batch = &client.BatchPoints{
 						Database:         cfg.Write.Database,
 						WriteConsistency: "any",
-						Precision:        "n",
+						Precision:        cfg.Write.Precision,
 						Time:             time.Now(),
 					}
 				}

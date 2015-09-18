@@ -3,25 +3,54 @@
   batch_size = 5000
   batch_interval = "0s"
   database = "stress"
-  precision = "1s"
+  precision = "n"
   address = "localhost:8086"
   reset_database = true
+  # doesnt do anything
   starting_point = "6m" # how far back in time to go
 
-## Fine grained control over what series gets written
 [[series]]
-  point_count = 100 # number of points that will be written for each of the series
+  point_count = 10 # number of points that will be written for each of the series
   measurement = "cpu"
-  # series count
-  generic_tagset_cardinality = 100000 # defaults to 0. needs to be power of 10.
+  series_count = 100000
+
+  tag_count = 20 # 
 
   [[series.tag]]
     key = "host"
-    values = ["idk", "wtf"]
+    value = "idk"
 
   [[series.tag]]
     key = "location"
-    values = ["lame", "ness"]
+    value = "lame"
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  [[series.field]]
+    key = "percent"
+    type = "int"
+
+  [[series.field]]
+    key = "idk"
+    type = "bool"
+
+  [[series.field]]
+    key = "default"
+
+[[series]]
+  point_count = 10 # number of points that will be written for each of the series
+  measurement = "mem"
+  series_count = 100000
+
+  [[series.tag]]
+    key = "host"
+    value = "idk"
+
+  [[series.tag]]
+    key = "location"
+    value = "lame"
 
   [[series.field]]
     key = "value"
@@ -29,41 +58,17 @@
 
   [[series.field]]
     key = "loc"
+    type = "float64"
+
+  [[series.field]]
+    key = "sunny"
     type = "bool"
 
- ## Generate large number of series with a generic tags
- [[series]]
-   point_count = 100
-   measurement = "mem"
-   # series count
-   generic_tagset_cardinality = 100000 # defaults to 0. needs to be power of 10.
+  [[series.field]]
+    key = "idk"
+    type = "int"
 
-   [[series.field]]
-     key = "value"
-     type = "float64"
-
- ## Combined specific and generic
- [[series]]
-   point_count = 100 # number of points that will be written for each of the series
-   measurement = "dog"
-   generic_tagset_cardinality = 100000 # defaults to 0. needs to be a power of 10.
-   [[series.tag]]
-     key = "host"
-     values = ["idk", "wtf"]
-
-   [[series.tag]]
-     key = "location"
-     values = ["lame", "ness"]
-
-   [[series.field]]
-     key = "value"
-     type = "float64"
-
-   [[series.field]]
-     key = "loc"
-     type = "bool"
-
-
+# Currently not functional
 [[query]]
   concurrency = 10
   measurement = "cpu"

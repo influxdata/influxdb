@@ -2,53 +2,41 @@ package runner
 
 import (
 	"fmt"
+	"math/rand"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/client"
 )
 
+// tag is a struct that contains data
+// about a tag for in a series
 type tag struct {
-	Key    string   `toml:"key"`
-	Values []string `toml:"values"`
+	Key   string `toml:"key"`
+	Value string `toml:"value"`
 }
 
+// tag is a struct that contains data
+// about a field for in a series
 type field struct {
 	Key  string `toml:"key"`
 	Type string `toml:"type"`
 }
 
+// series is a struct that contains data
+// about the series that will be written
+// during a stress test
 type series struct {
-	PointCount               int     `toml:"point_count"`
-	Measurement              string  `toml:"measurement"`
-	GenericTagsetCardinality int     `toml:"generic_tagset_cardinality"`
-	Tags                     []tag   `toml:"series.tag"`
-	Fields                   []field `toml:"series.field"`
-}
-type seriesIter struct {
-	s     *series
-	count int
+	PointCount  int     `toml:"point_count"`
+	Measurement string  `toml:"measurement"`
+	SeriesCount int     `toml:"series_count"`
+	Tags        []tag   `toml:"tag"`
+	Fields      []field `toml:"field"`
 }
 
-// iterates through the point count
-func (s *series) Iter() *seriesIter {
-	return &seriesIter{s: s, count: 0}
-}
-
-// makes one point for each of its series
-// iterates through all of the series
-func (iter *seriesIter) Next() (client.Point, bool) {
-	if iter.count > iter.s.GenericTagsetCardinality {
-		return client.Point{}, false
-	}
-	p := client.Point{
-		Measurement: iter.s.Measurement,
-		Tags:        map[string]string{"region": "uswest", "host": fmt.Sprintf("host-%d", iter.count)},
-		Fields:      map[string]interface{}{"value": 1.0},
-	}
-	iter.count++
-	return p, true
-}
-
+// write is a struct that contains the business
+// logic for the stress test. e.g. where the
+// influxdb instance is running, what database
+// should points be written into
 type write struct {
 	Concurrency   int    `toml:"concurrency"`
 	BatchSize     int    `toml:"batch_size"`
@@ -60,6 +48,9 @@ type write struct {
 	Precision     string `toml:"precision"`
 }
 
+// query is a struct that contains the logic for
+// a query that will be ran on during the stress
+// test
 type query struct {
 	Concurrency int    `toml:"concurrency"`
 	Measurement string `toml:"measurement"`
@@ -68,18 +59,90 @@ type query struct {
 	Statement   string `toml:"statement"`
 }
 
-type StressTest struct {
+// Config is a struct that is passed into the `Run()` function.
+type Config struct {
 	Write   write    `toml:"write"`
 	Series  []series `toml:"series"`
 	Queries []query  `toml:"query"`
 }
 
-func DecodeFile(s string) (*StressTest, error) {
-	t := &StressTest{}
+// DecodeFile takes a file path for a toml config file
+// and returns a pointer to a Config Struct.
+func DecodeFile(s string) (*Config, error) {
+	t := &Config{}
 
 	if _, err := toml.DecodeFile(s, t); err != nil {
 		return nil, err
 	}
 
 	return t, nil
+}
+
+// seriesIter is a struct that contains a
+// series and a count, where count is the
+// number of points that have been written
+// for the series `s`
+type seriesIter struct {
+	s     *series
+	count int
+}
+
+// Given a series, Iter will create
+// a new seriesIter.
+func (s *series) Iter() *seriesIter {
+	return &seriesIter{s: s, count: -1}
+}
+
+// Given a series and an integer i, newTagMap returns
+// the tagset.
+func (s *series) newTagMap(i int) map[string]string {
+	m := map[string]string{}
+
+	for _, tag := range s.Tags {
+		m[tag.Key] = fmt.Sprintf("%s-%d", tag.Value, i)
+	}
+
+	return m
+}
+
+// Given a series and an integer i, newFieldMap returns
+// the tagset.
+func (s *series) newFieldMap() map[string]interface{} {
+	m := map[string]interface{}{}
+
+	for _, field := range s.Fields {
+		switch field.Type {
+		case "float64":
+			m[field.Key] = float64(rand.Intn(1000))
+		case "int":
+			m[field.Key] = rand.Intn(1000)
+		case "bool":
+			b := rand.Intn(2) == 1
+			m[field.Key] = b
+		default:
+			m[field.Key] = float64(rand.Intn(1000))
+		}
+
+	}
+
+	return m
+}
+
+// Given a seriesIter, Next returns a new point
+// for a series.
+// Currently, there is an off by one bug here.
+// When I try to fix it, I end up creating another off
+// by one bug.
+// BUG: I can either miss one point from n different series,
+//      or miss n points from one series. At the moment,
+//      I've chosed to go with the n points from one series.
+func (iter *seriesIter) Next() (client.Point, bool) {
+	iter.count++
+	p := client.Point{
+		Measurement: iter.s.Measurement,
+		Tags:        iter.s.newTagMap(iter.count),
+		Fields:      iter.s.newFieldMap(),
+	}
+	b := iter.count < iter.s.SeriesCount-1
+	return p, b
 }
