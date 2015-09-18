@@ -241,6 +241,12 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*statistic, error) {
 		Tags:   make(map[string]string),
 		Values: make(map[string]interface{}),
 	}
+
+	// Add any supplied tags to Go memstats
+	for k, v := range tags {
+		statistic.Tags[k] = v
+	}
+
 	var rt runtime.MemStats
 	runtime.ReadMemStats(&rt)
 	statistic.Values = map[string]interface{}{

@@ -10,6 +10,7 @@
 - [#4111](https://github.com/influxdb/influxdb/pull/4111): Update pre-commit hook for go vet composites
 - [#4136](https://github.com/influxdb/influxdb/pull/4136): Return an error-on-write if target retention policy does not exist. Thanks for the report @ymettier
 - [#4124](https://github.com/influxdb/influxdb/issues/4124): Missing defer/recover/panic idiom in HTTPD service
+- [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to _internal
 
 ## v0.9.4 [2015-09-14]
 
