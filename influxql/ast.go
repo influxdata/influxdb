@@ -1125,7 +1125,36 @@ func (s *SelectStatement) validateDimensions() error {
 // Currently we don't have support for all aggregates, but aggregates that
 // can be combined with fields/tags are:
 //  TOP, BOTTOM, MAX, MIN, FIRST, LAST
-func (s *SelectStatement) validSelectWithAggregate(numAggregates int) error {
+func (s *SelectStatement) validSelectWithAggregate() error {
+	calls := map[string]struct{}{}
+	numAggregates := 0
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			calls[c.Name] = struct{}{}
+			numAggregates++
+		}
+	}
+	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST (selector functions) it is ok to ask for fields and tags
+	// but only if one function is specified.  Combining multiple functions and fields and tags is not currently supported
+	onlySelectors := true
+	for k := range calls {
+		switch k {
+		case "top", "bottom", "max", "min", "first", "last":
+		default:
+			onlySelectors = false
+		}
+	}
+	if onlySelectors {
+		// If they only have one selector, they can have as many fields or tags as they want
+		if numAggregates == 1 {
+			return nil
+		}
+		// If they have multiple selectors, they are not allowed to have any other fields or tags specified
+		if numAggregates > 1 && len(s.Fields) != numAggregates {
+			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+		}
+	}
+
 	if numAggregates != 0 && numAggregates != len(s.Fields) {
 		return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
 	}
@@ -1133,21 +1162,12 @@ func (s *SelectStatement) validSelectWithAggregate(numAggregates int) error {
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
-	// Curently most aggregates can be the ONLY thing in a select statement
-	// Others, like TOP/BOTTOM can mix aggregates and tags/fields
-	numAggregates := 0
-	for _, f := range s.Fields {
-		if _, ok := f.Expr.(*Call); ok {
-			numAggregates++
-		}
-	}
-
 	for _, f := range s.Fields {
 		switch expr := f.Expr.(type) {
 		case *Call:
 			switch expr.Name {
 			case "derivative", "non_negative_derivative":
-				if err := s.validSelectWithAggregate(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
 				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
@@ -1161,7 +1181,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				}
 
 			case "percentile":
-				if err := s.validSelectWithAggregate(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
 				if exp, got := 2, len(expr.Args); got != exp {
@@ -1192,7 +1212,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					}
 				}
 			default:
-				if err := s.validSelectWithAggregate(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
 				if exp, got := 1, len(expr.Args); got != exp {
@@ -1585,6 +1605,15 @@ func (s *SelectStatement) FunctionCalls() []*Call {
 	var a []*Call
 	for _, f := range s.Fields {
 		a = append(a, walkFunctionCalls(f.Expr)...)
+	}
+	return a
+}
+
+// FunctionCallsIn returns the Call objects from the query in the order they appear in the select statement
+func (s *SelectStatement) FunctionCallsInPosition() [][]*Call {
+	var a [][]*Call
+	for _, f := range s.Fields {
+		a = append(a, walkFunctionCalls(f.Expr))
 	}
 	return a
 }
@@ -2426,8 +2455,22 @@ func (c *Call) Fields() []string {
 			}
 		}
 		return keys
+	case "min", "max", "first", "last", "sum", "mean":
+		// maintain the order the user specified in the query
+		keyMap := make(map[string]struct{})
+		keys := []string{}
+		for _, a := range c.Args {
+			switch v := a.(type) {
+			case *VarRef:
+				if _, ok := keyMap[v.Val]; !ok {
+					keyMap[v.Val] = struct{}{}
+					keys = append(keys, v.Val)
+				}
+			}
+		}
+		return keys
 	default:
-		return []string{}
+		panic(fmt.Sprintf("*call.Fields is unable to provide information on %s", c.Name))
 	}
 }
 
