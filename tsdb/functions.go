@@ -961,8 +961,12 @@ func (p *positionOut) lessKey(a, b *PositionPoint) bool {
 	return false
 }
 
-// compares types and if they differ, attempts to coerce them to
-// floating point. Returns the value unchanged if it cannot be converted.
+// typeCompare compares the types of a and b and returns an arbitrary ordering.
+// It returns -1 if type(a) < type(b) , 0 if type(a) == type(b), or 1 if type(a) > type(b), following the strcmp convention
+// from C.
+//
+// If the types are not equal, then it will attempt to coerce them to floating point and return them in the last 2 arguments.
+// If the type cannot be coerced to floating point, it is returned unaltered.
 func typeCompare(a, b interface{}) (int, interface{}, interface{}) {
 	const (
 		stringWeight = iota
