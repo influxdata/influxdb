@@ -98,8 +98,7 @@ reporting-disabled = false
 ###
 ### Controls the system self-monitoring, statistics and diagnostics.
 ###
-### The retention policy for this data is the default retention policy within
-### the internal database. The internal database is created automatically if
+### The internal database for monitoring data is created automatically if
 ### if it does not already exist. The target retention within this database
 ### is called 'monitor' and is also created with a retention period of 7 days
 ### and a replication factor of 1, if it does not exist. In all cases the
