@@ -29,7 +29,7 @@ type seriesIter struct {
 	count int
 }
 
-// iterates through the point
+// iterates through the point count
 func (s *series) Iter() *seriesIter {
 	return &seriesIter{s: s, count: 0}
 }

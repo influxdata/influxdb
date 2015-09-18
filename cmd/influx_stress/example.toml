@@ -31,37 +31,37 @@
     key = "loc"
     type = "bool"
 
-## Generate large number of series with a generic tags
-[[series]]
-  point_count = 100
-  measurement = "mem"
-  generic_tagst_cardinality = 100000 # defaults to 0. needs to be power of 10.
+ ## Generate large number of series with a generic tags
+ [[series]]
+   point_count = 100
+   measurement = "mem"
+   # series count
+   generic_tagset_cardinality = 100000 # defaults to 0. needs to be power of 10.
 
-  [[series.field]]
-    key = "value"
-    type = "float64"
+   [[series.field]]
+     key = "value"
+     type = "float64"
 
-## Combined specific and generic
-[[series]]
-  point_count = 1000 # number of points that will be written for each of the series
-  measurement = "cpu"
-  generic_tagst_cardinality = 1000 # defaults to 0. needs to be a power of 10.
+ ## Combined specific and generic
+ [[series]]
+   point_count = 100 # number of points that will be written for each of the series
+   measurement = "dog"
+   generic_tagset_cardinality = 100000 # defaults to 0. needs to be a power of 10.
+   [[series.tag]]
+     key = "host"
+     values = ["idk", "wtf"]
 
-  [[series.tag]]
-    key = "host"
-    values = ["idk", "wtf"]
+   [[series.tag]]
+     key = "location"
+     values = ["lame", "ness"]
 
-  [[series.tag]]
-    key = "location"
-    values = ["lame", "ness"]
+   [[series.field]]
+     key = "value"
+     type = "float64"
 
-  [[series.field]]
-    key = "value"
-    type = "float64"
-
-  [[series.field]]
-    key = "loc"
-    type = "bool"
+   [[series.field]]
+     key = "loc"
+     type = "bool"
 
 
 [[query]]
