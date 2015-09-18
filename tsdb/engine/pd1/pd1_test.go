@@ -16,7 +16,7 @@ import (
 
 func TestEngine_WriteAndReadFloats(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Close()
+	defer e.Cleanup()
 
 	e.Shard = newFieldCodecMock(map[string]influxql.DataType{"value": influxql.Float})
 
@@ -47,6 +47,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 		}
 		k, v = c.Next()
 		if k != nil {
+			fmt.Println(btou64(k), btof64(v))
 			t.Fatal("expected nil")
 		}
 
@@ -106,6 +107,16 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	if 1.1 != btof64(v) {
 		t.Fatal("p1 data not equal")
 	}
+
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	verify(false)
 }
 
 func TestEngine_WriteIndexWithCollision(t *testing.T) {
@@ -115,7 +126,7 @@ func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	t.Skip("whatevs")
 
 	e := OpenDefaultEngine()
-	defer e.Close()
+	defer e.Cleanup()
 
 	var points []tsdb.Point
 	for i := 0; i < 100000; i++ {
@@ -168,8 +179,8 @@ func OpenEngine(opt tsdb.EngineOptions) *Engine {
 // OpenDefaultEngine returns an open Engine with default options.
 func OpenDefaultEngine() *Engine { return OpenEngine(tsdb.NewEngineOptions()) }
 
-// Close closes the engine and removes all data.
-func (e *Engine) Close() error {
+// Cleanup closes the engine and removes all data.
+func (e *Engine) Cleanup() error {
 	e.Engine.Close()
 	os.RemoveAll(e.Path())
 	return nil
