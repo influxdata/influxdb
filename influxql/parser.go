@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -147,7 +148,24 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowUsersStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "GRANTS", "MEASUREMENTS", "RETENTION", "SERIES", "SERVERS", "TAG", "USERS"}, pos)
+	showQueryKeywords := []string{
+		"CONTINUOUS",
+		"DATABASES",
+		"FIELD",
+		"GRANTS",
+		"MEASUREMENTS",
+		"RETENTION",
+		"SERIES",
+		"SERVERS",
+		"TAG",
+		"USERS",
+		"STATS",
+		"DIAGNOSTICS",
+		"SHARDS",
+	}
+	sort.Strings(showQueryKeywords)
+
+	return nil, newParseError(tokstr(tok, lit), showQueryKeywords, pos)
 }
 
 // parseCreateStatement parses a string and returns a create statement.
