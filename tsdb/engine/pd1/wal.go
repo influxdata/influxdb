@@ -500,9 +500,20 @@ func (l *Log) flush(flush flushType) error {
 	// only hold the lock while we rotate the segment file
 	l.writeLock.Lock()
 	lastFileID := l.currentSegmentID
-	if err := l.newSegmentFile(); err != nil {
-		// there's no recovering from this, fail hard
-		panic(fmt.Sprintf("error creating new wal file: %s", err.Error()))
+	// if it's an idle flush, don't open a new segment file
+	if flush == idleFlush {
+		if l.currentSegmentFile != nil {
+			if err := l.currentSegmentFile.Close(); err != nil {
+				return err
+			}
+			l.currentSegmentFile = nil
+			l.currentSegmentSize = 0
+		}
+	} else {
+		if err := l.newSegmentFile(); err != nil {
+			// there's no recovering from this, fail hard
+			panic(fmt.Sprintf("error creating new wal file: %s", err.Error()))
+		}
 	}
 	l.writeLock.Unlock()
 
