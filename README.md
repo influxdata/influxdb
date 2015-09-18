@@ -56,7 +56,7 @@ curl -XPOST 'http://localhost:8086/write?db=mydb' \
 ### Query for the data
 ```JSON
 curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" \
---data-urlencode "q=SELECT * FROM cpu WHERE host='server01' AND time < now - 1d"
+--data-urlencode "q=SELECT * FROM cpu WHERE host='server01' AND time < now() - 1d"
 ```
 
 ### Analyze the data
