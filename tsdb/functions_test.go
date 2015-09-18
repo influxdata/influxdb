@@ -953,7 +953,6 @@ func TestReduceTopBottom(t *testing.T) {
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
-	
 	}
 
 	for _, test := range tests {

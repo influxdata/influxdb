@@ -1210,14 +1210,14 @@ func (t *topBottomMapOut) insert(p PositionPoint) {
 	heap.Fix(t, 0)
 }
 
-type topReduceOut struct {
+type topBottomReduceOut struct {
 	positionOut
 	bottom bool
 }
 
-func (t topReduceOut) Len() int      { return len(t.points) }
-func (t topReduceOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
-func (t topReduceOut) Less(i, j int) bool {
+func (t topBottomReduceOut) Len() int      { return len(t.points) }
+func (t topBottomReduceOut) Swap(i, j int) { t.points[i], t.points[j] = t.points[j], t.points[i] }
+func (t topBottomReduceOut) Less(i, j int) bool {
 	// Now sort by time first, not value
 
 	k1, k2 := t.points[i].Time, t.points[j].Time
@@ -1422,7 +1422,7 @@ func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
 		if whichselected == -1 {
 			// none of the points have any values
 			// so we can return what we have now
-			sort.Sort(topReduceOut{out, c.Name == "bottom"})
+			sort.Sort(topBottomReduceOut{out, c.Name == "bottom"})
 			return out.points
 		}
 		v := results[whichselected]
@@ -1431,7 +1431,7 @@ func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
 	}
 
 	// now we need to resort the tops by time
-	sort.Sort(topReduceOut{out, c.Name == "bottom"})
+	sort.Sort(topBottomReduceOut{out, c.Name == "bottom"})
 	return out.points
 }
 
