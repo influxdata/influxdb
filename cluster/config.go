@@ -20,6 +20,7 @@ const (
 // Config represents the configuration for the clustering service.
 type Config struct {
 	ForceRemoteShardMapping bool          `toml:"force-remote-mapping"`
+	ForceLocalShardMapping  bool          `toml:"force-local-mapping"`
 	WriteTimeout            toml.Duration `toml:"write-timeout"`
 	ShardWriterTimeout      toml.Duration `toml:"shard-writer-timeout"`
 	ShardMapperTimeout      toml.Duration `toml:"shard-mapper-timeout"`

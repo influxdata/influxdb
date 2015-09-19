@@ -108,6 +108,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Set the shard mapper
 	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
 	s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
+	s.ShardMapper.ForceLocalMapping = c.Cluster.ForceLocalShardMapping
 	s.ShardMapper.MetaStore = s.MetaStore
 	s.ShardMapper.TSDBStore = s.TSDBStore
 

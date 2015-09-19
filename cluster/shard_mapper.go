@@ -15,6 +15,9 @@ import (
 // responsible for creating those mappers from the local store, or reaching
 // out to another node on the cluster.
 type ShardMapper struct {
+
+	// Force certain mapping modes. ForceLocal takes precedence if both set.
+	ForceLocalMapping  bool // All shards treated as local. Useful for testing.
 	ForceRemoteMapping bool // All shards treated as remote. Useful for testing.
 
 	MetaStore interface {
@@ -45,7 +48,7 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, c
 		return nil, err
 	}
 
-	if !sh.OwnedBy(s.MetaStore.NodeID()) || s.ForceRemoteMapping {
+	if !s.ForceLocalMapping && (!sh.OwnedBy(s.MetaStore.NodeID()) || s.ForceRemoteMapping) {
 		// Pick a node in a pseudo-random manner.
 		conn, err := s.dial(sh.Owners[rand.Intn(len(sh.Owners))].NodeID)
 		if err != nil {
