@@ -176,8 +176,8 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 	for _, testSeries := range cfg.Series {
 		for i := 0; i < testSeries.PointCount; i++ {
 			iter := testSeries.Iter()
-			var p client.Point
-			for ok := true; ok; p, ok = iter.Next() {
+			p, ok := iter.Next()
+			for ok {
 				batch.Points = append(batch.Points, p)
 				if len(batch.Points) >= cfg.Write.BatchSize {
 					wg.Add(1)
@@ -220,6 +220,7 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 						Time:             time.Now(),
 					}
 				}
+				p, ok = iter.Next()
 			}
 		}
 	}

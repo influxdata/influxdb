@@ -140,6 +140,6 @@ func (iter *seriesIter) Next() (client.Point, bool) {
 		Tags:        iter.s.newTagMap(iter.count),
 		Fields:      iter.s.newFieldMap(),
 	}
-	b := iter.count < iter.s.SeriesCount-1
+	b := iter.count < iter.s.SeriesCount
 	return p, b
 }
