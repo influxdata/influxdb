@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"bytes"
 	"container/heap"
 	"encoding/binary"
 	"sort"
@@ -10,10 +9,13 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// EOF represents a "not found" key returned by a Cursor.
+const EOF = int64(-1)
+
 // Cursor represents an iterator over a series.
 type Cursor interface {
-	Seek(seek []byte) (key, value []byte)
-	Next() (key, value []byte)
+	Seek(seek int64) (key int64, value interface{})
+	Next() (key int64, value interface{})
 	Ascending() bool
 }
 
@@ -32,17 +34,17 @@ func MultiCursor(cursors ...Cursor) Cursor {
 type multiCursor struct {
 	cursors []Cursor
 	heap    cursorHeap
-	prev    []byte
+	prev    int64 // previously read key
 }
 
 // Seek moves the cursor to a given key.
-func (mc *multiCursor) Seek(seek []byte) (key, value []byte) {
+func (mc *multiCursor) Seek(seek int64) (key int64, value interface{}) {
 	// Initialize heap.
 	h := make(cursorHeap, 0, len(mc.cursors))
 	for i, c := range mc.cursors {
 		// Move cursor to position. Skip if it's empty.
 		k, v := c.Seek(seek)
-		if k == nil {
+		if k == EOF {
 			continue
 		}
 
@@ -57,7 +59,7 @@ func (mc *multiCursor) Seek(seek []byte) (key, value []byte) {
 
 	heap.Init(&h)
 	mc.heap = h
-	mc.prev = nil
+	mc.prev = EOF
 
 	return mc.pop()
 }
@@ -71,18 +73,18 @@ func (mc *multiCursor) Ascending() bool {
 }
 
 // Next returns the next key/value from the cursor.
-func (mc *multiCursor) Next() (key, value []byte) { return mc.pop() }
+func (mc *multiCursor) Next() (key int64, value interface{}) { return mc.pop() }
 
 // pop returns the next item from the heap.
 // Reads the next key/value from item's cursor and puts it back on the heap.
-func (mc *multiCursor) pop() (key, value []byte) {
+func (mc *multiCursor) pop() (key int64, value interface{}) {
 	// Read items until we have a key that doesn't match the previously read one.
 	// This is to perform deduplication when there's multiple items with the same key.
 	// The highest priority cursor will be read first and then remaining keys will be dropped.
 	for {
-		// Return nil if there are no more items left.
+		// Return EOF marker if there are no more items left.
 		if len(mc.heap) == 0 {
-			return nil, nil
+			return EOF, nil
 		}
 
 		// Read the next item from the heap.
@@ -92,12 +94,12 @@ func (mc *multiCursor) pop() (key, value []byte) {
 		key, value = item.key, item.value
 
 		// Read the next item from the cursor. Push back to heap if one exists.
-		if item.key, item.value = item.cursor.Next(); item.key != nil {
+		if item.key, item.value = item.cursor.Next(); item.key != EOF {
 			heap.Push(&mc.heap, item)
 		}
 
 		// Skip if this key matches the previously returned one.
-		if bytes.Equal(mc.prev, key) {
+		if key == mc.prev {
 			continue
 		}
 
@@ -112,17 +114,16 @@ type cursorHeap []*cursorHeapItem
 func (h cursorHeap) Len() int      { return len(h) }
 func (h cursorHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h cursorHeap) Less(i, j int) bool {
-	dir := -1
-	if !h[i].cursor.Ascending() {
-		dir = 1
-	}
-
-	if cmp := bytes.Compare(h[i].key, h[j].key); cmp == dir {
-		return true
-	} else if cmp == 0 {
+	// Use priority if the keys are the same.
+	if h[i].key == h[j].key {
 		return h[i].priority > h[j].priority
 	}
-	return false
+
+	// Otherwise compare based on cursor direction.
+	if h[i].cursor.Ascending() {
+		return h[i].key < h[j].key
+	}
+	return h[i].key > h[j].key
 }
 
 func (h *cursorHeap) Push(x interface{}) {
@@ -139,62 +140,37 @@ func (h *cursorHeap) Pop() interface{} {
 
 // cursorHeapItem is something we manage in a priority queue.
 type cursorHeapItem struct {
-	key      []byte
-	value    []byte
+	key      int64
+	value    interface{}
 	cursor   Cursor
 	priority int
 }
 
-// TagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
-// a single series.
+// TagSetCursor is virtual cursor that iterates over multiple TagsCursors.
 type TagSetCursor struct {
 	measurement string            // Measurement name
 	tags        map[string]string // Tag key-value pairs
-	cursors     []*seriesCursor   // Underlying series cursors.
-	decoder     *FieldCodec       // decoder for the raw data bytes
+	cursors     []*TagsCursor     // Underlying tags cursors.
 	currentTags map[string]string // the current tags for the underlying series cursor in play
 
-	// pointHeap is a min-heap, ordered by timestamp, that contains the next
-	// point from each seriesCursor. Queries sometimes pull points from
-	// thousands of series. This makes it reasonably efficient to find the
-	// point with the next lowest timestamp among the thousands of series that
-	// the query is pulling points from.
-	// Performance profiling shows that this lookahead needs to be part
-	// of the TagSetCursor type and not part of the the cursors type.
-	pointHeap *pointHeap
+	SelectFields []string
+	WhereFields  []string
 
-	// Memomize the cursor's tagset-based key. Profiling shows that calculating this
-	// is significant CPU cost, and it only needs to be done once.
+	// Min-heap of cursors ordered by timestamp.
+	heap *pointHeap
+
+	// Memoize the cursor's tagset-based key.
 	memokey string
 }
 
-// TagSetCursors represents a sortable slice of TagSetCursors.
-type TagSetCursors []*TagSetCursor
-
-func (a TagSetCursors) Len() int           { return len(a) }
-func (a TagSetCursors) Less(i, j int) bool { return a[i].key() < a[j].key() }
-func (a TagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-func (a TagSetCursors) Keys() []string {
-	keys := []string{}
-	for i := range a {
-		keys = append(keys, a[i].key())
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 // NewTagSetCursor returns a instance of TagSetCursor.
-func NewTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldCodec) *TagSetCursor {
-	tsc := &TagSetCursor{
+func NewTagSetCursor(m string, t map[string]string, c []*TagsCursor) *TagSetCursor {
+	return &TagSetCursor{
 		measurement: m,
 		tags:        t,
 		cursors:     c,
-		decoder:     d,
-		pointHeap:   newPointHeap(),
+		heap:        newPointHeap(),
 	}
-
-	return tsc
 }
 
 func (tsc *TagSetCursor) key() string {
@@ -208,20 +184,20 @@ func (tsc *TagSetCursor) key() string {
 	return tsc.memokey
 }
 
-func (tsc *TagSetCursor) SeekTo(seek int64) {
-	tsc.pointHeap = newPointHeap()
+func (tsc *TagSetCursor) Init(seek int64) {
+	tsc.heap = newPointHeap()
 
 	// Prime the buffers.
 	for i := 0; i < len(tsc.cursors); i++ {
-		k, v := tsc.cursors[i].SeekTo(seek)
-		if k == -1 {
+		k, v := tsc.cursors[i].Seek(seek)
+		if k == EOF {
 			k, v = tsc.cursors[i].Next()
 		}
-		if k == -1 {
+		if k == EOF {
 			continue
 		}
 
-		heap.Push(tsc.pointHeap, &pointHeapItem{
+		heap.Push(tsc.heap, &pointHeapItem{
 			timestamp: k,
 			value:     v,
 			cursor:    tsc.cursors[i],
@@ -231,38 +207,36 @@ func (tsc *TagSetCursor) SeekTo(seek int64) {
 
 // Next returns the next matching series-key, timestamp byte slice and meta tags for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *TagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
+func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 	for {
 		// If we're out of points, we're done.
-		if tsc.pointHeap.Len() == 0 {
+		if tsc.heap.Len() == 0 {
 			return -1, nil
 		}
 
 		// Grab the next point with the lowest timestamp.
-		p := heap.Pop(tsc.pointHeap).(*pointHeapItem)
+		p := heap.Pop(tsc.heap).(*pointHeapItem)
 
 		// We're done if the point is outside the query's time range [tmin:tmax).
 		if p.timestamp != tmin && (p.timestamp < tmin || p.timestamp >= tmax) {
 			return -1, nil
 		}
 
-		// Decode the raw point.
-		value := tsc.decodeRawPoint(p, selectFields, whereFields)
-		timestamp := p.timestamp
+		// Save timestamp & value.
+		timestamp, value := p.timestamp, p.value
 
 		// Keep track of the current tags for the series cursor so we can
 		// respond with them if asked
 		tsc.currentTags = p.cursor.tags
 
-		// Advance the cursor
-		nextKey, nextVal := p.cursor.Next()
-		if nextKey != -1 {
+		// Advance the cursor.
+		if nextKey, nextVal := p.cursor.Next(); nextKey != -1 {
 			*p = pointHeapItem{
 				timestamp: nextKey,
 				value:     nextVal,
 				cursor:    p.cursor,
 			}
-			heap.Push(tsc.pointHeap, p)
+			heap.Push(tsc.heap, p)
 		}
 
 		// Value didn't match, look for the next one.
@@ -276,52 +250,51 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 // Tags returns the current tags of the current cursor
 // if there is no current currsor, it returns nil
-func (tsc *TagSetCursor) Tags() map[string]string {
-	return tsc.currentTags
-}
+func (tsc *TagSetCursor) Tags() map[string]string { return tsc.currentTags }
 
 // decodeRawPoint decodes raw point data into field names & values and does WHERE filtering.
-func (tsc *TagSetCursor) decodeRawPoint(p *pointHeapItem, selectFields, whereFields []string) interface{} {
-	if len(selectFields) > 1 {
-		if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value); err == nil {
-			// if there's a where clause, make sure we don't need to filter this value
-			if p.cursor.filter != nil && !influxql.EvalBool(p.cursor.filter, fieldsWithNames) {
-				return nil
-			}
+// func (tsc *TagSetCursor) decodeRawPoint(p *pointHeapItem) interface{} {
+// 	if len(tsc.SelectFields) > 1 {
+// 		if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value); err == nil {
+// 			// If there's a where clause, make sure we don't need to filter this value
+// 			if p.cursor.filter != nil && !influxql.EvalBool(p.cursor.filter, fieldsWithNames) {
+// 				return nil
+// 			}
 
-			return fieldsWithNames
-		}
-	}
+// 			return fieldsWithNames
+// 		}
+// 	}
 
-	// With only 1 field SELECTed, decoding all fields may be avoidable, which is faster.
-	value, err := tsc.decoder.DecodeByName(selectFields[0], p.value)
-	if err != nil {
-		return nil
-	}
+// 	// With only 1 field SELECTed, decoding all fields may be avoidable, which is faster.
+// 	value, err := tsc.decoder.DecodeByName(tsc.SelectFields[0], p.value)
+// 	if err != nil {
+// 		return nil
+// 	}
 
-	// If there's a WHERE clase, see if we need to filter
-	if p.cursor.filter != nil {
-		// See if the WHERE is only on this field or on one or more other fields.
-		// If the latter, we'll have to decode everything
-		if len(whereFields) == 1 && whereFields[0] == selectFields[0] {
-			if !influxql.EvalBool(p.cursor.filter, map[string]interface{}{selectFields[0]: value}) {
-				value = nil
-			}
-		} else { // Decode everything
-			fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value)
-			if err != nil || !influxql.EvalBool(p.cursor.filter, fieldsWithNames) {
-				value = nil
-			}
-		}
-	}
+// 	// Return value if there's no filter.
+// 	if p.cursor.filter == nil {
+// 		return value
+// 	}
 
-	return value
-}
+// 	// See if the WHERE is only on this field or on one or more other fields.
+// 	// If the latter, we'll have to decode everything
+// 	if len(tsc.WhereFields) == 1 && tsc.WhereFields[0] == tsc.SelectFields[0] {
+// 		if !influxql.EvalBool(p.cursor.filter, map[string]interface{}{tsc.SelectFields[0]: value}) {
+// 			value = nil
+// 		}
+// 	} else {
+// 		fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value)
+// 		if err != nil || !influxql.EvalBool(p.cursor.filter, fieldsWithNames) {
+// 			value = nil
+// 		}
+// 	}
+// 	return value
+// }
 
 type pointHeapItem struct {
 	timestamp int64
-	value     []byte
-	cursor    *seriesCursor // cursor whence pointHeapItem came
+	value     interface{}
+	cursor    *TagsCursor // cursor whence pointHeapItem came
 }
 
 type pointHeap []*pointHeapItem
@@ -354,63 +327,73 @@ func (pq *pointHeap) Pop() interface{} {
 	return item
 }
 
-// seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
-type seriesCursor struct {
-	cursor     Cursor // BoltDB cursor for a series
-	filter     influxql.Expr
-	tags       map[string]string
-	seekto     int64
-	seekResult struct {
-		k int64
-		v []byte
+// TagsCursor is a cursor with attached tags and filter.
+type TagsCursor struct {
+	cursor Cursor
+	filter influxql.Expr
+	tags   map[string]string
+
+	seek int64
+	buf  struct {
+		key   int64
+		value interface{}
 	}
 }
 
-// newSeriesCursor returns a new instance of a series cursor.
-func newSeriesCursor(cur Cursor, filter influxql.Expr, tags map[string]string) *seriesCursor {
-	return &seriesCursor{
-		cursor: cur,
+// NewTagsCursor returns a new instance of a series cursor.
+func NewTagsCursor(c Cursor, filter influxql.Expr, tags map[string]string) *TagsCursor {
+	return &TagsCursor{
+		cursor: c,
 		filter: filter,
 		tags:   tags,
-		seekto: -1,
+		seek:   EOF,
 	}
 }
 
-// Seek positions returning the timestamp and value at that key.
-func (sc *seriesCursor) SeekTo(key int64) (timestamp int64, value []byte) {
-	if sc.seekto != -1 && sc.seekto < key && (sc.seekResult.k == -1 || sc.seekResult.k >= key) {
-		// we've seeked on this cursor. This seek is after that previous cached seek
-		// and the result it gave was after the key for this seek.
-		//
-		// In this case, any seek would just return what we got before, so there's
-		// no point in reseeking.
-		return sc.seekResult.k, sc.seekResult.v
+// Seek positions returning the key and value at that key.
+func (c *TagsCursor) Seek(seek int64) (key int64, value interface{}) {
+	// We've seeked on this cursor. This seek is after that previous cached seek
+	// and the result it gave was after the key for this seek.
+	//
+	// In this case, any seek would just return what we got before, so there's
+	// no point in reseeking.
+	if c.seek != -1 && c.seek < seek && (c.buf.key == EOF || c.buf.key >= seek) {
+		return c.buf.key, c.buf.value
 	}
-	k, v := sc.cursor.Seek(u64tob(uint64(key)))
-	if k == nil {
-		timestamp = -1
-	} else {
-		timestamp, value = int64(btou64(k)), v
-	}
-	sc.seekto = key
-	sc.seekResult.k = timestamp
-	sc.seekResult.v = v
+
+	// Seek to key/value in underlying cursor.
+	key, value = c.cursor.Seek(seek)
+
+	// Save the seek to the buffer.
+	c.seek = seek
+	c.buf.key, c.buf.value = key, value
 	return
 }
 
 // Next returns the next timestamp and value from the cursor.
-func (sc *seriesCursor) Next() (key int64, value []byte) {
-	// calling next on this cursor means that we need to invalidate the seek
-	sc.seekto = -1
-	sc.seekResult.k = 0
-	sc.seekResult.v = nil
-	k, v := sc.cursor.Next()
-	if k == nil {
-		key = -1
-	} else {
-		key, value = int64(btou64(k)), v
+func (c *TagsCursor) Next() (key int64, value interface{}) {
+	// Invalidate the seek.
+	c.seek = -1
+	c.buf.key, c.buf.value = 0, nil
+
+	// Return next key/value.
+	return c.cursor.Next()
+}
+
+// TagSetCursors represents a sortable slice of TagSetCursors.
+type TagSetCursors []*TagSetCursor
+
+func (a TagSetCursors) Len() int           { return len(a) }
+func (a TagSetCursors) Less(i, j int) bool { return a[i].key() < a[j].key() }
+func (a TagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+func (a TagSetCursors) Keys() []string {
+	keys := []string{}
+	for i := range a {
+		keys = append(keys, a[i].key())
 	}
-	return
+	sort.Strings(keys)
+	return keys
 }
 
 // btou64 converts an 8-byte slice into an uint64.

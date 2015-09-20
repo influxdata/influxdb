@@ -718,6 +718,18 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
+// SourceNames returns a list of source names.
+func (s *SelectStatement) SourceNames() []string {
+	a := make([]string, 0, len(s.Sources))
+	for _, src := range s.Sources {
+		switch src := src.(type) {
+		case *Measurement:
+			a = append(a, src.Name)
+		}
+	}
+	return a
+}
+
 // HasDerivative returns true if one of the function calls in the statement is a
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
@@ -1520,6 +1532,25 @@ func (s *SelectStatement) NamesInDimension() []string {
 	}
 
 	return a
+}
+
+// LimitTagSets returns a tag set list with SLIMIT and SOFFSET applied.
+func (s *SelectStatement) LimitTagSets(a []*TagSet) []*TagSet {
+	// Ignore if no limit or offset is specified.
+	if s.SLimit == 0 && s.SOffset == 0 {
+		return a
+	}
+
+	// If offset is beyond the number of tag sets then return nil.
+	if s.SOffset > len(a) {
+		return nil
+	}
+
+	// Clamp limit to the max number of tag sets.
+	if s.SOffset+s.SLimit > len(a) {
+		s.SLimit = len(a) - s.SOffset
+	}
+	return a[s.SOffset : s.SOffset+s.SLimit]
 }
 
 // walkNames will walk the Expr and return the database fields

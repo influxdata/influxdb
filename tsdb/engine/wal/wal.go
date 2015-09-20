@@ -255,10 +255,10 @@ func (l *Log) DiskSize() (int64, error) {
 }
 
 // Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given
-func (l *Log) Cursor(key string, ascending bool) tsdb.Cursor {
+func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	return l.partition.cursor(key, ascending)
+	return l.partition.cursor(series, fields, dec, ascending)
 }
 
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
@@ -1214,11 +1214,11 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 }
 
 // cursor will combine the in memory cache and flush cache (if a flush is currently happening) to give a single ordered cursor for the key
-func (p *Partition) cursor(key string, ascending bool) *cursor {
+func (p *Partition) cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) *cursor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	entry := p.cache[key]
+	entry := p.cache[series]
 	if entry == nil {
 		entry = &cacheEntry{}
 	}
@@ -1226,13 +1226,13 @@ func (p *Partition) cursor(key string, ascending bool) *cursor {
 	// if we're in the middle of a flush, combine the previous cache
 	// with this one for the cursor
 	if p.flushCache != nil {
-		if fc, ok := p.flushCache[key]; ok {
+		if fc, ok := p.flushCache[series]; ok {
 			c := make([][]byte, len(fc), len(fc)+len(entry.points))
 			copy(c, fc)
 			c = append(c, entry.points...)
 
 			dedupe := tsdb.DedupeEntries(c)
-			return newCursor(dedupe, ascending)
+			return newCursor(dedupe, fields, dec, ascending)
 		}
 	}
 
@@ -1241,10 +1241,11 @@ func (p *Partition) cursor(key string, ascending bool) *cursor {
 		entry.isDirtySort = false
 	}
 
-	// build a copy so modifications to the partition don't change the result set
+	// Build a copy so modifications to the partition don't change the result set
 	a := make([][]byte, len(entry.points))
 	copy(a, entry.points)
-	return newCursor(a, ascending)
+
+	return newCursor(a, fields, dec, ascending)
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -1408,15 +1409,20 @@ type cursor struct {
 	cache     [][]byte
 	position  int
 	ascending bool
+
+	fields []string
+	dec    *tsdb.FieldCodec
 }
 
-func newCursor(cache [][]byte, ascending bool) *cursor {
+func newCursor(cache [][]byte, fields []string, dec *tsdb.FieldCodec, ascending bool) *cursor {
 	// position is set such that a call to Next will successfully advance
 	// to the next postion and return the value.
 	c := &cursor{
 		cache:     cache,
 		ascending: ascending,
 		position:  -1,
+		fields:    fields,
+		dec:       dec,
 	}
 	if !ascending {
 		c.position = len(c.cache)
@@ -1427,10 +1433,12 @@ func newCursor(cache [][]byte, ascending bool) *cursor {
 func (c *cursor) Ascending() bool { return c.ascending }
 
 // Seek will point the cursor to the given time (or key)
-func (c *cursor) Seek(seek []byte) (key, value []byte) {
+func (c *cursor) Seek(seek int64) (key int64, value interface{}) {
+	seekBytes := u64tob(uint64(seek))
+
 	// Seek cache index
 	c.position = sort.Search(len(c.cache), func(i int) bool {
-		return bytes.Compare(c.cache[i][0:8], seek) != -1
+		return bytes.Compare(c.cache[i][0:8], seekBytes) != -1
 	})
 
 	// If seek is not in the cache, return the last value in the cache
@@ -1440,20 +1448,20 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 
 	// Make sure our position points to something in the cache
 	if c.position < 0 || c.position >= len(c.cache) {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	v := c.cache[c.position]
 
 	if v == nil {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
-	return v[0:8], v[8:]
+	return DecodeKeyValue(c.fields, c.dec, v[0:8], v[8:])
 }
 
 // Next moves the cursor to the next key/value. will return nil if at the end
-func (c *cursor) Next() (key, value []byte) {
+func (c *cursor) Next() (key int64, value interface{}) {
 	var v []byte
 	if c.ascending {
 		v = c.nextForward()
@@ -1463,11 +1471,11 @@ func (c *cursor) Next() (key, value []byte) {
 
 	// Iterated past the end of the cursor
 	if v == nil {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	// Split v into key/value
-	return v[0:8], v[8:]
+	return DecodeKeyValue(c.fields, c.dec, v[0:8], v[8:])
 }
 
 // nextForward advances the cursor forward returning the next value
@@ -1577,4 +1585,28 @@ func u64tob(v uint64) []byte {
 
 func btou64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
+}
+
+// DecodeKeyValue decodes the key and value from bytes.
+func DecodeKeyValue(fields []string, dec *tsdb.FieldCodec, k, v []byte) (key int64, value interface{}) {
+	// Convert key to a timestamp.
+	key = int64(btou64(k[0:8]))
+
+	// Decode values. Optimize for single field.
+	switch len(fields) {
+	case 0:
+		return
+	case 1:
+		decValue, err := dec.DecodeByName(fields[0], v)
+		if err != nil {
+			return
+		}
+		return key, decValue
+	default:
+		m, err := dec.DecodeFieldsWithNames(v)
+		if err != nil {
+			return
+		}
+		return key, m
+	}
 }

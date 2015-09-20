@@ -121,10 +121,11 @@ func NewEngineOptions() EngineOptions {
 type Tx interface {
 	io.WriterTo
 
-	Cursor(series string, ascending bool) Cursor
 	Size() int64
 	Commit() error
 	Rollback() error
+
+	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
 }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).

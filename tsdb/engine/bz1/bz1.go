@@ -74,7 +74,7 @@ type WAL interface {
 	WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 	LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error
 	DeleteSeries(keys []string) error
-	Cursor(key string, ascending bool) tsdb.Cursor
+	Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor
 	Open() error
 	Close() error
 	Flush() error
@@ -623,17 +623,19 @@ type Tx struct {
 }
 
 // Cursor returns an iterator for a key.
-func (tx *Tx) Cursor(key string, ascending bool) tsdb.Cursor {
-	walCursor := tx.wal.Cursor(key, ascending)
+func (tx *Tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
+	walCursor := tx.wal.Cursor(series, fields, dec, ascending)
 
 	// Retrieve points bucket. Ignore if there is no bucket.
-	b := tx.Bucket([]byte("points")).Bucket([]byte(key))
+	b := tx.Bucket([]byte("points")).Bucket([]byte(series))
 	if b == nil {
 		return walCursor
 	}
 
 	c := &Cursor{
 		cursor:    b.Cursor(),
+		fields:    fields,
+		dec:       dec,
 		ascending: ascending,
 	}
 
@@ -652,6 +654,9 @@ type Cursor struct {
 	ascending    bool
 	fieldIndices []int
 	index        int
+
+	fields []string
+	dec    *tsdb.FieldCodec
 }
 
 func (c *Cursor) last() {
@@ -662,23 +667,25 @@ func (c *Cursor) last() {
 func (c *Cursor) Ascending() bool { return c.ascending }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
-func (c *Cursor) Seek(seek []byte) (key, value []byte) {
+func (c *Cursor) Seek(seek int64) (key int64, value interface{}) {
+	seekBytes := u64tob(uint64(seek))
+
 	// Move cursor to appropriate block and set to buffer.
-	k, v := c.cursor.Seek(seek)
+	k, v := c.cursor.Seek(seekBytes)
 	if v == nil { // get the last block, it might have this time
 		_, v = c.cursor.Last()
-	} else if bytes.Compare(seek, k) == -1 { // the seek key is less than this block, go back one and check
+	} else if seek < int64(btou64(k)) { // the seek key is less than this block, go back one and check
 		_, v = c.cursor.Prev()
 
 		// if the previous block max time is less than the seek value, reset to where we were originally
-		if v == nil || bytes.Compare(seek, v[0:8]) > 0 {
-			_, v = c.cursor.Seek(seek)
+		if v == nil || seek > int64(btou64(v[0:8])) {
+			_, v = c.cursor.Seek(seekBytes)
 		}
 	}
 	c.setBuf(v)
 
 	// Read current block up to seek position.
-	c.seekBuf(seek)
+	c.seekBuf(seekBytes)
 
 	// Return current entry.
 	return c.read()
@@ -715,10 +722,10 @@ func (c *Cursor) seekBuf(seek []byte) (key, value []byte) {
 }
 
 // Next returns the next key/value pair from the cursor.
-func (c *Cursor) Next() (key, value []byte) {
+func (c *Cursor) Next() (key int64, value interface{}) {
 	// Ignore if there is no buffer.
 	if len(c.buf) == 0 {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	if c.ascending {
@@ -789,16 +796,17 @@ func (c *Cursor) setBuf(block []byte) {
 }
 
 // read reads the current key and value from the current block.
-func (c *Cursor) read() (key, value []byte) {
+func (c *Cursor) read() (key int64, value interface{}) {
 	// Return nil if the offset is at the end of the buffer.
 	if c.off >= len(c.buf) {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	// Otherwise read the current entry.
 	buf := c.buf[c.off:]
 	dataSize := entryDataSize(buf)
-	return buf[0:8], buf[entryHeaderSize : entryHeaderSize+dataSize]
+
+	return wal.DecodeKeyValue(c.fields, c.dec, buf[0:8], buf[entryHeaderSize:entryHeaderSize+dataSize])
 }
 
 // MarshalEntry encodes point data into a single byte slice.

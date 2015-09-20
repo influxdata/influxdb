@@ -550,26 +550,31 @@ type Tx struct {
 	engine *Engine
 }
 
-// Cursor returns an iterator for a key.
-func (tx *Tx) Cursor(key string, ascending bool) tsdb.Cursor {
-	// Retrieve key bucket.
-	b := tx.Bucket([]byte(key))
+// Cursor returns an iterator for a key over a single field.
+func (tx *Tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
+	// Retrieve series bucket.
+	b := tx.Bucket([]byte(series))
 
 	tx.engine.mu.RLock()
 	defer tx.engine.mu.RUnlock()
 
 	// Ignore if there is no bucket or points in the cache.
-	partitionID := WALPartition([]byte(key))
-	if b == nil && len(tx.engine.cache[partitionID][key]) == 0 {
+	partitionID := WALPartition([]byte(series))
+	if b == nil && len(tx.engine.cache[partitionID][series]) == 0 {
 		return nil
 	}
 
-	// Retrieve a copy of the in-cache points for the key.
-	cache := make([][]byte, len(tx.engine.cache[partitionID][key]))
-	copy(cache, tx.engine.cache[partitionID][key])
+	// Retrieve a copy of the in-cache points for the series.
+	cache := make([][]byte, len(tx.engine.cache[partitionID][series]))
+	copy(cache, tx.engine.cache[partitionID][series])
 
 	// Build a cursor that merges the bucket and cache together.
-	cur := &Cursor{cache: cache, ascending: ascending}
+	cur := &Cursor{
+		cache:     cache,
+		fields:    fields,
+		dec:       dec,
+		ascending: ascending,
+	}
 	if b != nil {
 		cur.cursor = b.Cursor()
 	}
@@ -592,6 +597,10 @@ type Cursor struct {
 		key, value []byte
 	}
 
+	// Fields and codec.
+	fields []string
+	dec    *tsdb.FieldCodec
+
 	// Cache and current cache index.
 	cache [][]byte
 	index int
@@ -606,15 +615,16 @@ type Cursor struct {
 func (c *Cursor) Ascending() bool { return c.ascending }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
-func (c *Cursor) Seek(seek []byte) (key, value []byte) {
+func (c *Cursor) Seek(seek int64) (key int64, value interface{}) {
 	// Seek bolt cursor.
+	seekBytes := u64tob(uint64(seek))
 	if c.cursor != nil {
-		c.buf.key, c.buf.value = c.cursor.Seek(seek)
+		c.buf.key, c.buf.value = c.cursor.Seek(seekBytes)
 	}
 
 	// Seek cache index.
 	c.index = sort.Search(len(c.cache), func(i int) bool {
-		return bytes.Compare(c.cache[i][0:8], seek) != -1
+		return bytes.Compare(c.cache[i][0:8], seekBytes) != -1
 	})
 
 	// Search will return an index after the length of cache if the seek value is greater
@@ -628,28 +638,54 @@ func (c *Cursor) Seek(seek []byte) (key, value []byte) {
 }
 
 // Next returns the next key/value pair from the cursor.
-func (c *Cursor) Next() (key, value []byte) {
+func (c *Cursor) Next() (key int64, value interface{}) {
 	return c.read()
 }
 
 // read returns the next key/value in the cursor buffer or cache.
-func (c *Cursor) read() (key, value []byte) {
+func (c *Cursor) read() (key int64, value interface{}) {
 	// Continue skipping ahead through duplicate keys in the cache list.
+	var k, v []byte
 	for {
 		if c.ascending {
-			key, value = c.readForward()
+			k, v = c.readForward()
 		} else {
-			key, value = c.readReverse()
+			k, v = c.readReverse()
 		}
 
 		// Exit loop if we're at the end of the cache or the next key is different.
-		if key == nil || !bytes.Equal(key, c.prev) {
+		if k == nil || !bytes.Equal(k, c.prev) {
 			break
 		}
 	}
 
-	c.prev = key
-	return
+	// Save key so it's not re-read.
+	c.prev = k
+
+	// Exit if no keys left.
+	if k == nil {
+		return tsdb.EOF, nil
+	}
+
+	// Convert key to timestamp.
+	key = int64(btou64(k))
+
+	// Decode fields. Optimize for single field, if possible.
+	if len(c.fields) == 1 {
+		decValue, err := c.dec.DecodeByName(c.fields[0], v)
+		if err != nil {
+			return key, nil
+		}
+		return key, decValue
+	} else if len(c.fields) > 1 {
+		m, err := c.dec.DecodeFieldsWithNames(v)
+		if err != nil {
+			return key, nil
+		}
+		return key, m
+	} else {
+		return key, nil
+	}
 }
 
 // readForward returns the next key/value from the cursor and moves the current location forward.
@@ -756,6 +792,9 @@ func u64tob(v uint64) []byte {
 	binary.BigEndian.PutUint64(b, v)
 	return b
 }
+
+// btou64 converts an 8-byte slice to a uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
 
 // byteSlices represents a sortable slice of byte slices.
 type byteSlices [][]byte

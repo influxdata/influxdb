@@ -185,35 +185,20 @@ func (m *RawMapper) Open() error {
 	}
 	m.tx = tx
 
-	selectFields := newStringSet()
-	selectTags := newStringSet()
-	whereFields := newStringSet()
+	// Collect measurements.
+	mms := Measurements(m.shard.index.MeasurementsByName(m.stmt.SourceNames()))
+	m.selectFields = mms.SelectFields(m.stmt)
+	m.selectTags = mms.SelectTags(m.stmt)
+	m.whereFields = mms.WhereFields(m.stmt)
 
 	// Open cursors for each measurement.
-	for _, src := range m.stmt.Sources {
-		// Retrieve measurement index reference. Ignore if not exists.
-		mm := m.shard.index.Measurement(src.(*influxql.Measurement).Name)
-		if mm == nil {
-			continue
-		}
-
-		// Open cursors for measurement.
-		info, err := m.openMeasurement(mm)
-		if err != nil {
+	for _, mm := range mms {
+		if err := m.openMeasurement(mm); err != nil {
 			return err
 		}
-
-		// Append fields & tags.
-		selectFields.add(info.SelectFields...)
-		selectTags.add(info.SelectTags...)
-		whereFields.add(info.WhereFields...)
 	}
 
-	m.selectFields = selectFields.list()
-	m.selectTags = selectTags.list()
-	m.whereFields = whereFields.list()
-
-	// Remove cursors if no SELECT fields are present.
+	// Remove cursors if there are not SELECT fields.
 	if len(m.selectFields) == 0 {
 		m.cursors = nil
 	}
@@ -221,41 +206,59 @@ func (m *RawMapper) Open() error {
 	return nil
 }
 
-func (m *RawMapper) openMeasurement(mm *Measurement) (SelectInfo, error) {
-	// Validate and return selection info.
-	info, err := mm.ValidateSelectStatement(m.stmt)
-	if err != nil {
-		return info, err
+func (m *RawMapper) openMeasurement(mm *Measurement) error {
+	// Validate that ANY GROUP BY is not a field for the measurement.
+	if err := mm.ValidateGroupBy(m.stmt); err != nil {
+		return err
 	}
+
+	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+	selectFields := mm.SelectFields(m.stmt)
+	selectTags := mm.SelectTags(m.stmt)
+
+	// If we only have tags in our select clause we just return
+	if len(selectFields) == 0 && len(selectTags) > 0 {
+		return fmt.Errorf("statement must have at least one field in select clause")
+	}
+
+	// Calculate tag sets and apply SLIMIT/SOFFSET.
+	tagSets, err := mm.DimensionTagSets(m.stmt)
+	if err != nil {
+		return err
+	}
+	tagSets = m.stmt.LimitTagSets(tagSets)
 
 	// Create all cursors for reading the data from this shard.
 	ascending := m.stmt.TimeAscending()
-	for _, t := range info.TagSets {
-		cursors := []*seriesCursor{}
+	for _, t := range tagSets {
+		cursors := []*TagsCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, ascending)
+			c := m.tx.Cursor(key, selectFields, m.shard.FieldCodec(mm.Name), ascending)
 			if c == nil {
 				continue
 			}
 
 			seriesTags := m.shard.index.TagsForSeries(key)
-			cm := newSeriesCursor(c, t.Filters[i], seriesTags)
+			cm := NewTagsCursor(c, t.Filters[i], seriesTags)
 			cursors = append(cursors, cm)
 		}
 
-		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors, m.shard.FieldCodec(mm.Name))
+		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors)
+		tsc.SelectFields = m.selectFields
+		tsc.WhereFields = m.whereFields
 		if ascending {
-			tsc.SeekTo(m.qmin)
+			tsc.Init(m.qmin)
 		} else {
-			tsc.SeekTo(m.qmax)
+			tsc.Init(m.qmax)
 		}
+
 		m.cursors = append(m.cursors, tsc)
 	}
 
 	sort.Sort(TagSetCursors(m.cursors))
 
-	return info, nil
+	return nil
 }
 
 // Close closes the mapper.
@@ -284,7 +287,7 @@ func (m *RawMapper) NextChunk() (interface{}, error) {
 
 		cursor := m.cursors[m.cursorIndex]
 
-		k, v := cursor.Next(m.qmin, m.qmax, m.selectFields, m.whereFields)
+		k, v := cursor.Next(m.qmin, m.qmax)
 		if v == nil {
 			// Tagset cursor is empty, move to next one.
 			m.cursorIndex++
@@ -417,66 +420,66 @@ func (m *AggregateMapper) Open() error {
 	}
 	m.tx = tx
 
-	selectFields := newStringSet()
-	selectTags := newStringSet()
-	whereFields := newStringSet()
+	// Collect measurements.
+	mms := Measurements(m.shard.index.MeasurementsByName(m.stmt.SourceNames()))
+	m.selectFields = mms.SelectFields(m.stmt)
+	m.selectTags = mms.SelectTags(m.stmt)
+	m.whereFields = mms.WhereFields(m.stmt)
 
 	// Open cursors for each measurement.
-	for _, src := range m.stmt.Sources {
-		// Retrieve measurement index reference. Ignore if not exists.
-		mm := m.shard.index.Measurement(src.(*influxql.Measurement).Name)
-		if mm == nil {
-			continue
-		}
-
-		// Open cursors for measurement.
-		info, err := m.openMeasurement(mm)
-		if err != nil {
+	for _, mm := range mms {
+		if err := m.openMeasurement(mm); err != nil {
 			return err
 		}
-
-		// Append fields & tags.
-		selectFields.add(info.SelectFields...)
-		selectTags.add(info.SelectTags...)
-		whereFields.add(info.WhereFields...)
 	}
-
-	m.selectFields = selectFields.list()
-	m.selectTags = selectTags.list()
-	m.whereFields = whereFields.list()
 
 	return nil
 }
 
-func (m *AggregateMapper) openMeasurement(mm *Measurement) (SelectInfo, error) {
-	// Validate and return selection info.
-	info, err := mm.ValidateSelectStatement(m.stmt)
-	if err != nil {
-		return info, err
+func (m *AggregateMapper) openMeasurement(mm *Measurement) error {
+	// Validate that ANY GROUP BY is not a field for the measurement.
+	if err := mm.ValidateGroupBy(m.stmt); err != nil {
+		return err
 	}
 
+	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+	selectFields := mm.SelectFields(m.stmt)
+	selectTags := mm.SelectTags(m.stmt)
+
+	// If we only have tags in our select clause we just return
+	if len(selectFields) == 0 && len(selectTags) > 0 {
+		return fmt.Errorf("statement must have at least one field in select clause")
+	}
+
+	// Calculate tag sets and apply SLIMIT/SOFFSET.
+	tagSets, err := mm.DimensionTagSets(m.stmt)
+	if err != nil {
+		return err
+	}
+	tagSets = m.stmt.LimitTagSets(tagSets)
+
 	// Create all cursors for reading the data from this shard.
-	for _, t := range info.TagSets {
-		cursors := []*seriesCursor{}
+	for _, t := range tagSets {
+		cursors := []*TagsCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, true)
+			c := m.tx.Cursor(key, selectFields, m.shard.FieldCodec(mm.Name), true)
 			if c == nil {
 				continue
 			}
 
 			seriesTags := m.shard.index.TagsForSeries(key)
-			cursors = append(cursors, newSeriesCursor(c, t.Filters[i], seriesTags))
+			cursors = append(cursors, NewTagsCursor(c, t.Filters[i], seriesTags))
 		}
 
-		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors, m.shard.FieldCodec(mm.Name))
-		tsc.SeekTo(m.qmin)
+		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors)
+		tsc.Init(m.qmin)
 		m.cursors = append(m.cursors, tsc)
 	}
 
 	sort.Sort(TagSetCursors(m.cursors))
 
-	return info, nil
+	return nil
 }
 
 // initializeMapFunctions initialize the mapping functions for the mapper.
@@ -577,24 +580,27 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		qmax = m.qmax + 1
 	}
 
-	tsc.pointHeap = newPointHeap()
+	tsc.heap = newPointHeap()
 	for i := range m.mapFuncs {
 		// Prime the tagset cursor for the start of the interval. This is not ideal, as
 		// it should really calculate the values all in 1 pass, but that would require
 		// changes to the mapper functions, which can come later.
 		// Prime the buffers.
 		for i := 0; i < len(tsc.cursors); i++ {
-			k, v := tsc.cursors[i].SeekTo(qmin)
+			k, v := tsc.cursors[i].Seek(qmin)
 			if k == -1 || k > tmax {
 				continue
 			}
-			p := &pointHeapItem{
+
+			heap.Push(tsc.heap, &pointHeapItem{
 				timestamp: k,
 				value:     v,
 				cursor:    tsc.cursors[i],
-			}
-			heap.Push(tsc.pointHeap, p)
+			})
 		}
+
+		tsc.SelectFields = []string{m.fieldNames[i]}
+		tsc.WhereFields = m.whereFields
 
 		// Execute the map function which walks the entire interval, and aggregates the result.
 		output.Values[0].Value = append(
@@ -606,9 +612,6 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 
 				qmin: qmin,
 				qmax: qmax,
-
-				selectFields: []string{m.fieldNames[i]},
-				whereFields:  m.whereFields,
 			}),
 		)
 	}
@@ -634,18 +637,16 @@ func (m *AggregateMapper) nextInterval() (start, end int64) {
 // AggregateTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated by intervals.
 type AggregateTagSetCursor struct {
 	cursor *TagSetCursor
+	qmin   int64
+	qmax   int64
 
 	tmin int64
 	stmt *influxql.SelectStatement
-
-	qmin, qmax   int64
-	selectFields []string
-	whereFields  []string
 }
 
 // Next returns the next aggregate value for the cursor.
 func (a *AggregateTagSetCursor) Next() (time int64, value interface{}) {
-	return a.cursor.Next(a.qmin, a.qmax, a.selectFields, a.whereFields)
+	return a.cursor.Next(a.qmin, a.qmax)
 }
 
 // Tags returns the current tags for the cursor

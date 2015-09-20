@@ -59,6 +59,20 @@ func (d *DatabaseIndex) Measurement(name string) *Measurement {
 	return d.measurements[name]
 }
 
+// MeasurementsByName returns a list of measurements.
+func (d *DatabaseIndex) MeasurementsByName(names []string) []*Measurement {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	a := make([]*Measurement, 0, len(names))
+	for _, name := range names {
+		if m := d.measurements[name]; m != nil {
+			a = append(a, m)
+		}
+	}
+	return a
+}
+
 // MeasurementSeriesCounts returns the number of measurements and series currently indexed by the database.
 // Useful for reporting and monitoring.
 func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries int) {
@@ -1039,58 +1053,6 @@ func (m *Measurement) uniqueTagValues(expr influxql.Expr) map[string][]string {
 	return out
 }
 
-// ValidateSelectStatement validates stmt against m. Also returns a list of fields & tagsets.
-func (m *Measurement) ValidateSelectStatement(stmt *influxql.SelectStatement) (SelectInfo, error) {
-	var info SelectInfo
-
-	// Validate that ANY GROUP BY is not a field for the measurement.
-	if err := m.ValidateGroupBy(stmt); err != nil {
-		return info, err
-	}
-
-	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
-	info.SelectFields = m.SelectFields(stmt)
-	info.SelectTags = m.SelectTags(stmt)
-	info.WhereFields = m.WhereFields(stmt)
-
-	tagSets, err := m.DimensionTagSets(stmt)
-	if err != nil {
-		return info, err
-	}
-	info.TagSets = tagSets
-
-	// return &tagSetsAndFields{
-	// 	tagSets:      tagSets,
-	// 	selectFields: sfs.list(),
-	// 	selectTags:   sts.list(),
-	// 	whereFields:  wfs.list(),
-	// }, nil
-
-	// tagSets := tsf.tagSets
-	// selectFields.add(tsf.selectFields...)
-	// selectTags.add(tsf.selectTags...)
-	// whereFields.add(tsf.whereFields...)
-
-	// If we only have tags in our select clause we just return
-	if len(info.SelectFields) == 0 && len(info.SelectTags) > 0 {
-		return info, fmt.Errorf("statement must have at least one field in select clause")
-	}
-
-	// SLIMIT and SOFFSET the unique series
-	if stmt.SLimit > 0 || stmt.SOffset > 0 {
-		if stmt.SOffset > len(info.TagSets) {
-			info.TagSets = nil
-		} else {
-			if stmt.SOffset+stmt.SLimit > len(info.TagSets) {
-				stmt.SLimit = len(info.TagSets) - stmt.SOffset
-			}
-			info.TagSets = info.TagSets[stmt.SOffset : stmt.SOffset+stmt.SLimit]
-		}
-	}
-
-	return info, nil
-}
-
 // SelectFields returns a list of fields in the SELECT section of stmt.
 func (m *Measurement) SelectFields(stmt *influxql.SelectStatement) []string {
 	set := newStringSet()
@@ -1144,7 +1106,6 @@ func (m *Measurement) DimensionTagSets(stmt *influxql.SelectStatement) ([]*influ
 }
 
 type SelectInfo struct {
-	TagSets      []*influxql.TagSet
 	SelectFields []string
 	SelectTags   []string
 	WhereFields  []string
@@ -1156,6 +1117,45 @@ type Measurements []*Measurement
 func (a Measurements) Len() int           { return len(a) }
 func (a Measurements) Less(i, j int) bool { return a[i].Name < a[j].Name }
 func (a Measurements) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// SelectFields returns a list of fields in the SELECT section of stmt.
+func (a Measurements) SelectFields(stmt *influxql.SelectStatement) []string {
+	set := newStringSet()
+	for _, name := range stmt.NamesInSelect() {
+		for _, m := range a {
+			if m.HasField(name) {
+				set.add(name)
+			}
+		}
+	}
+	return set.list()
+}
+
+// SelectTags returns a list of non-field tags in the SELECT section of stmt.
+func (a Measurements) SelectTags(stmt *influxql.SelectStatement) []string {
+	set := newStringSet()
+	for _, name := range stmt.NamesInSelect() {
+		for _, m := range a {
+			if !m.HasField(name) && m.HasTagKey(name) {
+				set.add(name)
+			}
+		}
+	}
+	return set.list()
+}
+
+// WhereFields returns a list of non-"time" fields in the WHERE section of stmt.
+func (a Measurements) WhereFields(stmt *influxql.SelectStatement) []string {
+	set := newStringSet()
+	for _, name := range stmt.NamesInWhere() {
+		for _, m := range a {
+			if name != "time" && m.HasField(name) {
+				set.add(name)
+			}
+		}
+	}
+	return set.list()
+}
 
 func (a Measurements) intersect(other Measurements) Measurements {
 	l := a
