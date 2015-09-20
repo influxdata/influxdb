@@ -449,21 +449,36 @@ func TestWritePointsAndExecuteTwoShardsShowMeasurements(t *testing.T) {
 
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
-	if err := store0.WriteToShard(sID0, []models.Point{models.NewPoint(
-		"cpu",
-		map[string]string{"host": "serverA"},
-		map[string]interface{}{"value1": 100},
-		pt1time,
-	)}); err != nil {
+	if err := store0.WriteToShard(sID0, []models.Point{
+		models.NewPoint(
+			"cpu_user",
+			map[string]string{"host": "serverA", "region": "east", "cpuid": "cpu0"},
+			map[string]interface{}{"value1": 100},
+			pt1time,
+		),
+		models.NewPoint(
+			"mem_free",
+			map[string]string{"host": "serverA", "region": "east"},
+			map[string]interface{}{"value2": 200},
+			pt1time,
+		),
+	}); err != nil {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
 	if err := store1.WriteToShard(sID1, []models.Point{models.NewPoint(
-		"mem",
-		map[string]string{"host": "serverB"},
-		map[string]interface{}{"value2": 200},
+		"mem_used",
+		map[string]string{"host": "serverB", "region": "west"},
+		map[string]interface{}{"value3": 300},
 		pt2time,
-	)}); err != nil {
+	),
+		models.NewPoint(
+			"cpu_sys",
+			map[string]string{"host": "serverB", "region": "west", "cpuid": "cpu0"},
+			map[string]interface{}{"value4": 400},
+			pt2time,
+		),
+	}); err != nil {
 		t.Fatalf(err.Error())
 	}
 	var tests = []struct {
@@ -474,11 +489,15 @@ func TestWritePointsAndExecuteTwoShardsShowMeasurements(t *testing.T) {
 	}{
 		{
 			stmt:     `SHOW MEASUREMENTS`,
-			expected: `[{"name":"measurements","columns":["name"],"values":[["cpu"],["mem"]]}]`,
+			expected: `[{"name":"measurements","columns":["name"],"values":[["cpu_sys"],["cpu_user"],["mem_free"],["mem_used"]]}]`,
 		},
 		{
 			stmt:     `SHOW MEASUREMENTS WHERE host='serverB'`,
-			expected: `[{"name":"measurements","columns":["name"],"values":[["mem"]]}]`,
+			expected: `[{"name":"measurements","columns":["name"],"values":[["cpu_sys"],["mem_used"]]}]`,
+		},
+		{
+			stmt:     `SHOW MEASUREMENTS WHERE cpuid != '' AND region != ''`,
+			expected: `[{"name":"measurements","columns":["name"],"values":[["cpu_sys"],["cpu_user"]]}]`,
 		},
 		{
 			stmt:     `SHOW MEASUREMENTS WHERE host='serverX'`,
