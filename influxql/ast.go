@@ -96,6 +96,7 @@ func (*DropServerStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
+func (*RenameDatabaseStatement) node()        {}
 func (*RevokeStatement) node()                {}
 func (*RevokeAdminStatement) node()           {}
 func (*SelectStatement) node()                {}
@@ -203,6 +204,7 @@ func (*DropServerStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
+func (*RenameDatabaseStatement) stmt()        {}
 func (*ShowContinuousQueriesStatement) stmt() {}
 func (*ShowGrantsForUserStatement) stmt()     {}
 func (*ShowServersStatement) stmt()           {}
@@ -499,6 +501,29 @@ func (s *GrantAdminStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a GrantAdminStatement.
 func (s *GrantAdminStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// RenameDatabaseStatement represents a command for renaming a database.
+type RenameDatabaseStatement struct {
+	// Current name of the database
+	OldName string
+	// New name of the database
+	NewName string
+}
+
+// String returns a string representation of the rename database statement.
+func (s *RenameDatabaseStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("RENAME DATABASE ")
+	_, _ = buf.WriteString(s.OldName)
+	_, _ = buf.WriteString(" TO ")
+	_, _ = buf.WriteString(s.NewName)
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a RenameDatabaseStatement.
+func (s *RenameDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 

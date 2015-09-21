@@ -39,6 +39,7 @@ It has these top-level messages:
 	SetDataCommand
 	SetAdminPrivilegeCommand
 	UpdateNodeCommand
+	RenameDatabaseCommand
 	Response
 	ResponseHeader
 	ErrorResponse
@@ -116,6 +117,7 @@ const (
 	Command_SetDataCommand                   Command_Type = 17
 	Command_SetAdminPrivilegeCommand         Command_Type = 18
 	Command_UpdateNodeCommand                Command_Type = 19
+	Command_RenameDatabaseCommand            Command_Type = 20
 )
 
 var Command_Type_name = map[int32]string{
@@ -138,6 +140,7 @@ var Command_Type_name = map[int32]string{
 	17: "SetDataCommand",
 	18: "SetAdminPrivilegeCommand",
 	19: "UpdateNodeCommand",
+	20: "RenameDatabaseCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -159,6 +162,7 @@ var Command_Type_value = map[string]int32{
 	"SetDataCommand":                   17,
 	"SetAdminPrivilegeCommand":         18,
 	"UpdateNodeCommand":                19,
+	"RenameDatabaseCommand":            20,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1225,6 +1229,38 @@ var E_UpdateNodeCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,119,opt,name=command",
 }
 
+type RenameDatabaseCommand struct {
+	OldName          *string `protobuf:"bytes,1,req,name=oldName" json:"oldName,omitempty"`
+	NewName          *string `protobuf:"bytes,2,req,name=newName" json:"newName,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *RenameDatabaseCommand) Reset()         { *m = RenameDatabaseCommand{} }
+func (m *RenameDatabaseCommand) String() string { return proto.CompactTextString(m) }
+func (*RenameDatabaseCommand) ProtoMessage()    {}
+
+func (m *RenameDatabaseCommand) GetOldName() string {
+	if m != nil && m.OldName != nil {
+		return *m.OldName
+	}
+	return ""
+}
+
+func (m *RenameDatabaseCommand) GetNewName() string {
+	if m != nil && m.NewName != nil {
+		return *m.NewName
+	}
+	return ""
+}
+
+var E_RenameDatabaseCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*RenameDatabaseCommand)(nil),
+	Field:         120,
+	Name:          "internal.RenameDatabaseCommand.command",
+	Tag:           "bytes,120,opt,name=command",
+}
+
 type Response struct {
 	OK               *bool   `protobuf:"varint,1,req,name=OK" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt,name=Error" json:"Error,omitempty"`
@@ -1453,4 +1489,5 @@ func init() {
 	proto.RegisterExtension(E_SetDataCommand_Command)
 	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
 	proto.RegisterExtension(E_UpdateNodeCommand_Command)
+	proto.RegisterExtension(E_RenameDatabaseCommand_Command)
 }
