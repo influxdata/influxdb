@@ -19,7 +19,7 @@ var (
 	database      = flag.String("database", "stress", "name of database")
 	address       = flag.String("addr", "localhost:8086", "IP address and port of database (e.g., localhost:8086)")
 	precision     = flag.String("precision", "n", "The precision that points in the database will be with")
-	test          = flag.String("test", "example.toml", "The stress test file")
+	test          = flag.String("test", "", "The stress test file")
 )
 
 var ms runner.Measurements
@@ -29,16 +29,31 @@ func init() {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	cfg, err := runner.DecodeFile(*test)
+	var cfg *runner.Config
+	var err error
 
-	fmt.Println(err)
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	cfg = runner.NewConfig()
 
 	if len(ms) == 0 {
 		ms = append(ms, "cpu")
+	}
+
+	for _, m := range ms {
+		fmt.Println(m)
+		cfg.Series = append(cfg.Series, runner.NewSeries(m, 100, 100000))
+	}
+
+	if *test != "" {
+		cfg, err = runner.DecodeFile(*test)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
 	}
 
 	totalPoints, failedRequests, responseTimes, timer := runner.Run(cfg)

@@ -66,6 +66,46 @@ type Config struct {
 	Queries []query  `toml:"query"`
 }
 
+func NewSeries(m string, p int, sc int) series {
+	s := series{
+		PointCount:  p,
+		SeriesCount: sc,
+		Measurement: m,
+		Tags: []tag{
+			tag{
+				Key:   "host",
+				Value: "server",
+			},
+		},
+		Fields: []field{
+			field{
+				Key: "value",
+			},
+		},
+	}
+
+	return s
+}
+
+func NewConfig() *Config {
+
+	w := write{
+		Concurrency:   10,
+		BatchSize:     5000,
+		BatchInterval: "0s",
+		Database:      "stress",
+		ResetDatabase: true,
+		Address:       "localhost:8086",
+		Precision:     "n",
+	}
+
+	c := &Config{
+		Write: w,
+	}
+
+	return c
+}
+
 // DecodeFile takes a file path for a toml config file
 // and returns a pointer to a Config Struct.
 func DecodeFile(s string) (*Config, error) {
