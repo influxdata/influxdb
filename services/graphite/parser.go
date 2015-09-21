@@ -111,11 +111,11 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 		return nil, fmt.Errorf(`field "%s" value: %s`, fields[0], err)
 	}
 
-  fieldValues := map[string]interface{}{}
+	fieldValues := map[string]interface{}{}
 	if field != "" {
-    fieldValues[field] = v
+		fieldValues[field] = v
 	} else {
-    fieldValues["value"] = v
+		fieldValues["value"] = v
 	}
 
 	// If no 3rd field, use now as timestamp
