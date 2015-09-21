@@ -2,6 +2,7 @@
 
 ### Features
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
+- [#4161](https://github.com/influxdb/influxdb/pull/4161): Implement bottom selector function.
 
 ## v0.9.4 [2015-09-14]
 
