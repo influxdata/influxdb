@@ -29,7 +29,7 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 	}
 
 	if err := w.Open(); err != nil {
-		t.Fatalf("error opening: %s", err.Error)
+		t.Fatalf("error opening: %s", err.Error())
 	}
 
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
@@ -70,7 +70,7 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 
 	// ensure we can do another write to the wal and get stuff
 	if err := w.WritePoints([]models.Point{p3}, nil, nil); err != nil {
-		t.Fatalf("failed to write: %s", err.Error)
+		t.Fatalf("failed to write: %s", err.Error())
 	}
 
 	c = w.Cursor("cpu,host=A", fieldNames, codec, true)
@@ -120,7 +120,7 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 	}
 
 	if err := w.WritePoints([]models.Point{p4}, nil, nil); err != nil {
-		t.Fatalf("failed to write: %s", err.Error)
+		t.Fatalf("failed to write: %s", err.Error())
 	}
 	c = w.Cursor("cpu,host=B", fieldNames, codec, true)
 	k, v = c.Next()
