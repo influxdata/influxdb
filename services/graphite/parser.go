@@ -111,10 +111,11 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 		return nil, fmt.Errorf(`field "%s" value: %s`, fields[0], err)
 	}
 
+  fieldValues := map[string]interface{}{}
 	if field != "" {
-		fieldValues := map[string]interface{}{field: v}
+    fieldValues[field] = v
 	} else {
-		fieldValues := map[string]interface{}{"value": v}
+    fieldValues["value"] = v
 	}
 
 	// If no 3rd field, use now as timestamp
@@ -201,12 +202,7 @@ func (t *template) Apply(line string) (string, map[string]string, string) {
 		if tag == "measurement" {
 			measurement = append(measurement, fields[i])
 		} else if tag == "field" {
-      // FIXME: cant add error here..
-      //if len(field) == 0 {
-      //  // FIXME - more informative error message
-			//	return nil, fmt.Errorf("template can only have one field defined")
-			//}
-			field = field
+			field = fields[i]
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
 			break
