@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/pkg/slices"
 )
 
 // MapperValue is a complex type, which can encapsulate data from both raw and aggregate
@@ -566,7 +567,8 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			}
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			nextf := func() (_ int64, value interface{}) {
-				k, v := tsc.Next(qmin, qmax, []string{lm.fieldNames[i]}, lm.whereFields)
+				fields := slices.Union(lm.selectFields, lm.fieldNames, false)
+				k, v := tsc.Next(qmin, qmax, fields, lm.whereFields)
 				return k, v
 			}
 

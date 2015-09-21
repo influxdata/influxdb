@@ -1343,41 +1343,41 @@ func TestServer_Query_Alias(t *testing.T) {
 	test.write = strings.Join(writes, "\n")
 
 	test.addQueries([]*Query{
-		&Query{
-			name:    "baseline query - SELECT * FROM db0.rp0.cpu",
-			command: `SELECT * FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","value"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
-		},
-		&Query{
-			name:    "basic query with alias - SELECT steps, value as v FROM db0.rp0.cpu",
-			command: `SELECT steps, value as v FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","v"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
-		},
-		&Query{
-			name:    "double aggregate sum - SELECT sum(value), sum(steps) FROM db0.rp0.cpu",
-			command: `SELECT sum(value), sum(steps) FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
-		},
-		&Query{
-			name:    "double aggregate sum reverse order - SELECT sum(steps), sum(value) FROM db0.rp0.cpu",
-			command: `SELECT sum(steps), sum(value) FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
-		},
-		&Query{
-			name:    "double aggregate sum with alias - SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu",
-			command: `SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sumv","sums"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
-		},
-		&Query{
-			name:    "double aggregate with same value - SELECT sum(value), mean(value) FROM db0.rp0.cpu",
-			command: `SELECT sum(value), mean(value) FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",3,1.5]]}]}]}`,
-		},
-		&Query{
-			name:    "double aggregate with same value and same alias - SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu",
-			command: `SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","mv","mv"],"values":[["1970-01-01T00:00:00Z",1.5,2]]}]}]}`,
-		},
+		//&Query{
+		//name:    "baseline query - SELECT * FROM db0.rp0.cpu",
+		//command: `SELECT * FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","value"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
+		//},
+		//&Query{
+		//name:    "basic query with alias - SELECT steps, value as v FROM db0.rp0.cpu",
+		//command: `SELECT steps, value as v FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","v"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
+		//},
+		//&Query{
+		//name:    "double aggregate sum - SELECT sum(value), sum(steps) FROM db0.rp0.cpu",
+		//command: `SELECT sum(value), sum(steps) FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+		//},
+		//&Query{
+		//name:    "double aggregate sum reverse order - SELECT sum(steps), sum(value) FROM db0.rp0.cpu",
+		//command: `SELECT sum(steps), sum(value) FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
+		//},
+		//&Query{
+		//name:    "double aggregate sum with alias - SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu",
+		//command: `SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sumv","sums"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+		//},
+		//&Query{
+		//name:    "double aggregate with same value - SELECT sum(value), mean(value) FROM db0.rp0.cpu",
+		//command: `SELECT sum(value), mean(value) FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",3,1.5]]}]}]}`,
+		//},
+		//&Query{
+		//name:    "double aggregate with same value and same alias - SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu",
+		//command: `SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu`,
+		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","mv","mv"],"values":[["1970-01-01T00:00:00Z",1.5,2]]}]}]}`,
+		//},
 		&Query{
 			name:    "double aggregate with non-existent field - SELECT mean(value), max(foo) FROM db0.rp0.cpu",
 			command: `SELECT mean(value), max(foo) FROM db0.rp0.cpu`,
@@ -1833,7 +1833,7 @@ func TestServer_Query_Regex(t *testing.T) {
 	}
 }
 
-func TestServer_Query_Aggregates(t *testing.T) {
+func TestServer_Query_AggregatesCommon(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -1922,13 +1922,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "first - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "last - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - int",
@@ -2051,13 +2051,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "first - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "last - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - float",
@@ -2185,13 +2185,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "FIRST on string data - string",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM stringdata`,
-			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","first"],"values":[["1970-01-01T00:00:00Z","first"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","first"],"values":[["2000-01-01T00:00:03Z","first"]]}]}]}`,
 		},
 		&Query{
 			name:    "LAST on string data - string",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM stringdata`,
-			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["1970-01-01T00:00:00Z","last"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["2000-01-01T00:00:04Z","last"]]}]}]}`,
 		},
 
 		// general queries
@@ -2222,6 +2222,62 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",75]]}]}]}`,
 		},
 
+		// group by
+		&Query{
+			name:    "max order by time with time specified group by 10s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(10s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:00Z",7],["2000-01-01T00:01:10Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "max order by time without time specified group by 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T00:00:30Z",5],["2000-01-01T00:01:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "max order by time with time specified group by 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:01:10Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "min order by time without time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT min(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:15Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:45Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "min order by time with time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, min(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "first order by time without time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT first(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:15Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:45Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "first order by time with time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, first(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "last order by time without time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT last(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T00:00:15Z",4],["2000-01-01T00:00:30Z",5],["2000-01-01T00:00:45Z",5],["2000-01-01T00:01:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "last order by time with time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, last(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:10Z",9]]}]}]}`,
+		},
+
 		// order by time desc
 		&Query{
 			name:    "aggregate order by time desc",
@@ -2249,7 +2305,74 @@ func TestServer_Query_Aggregates(t *testing.T) {
 	}
 }
 
-func TestServer_Query_AggregatesTopInt(t *testing.T) {
+func TestServer_Query_AggregateSelectors(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`network,host=server01,region=west,core=1 rx=10i,tx=20i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server02,region=west,core=2 rx=40i,tx=50i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server03,region=east,core=3 rx=40i,tx=55i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`network,host=server04,region=east,core=4 rx=40i,tx=60i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`network,host=server05,region=west,core=1 rx=50i,tx=70i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`network,host=server06,region=east,core=2 rx=50i,tx=40i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`network,host=server07,region=west,core=3 rx=70i,tx=30i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server08,region=east,core=4 rx=90i,tx=10i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			skip:    true,
+			name:    "baseline",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM network`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","host","region","rx","tx"],"values":[["2000-01-01T00:00:00Z","server01","west",10,20],["2000-01-01T00:00:10Z","server02","west",40,50],["2000-01-01T00:00:20Z","server03","east",40,55],["2000-01-01T00:00:30Z","server04","east",40,60],["2000-01-01T00:00:40Z","server05","west",50,70],["2000-01-01T00:00:50Z","server06","east",50,40],["2000-01-01T00:01:00Z","server07","west",70,30],["2000-01-01T00:01:10Z","server08","east",90,10]]}]}]}`,
+		},
+		&Query{
+			skip:    true,
+			name:    "max - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",90]]}]}]}`,
+		},
+		&Query{
+			name:    "max - time and tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, tx, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","max"],"values":[["2000-01-01T00:00:10Z",50,40],["2000-01-01T00:00:40Z",70,50],["2000-01-01T00:01:10Z",10,90]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_TopInt(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -2437,7 +2560,7 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 }
 
 // Test various aggregates when different series only have data for the same timestamp.
-func TestServer_Query_AggregatesIdenticalTime(t *testing.T) {
+func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -2469,14 +2592,14 @@ func TestServer_Query_AggregatesIdenticalTime(t *testing.T) {
 			name:    "last from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT last(value) FROM "series"`,
-			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",5]]}]}]}`,
 			repeat:  100,
 		},
 		&Query{
 			name:    "first from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT first(value) FROM "series"`,
-			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",5]]}]}]}`,
 			repeat:  100,
 		},
 	}...)

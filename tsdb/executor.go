@@ -525,8 +525,8 @@ func (e *SelectExecutor) executeAggregate(out chan *models.Row) {
 			}
 		}
 
-		// Perform top/bottom unwraps
-		values, err = e.processTopBottom(values, columnNames)
+		// Perform aggregate unwraps
+		values, err = e.processFunctions(values, columnNames)
 		if err != nil {
 			out <- &models.Row{Err: err}
 		}
@@ -625,24 +625,74 @@ func (e *SelectExecutor) close() {
 	}
 }
 
-func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
-	aggregates := e.stmt.FunctionCalls()
-	var call *influxql.Call
-	process := false
-	for _, c := range aggregates {
-		if c.Name == "top" || c.Name == "bottom" {
-			process = true
-			call = c
-			break
+func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
+	calls := e.stmt.FunctionCalls()
+
+	var err error
+	for _, c := range calls {
+		switch c.Name {
+		case "top", "bottom":
+			results, err = e.processAggregates(results, columnNames, c)
+			if err != nil {
+				return results, err
+			}
+		case "first", "last", "min", "max":
+			results, err = e.processSelectors(results, columnNames)
+			if err != nil {
+				return results, err
+			}
 		}
 	}
-	if !process {
-		return results, nil
+
+	return results, nil
+}
+
+func (e *SelectExecutor) processSelectors(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
+	for _, vals := range results {
+		for j := 1; j < len(vals); j++ {
+			switch v := vals[j].(type) {
+			case PositionPoint:
+				tMin := vals[0].(time.Time)
+				e.selectorPointToQueryResult(vals, j, v, tMin, columnNames)
+			}
+		}
 	}
+	//spew.Dump(results)
+	return results, nil
+}
+
+func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) {
+	callCount := len(e.stmt.FunctionCalls())
+	if callCount == 1 {
+		tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+		// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
+		if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
+			tm = tMin.UTC().Format(time.RFC3339Nano)
+		}
+		row[0] = tm
+	}
+	for i, c := range columnNames {
+		if i == columnIndex {
+			row[i] = p.Value
+			continue
+		}
+
+		if callCount == 1 {
+			// Always favor fields over tags if there is a name collision
+			if t, ok := p.Fields[c]; ok {
+				row[i] = t
+			} else if t, ok := p.Tags[c]; ok {
+				// look in the tags for a value
+				row[i] = t
+			}
+		}
+	}
+}
+
+func (e *SelectExecutor) processAggregates(results [][]interface{}, columnNames []string, call *influxql.Call) ([][]interface{}, error) {
 	var values [][]interface{}
 
 	// Check if we have a group by, if not, rewrite the entire result by flattening it out
-	//if len(e.stmt.Dimensions) == 0 {
 	for _, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
@@ -650,20 +700,20 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 			case PositionPoints:
 				tMin := vals[0].(time.Time)
 				for _, p := range v {
-					result := e.topBottomPointToQueryResult(p, tMin, call, columnNames)
+					result := e.aggregatePointToQueryResult(p, tMin, call, columnNames)
 					values = append(values, result)
 				}
 			case nil:
 				continue
 			default:
-				return nil, fmt.Errorf("unrechable code - processTopBottom")
+				return nil, fmt.Errorf("unrechable code - processAggregates for type %T %v", v, v)
 			}
 		}
 	}
 	return values, nil
 }
 
-func (e *SelectExecutor) topBottomPointToQueryResult(p PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
+func (e *SelectExecutor) aggregatePointToQueryResult(p PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
 	tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
 	// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
 	if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
