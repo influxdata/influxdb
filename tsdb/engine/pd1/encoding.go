@@ -4,7 +4,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/dgryski/go-tsz"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -127,23 +126,59 @@ func (f *FloatValue) Size() int {
 	return 16
 }
 
-// TODO: make this work with nanosecond timestamps
 func EncodeFloatBlock(buf []byte, values []*FloatValue) []byte {
-	s := tsz.New(uint32(values[0].Time().Unix()))
-	for _, v := range values {
-		s.Push(uint32(v.Time().Unix()), v.value)
+	if len(values) == 0 {
+		return []byte{}
 	}
-	s.Finish()
-	return append(u64tob(uint64(values[0].Time().UnixNano())), s.Bytes()...)
+
+	// A float block is encoded using different compression strategies
+	// for timestamps and values.
+
+	// Encode values using Gorilla float compression
+	venc := NewFloatEncoder()
+
+	// Encode timestamps using an adaptive encoder that uses delta-encoding,
+	// frame-or-reference and run length encoding.
+	tsenc := NewTimeEncoder()
+
+	for _, v := range values {
+		tsenc.Write(v.Time())
+		venc.Push(v.value)
+	}
+	venc.Finish()
+
+	// Encoded timestamp values
+	tb, err := tsenc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+	// Encoded float values
+	vb := venc.Bytes()
+
+	// Preprend the first timestamp of the block in the first 8 bytes
+	return append(u64tob(uint64(values[0].Time().UnixNano())),
+		packBlock(tb, vb)...)
 }
 
 func DecodeFloatBlock(block []byte) ([]Value, error) {
-	iter, _ := tsz.NewIterator(block[8:])
-	a := make([]Value, 0)
-	for iter.Next() {
-		t, f := iter.Values()
-		a = append(a, &FloatValue{time.Unix(int64(t), 0), f})
+	// The first 8 bytes is the minimum timestamp of the block
+	tb, vb := unpackBlock(block[8:])
+
+	// Setup our timestamp and value decoders
+	dec := NewTimeDecoder(tb)
+	iter, err := NewFloatDecoder(vb)
+	if err != nil {
+		return nil, err
 	}
+
+	// Decode both a timestamp and value
+	var a []Value
+	for dec.Next() && iter.Next() {
+		ts := dec.Read()
+		v := iter.Values()
+		a = append(a, &FloatValue{ts, v})
+	}
+
 	return a, nil
 }
 
@@ -180,4 +215,30 @@ type StringValue struct {
 
 func EncodeStringBlock(buf []byte, values []StringValue) []byte {
 	return nil
+}
+
+func packBlock(ts []byte, values []byte) []byte {
+	// We encode the length of the timestamp block using a variable byte encoding.
+	// This allows small byte slices to take up 1 byte while larger ones use 2 or more.
+	b := make([]byte, 10)
+	i := binary.PutUvarint(b, uint64(len(ts)))
+
+	// block is <len timestamp bytes>, <ts bytes>, <value bytes>
+	block := append(b[:i], ts...)
+
+	// We don't encode the value length because we know it's the rest of the block after
+	// the timestamp block.
+	return append(block, values...)
+}
+
+func unpackBlock(buf []byte) (ts, values []byte) {
+	// Unpack the timestamp block length
+	tsLen, i := binary.Uvarint(buf)
+
+	// Unpack the timestamp bytes
+	ts = buf[int(i) : int(i)+int(tsLen)]
+
+	// Unpack the value bytes
+	values = buf[int(i)+int(tsLen):]
+	return
 }
