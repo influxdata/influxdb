@@ -29,11 +29,11 @@ func init() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	flag.Parse()
-
 	var cfg *runner.Config
 	var err error
+
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	flag.Parse()
 
 	cfg = runner.NewConfig()
 

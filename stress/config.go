@@ -66,6 +66,8 @@ type Config struct {
 	Queries []query  `toml:"query"`
 }
 
+// NewSeries, takes a measurement, and point count,
+// and a series count and returns a series
 func NewSeries(m string, p int, sc int) series {
 	s := series{
 		PointCount:  p,
@@ -87,6 +89,8 @@ func NewSeries(m string, p int, sc int) series {
 	return s
 }
 
+// NewConfig returns a pointer to a config
+// with some default parameters set
 func NewConfig() *Config {
 
 	w := write{
