@@ -22,6 +22,11 @@ type MapperValue struct {
 	Tags  map[string]string `json:"tags,omitempty"`  // Meta tags for results
 }
 
+type MapperValueAsJSON struct {
+	Time  int64
+	Value json.RawMessage
+}
+
 type MapperValues []*MapperValue
 
 func (a MapperValues) Len() int           { return len(a) }
@@ -34,6 +39,12 @@ type MapperOutput struct {
 	Fields    []string          `json:"fields,omitempty"` // Field names of returned data.
 	Values    []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 	cursorKey string            // Tagset-based key for the source cursor. Cached for performance reasons.
+
+	// Add slice here of aggregate functions used to generate this data.
+	// This state will help with marshaling.
+	//
+	// XXX Is this necessary? Isn't the data within values of the right type before
+	// it goes out over the network? Is this actually a local-node issue?
 }
 
 func (mo *MapperOutput) key() string {
