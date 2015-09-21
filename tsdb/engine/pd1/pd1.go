@@ -1518,6 +1518,10 @@ func newCursor(id uint64, files []*dataFile, ascending bool) *cursor {
 }
 
 func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
+	if len(c.files) == 0 {
+		return tsdb.EOF, nil
+	}
+
 	if seek < c.files[0].MinTime() {
 		c.filesPos = 0
 		c.f = c.files[0]
