@@ -35,6 +35,10 @@ func main() {
 		ms = append(ms, "cpu")
 	}
 
+	if *pointCount**seriesCount < *batchSize {
+		*batchSize = *pointCount * *seriesCount
+	}
+
 	cfg := &runner.Config{
 		BatchSize:     *batchSize,
 		Measurements:  ms,
@@ -51,17 +55,23 @@ func main() {
 
 	sort.Sort(sort.Reverse(sort.Interface(responseTimes)))
 
-	total := int64(0)
+	var total, mean int64
 	for _, t := range responseTimes {
 		total += int64(t.Value)
 	}
-	mean := total / int64(len(responseTimes))
+	if len(responseTimes) > 0 {
+		mean = total / int64(len(responseTimes))
+	}
 
 	fmt.Printf("Wrote %d points at average rate of %.0f\n", totalPoints, float64(totalPoints)/timer.Elapsed().Seconds())
 	fmt.Printf("%d requests failed for %d total points that didn't get posted.\n", failedRequests, failedRequests**batchSize)
 	fmt.Println("Average response time: ", time.Duration(mean))
 	fmt.Println("Slowest response times:")
-	for _, r := range responseTimes[:100] {
+
+	if len(responseTimes) > 100 {
+		responseTimes = responseTimes[:100]
+	}
+	for _, r := range responseTimes {
 		fmt.Println(time.Duration(r.Value))
 	}
 }
