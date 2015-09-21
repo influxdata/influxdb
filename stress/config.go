@@ -128,11 +128,6 @@ func (s *series) newFieldMap() map[string]interface{} {
 
 // Next returns a new point for a series.
 // Currently, there is an off by one bug here.
-// When I try to fix it, I end up creating another off
-// by one bug.
-// BUG: I can either miss one point from n different series,
-//      or miss n points from one series. At the moment,
-//      I've chosed to go with the n points from one series.
 func (iter *seriesIter) Next() (client.Point, bool) {
 	iter.count++
 	p := client.Point{
