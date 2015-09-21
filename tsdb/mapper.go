@@ -463,7 +463,7 @@ func (m *AggregateMapper) openMeasurement(mm *Measurement) error {
 		cursors := []*TagsCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, selectFields, m.shard.FieldCodec(mm.Name), true)
+			c := m.tx.Cursor(key, m.fieldNames, m.shard.FieldCodec(mm.Name), true)
 			if c == nil {
 				continue
 			}
@@ -603,17 +603,15 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		tsc.WhereFields = m.whereFields
 
 		// Execute the map function which walks the entire interval, and aggregates the result.
-		output.Values[0].Value = append(
-			output.Values[0].Value.([]interface{}),
-			m.mapFuncs[i](&AggregateTagSetCursor{
-				cursor: tsc,
-				tmin:   tmin,
-				stmt:   m.stmt,
+		mapValue := m.mapFuncs[i](&AggregateTagSetCursor{
+			cursor: tsc,
+			tmin:   tmin,
+			stmt:   m.stmt,
 
-				qmin: qmin,
-				qmax: qmax,
-			}),
-		)
+			qmin: qmin,
+			qmax: qmax,
+		})
+		output.Values[0].Value = append(output.Values[0].Value.([]interface{}), mapValue)
 	}
 
 	return output, nil

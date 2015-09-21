@@ -244,6 +244,30 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 			continue
 		}
 
+		// Filter value.
+		if p.cursor.filter != nil {
+			// Convert value to a map for filter evaluation.
+			m, ok := value.(map[string]interface{})
+			if !ok {
+				m = map[string]interface{}{tsc.SelectFields[0]: value}
+			}
+
+			// If filter fails then skip to the next value.
+			if !influxql.EvalBool(p.cursor.filter, m) {
+				continue
+			}
+		}
+
+		// Filter out single field, if specified.
+		if len(tsc.SelectFields) == 1 {
+			if m, ok := value.(map[string]interface{}); ok {
+				value = m[tsc.SelectFields[0]]
+			}
+			if value == nil {
+				continue
+			}
+		}
+
 		return timestamp, value
 	}
 }
@@ -251,45 +275,6 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 // Tags returns the current tags of the current cursor
 // if there is no current currsor, it returns nil
 func (tsc *TagSetCursor) Tags() map[string]string { return tsc.currentTags }
-
-// decodeRawPoint decodes raw point data into field names & values and does WHERE filtering.
-// func (tsc *TagSetCursor) decodeRawPoint(p *pointHeapItem) interface{} {
-// 	if len(tsc.SelectFields) > 1 {
-// 		if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value); err == nil {
-// 			// If there's a where clause, make sure we don't need to filter this value
-// 			if p.cursor.filter != nil && !influxql.EvalBool(p.cursor.filter, fieldsWithNames) {
-// 				return nil
-// 			}
-
-// 			return fieldsWithNames
-// 		}
-// 	}
-
-// 	// With only 1 field SELECTed, decoding all fields may be avoidable, which is faster.
-// 	value, err := tsc.decoder.DecodeByName(tsc.SelectFields[0], p.value)
-// 	if err != nil {
-// 		return nil
-// 	}
-
-// 	// Return value if there's no filter.
-// 	if p.cursor.filter == nil {
-// 		return value
-// 	}
-
-// 	// See if the WHERE is only on this field or on one or more other fields.
-// 	// If the latter, we'll have to decode everything
-// 	if len(tsc.WhereFields) == 1 && tsc.WhereFields[0] == tsc.SelectFields[0] {
-// 		if !influxql.EvalBool(p.cursor.filter, map[string]interface{}{tsc.SelectFields[0]: value}) {
-// 			value = nil
-// 		}
-// 	} else {
-// 		fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value)
-// 		if err != nil || !influxql.EvalBool(p.cursor.filter, fieldsWithNames) {
-// 			value = nil
-// 		}
-// 	}
-// 	return value
-// }
 
 type pointHeapItem struct {
 	timestamp int64

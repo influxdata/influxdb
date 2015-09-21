@@ -77,8 +77,7 @@ func main() {
 
 				for _, key := range series {
 					fieldSummary := []string{}
-
-					cursor := tx.Cursor(key, true)
+					cursor := tx.Cursor(key, m.FieldNames(), shard.FieldCodec(m.Name), true)
 
 					// Series doesn't exist in this shard
 					if cursor == nil {
@@ -86,21 +85,16 @@ func main() {
 					}
 
 					// Seek to the beginning
-					_, value := cursor.Seek([]byte{})
-					codec := shard.FieldCodec(m.Name)
-					if codec != nil {
-						fields, err := codec.DecodeFieldsWithNames(value)
-						if err != nil {
-							fmt.Printf("Failed to decode values: %v", err)
-						}
-
+					_, fields := cursor.Seek(0)
+					if fields, ok := fields.(map[string]interface{}); ok {
 						for field, value := range fields {
 							fieldSummary = append(fieldSummary, fmt.Sprintf("%s:%T", field, value))
 						}
 						sort.Strings(fieldSummary)
+
+						fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d\t%d [%s]\t%d\n", shardID, db, m.Name, len(tags), tagValues,
+							len(fields), strings.Join(fieldSummary, ","), len(series))
 					}
-					fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d\t%d [%s]\t%d\n", shardID, db, m.Name, len(tags), tagValues,
-						len(fields), strings.Join(fieldSummary, ","), len(series))
 					break
 				}
 				tx.Rollback()
