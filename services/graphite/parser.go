@@ -201,9 +201,11 @@ func (t *template) Apply(line string) (string, map[string]string, string) {
 		if tag == "measurement" {
 			measurement = append(measurement, fields[i])
 		} else if tag == "field" {
-			if field != "" {
-				return nil, fmt.Errorf(`template can only have one field defined: %s`, line)
-			}
+      // FIXME: cant add error here..
+      //if len(field) == 0 {
+      //  // FIXME - more informative error message
+			//	return nil, fmt.Errorf("template can only have one field defined")
+			//}
 			field = field
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
