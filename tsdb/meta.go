@@ -170,7 +170,7 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 	return nil, fmt.Errorf("%#v", expr)
 }
 
-// measurementsByTagFilters returns the measurements matching the filters on tag values.
+// measurementsByTagFilters returns the sorted measurements matching the filters on tag values.
 func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurements {
 	// If no filters, then return all measurements.
 	if len(filters) == 0 {
@@ -228,6 +228,7 @@ func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurem
 		}
 	}
 
+	sort.Sort(measurements)
 	return measurements
 }
 
