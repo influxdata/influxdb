@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 
 // Executor is an interface for a query executor.
 type Executor interface {
-	Execute() <-chan *influxql.Row
+	Execute() <-chan *models.Row
 }
 
 // Mapper is the interface all Mapper types must implement.
@@ -81,9 +82,9 @@ func NewSelectExecutor(stmt *influxql.SelectStatement, mappers []Mapper, chunkSi
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *SelectExecutor) Execute() <-chan *influxql.Row {
+func (e *SelectExecutor) Execute() <-chan *models.Row {
 	// Create output channel and stream data in a separate goroutine.
-	out := make(chan *influxql.Row, 0)
+	out := make(chan *models.Row, 0)
 
 	// Certain operations on the SELECT statement can be performed by the SelectExecutor without
 	// assistance from the Mappers. This allows the SelectExecutor to prepare aggregation functions
@@ -168,14 +169,14 @@ func (e *SelectExecutor) limitTagSet(tagset string) {
 	e.limitedTagSets[tagset] = struct{}{}
 }
 
-func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
+func (e *SelectExecutor) executeRaw(out chan *models.Row) {
 	// It's important that all resources are released when execution completes.
 	defer e.close()
 
 	// Open the mappers.
 	for _, m := range e.mappers {
 		if err := m.Open(); err != nil {
-			out <- &influxql.Row{Err: err}
+			out <- &models.Row{Err: err}
 			return
 		}
 	}
@@ -212,7 +213,7 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 				if m.bufferedChunk == nil {
 					m.bufferedChunk, err = m.NextChunk()
 					if err != nil {
-						out <- &influxql.Row{Err: err}
+						out <- &models.Row{Err: err}
 						return
 					}
 					if m.bufferedChunk == nil {
@@ -357,7 +358,7 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 		if e.stmt.HasDerivative() {
 			interval, err := derivativeInterval(e.stmt)
 			if err != nil {
-				out <- &influxql.Row{Err: err}
+				out <- &models.Row{Err: err}
 				return
 			}
 			rowWriter.transformer = &RawQueryDerivativeProcessor{
@@ -377,7 +378,7 @@ func (e *SelectExecutor) executeRaw(out chan *influxql.Row) {
 	close(out)
 }
 
-func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
+func (e *SelectExecutor) executeAggregate(out chan *models.Row) {
 	// It's important to close all resources when execution completes.
 	defer e.close()
 
@@ -390,7 +391,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	for i, c := range aggregates {
 		reduceFunc, err := initializeReduceFunc(c)
 		if err != nil {
-			out <- &influxql.Row{Err: err}
+			out <- &models.Row{Err: err}
 			return
 		}
 		reduceFuncs[i] = reduceFunc
@@ -402,7 +403,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	// Open the mappers.
 	for _, m := range e.mappers {
 		if err := m.Open(); err != nil {
-			out <- &influxql.Row{Err: err}
+			out <- &models.Row{Err: err}
 			return
 		}
 	}
@@ -421,7 +422,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 	for _, m := range e.mappers {
 		m.bufferedChunk, err = m.NextChunk()
 		if err != nil {
-			out <- &influxql.Row{Err: err}
+			out <- &models.Row{Err: err}
 			return
 		}
 		if m.bufferedChunk == nil {
@@ -452,7 +453,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 				if m.bufferedChunk == nil {
 					m.bufferedChunk, err = m.NextChunk()
 					if err != nil {
-						out <- &influxql.Row{Err: err}
+						out <- &models.Row{Err: err}
 						return
 					}
 					if m.bufferedChunk == nil {
@@ -473,14 +474,14 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		}
 
 		// Prep a row, ready for kicking out.
-		var row *influxql.Row
+		var row *models.Row
 
 		// Prep for bucketing data by start time of the interval.
 		buckets := map[int64][][]interface{}{}
 
 		for _, chunk := range chunks {
 			if row == nil {
-				row = &influxql.Row{
+				row = &models.Row{
 					Name:    chunk.Name,
 					Tags:    chunk.Tags,
 					Columns: columnNames,
@@ -527,7 +528,7 @@ func (e *SelectExecutor) executeAggregate(out chan *influxql.Row) {
 		// Perform top/bottom unwraps
 		values, err = e.processTopBottom(values, columnNames)
 		if err != nil {
-			out <- &influxql.Row{Err: err}
+			out <- &models.Row{Err: err}
 		}
 
 		// Perform any mathematics.
@@ -697,7 +698,7 @@ type limitedRowWriter struct {
 	fields      influxql.Fields
 	selectNames []string
 	aliasNames  []string
-	c           chan *influxql.Row
+	c           chan *models.Row
 
 	currValues  []*MapperValue
 	totalOffSet int
@@ -785,7 +786,7 @@ func (r *limitedRowWriter) Flush() {
 }
 
 // processValues emits the given values in a single row.
-func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
+func (r *limitedRowWriter) processValues(values []*MapperValue) *models.Row {
 	defer func() {
 		r.totalSent += len(values)
 	}()
@@ -827,7 +828,7 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 		}
 	}
 
-	row := &influxql.Row{
+	row := &models.Row{
 		Name:    r.name,
 		Tags:    r.tags,
 		Columns: aliasFields,

@@ -14,6 +14,7 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -332,7 +333,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	}
 
 	// Read all rows from the result channel.
-	points := make([]tsdb.Point, 0, 100)
+	points := make([]models.Point, 0, 100)
 	for result := range ch {
 		if result.Err != nil {
 			return result.Err
@@ -397,7 +398,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
 // Used for continuous and INTO queries
-func (s *Service) convertRowToPoints(measurementName string, row *influxql.Row) ([]tsdb.Point, error) {
+func (s *Service) convertRowToPoints(measurementName string, row *models.Row) ([]models.Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
@@ -413,14 +414,14 @@ func (s *Service) convertRowToPoints(measurementName string, row *influxql.Row) 
 		return nil, errors.New("error finding time index in result")
 	}
 
-	points := make([]tsdb.Point, 0, len(row.Values))
+	points := make([]models.Point, 0, len(row.Values))
 	for _, v := range row.Values {
 		vals := make(map[string]interface{})
 		for fieldName, fieldIndex := range fieldIndexes {
 			vals[fieldName] = v[fieldIndex]
 		}
 
-		p := tsdb.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
+		p := models.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
 
 		points = append(points, p)
 	}

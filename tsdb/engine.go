@@ -10,15 +10,13 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/models"
 )
 
 var (
 	// ErrFormatNotFound is returned when no format can be determined from a path.
 	ErrFormatNotFound = errors.New("format not found")
 )
-
-// DefaultEngine is the default engine used by the shard when initializing.
-const DefaultEngine = "bz1"
 
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
@@ -29,7 +27,7 @@ type Engine interface {
 	LoadMetadataIndex(index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
 	Begin(writable bool) (Tx, error)
-	WritePoints(points []Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
+	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)

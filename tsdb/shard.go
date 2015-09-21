@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/internal"
 
 	"github.com/boltdb/bolt"
@@ -191,7 +192,7 @@ type SeriesCreate struct {
 }
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
-func (s *Shard) WritePoints(points []Point) error {
+func (s *Shard) WritePoints(points []models.Point) error {
 	s.statMap.Add(statWriteReq, 1)
 
 	seriesToCreate, fieldsToCreate, seriesToAddShardTo, err := s.validateSeriesAndFields(points)
@@ -372,7 +373,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 }
 
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
-func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*FieldCreate, []string, error) {
+func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate, []*FieldCreate, []string, error) {
 	var seriesToCreate []*SeriesCreate
 	var fieldsToCreate []*FieldCreate
 	var seriesToAddShardTo []string

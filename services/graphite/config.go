@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/toml"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
@@ -82,8 +82,8 @@ func (c *Config) WithDefaults() *Config {
 	return &d
 }
 
-func (c *Config) DefaultTags() tsdb.Tags {
-	tags := tsdb.Tags{}
+func (c *Config) DefaultTags() models.Tags {
+	tags := models.Tags{}
 	for _, t := range c.Tags {
 		parts := strings.Split(t, "=")
 		tags[parts[0]] = parts[1]

@@ -39,6 +39,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -261,7 +262,7 @@ func (l *Log) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
 	return l.partition.cursor(key, direction)
 }
 
-func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
+func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
 	l.statMap.Add(statPointsWriteReq, 1)
 	l.statMap.Add(statPointsWrite, int64(len(points)))
 
@@ -781,6 +782,9 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 
 // Close resets the caches and closes the currently open segment file
 func (p *Partition) Close() error {
+	if p == nil {
+		return nil
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -799,7 +803,7 @@ func (p *Partition) Close() error {
 // Write will write a compressed block of the points to the current segment file. If the segment
 // file is larger than the max size, it will roll over to a new file before performing the write.
 // This method will also add the points to the in memory cache
-func (p *Partition) Write(points []tsdb.Point) error {
+func (p *Partition) Write(points []models.Point) error {
 
 	// Check if we should compact due to memory pressure and if we should fail the write if
 	// we're way too far over the threshold.
@@ -1523,7 +1527,7 @@ func marshalWALEntry(buf *bytes.Buffer, key []byte, timestamp int64, data []byte
 	buf.Write(data)
 }
 
-func walEntryLength(p tsdb.Point) int {
+func walEntryLength(p models.Point) int {
 	return 8 + 4 + 4 + len(p.Key()) + len(p.Data())
 }
 

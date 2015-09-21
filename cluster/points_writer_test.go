@@ -9,7 +9,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 // Ensures the points writer maps a single point to a single shard.
@@ -282,7 +282,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		// lock on the write increment since these functions get called in parallel
 		var mu sync.Mutex
 		sw := &fakeShardWriter{
-			ShardWriteFn: func(shardID, nodeID uint64, points []tsdb.Point) error {
+			ShardWriteFn: func(shardID, nodeID uint64, points []models.Point) error {
 				mu.Lock()
 				defer mu.Unlock()
 				return theTest.err[int(nodeID)-1]
@@ -290,7 +290,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 
 		store := &fakeStore{
-			WriteFn: func(shardID uint64, points []tsdb.Point) error {
+			WriteFn: func(shardID uint64, points []models.Point) error {
 				mu.Lock()
 				defer mu.Unlock()
 				return theTest.err[0]
@@ -298,7 +298,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 
 		hh := &fakeShardWriter{
-			ShardWriteFn: func(shardID, nodeID uint64, points []tsdb.Point) error {
+			ShardWriteFn: func(shardID, nodeID uint64, points []models.Point) error {
 				return nil
 			},
 		}
@@ -331,19 +331,19 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 var shardID uint64
 
 type fakeShardWriter struct {
-	ShardWriteFn func(shardID, nodeID uint64, points []tsdb.Point) error
+	ShardWriteFn func(shardID, nodeID uint64, points []models.Point) error
 }
 
-func (f *fakeShardWriter) WriteShard(shardID, nodeID uint64, points []tsdb.Point) error {
+func (f *fakeShardWriter) WriteShard(shardID, nodeID uint64, points []models.Point) error {
 	return f.ShardWriteFn(shardID, nodeID, points)
 }
 
 type fakeStore struct {
-	WriteFn       func(shardID uint64, points []tsdb.Point) error
+	WriteFn       func(shardID uint64, points []models.Point) error
 	CreateShardfn func(database, retentionPolicy string, shardID uint64) error
 }
 
-func (f *fakeStore) WriteToShard(shardID uint64, points []tsdb.Point) error {
+func (f *fakeStore) WriteToShard(shardID uint64, points []models.Point) error {
 	return f.WriteFn(shardID, points)
 }
 

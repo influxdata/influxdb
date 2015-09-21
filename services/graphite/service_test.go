@@ -9,9 +9,9 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/toml"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 func Test_ServerGraphiteTCP(t *testing.T) {
@@ -43,7 +43,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
 			} else if req.Points[0].String() !=
-				tsdb.NewPoint(
+				models.NewPoint(
 					"cpu",
 					map[string]string{},
 					map[string]interface{}{"value": 23.456},
@@ -112,7 +112,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
 			} else if req.Points[0].String() !=
-				tsdb.NewPoint(
+				models.NewPoint(
 					"cpu",
 					map[string]string{},
 					map[string]interface{}{"value": 23.456},

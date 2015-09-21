@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/pkg/escape"
 	"github.com/influxdb/influxdb/tsdb/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -92,7 +93,7 @@ func (s *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
 func (s *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
-	name = unescapeString(name)
+	name = escape.UnescapeString(name)
 	m := s.measurements[name]
 	if m == nil {
 		m = NewMeasurement(name, s)

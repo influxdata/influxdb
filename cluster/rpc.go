@@ -6,7 +6,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/cluster/internal"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 //go:generate protoc --gogo_out=. internal/data.proto
@@ -79,12 +79,12 @@ type WritePointsRequest struct {
 	Database         string
 	RetentionPolicy  string
 	ConsistencyLevel ConsistencyLevel
-	Points           []tsdb.Point
+	Points           []models.Point
 }
 
 // AddPoint adds a point to the WritePointRequest with field name 'value'
 func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.Points = append(w.Points, tsdb.NewPoint(
+	w.Points = append(w.Points, models.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
 	))
 }
@@ -102,15 +102,15 @@ type WriteShardResponse struct {
 func (w *WriteShardRequest) SetShardID(id uint64) { w.pb.ShardID = &id }
 func (w *WriteShardRequest) ShardID() uint64      { return w.pb.GetShardID() }
 
-func (w *WriteShardRequest) Points() []tsdb.Point { return w.unmarshalPoints() }
+func (w *WriteShardRequest) Points() []models.Point { return w.unmarshalPoints() }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.AddPoints([]tsdb.Point{tsdb.NewPoint(
+	w.AddPoints([]models.Point{models.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
 	)})
 }
 
-func (w *WriteShardRequest) AddPoints(points []tsdb.Point) {
+func (w *WriteShardRequest) AddPoints(points []models.Point) {
 	for _, p := range points {
 		w.pb.Points = append(w.pb.Points, []byte(p.String()))
 	}
@@ -129,10 +129,10 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
-func (w *WriteShardRequest) unmarshalPoints() []tsdb.Point {
-	points := make([]tsdb.Point, len(w.pb.GetPoints()))
+func (w *WriteShardRequest) unmarshalPoints() []models.Point {
+	points := make([]models.Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
-		pt, err := tsdb.ParsePoints(p)
+		pt, err := models.ParsePoints(p)
 		if err != nil {
 			// A error here means that one node parsed the point correctly but sent an
 			// unparseable version to another node.  We could log and drop the point and allow

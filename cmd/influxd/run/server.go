@@ -100,6 +100,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	}
 
 	// Copy TSDB configuration.
+	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
 	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
 	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
 	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
@@ -116,6 +117,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
 	s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
 	s.QueryExecutor.ShardMapper = s.ShardMapper
+	s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
 
 	// Set the shard writer
 	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))

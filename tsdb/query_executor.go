@@ -6,11 +6,11 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 )
 
 // QueryExecutor executes every statement in an influxdb Query. It is responsible for
@@ -46,7 +46,8 @@ type QueryExecutor struct {
 		CreateMapper(shard meta.ShardInfo, stmt influxql.Statement, chunkSize int) (Mapper, error)
 	}
 
-	Logger *log.Logger
+	Logger          *log.Logger
+	QueryLogEnabled bool
 
 	// the local data store
 	Store *Store
@@ -151,7 +152,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			}
 
 			// Log each normalized statement.
-			q.Logger.Println(stmt.String())
+			if q.QueryLogEnabled {
+				q.Logger.Println(stmt.String())
+			}
 
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
@@ -287,11 +290,11 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 			return row.Err
 		}
 		resultSent = true
-		results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
+		results <- &influxql.Result{StatementID: statementID, Series: []*models.Row{row}}
 	}
 
 	if !resultSent {
-		results <- &influxql.Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
+		results <- &influxql.Result{StatementID: statementID, Series: make([]*models.Row, 0)}
 	}
 
 	return nil
@@ -477,7 +480,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 
 	// Create result struct that will be populated and returned.
 	result := &influxql.Result{
-		Series: make(influxql.Rows, 0, len(measurements)),
+		Series: make(models.Rows, 0, len(measurements)),
 	}
 
 	// Loop through measurements to build result. One result row / measurement.
@@ -503,7 +506,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 		}
 
 		// Make a new row for this measurement.
-		r := &influxql.Row{
+		r := &models.Row{
 			Name:    m.Name,
 			Columns: m.TagKeys(),
 		}
@@ -541,8 +544,8 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 // filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
 // Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
 // to the number of total Values returned, since each Value represents a unique series.
-func (q *QueryExecutor) filterShowSeriesResult(limit, offset int, rows influxql.Rows) influxql.Rows {
-	var filteredSeries influxql.Rows
+func (q *QueryExecutor) filterShowSeriesResult(limit, offset int, rows models.Rows) models.Rows {
+	var filteredSeries models.Rows
 	seriesCount := 0
 	for _, r := range rows {
 		var currentSeries [][]interface{}
@@ -615,11 +618,11 @@ func (q *QueryExecutor) executeShowMeasurementsStatement(statementID int, stmt *
 			return row.Err
 		}
 		resultSent = true
-		results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
+		results <- &influxql.Result{StatementID: statementID, Series: []*models.Row{row}}
 	}
 
 	if !resultSent {
-		results <- &influxql.Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
+		results <- &influxql.Result{StatementID: statementID, Series: make([]*models.Row, 0)}
 	}
 
 	return nil
@@ -646,7 +649,7 @@ func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysSt
 
 	// Make result.
 	result := &influxql.Result{
-		Series: make(influxql.Rows, 0, len(measurements)),
+		Series: make(models.Rows, 0, len(measurements)),
 	}
 
 	// Add one row per measurement to the result.
@@ -664,7 +667,7 @@ func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysSt
 		}
 
 		// Make a result row for the measurement.
-		r := &influxql.Row{
+		r := &models.Row{
 			Name:    m.Name,
 			Columns: []string{"tagKey"},
 			Values:  values,
@@ -699,7 +702,7 @@ func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValu
 
 	// Make result.
 	result := &influxql.Result{
-		Series: make(influxql.Rows, 0),
+		Series: make(models.Rows, 0),
 	}
 
 	tagValues := make(map[string]stringSet)
@@ -734,7 +737,7 @@ func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValu
 	}
 
 	for k, v := range tagValues {
-		r := &influxql.Row{
+		r := &models.Row{
 			Name:    k + "TagValues",
 			Columns: []string{k},
 		}
@@ -776,13 +779,13 @@ func (q *QueryExecutor) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKe
 
 	// Make result.
 	result := &influxql.Result{
-		Series: make(influxql.Rows, 0, len(measurements)),
+		Series: make(models.Rows, 0, len(measurements)),
 	}
 
 	// Loop through measurements, adding a result row for each.
 	for _, m := range measurements {
 		// Create a new row.
-		r := &influxql.Row{
+		r := &models.Row{
 			Name:    m.Name,
 			Columns: []string{"fieldKey"},
 		}
@@ -855,22 +858,6 @@ func (q *QueryExecutor) normalizeStatement(stmt influxql.Statement, defaultDatab
 			prefixes[n.Name] = n.Name
 		}
 	})
-	if err != nil {
-		return err
-	}
-
-	// Replace all variable references that used measurement prefixes.
-	influxql.WalkFunc(stmt, func(n influxql.Node) {
-		switch n := n.(type) {
-		case *influxql.VarRef:
-			for k, v := range prefixes {
-				if strings.HasPrefix(n.Val, k+".") {
-					n.Val = v + "." + influxql.QuoteIdent(n.Val[len(k)+1:])
-				}
-			}
-		}
-	})
-
 	return
 }
 

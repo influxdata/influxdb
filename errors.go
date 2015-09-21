@@ -18,6 +18,10 @@ var (
 
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
+func ErrRetentionPolicyNotFound(name string) error {
+	return fmt.Errorf("retention policy not found: %s", name)
+}
+
 func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
 func Errorf(format string, a ...interface{}) (err error) {

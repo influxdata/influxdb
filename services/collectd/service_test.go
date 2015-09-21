@@ -11,8 +11,8 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/toml"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 // Test that the service checks / creates the target database on startup.
@@ -54,7 +54,7 @@ func TestService_BatchSize(t *testing.T) {
 		func() {
 			s := newTestService(batchSize, time.Second)
 
-			pointCh := make(chan tsdb.Point)
+			pointCh := make(chan models.Point)
 			s.MetaStore.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) { return nil, nil }
 			s.PointsWriter.WritePointsFn = func(req *cluster.WritePointsRequest) error {
 				if len(req.Points) != batchSize {
@@ -86,7 +86,7 @@ func TestService_BatchSize(t *testing.T) {
 				t.Fatalf("only sent %d of %d bytes", n, len(testData))
 			}
 
-			points := []tsdb.Point{}
+			points := []models.Point{}
 		Loop:
 			for {
 				select {
@@ -123,7 +123,7 @@ func TestService_BatchDuration(t *testing.T) {
 
 	s := newTestService(5000, 250*time.Millisecond)
 
-	pointCh := make(chan tsdb.Point, 1000)
+	pointCh := make(chan models.Point, 1000)
 	s.MetaStore.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) { return nil, nil }
 	s.PointsWriter.WritePointsFn = func(req *cluster.WritePointsRequest) error {
 		for _, p := range req.Points {
@@ -151,7 +151,7 @@ func TestService_BatchDuration(t *testing.T) {
 		t.Fatalf("only sent %d of %d bytes", n, len(testData))
 	}
 
-	points := []tsdb.Point{}
+	points := []models.Point{}
 Loop:
 	for {
 		select {

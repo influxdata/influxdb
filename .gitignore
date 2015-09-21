@@ -4,8 +4,6 @@ src/
 config.json
 /bin/
 
-/pkg/
-
 TAGS
 
 # vim temp files

@@ -9,6 +9,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 )
 
 // Ensure a CREATE DATABASE statement can be executed.
@@ -57,7 +58,7 @@ func TestStatementExecutor_ExecuteStatement_ShowDatabases(t *testing.T) {
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW DATABASES`)); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Name:    "databases",
 			Columns: []string{"name"},
@@ -99,7 +100,7 @@ func TestStatementExecutor_ExecuteStatement_ShowGrantsFor(t *testing.T) {
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW GRANTS FOR dejan`)); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Columns: []string{"database", "privilege"},
 			Values: [][]interface{}{
@@ -127,7 +128,7 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`)); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Columns: []string{"id", "cluster_addr", "raft"},
 			Values: [][]interface{}{
@@ -257,7 +258,7 @@ func TestStatementExecutor_ExecuteStatement_ShowUsers(t *testing.T) {
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW USERS`)); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Columns: []string{"user", "admin"},
 			Values: [][]interface{}{
@@ -580,7 +581,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies(t *testing.T) 
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES ON db0`)); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Columns: []string{"name", "duration", "replicaN", "default"},
 			Values: [][]interface{}{
@@ -709,7 +710,7 @@ func TestStatementExecutor_ExecuteStatement_ShowContinuousQueries(t *testing.T) 
 	stmt := influxql.MustParseStatement(`SHOW CONTINUOUS QUERIES`)
 	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Name:    "db0",
 			Columns: []string{"name", "query"},
@@ -802,7 +803,7 @@ func TestStatementExecutor_ExecuteStatement_ShowShards(t *testing.T) {
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SHARDS`)); res.Err != nil {
 		t.Fatal(res.Err)
-	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Name:    "foo",
 			Columns: []string{"id", "start_time", "end_time", "expiry_time", "owners"},

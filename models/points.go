@@ -1,14 +1,27 @@
-package tsdb
+package models
 
 import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
-	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/influxdb/influxdb/pkg/escape"
+)
+
+var (
+	measurementEscapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		' ': []byte(`\ `),
+	}
+
+	tagEscapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		' ': []byte(`\ `),
+		'=': []byte(`\=`),
+	}
 )
 
 // Point defines the values that will be written to the database
@@ -33,7 +46,15 @@ type Point interface {
 	Data() []byte
 	SetData(buf []byte)
 
+	// String returns a string representation of the point object, if there is a
+	// timestamp associated with the point then it will be specified with the default
+	// precision of nanoseconds
 	String() string
+
+	// PrecisionString returns a string representation of the point object, if there
+	// is a timestamp associated with the point then it will be specified in the
+	// given unit
+	PrecisionString(precision string) string
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -84,36 +105,7 @@ const (
 	minFloat64Digits = 27
 )
 
-var (
-	// Compile the regex that detects unquoted double quote sequences
-	quoteReplacer = regexp.MustCompile(`([^\\])"`)
-
-	escapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		'"': []byte(`\"`),
-		' ': []byte(`\ `),
-		'=': []byte(`\=`),
-	}
-
-	escapeCodesStr = map[string]string{}
-
-	measurementEscapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		' ': []byte(`\ `),
-	}
-
-	tagEscapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		' ': []byte(`\ `),
-		'=': []byte(`\=`),
-	}
-)
-
-func init() {
-	for k, v := range escapeCodes {
-		escapeCodesStr[string(k)] = string(v)
-	}
-}
+var ()
 
 func ParsePointsString(buf string) ([]Point, error) {
 	return ParsePoints([]byte(buf))
@@ -413,7 +405,7 @@ func less(buf []byte, indices []int, i, j int) bool {
 }
 
 func isFieldEscapeChar(b byte) bool {
-	for c := range escapeCodes {
+	for c := range escape.Codes {
 		if c == b {
 			return true
 		}
@@ -895,62 +887,6 @@ func unescapeTag(in []byte) []byte {
 	return in
 }
 
-func escape(in []byte) []byte {
-	for b, esc := range escapeCodes {
-		in = bytes.Replace(in, []byte{b}, esc, -1)
-	}
-	return in
-}
-
-func escapeString(in string) string {
-	for b, esc := range escapeCodesStr {
-		in = strings.Replace(in, b, esc, -1)
-	}
-	return in
-}
-
-func unescape(in []byte) []byte {
-	i := 0
-	inLen := len(in)
-	var out []byte
-
-	for {
-		if i >= inLen {
-			break
-		}
-		if in[i] == '\\' && i+1 < inLen {
-			switch in[i+1] {
-			case ',':
-				out = append(out, ',')
-				i += 2
-				continue
-			case '"':
-				out = append(out, '"')
-				i += 2
-				continue
-			case ' ':
-				out = append(out, ' ')
-				i += 2
-				continue
-			case '=':
-				out = append(out, '=')
-				i += 2
-				continue
-			}
-		}
-		out = append(out, in[i])
-		i += 1
-	}
-	return out
-}
-
-func unescapeString(in string) string {
-	for b, esc := range escapeCodesStr {
-		in = strings.Replace(in, esc, b, -1)
-	}
-	return in
-}
-
 // escapeStringField returns a copy of in with any double quotes or
 // backslashes with escaped values
 func escapeStringField(in string) string {
@@ -1040,7 +976,7 @@ func (p *point) Name() string {
 	if p.cachedName != "" {
 		return p.cachedName
 	}
-	p.cachedName = string(unescape(p.name()))
+	p.cachedName = string(escape.Unescape(p.name()))
 	return p.cachedName
 }
 
@@ -1166,6 +1102,14 @@ func (p *point) String() string {
 	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields), p.UnixNano())
 }
 
+func (p *point) PrecisionString(precision string) string {
+	if p.Time().IsZero() {
+		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
+	}
+	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields),
+		p.UnixNano()/p.GetPrecisionMultiplier(precision))
+}
+
 func (p *point) unmarshalBinary() Fields {
 	return newFieldsFromBinary(p.fields)
 }
@@ -1261,7 +1205,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 		if len(name) == 0 {
 			continue
 		}
-		name = unescape(name)
+		name = escape.Unescape(name)
 
 		i, valueBuf = scanFieldValue(buf, i+1)
 		if len(valueBuf) == 0 {
@@ -1311,7 +1255,7 @@ func (p Fields) MarshalBinary() []byte {
 
 	for _, k := range keys {
 		v := p[k]
-		b = append(b, []byte(escapeString(k))...)
+		b = append(b, []byte(escape.String(k))...)
 		b = append(b, '=')
 		switch t := v.(type) {
 		case int:

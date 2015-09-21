@@ -16,6 +16,7 @@ import (
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -141,8 +142,8 @@ func TestHandler_Query(t *testing.T) {
 			t.Fatalf("unexpected db: %s", db)
 		}
 		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
-			&influxql.Result{StatementID: 2, Series: influxql.Rows{{Name: "series1"}}},
+			&influxql.Result{StatementID: 1, Series: models.Rows{{Name: "series0"}}},
+			&influxql.Result{StatementID: 2, Series: models.Rows{{Name: "series1"}}},
 			nil,
 		), nil
 	}
@@ -161,8 +162,8 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 	h := NewHandler(false)
 	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series1"}}},
+			&influxql.Result{StatementID: 1, Series: models.Rows{{Name: "series0"}}},
+			&influxql.Result{StatementID: 1, Series: models.Rows{{Name: "series1"}}},
 		), nil
 	}
 
@@ -183,8 +184,8 @@ func TestHandler_Query_Chunked(t *testing.T) {
 			t.Fatalf("unexpected chunk size: %d", chunkSize)
 		}
 		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series1"}}},
+			&influxql.Result{StatementID: 1, Series: models.Rows{{Name: "series0"}}},
+			&influxql.Result{StatementID: 1, Series: models.Rows{{Name: "series1"}}},
 		), nil
 	}
 
@@ -296,7 +297,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 	tests := []struct {
 		name string
 		bp   client.BatchPoints
-		p    []tsdb.Point
+		p    []models.Point
 		err  string
 	}{
 		{
@@ -306,8 +307,8 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Measurement: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
-			p: []tsdb.Point{
-				tsdb.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+			p: []models.Point{
+				models.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -318,8 +319,8 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Measurement: "cpu", Tags: map[string]string{"region": "useast"}, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
-			p: []tsdb.Point{
-				tsdb.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+			p: []models.Point{
+				models.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -331,9 +332,9 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Measurement: "memory", Time: now, Fields: map[string]interface{}{"value": 2.0}},
 				},
 			},
-			p: []tsdb.Point{
-				tsdb.NewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
-				tsdb.NewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
+			p: []models.Point{
+				models.NewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+				models.NewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
 			},
 		},
 	}

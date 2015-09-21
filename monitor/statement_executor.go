@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 )
 
 // StatementExecutor translates InfluxQL queries to Monitor methods.
@@ -31,10 +32,10 @@ func (s *StatementExecutor) executeShowStatistics() *influxql.Result {
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
-	rows := make([]*influxql.Row, len(stats))
+	rows := make([]*models.Row, len(stats))
 
 	for n, stat := range stats {
-		row := &influxql.Row{Name: stat.Name, Tags: stat.Tags}
+		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
 
 		values := make([]interface{}, 0, len(stat.Values))
 		for _, k := range stat.valueNames() {
@@ -52,10 +53,10 @@ func (s *StatementExecutor) executeShowDiagnostics() *influxql.Result {
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
-	rows := make([]*influxql.Row, 0, len(diags))
+	rows := make([]*models.Row, 0, len(diags))
 
 	for k, v := range diags {
-		row := &influxql.Row{Name: k}
+		row := &models.Row{Name: k}
 
 		row.Columns = v.Columns
 		row.Values = v.Rows

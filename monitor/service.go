@@ -13,7 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/models"
 )
 
 const leaderWaitTimeout = 30 * time.Second
@@ -241,6 +241,12 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*statistic, error) {
 		Tags:   make(map[string]string),
 		Values: make(map[string]interface{}),
 	}
+
+	// Add any supplied tags to Go memstats
+	for k, v := range tags {
+		statistic.Tags[k] = v
+	}
+
 	var rt runtime.MemStats
 	runtime.ReadMemStats(&rt)
 	statistic.Values = map[string]interface{}{
@@ -338,9 +344,9 @@ func (m *Monitor) storeStatistics() {
 				continue
 			}
 
-			points := make(tsdb.Points, 0, len(stats))
+			points := make(models.Points, 0, len(stats))
 			for _, s := range stats {
-				points = append(points, tsdb.NewPoint(s.Name, s.Tags, s.Values, time.Now()))
+				points = append(points, models.NewPoint(s.Name, s.Tags, s.Values, time.Now()))
 			}
 
 			err = m.PointsWriter.WritePoints(&cluster.WritePointsRequest{

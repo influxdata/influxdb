@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// DefaultEngine is the default engine for new shards
+	DefaultEngine = "bz1"
+
 	// DefaultMaxWALSize is the default size of the WAL before it is flushed.
 	DefaultMaxWALSize = 100 * 1024 * 1024 // 100MB
 
@@ -43,7 +46,8 @@ const (
 )
 
 type Config struct {
-	Dir string `toml:"dir"`
+	Dir    string `toml:"dir"`
+	Engine string `toml:"engine"`
 
 	// WAL config options for b1 (introduced in 0.9.2)
 	MaxWALSize             int           `toml:"max-wal-size"`
@@ -58,10 +62,14 @@ type Config struct {
 	WALMaxSeriesSize          int           `toml:"wal-max-series-size"`
 	WALFlushColdInterval      toml.Duration `toml:"wal-flush-cold-interval"`
 	WALPartitionSizeThreshold uint64        `toml:"wal-partition-size-threshold"`
+
+	// Query logging
+	QueryLogEnabled bool `toml:"query-log-enabled"`
 }
 
 func NewConfig() Config {
 	return Config{
+		Engine:                 DefaultEngine,
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
@@ -72,5 +80,7 @@ func NewConfig() Config {
 		WALMaxSeriesSize:          DefaultMaxSeriesSize,
 		WALFlushColdInterval:      toml.Duration(DefaultFlushColdInterval),
 		WALPartitionSizeThreshold: DefaultPartitionSizeThreshold,
+
+		QueryLogEnabled: true,
 	}
 }
