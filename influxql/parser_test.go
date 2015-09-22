@@ -1396,19 +1396,13 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW STATS`,
 			stmt: &influxql.ShowStatsStatement{
-				Host: "",
+				Module: "",
 			},
 		},
 		{
-			s: `SHOW STATS ON 'servera'`,
+			s: `SHOW STATS FOR 'cluster'`,
 			stmt: &influxql.ShowStatsStatement{
-				Host: "servera",
-			},
-		},
-		{
-			s: `SHOW STATS ON '192.167.1.44'`,
-			stmt: &influxql.ShowStatsStatement{
-				Host: "192.167.1.44",
+				Module: "cluster",
 			},
 		},
 
@@ -1506,7 +1500,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION POLICIES mydb`, err: `found mydb, expected ON at line 1, char 25`},
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
-		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
+		{s: `SHOW STATS FOR`, err: `found EOF, expected string at line 1, char 16`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},
 		{s: `SHOW GRANTS FOR`, err: `found EOF, expected identifier at line 1, char 17`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},

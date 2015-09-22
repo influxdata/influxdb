@@ -19,7 +19,7 @@ type StatementExecutor struct {
 func (s *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	switch stmt := stmt.(type) {
 	case *influxql.ShowStatsStatement:
-		return s.executeShowStatistics()
+		return s.executeShowStatistics(stmt.Module)
 	case *influxql.ShowDiagnosticsStatement:
 		return s.executeShowDiagnostics()
 	default:
@@ -27,14 +27,17 @@ func (s *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 	}
 }
 
-func (s *StatementExecutor) executeShowStatistics() *influxql.Result {
+func (s *StatementExecutor) executeShowStatistics(module string) *influxql.Result {
 	stats, err := s.Monitor.Statistics(nil)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
-	rows := make([]*models.Row, len(stats))
+	rows := make([]*models.Row, 0)
 
-	for n, stat := range stats {
+	for _, stat := range stats {
+		if module != "" && stat.Name != module {
+			continue
+		}
 		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
 
 		values := make([]interface{}, 0, len(stat.Values))
@@ -43,7 +46,7 @@ func (s *StatementExecutor) executeShowStatistics() *influxql.Result {
 			values = append(values, stat.Values[k])
 		}
 		row.Values = [][]interface{}{values}
-		rows[n] = row
+		rows = append(rows, row)
 	}
 	return &influxql.Result{Series: rows}
 }

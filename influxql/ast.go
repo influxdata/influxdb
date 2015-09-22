@@ -1988,18 +1988,18 @@ func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivilege
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
-// ShowRetentionPoliciesStatement represents a command for displaying stats for a given server.
+// ShowStats statement displays statistics for a given module.
 type ShowStatsStatement struct {
-	// Hostname or IP of the server for stats.
-	Host string
+	// Module
+	Module string
 }
 
 // String returns a string representation of a ShowStatsStatement.
 func (s *ShowStatsStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW STATS ")
-	if s.Host != "" {
-		_, _ = buf.WriteString(s.Host)
+	if s.Module != "" {
+		_, _ = buf.WriteString(s.Module)
 	}
 	return buf.String()
 }
