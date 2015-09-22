@@ -205,7 +205,7 @@ func (m *ShowTagKeysMapper) Open() error {
 	// Expand regex expressions in the FROM clause.
 	if m.stmt.Sources != nil {
 		var err error
-		sources, err = expandSources(m.stmt.Sources, m.shard.index)
+		sources, err = m.shard.index.ExpandSources(m.stmt.Sources)
 		if err != nil {
 			return err
 		}

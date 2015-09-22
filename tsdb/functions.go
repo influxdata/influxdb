@@ -36,7 +36,7 @@ type reduceFunc func([]interface{}) interface{}
 
 // UnmarshalFunc represents a function that can take bytes from a mapper from remote
 // server and marshal it into an interface the reducer can use
-type unmarshalFunc func([]byte) (interface{}, error)
+type UnmarshalFunc func([]byte) (interface{}, error)
 
 // initializemapFunc takes an aggregate call from the query and returns the mapFunc
 func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
@@ -149,7 +149,7 @@ func initializeReduceFunc(c *influxql.Call) (reduceFunc, error) {
 	}
 }
 
-func initializeUnmarshaller(c *influxql.Call) (unmarshalFunc, error) {
+func InitializeUnmarshaller(c *influxql.Call) (UnmarshalFunc, error) {
 	// if c is nil it's a raw data query
 	if c == nil {
 		return func(b []byte) (interface{}, error) {
