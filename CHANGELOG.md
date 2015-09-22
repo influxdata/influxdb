@@ -6,6 +6,7 @@
 - [#4140](https://github.com/influxdb/influxdb/pull/4140): Make storage engine configurable
 - [#4161](https://github.com/influxdb/influxdb/pull/4161): Implement bottom selector function
 - [#4196](https://github.com/influxdb/influxdb/pull/4196): Export tsdb.Iterator
+- [#4198](https://github.com/influxdb/influxdb/pull/4198): Add basic cluster-service stats
 
 ### Bugfixes
 - [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
