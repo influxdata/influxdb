@@ -2042,12 +2042,17 @@ type ShowTagKeysStatement struct {
 	// Fields to sort results by
 	SortFields SortFields
 
-	// Maximum number of rows to be returned.
-	// Unlimited if zero.
+	// Maximum number of tag keys per measurement. Unlimited if zero.
 	Limit int
 
-	// Returns rows starting at an offset from the first row.
+	// Returns tag keys starting at an offset from the first row.
 	Offset int
+
+	// Maxiumum number of series to be returned. Unlimited if zero.
+	SLimit int
+
+	// Returns series starting at an offset from the first one.
+	SOffset int
 }
 
 // String returns a string representation of the statement.
@@ -2074,6 +2079,14 @@ func (s *ShowTagKeysStatement) String() string {
 	if s.Offset > 0 {
 		_, _ = buf.WriteString(" OFFSET ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	if s.SLimit > 0 {
+		_, _ = buf.WriteString(" SLIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.SLimit))
+	}
+	if s.SOffset > 0 {
+		_, _ = buf.WriteString(" SOFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.SOffset))
 	}
 	return buf.String()
 }

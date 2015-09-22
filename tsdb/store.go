@@ -356,7 +356,8 @@ func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize 
 		m := NewShowMeasurementsMapper(shard, stmt)
 		m.ChunkSize = chunkSize
 		return m, nil
-
+	case *influxql.ShowTagKeysStatement:
+		return NewShowTagKeysMapper(shard, stmt, chunkSize), nil
 	default:
 		return nil, fmt.Errorf("can't create mapper for statement type: %T", stmt)
 	}

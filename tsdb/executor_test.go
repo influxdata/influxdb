@@ -252,7 +252,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 
 // Test to ensure the engine handles query re-writing across stores.
 func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
-	// Create two distinct stores, ensuring shard mappers will shard nothing.
+	// Create two distinct stores, ensuring shard mappers will share nothing.
 	store0 := testStore()
 	defer os.RemoveAll(store0.Path())
 	store1 := testStore()
@@ -434,8 +434,8 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 }
 
 // Test to ensure the engine handles measurements across stores.
-func TestWritePointsAndExecuteTwoShardsShowMeasurements(t *testing.T) {
-	// Create two distinct stores, ensuring shard mappers will shard nothing.
+func TestShowMeasurementsMultipleShards(t *testing.T) {
+	// Create two distinct stores, ensuring shard mappers will share nothing.
 	store0 := testStore()
 	defer os.RemoveAll(store0.Path())
 	store1 := testStore()
@@ -522,6 +522,133 @@ func TestWritePointsAndExecuteTwoShardsShowMeasurements(t *testing.T) {
 			t.Fatalf("failed to create mapper1: %s", err.Error())
 		}
 		executor := tsdb.NewShowMeasurementsExecutor(parsedStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
+
+		// Check the results.
+		got := executeAndGetResults(executor)
+		if got != tt.expected {
+			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
+		}
+
+	}
+}
+
+// Test to ensure the engine handles tag keys across stores.
+func TestShowShowTagKeysMultipleShards(t *testing.T) {
+	// Create two distinct stores, ensuring shard mappers will share nothing.
+	store0 := testStore()
+	defer os.RemoveAll(store0.Path())
+	store1 := testStore()
+	defer os.RemoveAll(store1.Path())
+
+	// Create a shard in each store.
+	database := "foo"
+	retentionPolicy := "bar"
+	store0.CreateShard(database, retentionPolicy, sID0)
+	store1.CreateShard(database, retentionPolicy, sID1)
+
+	// Write two points across shards.
+	pt1time := time.Unix(1, 0).UTC()
+	if err := store0.WriteToShard(sID0, []models.Point{
+		models.NewPoint(
+			"cpu",
+			map[string]string{"host": "serverA", "region": "uswest"},
+			map[string]interface{}{"value1": 100},
+			pt1time,
+		),
+		models.NewPoint(
+			"cpu",
+			map[string]string{"host": "serverB", "region": "useast"},
+			map[string]interface{}{"value1": 100},
+			pt1time,
+		),
+	}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	pt2time := time.Unix(2, 0).UTC()
+	if err := store1.WriteToShard(sID1, []models.Point{
+		models.NewPoint(
+			"cpu",
+			map[string]string{"host": "serverB", "region": "useast", "rack": "12"},
+			map[string]interface{}{"value1": 100},
+			pt1time,
+		),
+		models.NewPoint(
+			"mem",
+			map[string]string{"host": "serverB"},
+			map[string]interface{}{"value2": 200},
+			pt2time,
+		)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var tests = []struct {
+		skip      bool   // Skip test
+		stmt      string // Query statement
+		chunkSize int    // Chunk size for driving the executor
+		expected  string // Expected results, rendered as a string
+	}{
+		{
+			stmt:     `SHOW TAG KEYS`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"],["rack"],["region"]]},{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS SLIMIT 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"],["rack"],["region"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS SLIMIT 1 SOFFSET 1`,
+			expected: `[{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS SOFFSET 1`,
+			expected: `[{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS LIMIT 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"]]},{"name":"mem","columns":["tagKey"],"values":[["host"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS LIMIT 1 OFFSET 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["rack"]]},{"name":"mem","columns":["tagKey"]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS OFFSET 1`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["rack"],["region"]]},{"name":"mem","columns":["tagKey"]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS FROM cpu`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"],["rack"],["region"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS FROM cpu WHERE region = 'uswest'`,
+			expected: `[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS FROM doesntexist`,
+			expected: `null`,
+		},
+		{
+			stmt:     `SHOW TAG KEYS FROM cpu WHERE region = 'doesntexist'`,
+			expected: `null`,
+		},
+	}
+	for _, tt := range tests {
+		if tt.skip {
+			t.Logf("Skipping test %s", tt.stmt)
+			continue
+		}
+
+		parsedStmt := mustParseStatement(tt.stmt).(*influxql.ShowTagKeysStatement)
+
+		// Create Mappers and Executor.
+		mapper0, err := store0.CreateMapper(sID0, parsedStmt, tt.chunkSize)
+		if err != nil {
+			t.Fatalf("failed to create mapper0: %s", err.Error())
+		}
+		mapper1, err := store1.CreateMapper(sID1, parsedStmt, tt.chunkSize)
+		if err != nil {
+			t.Fatalf("failed to create mapper1: %s", err.Error())
+		}
+		executor := tsdb.NewShowTagKeysExecutor(parsedStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
 
 		// Check the results.
 		got := executeAndGetResults(executor)
