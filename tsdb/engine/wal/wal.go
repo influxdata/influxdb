@@ -1433,7 +1433,7 @@ func newCursor(cache [][]byte, fields []string, dec *tsdb.FieldCodec, ascending 
 func (c *cursor) Ascending() bool { return c.ascending }
 
 // Seek will point the cursor to the given time (or key)
-func (c *cursor) Seek(seek int64) (key int64, value interface{}) {
+func (c *cursor) SeekTo(seek int64) (key int64, value interface{}) {
 	seekBytes := u64tob(uint64(seek))
 
 	// Seek cache index

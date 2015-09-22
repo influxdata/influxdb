@@ -14,7 +14,7 @@ const EOF = int64(-1)
 
 // Cursor represents an iterator over a series.
 type Cursor interface {
-	Seek(seek int64) (key int64, value interface{})
+	SeekTo(seek int64) (key int64, value interface{})
 	Next() (key int64, value interface{})
 	Ascending() bool
 }
@@ -38,12 +38,12 @@ type multiCursor struct {
 }
 
 // Seek moves the cursor to a given key.
-func (mc *multiCursor) Seek(seek int64) (int64, interface{}) {
+func (mc *multiCursor) SeekTo(seek int64) (int64, interface{}) {
 	// Initialize heap.
 	h := make(cursorHeap, 0, len(mc.cursors))
 	for i, c := range mc.cursors {
 		// Move cursor to position. Skip if it's empty.
-		k, v := c.Seek(seek)
+		k, v := c.SeekTo(seek)
 		if k == EOF {
 			continue
 		}
@@ -189,7 +189,7 @@ func (tsc *TagSetCursor) Init(seek int64) {
 
 	// Prime the buffers.
 	for i := 0; i < len(tsc.cursors); i++ {
-		k, v := tsc.cursors[i].Seek(seek)
+		k, v := tsc.cursors[i].SeekTo(seek)
 		if k == EOF {
 			k, v = tsc.cursors[i].Next()
 		}
@@ -336,7 +336,7 @@ func NewTagsCursor(c Cursor, filter influxql.Expr, tags map[string]string) *Tags
 }
 
 // Seek positions returning the key and value at that key.
-func (c *TagsCursor) Seek(seek int64) (int64, interface{}) {
+func (c *TagsCursor) SeekTo(seek int64) (int64, interface{}) {
 	// We've seeked on this cursor. This seek is after that previous cached seek
 	// and the result it gave was after the key for this seek.
 	//
@@ -347,7 +347,7 @@ func (c *TagsCursor) Seek(seek int64) (int64, interface{}) {
 	}
 
 	// Seek to key/value in underlying cursor.
-	key, value := c.cursor.Seek(seek)
+	key, value := c.cursor.SeekTo(seek)
 
 	// Save the seek to the buffer.
 	c.seek = seek

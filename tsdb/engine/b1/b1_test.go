@@ -66,7 +66,7 @@ func TestEngine_WritePoints(t *testing.T) {
 	defer tx.Rollback()
 
 	c := tx.Cursor("temperature", []string{"value"}, mf.Codec, true)
-	if k, v := c.Seek(0); k != 1434059627000000000 {
+	if k, v := c.SeekTo(0); k != 1434059627000000000 {
 		t.Fatalf("unexpected key: %#v", k)
 	} else if v == nil || v.(float64) != 200 {
 		t.Errorf("unexpected value: %#v", v)
@@ -129,7 +129,7 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 	defer tx.Rollback()
 
 	c := tx.Cursor("temperature", []string{"value"}, mf.Codec, false)
-	if k, _ := c.Seek(math.MaxInt64); k != time.Unix(1, 0).UnixNano() {
+	if k, _ := c.SeekTo(math.MaxInt64); k != time.Unix(1, 0).UnixNano() {
 		t.Fatalf("unexpected key: %v", k)
 	} else if k, v := c.Next(); k != time.Unix(0, 0).UnixNano() {
 		t.Fatalf("unexpected key: %v", k)

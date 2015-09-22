@@ -16,7 +16,6 @@ import (
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/bz1"
-	//"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
 
 // Ensure the engine can write series metadata and reload it.
@@ -152,11 +151,11 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 	// Append points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(1), MustEncodeFields(codec, tsdb.Fields{"value": float64(10)})...),
-			append(u64tob(2), MustEncodeFields(codec, tsdb.Fields{"value": float64(20)})...),
+			append(u64tob(1), MustEncodeFields(codec, models.Fields{"value": float64(10)})...),
+			append(u64tob(2), MustEncodeFields(codec, models.Fields{"value": float64(20)})...),
 		},
 		"mem": [][]byte{
-			append(u64tob(0), MustEncodeFields(codec, tsdb.Fields{"value": float64(30)})...),
+			append(u64tob(0), MustEncodeFields(codec, models.Fields{"value": float64(30)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -168,7 +167,7 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 
 	// Iterate over "cpu" series.
 	c := tx.Cursor("cpu", []string{"value"}, codec, true)
-	if k, v := c.Seek(0); k != 1 || v.(float64) != float64(10) {
+	if k, v := c.SeekTo(0); k != 1 || v.(float64) != float64(10) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = c.Next(); k != 2 || v.(float64) != float64(20) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -178,7 +177,7 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 
 	// Iterate over "mem" series.
 	c = tx.Cursor("mem", []string{"value"}, codec, true)
-	if k, v := c.Seek(0); k != 0 || v.(float64) != float64(30) {
+	if k, v := c.SeekTo(0); k != 0 || v.(float64) != float64(30) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, _ = c.Next(); k != tsdb.EOF {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -198,9 +197,9 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 	// Write initial points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(10), MustEncodeFields(codec, tsdb.Fields{"value": float64(10)})...),
-			append(u64tob(20), MustEncodeFields(codec, tsdb.Fields{"value": float64(20)})...),
-			append(u64tob(30), MustEncodeFields(codec, tsdb.Fields{"value": float64(30)})...),
+			append(u64tob(10), MustEncodeFields(codec, models.Fields{"value": float64(10)})...),
+			append(u64tob(20), MustEncodeFields(codec, models.Fields{"value": float64(20)})...),
+			append(u64tob(30), MustEncodeFields(codec, models.Fields{"value": float64(30)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -209,10 +208,10 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 	// Write overlapping points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(9), MustEncodeFields(codec, tsdb.Fields{"value": float64(9)})...),
-			append(u64tob(10), MustEncodeFields(codec, tsdb.Fields{"value": float64(255)})...),
-			append(u64tob(25), MustEncodeFields(codec, tsdb.Fields{"value": float64(25)})...),
-			append(u64tob(31), MustEncodeFields(codec, tsdb.Fields{"value": float64(31)})...),
+			append(u64tob(9), MustEncodeFields(codec, models.Fields{"value": float64(9)})...),
+			append(u64tob(10), MustEncodeFields(codec, models.Fields{"value": float64(255)})...),
+			append(u64tob(25), MustEncodeFields(codec, models.Fields{"value": float64(25)})...),
+			append(u64tob(31), MustEncodeFields(codec, models.Fields{"value": float64(31)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -221,7 +220,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 	// Write overlapping points to index again.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(31), MustEncodeFields(codec, tsdb.Fields{"value": float64(255)})...),
+			append(u64tob(31), MustEncodeFields(codec, models.Fields{"value": float64(255)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -233,7 +232,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 
 	// Iterate over "cpu" series.
 	c := tx.Cursor("cpu", []string{"value"}, codec, true)
-	if k, v := c.Seek(0); k != 9 || v.(float64) != float64(9) {
+	if k, v := c.SeekTo(0); k != 9 || v.(float64) != float64(9) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = c.Next(); k != 10 || v.(float64) != float64(255) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -261,9 +260,9 @@ func TestEngine_Cursor_Reverse(t *testing.T) {
 	// Write initial points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(10), MustEncodeFields(codec, tsdb.Fields{"value": float64(10)})...),
-			append(u64tob(20), MustEncodeFields(codec, tsdb.Fields{"value": float64(20)})...),
-			append(u64tob(30), MustEncodeFields(codec, tsdb.Fields{"value": float64(30)})...),
+			append(u64tob(10), MustEncodeFields(codec, models.Fields{"value": float64(10)})...),
+			append(u64tob(20), MustEncodeFields(codec, models.Fields{"value": float64(20)})...),
+			append(u64tob(30), MustEncodeFields(codec, models.Fields{"value": float64(30)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -272,10 +271,10 @@ func TestEngine_Cursor_Reverse(t *testing.T) {
 	// Write overlapping points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(9), MustEncodeFields(codec, tsdb.Fields{"value": float64(9)})...),
-			append(u64tob(10), MustEncodeFields(codec, tsdb.Fields{"value": float64(255)})...),
-			append(u64tob(25), MustEncodeFields(codec, tsdb.Fields{"value": float64(25)})...),
-			append(u64tob(31), MustEncodeFields(codec, tsdb.Fields{"value": float64(31)})...),
+			append(u64tob(9), MustEncodeFields(codec, models.Fields{"value": float64(9)})...),
+			append(u64tob(10), MustEncodeFields(codec, models.Fields{"value": float64(255)})...),
+			append(u64tob(25), MustEncodeFields(codec, models.Fields{"value": float64(25)})...),
+			append(u64tob(31), MustEncodeFields(codec, models.Fields{"value": float64(31)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -284,7 +283,7 @@ func TestEngine_Cursor_Reverse(t *testing.T) {
 	// Write overlapping points to index again.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(31), MustEncodeFields(codec, tsdb.Fields{"value": float64(255)})...),
+			append(u64tob(31), MustEncodeFields(codec, models.Fields{"value": float64(255)})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -296,7 +295,7 @@ func TestEngine_Cursor_Reverse(t *testing.T) {
 
 	// Iterate over "cpu" series.
 	c := tx.Cursor("cpu", []string{"value"}, codec, false)
-	if k, v := c.Seek(math.MaxInt64); k != 31 || v.(float64) != float64(255) {
+	if k, v := c.SeekTo(math.MaxInt64); k != 31 || v.(float64) != float64(255) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = c.Next(); k != 30 || v.(float64) != float64(30) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -306,7 +305,7 @@ func TestEngine_Cursor_Reverse(t *testing.T) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = c.Next(); k != 10 || v.(float64) != float64(255) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
-	} else if k, v = c.Seek(0); k != 9 || v.(float64) != float64(9) {
+	} else if k, v = c.SeekTo(0); k != 9 || v.(float64) != float64(9) {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	}
 }
@@ -328,10 +327,10 @@ func TestEngine_WriteIndex_SeekAgainstInBlockValue(t *testing.T) {
 	// Write initial points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			append(u64tob(10), MustEncodeFields(codec, tsdb.Fields{"value": data})...),
-			append(u64tob(20), MustEncodeFields(codec, tsdb.Fields{"value": data})...),
-			append(u64tob(30), MustEncodeFields(codec, tsdb.Fields{"value": data})...),
-			append(u64tob(40), MustEncodeFields(codec, tsdb.Fields{"value": data})...),
+			append(u64tob(10), MustEncodeFields(codec, models.Fields{"value": data})...),
+			append(u64tob(20), MustEncodeFields(codec, models.Fields{"value": data})...),
+			append(u64tob(30), MustEncodeFields(codec, models.Fields{"value": data})...),
+			append(u64tob(40), MustEncodeFields(codec, models.Fields{"value": data})...),
 		},
 	}, nil, nil); err != nil {
 		t.Fatal(err)
@@ -343,11 +342,11 @@ func TestEngine_WriteIndex_SeekAgainstInBlockValue(t *testing.T) {
 
 	// Ensure that we can seek to a block in the middle
 	c := tx.Cursor("cpu", []string{"value"}, codec, true)
-	if k, _ := c.Seek(15); k != 20 {
+	if k, _ := c.SeekTo(15); k != 20 {
 		t.Fatalf("expected to seek to time 20, but got %d", k)
 	}
 	// Ensure that we can seek to the block on the end
-	if k, _ := c.Seek(35); k != 40 {
+	if k, _ := c.SeekTo(35); k != 40 {
 		t.Fatalf("expected to seek to time 40, but got %d", k)
 	}
 }
@@ -452,7 +451,7 @@ type Cursor struct {
 
 func (c *Cursor) Ascending() bool { return c.ascending }
 
-func (c *Cursor) Seek(key int64) (int64, interface{}) { return tsdb.EOF, nil }
+func (c *Cursor) SeekTo(key int64) (int64, interface{}) { return tsdb.EOF, nil }
 
 func (c *Cursor) Next() (int64, interface{}) { return tsdb.EOF, nil }
 

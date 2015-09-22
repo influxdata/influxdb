@@ -41,7 +41,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	}
 
 	c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
-	k, v := c.Seek(1)
+	k, v := c.SeekTo(1)
 
 	// ensure the series are there and points are in order
 	if v.(float64) != 23.2 {
@@ -602,7 +602,7 @@ func TestWAL_QueryDuringCompaction(t *testing.T) {
 
 	verify := func() {
 		c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
-		k, v := c.Seek(1)
+		k, v := c.SeekTo(1)
 		// ensure the series are there and points are in order
 		if v.(float64) != 23.2 {
 			<-finishCompaction

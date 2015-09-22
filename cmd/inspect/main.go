@@ -85,7 +85,7 @@ func main() {
 					}
 
 					// Seek to the beginning
-					_, fields := cursor.Seek(0)
+					_, fields := cursor.SeekTo(0)
 					if fields, ok := fields.(map[string]interface{}); ok {
 						for field, value := range fields {
 							fieldSummary = append(fieldSummary, fmt.Sprintf("%s:%T", field, value))

@@ -20,7 +20,7 @@ func TestMultiCursor_Single(t *testing.T) {
 		{Key: 2, Value: 20},
 	}, true))
 
-	if k, v := mc.Seek(0); k != 0 || v.(int) != 0 {
+	if k, v := mc.SeekTo(0); k != 0 || v.(int) != 0 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = mc.Next(); k != 1 || v.(int) != 10 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -39,7 +39,7 @@ func TestMultiCursor_Single_Reverse(t *testing.T) {
 		{Key: 2, Value: 20},
 	}, false))
 
-	if k, v := mc.Seek(2); k != 2 || v.(int) != 20 {
+	if k, v := mc.SeekTo(2); k != 2 || v.(int) != 20 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = mc.Next(); k != 1 || v.(int) != 10 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -64,7 +64,7 @@ func TestMultiCursor_Multiple_NonOverlapping(t *testing.T) {
 		}, true),
 	)
 
-	if k, v := mc.Seek(0); k != 0 || v.(int) != 0 {
+	if k, v := mc.SeekTo(0); k != 0 || v.(int) != 0 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = mc.Next(); k != 1 || v.(int) != 10 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -93,7 +93,7 @@ func TestMultiCursor_Multiple_NonOverlapping_Reverse(t *testing.T) {
 		}, false),
 	)
 
-	if k, v := mc.Seek(4); k != 4 || v.(int) != 40 {
+	if k, v := mc.SeekTo(4); k != 4 || v.(int) != 40 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = mc.Next(); k != 3 || v.(int) != 30 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -123,7 +123,7 @@ func TestMultiCursor_Multiple_Overlapping(t *testing.T) {
 		}, true),
 	)
 
-	if k, v := mc.Seek(0); k != 0 || v.(int) != 0 {
+	if k, v := mc.SeekTo(0); k != 0 || v.(int) != 0 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = mc.Next(); k != 2 || v.(int) != 0xF2 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -151,7 +151,7 @@ func TestMultiCursor_Multiple_Overlapping_Reverse(t *testing.T) {
 		}, false),
 	)
 
-	if k, v := mc.Seek(4); k != 4 || v.(int) != 4 {
+	if k, v := mc.SeekTo(4); k != 4 || v.(int) != 4 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
 	} else if k, v = mc.Next(); k != 3 || v.(int) != 3 {
 		t.Fatalf("unexpected key/value: %x / %x", k, v)
@@ -193,7 +193,7 @@ func TestMultiCursor_Quick(t *testing.T) {
 
 		// Create multi-cursor and iterate over all items.
 		mc := tsdb.MultiCursor(tsdbCursorSlice(cursors)...)
-		for k, v := mc.Seek(seek); k != tsdb.EOF; k, v = mc.Next() {
+		for k, v := mc.SeekTo(seek); k != tsdb.EOF; k, v = mc.Next() {
 			got = append(got, CursorItem{k, v.(int)})
 		}
 
@@ -231,7 +231,7 @@ func NewCursor(items []CursorItem, ascending bool) *Cursor {
 func (c *Cursor) Ascending() bool { return c.ascending }
 
 // Seek seeks to an item by key.
-func (c *Cursor) Seek(seek int64) (key int64, value interface{}) {
+func (c *Cursor) SeekTo(seek int64) (key int64, value interface{}) {
 	if c.ascending {
 		return c.seekForward(seek)
 	}

@@ -588,7 +588,7 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		// changes to the mapper functions, which can come later.
 		// Prime the buffers.
 		for i := 0; i < len(tsc.cursors); i++ {
-			k, v := tsc.cursors[i].Seek(qmin)
+			k, v := tsc.cursors[i].SeekTo(qmin)
 			if k == -1 || k > tmax {
 				continue
 			}

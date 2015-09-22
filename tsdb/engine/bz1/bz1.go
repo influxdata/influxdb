@@ -667,7 +667,7 @@ func (c *Cursor) last() {
 func (c *Cursor) Ascending() bool { return c.ascending }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
-func (c *Cursor) Seek(seek int64) (key int64, value interface{}) {
+func (c *Cursor) SeekTo(seek int64) (key int64, value interface{}) {
 	seekBytes := u64tob(uint64(seek))
 
 	// Move cursor to appropriate block and set to buffer.
