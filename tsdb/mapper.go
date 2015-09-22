@@ -77,8 +77,8 @@ type MapperOutput struct {
 	cursorKey string            // Tagset-based key for the source cursor. Cached for performance reasons.
 }
 
-// MapperOutputAsJSON is the JSON-encoded representation of MapperValue. The query data is represented
-// as a raw JSON message, so decode can be delayed can performed in a customer manner.
+// MapperOutputAsJSON is the JSON-encoded representation of MapperOutput. The query data is represented
+// as a raw JSON message, so decode is delayed, and can proceed in a custom manner.
 type MapperOutputAsJSON struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
