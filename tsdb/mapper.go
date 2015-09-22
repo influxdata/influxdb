@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/pkg/slices"
 )
 
 // MapperValue is a complex type, which can encapsulate data from both raw and aggregate
@@ -566,8 +567,13 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			}
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			nextf := func() (_ int64, value interface{}) {
-				k, v := tsc.Next(qmin, qmax, []string{lm.fieldNames[i]}, lm.whereFields)
+				fields := slices.Union(lm.selectFields, lm.fieldNames, false)
+				k, v := tsc.Next(qmin, qmax, fields, lm.whereFields)
 				return k, v
+			}
+
+			fieldf := func() map[string]interface{} {
+				return tsc.Fields()
 			}
 
 			tagf := func() map[string]string {
@@ -585,9 +591,10 @@ func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 			}
 
 			tagSetCursor := &aggTagSetCursor{
-				nextFunc: nextf,
-				tagsFunc: tagf,
-				tMinFunc: tminf,
+				nextFunc:   nextf,
+				fieldsFunc: fieldf,
+				tagsFunc:   tagf,
+				tMinFunc:   tminf,
 			}
 
 			// Execute the map function which walks the entire interval, and aggregates
@@ -774,15 +781,21 @@ func (lm *SelectMapper) Close() {
 // aggTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated
 // by intervals.
 type aggTagSetCursor struct {
-	nextFunc func() (time int64, value interface{})
-	tagsFunc func() map[string]string
-	tMinFunc func() int64
+	nextFunc   func() (time int64, value interface{})
+	fieldsFunc func() map[string]interface{}
+	tagsFunc   func() map[string]string
+	tMinFunc   func() int64
 }
 
 // Next returns the next value for the aggTagSetCursor. It implements the interface expected
 // by the mapping functions.
 func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
+}
+
+// Fields returns the current fields for the cursor
+func (a *aggTagSetCursor) Fields() map[string]interface{} {
+	return a.fieldsFunc()
 }
 
 // Tags returns the current tags for the cursor
@@ -834,11 +847,12 @@ func (pq *pointHeap) Pop() interface{} {
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
-	measurement string            // Measurement name
-	tags        map[string]string // Tag key-value pairs
-	cursors     []*seriesCursor   // Underlying series cursors.
-	decoder     *FieldCodec       // decoder for the raw data bytes
-	currentTags map[string]string // the current tags for the underlying series cursor in play
+	measurement   string            // Measurement name
+	tags          map[string]string // Tag key-value pairs
+	cursors       []*seriesCursor   // Underlying series cursors.
+	decoder       *FieldCodec       // decoder for the raw data bytes
+	currentFields interface{}       // the current decoded and selected fields for the cursor in play
+	currentTags   map[string]string // the current tags for the underlying series cursor in play
 
 	// pointHeap is a min-heap, ordered by timestamp, that contains the next
 	// point from each seriesCursor. Queries sometimes pull points from
@@ -911,6 +925,10 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		value := tsc.decodeRawPoint(p, selectFields, whereFields)
 		timestamp := p.timestamp
 
+		// Keep track of all fields for series cursor so we can
+		// responsd with them is asked
+		tsc.currentFields = value
+
 		// Keep track of the current tags for the series cursor so we can
 		// respond with them if asked
 		tsc.currentTags = p.cursor.tags
@@ -935,8 +953,17 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 	}
 }
 
+// Fields returns the current fields of the current cursor
+func (tsc *tagSetCursor) Fields() map[string]interface{} {
+	switch v := tsc.currentFields.(type) {
+	case map[string]interface{}:
+		return v
+	default:
+		return map[string]interface{}{"": v}
+	}
+}
+
 // Tags returns the current tags of the current cursor
-// if there is no current currsor, it returns nil
 func (tsc *tagSetCursor) Tags() map[string]string {
 	return tsc.currentTags
 }
