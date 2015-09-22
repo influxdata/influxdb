@@ -550,11 +550,7 @@ func nextRawChunkAsJson(t *testing.T, mapper tsdb.Mapper) string {
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
 	}
-	b, err := json.Marshal(r)
-	if err != nil {
-		t.Fatalf("failed to marshal chunk as JSON: %s", err.Error())
-	}
-	return string(b)
+	return mustMarshalMapperOutput(r)
 }
 
 func openSelectMapperOrFail(t *testing.T, shard *tsdb.Shard, stmt *influxql.SelectStatement) *tsdb.SelectMapper {
@@ -569,11 +565,53 @@ func openSelectMapperOrFail(t *testing.T, shard *tsdb.Shard, stmt *influxql.Sele
 func aggIntervalAsJson(t *testing.T, mapper *tsdb.SelectMapper) string {
 	r, err := mapper.NextChunk()
 	if err != nil {
-		t.Fatalf("failed to get chunk from aggregate mapper: %s", err.Error())
+		t.Fatalf("failed to get next chunk from aggregate mapper: %s", err.Error())
 	}
-	b, err := json.Marshal(r)
+	return mustMarshalMapperOutput(r)
+}
+
+// mustMarshalMapperOutput manually converts a mapper output to JSON, to avoid the
+// built-in encoding.
+func mustMarshalMapperOutput(r interface{}) string {
+	if r == nil {
+		b, err := json.Marshal(nil)
+		if err != nil {
+			panic("failed to marshal nil chunk as JSON")
+		}
+		return string(b)
+	}
+	mo := r.(*tsdb.MapperOutput)
+
+	type v struct {
+		Time  int64             `json:"time,omitempty"`
+		Value interface{}       `json:"value,omitempty"`
+		Tags  map[string]string `json:"tags,omitempty"`
+	}
+
+	values := make([]*v, len(mo.Values))
+	for i, value := range mo.Values {
+		values[i] = &v{
+			Time:  value.Time,
+			Value: value.Value,
+			Tags:  value.Tags,
+		}
+	}
+
+	var o struct {
+		Name   string            `json:"name,omitempty"`
+		Tags   map[string]string `json:"tags,omitempty"`
+		Fields []string          `json:"fields,omitempty"`
+		Values []*v              `json:"values,omitempty"`
+	}
+
+	o.Name = mo.Name
+	o.Tags = mo.Tags
+	o.Fields = mo.Fields
+	o.Values = values
+
+	b, err := json.Marshal(o)
 	if err != nil {
-		t.Fatalf("failed to marshal chunk as JSON: %s", err.Error())
+		panic("failed to marshal MapperOutput")
 	}
 	return string(b)
 }
