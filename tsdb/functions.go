@@ -65,7 +65,9 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 			return MapSum(itr, c)
 		}, nil
 	case "mean":
-		return MapMean, nil
+		return func(itr Iterator) interface{} {
+			return MapMean(itr, c)
+		}, nil
 	case "median":
 		return MapStddev, nil
 	case "min":
@@ -401,7 +403,7 @@ func ReduceSum(values []interface{}) interface{} {
 }
 
 // MapMean computes the count and sum of values in an iterator to be combined by the reducer.
-func MapMean(itr Iterator) interface{} {
+func MapMean(itr Iterator, call *influxql.Call) interface{} {
 	out := &meanMapOutput{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -412,6 +414,11 @@ func MapMean(itr Iterator) interface{} {
 		case int64:
 			out.Mean += (float64(n1) - out.Mean) / float64(out.Count)
 			out.ResultType = Int64Type
+		case map[string]interface{}:
+			if d, r, ok := decodeValueAndNumberType(n1[call.Fields()[0]]); ok {
+				out.Mean += (d - out.Mean) / float64(out.Count)
+				out.ResultType = r
+			}
 		}
 	}
 

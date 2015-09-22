@@ -1573,6 +1573,15 @@ func (s *SelectStatement) FunctionCalls() []*Call {
 	return a
 }
 
+// FunctionCallsIn returns the Call objects from the query in the order they appear in the select statement
+func (s *SelectStatement) FunctionCallsInPosition() [][]*Call {
+	var a [][]*Call
+	for _, f := range s.Fields {
+		a = append(a, walkFunctionCalls(f.Expr))
+	}
+	return a
+}
+
 // walkFunctionCalls walks the Field of a query for any function calls made
 func walkFunctionCalls(exp Expr) []*Call {
 	switch expr := exp.(type) {
@@ -2397,7 +2406,7 @@ func (c *Call) Fields() []string {
 			}
 		}
 		return keys
-	case "min", "max", "first", "last", "sum":
+	case "min", "max", "first", "last", "sum", "mean":
 		// maintain the order the user specified in the query
 		keyMap := make(map[string]struct{})
 		keys := []string{}

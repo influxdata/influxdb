@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"time"
@@ -626,20 +627,26 @@ func (e *SelectExecutor) close() {
 }
 
 func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
-	calls := e.stmt.FunctionCalls()
+	callInPosition := e.stmt.FunctionCallsInPosition()
+	hasTimeField := e.stmt.HasTimeFieldSpecified()
 
 	var err error
-	for _, c := range calls {
-		switch c.Name {
-		case "top", "bottom":
-			results, err = e.processAggregates(results, columnNames, c)
-			if err != nil {
-				return results, err
-			}
-		case "first", "last", "min", "max":
-			results, err = e.processSelectors(results, columnNames)
-			if err != nil {
-				return results, err
+	for i, calls := range callInPosition {
+		if len(calls) == 1 {
+			var c *influxql.Call
+			c = calls[0]
+
+			switch c.Name {
+			case "top", "bottom":
+				results, err = e.processAggregates(results, columnNames, c)
+				if err != nil {
+					return results, err
+				}
+			case "first", "last", "min", "max":
+				results, err = e.processSelectors(results, i, hasTimeField, columnNames)
+				if err != nil {
+					return results, err
+				}
 			}
 		}
 	}
@@ -647,21 +654,24 @@ func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames [
 	return results, nil
 }
 
-func (e *SelectExecutor) processSelectors(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
-	for _, vals := range results {
+func (e *SelectExecutor) processSelectors(results [][]interface{}, callPosition int, hasTimeField bool, columnNames []string) ([][]interface{}, error) {
+	for i, vals := range results {
 		for j := 1; j < len(vals); j++ {
 			switch v := vals[j].(type) {
 			case PositionPoint:
 				tMin := vals[0].(time.Time)
-				e.selectorPointToQueryResult(vals, j, v, tMin, columnNames)
+				results[i] = e.selectorPointToQueryResult(vals, hasTimeField, callPosition, v, tMin, columnNames)
 			}
 		}
 	}
-	//spew.Dump(results)
 	return results, nil
 }
 
-func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) {
+func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, hasTimeField bool, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) []interface{} {
+	// if the row doesn't have enough columns, expand it
+	if len(row) != len(columnNames) {
+		row = append(row, make([]interface{}, len(columnNames)-len(row))...)
+	}
 	callCount := len(e.stmt.FunctionCalls())
 	if callCount == 1 {
 		tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
@@ -672,12 +682,20 @@ func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, columnInd
 		row[0] = tm
 	}
 	for i, c := range columnNames {
-		if i == columnIndex {
+		// skip over time, we already handled that above
+		if i == 0 {
+			continue
+		}
+		if i == columnIndex && hasTimeField {
+			row[i] = p.Value
+			continue
+		} else if i == columnIndex+1 && !hasTimeField {
+			log.Println("found it!")
 			row[i] = p.Value
 			continue
 		}
 
-		if callCount == 1 {
+		if callCount == 1 && i > 0 {
 			// Always favor fields over tags if there is a name collision
 			if t, ok := p.Fields[c]; ok {
 				row[i] = t
@@ -687,6 +705,7 @@ func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, columnInd
 			}
 		}
 	}
+	return row
 }
 
 func (e *SelectExecutor) processAggregates(results [][]interface{}, columnNames []string, call *influxql.Call) ([][]interface{}, error) {

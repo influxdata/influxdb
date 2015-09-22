@@ -67,7 +67,8 @@ func (t *testIterator) TMin() int64 {
 
 func TestMapMeanNoValues(t *testing.T) {
 	iter := &testIterator{}
-	if got := MapMean(iter); got != nil {
+	var c *influxql.Call
+	if got := MapMean(iter, c); got != nil {
 		t.Errorf("output mismatch: exp nil got %v", got)
 	}
 }
@@ -96,7 +97,8 @@ func TestMapMean(t *testing.T) {
 			values: test.input,
 		}
 
-		got := MapMean(iter)
+		var c *influxql.Call
+		got := MapMean(iter, c)
 		if got == nil {
 			t.Fatalf("MapMean(%v): output mismatch: exp %v got %v", test.input, test.output, got)
 		}

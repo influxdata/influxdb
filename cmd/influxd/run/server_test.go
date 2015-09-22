@@ -1343,41 +1343,41 @@ func TestServer_Query_Alias(t *testing.T) {
 	test.write = strings.Join(writes, "\n")
 
 	test.addQueries([]*Query{
-		//&Query{
-		//name:    "baseline query - SELECT * FROM db0.rp0.cpu",
-		//command: `SELECT * FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","value"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
-		//},
-		//&Query{
-		//name:    "basic query with alias - SELECT steps, value as v FROM db0.rp0.cpu",
-		//command: `SELECT steps, value as v FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","v"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
-		//},
-		//&Query{
-		//name:    "double aggregate sum - SELECT sum(value), sum(steps) FROM db0.rp0.cpu",
-		//command: `SELECT sum(value), sum(steps) FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
-		//},
-		//&Query{
-		//name:    "double aggregate sum reverse order - SELECT sum(steps), sum(value) FROM db0.rp0.cpu",
-		//command: `SELECT sum(steps), sum(value) FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
-		//},
-		//&Query{
-		//name:    "double aggregate sum with alias - SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu",
-		//command: `SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sumv","sums"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
-		//},
-		//&Query{
-		//name:    "double aggregate with same value - SELECT sum(value), mean(value) FROM db0.rp0.cpu",
-		//command: `SELECT sum(value), mean(value) FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",3,1.5]]}]}]}`,
-		//},
-		//&Query{
-		//name:    "double aggregate with same value and same alias - SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu",
-		//command: `SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu`,
-		//exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","mv","mv"],"values":[["1970-01-01T00:00:00Z",1.5,2]]}]}]}`,
-		//},
+		&Query{
+			name:    "baseline query - SELECT * FROM db0.rp0.cpu",
+			command: `SELECT * FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","value"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
+		},
+		&Query{
+			name:    "basic query with alias - SELECT steps, value as v FROM db0.rp0.cpu",
+			command: `SELECT steps, value as v FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","v"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate sum - SELECT sum(value), sum(steps) FROM db0.rp0.cpu",
+			command: `SELECT sum(value), sum(steps) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate sum reverse order - SELECT sum(steps), sum(value) FROM db0.rp0.cpu",
+			command: `SELECT sum(steps), sum(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate sum with alias - SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu",
+			command: `SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sumv","sums"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate with same value - SELECT sum(value), mean(value) FROM db0.rp0.cpu",
+			command: `SELECT sum(value), mean(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",3,1.5]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate with same value and same alias - SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu",
+			command: `SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","mv","mv"],"values":[["1970-01-01T00:00:00Z",1.5,2]]}]}]}`,
+		},
 		&Query{
 			name:    "double aggregate with non-existent field - SELECT mean(value), max(foo) FROM db0.rp0.cpu",
 			command: `SELECT mean(value), max(foo) FROM db0.rp0.cpu`,
@@ -2333,14 +2333,12 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			skip:    true,
 			name:    "baseline",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT * FROM network`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","host","region","rx","tx"],"values":[["2000-01-01T00:00:00Z","server01","west",10,20],["2000-01-01T00:00:10Z","server02","west",40,50],["2000-01-01T00:00:20Z","server03","east",40,55],["2000-01-01T00:00:30Z","server04","east",40,60],["2000-01-01T00:00:40Z","server05","west",50,70],["2000-01-01T00:00:50Z","server06","east",50,40],["2000-01-01T00:01:00Z","server07","west",70,30],["2000-01-01T00:01:10Z","server08","east",90,10]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","core","host","region","rx","tx"],"values":[["2000-01-01T00:00:00Z",2,"server01","west",10,20],["2000-01-01T00:00:10Z",3,"server02","west",40,50],["2000-01-01T00:00:20Z",4,"server03","east",40,55],["2000-01-01T00:00:30Z",1,"server04","east",40,60],["2000-01-01T00:00:40Z",2,"server05","west",50,70],["2000-01-01T00:00:50Z",3,"server06","east",50,40],["2000-01-01T00:01:00Z",4,"server07","west",70,30],["2000-01-01T00:01:10Z",1,"server08","east",90,10]]}]}]}`,
 		},
 		&Query{
-			skip:    true,
 			name:    "max - baseline 30s",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
