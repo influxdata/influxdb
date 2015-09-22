@@ -2805,6 +2805,7 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			t.Logf("SKIP:: %s", query.name)
 			continue
 		}
+
 		if err := query.Execute(s); err != nil {
 			t.Error(query.Error(err))
 		} else if !query.success() {
@@ -3181,6 +3182,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			t.Logf("SKIP:: %s", query.name)
 			continue
 		}
+
 		if err := query.Execute(s); err != nil {
 			t.Error(query.Error(err))
 		} else if !query.success() {

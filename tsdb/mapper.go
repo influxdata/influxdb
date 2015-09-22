@@ -215,6 +215,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) error {
 	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
 	selectFields := mm.SelectFields(m.stmt)
 	selectTags := mm.SelectTags(m.stmt)
+	fields := uniqueStrings(m.selectFields, m.whereFields)
 
 	// If we only have tags in our select clause we just return
 	if len(selectFields) == 0 && len(selectTags) > 0 {
@@ -234,7 +235,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) error {
 		cursors := []*TagsCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, selectFields, m.shard.FieldCodec(mm.Name), ascending)
+			c := m.tx.Cursor(key, fields, m.shard.FieldCodec(mm.Name), ascending)
 			if c == nil {
 				continue
 			}
@@ -246,7 +247,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) error {
 
 		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors)
 		tsc.SelectFields = m.selectFields
-		tsc.WhereFields = m.whereFields
+		tsc.Fields = fields
 		if ascending {
 			tsc.Init(m.qmin)
 		} else {
@@ -600,7 +601,7 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		}
 
 		tsc.SelectFields = []string{m.fieldNames[i]}
-		tsc.WhereFields = m.whereFields
+		tsc.Fields = uniqueStrings([]string{m.fieldNames[i]}, m.whereFields)
 
 		// Execute the map function which walks the entire interval, and aggregates the result.
 		mapValue := m.mapFuncs[i](&AggregateTagSetCursor{
@@ -659,4 +660,22 @@ func (a *AggregateTagSetCursor) TMin() int64 {
 		return a.tmin
 	}
 	return -1
+}
+
+// uniqueStrings returns a slice of unique strings from all lists in a.
+func uniqueStrings(a ...[]string) []string {
+	// Calculate unique set of strings.
+	m := make(map[string]struct{})
+	for _, strs := range a {
+		for _, str := range strs {
+			m[str] = struct{}{}
+		}
+	}
+
+	// Convert back to slice.
+	result := make([]string, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
 }

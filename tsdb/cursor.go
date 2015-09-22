@@ -38,7 +38,7 @@ type multiCursor struct {
 }
 
 // Seek moves the cursor to a given key.
-func (mc *multiCursor) Seek(seek int64) (key int64, value interface{}) {
+func (mc *multiCursor) Seek(seek int64) (int64, interface{}) {
 	// Initialize heap.
 	h := make(cursorHeap, 0, len(mc.cursors))
 	for i, c := range mc.cursors {
@@ -73,7 +73,7 @@ func (mc *multiCursor) Ascending() bool {
 }
 
 // Next returns the next key/value from the cursor.
-func (mc *multiCursor) Next() (key int64, value interface{}) { return mc.pop() }
+func (mc *multiCursor) Next() (int64, interface{}) { return mc.pop() }
 
 // pop returns the next item from the heap.
 // Reads the next key/value from item's cursor and puts it back on the heap.
@@ -153,8 +153,8 @@ type TagSetCursor struct {
 	cursors     []*TagsCursor     // Underlying tags cursors.
 	currentTags map[string]string // the current tags for the underlying series cursor in play
 
-	SelectFields []string
-	WhereFields  []string
+	SelectFields []string // fields to be selected
+	Fields       []string // fields to be selected or filtered
 
 	// Min-heap of cursors ordered by timestamp.
 	heap *pointHeap
@@ -336,7 +336,7 @@ func NewTagsCursor(c Cursor, filter influxql.Expr, tags map[string]string) *Tags
 }
 
 // Seek positions returning the key and value at that key.
-func (c *TagsCursor) Seek(seek int64) (key int64, value interface{}) {
+func (c *TagsCursor) Seek(seek int64) (int64, interface{}) {
 	// We've seeked on this cursor. This seek is after that previous cached seek
 	// and the result it gave was after the key for this seek.
 	//
@@ -347,16 +347,16 @@ func (c *TagsCursor) Seek(seek int64) (key int64, value interface{}) {
 	}
 
 	// Seek to key/value in underlying cursor.
-	key, value = c.cursor.Seek(seek)
+	key, value := c.cursor.Seek(seek)
 
 	// Save the seek to the buffer.
 	c.seek = seek
 	c.buf.key, c.buf.value = key, value
-	return
+	return key, value
 }
 
 // Next returns the next timestamp and value from the cursor.
-func (c *TagsCursor) Next() (key int64, value interface{}) {
+func (c *TagsCursor) Next() (int64, interface{}) {
 	// Invalidate the seek.
 	c.seek = -1
 	c.buf.key, c.buf.value = 0, nil
