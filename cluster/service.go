@@ -324,7 +324,7 @@ func writeMapShardResponseMessage(w io.Writer, msg *MapShardResponse) error {
 }
 
 // ReadTLV reads a type-length-value record from r.
-func ReadTLV(r io.Reader) (byte, []byte, error) {
+func ReadTLV(r io.Reader) (n, byte, []byte, error) {
 	var typ [1]byte
 	if _, err := io.ReadFull(r, typ[:]); err != nil {
 		return 0, nil, fmt.Errorf("read message type: %s", err)
@@ -346,15 +346,16 @@ func ReadTLV(r io.Reader) (byte, []byte, error) {
 
 	// Read the value.
 	buf := make([]byte, sz)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	n, err := io.ReadFull(r, buf)
+	if err != nil {
 		return 0, nil, fmt.Errorf("read message value: %s", err)
 	}
 
-	return typ[0], buf, nil
+	return n + 1, typ[0], buf, nil
 }
 
 // WriteTLV writes a type-length-value record to w.
-func WriteTLV(w io.Writer, typ byte, buf []byte) error {
+func WriteTLV(w io.Writer, typ byte, buf []byte) (int, error) {
 	if _, err := w.Write([]byte{typ}); err != nil {
 		return fmt.Errorf("write message type: %s", err)
 	}
@@ -365,9 +366,10 @@ func WriteTLV(w io.Writer, typ byte, buf []byte) error {
 	}
 
 	// Write the value.
-	if _, err := w.Write(buf); err != nil {
+	n, err := w.Write(buf)
+	if err != nil {
 		return fmt.Errorf("write message value: %s", err)
 	}
 
-	return nil
+	return n + 1, nil
 }
