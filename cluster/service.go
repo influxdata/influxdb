@@ -274,6 +274,7 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		// empty response to let the other side know we're out of data.
 
 		if chunk != nil {
+			// No context here, so proper marshalling has to happen on the type.
 			b, err := json.Marshal(chunk)
 			if err != nil {
 				return fmt.Errorf("encoding: %s", err)

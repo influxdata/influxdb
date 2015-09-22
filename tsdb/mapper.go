@@ -34,10 +34,37 @@ type MapperOutput struct {
 	Fields    []string          `json:"fields,omitempty"` // Field names of returned data.
 	Values    []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 	cursorKey string            // Tagset-based key for the source cursor. Cached for performance reasons.
+
+	// Add slice here of aggregate functions used to generate this data.
+	// This state will help with marshaling.
+	//
+	// XXX Is this necessary? Isn't the data within values of the right type before
+	// it goes out over the network? Is this actually a local-node issue?
 }
 
 func (mo *MapperOutput) key() string {
 	return mo.cursorKey
+}
+
+func (mo *MapperOutput) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(mo.Values)
+	if err != nil {
+		return nil, err
+	}
+	o := MapperOutputAsJson{
+		Name:   mo.Name,
+		Tags:   mo.Tags,
+		Fields: mo.Fields,
+		Values: b,
+	}
+	return json.Marshal(o)
+}
+
+type MapperOutputAsJson struct {
+	Name   string            `json:"name,omitempty"`
+	Tags   map[string]string `json:"tags,omitempty"`
+	Fields []string          `json:"fields,omitempty"`
+	Values json.RawMessage   `json:"values,omitempty"`
 }
 
 // SelectMapper is for retrieving data for a query, from a given shard.
@@ -59,12 +86,13 @@ type SelectMapper struct {
 
 	// The following attributes are only used when mappers are for aggregate queries.
 
-	queryTMinWindow int64     // Minimum time of the query floored to start of interval.
-	intervalSize    int64     // Size of each interval.
-	numIntervals    int       // Maximum number of intervals to return.
-	currInterval    int       // Current interval for which data is being fetched.
-	mapFuncs        []mapFunc // The mapping functions.
-	fieldNames      []string  // the field name being read for mapping.
+	queryTMinWindow  int64           // Minimum time of the query floored to start of interval.
+	intervalSize     int64           // Size of each interval.
+	numIntervals     int             // Maximum number of intervals to return.
+	currInterval     int             // Current interval for which data is being fetched.
+	mapFuncs         []mapFunc       // The mapping functions.
+	mapUnmarshallers []unmarshalFunc // Mapping-specific unmarshal functions.
+	fieldNames       []string        // the field name being read for mapping.
 }
 
 // NewSelectMapper returns a mapper for the given shard, which will return data for the SELECT statement.
@@ -318,13 +346,36 @@ func (lm *SelectMapper) NextChunk() (interface{}, error) {
 			return nil, nil
 		}
 
-		mo := &MapperOutput{}
-		if err := json.Unmarshal(b.([]byte), mo); err != nil {
+		moj := &MapperOutputAsJson{}
+		if err := json.Unmarshal(b.([]byte), moj); err != nil {
 			return nil, err
-		} else if len(mo.Values) == 0 {
-			// Mapper on other node sent 0 values so it's done.
-			return nil, nil
 		}
+
+		mo := &MapperOutput{
+			Name:   moj.Name,
+			Tags:   moj.Tags,
+			Fields: moj.Fields,
+		}
+
+		// If special marshalling is required, then do it.
+		if len(lm.mapUnmarshallers) > 0 {
+			var v interface{}
+			err := json.Unmarshal(moj.Values, v)
+			if err != nil {
+				return nil, err
+			}
+			vs := v[0].Value.([]interface{})
+
+			values := make([]*MapperValue, 1)
+			if len(vs) != len(lm.mapUnmarshallers) {
+				return nil, fmt.Errorf("number of marshalled values not equal to number of unmarshallers")
+			}
+
+			for i := range lm.mapUnmarshallers {
+
+			}
+		}
+
 		return mo, nil
 	}
 
@@ -504,6 +555,10 @@ func (lm *SelectMapper) initializeMapFunctions() error {
 	lm.fieldNames = make([]string, len(lm.mapFuncs))
 	for i, c := range aggregates {
 		lm.mapFuncs[i], err = initializeMapFunc(c)
+		if err != nil {
+			return err
+		}
+		lm.mapUnmarshallers[i], err = initializeUnmarshaller(c)
 		if err != nil {
 			return err
 		}
