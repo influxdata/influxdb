@@ -760,6 +760,65 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG KEYS with OFFSET
+		{
+			s: `SHOW TAG KEYS FROM src OFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Offset:  1,
+			},
+		},
+
+		// SHOW TAG KEYS with LIMIT and OFFSET
+		{
+			s: `SHOW TAG KEYS FROM src LIMIT 2 OFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Limit:   2,
+				Offset:  1,
+			},
+		},
+
+		// SHOW TAG KEYS with SLIMIT
+		{
+			s: `SHOW TAG KEYS FROM src SLIMIT 2`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				SLimit:  2,
+			},
+		},
+
+		// SHOW TAG KEYS with SOFFSET
+		{
+			s: `SHOW TAG KEYS FROM src SOFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				SOffset: 1,
+			},
+		},
+
+		// SHOW TAG KEYS with SLIMIT and SOFFSET
+		{
+			s: `SHOW TAG KEYS FROM src SLIMIT 2 SOFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				SLimit:  2,
+				SOffset: 1,
+			},
+		},
+
+		// SHOW TAG KEYS with LIMIT, OFFSET, SLIMIT, and SOFFSET
+		{
+			s: `SHOW TAG KEYS FROM src LIMIT 4 OFFSET 3 SLIMIT 2 SOFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Limit:   4,
+				Offset:  3,
+				SLimit:  2,
+				SOffset: 1,
+			},
+		},
+
 		// SHOW TAG KEYS FROM /<regex>/
 		{
 			s: `SHOW TAG KEYS FROM /[cg]pu/`,
@@ -1563,9 +1622,6 @@ func TestParser_ParseStatement(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		if tt.s != `SHOW TAG KEYS FROM src LIMIT 2` {
-			continue
-		}
 		if tt.skip {
 			t.Logf("skipping test of '%s'", tt.s)
 			continue
