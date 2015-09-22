@@ -21,7 +21,7 @@ import (
 
 // iterator represents a forward-only iterator over a set of points.
 // These are used by the mapFunctions in this file
-type iterator interface {
+type Iterator interface {
 	Next() (time int64, value interface{})
 	Tags() map[string]string
 	TMin() int64
@@ -29,7 +29,7 @@ type iterator interface {
 
 // mapFunc represents a function used for mapping over a sequential series of data.
 // The iterator represents a single group by interval
-type mapFunc func(iterator) interface{}
+type mapFunc func(Iterator) interface{}
 
 // reduceFunc represents a function used for reducing mapper output.
 type reduceFunc func([]interface{}) interface{}
@@ -78,7 +78,7 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 	case "last":
 		return MapLast, nil
 	case "top", "bottom":
-		return func(itr iterator) interface{} {
+		return func(itr Iterator) interface{} {
 			return MapTopBottom(itr, c)
 		}, nil
 	case "percentile":
@@ -213,7 +213,7 @@ func initializeUnmarshaller(c *influxql.Call) (unmarshalFunc, error) {
 }
 
 // MapCount computes the number of values in an iterator.
-func MapCount(itr iterator) interface{} {
+func MapCount(itr Iterator) interface{} {
 	n := float64(0)
 	for k, _ := itr.Next(); k != -1; k, _ = itr.Next() {
 		n++
@@ -238,7 +238,7 @@ func (d interfaceValues) Less(i, j int) bool {
 }
 
 // MapDistinct computes the unique values in an iterator.
-func MapDistinct(itr iterator) interface{} {
+func MapDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
 	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
@@ -292,7 +292,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 }
 
 // MapCountDistinct computes the unique count of values in an iterator.
-func MapCountDistinct(itr iterator) interface{} {
+func MapCountDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
 	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
@@ -336,7 +336,7 @@ const (
 )
 
 // MapSum computes the summation of values in an iterator.
-func MapSum(itr iterator) interface{} {
+func MapSum(itr Iterator) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
@@ -391,7 +391,7 @@ func ReduceSum(values []interface{}) interface{} {
 }
 
 // MapMean computes the count and sum of values in an iterator to be combined by the reducer.
-func MapMean(itr iterator) interface{} {
+func MapMean(itr Iterator) interface{} {
 	out := &meanMapOutput{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -597,7 +597,7 @@ type minMaxMapOut struct {
 }
 
 // MapMin collects the values to pass to the reducer
-func MapMin(itr iterator) interface{} {
+func MapMin(itr Iterator) interface{} {
 	min := &minMaxMapOut{}
 
 	pointsYielded := false
@@ -660,7 +660,7 @@ func ReduceMin(values []interface{}) interface{} {
 }
 
 // MapMax collects the values to pass to the reducer
-func MapMax(itr iterator) interface{} {
+func MapMax(itr Iterator) interface{} {
 	max := &minMaxMapOut{}
 
 	pointsYielded := false
@@ -728,7 +728,7 @@ type spreadMapOutput struct {
 }
 
 // MapSpread collects the values to pass to the reducer
-func MapSpread(itr iterator) interface{} {
+func MapSpread(itr Iterator) interface{} {
 	out := &spreadMapOutput{}
 	pointsYielded := false
 	var val float64
@@ -789,7 +789,7 @@ func ReduceSpread(values []interface{}) interface{} {
 }
 
 // MapStddev collects the values to pass to the reducer
-func MapStddev(itr iterator) interface{} {
+func MapStddev(itr Iterator) interface{} {
 	var values []float64
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -847,7 +847,7 @@ type firstLastMapOutput struct {
 
 // MapFirst collects the values to pass to the reducer
 // This function assumes time ordered input
-func MapFirst(itr iterator) interface{} {
+func MapFirst(itr Iterator) interface{} {
 	k, v := itr.Next()
 	if k == -1 {
 		return nil
@@ -892,7 +892,7 @@ func ReduceFirst(values []interface{}) interface{} {
 }
 
 // MapLast collects the values to pass to the reducer
-func MapLast(itr iterator) interface{} {
+func MapLast(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
@@ -1301,7 +1301,7 @@ func (m *mapIter) Next() (time int64, value interface{}) {
 }
 
 // MapTopBottom emits the top/bottom data points for each group by interval
-func MapTopBottom(itr iterator, c *influxql.Call) interface{} {
+func MapTopBottom(itr Iterator, c *influxql.Call) interface{} {
 	// Capture the limit if it was specified in the call
 	lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
 	limit := int(lit.Val)
@@ -1440,7 +1440,7 @@ func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
 }
 
 // MapEcho emits the data points for each group by interval
-func MapEcho(itr iterator) interface{} {
+func MapEcho(itr Iterator) interface{} {
 	var values []interface{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -1496,7 +1496,7 @@ func IsNumeric(c *influxql.Call) bool {
 }
 
 // MapRawQuery is for queries without aggregates
-func MapRawQuery(itr iterator) interface{} {
+func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
