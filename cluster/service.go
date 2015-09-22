@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding/binary"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
@@ -22,6 +24,17 @@ const MaxMessageSize = 1024 * 1024 * 1024 // 1GB
 
 // MuxHeader is the header byte used in the TCP mux.
 const MuxHeader = 2
+
+// Statistics maintained by the cluster package
+const (
+	writeShardReq       = "write_shard_req"
+	writeShardPointsReq = "write_shard_points_req"
+	writeShardFail      = "write_shard_fail"
+	mapShardReq         = "map_shard_req"
+	mapShardResp        = "map_shard_resp"
+	bytesRx             = "bytes_rx"
+	bytesTx             = "bytes_tx"
+)
 
 // Service processes data received over raw TCP connections.
 type Service struct {
@@ -42,7 +55,8 @@ type Service struct {
 		CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 
-	Logger *log.Logger
+	Logger  *log.Logger
+	statMap *expvar.Map
 }
 
 // NewService returns a new instance of Service.
@@ -50,6 +64,7 @@ func NewService(c Config) *Service {
 	return &Service{
 		closing: make(chan struct{}),
 		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
+		statMap: influxdb.NewStatistics("cluster", "cluster", nil),
 	}
 }
 
@@ -145,12 +160,14 @@ func (s *Service) handleConn(conn net.Conn) {
 		// Delegate message processing by type.
 		switch typ {
 		case writeShardRequestMessage:
+			s.statMap.Add(writeShardReq, 1)
 			err := s.processWriteShardRequest(buf)
 			if err != nil {
 				s.Logger.Printf("process write shard error: %s", err)
 			}
 			s.writeShardResponse(conn, err)
 		case mapShardRequestMessage:
+			s.statMap.Add(mapShardReq, 1)
 			err := s.processMapShardRequest(conn, buf)
 			if err != nil {
 				s.Logger.Printf("process map shard error: %s", err)
@@ -171,6 +188,8 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 		return err
 	}
 
+	points := req.Points()
+	s.statMap.Add(writeShardPointsReq, int64(len(points)))
 	err := s.TSDBStore.WriteToShard(req.ShardID(), req.Points())
 
 	// We may have received a write for a shard that we don't have locally because the
@@ -198,6 +217,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 	}
 
 	if err != nil {
+		s.statMap.Add(writeShardFail, 1)
 		return fmt.Errorf("write shard %d: %s", req.ShardID(), err)
 	}
 
@@ -286,6 +306,7 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		if err := writeMapShardResponseMessage(w, &resp); err != nil {
 			return err
 		}
+		s.statMap.Add(mapShardResp, 1)
 
 		if chunk == nil {
 			// All mapper data sent.
@@ -303,7 +324,7 @@ func writeMapShardResponseMessage(w io.Writer, msg *MapShardResponse) error {
 }
 
 // ReadTLV reads a type-length-value record from r.
-func ReadTLV(r io.Reader) (byte, []byte, error) {
+func ReadTLV(r io.Reader) (n, byte, []byte, error) {
 	var typ [1]byte
 	if _, err := io.ReadFull(r, typ[:]); err != nil {
 		return 0, nil, fmt.Errorf("read message type: %s", err)
@@ -325,15 +346,16 @@ func ReadTLV(r io.Reader) (byte, []byte, error) {
 
 	// Read the value.
 	buf := make([]byte, sz)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	n, err := io.ReadFull(r, buf)
+	if err != nil {
 		return 0, nil, fmt.Errorf("read message value: %s", err)
 	}
 
-	return typ[0], buf, nil
+	return n + 1, typ[0], buf, nil
 }
 
 // WriteTLV writes a type-length-value record to w.
-func WriteTLV(w io.Writer, typ byte, buf []byte) error {
+func WriteTLV(w io.Writer, typ byte, buf []byte) (int, error) {
 	if _, err := w.Write([]byte{typ}); err != nil {
 		return fmt.Errorf("write message type: %s", err)
 	}
@@ -344,9 +366,10 @@ func WriteTLV(w io.Writer, typ byte, buf []byte) error {
 	}
 
 	// Write the value.
-	if _, err := w.Write(buf); err != nil {
+	n, err := w.Write(buf)
+	if err != nil {
 		return fmt.Errorf("write message value: %s", err)
 	}
 
-	return nil
+	return n + 1, nil
 }
