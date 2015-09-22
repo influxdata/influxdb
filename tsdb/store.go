@@ -348,6 +348,8 @@ func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize 
 		return NewSelectMapper(shard, st, chunkSize), nil
 	case *influxql.ShowMeasurementsStatement:
 		return NewShowMeasurementsMapper(shard, st, chunkSize), nil
+	case *influxql.ShowTagKeysStatement:
+		return NewShowTagKeysMapper(shard, st, chunkSize), nil
 	default:
 		return nil, fmt.Errorf("can't create mapper for statement type: %v", st)
 	}
