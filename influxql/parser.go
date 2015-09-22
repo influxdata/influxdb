@@ -1433,8 +1433,8 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 	stmt := &ShowStatsStatement{}
 	var err error
 
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
-		stmt.Host, err = p.parseString()
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
 	} else {
 		p.unscan()
 	}
