@@ -3,6 +3,7 @@ package runner
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/client"
@@ -29,6 +30,7 @@ type series struct {
 	PointCount  int     `toml:"point_count"`
 	Measurement string  `toml:"measurement"`
 	SeriesCount int     `toml:"series_count"`
+	TagCount    int     `toml:"tag_count"`
 	Tags        []tag   `toml:"tag"`
 	Fields      []field `toml:"field"`
 }
@@ -43,7 +45,7 @@ type write struct {
 	BatchInterval string `toml:"batch_interval"`
 	Database      string `toml:"database"`
 	ResetDatabase bool   `toml:"reset_database"`
-	StartingPoint string `toml:"starting_time"`
+	StartingPoint int    `toml:"starting_point"`
 	Address       string `toml:"address"`
 	Precision     string `toml:"precision"`
 }
@@ -115,8 +117,27 @@ func NewConfig() *Config {
 func DecodeFile(s string) (*Config, error) {
 	t := &Config{}
 
+	// Decode the toml file
 	if _, err := toml.DecodeFile(s, t); err != nil {
 		return nil, err
+	}
+
+	// Initialize Config struct
+	// NOTE: Not happy with the implementation
+	// but it will do for now
+	for j, srs := range t.Series {
+		for i := 0; i < srs.TagCount; i++ {
+
+			tag := tag{
+				Key:   fmt.Sprintf("tag-key-%d", i),
+				Value: "tag-value",
+			}
+
+			srs.Tags = append(srs.Tags, tag)
+			fmt.Println(srs)
+		}
+
+		t.Series[j] = srs
 	}
 
 	return t, nil
@@ -127,13 +148,21 @@ func DecodeFile(s string) (*Config, error) {
 // number of points that have been written
 // for the series `s`
 type seriesIter struct {
-	s     *series
-	count int
+	s         *series
+	count     int
+	timestamp time.Time
+}
+
+func (s *series) writeInterval(weeks int, i int) time.Time {
+	st := time.Duration(weeks) * 7 * 24 * time.Hour
+	w := st - (st/time.Duration(s.PointCount))*time.Duration(i)
+	return time.Now().Add(-1 * w)
 }
 
 // Iter returns a pointer to a seriesIter
-func (s *series) Iter() *seriesIter {
-	return &seriesIter{s: s, count: -1}
+func (s *series) Iter(weeks int, i int) *seriesIter {
+
+	return &seriesIter{s: s, count: -1, timestamp: s.writeInterval(weeks, i)}
 }
 
 // newTagMap returns a tagset
@@ -178,6 +207,7 @@ func (iter *seriesIter) Next() (client.Point, bool) {
 		Measurement: iter.s.Measurement,
 		Tags:        iter.s.newTagMap(iter.count),
 		Fields:      iter.s.newFieldMap(),
+		Time:        iter.timestamp,
 	}
 	b := iter.count < iter.s.SeriesCount
 	return p, b

@@ -134,9 +134,6 @@ func resetDB(c *client.Client, database string) error {
 // and the times that the test started at and ended as a `Timer`
 func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
 
-	timer = NewTimer()
-	defer timer.StopTimer()
-
 	c, err := cfg.NewClient()
 	if err != nil {
 		panic(err)
@@ -173,9 +170,12 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 		Precision:        cfg.Write.Precision,
 	}
 
+	timer = NewTimer()
+	defer timer.StopTimer()
+
 	for _, testSeries := range cfg.Series {
 		for i := 0; i < testSeries.PointCount; i++ {
-			iter := testSeries.Iter()
+			iter := testSeries.Iter(cfg.Write.StartingPoint, i)
 			p, ok := iter.Next()
 			for ok {
 				batch.Points = append(batch.Points, p)
@@ -217,7 +217,7 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 						Database:         cfg.Write.Database,
 						WriteConsistency: "any",
 						Precision:        cfg.Write.Precision,
-						Time:             time.Now(),
+						//Time:             time.Now(),
 					}
 				}
 				p, ok = iter.Next()
