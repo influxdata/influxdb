@@ -61,13 +61,9 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 	case "distinct":
 		return MapDistinct, nil
 	case "sum":
-		return func(itr Iterator) interface{} {
-			return MapSum(itr, c.Fields()[0])
-		}, nil
+		return MapSum, nil
 	case "mean":
-		return func(itr Iterator) interface{} {
-			return MapMean(itr, c.Fields()[0])
-		}, nil
+		return MapMean, nil
 	case "median":
 		return MapStddev, nil
 	case "min":
@@ -350,7 +346,7 @@ const (
 )
 
 // MapSum computes the summation of values in an iterator.
-func MapSum(itr Iterator, fieldName string) interface{} {
+func MapSum(itr Iterator) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
@@ -362,11 +358,6 @@ func MapSum(itr Iterator, fieldName string) interface{} {
 		case int64:
 			n += float64(n1)
 			resultType = Int64Type
-		case map[string]interface{}:
-			if d, r, ok := decodeValueAndNumberType(n1[fieldName]); ok {
-				resultType = r
-				n += d
-			}
 		}
 	}
 	if count > 0 {
@@ -410,7 +401,7 @@ func ReduceSum(values []interface{}) interface{} {
 }
 
 // MapMean computes the count and sum of values in an iterator to be combined by the reducer.
-func MapMean(itr Iterator, fieldName string) interface{} {
+func MapMean(itr Iterator) interface{} {
 	out := &meanMapOutput{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -421,11 +412,6 @@ func MapMean(itr Iterator, fieldName string) interface{} {
 		case int64:
 			out.Mean += (float64(n1) - out.Mean) / float64(out.Count)
 			out.ResultType = Int64Type
-		case map[string]interface{}:
-			if d, r, ok := decodeValueAndNumberType(n1[fieldName]); ok {
-				out.Mean += (d - out.Mean) / float64(out.Count)
-				out.ResultType = r
-			}
 		}
 	}
 
