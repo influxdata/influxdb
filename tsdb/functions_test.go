@@ -783,7 +783,12 @@ func TestMapTopBottom(t *testing.T) {
 		if test.skip {
 			continue
 		}
-		values := MapTopBottom(test.iter, test.call).(PositionPoints)
+		lit, _ := test.call.Args[len(test.call.Args)-1].(*influxql.NumberLiteral)
+		limit := int(lit.Val)
+		args := topCallArgs(test.call)
+		fields := test.call.Fields()
+
+		values := MapTopBottom(test.iter, limit, args, fields, len(test.call.Args), test.call.Name).(PositionPoints)
 		t.Logf("Test: %s", test.name)
 		if exp, got := len(test.exp.points), len(values); exp != got {
 			t.Errorf("Wrong number of values. exp %v got %v", exp, got)
