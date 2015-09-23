@@ -163,66 +163,78 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 
 	lastSuccess := true
 
-	batch := &client.BatchPoints{
-		Database:         cfg.Write.Database,
-		WriteConsistency: "any",
-		Time:             time.Now(),
-		Precision:        cfg.Write.Precision,
-	}
+	car := make(chan []client.Point, 1000)
+
+	go func(ch chan []client.Point) {
+		points := []client.Point{}
+
+		for _, testSeries := range cfg.Series {
+			for i := 0; i < testSeries.PointCount; i++ {
+				iter := testSeries.Iter(cfg.Write.StartingPoint, i)
+				p, ok := iter.Next()
+				for ok {
+					points = append(points, p)
+					if len(points) == cfg.Write.BatchSize {
+						ch <- points
+						points = []client.Point{}
+					}
+
+					p, ok = iter.Next()
+				}
+			}
+		}
+
+		close(car)
+
+	}(car)
+
+	time.Sleep(30 * time.Second)
 
 	timer = NewTimer()
 	defer timer.StopTimer()
 
-	for _, testSeries := range cfg.Series {
-		for i := 0; i < testSeries.PointCount; i++ {
-			iter := testSeries.Iter(cfg.Write.StartingPoint, i)
-			p, ok := iter.Next()
-			for ok {
-				batch.Points = append(batch.Points, p)
-				if len(batch.Points) >= cfg.Write.BatchSize {
-					wg.Add(1)
-					counter.Increment()
-					totalPoints += len(batch.Points)
-
-					go func(b *client.BatchPoints, total int) {
-						st := time.Now()
-						if _, err := c.Write(*b); err != nil { // Should retry write if failed
-							mu.Lock()
-							if lastSuccess {
-								fmt.Println("ERROR: ", err.Error())
-							}
-							failedRequests += 1
-							totalPoints -= len(b.Points)
-							lastSuccess = false
-							mu.Unlock()
-						} else {
-							mu.Lock()
-							if !lastSuccess {
-								fmt.Println("success in ", time.Since(st))
-							}
-							lastSuccess = true
-							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
-							mu.Unlock()
-						}
-						batchInterval, _ := time.ParseDuration(cfg.Write.BatchInterval)
-						time.Sleep(batchInterval)
-						wg.Done()
-						counter.Decrement()
-						if total%500000 == 0 {
-							fmt.Printf("%d total points. %d in %s\n", total, cfg.Write.BatchSize, time.Since(st))
-						}
-					}(batch, totalPoints)
-
-					batch = &client.BatchPoints{
-						Database:         cfg.Write.Database,
-						WriteConsistency: "any",
-						Precision:        cfg.Write.Precision,
-						//Time:             time.Now(),
-					}
-				}
-				p, ok = iter.Next()
-			}
+	for pnt := range car {
+		batch := &client.BatchPoints{
+			Database:         cfg.Write.Database,
+			WriteConsistency: "any",
+			Time:             time.Now(),
+			Precision:        cfg.Write.Precision,
+			Points:           pnt,
 		}
+
+		wg.Add(1)
+		counter.Increment()
+		totalPoints += len(batch.Points)
+
+		go func(b *client.BatchPoints, total int) {
+			st := time.Now()
+			if _, err := c.Write(*b); err != nil { // Should retry write if failed
+				mu.Lock()
+				if lastSuccess {
+					fmt.Println("ERROR: ", err.Error())
+				}
+				failedRequests += 1
+				totalPoints -= len(b.Points)
+				lastSuccess = false
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				if !lastSuccess {
+					fmt.Println("success in ", time.Since(st))
+				}
+				lastSuccess = true
+				responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
+				mu.Unlock()
+			}
+			batchInterval, _ := time.ParseDuration(cfg.Write.BatchInterval)
+			time.Sleep(batchInterval)
+			wg.Done()
+			counter.Decrement()
+			if total%500000 == 0 {
+				fmt.Printf("%d total points. %d in %s\n", total, cfg.Write.BatchSize, time.Since(st))
+			}
+		}(batch, totalPoints)
+
 	}
 
 	wg.Wait()
