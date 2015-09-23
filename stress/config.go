@@ -54,18 +54,29 @@ type write struct {
 // a query that will be ran on during the stress
 // test
 type query struct {
-	Concurrency int    `toml:"concurrency"`
-	Measurement string `toml:"measurement"`
-	TagKey      string `toml:"tag_key"`
-	TimeFrame   string `toml:"time_frame"`
-	Statement   string `toml:"statement"`
+	Enabled     bool     `toml:"enabled"`
+	Concurrency int      `toml:"concurrency"`
+	Aggregates  []string `toml:"aggregates"`
+	Fields      []string `toml:"fields"`
+	Extras      string   `toml:"extras"`
+	Interval    string   `toml:"interval"`
+}
+
+type measurementQuery struct {
+	query
+}
+
+type seriesQuery struct {
+	query
+	Timespan string `toml:"timespan"`
 }
 
 // Config is a struct that is passed into the `Run()` function.
 type Config struct {
-	Write   write    `toml:"write"`
-	Series  []series `toml:"series"`
-	Queries []query  `toml:"query"`
+	Write            write            `toml:"write"`
+	Series           []series         `toml:"series"`
+	MeasurementQuery measurementQuery `toml:"measurement_query"`
+	SeriesQuery      seriesQuery      `toml:"series_query"`
 }
 
 // NewSeries, takes a measurement, and point count,

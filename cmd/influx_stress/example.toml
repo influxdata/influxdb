@@ -6,13 +6,13 @@
   precision = "n"
   address = "localhost:8086"
   reset_database = true
-  # doesnt do anything
-  starting_point = 0 # how far back in time to go in weeks
+  # works, but dont use it
+  starting_point = 3 # how far back in time to go in weeks
 
 [[series]]
-  point_count = 10 # number of points that will be written for each of the series
+  point_count = 1000 # number of points that will be written for each of the series
   measurement = "cpu"
-  series_count = 100000
+  series_count = 10000
 
  # tag_count = 20 # number of "generic" tags on a series (e.g. tag-key-1=tag-value, ... ,tag-key-20=tag-value)
 
@@ -40,7 +40,7 @@
     key = "default"
 
 [[series]]
-  point_count = 10 # number of points that will be written for each of the series
+  point_count = 100 # number of points that will be written for each of the series
   measurement = "mem"
   series_count = 100000
 
@@ -68,15 +68,19 @@
     key = "idk"
     type = "int"
 
-# Currently not functional
-[[query]]
+[measurement_query] # SELECT aggregates(values) FROM measurements WHERE tag-key='tag-values-1' extras
+  enabled = true
   concurrency = 10
-  measurement = "cpu"
-  tag_key = "host"
-  time_frame = "5m" # defaults to 0 which will query over all time
-  statement = "SELECT count(value) FROM #{measurement} WHERE #{tag_key}=#{tag_value}" # needs work
+  aggregates = ["mean", "count"]
+  fields = ["value"]
+  extras = "GROUP BY time(1h)"
+  interval = "500ms"
 
-[[query]]
-  concurrency = 1
-  statement = "SELECT count(value) FROM cpu" # needs work
-
+[series_query] # SELECT aggregates(values) FROM measurements WHERE time > current_timespan extras
+  enabled = true
+  concurrency = 10
+  aggregates = ["mean", "count"]
+  fields = ["value"]
+  extras = "GROUP BY time(1h)"
+  timespan = "5m"
+  interval = "50ms"
