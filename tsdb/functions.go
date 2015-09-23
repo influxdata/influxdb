@@ -62,21 +62,21 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 		return MapDistinct, nil
 	case "sum":
 		return func(itr Iterator) interface{} {
-			return MapSum(itr, c)
+			return MapSum(itr, c.Fields()[0])
 		}, nil
 	case "mean":
 		return func(itr Iterator) interface{} {
-			return MapMean(itr, c)
+			return MapMean(itr, c.Fields()[0])
 		}, nil
 	case "median":
 		return MapStddev, nil
 	case "min":
 		return func(itr Iterator) interface{} {
-			return MapMin(itr, c)
+			return MapMin(itr, c.Fields()[0])
 		}, nil
 	case "max":
 		return func(itr Iterator) interface{} {
-			return MapMax(itr, c)
+			return MapMax(itr, c.Fields()[0])
 		}, nil
 	case "spread":
 		return MapSpread, nil
@@ -84,11 +84,11 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 		return MapStddev, nil
 	case "first":
 		return func(itr Iterator) interface{} {
-			return MapFirst(itr, c)
+			return MapFirst(itr, c.Fields()[0])
 		}, nil
 	case "last":
 		return func(itr Iterator) interface{} {
-			return MapLast(itr, c)
+			return MapLast(itr, c.Fields()[0])
 		}, nil
 
 	case "top", "bottom":
@@ -350,7 +350,7 @@ const (
 )
 
 // MapSum computes the summation of values in an iterator.
-func MapSum(itr Iterator, call *influxql.Call) interface{} {
+func MapSum(itr Iterator, fieldName string) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
@@ -363,7 +363,7 @@ func MapSum(itr Iterator, call *influxql.Call) interface{} {
 			n += float64(n1)
 			resultType = Int64Type
 		case map[string]interface{}:
-			if d, r, ok := decodeValueAndNumberType(n1[call.Fields()[0]]); ok {
+			if d, r, ok := decodeValueAndNumberType(n1[fieldName]); ok {
 				resultType = r
 				n += d
 			}
@@ -410,7 +410,7 @@ func ReduceSum(values []interface{}) interface{} {
 }
 
 // MapMean computes the count and sum of values in an iterator to be combined by the reducer.
-func MapMean(itr Iterator, call *influxql.Call) interface{} {
+func MapMean(itr Iterator, fieldName string) interface{} {
 	out := &meanMapOutput{}
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
@@ -422,7 +422,7 @@ func MapMean(itr Iterator, call *influxql.Call) interface{} {
 			out.Mean += (float64(n1) - out.Mean) / float64(out.Count)
 			out.ResultType = Int64Type
 		case map[string]interface{}:
-			if d, r, ok := decodeValueAndNumberType(n1[call.Fields()[0]]); ok {
+			if d, r, ok := decodeValueAndNumberType(n1[fieldName]); ok {
 				out.Mean += (d - out.Mean) / float64(out.Count)
 				out.ResultType = r
 			}
@@ -624,7 +624,7 @@ type minMaxMapOut struct {
 }
 
 // MapMin collects the values to pass to the reducer
-func MapMin(itr Iterator, call *influxql.Call) interface{} {
+func MapMin(itr Iterator, fieldName string) interface{} {
 	min := &minMaxMapOut{}
 
 	pointsYielded := false
@@ -638,7 +638,7 @@ func MapMin(itr Iterator, call *influxql.Call) interface{} {
 			val = float64(n)
 			min.Type = Int64Type
 		case map[string]interface{}:
-			if d, t, ok := decodeValueAndNumberType(n[call.Fields()[0]]); ok {
+			if d, t, ok := decodeValueAndNumberType(n[fieldName]); ok {
 				val, min.Type = d, t
 			} else {
 				continue
@@ -733,7 +733,7 @@ func decodeValueAndNumberType(v interface{}) (float64, NumberType, bool) {
 }
 
 // MapMax collects the values to pass to the reducer
-func MapMax(itr Iterator, call *influxql.Call) interface{} {
+func MapMax(itr Iterator, fieldName string) interface{} {
 	max := &minMaxMapOut{}
 
 	pointsYielded := false
@@ -747,7 +747,7 @@ func MapMax(itr Iterator, call *influxql.Call) interface{} {
 			val = float64(n)
 			max.Type = Int64Type
 		case map[string]interface{}:
-			if d, t, ok := decodeValueAndNumberType(n[call.Fields()[0]]); ok {
+			if d, t, ok := decodeValueAndNumberType(n[fieldName]); ok {
 				val, max.Type = d, t
 			} else {
 				continue
@@ -957,7 +957,7 @@ type firstLastMapOutput struct {
 
 // MapFirst collects the values to pass to the reducer
 // This function assumes time ordered input
-func MapFirst(itr Iterator, call *influxql.Call) interface{} {
+func MapFirst(itr Iterator, fieldName string) interface{} {
 	var fields map[string]interface{}
 	k, v := itr.Next()
 	fields = itr.Fields()
@@ -965,12 +965,12 @@ func MapFirst(itr Iterator, call *influxql.Call) interface{} {
 		return nil
 	}
 	if n, ok := v.(map[string]interface{}); ok {
-		v = n[call.Fields()[0]]
+		v = n[fieldName]
 	}
 
 	nextk, nextv := itr.Next()
 	if n, ok := nextv.(map[string]interface{}); ok {
-		nextv = n[call.Fields()[0]]
+		nextv = n[fieldName]
 	}
 	for nextk == k {
 		if greaterThan(nextv, v) {
@@ -1023,13 +1023,13 @@ func ReduceFirst(values []interface{}) interface{} {
 }
 
 // MapLast collects the values to pass to the reducer
-func MapLast(itr Iterator, call *influxql.Call) interface{} {
+func MapLast(itr Iterator, fieldName string) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
 		if n, ok := v.(map[string]interface{}); ok {
-			v = n[call.Fields()[0]]
+			v = n[fieldName]
 		}
 		// Initialize last
 		if !pointsYielded {
