@@ -248,7 +248,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) error {
 
 		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors)
 		tsc.SelectFields = m.selectFields
-		tsc.Fields = fields
+		tsc.SelectFilterFields = fields
 		if ascending {
 			tsc.Init(m.qmin)
 		} else {
@@ -603,7 +603,7 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		}
 
 		tsc.SelectFields = []string{m.fieldNames[i]}
-		tsc.Fields = uniqueStrings([]string{m.fieldNames[i]}, m.whereFields)
+		tsc.SelectFilterFields = uniqueStrings([]string{m.fieldNames[i]}, m.whereFields)
 
 		// Execute the map function which walks the entire interval, and aggregates the result.
 		mapValue := m.mapFuncs[i](&AggregateTagSetCursor{
@@ -652,7 +652,7 @@ func (a *AggregateTagSetCursor) Next() (time int64, value interface{}) {
 
 // Fields returns the current fields for the cursor
 func (a *AggregateTagSetCursor) Fields() map[string]interface{} {
-	return a.cursor.FieldValues()
+	return a.cursor.Fields()
 }
 
 // Tags returns the current tags for the cursor

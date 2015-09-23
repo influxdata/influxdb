@@ -1609,8 +1609,8 @@ func (s *SelectStatement) FunctionCalls() []*Call {
 	return a
 }
 
-// FunctionCallsIn returns the Call objects from the query in the order they appear in the select statement
-func (s *SelectStatement) FunctionCallsInPosition() [][]*Call {
+// FunctionCallsByPosition returns the Call objects from the query in the order they appear in the select statement
+func (s *SelectStatement) FunctionCallsByPosition() [][]*Call {
 	var a [][]*Call
 	for _, f := range s.Fields {
 		a = append(a, walkFunctionCalls(f.Expr))

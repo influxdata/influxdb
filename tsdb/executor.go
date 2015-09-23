@@ -593,7 +593,7 @@ func (e *SelectExecutor) close() {
 }
 
 func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
-	callInPosition := e.stmt.FunctionCallsInPosition()
+	callInPosition := e.stmt.FunctionCallsByPosition()
 	hasTimeField := e.stmt.HasTimeFieldSpecified()
 
 	var err error
@@ -642,7 +642,7 @@ func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, hasTimeFi
 	if callCount == 1 {
 		tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
 		// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
-		if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
+		if len(e.stmt.Dimensions) > 0 && !hasTimeField {
 			tm = tMin.UTC().Format(time.RFC3339Nano)
 		}
 		row[0] = tm
