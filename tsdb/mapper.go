@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/pkg/slices"
 )
 
 // Mapper is the interface all Mapper types must implement.
@@ -247,7 +248,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) error {
 
 		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors)
 		tsc.SelectFields = m.selectFields
-		tsc.Fields = fields
+		tsc.SelectWhereFields = fields
 		if ascending {
 			tsc.Init(m.qmin)
 		} else {
@@ -464,7 +465,8 @@ func (m *AggregateMapper) openMeasurement(mm *Measurement) error {
 		cursors := []*TagsCursor{}
 
 		for i, key := range t.SeriesKeys {
-			c := m.tx.Cursor(key, m.fieldNames, m.shard.FieldCodec(mm.Name), true)
+			fields := slices.Union(selectFields, m.fieldNames, false)
+			c := m.tx.Cursor(key, fields, m.shard.FieldCodec(mm.Name), true)
 			if c == nil {
 				continue
 			}
@@ -601,7 +603,7 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		}
 
 		tsc.SelectFields = []string{m.fieldNames[i]}
-		tsc.Fields = uniqueStrings([]string{m.fieldNames[i]}, m.whereFields)
+		tsc.SelectWhereFields = uniqueStrings([]string{m.fieldNames[i]}, m.whereFields)
 
 		// Execute the map function which walks the entire interval, and aggregates the result.
 		mapValue := m.mapFuncs[i](&AggregateTagSetCursor{
@@ -646,6 +648,11 @@ type AggregateTagSetCursor struct {
 // Next returns the next aggregate value for the cursor.
 func (a *AggregateTagSetCursor) Next() (time int64, value interface{}) {
 	return a.cursor.Next(a.qmin, a.qmax)
+}
+
+// Fields returns the current fields for the cursor
+func (a *AggregateTagSetCursor) Fields() map[string]interface{} {
+	return a.cursor.Fields()
 }
 
 // Tags returns the current tags for the cursor

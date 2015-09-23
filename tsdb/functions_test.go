@@ -15,15 +15,18 @@ type testPoint struct {
 	seriesKey string
 	time      int64
 	value     interface{}
+	fields    map[string]interface{}
 	tags      map[string]string
 }
 
 type testIterator struct {
-	values   []testPoint
-	lastTags map[string]string
-	nextFunc func() (timestamp int64, value interface{})
-	tagsFunc func() map[string]string
-	tMinFunc func() int64
+	values     []testPoint
+	lastFields map[string]interface{}
+	lastTags   map[string]string
+	nextFunc   func() (timestamp int64, value interface{})
+	fieldsFunc func() map[string]interface{}
+	tagsFunc   func() map[string]string
+	tMinFunc   func() int64
 }
 
 func (t *testIterator) Next() (timestamp int64, value interface{}) {
@@ -32,12 +35,20 @@ func (t *testIterator) Next() (timestamp int64, value interface{}) {
 	}
 	if len(t.values) > 0 {
 		v := t.values[0]
+		t.lastFields = t.values[0].fields
 		t.lastTags = t.values[0].tags
 		t.values = t.values[1:]
 		return v.time, v.value
 	}
 
 	return -1, nil
+}
+
+func (t *testIterator) Fields() map[string]interface{} {
+	if t.fieldsFunc != nil {
+		return t.fieldsFunc()
+	}
+	return t.lastFields
 }
 
 func (t *testIterator) Tags() map[string]string {
@@ -68,13 +79,13 @@ func TestMapMean(t *testing.T) {
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input:  []testPoint{testPoint{"0", 1, 1.0, nil}},
+			input:  []testPoint{testPoint{"0", 1, 1.0, nil, nil}},
 			output: &meanMapOutput{1, 1, Float64Type},
 		},
 		{ // Two points
 			input: []testPoint{
-				testPoint{"0", 1, 2.0, nil},
-				testPoint{"0", 2, 8.0, nil},
+				testPoint{"0", 1, 2.0, nil, nil},
+				testPoint{"0", 2, 8.0, nil, nil},
 			},
 			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
@@ -159,12 +170,12 @@ func TestMapDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []testPoint{
-			{seriesKey1, timeId1, uint64(1), nil},
-			{seriesKey1, timeId2, uint64(1), nil},
-			{seriesKey1, timeId3, "1", nil},
-			{seriesKey2, timeId4, uint64(1), nil},
-			{seriesKey2, timeId5, float64(1.0), nil},
-			{seriesKey2, timeId6, "1", nil},
+			{seriesKey1, timeId1, uint64(1), nil, nil},
+			{seriesKey1, timeId2, uint64(1), nil, nil},
+			{seriesKey1, timeId3, "1", nil, nil},
+			{seriesKey2, timeId4, uint64(1), nil, nil},
+			{seriesKey2, timeId5, float64(1.0), nil, nil},
+			{seriesKey2, timeId6, "1", nil, nil},
 		},
 	}
 
@@ -313,13 +324,13 @@ func TestMapCountDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []testPoint{
-			{seriesKey1, timeId1, uint64(1), nil},
-			{seriesKey1, timeId2, uint64(1), nil},
-			{seriesKey1, timeId3, "1", nil},
-			{seriesKey2, timeId4, uint64(1), nil},
-			{seriesKey2, timeId5, float64(1.0), nil},
-			{seriesKey2, timeId6, "1", nil},
-			{seriesKey2, timeId7, true, nil},
+			{seriesKey1, timeId1, uint64(1), nil, nil},
+			{seriesKey1, timeId2, uint64(1), nil, nil},
+			{seriesKey1, timeId3, "1", nil, nil},
+			{seriesKey2, timeId4, uint64(1), nil, nil},
+			{seriesKey2, timeId5, float64(1.0), nil, nil},
+			{seriesKey2, timeId6, "1", nil, nil},
+			{seriesKey2, timeId7, true, nil, nil},
 		},
 	}
 
@@ -492,15 +503,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top int64 - basic",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, int64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-					PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -509,16 +520,16 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top int64 - basic with tag",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 20, int64(53), map[string]string{"host": "b"}},
-					{"", 30, int64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 20, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 30, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-					PositionPoint{20, int64(53), map[string]string{"host": "b"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, int64(53), nil, map[string]string{"host": "b"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
@@ -527,16 +538,16 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top int64 - tie on value, resolve based on time",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 20, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "a"}},
-					{"", 10, int64(99), map[string]string{"host": "a"}},
+					{"", 20, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-					PositionPoint{20, int64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, int64(99), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -545,16 +556,16 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top int64 - tie on value, time, resolve based on tags",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "b"}},
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 20, int64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "b"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 20, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-					PositionPoint{10, int64(99), map[string]string{"host": "b"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "b"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
@@ -563,15 +574,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top mixed numerics - ints",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, uint64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -580,15 +591,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top mixed numerics - ints & floats",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, float64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, uint64(88), map[string]string{"host": "a"}},
+					{"", 10, float64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
-					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, float64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -597,15 +608,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top mixed numerics - ints, floats, & strings",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, float64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, "88", map[string]string{"host": "a"}},
+					{"", 10, float64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, "88", nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
-					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
+					PositionPoint{10, float64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -614,15 +625,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "top bools",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, true, map[string]string{"host": "a"}},
-					{"", 10, true, map[string]string{"host": "b"}},
-					{"", 20, false, map[string]string{"host": "a"}},
+					{"", 10, true, nil, map[string]string{"host": "a"}},
+					{"", 10, true, nil, map[string]string{"host": "b"}},
+					{"", 20, false, nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, true, map[string]string{"host": "a"}},
-					PositionPoint{10, true, map[string]string{"host": "b"}},
+					PositionPoint{10, true, nil, map[string]string{"host": "a"}},
+					PositionPoint{10, true, nil, map[string]string{"host": "b"}},
 				},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -631,15 +642,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom int64 - basic",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, int64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-					PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+					PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -648,16 +659,16 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom int64 - basic with tag",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(20), map[string]string{"host": "a"}},
-					{"", 20, int64(53), map[string]string{"host": "b"}},
-					{"", 30, int64(30), map[string]string{"host": "a"}},
+					{"", 10, int64(20), nil, map[string]string{"host": "a"}},
+					{"", 20, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 30, int64(30), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					PositionPoint{10, int64(20), map[string]string{"host": "a"}},
-					PositionPoint{20, int64(53), map[string]string{"host": "b"}},
+					PositionPoint{10, int64(20), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, int64(53), nil, map[string]string{"host": "b"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
@@ -666,16 +677,16 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom int64 - tie on value, resolve based on time",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(53), map[string]string{"host": "a"}},
-					{"", 20, int64(53), map[string]string{"host": "a"}},
-					{"", 20, int64(53), map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "a"}},
+					{"", 20, int64(53), nil, map[string]string{"host": "a"}},
+					{"", 20, int64(53), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					PositionPoint{10, int64(53), map[string]string{"host": "a"}},
-					PositionPoint{20, int64(53), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), nil, map[string]string{"host": "a"}},
+					PositionPoint{20, int64(53), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -684,16 +695,16 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom int64 - tie on value, time, resolve based on tags",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "b"}},
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 20, int64(100), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "b"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 20, int64(100), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				callArgs: []string{"host"},
 				points: PositionPoints{
-					PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-					PositionPoint{10, int64(99), map[string]string{"host": "b"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+					PositionPoint{10, int64(99), nil, map[string]string{"host": "b"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
@@ -702,15 +713,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom mixed numerics - ints",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, uint64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+					PositionPoint{20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -719,15 +730,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom mixed numerics - ints & floats",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, int64(99), map[string]string{"host": "a"}},
-					{"", 10, float64(53), map[string]string{"host": "b"}},
-					{"", 20, uint64(88), map[string]string{"host": "a"}},
+					{"", 10, int64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, float64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, float64(53), map[string]string{"host": "b"}},
-					PositionPoint{20, uint64(88), map[string]string{"host": "a"}},
+					PositionPoint{10, float64(53), nil, map[string]string{"host": "b"}},
+					PositionPoint{20, uint64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -736,15 +747,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom mixed numerics - ints, floats, & strings",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, float64(99), map[string]string{"host": "a"}},
-					{"", 10, int64(53), map[string]string{"host": "b"}},
-					{"", 20, "88", map[string]string{"host": "a"}},
+					{"", 10, float64(99), nil, map[string]string{"host": "a"}},
+					{"", 10, int64(53), nil, map[string]string{"host": "b"}},
+					{"", 20, "88", nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-					PositionPoint{10, float64(99), map[string]string{"host": "a"}},
+					PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+					PositionPoint{10, float64(99), nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -753,15 +764,15 @@ func TestMapTopBottom(t *testing.T) {
 			name: "bottom bools",
 			iter: &testIterator{
 				values: []testPoint{
-					{"", 10, true, map[string]string{"host": "a"}},
-					{"", 10, true, map[string]string{"host": "b"}},
-					{"", 20, false, map[string]string{"host": "a"}},
+					{"", 10, true, nil, map[string]string{"host": "a"}},
+					{"", 10, true, nil, map[string]string{"host": "b"}},
+					{"", 20, false, nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: positionOut{
 				points: PositionPoints{
-					PositionPoint{20, false, map[string]string{"host": "a"}},
-					PositionPoint{10, true, map[string]string{"host": "a"}},
+					PositionPoint{20, false, nil, map[string]string{"host": "a"}},
+					PositionPoint{10, true, nil, map[string]string{"host": "a"}},
 				},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
@@ -772,7 +783,11 @@ func TestMapTopBottom(t *testing.T) {
 		if test.skip {
 			continue
 		}
-		values := MapTopBottom(test.iter, test.call).(PositionPoints)
+		lit, _ := test.call.Args[len(test.call.Args)-1].(*influxql.NumberLiteral)
+		limit := int(lit.Val)
+		fields := topCallArgs(test.call)
+
+		values := MapTopBottom(test.iter, limit, fields, len(test.call.Args), test.call.Name).(PositionPoints)
 		t.Logf("Test: %s", test.name)
 		if exp, got := len(test.exp.points), len(values); exp != got {
 			t.Errorf("Wrong number of values. exp %v got %v", exp, got)
@@ -795,14 +810,14 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "top int64 - single map",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(99), map[string]string{"host": "a"}},
-					{20, int64(88), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
+					{20, int64(88), nil, map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
 				},
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -810,16 +825,16 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "top int64 - double map",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 				PositionPoints{
-					{20, int64(88), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
+					{20, int64(88), nil, map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
 				},
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -827,15 +842,15 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "top int64 - double map with nil",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(99), map[string]string{"host": "a"}},
-					{20, int64(88), map[string]string{"host": "a"}},
-					{10, int64(53), map[string]string{"host": "b"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
+					{20, int64(88), nil, map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
 				},
 				nil,
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -843,15 +858,15 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "top int64 - double map with non-matching tags and tag selected",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(99), map[string]string{"host": "a"}},
-					{20, int64(88), map[string]string{}},
-					{10, int64(53), map[string]string{"host": "b"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
+					{20, int64(88), nil, map[string]string{}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
 				},
 				nil,
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-				PositionPoint{20, int64(88), map[string]string{}},
+				PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+				PositionPoint{20, int64(88), nil, map[string]string{}},
 			},
 			call: &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -860,15 +875,15 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "top int64 - double map with non-matching tags",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(99), map[string]string{"host": "a"}},
-					{20, int64(88), map[string]string{}},
-					{10, int64(53), map[string]string{"host": "b"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
+					{20, int64(88), nil, map[string]string{}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
 				},
 				nil,
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-				PositionPoint{20, int64(55), map[string]string{"host": "b"}},
+				PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+				PositionPoint{20, int64(55), nil, map[string]string{"host": "b"}},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -876,14 +891,14 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "bottom int64 - single map",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(53), map[string]string{"host": "b"}},
-					{20, int64(88), map[string]string{"host": "a"}},
-					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
+					{20, int64(88), nil, map[string]string{"host": "a"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+				PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -891,16 +906,16 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "bottom int64 - double map",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 				PositionPoints{
-					{10, int64(53), map[string]string{"host": "b"}},
-					{20, int64(88), map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
+					{20, int64(88), nil, map[string]string{"host": "a"}},
 				},
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+				PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -908,15 +923,15 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "bottom int64 - double map with nil",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(53), map[string]string{"host": "b"}},
-					{20, int64(88), map[string]string{"host": "a"}},
-					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
+					{20, int64(88), nil, map[string]string{"host": "a"}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 				nil,
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-				PositionPoint{20, int64(88), map[string]string{"host": "a"}},
+				PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+				PositionPoint{20, int64(88), nil, map[string]string{"host": "a"}},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -924,15 +939,15 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "bottom int64 - double map with non-matching tags and tag selected",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(53), map[string]string{"host": "b"}},
-					{20, int64(88), map[string]string{}},
-					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
+					{20, int64(88), nil, map[string]string{}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 				nil,
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(53), map[string]string{"host": "b"}},
-				PositionPoint{20, int64(88), map[string]string{}},
+				PositionPoint{10, int64(53), nil, map[string]string{"host": "b"}},
+				PositionPoint{20, int64(88), nil, map[string]string{}},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.VarRef{Val: "host"}, &influxql.NumberLiteral{Val: 2}}},
 		},
@@ -941,15 +956,15 @@ func TestReduceTopBottom(t *testing.T) {
 			name: "bottom int64 - double map with non-matching tags",
 			values: []interface{}{
 				PositionPoints{
-					{10, int64(53), map[string]string{"host": "b"}},
-					{20, int64(88), map[string]string{}},
-					{10, int64(99), map[string]string{"host": "a"}},
+					{10, int64(53), nil, map[string]string{"host": "b"}},
+					{20, int64(88), nil, map[string]string{}},
+					{10, int64(99), nil, map[string]string{"host": "a"}},
 				},
 				nil,
 			},
 			exp: PositionPoints{
-				PositionPoint{10, int64(99), map[string]string{"host": "a"}},
-				PositionPoint{20, int64(55), map[string]string{"host": "b"}},
+				PositionPoint{10, int64(99), nil, map[string]string{"host": "a"}},
+				PositionPoint{20, int64(55), nil, map[string]string{"host": "b"}},
 			},
 			call: &influxql.Call{Name: "bottom", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 2}}},
 		},

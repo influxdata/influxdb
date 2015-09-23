@@ -148,13 +148,14 @@ type cursorHeapItem struct {
 
 // TagSetCursor is virtual cursor that iterates over multiple TagsCursors.
 type TagSetCursor struct {
-	measurement string            // Measurement name
-	tags        map[string]string // Tag key-value pairs
-	cursors     []*TagsCursor     // Underlying tags cursors.
-	currentTags map[string]string // the current tags for the underlying series cursor in play
+	measurement   string            // Measurement name
+	currentFields interface{}       // the current decoded and selected fields for the cursor in play
+	tags          map[string]string // Tag key-value pairs
+	cursors       []*TagsCursor     // Underlying tags cursors.
+	currentTags   map[string]string // the current tags for the underlying series cursor in play
 
-	SelectFields []string // fields to be selected
-	Fields       []string // fields to be selected or filtered
+	SelectFields      []string // fields to be selected
+	SelectWhereFields []string // fields in both the select and where clause to be returned or filtered on
 
 	// Min-heap of cursors ordered by timestamp.
 	heap *pointHeap
@@ -225,6 +226,10 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 		// Save timestamp & value.
 		timestamp, value := p.timestamp, p.value
 
+		// Keep track of all fields for series cursor so we can
+		// respond with them if asked
+		tsc.currentFields = value
+
 		// Keep track of the current tags for the series cursor so we can
 		// respond with them if asked
 		tsc.currentTags = p.cursor.tags
@@ -269,6 +274,16 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 		}
 
 		return timestamp, value
+	}
+}
+
+// Fields returns the current fields of the current cursor
+func (tsc *TagSetCursor) Fields() map[string]interface{} {
+	switch v := tsc.currentFields.(type) {
+	case map[string]interface{}:
+		return v
+	default:
+		return map[string]interface{}{"": v}
 	}
 }
 

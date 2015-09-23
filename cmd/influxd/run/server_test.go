@@ -1833,7 +1833,7 @@ func TestServer_Query_Regex(t *testing.T) {
 	}
 }
 
-func TestServer_Query_Aggregates(t *testing.T) {
+func TestServer_Query_AggregatesCommon(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -1922,13 +1922,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "first - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "last - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - int",
@@ -2051,13 +2051,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "first - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "last - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - float",
@@ -2185,13 +2185,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "FIRST on string data - string",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM stringdata`,
-			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","first"],"values":[["1970-01-01T00:00:00Z","first"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","first"],"values":[["2000-01-01T00:00:03Z","first"]]}]}]}`,
 		},
 		&Query{
 			name:    "LAST on string data - string",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM stringdata`,
-			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["1970-01-01T00:00:00Z","last"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["2000-01-01T00:00:04Z","last"]]}]}]}`,
 		},
 
 		// general queries
@@ -2222,6 +2222,62 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",75]]}]}]}`,
 		},
 
+		// group by
+		&Query{
+			name:    "max order by time with time specified group by 10s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(10s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:00Z",7],["2000-01-01T00:01:10Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "max order by time without time specified group by 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T00:00:30Z",5],["2000-01-01T00:01:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "max order by time with time specified group by 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, max(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","max"],"values":[["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:01:10Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "min order by time without time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT min(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:15Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:45Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "min order by time with time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, min(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "first order by time without time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT first(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:15Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:45Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "first order by time with time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, first(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:30Z",4],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "last order by time without time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT last(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T00:00:15Z",4],["2000-01-01T00:00:30Z",5],["2000-01-01T00:00:45Z",5],["2000-01-01T00:01:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "last order by time with time specified group by 15s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, last(value) FROM intmany where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:14Z' group by time(15s)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:20Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:00:50Z",5],["2000-01-01T00:01:10Z",9]]}]}]}`,
+		},
+
 		// order by time desc
 		&Query{
 			name:    "aggregate order by time desc",
@@ -2249,7 +2305,283 @@ func TestServer_Query_Aggregates(t *testing.T) {
 	}
 }
 
-func TestServer_Query_AggregatesTopInt(t *testing.T) {
+func TestServer_Query_AggregateSelectors(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`network,host=server01,region=west,core=1 rx=10i,tx=20i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server02,region=west,core=2 rx=40i,tx=50i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server03,region=east,core=3 rx=40i,tx=55i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`network,host=server04,region=east,core=4 rx=40i,tx=60i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`network,host=server05,region=west,core=1 rx=50i,tx=70i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`network,host=server06,region=east,core=2 rx=50i,tx=40i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`network,host=server07,region=west,core=3 rx=70i,tx=30i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server08,region=east,core=4 rx=90i,tx=10i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server09,region=east,core=1 rx=5i,tx=4i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:20Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "baseline",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM network`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","core","host","region","rx","tx"],"values":[["2000-01-01T00:00:00Z",2,"server01","west",10,20],["2000-01-01T00:00:10Z",3,"server02","west",40,50],["2000-01-01T00:00:20Z",4,"server03","east",40,55],["2000-01-01T00:00:30Z",1,"server04","east",40,60],["2000-01-01T00:00:40Z",2,"server05","west",50,70],["2000-01-01T00:00:50Z",3,"server06","east",50,40],["2000-01-01T00:01:00Z",4,"server07","west",70,30],["2000-01-01T00:01:10Z",1,"server08","east",90,10],["2000-01-01T00:01:20Z",2,"server09","east",5,4]]}]}]}`,
+		},
+		&Query{
+			name:    "max - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",90]]}]}]}`,
+		},
+		&Query{
+			name:    "max - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","max"],"values":[["2000-01-01T00:00:00Z",50,40],["2000-01-01T00:00:30Z",70,50],["2000-01-01T00:01:00Z",10,90]]}]}]}`,
+		},
+		&Query{
+			name:    "max - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:10Z",40],["2000-01-01T00:00:40Z",50],["2000-01-01T00:01:10Z",90]]}]}]}`,
+		},
+		&Query{
+			name:    "max - time and tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, tx, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","max"],"values":[["2000-01-01T00:00:10Z",50,40],["2000-01-01T00:00:40Z",70,50],["2000-01-01T00:01:10Z",10,90]]}]}]}`,
+		},
+		&Query{
+			name:    "min - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:30Z",40],["2000-01-01T00:01:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "min - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","min"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:00Z",4,5]]}]}]}`,
+		},
+		&Query{
+			name:    "min - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:30Z",40],["2000-01-01T00:01:20Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "min - time and tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, tx, min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","min"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:20Z",4,5]]}]}]}`,
+		},
+		&Query{
+			name:    "first - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT first(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:30Z",40],["2000-01-01T00:01:00Z",70]]}]}]}`,
+		},
+		&Query{
+			name:    "first - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, tx, first(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","first"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:00Z",30,70]]}]}]}`,
+		},
+		&Query{
+			name:    "first - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, first(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:30Z",40],["2000-01-01T00:01:00Z",70]]}]}]}`,
+		},
+		&Query{
+			name:    "first - time and tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, tx, first(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","first"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:00Z",30,70]]}]}]}`,
+		},
+		&Query{
+			name:    "last - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT last(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "last - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, last(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","last"],"values":[["2000-01-01T00:00:00Z",55,40],["2000-01-01T00:00:30Z",40,50],["2000-01-01T00:01:00Z",4,5]]}]}]}`,
+		},
+		&Query{
+			name:    "last - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, last(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","last"],"values":[["2000-01-01T00:00:20Z",40],["2000-01-01T00:00:50Z",50],["2000-01-01T00:01:20Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "last - time and tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, tx, last(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","last"],"values":[["2000-01-01T00:00:20Z",55,40],["2000-01-01T00:00:50Z",40,50],["2000-01-01T00:01:20Z",4,5]]}]}]}`,
+		},
+		&Query{
+			name:    "count - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",3],["2000-01-01T00:00:30Z",3],["2000-01-01T00:01:00Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "count - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "count - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, count(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "distinct - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",[10,40]],["2000-01-01T00:00:30Z",[40,50]],["2000-01-01T00:01:00Z",[5,70,90]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: aggregate function distinct() can not be combined with other functions or fields"}`,
+		},
+		&Query{
+			name:    "distinct - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: aggregate function distinct() can not be combined with other functions or fields"}`,
+		},
+		&Query{
+			name:    "mean - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30],["2000-01-01T00:00:30Z",46.666666666666664],["2000-01-01T00:01:00Z",55]]}]}]}`,
+		},
+		&Query{
+			name:    "mean - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "mean - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, mean(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "median - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","median"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70]]}]}]}`,
+		},
+		&Query{
+			name:    "median - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "median - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, median(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "spread - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","spread"],"values":[["2000-01-01T00:00:00Z",30],["2000-01-01T00:00:30Z",10],["2000-01-01T00:01:00Z",85]]}]}]}`,
+		},
+		&Query{
+			name:    "spread - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "spread - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, spread(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "stddev - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","stddev"],"values":[["2000-01-01T00:00:00Z",17.320508075688775],["2000-01-01T00:00:30Z",5.773502691896258],["2000-01-01T00:01:00Z",44.44097208657794]]}]}]}`,
+		},
+		&Query{
+			name:    "stddev - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "stddev - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, stddev(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "percentile - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT percentile(rx, 75) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","percentile"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70]]}]}]}`,
+		},
+		&Query{
+			name:    "percentile - time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT time, percentile(rx, 75) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+		&Query{
+			name:    "percentile - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT tx, percentile(rx, 75) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"error":"error parsing query: mixing aggregate and non-aggregate queries is not supported"}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_TopInt(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -2437,7 +2769,7 @@ func TestServer_Query_AggregatesTopInt(t *testing.T) {
 }
 
 // Test various aggregates when different series only have data for the same timestamp.
-func TestServer_Query_AggregatesIdenticalTime(t *testing.T) {
+func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -2469,14 +2801,14 @@ func TestServer_Query_AggregatesIdenticalTime(t *testing.T) {
 			name:    "last from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT last(value) FROM "series"`,
-			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",5]]}]}]}`,
 			repeat:  100,
 		},
 		&Query{
 			name:    "first from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT first(value) FROM "series"`,
-			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",5]]}]}]}`,
 			repeat:  100,
 		},
 	}...)
