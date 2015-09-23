@@ -1142,6 +1142,7 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 		case "top", "bottom", "max", "min", "first", "last":
 		default:
 			onlySelectors = false
+			break
 		}
 	}
 	if onlySelectors {
