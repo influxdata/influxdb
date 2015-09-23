@@ -227,7 +227,7 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 		timestamp, value := p.timestamp, p.value
 
 		// Keep track of all fields for series cursor so we can
-		// responsd with them is asked
+		// respond with them if asked
 		tsc.currentFields = value
 
 		// Keep track of the current tags for the series cursor so we can
