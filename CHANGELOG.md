@@ -5,7 +5,7 @@
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
 - [#4140](https://github.com/influxdb/influxdb/pull/4140): Make storage engine configurable
 - [#4161](https://github.com/influxdb/influxdb/pull/4161): Implement bottom selector function
-- [#4196](https://github.com/influxdb/influxdb/pull/4204): Allow module-level selection for SHOW STATS
+- [#4204](https://github.com/influxdb/influxdb/pull/4204): Allow module-level selection for SHOW STATS
 - [#4196](https://github.com/influxdb/influxdb/pull/4196): Export tsdb.Iterator
 - [#4198](https://github.com/influxdb/influxdb/pull/4198): Add basic cluster-service stats
 
