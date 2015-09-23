@@ -163,9 +163,9 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 
 	lastSuccess := true
 
-	car := make(chan []client.Point, 10)
+	ch := make(chan []client.Point, 100)
 
-	go func(ch chan []client.Point) {
+	go func() {
 		points := []client.Point{}
 
 		for _, testSeries := range cfg.Series {
@@ -184,14 +184,14 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 			}
 		}
 
-		close(car)
+		close(ch)
 
-	}(car)
+	}()
 
 	timer = NewTimer()
 	defer timer.StopTimer()
 
-	for pnt := range car {
+	for pnt := range ch {
 		batch := &client.BatchPoints{
 			Database:         cfg.Write.Database,
 			WriteConsistency: "any",
