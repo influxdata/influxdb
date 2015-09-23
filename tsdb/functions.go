@@ -91,11 +91,10 @@ func initializeMapFunc(c *influxql.Call) (mapFunc, error) {
 		// Capture information from the call that the Map function will require
 		lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
 		limit := int(lit.Val)
-		args := topCallArgs(c)
-		fields := c.Fields()
+		fields := topCallArgs(c)
 
 		return func(itr Iterator) interface{} {
-			return MapTopBottom(itr, limit, args, fields, len(c.Args), c.Name)
+			return MapTopBottom(itr, limit, fields, len(c.Args), c.Name)
 		}, nil
 	case "percentile":
 		return MapEcho, nil
@@ -1451,8 +1450,8 @@ func (m *mapIter) Next() (time int64, value interface{}) {
 }
 
 // MapTopBottom emits the top/bottom data points for each group by interval
-func MapTopBottom(itr Iterator, limit int, callArgs, fields []string, argCount int, callName string) interface{} {
-	out := positionOut{callArgs: callArgs}
+func MapTopBottom(itr Iterator, limit int, fields []string, argCount int, callName string) interface{} {
+	out := positionOut{callArgs: fields}
 	out.points = make([]PositionPoint, 0, limit)
 	minheap := topBottomMapOut{
 		&out,
