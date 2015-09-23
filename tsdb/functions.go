@@ -1299,7 +1299,12 @@ func valueCompare(a, b interface{}) int {
 	panic(fmt.Sprintf("unreachable code; types were %T, %T", a, b))
 }
 
+// PositionPoints is a slice of PositionPoints used to return richer data from a reduce func
 type PositionPoints []PositionPoint
+
+// PositionPoint will return all data points from a written point that were selected in the query
+// to be used in the post processing phase of the query executor to fill in additional
+// tag and field values
 type PositionPoint struct {
 	Time   int64
 	Value  interface{}
