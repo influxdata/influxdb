@@ -1445,7 +1445,15 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 // parseShowDiagnostics parses a string and returns a ShowDiagnosticsStatement.
 func (p *Parser) parseShowDiagnosticsStatement() (*ShowDiagnosticsStatement, error) {
 	stmt := &ShowDiagnosticsStatement{}
-	return stmt, nil
+	var err error
+
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
+	} else {
+		p.unscan()
+	}
+
+	return stmt, err
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.

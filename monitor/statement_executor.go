@@ -21,7 +21,7 @@ func (s *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 	case *influxql.ShowStatsStatement:
 		return s.executeShowStatistics(stmt.Module)
 	case *influxql.ShowDiagnosticsStatement:
-		return s.executeShowDiagnostics()
+		return s.executeShowDiagnostics(stmt.Module)
 	default:
 		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 	}
@@ -51,7 +51,7 @@ func (s *StatementExecutor) executeShowStatistics(module string) *influxql.Resul
 	return &influxql.Result{Series: rows}
 }
 
-func (s *StatementExecutor) executeShowDiagnostics() *influxql.Result {
+func (s *StatementExecutor) executeShowDiagnostics(module string) *influxql.Result {
 	diags, err := s.Monitor.Diagnostics()
 	if err != nil {
 		return &influxql.Result{Err: err}
@@ -59,6 +59,10 @@ func (s *StatementExecutor) executeShowDiagnostics() *influxql.Result {
 	rows := make([]*models.Row, 0, len(diags))
 
 	for k, v := range diags {
+		if module != "" && k != module {
+			continue
+		}
+
 		row := &models.Row{Name: k}
 
 		row.Columns = v.Columns
