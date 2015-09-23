@@ -1999,6 +1999,7 @@ func (s *ShowStatsStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW STATS ")
 	if s.Module != "" {
+		_, _ = buf.WriteString("FOR ")
 		_, _ = buf.WriteString(s.Module)
 	}
 	return buf.String()
