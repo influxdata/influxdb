@@ -598,6 +598,10 @@ func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames [
 
 	var err error
 	for i, calls := range callInPosition {
+		// We can only support expanding fields if a single selector call was specified
+		// i.e. select tx, max(rx) from foo
+		// If you have multiple selectors or aggregates, there is no way of knowing who gets to insert the values, so we don't
+		// i.e. select tx, max(rx), min(rx) from foo
 		if len(calls) == 1 {
 			var c *influxql.Call
 			c = calls[0]
