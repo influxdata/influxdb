@@ -163,7 +163,7 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 
 	lastSuccess := true
 
-	car := make(chan []client.Point, 1000)
+	car := make(chan []client.Point, 10)
 
 	go func(ch chan []client.Point) {
 		points := []client.Point{}
@@ -187,8 +187,6 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 		close(car)
 
 	}(car)
-
-	time.Sleep(30 * time.Second)
 
 	timer = NewTimer()
 	defer timer.StopTimer()
