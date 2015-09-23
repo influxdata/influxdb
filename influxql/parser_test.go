@@ -1417,6 +1417,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			s:    `SHOW DIAGNOSTICS`,
 			stmt: &influxql.ShowDiagnosticsStatement{},
 		},
+		{
+			s: `SHOW DIAGNOSTICS FOR 'build'`,
+			stmt: &influxql.ShowDiagnosticsStatement{
+				Module: "build",
+			},
+		},
 
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET at line 1, char 1`},
@@ -1501,6 +1507,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
 		{s: `SHOW STATS FOR`, err: `found EOF, expected string at line 1, char 16`},
+		{s: `SHOW DIAGNOSTICS FOR`, err: `found EOF, expected string at line 1, char 22`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},
 		{s: `SHOW GRANTS FOR`, err: `found EOF, expected identifier at line 1, char 17`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},

@@ -14,7 +14,7 @@ An example of statistical information would be the number of points received ove
 All statistics are written, by default, by each node to a "monitor" database within the InfluxDB system, allowing analysis of aggregated statistical data using the standard InfluxQL language. This allows users to track the performance of their system. Importantly, this allows cluster-level statistics to be viewed, since by querying the monitor database, statistics from all nodes may be queried. This can be a very powerful approach for troubleshooting your InfluxDB system and understanding its behaviour.
 
 ## System Diagnostics
-`SHOW DIAGNOSTICS` displays various diagnostic information about the `influxd` process. This information is not stored persistently within the InfluxDB system.
+`SHOW DIAGNOSTICS [FOR <module>]` displays various diagnostic information about the `influxd` process. This information is not stored persistently within the InfluxDB system. If _module_ is specified, it must be single-quoted. For example `SHOW STATS FOR 'build'`.
 
 ## Standard expvar support
 All statistical information is available at HTTP API endpoint `/debug/vars`, in [expvar](https://golang.org/pkg/expvar/) format, allowing external systems to monitor an InfluxDB node. By default, the full path to this endpoint is `http://localhost:8086/debug/vars`.

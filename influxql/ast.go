@@ -2021,10 +2021,21 @@ func (s *ShowShardsStatement) RequiredPrivileges() ExecutionPrivileges {
 }
 
 // ShowDiagnosticsStatement represents a command for show node diagnostics.
-type ShowDiagnosticsStatement struct{}
+type ShowDiagnosticsStatement struct {
+	// Module
+	Module string
+}
 
 // String returns a string representation of the ShowDiagnosticsStatement.
-func (s *ShowDiagnosticsStatement) String() string { return "SHOW DIAGNOSTICS" }
+func (s *ShowDiagnosticsStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW DIAGNOSTICS ")
+	if s.Module != "" {
+		_, _ = buf.WriteString("FOR ")
+		_, _ = buf.WriteString(s.Module)
+	}
+	return buf.String()
+}
 
 // RequiredPrivileges returns the privilege required to execute a ShowDiagnosticsStatement
 func (s *ShowDiagnosticsStatement) RequiredPrivileges() ExecutionPrivileges {
