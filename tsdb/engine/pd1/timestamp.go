@@ -30,7 +30,7 @@ type TimeDecoder interface {
 }
 
 type encoder struct {
-	ts []int64
+	ts []uint64
 }
 
 // NewTimeEncoder returns a TimeEncoder
@@ -40,28 +40,29 @@ func NewTimeEncoder() TimeEncoder {
 
 // Write adds a time.Time to the compressed stream.
 func (e *encoder) Write(t time.Time) {
-	e.ts = append(e.ts, t.UnixNano())
+	e.ts = append(e.ts, uint64(t.UnixNano()))
 }
 
-func (e *encoder) reduce() (min, max, divisor int64, rle bool, deltas []int64) {
-	// We make a copy of the timestamps so that if we end up using using RAW encoding,
-	// we still have the original values to encode.
-	deltas = make([]int64, len(e.ts))
-	copy(deltas, e.ts)
+func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
+	// Compute the deltas in place to avoid allocating another slice
+	deltas = e.ts
+	// Starting values for a max and divisor
+	max, divisor = 0, 1e12
 
-	// Starting values for a min, max and divisor
-	min, max, divisor = e.ts[0], 0, 1e12
+	// Indicates whether the the deltas can be run-length encoded
+	rle = true
 
-	// First differential encode the values in place
+	// Interate in reverse so we can apply deltas in place
 	for i := len(deltas) - 1; i > 0; i-- {
-		deltas[i] = deltas[i] - deltas[i-1]
 
-		// We also want to keep track of the min, max and divisor so we don't
-		// have to loop again
+		// First differential encode the values
+		delta := int64(deltas[i] - deltas[i-1])
+
+		// The delta may be negative so zigzag encode it into a postive value
+		deltas[i] = ZigZagEncode(delta)
+
+		// We're also need to keep track of the max value and largest common divisor
 		v := deltas[i]
-		if v < min {
-			min = v
-		}
 
 		if v > max {
 			max = v
@@ -74,18 +75,10 @@ func (e *encoder) reduce() (min, max, divisor int64, rle bool, deltas []int64) {
 			}
 			divisor /= 10
 		}
-	}
 
-	// Are the deltas able to be run-length encoded?
-	rle = true
-	for i := 1; i < len(deltas); i++ {
-		deltas[i] = (deltas[i] - min) / divisor
 		// Skip the first value || see if prev = curr.  The deltas can be RLE if the are all equal.
-		rle = i == 1 || rle && (deltas[i-1] == deltas[i])
+		rle = i != 0 || rle && (deltas[i-1] == deltas[i])
 	}
-
-	// No point RLE encoding 1 value
-	rle = rle && len(deltas) > 1
 	return
 }
 
@@ -95,43 +88,38 @@ func (e *encoder) Bytes() ([]byte, error) {
 		return []byte{}, nil
 	}
 
-	// Minimum, maxim and largest common divisor.  rle is true if dts (the delta timestamps),
+	// Maximum and largest common divisor.  rle is true if dts (the delta timestamps),
 	// are all the same.
-	min, max, div, rle, dts := e.reduce()
+	max, mod, rle, dts := e.reduce()
 
 	// The deltas are all the same, so we can run-length encode them
 	if rle && len(e.ts) > 60 {
-		return e.encodeRLE(e.ts[0], e.ts[1]-e.ts[0], div, len(e.ts))
+		return e.encodeRLE(e.ts[0], e.ts[1], mod, len(e.ts))
 	}
 
-	// We can't compress this time-range, the deltas exceed 1 << 60.  That would mean that two
-	// adjacent timestamps are nanosecond resolution and ~36.5yr apart.
+	// We can't compress this time-range, the deltas exceed 1 << 60
 	if max > simple8b.MaxValue {
 		return e.encodeRaw()
 	}
 
-	// Otherwise, encode them in a compressed format
-	return e.encodePacked(min, div, dts)
+	return e.encodePacked(mod, dts)
 }
 
-func (e *encoder) encodePacked(min, div int64, dts []int64) ([]byte, error) {
+func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 	enc := simple8b.NewEncoder()
 	for _, v := range dts[1:] {
-		enc.Write(uint64(v))
+		enc.Write(uint64(v) / div)
 	}
 
-	b := make([]byte, 8*2+1)
+	b := make([]byte, 8+1)
 
 	// 4 high bits used for the encoding type
 	b[0] = byte(EncodingPacked) << 4
 	// 4 low bits are the log10 divisor
 	b[0] |= byte(math.Log10(float64(div)))
 
-	// The minimum timestamp value
-	binary.BigEndian.PutUint64(b[1:9], uint64(min))
-
 	// The first delta value
-	binary.BigEndian.PutUint64(b[9:17], uint64(dts[0]))
+	binary.BigEndian.PutUint64(b[1:9], uint64(dts[0]))
 
 	// The compressed deltas
 	deltas, err := enc.Bytes()
@@ -151,7 +139,7 @@ func (e *encoder) encodeRaw() ([]byte, error) {
 	return b, nil
 }
 
-func (e *encoder) encodeRLE(first, delta, div int64, n int) ([]byte, error) {
+func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 	// Large varints can take up to 10 bytes
 	b := make([]byte, 1+10*3)
 
@@ -174,7 +162,7 @@ func (e *encoder) encodeRLE(first, delta, div int64, n int) ([]byte, error) {
 
 type decoder struct {
 	v  time.Time
-	ts []int64
+	ts []uint64
 }
 
 func NewTimeDecoder(b []byte) TimeDecoder {
@@ -187,7 +175,7 @@ func (d *decoder) Next() bool {
 	if len(d.ts) == 0 {
 		return false
 	}
-	d.v = time.Unix(0, d.ts[0])
+	d.v = time.Unix(0, int64(d.ts[0]))
 	d.ts = d.ts[1:]
 	return true
 }
@@ -216,21 +204,20 @@ func (d *decoder) decode(b []byte) {
 }
 
 func (d *decoder) decodePacked(b []byte) {
-	div := int64(math.Pow10(int(b[0] & 0xF)))
-	min := int64(binary.BigEndian.Uint64(b[1:9]))
-	first := int64(binary.BigEndian.Uint64(b[9:17]))
+	div := uint64(math.Pow10(int(b[0] & 0xF)))
+	first := uint64(binary.BigEndian.Uint64(b[1:9]))
 
-	enc := simple8b.NewDecoder(b[17:])
+	enc := simple8b.NewDecoder(b[9:])
 
-	deltas := []int64{first}
+	deltas := []uint64{first}
 	for enc.Next() {
-		deltas = append(deltas, int64(enc.Read()))
+		deltas = append(deltas, enc.Read())
 	}
 
 	// Compute the prefix sum and scale the deltas back up
 	for i := 1; i < len(deltas); i++ {
-		deltas[i] = (deltas[i] * div) + min
-		deltas[i] = deltas[i-1] + deltas[i]
+		dgap := ZigZagDecode(deltas[i] * div)
+		deltas[i] = uint64(int64(deltas[i-1]) + dgap)
 	}
 
 	d.ts = deltas
@@ -240,7 +227,7 @@ func (d *decoder) decodeRLE(b []byte) {
 	var i, n int
 
 	// Lower 4 bits hold the 10 based exponent so we can scale the values back up
-	div := int64(math.Pow10(int(b[i] & 0xF)))
+	mod := int64(math.Pow10(int(b[i] & 0xF)))
 	i += 1
 
 	// Next 8 bytes is the starting timestamp
@@ -250,21 +237,23 @@ func (d *decoder) decodeRLE(b []byte) {
 	// Next 1-10 bytes is our (scaled down by factor of 10) run length values
 	value, n := binary.Uvarint(b[i:])
 
+	value = uint64(ZigZagDecode(value))
+
 	// Scale the value back up
-	value *= uint64(div)
+	value *= uint64(mod)
 	i += n
 
 	// Last 1-10 bytes is how many times the value repeats
 	count, n := binary.Uvarint(b[i:])
 
 	// Rebuild construct the original values now
-	deltas := make([]int64, count)
+	deltas := make([]uint64, count)
 	for i := range deltas {
-		deltas[i] = int64(value)
+		deltas[i] = value
 	}
 
 	// Reverse the delta-encoding
-	deltas[0] = int64(first)
+	deltas[0] = first
 	for i := 1; i < len(deltas); i++ {
 		deltas[i] = deltas[i-1] + deltas[i]
 	}
@@ -273,8 +262,14 @@ func (d *decoder) decodeRLE(b []byte) {
 }
 
 func (d *decoder) decodeRaw(b []byte) {
-	d.ts = make([]int64, len(b)/8)
+	d.ts = make([]uint64, len(b)/8)
 	for i := range d.ts {
-		d.ts[i] = int64(binary.BigEndian.Uint64(b[i*8 : i*8+8]))
+		d.ts[i] = binary.BigEndian.Uint64(b[i*8 : i*8+8])
+
+		delta := ZigZagDecode(d.ts[i])
+		// Compute the prefix sum and scale the deltas back up
+		if i > 0 {
+			d.ts[i] = uint64(int64(d.ts[i-1]) + delta)
+		}
 	}
 }

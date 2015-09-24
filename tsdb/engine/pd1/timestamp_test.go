@@ -282,8 +282,9 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 func Test_TimeEncoder_220SecondDelta(t *testing.T) {
 	enc := pd1.NewTimeEncoder()
 	var ts []time.Time
+	now := time.Now()
 	for i := 0; i < 220; i++ {
-		ts = append(ts, time.Unix(int64(i), 0))
+		ts = append(ts, now.Add(time.Duration(i*60)*time.Second))
 	}
 
 	for _, v := range ts {

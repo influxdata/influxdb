@@ -27,7 +27,7 @@ func TestEncoding_FloatBlock(t *testing.T) {
 	}
 }
 
-func TestEncoding_IntBlock(t *testing.T) {
+func TestEncoding_IntBlock_Basic(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make(pd1.Values, len(times))
@@ -39,8 +39,19 @@ func TestEncoding_IntBlock(t *testing.T) {
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 
-	if !reflect.DeepEqual(decodedValues, values) {
-		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
+	if len(decodedValues) != len(values) {
+		t.Fatalf("unexpected results length:\n\tgot: %v\n\texp: %v\n", len(decodedValues), len(values))
+	}
+
+	for i := 0; i < len(decodedValues); i++ {
+
+		if decodedValues[i].Time() != values[i].Time() {
+			t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues[i].Time(), values[i].Time())
+		}
+
+		if decodedValues[i].Value() != values[i].Value() {
+			t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues[i].Value(), values[i].Value())
+		}
 	}
 }
 
@@ -69,7 +80,7 @@ func getTimes(n, step int, precision time.Duration) []time.Time {
 	t := time.Now().Round(precision)
 	a := make([]time.Time, n)
 	for i := 0; i < n; i++ {
-		a[i] = t.Add(60 * precision)
+		a[i] = t.Add(time.Duration(i*60) * precision)
 	}
 	return a
 }

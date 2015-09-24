@@ -19,15 +19,11 @@ func (e *int64Encoder) Write(v int64) {
 	e.values = append(e.values, v)
 }
 
-func (e *int64Encoder) zigZagEncode(x int64) uint64 {
-	return uint64(uint64(x<<1) ^ uint64((int64(x) >> 63)))
-}
-
 func (e *int64Encoder) Bytes() ([]byte, error) {
 	enc := simple8b.NewEncoder()
 
 	for _, v := range e.values {
-		n := e.zigZagEncode(v)
+		n := ZigZagEncode(v)
 		// Value is too large to encode using packed format
 		if n > simple8b.MaxValue {
 			return e.encodeUncompressed()
@@ -64,10 +60,6 @@ func NewInt64Decoder(b []byte) *int64Decoder {
 	return d
 }
 
-func (d *int64Decoder) zigZagDecode(v uint64) int64 {
-	return int64((v >> 1) ^ uint64((int64(v&1)<<63)>>63))
-}
-
 func (d *int64Decoder) Next() bool {
 	if len(d.values) == 0 {
 		return false
@@ -101,7 +93,7 @@ func (d *int64Decoder) decode(b []byte) {
 func (d *int64Decoder) decodePacked(b []byte) {
 	dec := simple8b.NewDecoder(b)
 	for dec.Next() {
-		d.values = append(d.values, d.zigZagDecode(dec.Read()))
+		d.values = append(d.values, ZigZagDecode(dec.Read()))
 	}
 }
 
