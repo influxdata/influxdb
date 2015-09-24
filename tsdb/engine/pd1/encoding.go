@@ -1,10 +1,21 @@
 package pd1
 
 import (
+	"encoding/binary"
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/influxdb/influxdb/tsdb"
+)
+
+const (
+	// EncodingPacked is a bit-packed format
+	EncodingPacked = 0
+	// EncodingRLE is a run-length encoded format
+	EncodingRLE = 1
+	// EncodingUncompressed is a non-compressed format
+	EncodingUncompressed = 2
 )
 
 type Value interface {
@@ -16,8 +27,8 @@ type Value interface {
 
 func NewValue(t time.Time, value interface{}) Value {
 	switch v := value.(type) {
-	// case int64:
-	// 	return &Int64Value{time: t, value: v}
+	case int64:
+		return &Int64Value{time: t, value: v}
 	case float64:
 		return &FloatValue{time: t, value: v}
 		// case bool:
@@ -58,6 +69,13 @@ func (v Values) Encode(buf []byte) []byte {
 		}
 		return EncodeFloatBlock(buf, a)
 
+	case *Int64Value:
+		a := make([]*Int64Value, len(v))
+		for i, vv := range v {
+			a[i] = vv.(*Int64Value)
+		}
+		return EncodeInt64Block(buf, a)
+
 		// TODO: add support for other types
 	}
 
@@ -68,6 +86,9 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 	switch v[0].(type) {
 	case *FloatValue:
 		a, _ := DecodeFloatBlock(block)
+		return a
+	case *Int64Value:
+		a, _ := DecodeInt64Block(block)
 		return a
 
 		// TODO: add support for other types
@@ -200,12 +221,65 @@ type Int64Value struct {
 	value int64
 }
 
-func EncodeInt64Block(buf []byte, values []Int64Value) []byte {
-	return nil
+func (v *Int64Value) Time() time.Time {
+	return v.time
 }
 
-func DecodeInt64Block(block []byte) ([]Int64Value, error) {
-	return nil, nil
+func (v *Int64Value) Value() interface{} {
+	return v.value
+}
+
+func (f *Int64Value) UnixNano() int64 {
+	return f.time.UnixNano()
+}
+
+func (v *Int64Value) Size() int {
+	return 16
+}
+
+func (v *Int64Value) String() string { return fmt.Sprintf("%v", v.value) }
+
+func EncodeInt64Block(buf []byte, values []*Int64Value) []byte {
+	tsEnc := NewTimeEncoder()
+	vEnc := NewInt64Encoder()
+	for _, v := range values {
+		tsEnc.Write(v.Time())
+		vEnc.Write(v.value)
+	}
+
+	// Encoded timestamp values
+	tb, err := tsEnc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+	// Encoded int64 values
+	vb, err := vEnc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Preprend the first timestamp of the block in the first 8 bytes
+	return append(u64tob(uint64(values[0].Time().UnixNano())),
+		packBlock(tb, vb)...)
+}
+
+func DecodeInt64Block(block []byte) ([]Value, error) {
+	// The first 8 bytes is the minimum timestamp of the block
+	tb, vb := unpackBlock(block[8:])
+
+	// Setup our timestamp and value decoders
+	tsDec := NewTimeDecoder(tb)
+	vDec := NewInt64Decoder(vb)
+
+	// Decode both a timestamp and value
+	var a []Value
+	for tsDec.Next() && vDec.Next() {
+		ts := tsDec.Read()
+		v := vDec.Read()
+		a = append(a, &Int64Value{ts, v})
+	}
+
+	return a, nil
 }
 
 type StringValue struct {
