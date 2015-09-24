@@ -2,7 +2,6 @@ package wal
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -33,7 +32,7 @@ func TestWAL_WritePoints(t *testing.T) {
 		},
 	})
 
-	// test that we can write to two different series
+	// Test that we can write to two different series
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
 	p3 := parsePoint("cpu,host=B value=1.0 1", codec)
@@ -41,27 +40,27 @@ func TestWAL_WritePoints(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := log.Cursor("cpu,host=A", tsdb.Forward)
-	k, v := c.Seek(inttob(1))
+	c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	k, v := c.SeekTo(1)
 
 	// ensure the series are there and points are in order
-	if bytes.Compare(v, p1.Data()) != 0 {
+	if v.(float64) != 23.2 {
 		t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
 	}
 
 	k, v = c.Next()
-	if bytes.Compare(v, p2.Data()) != 0 {
+	if v.(float64) != 25.3 {
 		t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
 	}
 
 	k, v = c.Next()
-	if k != nil {
+	if k != tsdb.EOF {
 		t.Fatalf("expected nil on last seek: %v %v", k, v)
 	}
 
-	c = log.Cursor("cpu,host=B", tsdb.Forward)
+	c = log.Cursor("cpu,host=B", []string{"value"}, codec, true)
 	k, v = c.Next()
-	if bytes.Compare(v, p3.Data()) != 0 {
+	if v.(float64) != 1.0 {
 		t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
 	}
 
@@ -98,19 +97,16 @@ func TestWAL_WritePoints(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c = log.Cursor("cpu,host=A", tsdb.Forward)
-	k, v = c.Next()
-	if bytes.Compare(v, p6.Data()) != 0 {
+	c = log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if _, v := c.Next(); v.(float64) != 1.3 {
 		t.Fatal("order wrong, expected p6")
 	}
-	_, v = c.Next()
-	if bytes.Compare(v, p4.Data()) != 0 {
+	if _, v := c.Next(); v.(float64) != 1.0 {
 		t.Fatal("order wrong, expected p6")
 	}
 
-	c = log.Cursor("cpu,host=C", tsdb.Forward)
-	_, v = c.Next()
-	if bytes.Compare(v, p5.Data()) != 0 {
+	c = log.Cursor("cpu,host=C", []string{"value"}, codec, true)
+	if _, v := c.Next(); v.(float64) != 1.4 {
 		t.Fatal("order wrong, expected p6")
 	}
 
@@ -156,17 +152,14 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := log.Cursor("cpu,host=A", tsdb.Forward)
-	_, v := c.Next()
-	if bytes.Compare(v, p1.Data()) != 0 {
+	c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if _, v := c.Next(); v.(float64) != 23.2 {
 		t.Fatal("p1 value wrong")
 	}
-	_, v = c.Next()
-	if bytes.Compare(v, p2.Data()) != 0 {
+	if _, v := c.Next(); v.(float64) != 25.3 {
 		t.Fatal("p2 value wrong")
 	}
-	_, v = c.Next()
-	if v != nil {
+	if _, v := c.Next(); v != nil {
 		t.Fatal("expected cursor to return nil")
 	}
 
@@ -184,8 +177,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 
 	log.Open()
 
-	p := points[0]
-	if len(p["cpu,host=A"]) != 2 {
+	if p := points[0]; len(p["cpu,host=A"]) != 2 {
 		t.Fatal("expected two points for cpu,host=A")
 	}
 
@@ -195,9 +187,8 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
-	c = log.Cursor("cpu,host=A", tsdb.Forward)
-	_, v = c.Next()
-	if bytes.Compare(v, p3.Data()) != 0 {
+	c = log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if _, v := c.Next(); v.(float64) != 29.2 {
 		t.Fatal("p3 value wrong")
 	}
 
@@ -205,8 +196,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 
 	points = make([]map[string][][]byte, 0)
 	log.Open()
-	p = points[0]
-	if len(p["cpu,host=A"]) != 1 {
+	if p := points[0]; len(p["cpu,host=A"]) != 1 {
 		t.Fatal("expected two points for cpu,host=A")
 	}
 }
@@ -235,17 +225,14 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := log.Cursor("cpu,host=A", tsdb.Forward)
-	_, v := c.Next()
-	if bytes.Compare(v, p1.Data()) != 0 {
+	c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if _, v := c.Next(); v.(float64) != 23.2 {
 		t.Fatal("p1 value wrong")
 	}
-	_, v = c.Next()
-	if bytes.Compare(v, p2.Data()) != 0 {
+	if _, v := c.Next(); v.(float64) != 25.3 {
 		t.Fatal("p2 value wrong")
 	}
-	_, v = c.Next()
-	if v != nil {
+	if _, v := c.Next(); v != nil {
 		t.Fatal("expected cursor to return nil")
 	}
 
@@ -268,9 +255,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 	}}
 
 	log.Open()
-
-	p := points[0]
-	if len(p["cpu,host=A"]) != 2 {
+	if p := points[0]; len(p["cpu,host=A"]) != 2 {
 		t.Fatal("expected two points for cpu,host=A")
 	}
 
@@ -280,9 +265,8 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
-	c = log.Cursor("cpu,host=A", tsdb.Forward)
-	_, v = c.Next()
-	if bytes.Compare(v, p3.Data()) != 0 {
+	c = log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if _, v := c.Next(); v.(float64) != 29.2 {
 		t.Fatal("p3 value wrong", p3.Data(), v)
 	}
 
@@ -290,8 +274,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 
 	points = make([]map[string][][]byte, 0)
 	log.Open()
-	p = points[0]
-	if len(p["cpu,host=A"]) != 1 {
+	if p := points[0]; len(p["cpu,host=A"]) != 1 {
 		t.Fatal("expected two points for cpu,host=A")
 	}
 }
@@ -341,9 +324,9 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	}
 
 	// ensure we have some data
-	c := log.Cursor("cpu,host=A,region=uswest10", tsdb.Forward)
+	c := log.Cursor("cpu,host=A,region=uswest10", []string{"value"}, codec, true)
 	k, _ := c.Next()
-	if btou64(k) != 1 {
+	if k != 1 {
 		t.Fatalf("expected first data point but got one with key: %v", k)
 	}
 
@@ -524,13 +507,13 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	}
 
 	// ensure data is there
-	c := log.Cursor("cpu,host=A", tsdb.Forward)
-	if k, _ := c.Next(); btou64(k) != 1 {
+	c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if k, _ := c.Next(); k != 1 {
 		t.Fatal("expected data point for cpu,host=A")
 	}
 
-	c = log.Cursor("cpu,host=B", tsdb.Forward)
-	if k, _ := c.Next(); btou64(k) != 2 {
+	c = log.Cursor("cpu,host=B", []string{"value"}, codec, true)
+	if k, _ := c.Next(); k != 2 {
 		t.Fatal("expected data point for cpu,host=B")
 	}
 
@@ -546,14 +529,14 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	if len(points["cpu,host=B"]) != 0 {
 		t.Fatal("expected cpu,host=B to have no points in index")
 	}
-	c = log.Cursor("cpu,host=A", tsdb.Forward)
-	if k, _ := c.Next(); k != nil {
+	c = log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if k, _ := c.Next(); k != tsdb.EOF {
 		t.Fatal("expected data to be out of the cache cpu,host=A")
 	}
 
 	// ensure series is deleted
-	c = log.Cursor("cpu,host=B", tsdb.Forward)
-	if k, _ := c.Next(); k != nil {
+	c = log.Cursor("cpu,host=B", []string{"value"}, codec, true)
+	if k, _ := c.Next(); k != tsdb.EOF {
 		t.Fatal("expected no data for cpu,host=B")
 	}
 
@@ -618,10 +601,10 @@ func TestWAL_QueryDuringCompaction(t *testing.T) {
 	}
 
 	verify := func() {
-		c := log.Cursor("cpu,host=A", tsdb.Forward)
-		k, v := c.Seek(inttob(1))
+		c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+		k, v := c.SeekTo(1)
 		// ensure the series are there and points are in order
-		if bytes.Compare(v, p1.Data()) != 0 {
+		if v.(float64) != 23.2 {
 			<-finishCompaction
 			t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
 		}
@@ -664,21 +647,17 @@ func TestWAL_PointsSorted(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := log.Cursor("cpu,host=A", tsdb.Forward)
-	k, _ := c.Next()
-	if btou64(k) != 1 {
+	c := log.Cursor("cpu,host=A", []string{"value"}, codec, true)
+	if k, _ := c.Next(); k != 1 {
 		t.Fatal("points out of order")
 	}
-	k, _ = c.Next()
-	if btou64(k) != 2 {
+	if k, _ := c.Next(); k != 2 {
 		t.Fatal("points out of order")
 	}
-	k, _ = c.Next()
-	if btou64(k) != 4 {
+	if k, _ := c.Next(); k != 4 {
 		t.Fatal("points out of order")
 	}
-	k, _ = c.Next()
-	if btou64(k) != 6 {
+	if k, _ := c.Next(); k != 6 {
 		t.Fatal("points out of order")
 	}
 }
@@ -709,21 +688,18 @@ func TestWAL_Cursor_Reverse(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := log.Cursor("cpu,host=A", tsdb.Reverse)
+	c := log.Cursor("cpu,host=A", []string{"value"}, codec, false)
 	k, _ := c.Next()
-	if btou64(k) != 6 {
+	if k != 6 {
 		t.Fatal("points out of order")
 	}
-	k, _ = c.Next()
-	if btou64(k) != 4 {
+	if k, _ := c.Next(); k != 4 {
 		t.Fatal("points out of order")
 	}
-	k, _ = c.Next()
-	if btou64(k) != 2 {
+	if k, _ := c.Next(); k != 2 {
 		t.Fatal("points out of order")
 	}
-	k, _ = c.Next()
-	if btou64(k) != 1 {
+	if k, _ := c.Next(); k != 1 {
 		t.Fatal("points out of order")
 	}
 }
@@ -761,10 +737,4 @@ func parsePoints(buf string, codec *tsdb.FieldCodec) []models.Point {
 
 func parsePoint(buf string, codec *tsdb.FieldCodec) models.Point {
 	return parsePoints(buf, codec)[0]
-}
-
-func inttob(v int) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(v))
-	return b
 }

@@ -343,13 +343,23 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (Mapper, error) {
 	shard := s.Shard(shardID)
 
-	switch st := stmt.(type) {
+	switch stmt := stmt.(type) {
 	case *influxql.SelectStatement:
-		return NewSelectMapper(shard, st, chunkSize), nil
+		if (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative() {
+			m := NewRawMapper(shard, stmt)
+			m.ChunkSize = chunkSize
+			return m, nil
+		}
+		return NewAggregateMapper(shard, stmt), nil
+
 	case *influxql.ShowMeasurementsStatement:
-		return NewShowMeasurementsMapper(shard, st, chunkSize), nil
+		m := NewShowMeasurementsMapper(shard, stmt)
+		m.ChunkSize = chunkSize
+		return m, nil
+	case *influxql.ShowTagKeysStatement:
+		return NewShowTagKeysMapper(shard, stmt, chunkSize), nil
 	default:
-		return nil, fmt.Errorf("can't create mapper for statement type: %v", st)
+		return nil, fmt.Errorf("can't create mapper for statement type: %T", stmt)
 	}
 }
 

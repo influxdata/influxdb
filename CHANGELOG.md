@@ -4,6 +4,11 @@
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
 - [#4140](https://github.com/influxdb/influxdb/pull/4140): Make storage engine configurable
+- [#4161](https://github.com/influxdb/influxdb/pull/4161): Implement bottom selector function
+- [#4204](https://github.com/influxdb/influxdb/pull/4204): Allow module-level selection for SHOW STATS
+- [#4208](https://github.com/influxdb/influxdb/pull/4208): Allow module-level selection for SHOW DIAGNOSTICS
+- [#4196](https://github.com/influxdb/influxdb/pull/4196): Export tsdb.Iterator
+- [#4198](https://github.com/influxdb/influxdb/pull/4198): Add basic cluster-service stats
 
 ### Bugfixes
 - [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
@@ -11,6 +16,11 @@
 - [#4136](https://github.com/influxdb/influxdb/pull/4136): Return an error-on-write if target retention policy does not exist. Thanks for the report @ymettier
 - [#4124](https://github.com/influxdb/influxdb/issues/4124): Missing defer/recover/panic idiom in HTTPD service
 - [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to _internal
+- [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to internal database.
+- [#4118](https://github.com/influxdb/influxdb/issues/4118): Return consistent, correct result for SHOW MEASUREMENTS with multiple AND conditions
+- [#4191](https://github.com/influxdb/influxdb/pull/4191): Correctly marshal remote mapper responses. Fixes [#4170](https://github.com/influxdb/influxdb/issues/4170)
+- [#4180](https://github.com/influxdb/influxdb/pull/4180): Cursor & SelectMapper Refactor
+- [#1577](https://github.com/influxdb/influxdb/issues/1577): selectors (e.g. min, max, first, last) should have equivalents to return the actual point
 - [#3939](https://github.com/influxdb/influxdb/issues/3939): [0.9.3] Acceptable boolean syntax differs for data writes and data queries thanks @apriendeau
 
 ## v0.9.4 [2015-09-14]

@@ -9,12 +9,12 @@ A distinction is made between _statistics_ and _diagnostics_ for the purposes of
 An example of statistical information would be the number of points received over UDP, or the number of queries executed. Examples of diagnostic information would be a list of current Graphite TCP connections, the version of InfluxDB, or the uptime of the process.
 
 ## System Statistics
-`SHOW STATS` displays statisics about subsystems within the running `influxd` process. Statistics include points received, points indexed, bytes written to disk, TCP connections handled etc. These statistics are all zero when the InfluxDB process starts.
+`SHOW STATS [FOR <module>]` displays statisics about subsystems within the running `influxd` process. Statistics include points received, points indexed, bytes written to disk, TCP connections handled etc. These statistics are all zero when the InfluxDB process starts. If _module_ is specified, it must be single-quoted. For example `SHOW STATS FOR 'httpd'`.
 
 All statistics are written, by default, by each node to a "monitor" database within the InfluxDB system, allowing analysis of aggregated statistical data using the standard InfluxQL language. This allows users to track the performance of their system. Importantly, this allows cluster-level statistics to be viewed, since by querying the monitor database, statistics from all nodes may be queried. This can be a very powerful approach for troubleshooting your InfluxDB system and understanding its behaviour.
 
 ## System Diagnostics
-`SHOW DIAGNOSTICS` displays various diagnostic information about the `influxd` process. This information is not stored persistently within the InfluxDB system.
+`SHOW DIAGNOSTICS [FOR <module>]` displays various diagnostic information about the `influxd` process. This information is not stored persistently within the InfluxDB system. If _module_ is specified, it must be single-quoted. For example `SHOW STATS FOR 'build'`.
 
 ## Standard expvar support
 All statistical information is available at HTTP API endpoint `/debug/vars`, in [expvar](https://golang.org/pkg/expvar/) format, allowing external systems to monitor an InfluxDB node. By default, the full path to this endpoint is `http://localhost:8086/debug/vars`.
@@ -23,7 +23,7 @@ All statistical information is available at HTTP API endpoint `/debug/vars`, in 
 The `monitor` module allows the following configuration:
 
  * Whether to write statistical and diagnostic information to an InfluxDB system. This is enabled by default.
- * The name of the database to where this information should be written. Defaults to `_internal`. The information is written to the default retention policy for the given database. 
+ * The name of the database to where this information should be written. Defaults to `_internal`. The information is written to the default retention policy for the given database.
  * The name of the retention policy, along with full configuration control of the retention policy, if the default retention policy is not suitable.
  * The rate at which this information should be written. The default rate is once every 10 seconds.
 

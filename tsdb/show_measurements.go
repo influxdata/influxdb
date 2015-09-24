@@ -120,19 +120,19 @@ func (e *ShowMeasurementsExecutor) close() {
 
 // ShowMeasurementsMapper is a mapper for collecting measurement names from a shard.
 type ShowMeasurementsMapper struct {
-	remote    Mapper
-	shard     *Shard
-	stmt      *influxql.ShowMeasurementsStatement
-	chunkSize int
-	state     interface{}
+	remote Mapper
+	shard  *Shard
+	stmt   *influxql.ShowMeasurementsStatement
+	state  interface{}
+
+	ChunkSize int
 }
 
 // NewShowMeasurementsMapper returns a mapper for the given shard, which will return data for the meta statement.
-func NewShowMeasurementsMapper(shard *Shard, stmt *influxql.ShowMeasurementsStatement, chunkSize int) *ShowMeasurementsMapper {
+func NewShowMeasurementsMapper(shard *Shard, stmt *influxql.ShowMeasurementsStatement) *ShowMeasurementsMapper {
 	return &ShowMeasurementsMapper{
-		shard:     shard,
-		stmt:      stmt,
-		chunkSize: chunkSize,
+		shard: shard,
+		stmt:  stmt,
 	}
 }
 
@@ -176,10 +176,7 @@ func (m *ShowMeasurementsMapper) Open() error {
 }
 
 // SetRemote sets the remote mapper to use.
-func (m *ShowMeasurementsMapper) SetRemote(remote Mapper) error {
-	m.remote = remote
-	return nil
-}
+func (m *ShowMeasurementsMapper) SetRemote(remote Mapper) { m.remote = remote }
 
 // TagSets is only implemented on this mapper to satisfy the Mapper interface.
 func (m *ShowMeasurementsMapper) TagSets() []string { return nil }
@@ -212,13 +209,15 @@ func (m *ShowMeasurementsMapper) NextChunk() (interface{}, error) {
 // nextChunk implements next chunk logic for a local shard.
 func (m *ShowMeasurementsMapper) nextChunk() (interface{}, error) {
 	// Allocate array to hold measurement names.
-	names := make([]string, 0, m.chunkSize)
+	names := make([]string, 0, m.ChunkSize)
+
 	// Get the channel of measurement names from the state.
 	measurementNames := m.state.(chan string)
+
 	// Get the next chunk of names.
 	for n := range measurementNames {
 		names = append(names, n)
-		if len(names) == m.chunkSize {
+		if len(names) == m.ChunkSize {
 			break
 		}
 	}

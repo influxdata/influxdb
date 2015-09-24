@@ -751,6 +751,74 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG KEYS with LIMIT
+		{
+			s: `SHOW TAG KEYS FROM src LIMIT 2`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Limit:   2,
+			},
+		},
+
+		// SHOW TAG KEYS with OFFSET
+		{
+			s: `SHOW TAG KEYS FROM src OFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Offset:  1,
+			},
+		},
+
+		// SHOW TAG KEYS with LIMIT and OFFSET
+		{
+			s: `SHOW TAG KEYS FROM src LIMIT 2 OFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Limit:   2,
+				Offset:  1,
+			},
+		},
+
+		// SHOW TAG KEYS with SLIMIT
+		{
+			s: `SHOW TAG KEYS FROM src SLIMIT 2`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				SLimit:  2,
+			},
+		},
+
+		// SHOW TAG KEYS with SOFFSET
+		{
+			s: `SHOW TAG KEYS FROM src SOFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				SOffset: 1,
+			},
+		},
+
+		// SHOW TAG KEYS with SLIMIT and SOFFSET
+		{
+			s: `SHOW TAG KEYS FROM src SLIMIT 2 SOFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				SLimit:  2,
+				SOffset: 1,
+			},
+		},
+
+		// SHOW TAG KEYS with LIMIT, OFFSET, SLIMIT, and SOFFSET
+		{
+			s: `SHOW TAG KEYS FROM src LIMIT 4 OFFSET 3 SLIMIT 2 SOFFSET 1`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+				Limit:   4,
+				Offset:  3,
+				SLimit:  2,
+				SOffset: 1,
+			},
+		},
+
 		// SHOW TAG KEYS FROM /<regex>/
 		{
 			s: `SHOW TAG KEYS FROM /[cg]pu/`,
@@ -1328,19 +1396,13 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW STATS`,
 			stmt: &influxql.ShowStatsStatement{
-				Host: "",
+				Module: "",
 			},
 		},
 		{
-			s: `SHOW STATS ON 'servera'`,
+			s: `SHOW STATS FOR 'cluster'`,
 			stmt: &influxql.ShowStatsStatement{
-				Host: "servera",
-			},
-		},
-		{
-			s: `SHOW STATS ON '192.167.1.44'`,
-			stmt: &influxql.ShowStatsStatement{
-				Host: "192.167.1.44",
+				Module: "cluster",
 			},
 		},
 
@@ -1354,6 +1416,12 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s:    `SHOW DIAGNOSTICS`,
 			stmt: &influxql.ShowDiagnosticsStatement{},
+		},
+		{
+			s: `SHOW DIAGNOSTICS FOR 'build'`,
+			stmt: &influxql.ShowDiagnosticsStatement{
+				Module: "build",
+			},
 		},
 
 		// Errors
@@ -1438,7 +1506,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION POLICIES mydb`, err: `found mydb, expected ON at line 1, char 25`},
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
-		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
+		{s: `SHOW STATS FOR`, err: `found EOF, expected string at line 1, char 16`},
+		{s: `SHOW DIAGNOSTICS FOR`, err: `found EOF, expected string at line 1, char 22`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},
 		{s: `SHOW GRANTS FOR`, err: `found EOF, expected identifier at line 1, char 17`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},

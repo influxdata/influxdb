@@ -121,17 +121,11 @@ func NewEngineOptions() EngineOptions {
 type Tx interface {
 	io.WriterTo
 
-	Cursor(series string, direction Direction) Cursor
 	Size() int64
 	Commit() error
 	Rollback() error
-}
 
-// Cursor represents an iterator over a series.
-type Cursor interface {
-	Seek(seek []byte) (key, value []byte)
-	Next() (key, value []byte)
-	Direction() Direction
+	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
 }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).

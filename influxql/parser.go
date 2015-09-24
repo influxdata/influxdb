@@ -979,6 +979,16 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 		return nil, err
 	}
 
+	// Parse series limit: "SLIMIT <n>".
+	if stmt.SLimit, err = p.parseOptionalTokenAndInt(SLIMIT); err != nil {
+		return nil, err
+	}
+
+	// Parse series offset: "SOFFSET <n>".
+	if stmt.SOffset, err = p.parseOptionalTokenAndInt(SOFFSET); err != nil {
+		return nil, err
+	}
+
 	return stmt, nil
 }
 
@@ -1423,8 +1433,8 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 	stmt := &ShowStatsStatement{}
 	var err error
 
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
-		stmt.Host, err = p.parseString()
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
 	} else {
 		p.unscan()
 	}
@@ -1435,7 +1445,15 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 // parseShowDiagnostics parses a string and returns a ShowDiagnosticsStatement.
 func (p *Parser) parseShowDiagnosticsStatement() (*ShowDiagnosticsStatement, error) {
 	stmt := &ShowDiagnosticsStatement{}
-	return stmt, nil
+	var err error
+
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
+	} else {
+		p.unscan()
+	}
+
+	return stmt, err
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.
