@@ -10,19 +10,11 @@ package pd1
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/jwilder/encoding/simple8b"
-)
-
-const (
-	// EncodingPacked is a bit-packed format
-	EncodingPacked = 0
-	// EncodingRLE is a run-length encoded format
-	EncodingRLE = 1
-	// EncodingRAW is a non-compressed format
-	EncodingRaw = 2
 )
 
 // TimeEncoder encodes time.Time to byte slices.
@@ -152,7 +144,7 @@ func (e *encoder) encodePacked(min, div int64, dts []int64) ([]byte, error) {
 
 func (e *encoder) encodeRaw() ([]byte, error) {
 	b := make([]byte, 1+len(e.ts)*8)
-	b[0] = byte(EncodingRaw) << 4
+	b[0] = byte(EncodingUncompressed) << 4
 	for i, v := range e.ts {
 		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], uint64(v))
 	}
@@ -212,12 +204,14 @@ func (d *decoder) decode(b []byte) {
 	// Encoding type is stored in the 4 high bits of the first byte
 	encoding := b[0] >> 4
 	switch encoding {
-	case EncodingRaw:
+	case EncodingUncompressed:
 		d.decodeRaw(b[1:])
 	case EncodingRLE:
 		d.decodeRLE(b)
-	default:
+	case EncodingPacked:
 		d.decodePacked(b)
+	default:
+		panic(fmt.Sprintf("unknown encoding: %v", encoding))
 	}
 }
 
