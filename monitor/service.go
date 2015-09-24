@@ -151,12 +151,18 @@ func (m *Monitor) SetLogger(l *log.Logger) {
 }
 
 // RegisterDiagnosticsClient registers a diagnostics client with the given name and tags.
-func (m *Monitor) RegisterDiagnosticsClient(name string, client DiagsClient) error {
+func (m *Monitor) RegisterDiagnosticsClient(name string, client DiagsClient) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.diagRegistrations[name] = client
 	m.Logger.Printf(`'%s' registered for diagnostics monitoring`, name)
-	return nil
+}
+
+// DeregisterDiagnosticsClient deregisters a diagnostics client by name.
+func (m *Monitor) DeregisterDiagnosticsClient(name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.diagRegistrations, name)
 }
 
 // Statistics returns the combined statistics for all expvar data. The given

@@ -18,6 +18,7 @@
 - [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to internal database.
 - [#4118](https://github.com/influxdb/influxdb/issues/4118): Return consistent, correct result for SHOW MEASUREMENTS with multiple AND conditions
 - [#4191](https://github.com/influxdb/influxdb/pull/4191): Correctly marshal remote mapper responses. Fixes [#4170](https://github.com/influxdb/influxdb/issues/4170)
+- [#4222](https://github.com/influxdb/influxdb/pull/4222): Graphite TCP connections should not block shutdown
 - [#4180](https://github.com/influxdb/influxdb/pull/4180): Cursor & SelectMapper Refactor
 - [#1577](https://github.com/influxdb/influxdb/issues/1577): selectors (e.g. min, max, first, last) should have equivalents to return the actual point
 
