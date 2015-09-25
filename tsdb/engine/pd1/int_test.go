@@ -220,6 +220,10 @@ func BenchmarkInt64Encoder(b *testing.B) {
 	}
 }
 
+type byteSetter interface {
+	SetBytes(b []byte)
+}
+
 func BenchmarkInt64Decoder(b *testing.B) {
 	x := make([]int64, 1024)
 	enc := pd1.NewInt64Encoder()
@@ -231,10 +235,10 @@ func BenchmarkInt64Decoder(b *testing.B) {
 
 	b.ResetTimer()
 
+	dec := pd1.NewInt64Decoder(bytes)
+
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		dec := pd1.NewInt64Decoder(bytes)
-		b.StartTimer()
+		dec.(byteSetter).SetBytes(bytes)
 		for dec.Next() {
 		}
 	}
