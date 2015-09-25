@@ -24,6 +24,10 @@ func Test_TimeEncoder(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if got := b[0] >> 4; got != pd1.EncodingPacked {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	}
+
 	dec := pd1.NewTimeDecoder(b)
 	for i, v := range x {
 		if !dec.Next() {
@@ -59,6 +63,10 @@ func Test_TimeEncoder_One(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if got := b[0] >> 4; got != pd1.EncodingPacked {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	}
+
 	dec := pd1.NewTimeDecoder(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -79,6 +87,10 @@ func Test_TimeEncoder_Two(t *testing.T) {
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; got != pd1.EncodingPacked {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
 	dec := pd1.NewTimeDecoder(b)
@@ -112,6 +124,10 @@ func Test_TimeEncoder_Three(t *testing.T) {
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; got != pd1.EncodingPacked {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
 	dec := pd1.NewTimeDecoder(b)
@@ -151,6 +167,10 @@ func Test_TimeEncoder_Large_Range(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if got := b[0] >> 4; got != pd1.EncodingPacked {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	}
+
 	dec := pd1.NewTimeDecoder(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -169,7 +189,7 @@ func Test_TimeEncoder_Large_Range(t *testing.T) {
 	}
 }
 
-func Test_TimeEncoder_Raw(t *testing.T) {
+func Test_TimeEncoder_Uncompressed(t *testing.T) {
 	enc := pd1.NewTimeEncoder()
 	t1 := time.Unix(0, 0)
 	t2 := time.Unix(1, 0)
@@ -188,6 +208,10 @@ func Test_TimeEncoder_Raw(t *testing.T) {
 
 	if exp := 25; len(b) != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", len(b), exp)
+	}
+
+	if got := b[0] >> 4; got != pd1.EncodingUncompressed {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
 	dec := pd1.NewTimeDecoder(b)
@@ -232,6 +256,10 @@ func Test_TimeEncoder_RLE(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", len(b), exp)
 	}
 
+	if got := b[0] >> 4; got != pd1.EncodingRLE {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	}
+
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -269,6 +297,10 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if got := b[0] >> 4; got != pd1.EncodingPacked {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	}
+
 	dec := pd1.NewTimeDecoder(b)
 	i := 0
 	for dec.Next() {
@@ -299,6 +331,10 @@ func Test_TimeEncoder_220SecondDelta(t *testing.T) {
 	// Using RLE, should get 12 bytes
 	if exp := 12; len(b) != exp {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
+	}
+
+	if got := b[0] >> 4; got != pd1.EncodingRLE {
+		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
 	dec := pd1.NewTimeDecoder(b)
