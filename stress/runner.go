@@ -131,7 +131,7 @@ func resetDB(c *client.Client, database string) error {
 // It returns the total number of points that were during the test,
 // an slice of all of the stress tests response times,
 // and the times that the test started at and ended as a `Timer`
-func Run(cfg *Config, done chan struct{}, d2 chan struct{}, ts chan time.Time) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
+func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
 
 	c, err := cfg.NewClient()
 	if err != nil {
@@ -172,7 +172,9 @@ func Run(cfg *Config, done chan struct{}, d2 chan struct{}, ts chan time.Time) (
 
 		}
 
-		num = num / (len(cfg.Series) * len(cfg.MeasurementQuery.Aggregates) * len(cfg.MeasurementQuery.Fields))
+		if cfg.MeasurementQuery.Enabled {
+			num = num / (len(cfg.Series) * len(cfg.MeasurementQuery.Aggregates) * len(cfg.MeasurementQuery.Fields))
+		}
 
 		ctr := 0
 		for _, testSeries := range cfg.Series {
@@ -187,11 +189,10 @@ func Run(cfg *Config, done chan struct{}, d2 chan struct{}, ts chan time.Time) (
 						points = []client.Point{}
 					}
 
-					if ctr%num == 0 {
-						fmt.Println("HERE?")
+					if cfg.MeasurementQuery.Enabled && ctr%num == 0 {
 						select {
 						case ts <- p.Time:
-							fmt.Println(p.Time)
+							func() {}()
 						default:
 							func() {}()
 						}
@@ -254,8 +255,10 @@ func Run(cfg *Config, done chan struct{}, d2 chan struct{}, ts chan time.Time) (
 	}
 
 	wg.Wait()
-	done <- struct{}{}
-	//	d2 <- struct{}{}
+
+	if cfg.SeriesQuery.Enabled {
+		done <- struct{}{}
+	}
 
 	return
 }

@@ -58,16 +58,16 @@ type query struct {
 	Concurrency int      `toml:"concurrency"`
 	Aggregates  []string `toml:"aggregates"`
 	Fields      []string `toml:"fields"`
-	Extras      string   `toml:"extras"`
-	Interval    string   `toml:"interval"`
 }
 
 type measurementQuery struct {
 	query
+	Offset string `toml:"offset"`
 }
 
 type seriesQuery struct {
 	query
+	Interval string `toml:"interval"`
 	Timespan string `toml:"timespan"`
 }
 

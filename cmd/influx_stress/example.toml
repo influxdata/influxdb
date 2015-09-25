@@ -73,14 +73,12 @@
   concurrency = 10
   aggregates = ["mean", "count"]
   fields = ["value"]
-  extras = "GROUP BY time(1h)"
-  interval = "500ms"
+  offset = "5h"
 
 [series_query] # SELECT aggregates(values) FROM measurements WHERE time > current_timespan extras
   enabled = true
-  concurrency = 10
+  concurrency = 1
   aggregates = ["mean", "count"]
   fields = ["value"]
-  extras = "GROUP BY time(1h)"
   timespan = "5m"
   interval = "50ms"

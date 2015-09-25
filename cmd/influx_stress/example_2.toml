@@ -7,10 +7,10 @@
   address = "localhost:8086"
   reset_database = true
   # doesnt do anything
-  starting_point = 8 # how far back in time to go in weeks
+  starting_point = 0 # how far back in time to go in weeks
 
 [[series]]
-  point_count = 10000 # number of points that will be written for each of the series
+  point_count = 10 # number of points that will be written for each of the series
   measurement = "cpu"
   series_count = 100000
 

@@ -169,7 +169,10 @@ func TestRun(t *testing.T) {
 
 	cfg.Write.Address = url
 
-	tp, _, rts, tmr := Run(cfg)
+	d := make(chan struct{})
+	timestamp := make(chan time.Time)
+
+	tp, _, rts, tmr := Run(cfg, d, timestamp)
 
 	ps := cfg.Series[0].SeriesCount * cfg.Series[0].PointCount
 

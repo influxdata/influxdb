@@ -57,20 +57,21 @@ func main() {
 	}
 
 	d := make(chan struct{})
-	rs := make(chan runner.QueryResults)
+	seriesQueryResults := make(chan runner.QueryResults)
 
 	if cfg.SeriesQuery.Enabled {
-		go runner.SeriesQuery(cfg, d, rs)
+		go runner.SeriesQuery(cfg, d, seriesQueryResults)
 	}
 
-	d2 := make(chan struct{})
+	measurementQueryResults := make(chan runner.QueryResults)
+
 	ts := make(chan time.Time)
 	if cfg.MeasurementQuery.Enabled {
-		go runner.MeasurementQuery(cfg, d2, ts)
+		go runner.MeasurementQuery(cfg, ts, measurementQueryResults)
 	}
 
 	// Get the stress results
-	totalPoints, failedRequests, responseTimes, timer := runner.Run(cfg, d, d2, ts)
+	totalPoints, failedRequests, responseTimes, timer := runner.Run(cfg, d, ts)
 
 	sort.Sort(sort.Reverse(sort.Interface(responseTimes)))
 
@@ -90,8 +91,7 @@ func main() {
 
 	// Get series query results
 	if cfg.SeriesQuery.Enabled {
-		qrs := <-rs
-		//<-d2
+		qrs := <-seriesQueryResults
 
 		queryTotal := int64(0)
 		for _, qt := range qrs.ResponseTimes {
@@ -99,23 +99,23 @@ func main() {
 		}
 		seriesQueryMean := queryTotal / int64(len(qrs.ResponseTimes))
 
-		fmt.Printf("Queried %d times with a average response time of %v milliseconds\n", qrs.TotalQueries, time.Duration(seriesQueryMean).Seconds()*1000)
+		fmt.Printf("Queried Series %d times with a average response time of %v milliseconds\n", qrs.TotalQueries, time.Duration(seriesQueryMean).Seconds()*1000)
 
 	}
 
 	// Get measurement query results
-	//if cfg.MeasurementQuery.Enabled {
-	//	qrs := <-rs
+	if cfg.MeasurementQuery.Enabled {
+		qrs := <-measurementQueryResults
 
-	//	queryTotal := int64(0)
-	//	for _, qt := range qrs.ResponseTimes {
-	//		queryTotal += int64(qt.Value)
-	//	}
-	//	seriesQueryMean := queryTotal / int64(len(qrs.ResponseTimes))
+		queryTotal := int64(0)
+		for _, qt := range qrs.ResponseTimes {
+			queryTotal += int64(qt.Value)
+		}
+		seriesQueryMean := queryTotal / int64(len(qrs.ResponseTimes))
 
-	//	fmt.Printf("Queried %d times with a average response time of %v milliseconds\n", qrs.TotalQueries, time.Duration(seriesQueryMean).Seconds()*1000)
+		fmt.Printf("Queried Measurement %d times with a average response time of %v milliseconds\n", qrs.TotalQueries, time.Duration(seriesQueryMean).Seconds()*1000)
 
-	//}
+	}
 
 	return
 
