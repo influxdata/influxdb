@@ -46,14 +46,12 @@ func (e *int64Encoder) encodePacked() ([]byte, error) {
 		return nil, err
 	}
 
-	b := make([]byte, 1+len(encoded)*8+4)
+	b := make([]byte, 1+len(encoded)*8)
 	// 4 high bits of first byte store the encoding type for the block
 	b[0] = byte(EncodingPacked) << 4
 
-	binary.BigEndian.PutUint32(b[1:5], uint32(len(e.values)))
-
 	for i, v := range encoded {
-		binary.BigEndian.PutUint64(b[5+i*8:5+i*8+8], v)
+		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
 	}
 	return b, nil
 }
@@ -64,86 +62,78 @@ func (e *int64Encoder) encodeUncompressed() ([]byte, error) {
 	b[0] = byte(EncodingUncompressed) << 4
 
 	for i, v := range e.values {
-		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], uint64(v))
+		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
 	}
 	return b, nil
 }
 
 type int64Decoder struct {
 	values []uint64
-	v      int64
-	buf    []uint64
-	vbuf   []uint64
+	bytes  []byte
+	i      int
+	n      int
+
+	encoding byte
 }
 
 func NewInt64Decoder(b []byte) Int64Decoder {
 	d := &int64Decoder{
-		buf:  make([]uint64, 240),
-		vbuf: make([]uint64, 1),
+		values: make([]uint64, 240),
 	}
-	d.decode(b)
+
+	d.SetBytes(b)
 	return d
 }
 
 func (d *int64Decoder) SetBytes(b []byte) {
-	d.decode(b)
+	if len(b) > 0 {
+		d.encoding = b[0] >> 4
+		d.bytes = b[1:]
+	}
+	d.i = 0
+	d.n = 0
 }
 
 func (d *int64Decoder) Next() bool {
-	if len(d.values) == 0 {
+	if d.i >= d.n && len(d.bytes) == 0 {
 		return false
 	}
-	d.v = ZigZagDecode(d.values[0])
-	d.values = d.values[1:]
-	return true
+
+	d.i += 1
+
+	if d.i >= d.n {
+		switch d.encoding {
+		case EncodingUncompressed:
+			d.decodeUncompressed()
+		case EncodingPacked:
+			d.decodePacked()
+		default:
+			panic(fmt.Sprintf("unknown encoding %v", d.encoding))
+		}
+	}
+	return d.i < d.n
 }
 
 func (d *int64Decoder) Read() int64 {
-	return d.v
+	return ZigZagDecode(d.values[d.i])
 }
 
-func (d *int64Decoder) decode(b []byte) {
-	if len(b) == 0 {
+func (d *int64Decoder) decodePacked() {
+	if len(d.bytes) == 0 {
 		return
 	}
 
-	// Encoding type is stored in the 4 high bits of the first byte
-	encoding := b[0] >> 4
-	switch encoding {
-	case EncodingUncompressed:
-		d.decodeUncompressed(b[1:])
-	case EncodingPacked:
-		d.decodePacked(b[1:])
-	default:
-		panic(fmt.Sprintf("unknown encoding %v", encoding))
-	}
+	v := binary.BigEndian.Uint64(d.bytes[0:8])
+	n, _ := simple8b.DecodeSingle(d.values, v)
+
+	d.n = n
+	d.i = 0
+	d.bytes = d.bytes[8:]
 }
 
-func (d *int64Decoder) decodePacked(b []byte) {
-	if len(b) == 0 {
-		return
-	}
-
-	count := binary.BigEndian.Uint32(b[:4])
-
-	if count == 0 {
-		return
-	}
-
-	d.values = make([]uint64, count)
-	b = b[4:]
-	j := 0
-	for i := 0; i < len(b); i += 8 {
-		d.vbuf[0] = binary.BigEndian.Uint64(b[i : i+8])
-		n, _ := simple8b.Decode(d.buf, d.vbuf)
-		copy(d.values[j:], d.buf[:n])
-		j += n
-	}
-}
-
-func (d *int64Decoder) decodeUncompressed(b []byte) {
-	d.values = make([]uint64, len(b)/8)
-	for i := range d.values {
-		d.values[i] = binary.BigEndian.Uint64(b[i*8 : i*8+8])
-	}
+func (d *int64Decoder) decodeUncompressed() {
+	d.values[0] = binary.BigEndian.Uint64(d.bytes[0:8])
+	d.i = 0
+	d.n = 1
+	d.bytes = d.bytes[8:]
 }
