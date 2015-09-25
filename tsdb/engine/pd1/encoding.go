@@ -1,8 +1,6 @@
 package pd1
 
 import (
-	"encoding/binary"
-	"math"
 	"time"
 
 	"github.com/dgryski/go-tsz"
@@ -10,9 +8,8 @@ import (
 )
 
 type Value interface {
-	TimeBytes() []byte
-	ValueBytes() []byte
 	Time() time.Time
+	UnixNano() int64
 	Value() interface{}
 	Size() int
 }
@@ -34,8 +31,7 @@ func NewValue(t time.Time, value interface{}) Value {
 type EmptyValue struct {
 }
 
-func (e *EmptyValue) TimeBytes() []byte  { return nil }
-func (e *EmptyValue) ValueBytes() []byte { return nil }
+func (e *EmptyValue) UnixNano() int64    { return tsdb.EOF }
 func (e *EmptyValue) Time() time.Time    { return time.Unix(0, tsdb.EOF) }
 func (e *EmptyValue) Value() interface{} { return nil }
 func (e *EmptyValue) Size() int          { return 0 }
@@ -93,18 +89,12 @@ func (f *FloatValue) Time() time.Time {
 	return f.time
 }
 
+func (f *FloatValue) UnixNano() int64 {
+	return f.time.UnixNano()
+}
+
 func (f *FloatValue) Value() interface{} {
 	return f.value
-}
-
-func (f *FloatValue) TimeBytes() []byte {
-	return u64tob(uint64(f.Time().UnixNano()))
-}
-
-func (f *FloatValue) ValueBytes() []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, math.Float64bits(f.value))
-	return buf
 }
 
 func (f *FloatValue) Size() int {

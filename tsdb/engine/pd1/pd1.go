@@ -53,7 +53,7 @@ const (
 	// DefaultBlockSize is the default size of uncompressed points blocks.
 	DefaultBlockSize = 512 * 1024 // 512KB
 
-	DefaultMaxFileSize = 10 * 1024 * 1024 // 10MB
+	DefaultRotateFileSize = 10 * 1024 * 1024 // 10MB
 
 	DefaultMaxPointsPerBlock = 1000
 
@@ -86,6 +86,8 @@ type Engine struct {
 
 	WAL *Log
 
+	RotateFileSize uint32
+
 	filesLock     sync.RWMutex
 	files         dataFiles
 	currentFileID int
@@ -106,6 +108,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		// TODO: this is the function where we can inject a check against the in memory collisions
 		HashSeriesField: hashSeriesField,
 		WAL:             w,
+		RotateFileSize:  DefaultRotateFileSize,
 	}
 	e.WAL.Index = e
 
@@ -170,6 +173,13 @@ func (e *Engine) Close() error {
 	e.files = nil
 	e.currentFileID = 0
 	return nil
+}
+
+// DataFileCount returns the number of data files in the database
+func (e *Engine) DataFileCount() int {
+	e.filesLock.RLock()
+	defer e.filesLock.RUnlock()
+	return len(e.files)
 }
 
 // SetLogOutput is a no-op.
@@ -296,32 +306,89 @@ func (e *Engine) WriteAndCompact(pointsByKey map[string]Values, measurementField
 		}
 	}
 
-	// TODO: handle values written in the past that force an old data file to get rewritten
-
-	// we keep track of the newest data file and if it should be
-	// rewritten with new data.
-	var newestDataFile *dataFile
-	overwriteNewestFile := false
-	if len(e.files) > 0 {
-		newestDataFile = e.files[len(e.files)-1]
-		overwriteNewestFile = newestDataFile.size < DefaultMaxFileSize
+	if len(e.files) == 0 {
+		return e.rewriteFile(nil, valuesByID)
 	}
 
-	// flush values by id to either a new file or rewrite the old one
-	if overwriteNewestFile {
-		if err := e.rewriteFile(newestDataFile, valuesByID); err != nil {
+	maxTime := int64(math.MaxInt64)
+	// reverse through the data files and write in the data
+	for i := len(e.files) - 1; i >= 0; i-- {
+		f := e.files[i]
+		// max times are exclusive, so add 1 to it
+		fileMax := f.MaxTime() + 1
+		fileMin := f.MinTime()
+		// if the file is < rotate, write all data between fileMin and maxTime
+		if f.size < e.RotateFileSize {
+			if err := e.rewriteFile(f, e.filterDataBetweenTimes(valuesByID, fileMin, maxTime)); err != nil {
+				return err
+			}
+			continue
+		}
+		// if the file is > rotate:
+		//   write all data between fileMax and maxTime into new file
+		//   write all data between fileMin and fileMax into old file
+		if err := e.rewriteFile(nil, e.filterDataBetweenTimes(valuesByID, fileMax, maxTime)); err != nil {
 			return err
 		}
-	} else if err := e.rewriteFile(nil, valuesByID); err != nil {
-		return err
+		if err := e.rewriteFile(f, e.filterDataBetweenTimes(valuesByID, fileMin, fileMax)); err != nil {
+			return err
+		}
+		maxTime = fileMin
 	}
+	// for any data leftover, write into a new file since it's all older
+	// than any file we currently have
+	return e.rewriteFile(nil, valuesByID)
+}
 
-	return nil
+// filterDataBetweenTimes will create a new map with data between
+// the minTime (inclusive) and maxTime (exclusive) while removing that
+// data from the passed in map. It is assume that the Values arrays
+// are sorted in time ascending order
+func (e *Engine) filterDataBetweenTimes(valuesByID map[uint64]Values, minTime, maxTime int64) map[uint64]Values {
+	filteredValues := make(map[uint64]Values)
+	for id, values := range valuesByID {
+		maxIndex := len(values)
+		minIndex := 0
+		// find the index of the first value in the range
+		for i, v := range values {
+			t := v.UnixNano()
+			if t >= minTime && t < maxTime {
+				minIndex = i
+				break
+			}
+		}
+		// go backwards to find the index of the last value in the range
+		for i := len(values) - 1; i >= 0; i-- {
+			t := values[i].UnixNano()
+			if t < maxTime {
+				maxIndex = i + 1
+				break
+			}
+		}
+
+		// write into the result map and filter the passed in map
+		filteredValues[id] = values[minIndex:maxIndex]
+
+		// if we grabbed all the values, remove them from the passed in map
+		if minIndex == len(values) || (minIndex == 0 && maxIndex == len(values)) {
+			delete(valuesByID, id)
+			continue
+		}
+
+		valuesByID[id] = values[0:minIndex]
+		if maxIndex < len(values) {
+			valuesByID[id] = append(valuesByID[id], values[maxIndex:]...)
+		}
+	}
+	return filteredValues
 }
 
 // rewriteFile will read in the old data file, if provided and merge the values
 // in the passed map into a new data file
 func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) error {
+	if len(valuesByID) == 0 {
+		return nil
+	}
 	// we need the values in sorted order so that we can merge them into the
 	// new file as we read the old file
 	ids := make([]uint64, 0, len(valuesByID))
