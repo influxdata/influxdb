@@ -521,6 +521,9 @@ func (l *Log) flush(flush flushType) error {
 	// copy the cache items to new maps so we can empty them out
 	l.flushCache = l.cache
 	l.cache = make(map[string]Values)
+	for k, _ := range l.cacheDirtySort {
+		sort.Sort(l.flushCache[k])
+	}
 	l.cacheDirtySort = make(map[string]bool)
 	valuesByKey := make(map[string]Values)
 
