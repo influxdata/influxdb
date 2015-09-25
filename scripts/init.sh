@@ -83,7 +83,7 @@ if ! typeset -F pidofproc &>/dev/null; then
             echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
         fi
 
-        pid=`pgrep -f "^$3"`
+        pid=`pgrep -f "^$3$"`
         local pidfile=`cat $2`
 
         if [ "x$pidfile" == "x" ]; then
