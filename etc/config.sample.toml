@@ -209,9 +209,12 @@ reporting-disabled = false
 
 [opentsdb]
   enabled = false
-  # bind-address = ""
-  # database = ""
+  # bind-address = ":4242"
+  # database = "opentsdb"
   # retention-policy = ""
+  # consistency-level = "one"
+  # tls-enabled = false
+  # certificate= ""
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Only points
