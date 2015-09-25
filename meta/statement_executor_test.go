@@ -838,6 +838,7 @@ type StatementExecutorStore struct {
 	DatabasesFn                 func() ([]meta.DatabaseInfo, error)
 	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
 	DropDatabaseFn              func(name string) error
+	DropServerFn                func(nodeID uint64) error
 	DefaultRetentionPolicyFn    func(database string) (*meta.RetentionPolicyInfo, error)
 	CreateRetentionPolicyFn     func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	UpdateRetentionPolicyFn     func(database, name string, rpu *meta.RetentionPolicyUpdate) error
@@ -862,6 +863,10 @@ func (s *StatementExecutorStore) Nodes() ([]meta.NodeInfo, error) {
 
 func (s *StatementExecutorStore) Peers() ([]string, error) {
 	return s.PeersFn()
+}
+
+func (s *StatementExecutorStore) DropServer(nodeID uint64) error {
+	return s.DropServerFn(nodeID)
 }
 
 func (s *StatementExecutorStore) Database(name string) (*meta.DatabaseInfo, error) {

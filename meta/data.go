@@ -84,6 +84,15 @@ func (data *Data) DeleteNode(id uint64) error {
 	return ErrNodeNotFound
 }
 
+// DropServer removes a server from the cluster
+func (data *Data) DropServer(nodeID uint64) error {
+	// TODO make this real
+	if nodeID == 0 {
+		return ErrServerNodeIDRequired
+	}
+	return nil
+}
+
 // Database returns a database by name.
 func (data *Data) Database(name string) *DatabaseInfo {
 	for i := range data.Databases {

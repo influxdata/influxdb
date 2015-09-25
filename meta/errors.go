@@ -5,6 +5,9 @@ import (
 	"fmt"
 )
 
+// ErrServerNodeIDRequired is returned when using a zero server node id.
+var ErrServerNodeIDRequired = errors.New("server node id must be greater than 0")
+
 var (
 	// ErrStoreOpen is returned when opening an already open store.
 	ErrStoreOpen = newError("store already open")

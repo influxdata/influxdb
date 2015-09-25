@@ -831,6 +831,19 @@ func (s *Store) DeleteNode(id uint64) error {
 	)
 }
 
+// DropServer removes a server from the cluster
+func (s *Store) DropServer(nodeID uint64) error {
+	if err := s.exec(internal.Command_DropServerCommand, internal.E_DropServerCommand_Command,
+		&internal.DropServerCommand{
+			ID: proto.Uint64(nodeID),
+		},
+	); err != nil {
+		return err
+	}
+	s.Logger.Printf("server '%d' removed", nodeID)
+	return nil
+}
+
 // Database returns a database by name.
 func (s *Store) Database(name string) (di *DatabaseInfo, err error) {
 	err = s.read(func(data *Data) error {

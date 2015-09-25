@@ -22,6 +22,7 @@ It has these top-level messages:
 	Command
 	CreateNodeCommand
 	DeleteNodeCommand
+	DropServerCommand
 	CreateDatabaseCommand
 	DropDatabaseCommand
 	CreateRetentionPolicyCommand
@@ -114,6 +115,7 @@ const (
 	Command_SetDataCommand                   Command_Type = 17
 	Command_SetAdminPrivilegeCommand         Command_Type = 18
 	Command_UpdateNodeCommand                Command_Type = 19
+	Command_DropServerCommand                Command_Type = 20
 )
 
 var Command_Type_name = map[int32]string{
@@ -136,6 +138,7 @@ var Command_Type_name = map[int32]string{
 	17: "SetDataCommand",
 	18: "SetAdminPrivilegeCommand",
 	19: "UpdateNodeCommand",
+	20: "DropServerCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -157,6 +160,7 @@ var Command_Type_value = map[string]int32{
 	"SetDataCommand":                   17,
 	"SetAdminPrivilegeCommand":         18,
 	"UpdateNodeCommand":                19,
+	"DropServerCommand":                20,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -637,6 +641,30 @@ var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 	Field:         102,
 	Name:          "internal.DeleteNodeCommand.command",
 	Tag:           "bytes,102,opt,name=command",
+}
+
+type DropServerCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DropServerCommand) Reset()         { *m = DropServerCommand{} }
+func (m *DropServerCommand) String() string { return proto.CompactTextString(m) }
+func (*DropServerCommand) ProtoMessage()    {}
+
+func (m *DropServerCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+var E_DropServerCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DropServerCommand)(nil),
+	Field:         120,
+	Name:          "internal.DropServerCommand.command",
+	Tag:           "bytes,120,opt,name=command",
 }
 
 type CreateDatabaseCommand struct {
@@ -1378,15 +1406,11 @@ func (m *JoinRequest) GetAddr() string {
 }
 
 type JoinResponse struct {
-	Header *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
-	// Indicates that this node should take part in the raft cluster.
-	EnableRaft *bool `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
-	// The addresses of raft peers to use if joining as a raft member. If not joining
-	// as a raft member, these are the nodes running raft.
-	RaftNodes []string `protobuf:"bytes,3,rep" json:"RaftNodes,omitempty"`
-	// The node ID assigned to the requesting node.
-	NodeID           *uint64 `protobuf:"varint,4,opt" json:"NodeID,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	EnableRaft       *bool           `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
+	RaftNodes        []string        `protobuf:"bytes,3,rep" json:"RaftNodes,omitempty"`
+	NodeID           *uint64         `protobuf:"varint,4,opt" json:"NodeID,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
 }
 
 func (m *JoinResponse) Reset()         { *m = JoinResponse{} }
@@ -1426,6 +1450,7 @@ func init() {
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
+	proto.RegisterExtension(E_DropServerCommand_Command)
 	proto.RegisterExtension(E_CreateDatabaseCommand_Command)
 	proto.RegisterExtension(E_DropDatabaseCommand_Command)
 	proto.RegisterExtension(E_CreateRetentionPolicyCommand_Command)
