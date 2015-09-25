@@ -108,6 +108,7 @@ const (
 	REVOKE
 	SELECT
 	SERIES
+	SERVER
 	SERVERS
 	SET
 	SHOW
@@ -218,6 +219,7 @@ var tokens = [...]string{
 	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
+	SERVER:       "SERVER",
 	SERVERS:      "SERVERS",
 	SET:          "SET",
 	SHOW:         "SHOW",

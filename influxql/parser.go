@@ -208,6 +208,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
+	} else if tok == SERVER {
+		return p.parseDropServerStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
@@ -1176,6 +1178,20 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	}
 
 	return stmt, nil
+}
+
+// parseDropServerStatement parses a string and returns a DropServerStatement.
+// This function assumes the "DROP SERVER" tokens have already been consumed.
+func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
+	s := &DropServerStatement{}
+	var err error
+
+	// Parse the server's ID.
+	if s.NodeID, err = p.parseUInt64(); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 // parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.
