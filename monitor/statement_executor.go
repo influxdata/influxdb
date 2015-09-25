@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
@@ -58,15 +59,22 @@ func (s *StatementExecutor) executeShowDiagnostics(module string) *influxql.Resu
 	}
 	rows := make([]*models.Row, 0, len(diags))
 
-	for k, v := range diags {
+	// Get a sorted list of diagnostics keys.
+	sortedKeys := make([]string, 0, len(diags))
+	for k, _ := range diags {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, k := range sortedKeys {
 		if module != "" && k != module {
 			continue
 		}
 
 		row := &models.Row{Name: k}
 
-		row.Columns = v.Columns
-		row.Values = v.Rows
+		row.Columns = diags[k].Columns
+		row.Values = diags[k].Rows
 		rows = append(rows, row)
 	}
 	return &influxql.Result{Series: rows}
