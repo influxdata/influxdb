@@ -77,7 +77,7 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 		}
 
 		// Skip the first value || see if prev = curr.  The deltas can be RLE if the are all equal.
-		rle = i != 0 || rle && (deltas[i-1] == deltas[i])
+		rle = i == len(deltas)-1 || rle && (deltas[i+1] == deltas[i])
 	}
 	return
 }
