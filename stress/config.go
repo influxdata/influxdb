@@ -73,10 +73,11 @@ type seriesQuery struct {
 
 // Config is a struct that is passed into the `Run()` function.
 type Config struct {
-	Write            write            `toml:"write"`
-	Series           []series         `toml:"series"`
-	MeasurementQuery measurementQuery `toml:"measurement_query"`
-	SeriesQuery      seriesQuery      `toml:"series_query"`
+	Write             write            `toml:"write"`
+	Series            []series         `toml:"series"`
+	MeasurementQuery  measurementQuery `toml:"measurement_query"`
+	SeriesQuery       seriesQuery      `toml:"series_query"`
+	ChannelBufferSize int              `toml:"channel_buffer_size"`
 }
 
 // NewSeries, takes a measurement, and point count,

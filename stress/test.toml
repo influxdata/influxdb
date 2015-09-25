@@ -1,3 +1,5 @@
+channel_buffer_size = 1000
+
 [write]
   concurrency = 10
   batch_size = 5000

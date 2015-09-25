@@ -162,7 +162,7 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 
 	lastSuccess := true
 
-	ch := make(chan []client.Point, 10000)
+	ch := make(chan []client.Point, cfg.ChannelBufferSize)
 
 	go func() {
 		points := []client.Point{}
@@ -192,9 +192,7 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 					if cfg.MeasurementQuery.Enabled && ctr%num == 0 {
 						select {
 						case ts <- p.Time:
-							func() {}()
 						default:
-							func() {}()
 						}
 					}
 
@@ -207,8 +205,9 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 
 	}()
 
+	time.Sleep(time.Duration(cfg.ChannelBufferSize/10) * time.Millisecond)
+
 	timer = NewTimer()
-	defer timer.StopTimer()
 
 	for pnt := range ch {
 		batch := &client.BatchPoints{
@@ -255,6 +254,8 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 	}
 
 	wg.Wait()
+
+	timer.StopTimer()
 
 	if cfg.SeriesQuery.Enabled {
 		done <- struct{}{}

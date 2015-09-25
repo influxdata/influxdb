@@ -42,7 +42,6 @@ func main() {
 	}
 
 	for _, m := range ms {
-		fmt.Println(m)
 		cfg.Series = append(cfg.Series, runner.NewSeries(m, 100, 100000))
 	}
 
