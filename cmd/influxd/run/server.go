@@ -135,6 +135,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter.ShardWriter = s.ShardWriter
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
+	// needed for executing into queries.
+	s.QueryExecutor.IntoWriter = s.PointsWriter
+
 	// Initialize the monitor
 	s.Monitor.Version = s.buildInfo.Version
 	s.Monitor.Commit = s.buildInfo.Commit

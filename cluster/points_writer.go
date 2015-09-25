@@ -204,6 +204,18 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	return mapping, nil
 }
 
+// WritePointsInto is a copy of WritePoints that uses a tsdb structure instead of
+// a cluster structure for information. This is to avoid a circular dependency
+func (w *PointsWriter) WritePointsInto(p *tsdb.IntoWriteRequest) error {
+	req := WritePointsRequest{
+		Database:         p.Database,
+		RetentionPolicy:  p.RetentionPolicy,
+		ConsistencyLevel: ConsistencyLevelAny,
+		Points:           p.Points,
+	}
+	return w.WritePoints(&req)
+}
+
 // WritePoints writes across multiple local and remote data nodes according the consistency level.
 func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 	w.statMap.Add(statWriteReq, 1)

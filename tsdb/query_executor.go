@@ -46,11 +46,22 @@ type QueryExecutor struct {
 		CreateMapper(shard meta.ShardInfo, stmt influxql.Statement, chunkSize int) (Mapper, error)
 	}
 
+	IntoWriter interface {
+		WritePointsInto(p *IntoWriteRequest) error
+	}
+
 	Logger          *log.Logger
 	QueryLogEnabled bool
 
 	// the local data store
 	Store *Store
+}
+
+// partial copy of cluster.WriteRequest
+type IntoWriteRequest struct {
+	Database        string
+	RetentionPolicy string
+	Points          []models.Point
 }
 
 // NewQueryExecutor returns an initialized QueryExecutor
@@ -273,34 +284,6 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 
 	executor := NewSelectExecutor(stmt, mappers, chunkSize)
 	return executor, nil
-}
-
-// executeSelectStatement plans and executes a select statement against a database.
-func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
-	// Plan statement execution.
-	e, err := q.PlanSelect(stmt, chunkSize)
-	if err != nil {
-		return err
-	}
-
-	// Execute plan.
-	ch := e.Execute()
-
-	// Stream results from the channel. We should send an empty result if nothing comes through.
-	resultSent := false
-	for row := range ch {
-		if row.Err != nil {
-			return row.Err
-		}
-		resultSent = true
-		results <- &influxql.Result{StatementID: statementID, Series: []*models.Row{row}}
-	}
-
-	if !resultSent {
-		results <- &influxql.Result{StatementID: statementID, Series: make([]*models.Row, 0)}
-	}
-
-	return nil
 }
 
 // expandSources expands regex sources and removes duplicates.
@@ -697,21 +680,91 @@ func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statemen
 
 	// Execute plan.
 	ch := e.Execute()
-
+	var writeerr error
+	var intoNum int64
+	var isinto bool
 	// Stream results from the channel. We should send an empty result if nothing comes through.
 	resultSent := false
 	for row := range ch {
+		// We had a write error. Continue draining results from the channel
+		// so we don't hang the goroutine in the executor.
+		if writeerr != nil {
+			continue
+		}
 		if row.Err != nil {
 			return row.Err
 		}
-		resultSent = true
-		results <- &influxql.Result{StatementID: statementID, Series: []*models.Row{row}}
+		selectstmt, ok := stmt.(*influxql.SelectStatement)
+		if ok && selectstmt.Target != nil {
+			isinto = true
+			// this is a into query. Write results back to database
+			writeerr = q.writeInto(row, selectstmt)
+			intoNum += int64(len(row.Values))
+		} else {
+			resultSent = true
+			results <- &influxql.Result{StatementID: statementID, Series: []*models.Row{row}}
+		}
+	}
+	if writeerr != nil {
+		return writeerr
+	} else if isinto {
+		results <- &influxql.Result{
+			StatementID: statementID,
+			Series: []*models.Row{{
+				Name: "result",
+				// it seems weird to give a time here, but so much stuff breaks if you don't
+				Columns: []string{"time", "written"},
+				Values: [][]interface{}{{
+					time.Unix(0, 0).UTC(),
+					intoNum,
+				}},
+			}},
+		}
+		return nil
 	}
 
 	if !resultSent {
 		results <- &influxql.Result{StatementID: statementID, Series: make([]*models.Row, 0)}
 	}
 
+	return nil
+}
+
+func (q *QueryExecutor) writeInto(row *models.Row, selectstmt *influxql.SelectStatement) error {
+	// It might seem a bit weird that this is where we do this, since we will have to
+	// convert rows back to points. The Executors (both aggregate and raw) are complex
+	// enough that changing them to write back to the DB is going to be clumsy
+	//
+	// it might seem weird to have the write be in the QueryExecutor, but the interweaving of
+	// limitedRowWriter and ExecuteAggregate/Raw makes it ridiculously hard to make sure that the
+	// results will be the same as when queried normally.
+	measurement := intoMeasurement(selectstmt)
+	intodb, err := intoDB(selectstmt)
+	if err != nil {
+		return err
+	}
+	rp := intoRP(selectstmt)
+	points, err := convertRowToPoints(measurement, row)
+	if err != nil {
+		return err
+	}
+	for _, p := range points {
+		fields := p.Fields()
+		for _, v := range fields {
+			if v == nil {
+				return nil
+			}
+		}
+	}
+	req := &IntoWriteRequest{
+		Database:        intodb,
+		RetentionPolicy: rp,
+		Points:          points,
+	}
+	err = q.IntoWriter.WritePointsInto(req)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
