@@ -60,15 +60,21 @@ type query struct {
 	Fields      []string `toml:"fields"`
 }
 
+// measurementQuery is a struct that contains
+// the logic that runs a query against a measurement
+// over a time period that is specified by
+// `Offset`
 type measurementQuery struct {
 	query
 	Offset string `toml:"offset"`
 }
 
+// seriesQuery is a struct that contains
+// the logic that runs a query against a single
+// series
 type seriesQuery struct {
 	query
 	Interval string `toml:"interval"`
-	Timespan string `toml:"timespan"`
 }
 
 // Config is a struct that is passed into the `Run()` function.
@@ -165,6 +171,8 @@ type seriesIter struct {
 	timestamp time.Time
 }
 
+// writeInterval returns a timestamp for the current time
+// interval
 func (s *series) writeInterval(weeks int, i int) time.Time {
 	st := time.Duration(weeks) * 7 * 24 * time.Hour
 	w := st - (st/time.Duration(s.PointCount))*time.Duration(i)

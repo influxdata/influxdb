@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -106,6 +107,70 @@ func TestMeasurments_Set(t *testing.T) {
 
 	if len(ms) != 6 {
 		t.Errorf("expected the length of ms to be %v, got %v", 6, len(ms))
+	}
+
+}
+
+func TestNewSeries(t *testing.T) {
+	s := NewSeries("cpu", 1000, 10000)
+
+	if s.PointCount != 1000 {
+		t.Errorf("expected value to be %v, got %v", 1000, s.PointCount)
+	}
+
+	if s.SeriesCount != 10000 {
+		t.Errorf("expected value to be %v, got %v", 10000, s.SeriesCount)
+	}
+
+	if s.Measurement != "cpu" {
+		t.Errorf("expected value to be %v, got %v", "cpu", s.Measurement)
+	}
+}
+
+func TestNewConfig(t *testing.T) {
+	c := NewConfig()
+
+	if c.Write.BatchSize != 5000 {
+		t.Errorf("expected value to be %v, got %v", 5000, c.Write.BatchSize)
+	}
+
+}
+
+func TestSeries_newTagMap(t *testing.T) {
+	s := NewSeries("cpu", 1000, 10000)
+	m := s.newTagMap(0)
+
+	if m["host"] != "server-0" {
+		t.Errorf("expected value to be %v, go %v", "server-0", m["host"])
+	}
+
+}
+
+func TestSeries_newFieldMap(t *testing.T) {
+	s := NewSeries("cpu", 1000, 10000)
+	m := s.newFieldMap()
+
+	if reflect.TypeOf(m["value"]).Kind() != reflect.Float64 {
+		t.Errorf("expected type of value to be %v, go %v", reflect.Float64, reflect.TypeOf(m["value"]).Kind())
+	}
+
+}
+
+func TestSeriesIter_Next(t *testing.T) {
+	s := NewSeries("cpu", 1000, 10000)
+	i := s.Iter(10, 0)
+	if i.count != -1 {
+		t.Errorf("expected value to be %v, go %v", -1, i.count)
+	}
+
+	_, ok := i.Next()
+
+	for ok {
+		_, ok = i.Next()
+	}
+
+	if i.count != s.SeriesCount {
+		t.Errorf("expected value to be %v, go %v", s.SeriesCount, i.count)
 	}
 
 }

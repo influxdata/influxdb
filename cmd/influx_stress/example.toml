@@ -1,23 +1,41 @@
+# Set the buffer size for the channel
+# that sends points to the influxdb
+# client
 channel_buffer_size = 100000
 
+# Configuration settings for the 
+# stress test
 [write]
+  # How many concurrent writers to the db
   concurrency = 10
+  # Size of batches that are sent to db
   batch_size = 5000
+  # Interval between each batch
   batch_interval = "0s"
+  # Database that is being written to
   database = "stress"
+  # Precision of points that are being written
   precision = "n"
+  # Address of the Influxdb instance
   address = "localhost:8086"
+  # Drop and Create new DB
   reset_database = true
-  # works, but dont use it
-  starting_point = 3 # how far back in time to go in weeks
+  # How far back in time to start writting points in weeks
+  starting_point = 3
 
+# Describes the schema for series that will be
+# written
 [[series]]
-  point_count = 1000 # number of points that will be written for each of the series
+  # number of points that will be written for each of the series
+  point_count = 1000
+  # name of the measurement that will be written
   measurement = "cpu"
   series_count = 10000
 
- # tag_count = 20 # number of "generic" tags on a series (e.g. tag-key-1=tag-value, ... ,tag-key-20=tag-value)
+  # number of "generic" tags on a series (e.g. tag-key-1=tag-value, ... ,tag-key-20=tag-value)
+  # tag_count = 20
 
+  # Defines a tag for a series
   [[series.tag]]
     key = "host"
     value = "idk"
@@ -26,6 +44,7 @@ channel_buffer_size = 100000
     key = "location"
     value = "lame"
 
+  # Defines a field for a series
   [[series.field]]
     key = "value"
     type = "float64"
@@ -70,17 +89,21 @@ channel_buffer_size = 100000
     key = "idk"
     type = "int"
 
-[measurement_query] # SELECT aggregates(values) FROM measurements WHERE tag-key='tag-values-1' extras
+# Generates queries of the form
+# SELECT aggregates(values) FROM measurements WHERE time > current_timespan - offset
+[measurement_query]
   enabled = true
   concurrency = 10
   aggregates = ["mean", "count"]
   fields = ["value"]
   offset = "5h"
 
-[series_query] # SELECT aggregates(values) FROM measurements WHERE time > current_timespan extras
+# Generates queries of the form
+# SELECT aggregates(values) FROM measurements WHERE tag-key='tag-values-1'
+[series_query]
   enabled = true
   concurrency = 1
   aggregates = ["mean", "count"]
   fields = ["value"]
-  timespan = "5m"
+  # Interval between queries
   interval = "50ms"
