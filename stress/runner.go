@@ -162,7 +162,7 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 
 	lastSuccess := true
 
-	ch := make(chan []client.Point, 100)
+	ch := make(chan []client.Point, 10000)
 
 	go func() {
 		points := []client.Point{}
