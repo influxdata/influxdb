@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/pd1"
 )
@@ -25,86 +26,88 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	p3 := parsePoint("cpu,host=A value=2.1 2000000000")
 	p4 := parsePoint("cpu,host=B value=2.2 2000000000")
 
-	if err := e.WritePoints([]tsdb.Point{p1, p2, p3}, nil, nil); err != nil {
+	if err := e.WritePoints([]models.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
+	fields := []string{"value"}
+	var codec *tsdb.FieldCodec
+
 	verify := func(checkSingleBVal bool) {
-		c := e.Cursor("cpu,host=A", tsdb.Forward)
+		c := e.Cursor("cpu,host=A", fields, codec, true)
 		k, v := c.Next()
-		if btou64(k) != uint64(p1.UnixNano()) {
-			t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), btou64(k))
+		if k != p1.UnixNano() {
+			t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
 		}
-		if 1.1 != btof64(v) {
+		if 1.1 != v {
 			t.Fatal("p1 data not equal")
 		}
 		k, v = c.Next()
-		if btou64(k) != uint64(p3.UnixNano()) {
-			t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), btou64(k))
+		if k != p3.UnixNano() {
+			t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
 		}
-		if 2.1 != btof64(v) {
+		if 2.1 != v {
 			t.Fatal("p3 data not equal")
 		}
 		k, v = c.Next()
-		if k != nil {
-			fmt.Println(btou64(k), btof64(v))
-			t.Fatal("expected nil")
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF")
 		}
 
-		c = e.Cursor("cpu,host=B", tsdb.Forward)
+		c = e.Cursor("cpu,host=B", fields, codec, true)
 		k, v = c.Next()
-		if btou64(k) != uint64(p2.UnixNano()) {
-			t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+		if k != p2.UnixNano() {
+			t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 		}
-		if 1.2 != btof64(v) {
+		if 1.2 != v {
 			t.Fatal("p2 data not equal")
 		}
 
 		if checkSingleBVal {
 			k, v = c.Next()
-			if k != nil {
-				t.Fatal("expected nil")
+			if k != tsdb.EOF {
+				t.Fatal("expected EOF")
 			}
 		}
 	}
 	verify(true)
 
-	if err := e.WritePoints([]tsdb.Point{p4}, nil, nil); err != nil {
+	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	verify(false)
 
-	c := e.Cursor("cpu,host=B", tsdb.Forward)
+	c := e.Cursor("cpu,host=B", fields, codec, true)
 	k, v := c.Next()
-	if btou64(k) != uint64(p2.UnixNano()) {
-		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+	if k != p2.UnixNano() {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 	}
-	if 1.2 != btof64(v) {
+	if 1.2 != v {
 		t.Fatal("p2 data not equal")
 	}
 	k, v = c.Next()
-	if btou64(k) != uint64(p4.UnixNano()) {
-		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+	if k != p4.UnixNano() {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 	}
-	if 2.2 != btof64(v) {
+	if 2.2 != v {
 		t.Fatal("p2 data not equal")
 	}
 
 	// verify we can seek
-	k, v = c.Seek(u64tob(2000000000))
-	if btou64(k) != uint64(p4.UnixNano()) {
-		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+	k, v = c.SeekTo(2000000000)
+	if k != p4.UnixNano() {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 	}
-	if 2.2 != btof64(v) {
+	if 2.2 != v {
 		t.Fatal("p2 data not equal")
 	}
 
-	c = e.Cursor("cpu,host=A", tsdb.Forward)
-	k, v = c.Seek(u64tob(0))
-	if btou64(k) != uint64(p1.UnixNano()) {
-		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), btou64(k))
+	c = e.Cursor("cpu,host=A", fields, codec, true)
+	k, v = c.SeekTo(0)
+	if k != p1.UnixNano() {
+		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
 	}
-	if 1.1 != btof64(v) {
+	if 1.1 != v {
 		t.Fatal("p1 data not equal")
 	}
 
@@ -128,7 +131,7 @@ func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Cleanup()
 
-	var points []tsdb.Point
+	var points []models.Point
 	for i := 0; i < 100000; i++ {
 		points = append(points, parsePoint(fmt.Sprintf("cpu%d value=22.1", i)))
 	}
@@ -205,15 +208,15 @@ func (f *FieldCodeMock) FieldCodec(m string) *tsdb.FieldCodec {
 	return f.codec
 }
 
-func parsePoints(buf string) []tsdb.Point {
-	points, err := tsdb.ParsePointsString(buf)
+func parsePoints(buf string) []models.Point {
+	points, err := models.ParsePointsString(buf)
 	if err != nil {
 		panic(fmt.Sprintf("couldn't parse points: %s", err.Error()))
 	}
 	return points
 }
 
-func parsePoint(buf string) tsdb.Point {
+func parsePoint(buf string) models.Point {
 	return parsePoints(buf)[0]
 }
 

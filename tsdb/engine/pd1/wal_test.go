@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/pd1"
 )
@@ -38,64 +39,67 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 	fieldsToWrite := map[string]*tsdb.MeasurementFields{"foo": {Fields: map[string]*tsdb.Field{"bar": {Name: "value"}}}}
 	seriesToWrite := []*tsdb.SeriesCreate{{Measurement: "asdf"}}
 
-	if err := w.WritePoints([]tsdb.Point{p1, p2}, fieldsToWrite, seriesToWrite); err != nil {
+	if err := w.WritePoints([]models.Point{p1, p2}, fieldsToWrite, seriesToWrite); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	c := w.Cursor("cpu,host=A", tsdb.Forward)
+	fieldNames := []string{"value"}
+	var codec *tsdb.FieldCodec
+
+	c := w.Cursor("cpu,host=A", fieldNames, codec, true)
 	k, v := c.Next()
-	if btou64(k) != uint64(p1.UnixNano()) {
-		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), btou64(k))
+	if k != p1.UnixNano() {
+		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
 	}
-	if 1.1 != btof64(v) {
+	if 1.1 != v {
 		t.Fatal("p1 data not equal")
 	}
-	c = w.Cursor("cpu,host=B", tsdb.Forward)
+	c = w.Cursor("cpu,host=B", fieldNames, codec, true)
 	k, v = c.Next()
-	if btou64(k) != uint64(p2.UnixNano()) {
-		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), btou64(k))
+	if k != p2.UnixNano() {
+		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 	}
-	if 1.2 != btof64(v) {
+	if 1.2 != v {
 		t.Fatal("p2 data not equal")
 	}
 
 	k, v = c.Next()
-	if k != nil {
-		t.Fatal("expected nil")
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF", k, v)
 	}
 
 	// ensure we can do another write to the wal and get stuff
-	if err := w.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
+	if err := w.WritePoints([]models.Point{p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write: %s", err.Error)
 	}
 
-	c = w.Cursor("cpu,host=A", tsdb.Forward)
+	c = w.Cursor("cpu,host=A", fieldNames, codec, true)
 	k, v = c.Next()
-	if btou64(k) != uint64(p1.UnixNano()) {
-		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), btou64(k))
+	if k != p1.UnixNano() {
+		t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
 	}
-	if 1.1 != btof64(v) {
+	if 1.1 != v {
 		t.Fatal("p1 data not equal")
 	}
 	k, v = c.Next()
-	if btou64(k) != uint64(p3.UnixNano()) {
-		t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), btou64(k))
+	if k != p3.UnixNano() {
+		t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
 	}
-	if 2.1 != btof64(v) {
+	if 2.1 != v {
 		t.Fatal("p3 data not equal")
 	}
 
 	// ensure we can seek
-	k, v = c.Seek(u64tob(2000000000))
-	if btou64(k) != uint64(p3.UnixNano()) {
-		t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), btou64(k))
+	k, v = c.SeekTo(2000000000)
+	if k != p3.UnixNano() {
+		t.Fatalf("p3 time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
 	}
-	if 2.1 != btof64(v) {
+	if 2.1 != v {
 		t.Fatal("p3 data not equal")
 	}
 	k, v = c.Next()
-	if k != nil {
-		t.Fatal("expected nil")
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
 	}
 
 	// ensure we close and after open it flushes to the index
@@ -115,15 +119,15 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 		t.Fatal("expected host B values to flush to index on open")
 	}
 
-	if err := w.WritePoints([]tsdb.Point{p4}, nil, nil); err != nil {
+	if err := w.WritePoints([]models.Point{p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write: %s", err.Error)
 	}
-	c = w.Cursor("cpu,host=B", tsdb.Forward)
+	c = w.Cursor("cpu,host=B", fieldNames, codec, true)
 	k, v = c.Next()
-	if btou64(k) != uint64(p4.UnixNano()) {
-		t.Fatalf("p4 time wrong:\n\texp:%d\n\tgot:%d\n", p4.UnixNano(), btou64(k))
+	if k != p4.UnixNano() {
+		t.Fatalf("p4 time wrong:\n\texp:%d\n\tgot:%d\n", p4.UnixNano(), k)
 	}
-	if 2.2 != btof64(v) {
+	if 2.2 != v {
 		t.Fatal("p4 data not equal")
 	}
 
