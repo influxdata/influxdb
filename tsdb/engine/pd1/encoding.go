@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dgryski/go-tsz"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 type Value interface {
@@ -35,7 +36,7 @@ type EmptyValue struct {
 
 func (e *EmptyValue) TimeBytes() []byte  { return nil }
 func (e *EmptyValue) ValueBytes() []byte { return nil }
-func (e *EmptyValue) Time() time.Time    { return time.Unix(0, 0) }
+func (e *EmptyValue) Time() time.Time    { return time.Unix(0, tsdb.EOF) }
 func (e *EmptyValue) Value() interface{} { return nil }
 func (e *EmptyValue) Size() int          { return 0 }
 

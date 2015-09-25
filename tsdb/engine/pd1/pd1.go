@@ -17,6 +17,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -217,7 +218,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
-func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return e.WAL.WritePoints(points, measurementFieldsToSave, seriesToCreate)
 }
 
@@ -614,7 +615,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 }
 
 // TODO: make the cursor take a field name
-func (e *Engine) Cursor(series string, direction tsdb.Direction) tsdb.Cursor {
+func (e *Engine) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	measurementName := tsdb.MeasurementFromSeriesKey(series)
 	codec := e.Shard.FieldCodec(measurementName)
 	if codec == nil {
@@ -627,7 +628,7 @@ func (e *Engine) Cursor(series string, direction tsdb.Direction) tsdb.Cursor {
 
 	// TODO: ensure we map the collisions
 	id := hashSeriesField(seriesFieldKey(series, field.Name))
-	return newCursor(id, field.Type, e.copyFilesCollection(), direction)
+	return newCursor(id, field.Type, e.copyFilesCollection(), ascending)
 }
 
 func (e *Engine) copyFilesCollection() []*dataFile {
@@ -961,30 +962,28 @@ type cursor struct {
 	pos      uint32
 	vals     Values
 
-	direction tsdb.Direction
+	ascending bool
 
 	// time acending list of data files
 	files []*dataFile
 }
 
-func newCursor(id uint64, dataType influxql.DataType, files []*dataFile, direction tsdb.Direction) *cursor {
+func newCursor(id uint64, dataType influxql.DataType, files []*dataFile, ascending bool) *cursor {
 	return &cursor{
 		id:        id,
 		dataType:  dataType,
-		direction: direction,
+		ascending: ascending,
 		files:     files,
 	}
 }
 
-func (c *cursor) Seek(seek []byte) (key, value []byte) {
-	t := int64(btou64(seek))
-
-	if t < c.files[0].MinTime() {
+func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
+	if seek < c.files[0].MinTime() {
 		c.filesPos = 0
 		c.f = c.files[0]
 	} else {
 		for i, f := range c.files {
-			if t >= f.MinTime() && t <= f.MaxTime() {
+			if seek >= f.MinTime() && seek <= f.MaxTime() {
 				c.filesPos = i
 				c.f = f
 				break
@@ -993,7 +992,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 	}
 
 	if c.f == nil {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	// TODO: make this for the reverse direction cursor
@@ -1006,7 +1005,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 		if pos == 0 {
 			c.filesPos++
 			if c.filesPos >= len(c.files) {
-				return nil, nil
+				return tsdb.EOF, nil
 			}
 			c.f = c.files[c.filesPos]
 			continue
@@ -1025,7 +1024,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 				nextBlockID := btou64(c.f.mmap[nextBlockPos : nextBlockPos+8])
 				if nextBlockID == c.id {
 					nextBlockTime := int64(btou64(c.f.mmap[nextBlockPos+12 : nextBlockPos+20]))
-					if nextBlockTime <= t {
+					if nextBlockTime <= seek {
 						pos = nextBlockPos
 						continue
 					}
@@ -1033,16 +1032,16 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 			}
 
 			// it must be in this block or not at all
-			tb, vb := c.decodeBlockAndGetValues(pos)
-			if int64(btou64(tb)) >= t {
-				return tb, vb
+			t, v := c.decodeBlockAndGetValues(pos)
+			if t >= seek {
+				return t, v
 			}
 
 			// wasn't in the first value popped out of the block, check the rest
 			for i, v := range c.vals {
-				if v.Time().UnixNano() >= t {
+				if v.Time().UnixNano() >= seek {
 					c.vals = c.vals[i+1:]
-					return v.TimeBytes(), v.ValueBytes()
+					return v.Time().UnixNano(), v.Value()
 				}
 			}
 
@@ -1052,7 +1051,7 @@ func (c *cursor) Seek(seek []byte) (key, value []byte) {
 	}
 }
 
-func (c *cursor) Next() (key, value []byte) {
+func (c *cursor) Next() (int64, interface{}) {
 	if len(c.vals) == 0 {
 		// if we have a file set, see if the next block is for this ID
 		if c.f != nil && c.pos < c.f.size {
@@ -1081,16 +1080,16 @@ func (c *cursor) Next() (key, value []byte) {
 		}
 
 		// we didn't get to a file that had a next value
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	v := c.vals[0]
 	c.vals = c.vals[1:]
 
-	return v.TimeBytes(), v.ValueBytes()
+	return v.Time().UnixNano(), v.Value()
 }
 
-func (c *cursor) decodeBlockAndGetValues(position uint32) ([]byte, []byte) {
+func (c *cursor) decodeBlockAndGetValues(position uint32) (int64, interface{}) {
 	length := btou32(c.f.mmap[position+8 : position+12])
 	block := c.f.mmap[position+12 : position+12+length]
 	c.vals, _ = DecodeFloatBlock(block)
@@ -1098,10 +1097,10 @@ func (c *cursor) decodeBlockAndGetValues(position uint32) ([]byte, []byte) {
 
 	v := c.vals[0]
 	c.vals = c.vals[1:]
-	return v.TimeBytes(), v.ValueBytes()
+	return v.Time().UnixNano(), v.Value()
 }
 
-func (c *cursor) Direction() tsdb.Direction { return c.direction }
+func (c *cursor) Ascending() bool { return c.ascending }
 
 // u64tob converts a uint64 into an 8-byte slice.
 func u64tob(v uint64) []byte {

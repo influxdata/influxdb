@@ -1,7 +1,6 @@
 package pd1
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,8 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/snappy"
+	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
+
+	"github.com/golang/snappy"
 )
 
 const (
@@ -171,12 +172,12 @@ func (l *Log) Open() error {
 }
 
 // Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given
-func (l *Log) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
+func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	l.cacheLock.RLock()
 	defer l.cacheLock.RUnlock()
 
 	// TODO: make this work for other fields
-	ck := seriesFieldKey(key, "value")
+	ck := seriesFieldKey(series, "value")
 	values := l.cache[ck]
 
 	// if we're in the middle of a flush, combine the previous cache
@@ -187,7 +188,7 @@ func (l *Log) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
 			copy(c, fc)
 			c = append(c, values...)
 
-			return newWALCursor(c, direction)
+			return newWALCursor(c, ascending)
 		}
 	}
 
@@ -199,10 +200,10 @@ func (l *Log) Cursor(key string, direction tsdb.Direction) tsdb.Cursor {
 	// build a copy so writes afterwards don't change the result set
 	a := make([]Value, len(values))
 	copy(a, values)
-	return newWALCursor(a, direction)
+	return newWALCursor(a, ascending)
 }
 
-func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
+func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
 	// add everything to the cache, or return an error if we've hit our max memory
 	if addedToCache := l.addToCache(points, fields, series, true); !addedToCache {
 		return fmt.Errorf("WAL backed up flushing to index, hit max memory")
@@ -260,7 +261,7 @@ func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.Measureme
 // immediately after return and will be flushed at the next flush cycle. Before adding to the cache we check if we're over the
 // max memory threshold. If we are we request a flush in a new goroutine and return false, indicating we didn't add the values
 // to the cache and that writes should return a failure.
-func (l *Log) addToCache(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate, checkMemory bool) bool {
+func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate, checkMemory bool) bool {
 	l.cacheLock.Lock()
 	defer l.cacheLock.Unlock()
 
@@ -371,7 +372,7 @@ func (l *Log) readFileToCache(fileName string) error {
 		// and marshal it and send it to the cache
 		switch walEntryType(entryType) {
 		case pointsEntry:
-			points, err := tsdb.ParsePoints(data)
+			points, err := models.ParsePoints(data)
 			if err != nil {
 				return err
 			}
@@ -674,53 +675,53 @@ func (l *Log) shouldFlush() flushType {
 type walCursor struct {
 	cache     Values
 	position  int
-	direction tsdb.Direction
+	ascending bool
 }
 
-func newWALCursor(cache Values, direction tsdb.Direction) *walCursor {
+func newWALCursor(cache Values, ascending bool) *walCursor {
 	// position is set such that a call to Next will successfully advance
 	// to the next postion and return the value.
-	c := &walCursor{cache: cache, direction: direction, position: -1}
-	if direction.Reverse() {
+	c := &walCursor{cache: cache, ascending: ascending, position: -1}
+	if !ascending {
 		c.position = len(c.cache)
 	}
 	return c
 }
 
-func (c *walCursor) Direction() tsdb.Direction { return c.direction }
+func (c *walCursor) Ascending() bool { return c.ascending }
 
 // Seek will point the cursor to the given time (or key)
-func (c *walCursor) Seek(seek []byte) (key, value []byte) {
+func (c *walCursor) SeekTo(seek int64) (int64, interface{}) {
 	// Seek cache index
 	c.position = sort.Search(len(c.cache), func(i int) bool {
-		return bytes.Compare(c.cache[i].TimeBytes(), seek) != -1
+		return c.cache[i].Time().UnixNano() >= seek
 	})
 
 	// If seek is not in the cache, return the last value in the cache
-	if c.direction.Reverse() && c.position >= len(c.cache) {
+	if !c.ascending && c.position >= len(c.cache) {
 		c.position = len(c.cache)
 	}
 
 	// Make sure our position points to something in the cache
 	if c.position < 0 || c.position >= len(c.cache) {
-		return nil, nil
+		return tsdb.EOF, nil
 	}
 
 	v := c.cache[c.position]
 
-	return v.TimeBytes(), v.ValueBytes()
+	return v.Time().UnixNano(), v.Value()
 }
 
 // Next moves the cursor to the next key/value. will return nil if at the end
-func (c *walCursor) Next() (key, value []byte) {
+func (c *walCursor) Next() (int64, interface{}) {
 	var v Value
-	if c.direction.Forward() {
+	if c.ascending {
 		v = c.nextForward()
 	} else {
 		v = c.nextReverse()
 	}
 
-	return v.TimeBytes(), v.ValueBytes()
+	return v.Time().UnixNano(), v.Value()
 }
 
 // nextForward advances the cursor forward returning the next value
