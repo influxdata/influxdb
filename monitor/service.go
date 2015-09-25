@@ -64,9 +64,10 @@ func (d *Diagnostic) AddRow(r []interface{}) {
 // Monitor represents an instance of the monitor system.
 type Monitor struct {
 	// Build information for diagnostics.
-	Version string
-	Commit  string
-	Branch  string
+	Version   string
+	Commit    string
+	Branch    string
+	BuildTime string
 
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -121,6 +122,7 @@ func (m *Monitor) Open() error {
 		Version: m.Version,
 		Commit:  m.Commit,
 		Branch:  m.Branch,
+		Time:    m.BuildTime,
 	})
 	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})

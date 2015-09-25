@@ -37,6 +37,7 @@ type BuildInfo struct {
 	Version string
 	Commit  string
 	Branch  string
+	Time    string
 }
 
 // Server represents a container for the metadata and storage data and services.
@@ -138,6 +139,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Monitor.Version = s.buildInfo.Version
 	s.Monitor.Commit = s.buildInfo.Commit
 	s.Monitor.Branch = s.buildInfo.Branch
+	s.Monitor.BuildTime = s.buildInfo.Time
 	s.Monitor.MetaStore = s.MetaStore
 	s.Monitor.PointsWriter = s.PointsWriter
 
