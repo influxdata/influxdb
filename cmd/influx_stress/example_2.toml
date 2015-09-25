@@ -1,15 +1,15 @@
-channel_buffer_size = 50000
+channel_buffer_size = 100000
 
 [write]
   concurrency = 10
-  batch_size = 5000
+  batch_size = 10000
   batch_interval = "0s"
   database = "stress"
   precision = "n"
   address = "localhost:8086"
   reset_database = true
   # doesnt do anything
-  starting_point = 0 # how far back in time to go in weeks
+  starting_point = 4 # how far back in time to go in weeks
 
 [[series]]
   point_count = 50 # number of points that will be written for each of the series

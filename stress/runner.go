@@ -205,7 +205,10 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 
 	}()
 
+	fmt.Println("Filling the Point Channel Buffer...")
+	fmt.Printf("Test will begin in %v seconds\n", (time.Duration(cfg.ChannelBufferSize/10) * time.Millisecond).Seconds())
 	time.Sleep(time.Duration(cfg.ChannelBufferSize/10) * time.Millisecond)
+	fmt.Println("Starting Stress...")
 
 	timer = NewTimer()
 
