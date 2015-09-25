@@ -199,6 +199,10 @@ func Test_Int64Encoder_AllNegative(t *testing.T) {
 	dec := pd1.NewInt64Decoder(b)
 	i := 0
 	for dec.Next() {
+		if i > len(values) {
+			t.Fatalf("read too many values: got %v, exp %v", i, len(values))
+		}
+
 		if values[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
 		}
