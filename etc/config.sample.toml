@@ -147,6 +147,7 @@ reporting-disabled = false
 
 [[graphite]]
   enabled = false
+  # database = "graphite"
   # bind-address = ":2003"
   # protocol = "tcp"
   # consistency-level = "one"
