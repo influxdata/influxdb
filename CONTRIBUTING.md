@@ -167,10 +167,10 @@ go install ./...
 To set the version and commit flags during the build pass the following to the build command:
 
 ```bash
--ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT"
+-ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT -X main.buildTime=$TIME"
 ```
 
-where `$VERSION` is the version, `$BRANCH` is the branch, and `$COMMIT` is the git commit hash.
+where `$VERSION` is the version, `$BRANCH` is the branch, `$COMMIT` is the git commit hash, and `$TIME` is the build timestamp.
 
 If you want to build packages, see `package.sh` help:
 ```bash
