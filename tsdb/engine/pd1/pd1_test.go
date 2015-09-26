@@ -184,6 +184,53 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	verify("cpu,host=B", []models.Point{p2, p8, p4, p6}, 0)
 }
 
+func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	e.Shard = newFieldCodecMock(map[string]influxql.DataType{"value": influxql.Float})
+	fields := []string{"value"}
+	var codec *tsdb.FieldCodec
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 1000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 1000000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c := e.Cursor("cpu,host=A", fields, codec, true)
+	k, v := c.Next()
+	if k != p2.UnixNano() {
+		t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
+	}
+	if 1.2 != v {
+		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.2, v.(float64))
+	}
+	k, v = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c = e.Cursor("cpu,host=A", fields, codec, true)
+	k, v = c.Next()
+	if k != p3.UnixNano() {
+		t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
+	}
+	if 1.3 != v {
+		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.3, v.(float64))
+	}
+	k, v = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+}
+
 func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	t.Skip("whatevs")
 
