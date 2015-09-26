@@ -389,6 +389,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	if len(valuesByID) == 0 {
 		return nil
 	}
+
 	// we need the values in sorted order so that we can merge them into the
 	// new file as we read the old file
 	ids := make([]uint64, 0, len(valuesByID))
@@ -506,7 +507,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 			// determine if there's a block after this with the same id and get its time
 			hasFutureBlock := false
 			nextTime := int64(0)
-			if fpos < oldDF.size {
+			if fpos < oldDF.indexPosition() {
 				nextID := btou64(oldDF.mmap[fpos : fpos+8])
 				if nextID == id {
 					hasFutureBlock = true
@@ -530,7 +531,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 
 			currentPosition += uint32(12 + len(newBlock))
 
-			if fpos >= oldDF.size {
+			if fpos >= oldDF.indexPosition() {
 				break
 			}
 		}
@@ -877,16 +878,14 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		})
 		values = append(values, newValues[:pos]...)
 		remainingValues = newValues[pos:]
-		sort.Sort(values)
+		values = values.Deduplicate()
 	} else {
-		requireSort := values.MaxTime() > newValues.MinTime()
+		requireSort := values.MaxTime() >= newValues.MinTime()
 		values = append(values, newValues...)
 		if requireSort {
-			sort.Sort(values)
+			values = values.Deduplicate()
 		}
 	}
-
-	// TODO: deduplicate values
 
 	if len(values) > DefaultMaxPointsPerBlock {
 		remainingValues = values[DefaultMaxPointsPerBlock:]
@@ -984,6 +983,10 @@ func (d *dataFile) IDToPosition() map[uint64]uint32 {
 	}
 
 	return m
+}
+
+func (d *dataFile) indexPosition() uint32 {
+	return d.size - uint32(d.SeriesCount()*12+20)
 }
 
 // StartingPositionForID returns the position in the file of the
@@ -1123,7 +1126,7 @@ func (c *cursor) Next() (int64, interface{}) {
 		// if we have a file set, see if the next block is for this ID
 		if c.f != nil && c.pos < c.f.size {
 			nextBlockID := btou64(c.f.mmap[c.pos : c.pos+8])
-			if nextBlockID == c.id {
+			if nextBlockID == c.id && c.pos != c.f.indexPosition() {
 				return c.decodeBlockAndGetValues(c.pos)
 			}
 		}

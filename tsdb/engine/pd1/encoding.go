@@ -1,6 +1,7 @@
 package pd1
 
 import (
+	"sort"
 	"time"
 
 	"github.com/dgryski/go-tsz"
@@ -73,6 +74,24 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 		// TODO: add support for other types
 	}
 	return nil
+}
+
+// Deduplicate returns a new Values slice with any values
+// that have the same  timestamp removed. The Value that appears
+// last in the slice is the one that is kept. The returned slice is in ascending order
+func (v Values) Deduplicate() Values {
+	m := make(map[int64]Value)
+	for _, val := range v {
+		m[val.UnixNano()] = val
+	}
+
+	a := make([]Value, 0, len(m))
+	for _, val := range m {
+		a = append(a, val)
+	}
+	sort.Sort(Values(a))
+
+	return a
 }
 
 // Sort methods

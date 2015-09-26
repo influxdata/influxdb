@@ -282,7 +282,7 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 
 			// only mark it as dirty if it isn't already
 			if _, ok := l.cacheDirtySort[k]; !ok && len(cacheValues) > 0 {
-				dirty := cacheValues[len(cacheValues)-1].Time().UnixNano() > v.Time().UnixNano()
+				dirty := cacheValues[len(cacheValues)-1].Time().UnixNano() >= v.Time().UnixNano()
 				if dirty {
 					l.cacheDirtySort[k] = true
 				}
@@ -522,7 +522,7 @@ func (l *Log) flush(flush flushType) error {
 	l.flushCache = l.cache
 	l.cache = make(map[string]Values)
 	for k, _ := range l.cacheDirtySort {
-		sort.Sort(l.flushCache[k])
+		l.flushCache[k] = l.flushCache[k].Deduplicate()
 	}
 	l.cacheDirtySort = make(map[string]bool)
 	valuesByKey := make(map[string]Values)
