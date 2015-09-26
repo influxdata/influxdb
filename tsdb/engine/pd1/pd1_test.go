@@ -19,8 +19,6 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Cleanup()
 
-	e.Shard = newFieldCodecMock(map[string]influxql.DataType{"value": influxql.Float})
-
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
 	p2 := parsePoint("cpu,host=B value=1.2 1000000000")
 	p3 := parsePoint("cpu,host=A value=2.1 2000000000")
@@ -31,11 +29,17 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	}
 
 	fields := []string{"value"}
-	var codec *tsdb.FieldCodec
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
 
 	verify := func(checkSingleBVal bool) {
 		c := e.Cursor("cpu,host=A", fields, codec, true)
-		k, v := c.Next()
+		k, v := c.SeekTo(0)
 		if k != p1.UnixNano() {
 			t.Fatalf("p1 time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
 		}
@@ -55,7 +59,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 		}
 
 		c = e.Cursor("cpu,host=B", fields, codec, true)
-		k, v = c.Next()
+		k, v = c.SeekTo(0)
 		if k != p2.UnixNano() {
 			t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 		}
@@ -78,7 +82,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	verify(false)
 
 	c := e.Cursor("cpu,host=B", fields, codec, true)
-	k, v := c.Next()
+	k, v := c.SeekTo(0)
 	if k != p2.UnixNano() {
 		t.Fatalf("p2 time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 	}
@@ -129,7 +133,6 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Cleanup()
 
-	e.Shard = newFieldCodecMock(map[string]influxql.DataType{"value": influxql.Float})
 	e.RotateFileSize = 10
 
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
@@ -155,21 +158,24 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	}
 
 	fields := []string{"value"}
-	var codec *tsdb.FieldCodec
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
 
 	verify := func(series string, points []models.Point, seek int64) {
 		c := e.Cursor(series, fields, codec, true)
 
-		// we we want to seek, do it and verify the first point matches
-		if seek != 0 {
-			k, v := c.SeekTo(seek)
-			p := points[0]
-			val := p.Fields()["value"]
-			if p.UnixNano() != k || val != v {
-				t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v)
-			}
-			points = points[1:]
+		k, v := c.SeekTo(seek)
+		p := points[0]
+		val := p.Fields()["value"]
+		if p.UnixNano() != k || val != v {
+			t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v)
 		}
+		points = points[1:]
 
 		for _, p := range points {
 			k, v := c.Next()
@@ -182,15 +188,22 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 
 	verify("cpu,host=A", []models.Point{p1, p7, p3, p5}, 0)
 	verify("cpu,host=B", []models.Point{p2, p8, p4, p6}, 0)
+	verify("cpu,host=A", []models.Point{p5}, 5000000000)
+	verify("cpu,host=B", []models.Point{p6}, 5000000000)
 }
 
 func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Cleanup()
 
-	e.Shard = newFieldCodecMock(map[string]influxql.DataType{"value": influxql.Float})
 	fields := []string{"value"}
-	var codec *tsdb.FieldCodec
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
 
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
 	p2 := parsePoint("cpu,host=A value=1.2 1000000000")
@@ -201,7 +214,7 @@ func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 	}
 
 	c := e.Cursor("cpu,host=A", fields, codec, true)
-	k, v := c.Next()
+	k, v := c.SeekTo(0)
 	if k != p2.UnixNano() {
 		t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
 	}
@@ -218,12 +231,57 @@ func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 	}
 
 	c = e.Cursor("cpu,host=A", fields, codec, true)
-	k, v = c.Next()
+	k, v = c.SeekTo(0)
 	if k != p3.UnixNano() {
 		t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
 	}
 	if 1.3 != v {
 		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.3, v.(float64))
+	}
+	k, v = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+}
+
+func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
+
+	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	e.WAL.SkipCache = false
+	if err := e.WritePoints([]models.Point{p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c := e.Cursor("cpu,host=A", fields, codec, true)
+	k, v := c.SeekTo(0)
+	if k != p1.UnixNano() {
+		t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+	}
+	if 1.1 != v {
+		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.1, v.(float64))
+	}
+	k, v = c.Next()
+	if k != p2.UnixNano() {
+		t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p2.UnixNano(), k)
+	}
+	if 1.2 != v {
+		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.2, v.(float64))
 	}
 	k, v = c.Next()
 	if k != tsdb.EOF {
@@ -293,25 +351,6 @@ func (e *Engine) Cleanup() error {
 	e.Engine.Close()
 	os.RemoveAll(e.Path())
 	return nil
-}
-
-func newFieldCodecMock(fields map[string]influxql.DataType) *FieldCodeMock {
-	m := make(map[string]*tsdb.Field)
-
-	for n, t := range fields {
-		m[n] = &tsdb.Field{Name: n, Type: t}
-	}
-	codec := tsdb.NewFieldCodec(m)
-
-	return &FieldCodeMock{codec: codec}
-}
-
-type FieldCodeMock struct {
-	codec *tsdb.FieldCodec
-}
-
-func (f *FieldCodeMock) FieldCodec(m string) *tsdb.FieldCodec {
-	return f.codec
 }
 
 func parsePoints(buf string) []models.Point {

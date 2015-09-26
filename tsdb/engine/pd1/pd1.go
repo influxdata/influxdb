@@ -79,11 +79,6 @@ type Engine struct {
 	// and returns a hash identifier. It's not guaranteed to be unique.
 	HashSeriesField func(key string) uint64
 
-	// Shard is an interface that can pull back field type information based on measurement name
-	Shard interface {
-		FieldCodec(measurementName string) *tsdb.FieldCodec
-	}
-
 	WAL *Log
 
 	RotateFileSize uint32
@@ -187,9 +182,6 @@ func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
-	e.Shard = shard
-	// TODO: write the metadata from the WAL
-
 	// Load measurement metadata
 	fields, err := e.readFields()
 	if err != nil {
@@ -682,21 +674,18 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 	return e, nil
 }
 
-// TODO: make the cursor take a field name
+// TODO: handle multiple fields and descending
 func (e *Engine) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
-	measurementName := tsdb.MeasurementFromSeriesKey(series)
-	codec := e.Shard.FieldCodec(measurementName)
-	if codec == nil {
-		return &cursor{}
-	}
-	field := codec.FieldByName("value")
-	if field == nil {
+	field := dec.FieldByName("value")
+	if field == nil || len(fields) > 1 {
 		panic("pd1 engine only supports one field with name of value")
 	}
 
 	// TODO: ensure we map the collisions
 	id := hashSeriesField(seriesFieldKey(series, field.Name))
-	return newCursor(id, field.Type, e.copyFilesCollection(), ascending)
+	indexCursor := newCursor(id, field.Type, e.copyFilesCollection(), ascending)
+	wc := e.WAL.Cursor(series, fields, dec, ascending)
+	return tsdb.MultiCursor(wc, indexCursor)
 }
 
 func (e *Engine) copyFilesCollection() []*dataFile {
@@ -1167,6 +1156,7 @@ func (c *cursor) decodeBlockAndGetValues(position uint32) (int64, interface{}) {
 
 	v := c.vals[0]
 	c.vals = c.vals[1:]
+
 	return v.Time().UnixNano(), v.Value()
 }
 

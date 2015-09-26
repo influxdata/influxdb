@@ -177,6 +177,9 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 	defer l.cacheLock.RUnlock()
 
 	// TODO: make this work for other fields
+	if len(fields) != 1 || fields[0] != "value" {
+		panic("pd1 wal only supports 1 field with name value")
+	}
 	ck := seriesFieldKey(series, "value")
 	values := l.cache[ck]
 
