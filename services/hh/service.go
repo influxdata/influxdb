@@ -54,6 +54,11 @@ func NewService(c Config, w shardWriter) *Service {
 }
 
 func (s *Service) Open() error {
+	if !s.cfg.Enabled {
+		// Allow Open to proceed, but don't anything.
+		return nil
+	}
+
 	s.Logger.Printf("Starting hinted handoff service")
 
 	s.mu.Lock()
