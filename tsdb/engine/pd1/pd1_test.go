@@ -372,6 +372,93 @@ func TestEngine_Compaction(t *testing.T) {
 	verify("cpu,host=B", []models.Point{p2, p4, p6, p8}, 0)
 }
 
+// Ensure that if two keys have the same fnv64-a id, we handle it
+func TestEngine_KeyCollisionsAreHandled(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	// make sure two of these keys collide
+	e.HashSeriesField = func(key string) uint64 {
+		return 1
+	}
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=B value=1.2 1000000000")
+	p3 := parsePoint("cpu,host=C value=1.3 1000000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2, p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify := func(series string, points []models.Point, seek int64) {
+		c := e.Cursor(series, fields, codec, true)
+
+		k, v := c.SeekTo(seek)
+		p := points[0]
+		val := p.Fields()["value"]
+		if p.UnixNano() != k || val != v {
+			t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v)
+		}
+		points = points[1:]
+
+		for _, p := range points {
+			k, v := c.Next()
+			val := p.Fields()["value"]
+			if p.UnixNano() != k || val != v {
+				t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v.(float64))
+			}
+		}
+	}
+
+	verify("cpu,host=A", []models.Point{p1}, 0)
+	verify("cpu,host=B", []models.Point{p2}, 0)
+	verify("cpu,host=C", []models.Point{p3}, 0)
+
+	p4 := parsePoint("cpu,host=A value=2.1 2000000000")
+	p5 := parsePoint("cpu,host=B value=2.2 2000000000")
+	p6 := parsePoint("cpu,host=C value=2.3 2000000000")
+
+	if err := e.WritePoints([]models.Point{p4, p5, p6}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify("cpu,host=A", []models.Point{p1, p4}, 0)
+	verify("cpu,host=B", []models.Point{p2, p5}, 0)
+	verify("cpu,host=C", []models.Point{p3, p6}, 0)
+
+	// verify collisions are handled after closing and reopening
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	verify("cpu,host=A", []models.Point{p1, p4}, 0)
+	verify("cpu,host=B", []models.Point{p2, p5}, 0)
+	verify("cpu,host=C", []models.Point{p3, p6}, 0)
+
+	p7 := parsePoint("cpu,host=A value=3.1 3000000000")
+	p8 := parsePoint("cpu,host=B value=3.2 3000000000")
+	p9 := parsePoint("cpu,host=C value=3.3 3000000000")
+
+	if err := e.WritePoints([]models.Point{p7, p8, p9}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify("cpu,host=A", []models.Point{p1, p4, p7}, 0)
+	verify("cpu,host=B", []models.Point{p2, p5, p8}, 0)
+	verify("cpu,host=C", []models.Point{p3, p6, p9}, 0)
+}
+
 func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	t.Skip("whatevs")
 
