@@ -95,6 +95,9 @@ type Engine struct {
 	files         dataFiles
 	currentFileID int
 
+	collisionsLock sync.RWMutex
+	collisions     map[string]uint64
+
 	// queryLock keeps data files from being deleted or the store from
 	// being closed while queries are running
 	queryLock sync.RWMutex
@@ -137,6 +140,7 @@ func (e *Engine) Open() error {
 	// TODO: clean up previous fields write
 	// TODO: clean up previous names write
 	// TODO: clean up any data files that didn't get cleaned up
+	// TODO: clean up previous collisions write
 
 	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", Format)))
 	if err != nil {
@@ -166,6 +170,10 @@ func (e *Engine) Open() error {
 		return err
 	}
 
+	if err := e.readCollisions(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -190,6 +198,7 @@ func (e *Engine) Close() error {
 	}
 	e.files = nil
 	e.currentFileID = 0
+	e.collisions = nil
 	return nil
 }
 
@@ -564,7 +573,8 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 	// these are values that are newer than anything stored in the shard
 	valuesByID = make(map[uint64]Values)
 
-	idToKey := make(map[uint64]string) // we only use this map if new ids are being created
+	idToKey := make(map[uint64]string)    // we only use this map if new ids are being created
+	collisions := make(map[string]uint64) // we only use this if a collision is encountered
 	newKeys := false
 	// track the min and max time of values being inserted so we can lock that time range
 	minTime = int64(math.MaxInt64)
@@ -574,6 +584,7 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 		var ok bool
 		if id, ok = ids[k]; !ok {
 			// populate the map if we haven't already
+
 			if len(idToKey) == 0 {
 				for n, id := range ids {
 					idToKey[id] = n
@@ -581,21 +592,26 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 			}
 
 			// now see if the hash id collides with a different key
-			hashID := hashSeriesField(k)
+			hashID := e.HashSeriesField(k)
 			existingKey, idInMap := idToKey[hashID]
-			if idInMap {
-				// we only care if the keys are different. if so, it's a hash collision we have to keep track of
-				if k != existingKey {
-					// we have a collision, give this new key a different id and move on
-					// TODO: handle collisions
-					panic("name collision, not implemented yet!")
+			// we only care if the keys are different. if so, it's a hash collision we have to keep track of
+			if idInMap && k != existingKey {
+				// we have a collision, find this new key the next available id
+				hashID = 0
+				for {
+					hashID++
+					if _, ok := idToKey[hashID]; !ok {
+						// next ID is available, use it
+						break
+					}
 				}
-			} else {
-				newKeys = true
-				ids[k] = hashID
-				idToKey[id] = k
-				id = hashID
+				collisions[k] = hashID
 			}
+
+			newKeys = true
+			ids[k] = hashID
+			idToKey[hashID] = k
+			id = hashID
 		}
 
 		if minTime > values.MinTime() {
@@ -618,7 +634,42 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 		}
 	}
 
+	if len(collisions) > 0 {
+		e.saveNewCollisions(collisions)
+	}
+
 	return
+}
+
+func (e *Engine) saveNewCollisions(collisions map[string]uint64) error {
+	e.collisionsLock.Lock()
+	defer e.collisionsLock.Unlock()
+
+	for k, v := range collisions {
+		e.collisions[k] = v
+	}
+
+	data, err := json.Marshal(e.collisions)
+
+	if err != nil {
+		return err
+	}
+
+	return e.replaceCompressedFile(CollisionsFileExtension, data)
+}
+
+func (e *Engine) readCollisions() error {
+	e.collisions = make(map[string]uint64)
+	data, err := e.readCompressedFile(CollisionsFileExtension)
+	if err != nil {
+		return err
+	}
+
+	if len(data) == 0 {
+		return nil
+	}
+
+	return json.Unmarshal(data, &e.collisions)
 }
 
 // filterDataBetweenTimes will create a new map with data between
@@ -925,8 +976,16 @@ func (e *Engine) Cursor(series string, fields []string, dec *tsdb.FieldCodec, as
 		panic("pd1 engine only supports one field with name of value")
 	}
 
-	// TODO: ensure we map the collisions
-	id := hashSeriesField(seriesFieldKey(series, field.Name))
+	// get the ID for the key and be sure to check if it had hash collision before
+	key := seriesFieldKey(series, field.Name)
+	e.collisionsLock.RLock()
+	id, ok := e.collisions[key]
+	e.collisionsLock.RUnlock()
+
+	if !ok {
+		id = e.HashSeriesField(key)
+	}
+
 	indexCursor := newCursor(id, field.Type, e.copyFilesCollection(), ascending)
 	wc := e.WAL.Cursor(series, fields, dec, ascending)
 	return tsdb.MultiCursor(wc, indexCursor)
