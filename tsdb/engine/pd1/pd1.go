@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"sync"
 	"syscall"
@@ -50,8 +51,10 @@ func init() {
 }
 
 const (
-	// DefaultBlockSize is the default size of uncompressed points blocks.
-	DefaultBlockSize = 512 * 1024 // 512KB
+	MaxDataFileSize = 1024 * 1024 * 1024 // 1GB
+
+	// DefaultRotateBlockSize is the default size to rotate to a new compressed block
+	DefaultRotateBlockSize = 512 * 1024 // 512KB
 
 	DefaultRotateFileSize = 10 * 1024 * 1024 // 10MB
 
@@ -68,8 +71,9 @@ var _ tsdb.Engine = &Engine{}
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu   sync.Mutex
-	path string
+	writeLock *writeLock
+	metaLock  sync.Mutex
+	path      string
 
 	// deletesPending mark how many old data files are waiting to be deleted. This will
 	// keep a close from returning until all deletes finish
@@ -81,12 +85,19 @@ type Engine struct {
 
 	WAL *Log
 
-	RotateFileSize uint32
+	RotateFileSize      uint32
+	SkipCompaction      bool
+	CompactionAge       time.Duration
+	CompactionFileCount int
 
+	// filesLock is only for modifying and accessing the files slice
 	filesLock     sync.RWMutex
 	files         dataFiles
 	currentFileID int
-	queryLock     sync.RWMutex
+
+	// queryLock keeps data files from being deleted or the store from
+	// being closed while queries are running
+	queryLock sync.RWMutex
 }
 
 // NewEngine returns a new instance of Engine.
@@ -98,12 +109,15 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	w.LoggingEnabled = opt.Config.WALLoggingEnabled
 
 	e := &Engine{
-		path: path,
+		path:      path,
+		writeLock: &writeLock{},
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
-		HashSeriesField: hashSeriesField,
-		WAL:             w,
-		RotateFileSize:  DefaultRotateFileSize,
+		HashSeriesField:     hashSeriesField,
+		WAL:                 w,
+		RotateFileSize:      DefaultRotateFileSize,
+		CompactionAge:       opt.Config.IndexCompactionAge,
+		CompactionFileCount: opt.Config.IndexCompactionFileCount,
 	}
 	e.WAL.Index = e
 
@@ -157,9 +171,18 @@ func (e *Engine) Open() error {
 
 // Close closes the engine.
 func (e *Engine) Close() error {
+	// get all the locks so queries, writes, and compactions stop before closing
 	e.queryLock.Lock()
 	defer e.queryLock.Unlock()
+	e.metaLock.Lock()
+	defer e.metaLock.Unlock()
+	min, max := int64(math.MinInt64), int64(math.MaxInt64)
+	e.writeLock.LockRange(min, max)
+	defer e.writeLock.UnlockRange(min, max)
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
 
+	// ensure all deletes have been processed
 	e.deletesPending.Wait()
 
 	for _, df := range e.files {
@@ -224,38 +247,328 @@ func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[
 	return e.WAL.WritePoints(points, measurementFieldsToSave, seriesToCreate)
 }
 
-func (e *Engine) WriteAndCompact(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if err := e.writeNewFields(measurementFieldsToSave); err != nil {
+func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+	err, startTime, endTime, valuesByID := e.convertKeysAndWriteMetadata(pointsByKey, measurementFieldsToSave, seriesToCreate)
+	if err != nil {
 		return err
 	}
-	if err := e.writeNewSeries(seriesToCreate); err != nil {
+	if len(valuesByID) == 0 {
+		return nil
+	}
+
+	e.writeLock.LockRange(startTime, endTime)
+	defer e.writeLock.UnlockRange(startTime, endTime)
+
+	if len(e.files) == 0 {
+		return e.rewriteFile(nil, valuesByID)
+	}
+
+	maxTime := int64(math.MaxInt64)
+	// reverse through the data files and write in the data
+	files := e.copyFilesCollection()
+	for i := len(files) - 1; i >= 0; i-- {
+		f := files[i]
+		// max times are exclusive, so add 1 to it
+		fileMax := f.MaxTime() + 1
+		fileMin := f.MinTime()
+		// if the file is < rotate, write all data between fileMin and maxTime
+		if f.size < e.RotateFileSize {
+			if err := e.rewriteFile(f, e.filterDataBetweenTimes(valuesByID, fileMin, maxTime)); err != nil {
+				return err
+			}
+			continue
+		}
+		// if the file is > rotate:
+		//   write all data between fileMax and maxTime into new file
+		//   write all data between fileMin and fileMax into old file
+		if err := e.rewriteFile(nil, e.filterDataBetweenTimes(valuesByID, fileMax, maxTime)); err != nil {
+			return err
+		}
+		if err := e.rewriteFile(f, e.filterDataBetweenTimes(valuesByID, fileMin, fileMax)); err != nil {
+			return err
+		}
+		maxTime = fileMin
+	}
+	// for any data leftover, write into a new file since it's all older
+	// than any file we currently have
+	err = e.rewriteFile(nil, valuesByID)
+
+	if !e.SkipCompaction && e.shouldCompact() {
+		go e.Compact()
+	}
+
+	return err
+}
+
+func (e *Engine) Compact() error {
+	// we're looping here to ensure that the files we've marked to compact are
+	// still there after we've obtained the write lock
+	var minTime, maxTime int64
+	var files dataFiles
+	for {
+		files = e.filesToCompact()
+		if len(files) < 2 {
+			return nil
+		}
+		minTime = files[0].MinTime()
+		maxTime = files[len(files)-1].MaxTime()
+
+		e.writeLock.LockRange(minTime, maxTime)
+
+		// if the files are different after obtaining the write lock, one or more
+		// was rewritten. Release the lock and try again. This shouldn't happen really.
+		if !reflect.DeepEqual(files, e.filesToCompact()) {
+			e.writeLock.UnlockRange(minTime, maxTime)
+			continue
+		}
+
+		// we've got the write lock and the files are all there
+		break
+	}
+	defer e.writeLock.UnlockRange(minTime, maxTime)
+
+	positions := make([]uint32, len(files))
+	ids := make([]uint64, len(files))
+
+	// initilaize for writing
+	f, err := os.OpenFile(e.nextFileName(), os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
 		return err
+	}
+
+	// write the magic number
+	if _, err := f.Write(u32tob(magicNumber)); err != nil {
+		f.Close()
+		return err
+	}
+	for i, df := range files {
+		ids[i] = btou64(df.mmap[4:12])
+		positions[i] = 4
+	}
+	currentPosition := uint32(fileHeaderSize)
+	newPositions := make([]uint32, 0)
+	newIDs := make([]uint64, 0)
+	buf := make([]byte, DefaultRotateBlockSize)
+	for {
+		// find the min ID so we can write it to the file
+		minID := uint64(math.MaxUint64)
+		for _, id := range ids {
+			if minID > id {
+				minID = id
+			}
+		}
+		if minID == 0 { // we've emptied all the files
+			break
+		}
+
+		newIDs = append(newIDs, minID)
+		newPositions = append(newPositions, currentPosition)
+
+		// write the blocks in order from the files with this id. as we
+		// go merge blocks together from one file to another, if the right size
+		var previousValues Values
+		for i, id := range ids {
+			if id != minID {
+				continue
+			}
+			df := files[i]
+			pos := positions[i]
+			fid, _, block := df.block(pos)
+			if fid != id {
+				panic("not possible")
+			}
+			newPos := pos + uint32(blockHeaderSize+len(block))
+			positions[i] = newPos
+
+			// write the blocks out to file that are already at their size limit
+			for {
+				// if the next block is the same ID, we don't need to decod this one
+				// so we can just write it out to the file
+				nextID, _, nextBlock := df.block(newPos)
+				newPos = newPos + uint32(blockHeaderSize+len(block))
+
+				if len(previousValues) > 0 {
+					previousValues = append(previousValues, previousValues.DecodeSameTypeBlock(block)...)
+				} else if len(block) > DefaultRotateBlockSize {
+					if _, err := f.Write(df.mmap[pos:newPos]); err != nil {
+						return err
+					}
+					currentPosition += uint32(newPos - pos)
+				} else {
+					previousValues = DecodeBlock(block)
+				}
+
+				// write the previous values and clear if we've hit the limit
+				if len(previousValues) > DefaultMaxPointsPerBlock {
+					b := previousValues.Encode(buf)
+					if err := e.writeBlock(f, id, b); err != nil {
+						// fail hard. If we can't write a file someone needs to get woken up
+						panic(fmt.Sprintf("failure writing block: %s", err.Error()))
+					}
+					currentPosition += uint32(blockHeaderSize + len(b))
+					previousValues = nil
+				}
+
+				// move to the next block in this file only if the id is the same
+				if nextID != id {
+					ids[i] = nextID
+					break
+				}
+				positions[i] = newPos
+				block = nextBlock
+				newPos = newPos + uint32(blockHeaderSize+len(block))
+			}
+		}
+
+		if len(previousValues) > 0 {
+			b := previousValues.Encode(buf)
+			if err := e.writeBlock(f, minID, b); err != nil {
+				// fail hard. If we can't write a file someone needs to get woken up
+				panic(fmt.Sprintf("failure writing block: %s", err.Error()))
+			}
+			currentPosition += uint32(blockHeaderSize + len(b))
+		}
+	}
+
+	err, newDF := e.writeIndexAndGetDataFile(f, minTime, maxTime, newIDs, newPositions)
+	if err != nil {
+		return err
+	}
+
+	// update engine with new file pointers
+	e.filesLock.Lock()
+	var newFiles dataFiles
+	for _, df := range e.files {
+		// exclude any files that were compacted
+		include := true
+		for _, f := range files {
+			if f == df {
+				include = false
+				break
+			}
+		}
+		if include {
+			newFiles = append(newFiles, df)
+		}
+	}
+	newFiles = append(newFiles, newDF)
+	sort.Sort(newFiles)
+	e.files = newFiles
+	e.filesLock.Unlock()
+
+	// delete the old files in a goroutine so running queries won't block the write
+	// from completing
+	e.deletesPending.Add(1)
+	go func() {
+		for _, f := range files {
+			if err := f.Delete(); err != nil {
+				// TODO: log this error
+			}
+		}
+		e.deletesPending.Done()
+	}()
+
+	return nil
+}
+
+func (e *Engine) writeBlock(f *os.File, id uint64, block []byte) error {
+	if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
+		return err
+	}
+	_, err := f.Write(block)
+	return err
+}
+
+func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, ids []uint64, newPositions []uint32) (error, *dataFile) {
+	// write the file index, starting with the series ids and their positions
+	for i, id := range ids {
+		if _, err := f.Write(u64tob(id)); err != nil {
+			return err, nil
+		}
+		if _, err := f.Write(u32tob(newPositions[i])); err != nil {
+			return err, nil
+		}
+	}
+
+	// write the min time, max time
+	if _, err := f.Write(append(u64tob(uint64(minTime)), u64tob(uint64(maxTime))...)); err != nil {
+		return err, nil
+	}
+
+	// series count
+	if _, err := f.Write(u32tob(uint32(len(ids)))); err != nil {
+		return err, nil
+	}
+
+	// sync it and see4k back to the beginning to hand off to the mmap
+	if err := f.Sync(); err != nil {
+		return err, nil
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return err, nil
+	}
+
+	// now open it as a memory mapped data file
+	newDF, err := NewDataFile(f)
+	if err != nil {
+		return err, nil
+	}
+
+	return nil, newDF
+}
+
+func (e *Engine) shouldCompact() bool {
+	return len(e.filesToCompact()) >= e.CompactionFileCount
+}
+
+func (e *Engine) filesToCompact() dataFiles {
+	e.filesLock.RLock()
+	defer e.filesLock.RUnlock()
+
+	a := make([]*dataFile, 0)
+	for _, df := range e.files {
+		if time.Since(df.modTime) > e.CompactionAge && df.size < MaxDataFileSize {
+			a = append(a, df)
+		}
+	}
+	return a
+}
+
+func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) (err error, minTime, maxTime int64, valuesByID map[uint64]Values) {
+	e.metaLock.Lock()
+	defer e.metaLock.Unlock()
+
+	if err := e.writeNewFields(measurementFieldsToSave); err != nil {
+		return err, 0, 0, nil
+	}
+	if err := e.writeNewSeries(seriesToCreate); err != nil {
+		return err, 0, 0, nil
 	}
 
 	if len(pointsByKey) == 0 {
-		return nil
+		return nil, 0, 0, nil
 	}
 
 	// read in keys and assign any that aren't defined
 	b, err := e.readCompressedFile("ids")
 	if err != nil {
-		return err
+		return err, 0, 0, nil
 	}
 	ids := make(map[string]uint64)
 	if b != nil {
 		if err := json.Unmarshal(b, &ids); err != nil {
-			return err
+			return err, 0, 0, nil
 		}
 	}
 
 	// these are values that are newer than anything stored in the shard
-	valuesByID := make(map[uint64]Values)
+	valuesByID = make(map[uint64]Values)
 
 	idToKey := make(map[uint64]string) // we only use this map if new ids are being created
 	newKeys := false
+	// track the min and max time of values being inserted so we can lock that time range
+	minTime = int64(math.MaxInt64)
+	maxTime = int64(math.MinInt64)
 	for k, values := range pointsByKey {
 		var id uint64
 		var ok bool
@@ -285,51 +598,27 @@ func (e *Engine) WriteAndCompact(pointsByKey map[string]Values, measurementField
 			}
 		}
 
+		if minTime > values.MinTime() {
+			minTime = values.MinTime()
+		}
+		if maxTime < values.MaxTime() {
+			maxTime = values.MaxTime()
+		}
+
 		valuesByID[id] = values
 	}
 
 	if newKeys {
 		b, err := json.Marshal(ids)
 		if err != nil {
-			return err
+			return err, 0, 0, nil
 		}
 		if err := e.replaceCompressedFile("ids", b); err != nil {
-			return err
+			return err, 0, 0, nil
 		}
 	}
 
-	if len(e.files) == 0 {
-		return e.rewriteFile(nil, valuesByID)
-	}
-
-	maxTime := int64(math.MaxInt64)
-	// reverse through the data files and write in the data
-	for i := len(e.files) - 1; i >= 0; i-- {
-		f := e.files[i]
-		// max times are exclusive, so add 1 to it
-		fileMax := f.MaxTime() + 1
-		fileMin := f.MinTime()
-		// if the file is < rotate, write all data between fileMin and maxTime
-		if f.size < e.RotateFileSize {
-			if err := e.rewriteFile(f, e.filterDataBetweenTimes(valuesByID, fileMin, maxTime)); err != nil {
-				return err
-			}
-			continue
-		}
-		// if the file is > rotate:
-		//   write all data between fileMax and maxTime into new file
-		//   write all data between fileMin and fileMax into old file
-		if err := e.rewriteFile(nil, e.filterDataBetweenTimes(valuesByID, fileMax, maxTime)); err != nil {
-			return err
-		}
-		if err := e.rewriteFile(f, e.filterDataBetweenTimes(valuesByID, fileMin, fileMax)); err != nil {
-			return err
-		}
-		maxTime = fileMin
-	}
-	// for any data leftover, write into a new file since it's all older
-	// than any file we currently have
-	return e.rewriteFile(nil, valuesByID)
+	return
 }
 
 // filterDataBetweenTimes will create a new map with data between
@@ -432,7 +721,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 
 	// now combine the old file data with the new values, keeping track of
 	// their positions
-	currentPosition := uint32(4)
+	currentPosition := uint32(fileHeaderSize)
 	newPositions := make([]uint32, len(ids))
 	buf := make([]byte, DefaultMaxPointsPerBlock*20)
 	for i, id := range ids {
@@ -473,39 +762,26 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		if !ok {
 			// TODO: ensure we encode only the amount in a block
 			block := newVals.Encode(buf)
-			if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
+			if err := e.writeBlock(f, id, block); err != nil {
 				f.Close()
 				return err
 			}
-			if _, err := f.Write(block); err != nil {
-				f.Close()
-				return err
-			}
-			currentPosition += uint32(12 + len(block))
+			currentPosition += uint32(blockHeaderSize + len(block))
 
 			continue
 		}
 
 		// it's in the file and the new values, combine them and write out
 		for {
-			fid := btou64(oldDF.mmap[fpos : fpos+8])
+			fid, _, block := oldDF.block(fpos)
 			if fid != id {
 				break
 			}
-			length := btou32(oldDF.mmap[fpos+8 : fpos+12])
-			block := oldDF.mmap[fpos+12 : fpos+12+length]
-			fpos += (12 + length)
+			fpos += uint32(blockHeaderSize + len(block))
 
 			// determine if there's a block after this with the same id and get its time
-			hasFutureBlock := false
-			nextTime := int64(0)
-			if fpos < oldDF.indexPosition() {
-				nextID := btou64(oldDF.mmap[fpos : fpos+8])
-				if nextID == id {
-					hasFutureBlock = true
-					nextTime = int64(btou64(oldDF.mmap[fpos+12 : fpos+20]))
-				}
-			}
+			nextID, nextTime, _ := oldDF.block(fpos)
+			hasFutureBlock := nextID == id
 
 			nv, newBlock, err := e.DecodeAndCombine(newVals, block, buf[:0], nextTime, hasFutureBlock)
 			newVals = nv
@@ -521,7 +797,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 				return err
 			}
 
-			currentPosition += uint32(12 + len(newBlock))
+			currentPosition += uint32(blockHeaderSize + len(newBlock))
 
 			if fpos >= oldDF.indexPosition() {
 				break
@@ -540,51 +816,18 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 				f.Close()
 				return err
 			}
-			currentPosition += uint32(12 + len(block))
+			currentPosition += uint32(blockHeaderSize + len(block))
 		}
 	}
 
-	// write the file index, starting with the series ids and their positions
-	for i, id := range ids {
-		if _, err := f.Write(u64tob(id)); err != nil {
-			f.Close()
-			return err
-		}
-		if _, err := f.Write(u32tob(newPositions[i])); err != nil {
-			f.Close()
-			return err
-		}
-	}
-
-	// write the min time, max time
-	if _, err := f.Write(append(u64tob(uint64(minTime)), u64tob(uint64(maxTime))...)); err != nil {
-		f.Close()
-		return err
-	}
-
-	// series count
-	if _, err := f.Write(u32tob(uint32(len(ids)))); err != nil {
-		f.Close()
-		return err
-	}
-
-	// sync it and see4k back to the beginning to hand off to the mmap
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	if _, err := f.Seek(0, 0); err != nil {
-		f.Close()
-		return err
-	}
-
-	// now open it as a memory mapped data file
-	newDF, err := NewDataFile(f)
+	err, newDF := e.writeIndexAndGetDataFile(f, minTime, maxTime, ids, newPositions)
 	if err != nil {
+		f.Close()
 		return err
 	}
 
 	// update the engine to point at the new dataFiles
-	e.queryLock.Lock()
+	e.filesLock.Lock()
 	var files dataFiles
 	for _, df := range e.files {
 		if df != oldDF {
@@ -594,7 +837,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	files = append(files, newDF)
 	sort.Sort(files)
 	e.files = files
-	e.queryLock.Unlock()
+	e.filesLock.Unlock()
 
 	// remove the old data file. no need to block returning the write,
 	// but we need to let any running queries finish before deleting it
@@ -671,6 +914,7 @@ func (e *Engine) SeriesCount() (n int, err error) {
 
 // Begin starts a new transaction on the engine.
 func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
+	e.queryLock.RLock()
 	return e, nil
 }
 
@@ -696,10 +940,14 @@ func (e *Engine) copyFilesCollection() []*dataFile {
 	return a
 }
 
-func (e *Engine) Size() int64                              { return 0 }
-func (e *Engine) Commit() error                            { return nil }
-func (e *Engine) Rollback() error                          { return nil }
-func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { return 0, nil }
+// TODO: refactor the Tx interface to not have Size, Commit, or WriteTo since they're not used
+func (e *Engine) Size() int64                              { panic("not implemented") }
+func (e *Engine) Commit() error                            { panic("not implemented") }
+func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
+func (e *Engine) Rollback() error {
+	e.queryLock.RUnlock()
+	return nil
+}
 
 func (e *Engine) writeNewFields(measurementFieldsToSave map[string]*tsdb.MeasurementFields) error {
 	if len(measurementFieldsToSave) == 0 {
@@ -885,17 +1133,19 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 }
 
 type dataFile struct {
-	f    *os.File
-	mu   sync.RWMutex
-	size uint32
-	mmap []byte
+	f       *os.File
+	mu      sync.RWMutex
+	size    uint32
+	modTime time.Time
+	mmap    []byte
 }
 
 // byte size constants for the data file
 const (
+	fileHeaderSize     = 4
 	seriesCountSize    = 4
 	timeSize           = 8
-	fileHeaderSize     = seriesCountSize + (2 * timeSize)
+	blockHeaderSize    = 12
 	seriesIDSize       = 8
 	seriesPositionSize = 4
 	seriesHeaderSize   = seriesIDSize + seriesPositionSize
@@ -908,14 +1158,14 @@ func NewDataFile(f *os.File) (*dataFile, error) {
 	}
 	mmap, err := syscall.Mmap(int(f.Fd()), 0, int(fInfo.Size()), syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
 	if err != nil {
-		f.Close()
 		return nil, err
 	}
 
 	return &dataFile{
-		f:    f,
-		mmap: mmap,
-		size: uint32(fInfo.Size()),
+		f:       f,
+		mmap:    mmap,
+		size:    uint32(fInfo.Size()),
+		modTime: fInfo.ModTime(),
 	}, nil
 }
 
@@ -1005,6 +1255,16 @@ func (d *dataFile) StartingPositionForID(id uint64) uint32 {
 	}
 
 	return uint32(0)
+}
+
+func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
+	if pos < d.indexPosition() {
+		id = btou64(d.mmap[pos : pos+8])
+		length := btou32(d.mmap[pos+8 : pos+12])
+		block = d.mmap[pos+blockHeaderSize : pos+blockHeaderSize+length]
+		t = int64(btou64(d.mmap[pos+blockHeaderSize : pos+blockHeaderSize+8]))
+	}
+	return
 }
 
 type dataFiles []*dataFile

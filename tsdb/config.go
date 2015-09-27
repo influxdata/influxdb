@@ -45,8 +45,10 @@ const (
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 
 	// Default WAL settings for the PD1 WAL
-	DefaultFlushMemorySizeThreshold = 50 * 1024 * 1024  // 50MB
+	DefaultFlushMemorySizeThreshold = 10 * 1024 * 1024  // 10MB
 	DefaultMaxMemorySizeThreshold   = 200 * 1024 * 1024 // 200MB
+	DefaultIndexCompactionAge       = 10 * time.Minute
+	DefaultIndexCompactionFileCount = 5
 )
 
 type Config struct {
@@ -71,6 +73,16 @@ type Config struct {
 	WALFlushMemorySizeThreshold int `toml:"wal-flush-memory-size-threshold"`
 	WALMaxMemorySizeThreshold   int `toml:"wal-max-memory-size-threshold"`
 
+	// compaction options for pd1 introduced in 0.9.5
+
+	// IndexCompactionAge specifies the duration after the data file creation time
+	// at which it is eligible to be compacted
+	IndexCompactionAge time.Duration `toml:"index-compaction-age"`
+
+	// IndexCompactionFileCount specifies the minimum number of data files that
+	// must be eligible for compaction before actually running one
+	IndexCompactionFileCount int `toml:"index-compaction-file-count"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 }
@@ -90,6 +102,8 @@ func NewConfig() Config {
 		WALPartitionSizeThreshold:   DefaultPartitionSizeThreshold,
 		WALFlushMemorySizeThreshold: DefaultFlushMemorySizeThreshold,
 		WALMaxMemorySizeThreshold:   DefaultMaxMemorySizeThreshold,
+		IndexCompactionAge:          DefaultIndexCompactionAge,
+		IndexCompactionFileCount:    DefaultIndexCompactionFileCount,
 
 		QueryLogEnabled: true,
 	}

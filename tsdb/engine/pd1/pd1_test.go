@@ -289,6 +289,89 @@ func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 	}
 }
 
+func TestEngine_Compaction(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	e.RotateFileSize = 10
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=B value=1.1 1000000000")
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	p3 := parsePoint("cpu,host=A value=2.4 4000000000")
+	p4 := parsePoint("cpu,host=B value=2.4 4000000000")
+	if err := e.WritePoints([]models.Point{p3, p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	p5 := parsePoint("cpu,host=A value=1.5 5000000000")
+	p6 := parsePoint("cpu,host=B value=2.5 5000000000")
+	if err := e.WritePoints([]models.Point{p5, p6}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	p7 := parsePoint("cpu,host=A value=1.5 6000000000")
+	p8 := parsePoint("cpu,host=B value=2.5 6000000000")
+	if err := e.WritePoints([]models.Point{p7, p8}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if count := e.DataFileCount(); count != 4 {
+		t.Fatalf("expected 3 data files to exist but got %d", count)
+	}
+
+	fields := []string{"value"}
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	e.CompactionAge = time.Duration(0)
+
+	if err := e.Compact(); err != nil {
+		t.Fatalf("error compacting: %s", err.Error())
+	}
+
+	if count := e.DataFileCount(); count != 1 {
+		t.Fatalf("expected compaction to reduce data file count to 1 but got %d", count)
+	}
+
+	verify := func(series string, points []models.Point, seek int64) {
+		c := e.Cursor(series, fields, codec, true)
+
+		k, v := c.SeekTo(seek)
+		p := points[0]
+		val := p.Fields()["value"]
+		if p.UnixNano() != k || val != v {
+			t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v)
+		}
+		points = points[1:]
+
+		for _, p := range points {
+			k, v := c.Next()
+			val := p.Fields()["value"]
+			if p.UnixNano() != k || val != v {
+				t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v.(float64))
+			}
+		}
+	}
+
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+	verify("cpu,host=A", []models.Point{p1, p3, p5, p7}, 0)
+	verify("cpu,host=B", []models.Point{p2, p4, p6, p8}, 0)
+}
+
 func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
 	t.Skip("whatevs")
 
@@ -340,6 +423,7 @@ func OpenEngine(opt tsdb.EngineOptions) *Engine {
 		panic(err)
 	}
 	e.WAL.SkipCache = true
+	e.SkipCompaction = true
 	return e
 }
 
