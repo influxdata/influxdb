@@ -171,16 +171,17 @@ func (l *Log) Open() error {
 	return nil
 }
 
-// Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given
+// Cursor will return a cursor object to Seek and iterate with Next for the WAL cache for the given.
+// This should only ever be called by the engine cursor method, which will always give it
+// exactly one field.
 func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	l.cacheLock.RLock()
 	defer l.cacheLock.RUnlock()
 
-	// TODO: make this work for other fields
-	if len(fields) != 1 || fields[0] != "value" {
-		panic("pd1 wal only supports 1 field with name value")
+	if len(fields) != 1 {
+		panic("wal cursor should only ever be called with 1 field")
 	}
-	ck := seriesFieldKey(series, "value")
+	ck := seriesFieldKey(series, fields[0])
 	values := l.cache[ck]
 
 	// if we're in the middle of a flush, combine the previous cache
