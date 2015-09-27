@@ -123,7 +123,7 @@ type Log struct {
 
 // IndexWriter is an interface for the indexed database the WAL flushes data to
 type IndexWriter interface {
-	WriteAndCompact(valuesByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
+	Write(valuesByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 }
 
 func NewLog(path string) *Log {
@@ -567,7 +567,7 @@ func (l *Log) flush(flush flushType) error {
 	}
 
 	startTime := time.Now()
-	if err := l.Index.WriteAndCompact(valuesByKey, mfc, scc); err != nil {
+	if err := l.Index.Write(valuesByKey, mfc, scc); err != nil {
 		return err
 	}
 	if l.LoggingEnabled {

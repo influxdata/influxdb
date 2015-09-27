@@ -76,6 +76,14 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 	return nil
 }
 
+// DecodeBlock takes a byte array and will decode into values of the appropriate type
+// based on the block
+func DecodeBlock(block []byte) Values {
+	// TODO: add support for other block types
+	a, _ := DecodeFloatBlock(block)
+	return a
+}
+
 // Deduplicate returns a new Values slice with any values
 // that have the same  timestamp removed. The Value that appears
 // last in the slice is the one that is kept. The returned slice is in ascending order
