@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -457,6 +458,161 @@ func TestEngine_KeyCollisionsAreHandled(t *testing.T) {
 	verify("cpu,host=A", []models.Point{p1, p4, p7}, 0)
 	verify("cpu,host=B", []models.Point{p2, p5, p8}, 0)
 	verify("cpu,host=C", []models.Point{p3, p6, p9}, 0)
+}
+
+func TestEngine_SupportMultipleFields(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value", "foo"}
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2,foo=2.2 2000000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	c := e.Cursor("cpu,host=A", fields, nil, true)
+	k, v := c.SeekTo(0)
+	if k != p1.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p1.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.1}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p2.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p2.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.2, "foo": 2.2}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+
+	// verify we can update a field and it's still all good
+	p11 := parsePoint("cpu,host=A foo=2.1 1000000000")
+	if err := e.WritePoints([]models.Point{p11}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c = e.Cursor("cpu,host=A", fields, nil, true)
+	k, v = c.SeekTo(0)
+	if k != p1.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p1.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.1, "foo": 2.1}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p2.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p2.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.2, "foo": 2.2}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+
+	// verify it's all good with the wal in the picture
+	e.WAL.SkipCache = false
+
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+	p4 := parsePoint("cpu,host=A value=1.4,foo=2.4 4000000000")
+	if err := e.WritePoints([]models.Point{p3, p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c = e.Cursor("cpu,host=A", fields, nil, true)
+	k, v = c.SeekTo(0)
+	if k != p1.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p1.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.1, "foo": 2.1}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p2.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p2.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.2, "foo": 2.2}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p3.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p3.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.3}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p4.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p2.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.4, "foo": 2.4}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+
+	p33 := parsePoint("cpu,host=A foo=2.3 3000000000")
+	if err := e.WritePoints([]models.Point{p33}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c = e.Cursor("cpu,host=A", fields, nil, true)
+	k, v = c.SeekTo(0)
+	if k != p1.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p1.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.1, "foo": 2.1}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p2.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p2.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.2, "foo": 2.2}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p3.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p3.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.3, "foo": 2.3}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, v = c.Next()
+	if k != p4.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p2.UnixNano(), k)
+	}
+	if !reflect.DeepEqual(v, map[string]interface{}{"value": 1.4, "foo": 2.4}) {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
+
+	// and ensure we can grab one of the fields
+	c = e.Cursor("cpu,host=A", []string{"value"}, nil, true)
+	k, v = c.SeekTo(4000000000)
+	if k != p4.UnixNano() {
+		t.Fatalf("time wrong:\n\texp: %d\n\tgot: %d", p4.UnixNano(), k)
+	}
+	if v != 1.4 {
+		t.Fatalf("value wrong: %v", v)
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF")
+	}
 }
 
 func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {

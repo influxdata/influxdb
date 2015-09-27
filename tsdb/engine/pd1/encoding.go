@@ -78,10 +78,9 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
 // based on the block
-func DecodeBlock(block []byte) Values {
+func DecodeBlock(block []byte) (Values, error) {
 	// TODO: add support for other block types
-	a, _ := DecodeFloatBlock(block)
-	return a
+	return DecodeFloatBlock(block)
 }
 
 // Deduplicate returns a new Values slice with any values

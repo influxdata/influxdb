@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -404,7 +403,8 @@ func (e *Engine) Compact() error {
 					}
 					currentPosition += uint32(newPos - pos)
 				} else {
-					previousValues = DecodeBlock(block)
+					// TODO: handle decode error
+					previousValues, _ = DecodeBlock(block)
 				}
 
 				// write the previous values and clear if we've hit the limit
@@ -971,13 +971,35 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 
 // TODO: handle multiple fields and descending
 func (e *Engine) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
-	field := dec.FieldByName("value")
-	if field == nil || len(fields) > 1 {
-		panic("pd1 engine only supports one field with name of value")
+	files := e.copyFilesCollection()
+
+	// don't add the overhead of the multifield cursor if we only have one field
+	if len(fields) == 1 {
+		id := e.keyAndFieldToID(series, fields[0])
+		indexCursor := newCursor(id, files, ascending)
+		wc := e.WAL.Cursor(series, fields, dec, ascending)
+		return NewCombinedEngineCursor(wc, indexCursor, ascending)
 	}
 
+	// multiple fields. use just the MultiFieldCursor, which also handles time collisions
+	// so we don't need to use the combined cursor
+	cursors := make([]tsdb.Cursor, 0)
+	cursorFields := make([]string, 0)
+	for _, field := range fields {
+		id := e.keyAndFieldToID(series, field)
+		indexCursor := newCursor(id, files, ascending)
+		wc := e.WAL.Cursor(series, []string{field}, dec, ascending)
+		// double up the fields since there's one for the wal and one for the index
+		cursorFields = append(cursorFields, field, field)
+		cursors = append(cursors, indexCursor, wc)
+	}
+
+	return NewMultiFieldCursor(cursorFields, cursors, ascending)
+}
+
+func (e *Engine) keyAndFieldToID(series, field string) uint64 {
 	// get the ID for the key and be sure to check if it had hash collision before
-	key := seriesFieldKey(series, field.Name)
+	key := seriesFieldKey(series, field)
 	e.collisionsLock.RLock()
 	id, ok := e.collisions[key]
 	e.collisionsLock.RUnlock()
@@ -985,10 +1007,7 @@ func (e *Engine) Cursor(series string, fields []string, dec *tsdb.FieldCodec, as
 	if !ok {
 		id = e.HashSeriesField(key)
 	}
-
-	indexCursor := newCursor(id, field.Type, e.copyFilesCollection(), ascending)
-	wc := e.WAL.Cursor(series, fields, dec, ascending)
-	return tsdb.MultiCursor(wc, indexCursor)
+	return id
 }
 
 func (e *Engine) copyFilesCollection() []*dataFile {
@@ -1334,7 +1353,6 @@ func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() 
 
 type cursor struct {
 	id       uint64
-	dataType influxql.DataType
 	f        *dataFile
 	filesPos int // the index in the files slice we're looking at
 	pos      uint32
@@ -1346,10 +1364,9 @@ type cursor struct {
 	files []*dataFile
 }
 
-func newCursor(id uint64, dataType influxql.DataType, files []*dataFile, ascending bool) *cursor {
+func newCursor(id uint64, files []*dataFile, ascending bool) *cursor {
 	return &cursor{
 		id:        id,
-		dataType:  dataType,
 		ascending: ascending,
 		files:     files,
 	}
@@ -1470,7 +1487,7 @@ func (c *cursor) Next() (int64, interface{}) {
 func (c *cursor) decodeBlockAndGetValues(position uint32) (int64, interface{}) {
 	length := btou32(c.f.mmap[position+8 : position+12])
 	block := c.f.mmap[position+12 : position+12+length]
-	c.vals, _ = DecodeFloatBlock(block)
+	c.vals, _ = DecodeBlock(block)
 	c.pos = position + 12 + length
 
 	v := c.vals[0]
