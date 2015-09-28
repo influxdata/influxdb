@@ -313,8 +313,8 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	// Parse optional DEFAULT token.
 	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
 		stmt.Default = true
-	} else {
-		p.unscan()
+	} else if tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{"DEFAULT"}, pos)
 	}
 
 	return stmt, nil
@@ -1189,6 +1189,13 @@ func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
 	// Parse the server's ID.
 	if s.NodeID, err = p.parseUInt64(); err != nil {
 		return nil, err
+	}
+
+	// Parse optional FORCE token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == FORCE {
+		s.Force = true
+	} else if tok != EOF {
+		return nil, newParseError(tokstr(tok, lit), []string{"FORCE"}, pos)
 	}
 
 	return s, nil

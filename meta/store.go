@@ -832,10 +832,11 @@ func (s *Store) DeleteNode(id uint64) error {
 }
 
 // DropServer removes a server from the cluster
-func (s *Store) DropServer(nodeID uint64) error {
+func (s *Store) DropServer(nodeID uint64, force bool) error {
 	if err := s.exec(internal.Command_DropServerCommand, internal.E_DropServerCommand_Command,
 		&internal.DropServerCommand{
-			ID: proto.Uint64(nodeID),
+			NodeID: proto.Uint64(nodeID),
+			Force:  proto.Bool(force),
 		},
 	); err != nil {
 		return err
@@ -1631,6 +1632,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyDeleteNodeCommand(&cmd)
 		case internal.Command_CreateDatabaseCommand:
 			return fsm.applyCreateDatabaseCommand(&cmd)
+		case internal.Command_DropServerCommand:
+			return fsm.applyDropServerCommand(&cmd)
 		case internal.Command_DropDatabaseCommand:
 			return fsm.applyDropDatabaseCommand(&cmd)
 		case internal.Command_CreateRetentionPolicyCommand:
@@ -1720,6 +1723,20 @@ func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
 	// Copy data and update.
 	other := fsm.data.Clone()
 	if err := other.DeleteNode(v.GetID()); err != nil {
+		return err
+	}
+	fsm.data = other
+
+	return nil
+}
+
+func (fsm *storeFSM) applyDropServerCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_DropServerCommand_Command)
+	v := ext.(*internal.DropServerCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	if err := other.DropServer(v.GetNodeID(), v.GetForce()); err != nil {
 		return err
 	}
 	fsm.data = other

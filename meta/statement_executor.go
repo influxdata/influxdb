@@ -16,7 +16,7 @@ type StatementExecutor struct {
 		Nodes() ([]NodeInfo, error)
 		Peers() ([]string, error)
 
-		DropServer(nodeID uint64) error
+		DropServer(nodeID uint64, force bool) error
 		Database(name string) (*DatabaseInfo, error)
 		Databases() ([]DatabaseInfo, error)
 		CreateDatabase(name string) (*DatabaseInfo, error)
@@ -153,7 +153,7 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 }
 
 func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerStatement) *influxql.Result {
-	err := e.Store.DropServer(q.NodeID)
+	err := e.Store.DropServer(q.NodeID, q.Force)
 	return &influxql.Result{Err: err}
 }
 

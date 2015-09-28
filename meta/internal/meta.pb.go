@@ -644,7 +644,8 @@ var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropServerCommand struct {
-	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
+	NodeID           *uint64 `protobuf:"varint,1,req" json:"NodeID,omitempty"`
+	Force            *bool   `protobuf:"varint,2,req" json:"Force,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -652,11 +653,18 @@ func (m *DropServerCommand) Reset()         { *m = DropServerCommand{} }
 func (m *DropServerCommand) String() string { return proto.CompactTextString(m) }
 func (*DropServerCommand) ProtoMessage()    {}
 
-func (m *DropServerCommand) GetID() uint64 {
-	if m != nil && m.ID != nil {
-		return *m.ID
+func (m *DropServerCommand) GetNodeID() uint64 {
+	if m != nil && m.NodeID != nil {
+		return *m.NodeID
 	}
 	return 0
+}
+
+func (m *DropServerCommand) GetForce() bool {
+	if m != nil && m.Force != nil {
+		return *m.Force
+	}
+	return false
 }
 
 var E_DropServerCommand_Command = &proto.ExtensionDesc{

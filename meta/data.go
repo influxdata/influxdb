@@ -85,11 +85,45 @@ func (data *Data) DeleteNode(id uint64) error {
 }
 
 // DropServer removes a server from the cluster
-func (data *Data) DropServer(nodeID uint64) error {
-	// TODO make this real
+func (data *Data) DropServer(nodeID uint64, force bool) error {
+	// Node has to be larger than 0 to be real
 	if nodeID == 0 {
 		return ErrServerNodeIDRequired
 	}
+	// Is this a valid node?
+	nodeInfo := data.Node(nodeID)
+	if nodeInfo == nil {
+		return ErrServerNotFound
+	}
+	// Am I the only node?  If so, nothing to do
+	if len(data.Nodes) == 1 {
+		return ErrServerUnableToDropFinalNode
+	}
+
+	// Determint if there are any any non-replicated nodes and force was not specified
+	if !force {
+		for _, di := range data.Databases {
+			for _, rp := range di.RetentionPolicies {
+				// ignore replicated retention policies
+				if rp.ReplicaN == 1 {
+					for _, sg := range rp.ShardGroups {
+						for _, s := range sg.Shards {
+							if s.OwnedBy(nodeID) && len(s.Owners) == 1 {
+								return ErrServerDataLossImminent
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Remove this from the raft peer group
+
+	// Is this me?  Execute a remove and shutdown of node
+	// TODO corylanou stop the server from coming back up or writing data
+	// perhaps store in the meta store removed node ID's
+
 	return nil
 }
 

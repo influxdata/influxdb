@@ -77,6 +77,7 @@ const (
 	EXPLAIN
 	FIELD
 	FOR
+	FORCE
 	FROM
 	GRANT
 	GRANTS
@@ -188,6 +189,7 @@ var tokens = [...]string{
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
 	FOR:          "FOR",
+	FORCE:        "FORCE",
 	FROM:         "FROM",
 	GRANT:        "GRANT",
 	GRANTS:       "GRANTS",

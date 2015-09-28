@@ -1830,11 +1830,19 @@ func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 type DropServerStatement struct {
 	// ID of the node to be dropped.
 	NodeID uint64
+	// Force will force the server to drop even it it means losing data
+	Force bool
 }
 
 // String returns a string representation of the drop series statement.
 func (s *DropServerStatement) String() string {
-	return fmt.Sprintf("DROP SERVER %d", s.NodeID)
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP SERVER ")
+	_, _ = buf.WriteString(strconv.FormatUint(s.NodeID, 10))
+	if s.Force {
+		_, _ = buf.WriteString(" FORCE")
+	}
+	return buf.String()
 }
 
 // RequiredPrivileges returns the privilege required to execute a DropServerStatement.
