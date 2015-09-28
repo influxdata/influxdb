@@ -234,6 +234,7 @@ reporting-disabled = false
   enabled = false
   # bind-address = ""
   # database = ""
+  # retention-policy = ""
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Batching

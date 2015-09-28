@@ -15,6 +15,7 @@ func TestConfig_Parse(t *testing.T) {
 enabled = true
 bind-address = ":4444"
 database = "awesomedb"
+retention-policy = "awesomerp"
 batch-size = 100
 batch-pending = 9
 batch-timeout = "10ms"
@@ -29,6 +30,8 @@ batch-timeout = "10ms"
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
 	} else if c.Database != "awesomedb" {
 		t.Fatalf("unexpected database: %s", c.Database)
+	} else if c.RetentionPolicy != "awesomerp" {
+		t.Fatalf("unexpected retention policy: %s", c.RetentionPolicy)
 	} else if c.BatchSize != 100 {
 		t.Fatalf("unexpected batch size: %d", c.BatchSize)
 	} else if c.BatchPending != 9 {

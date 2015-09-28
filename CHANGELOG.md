@@ -9,6 +9,7 @@
 - [#4208](https://github.com/influxdb/influxdb/pull/4208): Allow module-level selection for SHOW DIAGNOSTICS
 - [#4196](https://github.com/influxdb/influxdb/pull/4196): Export tsdb.Iterator
 - [#4198](https://github.com/influxdb/influxdb/pull/4198): Add basic cluster-service stats
+- [#4262](https://github.com/influxdb/influxdb/pull/4262): Allow configuration of UDP retention policy
 
 ### Bugfixes
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW

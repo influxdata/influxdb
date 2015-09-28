@@ -106,7 +106,7 @@ func (s *Service) writePoints() {
 		case batch := <-s.batcher.Out():
 			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 				Database:         s.config.Database,
-				RetentionPolicy:  "",
+				RetentionPolicy:  s.config.RetentionPolicy,
 				ConsistencyLevel: cluster.ConsistencyLevelOne,
 				Points:           batch,
 			}); err == nil {
