@@ -110,7 +110,7 @@ full_version() {
     if [ -z "$rc" ]; then
         echo $version
     else
-        echo ${VERSION}-rc${RC}
+        echo ${version}-rc${rc}
     fi
 }
 
