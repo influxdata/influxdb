@@ -2573,6 +2573,7 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			t.Logf("SKIP:: %s", query.name)
 			continue
 		}
+
 		if err := query.Execute(s); err != nil {
 			t.Error(query.Error(err))
 		} else if !query.success() {
