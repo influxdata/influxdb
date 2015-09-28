@@ -10,12 +10,17 @@ import (
 )
 
 const (
-	// EncodingPacked is a bit-packed format
-	EncodingPacked = 0
+	// EncodingPackedSimple is a bit-packed format
+	EncodingPackedSimple = 0
+
 	// EncodingRLE is a run-length encoded format
 	EncodingRLE = 1
+
 	// EncodingUncompressed is a non-compressed format
 	EncodingUncompressed = 2
+
+	// EncodingBitPacked is a basic bit-packed format
+	EncodingBitPacked = 3
 
 	// BlockFloat64 designates a block encodes float64 values
 	BlockFloat64 = 0
@@ -43,8 +48,8 @@ func NewValue(t time.Time, value interface{}) Value {
 		return &Int64Value{time: t, value: v}
 	case float64:
 		return &FloatValue{time: t, value: v}
-		// case bool:
-		// 	return &BoolValue{time: t, value: v}
+	case bool:
+		return &BoolValue{time: t, value: v}
 		// case string:
 		// 	return &StringValue{time: t, value: v}
 	}
@@ -88,6 +93,13 @@ func (v Values) Encode(buf []byte) []byte {
 		}
 		return encodeInt64Block(buf, a)
 
+	case *BoolValue:
+		a := make([]*BoolValue, len(v))
+		for i, vv := range v {
+			a[i] = vv.(*BoolValue)
+		}
+		return encodeBoolBlock(buf, a)
+
 		// TODO: add support for other types
 	}
 
@@ -102,8 +114,9 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 	case *Int64Value:
 		a, _ := decodeInt64Block(block)
 		return a
-
-		// TODO: add support for other types
+	case *BoolValue:
+		a, _ := decodeBoolBlock(block)
+		return a
 	}
 	return nil
 }
@@ -122,7 +135,7 @@ func DecodeBlock(block []byte) (Values, error) {
 	case BlockInt64:
 		return decodeInt64Block(block)
 	case BlockBool:
-		// return decodeBoolBlock(block)
+		return decodeBoolBlock(block)
 	case BlockString:
 		// return decodeStringBlock(block)
 	default:
@@ -248,12 +261,85 @@ type BoolValue struct {
 	value bool
 }
 
-func encodeBoolBlock(buf []byte, values []BoolValue) []byte {
-	return nil
+func (b *BoolValue) Time() time.Time {
+	return b.time
 }
 
-func eecodeBoolBlock(block []byte) ([]BoolValue, error) {
-	return nil, nil
+func (b *BoolValue) Size() int {
+	return 9
+}
+
+func (b *BoolValue) UnixNano() int64 {
+	return b.time.UnixNano()
+}
+
+func (b *BoolValue) Value() interface{} {
+	return b.value
+}
+
+func encodeBoolBlock(buf []byte, values []*BoolValue) []byte {
+	if len(values) == 0 {
+		return nil
+	}
+
+	// A bool block is encoded using different compression strategies
+	// for timestamps and values.
+
+	// Encode values using Gorilla float compression
+	venc := NewBoolEncoder()
+
+	// Encode timestamps using an adaptive encoder
+	tsenc := NewTimeEncoder()
+
+	for _, v := range values {
+		tsenc.Write(v.Time())
+		venc.Write(v.value)
+	}
+
+	// Encoded timestamp values
+	tb, err := tsenc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+	// Encoded float values
+	vb, err := venc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Preprend the first timestamp of the block in the first 8 bytes and the block
+	// in the next byte, followed by the block
+	block := packBlockHeader(values[0].Time(), BlockBool)
+	block = append(block, packBlock(tb, vb)...)
+	return block
+}
+
+func decodeBoolBlock(block []byte) ([]Value, error) {
+	// The first 8 bytes is the minimum timestamp of the block
+	block = block[8:]
+
+	// Block type is the next block, make sure we actually have a float block
+	blockType := block[0]
+	if blockType != BlockBool {
+		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockBool, blockType)
+	}
+	block = block[1:]
+
+	tb, vb := unpackBlock(block)
+
+	// Setup our timestamp and value decoders
+	dec := NewTimeDecoder(tb)
+	vdec := NewBoolDecoder(vb)
+
+	// Decode both a timestamp and value
+	var a []Value
+	for dec.Next() && vdec.Next() {
+		ts := dec.Read()
+		v := vdec.Read()
+		a = append(a, &BoolValue{ts, v})
+	}
+
+	return a, nil
 }
 
 type Int64Value struct {

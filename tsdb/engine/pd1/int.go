@@ -48,7 +48,7 @@ func (e *int64Encoder) encodePacked() ([]byte, error) {
 
 	b := make([]byte, 1+len(encoded)*8)
 	// 4 high bits of first byte store the encoding type for the block
-	b[0] = byte(EncodingPacked) << 4
+	b[0] = byte(EncodingPackedSimple) << 4
 
 	for i, v := range encoded {
 		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
@@ -105,7 +105,7 @@ func (d *int64Decoder) Next() bool {
 		switch d.encoding {
 		case EncodingUncompressed:
 			d.decodeUncompressed()
-		case EncodingPacked:
+		case EncodingPackedSimple:
 			d.decodePacked()
 		default:
 			panic(fmt.Sprintf("unknown encoding %v", d.encoding))
