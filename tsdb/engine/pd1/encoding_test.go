@@ -76,6 +76,27 @@ func TestEncoding_IntBlock_Negatives(t *testing.T) {
 	}
 }
 
+func TestEncoding_BoolBlock_Basic(t *testing.T) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make(pd1.Values, len(times))
+	for i, t := range times {
+		v := true
+		if i%2 == 0 {
+			v = false
+		}
+		values[i] = pd1.NewValue(t, v)
+	}
+
+	b := values.Encode(nil)
+
+	decodedValues := values.DecodeSameTypeBlock(b)
+
+	if !reflect.DeepEqual(decodedValues, values) {
+		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
+	}
+}
+
 func getTimes(n, step int, precision time.Duration) []time.Time {
 	t := time.Now().Round(precision)
 	a := make([]time.Time, n)

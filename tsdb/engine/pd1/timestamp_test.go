@@ -24,7 +24,7 @@ func Test_TimeEncoder(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPacked {
+	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
@@ -63,7 +63,7 @@ func Test_TimeEncoder_One(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPacked {
+	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
@@ -89,7 +89,7 @@ func Test_TimeEncoder_Two(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPacked {
+	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
@@ -126,7 +126,7 @@ func Test_TimeEncoder_Three(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPacked {
+	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
@@ -167,7 +167,7 @@ func Test_TimeEncoder_Large_Range(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPacked {
+	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
@@ -297,7 +297,7 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPacked {
+	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 

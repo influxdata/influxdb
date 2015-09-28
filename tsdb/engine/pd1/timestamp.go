@@ -114,7 +114,7 @@ func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 	b := make([]byte, 8+1)
 
 	// 4 high bits used for the encoding type
-	b[0] = byte(EncodingPacked) << 4
+	b[0] = byte(EncodingPackedSimple) << 4
 	// 4 low bits are the log10 divisor
 	b[0] |= byte(math.Log10(float64(div)))
 
@@ -196,7 +196,7 @@ func (d *decoder) decode(b []byte) {
 		d.decodeRaw(b[1:])
 	case EncodingRLE:
 		d.decodeRLE(b)
-	case EncodingPacked:
+	case EncodingPackedSimple:
 		d.decodePacked(b)
 	default:
 		panic(fmt.Sprintf("unknown encoding: %v", encoding))
