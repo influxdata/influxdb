@@ -6,7 +6,7 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/pd1"
 )
 
-func TestExampleEncoding(t *testing.T) {
+func TestFloatEncoder_Simple(t *testing.T) {
 
 	// Example from the paper
 	s := pd1.NewFloatEncoder()
@@ -92,7 +92,7 @@ var TwoHoursData = []struct {
 	{786}, {785}, {774}, {786}, {718},
 }
 
-func TestRoundtrip(t *testing.T) {
+func TestFloatEncoder_Roundtrip(t *testing.T) {
 
 	s := pd1.NewFloatEncoder()
 	for _, p := range TwoHoursData {
