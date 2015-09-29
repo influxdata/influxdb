@@ -1,12 +1,12 @@
 package runner
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/client"
 )
 
 // tag is a struct that contains data
@@ -222,14 +222,66 @@ func (s *series) newFieldMap() map[string]interface{} {
 
 // Next returns a new point for a series.
 // Currently, there is an off by one bug here.
-func (iter *seriesIter) Next() (*client.Point, bool) {
+//func (iter *seriesIter) Next() (*client.Point, bool) {
+//	iter.count++
+//	p := client.Point{
+//		Measurement: iter.s.Measurement,
+//		Tags:        iter.s.newTagMap(iter.count),
+//		Fields:      iter.s.newFieldMap(),
+//		Time:        iter.timestamp,
+//	}
+//	b := iter.count < iter.s.SeriesCount
+//	return &p, b
+//}
+
+func (iter *seriesIter) Next() ([]byte, bool) {
+	var buf bytes.Buffer
 	iter.count++
-	p := client.Point{
-		Measurement: iter.s.Measurement,
-		Tags:        iter.s.newTagMap(iter.count),
-		Fields:      iter.s.newFieldMap(),
-		Time:        iter.timestamp,
-	}
+
+	buf.Write([]byte(fmt.Sprintf("%v,", iter.s.Measurement)))
+	buf.Write(iter.s.newTagSet(iter.count))
+	buf.Write([]byte(" "))
+	buf.Write(iter.s.newFieldSet())
+	buf.Write([]byte(" "))
+	buf.Write([]byte(fmt.Sprintf("%v", iter.timestamp.UnixNano())))
+
 	b := iter.count < iter.s.SeriesCount
-	return &p, b
+	byt := buf.Bytes()
+
+	return byt, b
+}
+
+func (s *series) newTagSet(c int) []byte {
+	var buf bytes.Buffer
+	for _, tag := range s.Tags {
+		buf.Write([]byte(fmt.Sprintf("%v=%v-%v,", tag.Key, tag.Value, c)))
+	}
+
+	b := buf.Bytes()
+	b = b[0 : len(b)-1]
+
+	return b
+}
+
+func (s *series) newFieldSet() []byte {
+	var buf bytes.Buffer
+
+	for _, field := range s.Fields {
+		switch field.Type {
+		case "float64":
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, rand.Intn(1000))))
+		case "int":
+			buf.Write([]byte(fmt.Sprintf("%v=%vi,", field.Key, rand.Intn(1000))))
+		case "bool":
+			b := rand.Intn(2) == 1
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, b)))
+		default:
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, rand.Intn(1000))))
+		}
+	}
+
+	b := buf.Bytes()
+	b = b[0 : len(b)-1]
+
+	return b
 }

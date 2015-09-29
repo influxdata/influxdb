@@ -2,7 +2,11 @@ package runner
 
 import (
 	"fmt"
-	"math/rand"
+	//"math/rand"
+	"bytes"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -10,6 +14,26 @@ import (
 
 	"github.com/influxdb/influxdb/client"
 )
+
+func post(url string, datatype string, data io.Reader) error {
+
+	resp, err := http.Post(url, datatype, data)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(body))
+	}
+
+	return nil
+}
 
 // Timer is struct that can be used to track elaspsed time
 type Timer struct {
@@ -163,10 +187,11 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 
 	lastSuccess := true
 
-	ch := make(chan []client.Point, cfg.ChannelBufferSize)
+	ch := make(chan []byte, cfg.ChannelBufferSize)
 
 	go func() {
-		points := []client.Point{}
+		var buf bytes.Buffer
+		//points := []client.Point{}
 		num := 0
 		for _, s := range cfg.Series {
 			num += s.PointCount * s.SeriesCount
@@ -185,22 +210,29 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 				for ok {
 					ctr++
 					// add jitter
-					if cfg.Write.Jitter != 0 {
-						rnd := rand.Intn(cfg.Write.Jitter)
-						if rnd%2 == 0 {
-							rnd = -1 * rnd
-						}
-						p.Time = p.Time.Add(time.Duration(rnd))
-					}
-					points = append(points, *p)
-					if len(points) >= cfg.Write.BatchSize {
-						ch <- points
-						points = []client.Point{}
+					//if cfg.Write.Jitter != 0 {
+					//	rnd := rand.Intn(cfg.Write.Jitter)
+					//	if rnd%2 == 0 {
+					//		rnd = -1 * rnd
+					//	}
+					//	p.Time = p.Time.Add(time.Duration(rnd))
+					//}
+					buf.Write(p)
+					buf.Write([]byte("\n"))
+					//points = append(points, *p)
+					if ctr != 0 && ctr%cfg.Write.BatchSize == 0 {
+						b := buf.Bytes()
+
+						b = b[0 : len(b)-2]
+
+						ch <- b
+						var b2 bytes.Buffer
+						buf = b2
 					}
 
 					if cfg.MeasurementQuery.Enabled && ctr%num == 0 {
 						select {
-						case ts <- p.Time:
+						case ts <- time.Now():
 						default:
 						}
 					}
@@ -222,27 +254,31 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 	timer = NewTimer()
 
 	for pnt := range ch {
-		batch := &client.BatchPoints{
-			Database:         cfg.Write.Database,
-			WriteConsistency: "any",
-			Time:             time.Now(),
-			Precision:        cfg.Write.Precision,
-			Points:           pnt,
-		}
+		//		batch := &client.BatchPoints{
+		//			Database:         cfg.Write.Database,
+		//			WriteConsistency: "any",
+		//			Time:             time.Now(),
+		//			Precision:        cfg.Write.Precision,
+		//			Points:           pnt,
+		//		}
 
 		wg.Add(1)
 		counter.Increment()
-		totalPoints += len(batch.Points)
+		//totalPoints += len(batch.Points)
+		totalPoints += 5000
 
-		go func(b *client.BatchPoints, total int) {
+		go func(b *bytes.Buffer, total int) {
 			st := time.Now()
-			if _, err := c.Write(*b); err != nil { // Should retry write if failed
+			err := post("http://localhost:8086/write?db=stress", "application/x-www-form-urlencoded", b)
+			if err != nil { // Should retry write if failed
+				//if _, err := c.Write(*b); err != nil { // Should retry write if failed
 				mu.Lock()
 				if lastSuccess {
 					fmt.Println("ERROR: ", err.Error())
 				}
 				failedRequests += 1
-				totalPoints -= len(b.Points)
+				//totalPoints -= len(b.Points)
+				totalPoints -= 5000
 				lastSuccess = false
 				mu.Unlock()
 			} else {
@@ -261,7 +297,7 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 			if total%500000 == 0 {
 				fmt.Printf("%d total points. %d in %s\n", total, cfg.Write.BatchSize, time.Since(st))
 			}
-		}(batch, totalPoints)
+		}(bytes.NewBuffer(pnt), totalPoints)
 
 	}
 
