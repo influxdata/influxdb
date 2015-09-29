@@ -227,6 +227,7 @@ func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurem
 		}
 	}
 
+	sort.Sort(measurements)
 	return measurements
 }
 
