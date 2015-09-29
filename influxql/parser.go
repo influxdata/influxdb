@@ -313,7 +313,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	// Parse optional DEFAULT token.
 	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
 		stmt.Default = true
-	} else if tok != EOF {
+	} else if tok != EOF && tok != SEMICOLON {
 		return nil, newParseError(tokstr(tok, lit), []string{"DEFAULT"}, pos)
 	}
 
@@ -1194,7 +1194,7 @@ func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
 	// Parse optional FORCE token.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == FORCE {
 		s.Force = true
-	} else if tok != EOF {
+	} else if tok != EOF && tok != SEMICOLON {
 		return nil, newParseError(tokstr(tok, lit), []string{"FORCE"}, pos)
 	}
 
