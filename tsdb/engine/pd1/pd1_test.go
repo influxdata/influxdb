@@ -77,7 +77,6 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	verify(false)
 
 	tx, _ := e.Begin(false)
-	defer tx.Rollback()
 	c := tx.Cursor("cpu,host=B", fields, nil, true)
 	k, v := c.SeekTo(0)
 	if k != p2.UnixNano() {
@@ -111,6 +110,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	if 1.1 != v {
 		t.Fatal("p1 data not equal")
 	}
+	tx.Rollback()
 
 	if err := e.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
