@@ -1,8 +1,6 @@
 package pd1_test
 
 import (
-	// "math/rand"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -19,7 +17,6 @@ func TestEncoding_FloatBlock(t *testing.T) {
 	}
 
 	b := values.Encode(nil)
-	fmt.Println("**** ", len(b))
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 

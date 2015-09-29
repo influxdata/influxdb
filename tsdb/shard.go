@@ -91,6 +91,12 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 // Path returns the path set on the shard when it was created.
 func (s *Shard) Path() string { return s.path }
 
+// PerformMaintenance gets called periodically to have the engine perform
+// any maintenance tasks like WAL flushing and compaction
+func (s *Shard) PerformMaintenance() {
+	s.engine.PerformMaintenance()
+}
+
 // open initializes and opens the shard's store.
 func (s *Shard) Open() error {
 	if err := func() error {
@@ -229,29 +235,31 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	}
 
 	// make sure all data is encoded before attempting to save to bolt
-	// TODO: make this only commented out for pd1 engine
-	// for _, p := range points {
-	// 	// Ignore if raw data has already been marshaled.
-	// 	if p.Data() != nil {
-	// 		continue
-	// 	}
+	// only required for the b1 and bz1 formats
+	if s.engine.Format() != PD1Format {
+		for _, p := range points {
+			// Ignore if raw data has already been marshaled.
+			if p.Data() != nil {
+				continue
+			}
 
-	// 	// This was populated earlier, don't need to validate that it's there.
-	// 	s.mu.RLock()
-	// 	mf := s.measurementFields[p.Name()]
-	// 	s.mu.RUnlock()
+			// This was populated earlier, don't need to validate that it's there.
+			s.mu.RLock()
+			mf := s.measurementFields[p.Name()]
+			s.mu.RUnlock()
 
-	// 	// If a measurement is dropped while writes for it are in progress, this could be nil
-	// 	if mf == nil {
-	// 		return ErrFieldNotFound
-	// 	}
+			// If a measurement is dropped while writes for it are in progress, this could be nil
+			if mf == nil {
+				return ErrFieldNotFound
+			}
 
-	// 	data, err := mf.Codec.EncodeFields(p.Fields())
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	p.SetData(data)
-	// }
+			data, err := mf.Codec.EncodeFields(p.Fields())
+			if err != nil {
+				return err
+			}
+			p.SetData(data)
+		}
+	}
 
 	// Write to the engine.
 	if err := s.engine.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
@@ -742,14 +750,11 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
-	// TODO: this is a hack for PD1 testing, please to remove
-	return math.Float64frombits(binary.BigEndian.Uint64(b)), nil
-
-	// fi := f.FieldByName(name)
-	// if fi == nil {
-	// 	return 0, ErrFieldNotFound
-	// }
-	// return f.DecodeByID(fi.ID, b)
+	fi := f.FieldByName(name)
+	if fi == nil {
+		return 0, ErrFieldNotFound
+	}
+	return f.DecodeByID(fi.ID, b)
 }
 
 func (f *FieldCodec) Fields() (a []*Field) {

@@ -32,8 +32,22 @@ type Engine interface {
 	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)
 
+	// PerformMaintenance will get called periodically by the store
+	PerformMaintenance()
+
+	// Format will return the format for the engine
+	Format() EngineFormat
+
 	io.WriterTo
 }
+
+type EngineFormat int
+
+const (
+	B1Format EngineFormat = iota
+	BZ1Format
+	PD1Format
+)
 
 // NewEngineFunc creates a new engine.
 type NewEngineFunc func(path string, walPath string, options EngineOptions) Engine

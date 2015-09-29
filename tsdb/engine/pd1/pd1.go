@@ -84,10 +84,11 @@ type Engine struct {
 
 	WAL *Log
 
-	RotateFileSize      uint32
-	SkipCompaction      bool
-	CompactionAge       time.Duration
-	CompactionFileCount int
+	RotateFileSize         uint32
+	SkipCompaction         bool
+	CompactionAge          time.Duration
+	CompactionFileCount    int
+	IndexCompactionFullAge time.Duration
 
 	// filesLock is only for modifying and accessing the files slice
 	filesLock         sync.RWMutex
@@ -116,11 +117,12 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		writeLock: &writeLock{},
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
-		HashSeriesField:     hashSeriesField,
-		WAL:                 w,
-		RotateFileSize:      DefaultRotateFileSize,
-		CompactionAge:       opt.Config.IndexCompactionAge,
-		CompactionFileCount: opt.Config.IndexCompactionFileCount,
+		HashSeriesField:        hashSeriesField,
+		WAL:                    w,
+		RotateFileSize:         DefaultRotateFileSize,
+		CompactionAge:          opt.Config.IndexCompactionAge,
+		CompactionFileCount:    opt.Config.IndexCompactionFileCount,
+		IndexCompactionFullAge: opt.Config.IndexCompactionFullAge,
 	}
 	e.WAL.Index = e
 
@@ -129,6 +131,28 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
+
+// PerformMaintenance is for periodic maintenance of the store. A no-op for b1
+func (e *Engine) PerformMaintenance() {
+	if f := e.WAL.shouldFlush(); f != noFlush {
+		go func() {
+			fmt.Println("maintenance autoflush")
+			e.WAL.flush(f)
+			if time.Since(e.WAL.lastWriteTime) > e.IndexCompactionFullAge {
+				fmt.Println("mainenance compact autoflush")
+				e.Compact(true)
+			}
+		}()
+	} else if time.Since(e.WAL.lastWriteTime) > e.IndexCompactionFullAge {
+		fmt.Println("compact full, suckas")
+		go e.Compact(true)
+	}
+}
+
+// Format returns the format type of this engine
+func (e *Engine) Format() tsdb.EngineFormat {
+	return tsdb.PD1Format
+}
 
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
@@ -341,7 +365,7 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	}
 
 	if !e.SkipCompaction && e.shouldCompact() {
-		go e.Compact()
+		go e.Compact(false)
 	}
 
 	return nil
@@ -388,7 +412,7 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 	}
 }
 
-func (e *Engine) Compact() error {
+func (e *Engine) Compact(fullCompaction bool) error {
 	// we're looping here to ensure that the files we've marked to compact are
 	// still there after we've obtained the write lock
 	var minTime, maxTime int64
@@ -424,7 +448,7 @@ func (e *Engine) Compact() error {
 
 		// see if we should run aonther compaction
 		if e.shouldCompact() {
-			go e.Compact()
+			go e.Compact(false)
 		} else {
 			e.filesLock.Lock()
 			e.compactionRunning = false

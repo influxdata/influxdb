@@ -114,6 +114,14 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
+// PerformMaintenance is for periodic maintenance of the store. A no-op for bz1
+func (e *Engine) PerformMaintenance() {}
+
+// Format returns the format type of this engine
+func (e *Engine) Format() tsdb.EngineFormat {
+	return tsdb.BZ1Format
+}
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	if err := func() error {
