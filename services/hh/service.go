@@ -1,25 +1,36 @@
 package hh
 
 import (
+	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/models"
 )
 
 var ErrHintedHandoffDisabled = fmt.Errorf("hinted handoff disabled")
+
+const (
+	writeShardReq       = "write_shard_req"
+	writeShardReqPoints = "write_shard_req_points"
+	processReq          = "process_req"
+	processReqFail      = "process_req_fail"
+)
 
 type Service struct {
 	mu      sync.RWMutex
 	wg      sync.WaitGroup
 	closing chan struct{}
 
-	Logger *log.Logger
-	cfg    Config
+	statMap *expvar.Map
+	Logger  *log.Logger
+	cfg     Config
 
 	ShardWriter shardWriter
 
@@ -36,9 +47,13 @@ type shardWriter interface {
 
 // NewService returns a new instance of Service.
 func NewService(c Config, w shardWriter) *Service {
+	key := strings.Join([]string{"hh", c.Dir}, ":")
+	tags := map[string]string{"path": c.Dir}
+
 	s := &Service{
-		cfg:    c,
-		Logger: log.New(os.Stderr, "[handoff] ", log.LstdFlags),
+		cfg:     c,
+		statMap: influxdb.NewStatistics(key, "hh", tags),
+		Logger:  log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 	}
 	processor, err := NewProcessor(c.Dir, w, ProcessorOptions{
 		MaxSize:        c.MaxSize,
@@ -93,6 +108,8 @@ func (s *Service) SetLogger(l *log.Logger) {
 
 // WriteShard queues the points write for shardID to node ownerID to handoff queue
 func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) error {
+	s.statMap.Add(writeShardReq, 1)
+	s.statMap.Add(writeShardReqPoints, int64(len(points)))
 	if !s.cfg.Enabled {
 		return ErrHintedHandoffDisabled
 	}
@@ -109,7 +126,9 @@ func (s *Service) retryWrites() {
 		case <-s.closing:
 			return
 		case <-ticker.C:
+			s.statMap.Add(processReq, 1)
 			if err := s.HintedHandoff.Process(); err != nil && err != io.EOF {
+				s.statMap.Add(processReqFail, 1)
 				s.Logger.Printf("retried write failed: %v", err)
 			}
 		}
