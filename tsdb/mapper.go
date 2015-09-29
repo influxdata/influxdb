@@ -605,15 +605,25 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		tsc.SelectFields = []string{m.fieldNames[i]}
 		tsc.SelectWhereFields = uniqueStrings([]string{m.fieldNames[i]}, m.whereFields)
 
-		// Execute the map function which walks the entire interval, and aggregates the result.
-		mapValue := m.mapFuncs[i](&AggregateTagSetCursor{
-			cursor: tsc,
-			tmin:   tmin,
-			stmt:   m.stmt,
+		// Build a map input from the cursor.
+		input := &MapInput{
+			TMin: -1,
+		}
+		if len(m.stmt.Dimensions) > 0 && !m.stmt.HasTimeFieldSpecified() {
+			input.TMin = tmin
+		}
 
-			qmin: qmin,
-			qmax: qmax,
-		})
+		for k, v := tsc.Next(qmin, qmax); k != -1; k, v = tsc.Next(qmin, qmax) {
+			input.Items = append(input.Items, MapItem{
+				Timestamp: k,
+				Value:     v,
+				Fields:    tsc.Fields(),
+				Tags:      tsc.Tags(),
+			})
+		}
+
+		// Execute the map function which walks the entire interval, and aggregates the result.
+		mapValue := m.mapFuncs[i](input)
 		output.Values[0].Value = append(output.Values[0].Value.([]interface{}), mapValue)
 	}
 
@@ -633,40 +643,6 @@ func (m *AggregateMapper) nextInterval() (start, end int64) {
 		start, end = t, t+m.intervalSize
 	}
 	return
-}
-
-// AggregateTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated by intervals.
-type AggregateTagSetCursor struct {
-	cursor *TagSetCursor
-	qmin   int64
-	qmax   int64
-
-	tmin int64
-	stmt *influxql.SelectStatement
-}
-
-// Next returns the next aggregate value for the cursor.
-func (a *AggregateTagSetCursor) Next() (time int64, value interface{}) {
-	return a.cursor.Next(a.qmin, a.qmax)
-}
-
-// Fields returns the current fields for the cursor
-func (a *AggregateTagSetCursor) Fields() map[string]interface{} {
-	return a.cursor.Fields()
-}
-
-// Tags returns the current tags for the cursor
-func (a *AggregateTagSetCursor) Tags() map[string]string { return a.cursor.Tags() }
-
-// TMin returns the current floor time for the bucket being worked on
-func (a *AggregateTagSetCursor) TMin() int64 {
-	if len(a.stmt.Dimensions) == 0 {
-		return -1
-	}
-	if !a.stmt.HasTimeFieldSpecified() {
-		return a.tmin
-	}
-	return -1
 }
 
 // uniqueStrings returns a slice of unique strings from all lists in a.
