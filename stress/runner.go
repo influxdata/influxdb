@@ -157,17 +157,22 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 	batch := &client.BatchPoints{
 		Database:         cfg.Database,
 		WriteConsistency: "any",
-		Time:             time.Now(),
 		Precision:        cfg.Precision,
 	}
 
+	pointTime := time.Now().Unix() - int64(cfg.PointCount)
+
 	for i := 1; i <= cfg.PointCount; i++ {
+		pointTime++
+		batchTime := time.Unix(pointTime, 0)
+
 		for j := 1; j <= cfg.SeriesCount; j++ {
 			for _, m := range cfg.Measurements {
 				p := client.Point{
 					Measurement: m,
 					Tags:        map[string]string{"region": "uswest", "host": fmt.Sprintf("host-%d", j)},
-					Fields:      map[string]interface{}{"value": rand.Float64()},
+					Fields:      map[string]interface{}{"value": float64(rand.Intn(1000))},
+					Time:        batchTime,
 				}
 				batch.Points = append(batch.Points, p)
 				if len(batch.Points) >= cfg.BatchSize {
@@ -206,7 +211,6 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 						Database:         cfg.Database,
 						WriteConsistency: "any",
 						Precision:        "n",
-						Time:             time.Now(),
 					}
 				}
 			}

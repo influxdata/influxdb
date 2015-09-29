@@ -3,8 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"math/rand"
-	"net/url"
 	"runtime"
 	"sort"
 	"time"
