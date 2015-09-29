@@ -270,12 +270,14 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	defer l.cacheLock.Unlock()
 
 	// if we should check memory and we're over the threshold, mark a flush as running and kick one off in a goroutine
-	if checkMemory && l.memorySize > l.MaxMemorySizeThreshold {
+	if checkMemory && l.memorySize > l.FlushMemorySizeThreshold {
 		if !l.flushRunning {
 			l.flushRunning = true
 			go l.flush(memoryFlush)
 		}
-		return false
+		if l.memorySize > l.MaxMemorySizeThreshold {
+			return false
+		}
 	}
 
 	for _, p := range points {
@@ -401,7 +403,7 @@ func (l *Log) writeToLog(writeType walEntryType, data []byte) error {
 	l.writeLock.Lock()
 	defer l.writeLock.Unlock()
 
-	if l.currentSegmentFile == nil {
+	if l.currentSegmentFile == nil || l.currentSegmentSize > DefaultSegmentSize {
 		if err := l.newSegmentFile(); err != nil {
 			// fail hard since we can't write data
 			panic(fmt.Sprintf("error opening new segment file for wal: %s", err.Error()))
@@ -420,6 +422,8 @@ func (l *Log) writeToLog(writeType walEntryType, data []byte) error {
 	if _, err := l.currentSegmentFile.Write(data); err != nil {
 		panic(fmt.Sprintf("error writing data to wal: %s", err.Error()))
 	}
+
+	l.currentSegmentSize += 5 + len(data)
 
 	return l.currentSegmentFile.Sync()
 }
@@ -489,6 +493,7 @@ func (l *Log) flush(flush flushType) error {
 	// only flush if there isn't one already running. Memory flushes are only triggered
 	// by writes, which will mark the flush as running, so we can ignore it.
 	l.cacheLock.Lock()
+
 	if l.flushRunning && flush != memoryFlush {
 		l.cacheLock.Unlock()
 		return nil
@@ -523,19 +528,18 @@ func (l *Log) flush(flush flushType) error {
 	l.writeLock.Unlock()
 
 	// copy the cache items to new maps so we can empty them out
-	l.flushCache = l.cache
-	l.cache = make(map[string]Values)
+	l.flushCache = make(map[string]Values)
 	for k, _ := range l.cacheDirtySort {
 		l.flushCache[k] = l.flushCache[k].Deduplicate()
 	}
 	l.cacheDirtySort = make(map[string]bool)
-	valuesByKey := make(map[string]Values)
 
 	valueCount := 0
-	for key, v := range l.flushCache {
-		valuesByKey[key] = v
+	for key, v := range l.cache {
+		l.flushCache[key] = v
 		valueCount += len(v)
 	}
+	l.cache = make(map[string]Values)
 
 	flushSize := l.memorySize
 
@@ -553,7 +557,7 @@ func (l *Log) flush(flush flushType) error {
 	l.cacheLock.Unlock()
 
 	// exit if there's nothing to flush to the index
-	if len(valuesByKey) == 0 && len(mfc) == 0 && len(scc) == 0 {
+	if len(l.flushCache) == 0 && len(mfc) == 0 && len(scc) == 0 {
 		return nil
 	}
 
@@ -564,11 +568,11 @@ func (l *Log) flush(flush flushType) error {
 		} else if flush == startupFlush {
 			ftype = "startup"
 		}
-		l.logger.Printf("%s flush of %d keys with %d values of %d bytes\n", ftype, len(valuesByKey), valueCount, flushSize)
+		l.logger.Printf("%s flush of %d keys with %d values of %d bytes\n", ftype, len(l.flushCache), valueCount, flushSize)
 	}
 
 	startTime := time.Now()
-	if err := l.Index.Write(valuesByKey, mfc, scc); err != nil {
+	if err := l.Index.Write(l.flushCache, mfc, scc); err != nil {
 		return err
 	}
 	if l.LoggingEnabled {
