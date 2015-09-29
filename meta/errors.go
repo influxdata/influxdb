@@ -6,23 +6,6 @@ import (
 )
 
 var (
-	// ErrServerNodeIDRequired is returned when using a zero server node id.
-	ErrServerNodeIDRequired = errors.New("server node id must be greater than 0")
-
-	// ErrServerNotFound is returned when the nodeID of the server is not in the current
-	// set of nodeIDs for the cluster
-	ErrServerNotFound = errors.New("server node id not found")
-
-	// ErrServerUnableToDropSingleNode is returned if the node being dropped is the last
-	// node in the cluster
-	ErrServerUnableToDropFinalNode = errors.New("unable to drop the final node in a cluster")
-
-	// ErrServerDataLossImminent is returned if the server node requested to be dropped has
-	// the last copy of a shard present and the force keyword was not used
-	ErrServerDataLossImminent = errors.New("unable to drop server - data loss would occur - the 'FORCE' keyword can be used to force this removal")
-)
-
-var (
 	// ErrStoreOpen is returned when opening an already open store.
 	ErrStoreOpen = newError("store already open")
 
@@ -43,6 +26,17 @@ var (
 	// ErrNodesRequired is returned when at least one node is required for an operation.
 	// This occurs when creating a shard group.
 	ErrNodesRequired = newError("at least one node required")
+
+	// ErrNodeIDRequired is returned when using a zero node id.
+	ErrNodeIDRequired = newError("node id must be greater than 0")
+
+	// ErrNodeUnableToDropSingleNode is returned if the node being dropped is the last
+	// node in the cluster
+	ErrNodeUnableToDropFinalNode = newError("unable to drop the final node in a cluster")
+
+	// ErrNodeDataLossImminent is returned if the node requested to be dropped has
+	// the last copy of a shard present and the force keyword was not used
+	ErrNodeDataLossImminent = newError("unable to drop node - data loss would occur - use the optional keyword 'FORCE' to force this removal")
 )
 
 var (

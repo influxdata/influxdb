@@ -382,6 +382,9 @@ func (s *Server) Open() error {
 			go s.startServerReporting()
 		}
 
+		// Watch the meta store for a remote shutdown
+		go s.executeShutdown(s.MetaStore.ExecuteShutdown())
+
 		return nil
 
 	}(); err != nil {
@@ -390,6 +393,21 @@ func (s *Server) Open() error {
 	}
 
 	return nil
+}
+
+func (s *Server) executeShutdown(c <-chan struct{}) {
+	// TODO corylanou stop the server from coming back up
+	for {
+		select {
+		case <-c:
+			err := s.Close()
+			if err != nil {
+				log.Println(err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+	}
 }
 
 // Close shuts down the meta and data stores and all services.
@@ -426,6 +444,7 @@ func (s *Server) Close() error {
 	}
 
 	close(s.closing)
+
 	return nil
 }
 

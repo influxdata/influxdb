@@ -22,7 +22,6 @@ It has these top-level messages:
 	Command
 	CreateNodeCommand
 	DeleteNodeCommand
-	DropServerCommand
 	CreateDatabaseCommand
 	DropDatabaseCommand
 	CreateRetentionPolicyCommand
@@ -41,6 +40,7 @@ It has these top-level messages:
 	SetAdminPrivilegeCommand
 	UpdateNodeCommand
 	Response
+	RemovePeerCommand
 	ResponseHeader
 	ErrorResponse
 	FetchDataRequest
@@ -115,7 +115,7 @@ const (
 	Command_SetDataCommand                   Command_Type = 17
 	Command_SetAdminPrivilegeCommand         Command_Type = 18
 	Command_UpdateNodeCommand                Command_Type = 19
-	Command_DropServerCommand                Command_Type = 20
+	Command_RemovePeerCommand                Command_Type = 20
 )
 
 var Command_Type_name = map[int32]string{
@@ -138,7 +138,7 @@ var Command_Type_name = map[int32]string{
 	17: "SetDataCommand",
 	18: "SetAdminPrivilegeCommand",
 	19: "UpdateNodeCommand",
-	20: "DropServerCommand",
+	20: "RemovePeerCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -160,7 +160,7 @@ var Command_Type_value = map[string]int32{
 	"SetDataCommand":                   17,
 	"SetAdminPrivilegeCommand":         18,
 	"UpdateNodeCommand":                19,
-	"DropServerCommand":                20,
+	"RemovePeerCommand":                20,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -621,6 +621,7 @@ var E_CreateNodeCommand_Command = &proto.ExtensionDesc{
 
 type DeleteNodeCommand struct {
 	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
+	Force            *bool   `protobuf:"varint,2,req" json:"Force,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -635,44 +636,19 @@ func (m *DeleteNodeCommand) GetID() uint64 {
 	return 0
 }
 
-var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*DeleteNodeCommand)(nil),
-	Field:         102,
-	Name:          "internal.DeleteNodeCommand.command",
-	Tag:           "bytes,102,opt,name=command",
-}
-
-type DropServerCommand struct {
-	NodeID           *uint64 `protobuf:"varint,1,req" json:"NodeID,omitempty"`
-	Force            *bool   `protobuf:"varint,2,req" json:"Force,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *DropServerCommand) Reset()         { *m = DropServerCommand{} }
-func (m *DropServerCommand) String() string { return proto.CompactTextString(m) }
-func (*DropServerCommand) ProtoMessage()    {}
-
-func (m *DropServerCommand) GetNodeID() uint64 {
-	if m != nil && m.NodeID != nil {
-		return *m.NodeID
-	}
-	return 0
-}
-
-func (m *DropServerCommand) GetForce() bool {
+func (m *DeleteNodeCommand) GetForce() bool {
 	if m != nil && m.Force != nil {
 		return *m.Force
 	}
 	return false
 }
 
-var E_DropServerCommand_Command = &proto.ExtensionDesc{
+var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*DropServerCommand)(nil),
-	Field:         120,
-	Name:          "internal.DropServerCommand.command",
-	Tag:           "bytes,120,opt,name=command",
+	ExtensionType: (*DeleteNodeCommand)(nil),
+	Field:         102,
+	Name:          "internal.DeleteNodeCommand.command",
+	Tag:           "bytes,102,opt,name=command",
 }
 
 type CreateDatabaseCommand struct {
@@ -1283,6 +1259,38 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
+type RemovePeerCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
+	Addr             *string `protobuf:"bytes,2,req" json:"Addr,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *RemovePeerCommand) Reset()         { *m = RemovePeerCommand{} }
+func (m *RemovePeerCommand) String() string { return proto.CompactTextString(m) }
+func (*RemovePeerCommand) ProtoMessage()    {}
+
+func (m *RemovePeerCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+func (m *RemovePeerCommand) GetAddr() string {
+	if m != nil && m.Addr != nil {
+		return *m.Addr
+	}
+	return ""
+}
+
+var E_RemovePeerCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*RemovePeerCommand)(nil),
+	Field:         120,
+	Name:          "internal.RemovePeerCommand.command",
+	Tag:           "bytes,120,opt,name=command",
+}
+
 type ResponseHeader struct {
 	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
@@ -1458,7 +1466,6 @@ func init() {
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
-	proto.RegisterExtension(E_DropServerCommand_Command)
 	proto.RegisterExtension(E_CreateDatabaseCommand_Command)
 	proto.RegisterExtension(E_DropDatabaseCommand_Command)
 	proto.RegisterExtension(E_CreateRetentionPolicyCommand_Command)
@@ -1476,4 +1483,5 @@ func init() {
 	proto.RegisterExtension(E_SetDataCommand_Command)
 	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
 	proto.RegisterExtension(E_UpdateNodeCommand_Command)
+	proto.RegisterExtension(E_RemovePeerCommand_Command)
 }

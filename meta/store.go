@@ -82,11 +82,12 @@ type Store struct {
 
 	raftState raftState
 
-	ready   chan struct{}
-	err     chan error
-	closing chan struct{}
-	wg      sync.WaitGroup
-	changed chan struct{}
+	ready    chan struct{}
+	err      chan error
+	closing  chan struct{}
+	wg       sync.WaitGroup
+	changed  chan struct{}
+	shutdown chan struct{}
 
 	// clusterTracingEnabled controls whether low-level cluster communcation is logged.
 	// Useful for troubleshooting
@@ -139,10 +140,11 @@ func NewStore(c *Config) *Store {
 		peers: c.Peers,
 		data:  &Data{},
 
-		ready:   make(chan struct{}),
-		err:     make(chan error),
-		closing: make(chan struct{}),
-		changed: make(chan struct{}),
+		ready:    make(chan struct{}),
+		err:      make(chan error),
+		closing:  make(chan struct{}),
+		changed:  make(chan struct{}),
+		shutdown: make(chan struct{}),
 
 		clusterTracingEnabled: c.ClusterTracing,
 		retentionAutoCreate:   c.RetentionAutoCreate,
@@ -574,6 +576,9 @@ func (s *Store) Ready() <-chan struct{} { return s.ready }
 // Err returns a channel for all out-of-band errors.
 func (s *Store) Err() <-chan error { return s.err }
 
+// ExecuteShutdown returns a channel to monitor when this node has been told to shut down remotely
+func (s *Store) ExecuteShutdown() <-chan struct{} { return s.shutdown }
+
 // IsLeader returns true if the store is currently the leader.
 func (s *Store) IsLeader() bool {
 	s.mu.RLock()
@@ -823,26 +828,24 @@ func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
 }
 
 // DeleteNode removes a node from the metastore by id.
-func (s *Store) DeleteNode(id uint64) error {
-	return s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
+func (s *Store) DeleteNode(id uint64, force bool) error {
+	err := s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
 		&internal.DeleteNodeCommand{
-			ID: proto.Uint64(id),
+			ID:    proto.Uint64(id),
+			Force: proto.Bool(force),
 		},
 	)
-}
-
-// DropServer removes a server from the cluster
-func (s *Store) DropServer(nodeID uint64, force bool) error {
-	if err := s.exec(internal.Command_DropServerCommand, internal.E_DropServerCommand_Command,
-		&internal.DropServerCommand{
-			NodeID: proto.Uint64(nodeID),
-			Force:  proto.Bool(force),
-		},
-	); err != nil {
+	if err != nil {
 		return err
 	}
-	s.Logger.Printf("server '%d' removed", nodeID)
-	return nil
+
+	// Need to send a second message to remove the peer
+	return s.exec(internal.Command_RemovePeerCommand, internal.E_RemovePeerCommand_Command,
+		&internal.RemovePeerCommand{
+			ID:   proto.Uint64(id),
+			Addr: proto.String(s.RemoteAddr.String()),
+		},
+	)
 }
 
 // Database returns a database by name.
@@ -1626,14 +1629,14 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 
 	err := func() interface{} {
 		switch cmd.GetType() {
+		case internal.Command_RemovePeerCommand:
+			return fsm.applyRemovePeerCommand(&cmd)
 		case internal.Command_CreateNodeCommand:
 			return fsm.applyCreateNodeCommand(&cmd)
 		case internal.Command_DeleteNodeCommand:
 			return fsm.applyDeleteNodeCommand(&cmd)
 		case internal.Command_CreateDatabaseCommand:
 			return fsm.applyCreateDatabaseCommand(&cmd)
-		case internal.Command_DropServerCommand:
-			return fsm.applyDropServerCommand(&cmd)
 		case internal.Command_DropDatabaseCommand:
 			return fsm.applyDropDatabaseCommand(&cmd)
 		case internal.Command_CreateRetentionPolicyCommand:
@@ -1680,6 +1683,32 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	return err
 }
 
+func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_RemovePeerCommand_Command)
+	v := ext.(*internal.RemovePeerCommand)
+
+	id := v.GetID()
+	addr := v.GetAddr()
+	//Remove that node from the peer
+	if id == fsm.id {
+		// if we are part of the raft cluster, remove us
+		if _, ok := fsm.raftState.(*localRaft); ok {
+			fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
+			// ignore the error, as it's likely just telling you it's not the leader, and that's fine
+			fsm.raftState.removePeer(addr)
+		}
+		go func(id uint64, addr string) {
+			// Give the cluster some time to responsd
+			time.Sleep(time.Second)
+			fsm.Logger.Printf("shutting down local node '%d'", id)
+			close(fsm.shutdown)
+		}(id, addr)
+
+	}
+
+	return nil
+}
+
 func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
 	ext, _ := proto.GetExtension(cmd, internal.E_CreateNodeCommand_Command)
 	v := ext.(*internal.CreateNodeCommand)
@@ -1722,24 +1751,13 @@ func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.DeleteNode(v.GetID()); err != nil {
+	if err := other.DeleteNode(v.GetID(), v.GetForce()); err != nil {
 		return err
 	}
 	fsm.data = other
 
-	return nil
-}
-
-func (fsm *storeFSM) applyDropServerCommand(cmd *internal.Command) interface{} {
-	ext, _ := proto.GetExtension(cmd, internal.E_DropServerCommand_Command)
-	v := ext.(*internal.DropServerCommand)
-
-	// Copy data and update.
-	other := fsm.data.Clone()
-	if err := other.DropServer(v.GetNodeID(), v.GetForce()); err != nil {
-		return err
-	}
-	fsm.data = other
+	id := v.GetID()
+	fsm.Logger.Printf("node '%d' removed", id)
 
 	return nil
 }

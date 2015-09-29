@@ -74,33 +74,22 @@ func (data *Data) CreateNode(host string) error {
 }
 
 // DeleteNode removes a node from the metadata.
-func (data *Data) DeleteNode(id uint64) error {
-	for i := range data.Nodes {
-		if data.Nodes[i].ID == id {
-			data.Nodes = append(data.Nodes[:i], data.Nodes[i+1:]...)
-			return nil
-		}
-	}
-	return ErrNodeNotFound
-}
-
-// DropServer removes a server from the cluster
-func (data *Data) DropServer(nodeID uint64, force bool) error {
+func (data *Data) DeleteNode(id uint64, force bool) error {
 	// Node has to be larger than 0 to be real
-	if nodeID == 0 {
-		return ErrServerNodeIDRequired
+	if id == 0 {
+		return ErrNodeIDRequired
 	}
 	// Is this a valid node?
-	nodeInfo := data.Node(nodeID)
+	nodeInfo := data.Node(id)
 	if nodeInfo == nil {
-		return ErrServerNotFound
+		return ErrNodeNotFound
 	}
 	// Am I the only node?  If so, nothing to do
 	if len(data.Nodes) == 1 {
-		return ErrServerUnableToDropFinalNode
+		return ErrNodeUnableToDropFinalNode
 	}
 
-	// Determint if there are any any non-replicated nodes and force was not specified
+	// Determine if there are any any non-replicated nodes and force was not specified
 	if !force {
 		for _, di := range data.Databases {
 			for _, rp := range di.RetentionPolicies {
@@ -108,8 +97,8 @@ func (data *Data) DropServer(nodeID uint64, force bool) error {
 				if rp.ReplicaN == 1 {
 					for _, sg := range rp.ShardGroups {
 						for _, s := range sg.Shards {
-							if s.OwnedBy(nodeID) && len(s.Owners) == 1 {
-								return ErrServerDataLossImminent
+							if s.OwnedBy(id) && len(s.Owners) == 1 {
+								return ErrNodeDataLossImminent
 							}
 						}
 					}
@@ -118,11 +107,36 @@ func (data *Data) DropServer(nodeID uint64, force bool) error {
 		}
 	}
 
-	// Remove this from the raft peer group
+	// Remove node id from all shard infos
+	for _, di := range data.Databases {
+		for _, rp := range di.RetentionPolicies {
+			// ignore replicated retention policies
+			if rp.ReplicaN == 1 {
+				for _, sg := range rp.ShardGroups {
+					for _, s := range sg.Shards {
+						if s.OwnedBy(id) {
+							var owners []ShardOwner
+							for _, o := range s.Owners {
+								if o.NodeID != id {
+									owners = append(owners, o)
+								}
+							}
+							s.Owners = owners
+						}
+					}
+				}
+			}
+		}
+	}
 
-	// Is this me?  Execute a remove and shutdown of node
-	// TODO corylanou stop the server from coming back up or writing data
-	// perhaps store in the meta store removed node ID's
+	// Remove this from the raft peer group
+	var nodes []NodeInfo
+	for _, n := range data.Nodes {
+		if n.ID != id {
+			nodes = append(nodes, n)
+		}
+	}
+	data.Nodes = nodes
 
 	return nil
 }

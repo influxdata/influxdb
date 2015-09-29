@@ -36,7 +36,7 @@ func TestData_DeleteNode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := data.DeleteNode(1); err != nil {
+	if err := data.DeleteNode(1, false); err != nil {
 		t.Fatal(err)
 	} else if len(data.Nodes) != 2 {
 		t.Fatalf("unexpected node count: %d", len(data.Nodes))
