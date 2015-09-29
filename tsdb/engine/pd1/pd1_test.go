@@ -137,18 +137,18 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	e.RotateFileSize = 10
 
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
-	p2 := parsePoint("cpu,host=B value=1.1 1000000000")
-	p3 := parsePoint("cpu,host=A value=2.4 4000000000")
-	p4 := parsePoint("cpu,host=B value=2.4 4000000000")
+	p2 := parsePoint("cpu,host=B value=1.2 1000000000")
+	p3 := parsePoint("cpu,host=A value=2.1 4000000000")
+	p4 := parsePoint("cpu,host=B value=2.2 4000000000")
 
 	if err := e.WritePoints([]models.Point{p1, p2, p3, p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	p5 := parsePoint("cpu,host=A value=1.5 5000000000")
-	p6 := parsePoint("cpu,host=B value=2.5 5000000000")
-	p7 := parsePoint("cpu,host=A value=1.3 3000000000")
-	p8 := parsePoint("cpu,host=B value=2.3 3000000000")
+	p5 := parsePoint("cpu,host=A value=3.1 5000000000")
+	p6 := parsePoint("cpu,host=B value=3.2 5000000000")
+	p7 := parsePoint("cpu,host=A value=4.1 3000000000")
+	p8 := parsePoint("cpu,host=B value=4.2 3000000000")
 
 	if err := e.WritePoints([]models.Point{p5, p6, p7, p8}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
@@ -159,16 +159,9 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	}
 
 	fields := []string{"value"}
-	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
-		"value": {
-			ID:   uint8(1),
-			Name: "value",
-			Type: influxql.Float,
-		},
-	})
 
 	verify := func(series string, points []models.Point, seek int64) {
-		c := e.Cursor(series, fields, codec, true)
+		c := e.Cursor(series, fields, nil, true)
 
 		k, v := c.SeekTo(seek)
 		p := points[0]
@@ -335,7 +328,7 @@ func TestEngine_Compaction(t *testing.T) {
 
 	e.CompactionAge = time.Duration(0)
 
-	if err := e.Compact(); err != nil {
+	if err := e.Compact(true); err != nil {
 		t.Fatalf("error compacting: %s", err.Error())
 	}
 

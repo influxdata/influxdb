@@ -45,10 +45,12 @@ const (
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 
 	// Default WAL settings for the PD1 WAL
-	DefaultFlushMemorySizeThreshold = 5 * 1024 * 1024   // 5MB
-	DefaultMaxMemorySizeThreshold   = 100 * 1024 * 1024 // 100MB
-	DefaultIndexCompactionAge       = time.Minute
-	DefaultIndexCompactionFileCount = 5
+	DefaultFlushMemorySizeThreshold       = 5 * 1024 * 1024   // 5MB
+	DefaultMaxMemorySizeThreshold         = 100 * 1024 * 1024 // 100MB
+	DefaultIndexCompactionAge             = time.Minute
+	DefaultIndexMinimumCompactionInterval = time.Minute
+	DefaultIndexCompactionFileCount       = 5
+	DefaultIndexCompactionFullAge         = time.Minute
 )
 
 type Config struct {
@@ -79,9 +81,17 @@ type Config struct {
 	// at which it is eligible to be compacted
 	IndexCompactionAge time.Duration `toml:"index-compaction-age"`
 
+	// IndexMinimumCompactionInterval specifies the minimum amount of time that must
+	// pass after a compaction before another compaction is run
+	IndexMinimumCompactionInterval time.Duration `toml:"index-minimum-compaction-interval"`
+
 	// IndexCompactionFileCount specifies the minimum number of data files that
 	// must be eligible for compaction before actually running one
 	IndexCompactionFileCount int `toml:"index-compaction-file-count"`
+
+	// IndexCompactionFullAge specifies how long after the last write was received
+	// in the WAL that a full compaction should be performed.
+	IndexCompactionFullAge time.Duration `toml:"index-compaction-full-age"`
 
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
@@ -94,16 +104,18 @@ func NewConfig() Config {
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
 
-		WALLoggingEnabled:           true,
-		WALReadySeriesSize:          DefaultReadySeriesSize,
-		WALCompactionThreshold:      DefaultCompactionThreshold,
-		WALMaxSeriesSize:            DefaultMaxSeriesSize,
-		WALFlushColdInterval:        toml.Duration(DefaultFlushColdInterval),
-		WALPartitionSizeThreshold:   DefaultPartitionSizeThreshold,
-		WALFlushMemorySizeThreshold: DefaultFlushMemorySizeThreshold,
-		WALMaxMemorySizeThreshold:   DefaultMaxMemorySizeThreshold,
-		IndexCompactionAge:          DefaultIndexCompactionAge,
-		IndexCompactionFileCount:    DefaultIndexCompactionFileCount,
+		WALLoggingEnabled:              true,
+		WALReadySeriesSize:             DefaultReadySeriesSize,
+		WALCompactionThreshold:         DefaultCompactionThreshold,
+		WALMaxSeriesSize:               DefaultMaxSeriesSize,
+		WALFlushColdInterval:           toml.Duration(DefaultFlushColdInterval),
+		WALPartitionSizeThreshold:      DefaultPartitionSizeThreshold,
+		WALFlushMemorySizeThreshold:    DefaultFlushMemorySizeThreshold,
+		WALMaxMemorySizeThreshold:      DefaultMaxMemorySizeThreshold,
+		IndexCompactionAge:             DefaultIndexCompactionAge,
+		IndexCompactionFileCount:       DefaultIndexCompactionFileCount,
+		IndexCompactionFullAge:         DefaultIndexCompactionFullAge,
+		IndexMinimumCompactionInterval: DefaultIndexMinimumCompactionInterval,
 
 		QueryLogEnabled: true,
 	}

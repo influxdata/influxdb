@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
@@ -29,6 +30,10 @@ var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
 )
 
+const (
+	MaintenanceCheckInterval = time.Minute
+)
+
 type Store struct {
 	mu   sync.RWMutex
 	path string
@@ -38,7 +43,9 @@ type Store struct {
 
 	EngineOptions EngineOptions
 	Logger        *log.Logger
-	closing       chan struct{}
+
+	closing chan struct{}
+	wg      sync.WaitGroup
 }
 
 // Path returns the store's root path.
@@ -301,6 +308,32 @@ func (s *Store) loadShards() error {
 
 }
 
+// periodicMaintenance is the method called in a goroutine on the opening of the store
+// to perform periodic maintenance of the shards.
+func (s *Store) periodicMaintenance() {
+	t := time.NewTicker(MaintenanceCheckInterval)
+	for {
+		select {
+		case <-t.C:
+			s.performMaintenance()
+		case <-s.closing:
+			t.Stop()
+			return
+		}
+	}
+}
+
+// performMaintenance will loop through the shars and tell them
+// to perform any maintenance tasks. Those tasks should kick off
+// their own goroutines if it's anything that could take time.
+func (s *Store) performMaintenance() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sh := range s.shards {
+		sh.PerformMaintenance()
+	}
+}
+
 func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -325,6 +358,8 @@ func (s *Store) Open() error {
 	if err := s.loadShards(); err != nil {
 		return err
 	}
+
+	go s.periodicMaintenance()
 
 	return nil
 }
@@ -366,6 +401,11 @@ func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize 
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closing != nil {
+		close(s.closing)
+		s.closing = nil
+	}
+	s.wg.Wait()
 
 	for _, sh := range s.shards {
 		if err := sh.Close(); err != nil {

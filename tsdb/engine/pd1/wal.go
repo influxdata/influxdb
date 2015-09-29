@@ -28,9 +28,6 @@ const (
 
 	WALFilePrefix = "_"
 
-	// defaultFlushCheckInterval is how often flushes are triggered automatically by the flush criteria
-	defaultFlushCheckInterval = time.Second
-
 	writeBufLen = 32 << 10 // 32kb
 )
 
@@ -85,10 +82,6 @@ type Log struct {
 	measurementFieldsCache map[string]*tsdb.MeasurementFields
 	seriesToCreateCache    []*tsdb.SeriesCreate
 
-	// These coordinate closing and waiting for running goroutines.
-	wg      sync.WaitGroup
-	closing chan struct{}
-
 	// LogOutput is the writer used by the logger.
 	LogOutput io.Writer
 	logger    *log.Logger
@@ -136,7 +129,6 @@ func NewLog(path string) *Log {
 		SegmentSize:              DefaultSegmentSize,
 		FlushMemorySizeThreshold: tsdb.DefaultFlushMemorySizeThreshold,
 		MaxMemorySizeThreshold:   tsdb.DefaultMaxMemorySizeThreshold,
-		flushCheckInterval:       defaultFlushCheckInterval,
 		logger:                   log.New(os.Stderr, "[pd1wal] ", log.LstdFlags),
 	}
 }
@@ -160,13 +152,6 @@ func (l *Log) Open() error {
 	if err := l.readAndFlushWAL(); err != nil {
 		return err
 	}
-
-	l.flushCheckTimer = time.NewTimer(l.flushCheckInterval)
-
-	// Start background goroutines.
-	l.wg.Add(1)
-	l.closing = make(chan struct{})
-	go l.autoflusher(l.closing)
 
 	return nil
 }
@@ -307,6 +292,12 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	return true
 }
 
+func (l *Log) LastWriteTime() time.Time {
+	l.cacheLock.RLock()
+	defer l.cacheLock.RUnlock()
+	return l.lastWriteTime
+}
+
 // readAndFlushWAL is called on open and will read the segment files in, flushing whenever
 // the memory gets over the limit. Once all files have been read it will flush and remove the files
 func (l *Log) readAndFlushWAL() error {
@@ -439,21 +430,6 @@ func (l *Log) DeleteSeries(keys []string) error {
 
 // Close will finish any flush that is currently in process and close file handles
 func (l *Log) Close() error {
-	// stop the autoflushing process so it doesn't try to kick another one off
-	l.writeLock.Lock()
-	l.cacheLock.Lock()
-
-	if l.closing != nil {
-		close(l.closing)
-		l.closing = nil
-	}
-	l.writeLock.Unlock()
-	l.cacheLock.Unlock()
-
-	// Allow goroutines to finish running.
-	l.wg.Wait()
-
-	// Lock the remainder of the closing process.
 	l.writeLock.Lock()
 	l.cacheLock.Lock()
 	defer l.writeLock.Unlock()
@@ -529,17 +505,16 @@ func (l *Log) flush(flush flushType) error {
 
 	// copy the cache items to new maps so we can empty them out
 	l.flushCache = make(map[string]Values)
-	for k, _ := range l.cacheDirtySort {
-		l.flushCache[k] = l.flushCache[k].Deduplicate()
-	}
-	l.cacheDirtySort = make(map[string]bool)
-
 	valueCount := 0
 	for key, v := range l.cache {
 		l.flushCache[key] = v
 		valueCount += len(v)
 	}
 	l.cache = make(map[string]Values)
+	for k, _ := range l.cacheDirtySort {
+		l.flushCache[k] = l.flushCache[k].Deduplicate()
+	}
+	l.cacheDirtySort = make(map[string]bool)
 
 	flushSize := l.memorySize
 
@@ -602,33 +577,6 @@ func (l *Log) flush(flush flushType) error {
 	}
 
 	return nil
-}
-
-// triggerAutoFlush will flush and compact any partitions that have hit the thresholds for compaction
-func (l *Log) triggerAutoFlush() {
-	//
-	if f := l.shouldFlush(); f != noFlush {
-		if err := l.flush(f); err != nil {
-			l.logger.Printf("error flushing wal: %s\n", err)
-		}
-	}
-}
-
-// autoflusher waits for notification of a flush and kicks it off in the background.
-// This method runs in a separate goroutine.
-func (l *Log) autoflusher(closing chan struct{}) {
-	defer l.wg.Done()
-
-	for {
-		// Wait for close or flush signal.
-		select {
-		case <-closing:
-			return
-		case <-l.flushCheckTimer.C:
-			l.triggerAutoFlush()
-			l.flushCheckTimer.Reset(l.flushCheckInterval)
-		}
-	}
 }
 
 // segmentFileNames will return all files that are WAL segment files in sorted order by ascending ID
