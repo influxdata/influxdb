@@ -84,17 +84,19 @@ type Engine struct {
 
 	WAL *Log
 
-	RotateFileSize         uint32
-	SkipCompaction         bool
-	CompactionAge          time.Duration
-	CompactionFileCount    int
-	IndexCompactionFullAge time.Duration
+	RotateFileSize                 uint32
+	SkipCompaction                 bool
+	CompactionAge                  time.Duration
+	CompactionFileCount            int
+	IndexCompactionFullAge         time.Duration
+	IndexMinimumCompactionInterval time.Duration
 
 	// filesLock is only for modifying and accessing the files slice
-	filesLock         sync.RWMutex
-	files             dataFiles
-	currentFileID     int
-	compactionRunning bool
+	filesLock          sync.RWMutex
+	files              dataFiles
+	currentFileID      int
+	compactionRunning  bool
+	lastCompactionTime time.Time
 
 	collisionsLock sync.RWMutex
 	collisions     map[string]uint64
@@ -117,12 +119,13 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		writeLock: &writeLock{},
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
-		HashSeriesField:        hashSeriesField,
-		WAL:                    w,
-		RotateFileSize:         DefaultRotateFileSize,
-		CompactionAge:          opt.Config.IndexCompactionAge,
-		CompactionFileCount:    opt.Config.IndexCompactionFileCount,
-		IndexCompactionFullAge: opt.Config.IndexCompactionFullAge,
+		HashSeriesField:                hashSeriesField,
+		WAL:                            w,
+		RotateFileSize:                 DefaultRotateFileSize,
+		CompactionAge:                  opt.Config.IndexCompactionAge,
+		CompactionFileCount:            opt.Config.IndexCompactionFileCount,
+		IndexCompactionFullAge:         opt.Config.IndexCompactionFullAge,
+		IndexMinimumCompactionInterval: opt.Config.IndexMinimumCompactionInterval,
 	}
 	e.WAL.Index = e
 
@@ -136,15 +139,12 @@ func (e *Engine) Path() string { return e.path }
 func (e *Engine) PerformMaintenance() {
 	if f := e.WAL.shouldFlush(); f != noFlush {
 		go func() {
-			fmt.Println("maintenance autoflush")
 			e.WAL.flush(f)
-			if time.Since(e.WAL.lastWriteTime) > e.IndexCompactionFullAge {
-				fmt.Println("mainenance compact autoflush")
+			if e.shouldCompact() {
 				e.Compact(true)
 			}
 		}()
-	} else if time.Since(e.WAL.lastWriteTime) > e.IndexCompactionFullAge {
-		fmt.Println("compact full, suckas")
+	} else if e.shouldCompact() {
 		go e.Compact(true)
 	}
 }
@@ -418,7 +418,11 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	var minTime, maxTime int64
 	var files dataFiles
 	for {
-		files = e.filesToCompact()
+		if fullCompaction {
+			files = e.copyFilesCollection()
+		} else {
+			files = e.filesToCompact()
+		}
 		if len(files) < 2 {
 			return nil
 		}
@@ -429,7 +433,13 @@ func (e *Engine) Compact(fullCompaction bool) error {
 
 		// if the files are different after obtaining the write lock, one or more
 		// was rewritten. Release the lock and try again. This shouldn't happen really.
-		if !reflect.DeepEqual(files, e.filesToCompact()) {
+		var filesAfterLock dataFiles
+		if fullCompaction {
+			filesAfterLock = e.copyFilesCollection()
+		} else {
+			filesAfterLock = e.filesToCompact()
+		}
+		if !reflect.DeepEqual(files, filesAfterLock) {
 			e.writeLock.UnlockRange(minTime, maxTime)
 			continue
 		}
@@ -438,6 +448,9 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		break
 	}
 
+	fmt.Println("Starting compaction with files:", len(files))
+	st := time.Now()
+
 	// mark the compaction as running
 	e.filesLock.Lock()
 	e.compactionRunning = true
@@ -445,15 +458,10 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	defer func() {
 		//release the lock
 		e.writeLock.UnlockRange(minTime, maxTime)
-
-		// see if we should run aonther compaction
-		if e.shouldCompact() {
-			go e.Compact(false)
-		} else {
-			e.filesLock.Lock()
-			e.compactionRunning = false
-			e.filesLock.Unlock()
-		}
+		e.filesLock.Lock()
+		e.lastCompactionTime = time.Now()
+		e.compactionRunning = false
+		e.filesLock.Unlock()
 	}()
 
 	positions := make([]uint32, len(files))
@@ -586,6 +594,8 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	e.files = newFiles
 	e.filesLock.Unlock()
 
+	fmt.Println("Compaction took ", time.Since(st))
+
 	// delete the old files in a goroutine so running queries won't block the write
 	// from completing
 	e.deletesPending.Add(1)
@@ -651,8 +661,9 @@ func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, id
 func (e *Engine) shouldCompact() bool {
 	e.filesLock.RLock()
 	running := e.compactionRunning
+	since := time.Since(e.lastCompactionTime)
 	e.filesLock.RUnlock()
-	if running {
+	if running || since < e.IndexMinimumCompactionInterval {
 		return false
 	}
 	return len(e.filesToCompact()) >= e.CompactionFileCount
@@ -662,7 +673,7 @@ func (e *Engine) filesToCompact() dataFiles {
 	e.filesLock.RLock()
 	defer e.filesLock.RUnlock()
 
-	a := make([]*dataFile, 0)
+	var a dataFiles
 	for _, df := range e.files {
 		if time.Since(df.modTime) > e.CompactionAge && df.size < MaxDataFileSize {
 			a = append(a, df)
