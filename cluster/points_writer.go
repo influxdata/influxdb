@@ -40,7 +40,7 @@ const (
 	// ConsistencyLevelOne requires at least one data node acknowledged a write
 	ConsistencyLevelOne
 
-	// ConsistencyLevelOne requires a quorum of data nodes to acknowledge a write
+	// ConsistencyLevelQuorum requires a quorum of data nodes to acknowledge a write
 	ConsistencyLevelQuorum
 
 	// ConsistencyLevelAll requires all data nodes to acknowledge a write
@@ -63,6 +63,7 @@ var (
 	ErrInvalidConsistencyLevel = errors.New("invalid consistency level")
 )
 
+// ParseConsistencyLevel converts a consistency level string to the corresponding ConsistencyLevel const
 func ParseConsistencyLevel(level string) (ConsistencyLevel, error) {
 	switch strings.ToLower(level) {
 	case "any":
@@ -144,6 +145,7 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
+// Open opens the communication channel with the point writer
 func (w *PointsWriter) Open() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -153,6 +155,7 @@ func (w *PointsWriter) Open() error {
 	return nil
 }
 
+// Close closes the communication channel with the point writer
 func (w *PointsWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -327,7 +330,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 				continue
 			}
 
-			wrote += 1
+			wrote++
 
 			// We wrote the required consistency level
 			if wrote >= required {
