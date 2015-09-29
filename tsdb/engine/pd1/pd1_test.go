@@ -634,28 +634,51 @@ func TestEngine_WriteManyPointsToSingleSeries(t *testing.T) {
 	}
 }
 
-func TestEngine_WriteIndexBenchmarkNames(t *testing.T) {
-	t.Skip("whatevs")
-
+func TestEngine_WritePointsInMultipleRequestsWithSameTime(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Cleanup()
 
-	var points []models.Point
-	for i := 0; i < 100000; i++ {
-		points = append(points, parsePoint(fmt.Sprintf("cpu%d value=22.1", i)))
-	}
+	fields := []string{"value"}
 
-	st := time.Now()
-	if err := e.WritePoints(points, nil, nil); err != nil {
+	e.WAL.SkipCache = false
+
+	if err := e.WritePoints([]models.Point{parsePoint("foo value=1 0")}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
-	fmt.Println("took: ", time.Since(st))
-
-	st = time.Now()
-	if err := e.WritePoints(points, nil, nil); err != nil {
+	if err := e.WritePoints([]models.Point{parsePoint("foo value=2 0")}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
-	fmt.Println("took: ", time.Since(st))
+	if err := e.WritePoints([]models.Point{parsePoint("foo value=3 0")}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify := func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("foo", fields, nil, true)
+		k, v := c.SeekTo(0)
+		if k != 0 {
+			t.Fatalf("expected 0 time but got %d", k)
+		}
+		if v != float64(3) {
+			t.Fatalf("expected 3 for value but got %f", v.(float64))
+		}
+		k, _ = c.Next()
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF")
+		}
+	}
+
+	verify()
+
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	verify()
 }
 
 // Engine represents a test wrapper for pd1.Engine.
