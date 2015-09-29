@@ -330,8 +330,17 @@ func (s *Store) performMaintenance() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, sh := range s.shards {
-		sh.PerformMaintenance()
+		s.performMaintenanceOnShard(sh)
 	}
+}
+
+func (s *Store) performMaintenanceOnShard(shard *Shard) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.Logger.Printf("recovered eror in maintenance on shard %d", shard.id)
+		}
+	}()
+	shard.PerformMaintenance()
 }
 
 func (s *Store) Open() error {
