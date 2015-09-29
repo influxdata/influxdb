@@ -1110,36 +1110,44 @@ func (e *Engine) SeriesCount() (n int, err error) {
 // Begin starts a new transaction on the engine.
 func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 	e.queryLock.RLock()
-	return e, nil
-}
 
-// TODO: handle multiple fields and descending
-func (e *Engine) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
-	files := e.copyFilesCollection()
+	var files dataFiles
 
-	// don't add the overhead of the multifield cursor if we only have one field
-	if len(fields) == 1 {
-		id := e.keyAndFieldToID(series, fields[0])
-		indexCursor := newCursor(id, files, ascending)
-		wc := e.WAL.Cursor(series, fields, dec, ascending)
-		return NewCombinedEngineCursor(wc, indexCursor, ascending)
+	// we do this to ensure that the data files haven't been deleted from a compaction
+	// while we were waiting to get the query lock
+	for {
+		files = e.copyFilesCollection()
+
+		// get the query lock
+		for _, f := range files {
+			f.mu.RLock()
+		}
+
+		// ensure they're all still open
+		reset := false
+		for _, f := range files {
+			if f.f == nil {
+				reset = true
+				break
+			}
+		}
+
+		// if not, release and try again
+		if reset {
+			for _, f := range files {
+				f.mu.RUnlock()
+			}
+			continue
+		}
+
+		// we're good to go
+		break
 	}
 
-	// multiple fields. use just the MultiFieldCursor, which also handles time collisions
-	// so we don't need to use the combined cursor
-	cursors := make([]tsdb.Cursor, 0)
-	cursorFields := make([]string, 0)
-	for _, field := range fields {
-		id := e.keyAndFieldToID(series, field)
-		indexCursor := newCursor(id, files, ascending)
-		wc := e.WAL.Cursor(series, []string{field}, dec, ascending)
-		// double up the fields since there's one for the wal and one for the index
-		cursorFields = append(cursorFields, field, field)
-		cursors = append(cursors, indexCursor, wc)
-	}
-
-	return NewMultiFieldCursor(cursorFields, cursors, ascending)
+	return &tx{files: files, engine: e}, nil
 }
+
+func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 func (e *Engine) keyAndFieldToID(series, field string) uint64 {
 	// get the ID for the key and be sure to check if it had hash collision before
@@ -1160,15 +1168,6 @@ func (e *Engine) copyFilesCollection() []*dataFile {
 	a := make([]*dataFile, len(e.files))
 	copy(a, e.files)
 	return a
-}
-
-// TODO: refactor the Tx interface to not have Size, Commit, or WriteTo since they're not used
-func (e *Engine) Size() int64                              { panic("not implemented") }
-func (e *Engine) Commit() error                            { panic("not implemented") }
-func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
-func (e *Engine) Rollback() error {
-	e.queryLock.RUnlock()
-	return nil
 }
 
 func (e *Engine) writeNewFields(measurementFieldsToSave map[string]*tsdb.MeasurementFields) error {
@@ -1403,7 +1402,12 @@ func (d *dataFile) Delete() error {
 	if err := d.close(); err != nil {
 		return err
 	}
-	return os.Remove(d.f.Name())
+	err := os.Remove(d.f.Name())
+	if err != nil {
+		return err
+	}
+	d.f = nil
+	return nil
 }
 
 func (d *dataFile) close() error {
