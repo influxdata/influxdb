@@ -41,7 +41,7 @@ func (e *int64Encoder) Bytes() ([]byte, error) {
 }
 
 func (e *int64Encoder) encodePacked() ([]byte, error) {
-	encoded, err := simple8b.Encode(e.values)
+	encoded, err := simple8b.EncodeAll(e.values)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (d *int64Decoder) decodePacked() {
 	}
 
 	v := binary.BigEndian.Uint64(d.bytes[0:8])
-	n, _ := simple8b.DecodeSingle(d.values, v)
+	n, _ := simple8b.Decode(d.values, v)
 
 	d.n = n
 	d.i = 0
