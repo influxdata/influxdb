@@ -177,13 +177,12 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 			copy(c, fc)
 			c = append(c, values...)
 
-			return newWALCursor(c, ascending)
+			return newWALCursor(Values(c).Deduplicate(), ascending)
 		}
 	}
 
 	if l.cacheDirtySort[ck] {
-		sort.Sort(values)
-		delete(l.cacheDirtySort, ck)
+		values = Values(values).Deduplicate()
 	}
 
 	// build a copy so writes afterwards don't change the result set
