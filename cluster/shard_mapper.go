@@ -163,10 +163,12 @@ func (r *RemoteMapper) Open() (err error) {
 	return nil
 }
 
+// TagSets returns the TagSets
 func (r *RemoteMapper) TagSets() []string {
 	return r.tagsets
 }
 
+// Fields returns RemoteMapper's Fields
 func (r *RemoteMapper) Fields() []string {
 	return r.fields
 }

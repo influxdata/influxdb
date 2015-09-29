@@ -16,12 +16,22 @@ type MapShardRequest struct {
 	pb internal.MapShardRequest
 }
 
-func (m *MapShardRequest) ShardID() uint64  { return m.pb.GetShardID() }
-func (m *MapShardRequest) Query() string    { return m.pb.GetQuery() }
+// ShardID of the storage
+func (m *MapShardRequest) ShardID() uint64 { return m.pb.GetShardID() }
+
+// Query returns the protocol buffers' query string
+func (m *MapShardRequest) Query() string { return m.pb.GetQuery() }
+
+// ChunkSize - proto buff's chunk size
 func (m *MapShardRequest) ChunkSize() int32 { return m.pb.GetChunkSize() }
 
-func (m *MapShardRequest) SetShardID(id uint64)         { m.pb.ShardID = &id }
-func (m *MapShardRequest) SetQuery(query string)        { m.pb.Query = &query }
+// SetShardID sets the shard id
+func (m *MapShardRequest) SetShardID(id uint64) { m.pb.ShardID = &id }
+
+// SetQuery sets the proto buffs query
+func (m *MapShardRequest) SetQuery(query string) { m.pb.Query = &query }
+
+// SetChunkSize sets the proto buffs chunk size
 func (m *MapShardRequest) SetChunkSize(chunkSize int32) { m.pb.ChunkSize = &chunkSize }
 
 // MarshalBinary encodes the object to a binary format.
@@ -42,6 +52,7 @@ type MapShardResponse struct {
 	pb internal.MapShardResponse
 }
 
+// NewMapShardResponse returns the response returned from a remote MapShardRequest call
 func NewMapShardResponse(code int, message string) *MapShardResponse {
 	m := &MapShardResponse{}
 	m.SetCode(code)
@@ -49,17 +60,35 @@ func NewMapShardResponse(code int, message string) *MapShardResponse {
 	return m
 }
 
-func (r *MapShardResponse) Code() int         { return int(r.pb.GetCode()) }
-func (r *MapShardResponse) Message() string   { return r.pb.GetMessage() }
-func (r *MapShardResponse) TagSets() []string { return r.pb.GetTagSets() }
-func (r *MapShardResponse) Fields() []string  { return r.pb.GetFields() }
-func (r *MapShardResponse) Data() []byte      { return r.pb.GetData() }
+// Code returns the proto buff code
+func (r *MapShardResponse) Code() int { return int(r.pb.GetCode()) }
 
-func (r *MapShardResponse) SetCode(code int)            { r.pb.Code = proto.Int32(int32(code)) }
-func (r *MapShardResponse) SetMessage(message string)   { r.pb.Message = &message }
+// Message returns the proto buff Message
+func (r *MapShardResponse) Message() string { return r.pb.GetMessage() }
+
+// TagSets returns the proto buff tag sets
+func (r *MapShardResponse) TagSets() []string { return r.pb.GetTagSets() }
+
+// Fields returns the proto buff Fields
+func (r *MapShardResponse) Fields() []string { return r.pb.GetFields() }
+
+// Data returns the proto buff Data
+func (r *MapShardResponse) Data() []byte { return r.pb.GetData() }
+
+// SetCode sets the proto buff code
+func (r *MapShardResponse) SetCode(code int) { r.pb.Code = proto.Int32(int32(code)) }
+
+// SetMessage sets the proto buff message
+func (r *MapShardResponse) SetMessage(message string) { r.pb.Message = &message }
+
+// SetTagSets sets the proto buff tagsets
 func (r *MapShardResponse) SetTagSets(tagsets []string) { r.pb.TagSets = tagsets }
-func (r *MapShardResponse) SetFields(fields []string)   { r.pb.Fields = fields }
-func (r *MapShardResponse) SetData(data []byte)         { r.pb.Data = data }
+
+// SetFields sets the proto buff Fields
+func (r *MapShardResponse) SetFields(fields []string) { r.pb.Fields = fields }
+
+// SetData sets the proto buff Data
+func (r *MapShardResponse) SetData(data []byte) { r.pb.Data = data }
 
 // MarshalBinary encodes the object to a binary format.
 func (r *MapShardResponse) MarshalBinary() ([]byte, error) {
@@ -99,17 +128,23 @@ type WriteShardResponse struct {
 	pb internal.WriteShardResponse
 }
 
+// SetShardID sets the ShardID
 func (w *WriteShardRequest) SetShardID(id uint64) { w.pb.ShardID = &id }
-func (w *WriteShardRequest) ShardID() uint64      { return w.pb.GetShardID() }
 
+// ShardID gets the ShardID
+func (w *WriteShardRequest) ShardID() uint64 { return w.pb.GetShardID() }
+
+// Points returns the time series Points
 func (w *WriteShardRequest) Points() []models.Point { return w.unmarshalPoints() }
 
+// AddPoint adds a new time series point
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
 	w.AddPoints([]models.Point{models.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
 	)})
 }
 
+// AddPoints adds a new time series point
 func (w *WriteShardRequest) AddPoints(points []models.Point) {
 	for _, p := range points {
 		w.pb.Points = append(w.pb.Points, []byte(p.String()))
@@ -144,10 +179,16 @@ func (w *WriteShardRequest) unmarshalPoints() []models.Point {
 	return points
 }
 
-func (w *WriteShardResponse) SetCode(code int)          { w.pb.Code = proto.Int32(int32(code)) }
+// SetCode sets the Code
+func (w *WriteShardResponse) SetCode(code int) { w.pb.Code = proto.Int32(int32(code)) }
+
+// SetMessage sets the Message
 func (w *WriteShardResponse) SetMessage(message string) { w.pb.Message = &message }
 
-func (w *WriteShardResponse) Code() int       { return int(w.pb.GetCode()) }
+// Code returns the Code
+func (w *WriteShardResponse) Code() int { return int(w.pb.GetCode()) }
+
+// Message returns the Message
 func (w *WriteShardResponse) Message() string { return w.pb.GetMessage() }
 
 // MarshalBinary encodes the object to a binary format.

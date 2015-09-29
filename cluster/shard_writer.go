@@ -35,6 +35,7 @@ func NewShardWriter(timeout time.Duration) *ShardWriter {
 	}
 }
 
+// WriteShard writes time series points to a shard
 func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point) error {
 	c, err := w.dial(ownerID)
 	if err != nil {
@@ -88,22 +89,23 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point)
 	return nil
 }
 
-func (c *ShardWriter) dial(nodeID uint64) (net.Conn, error) {
+func (w *ShardWriter) dial(nodeID uint64) (net.Conn, error) {
 	// If we don't have a connection pool for that addr yet, create one
-	_, ok := c.pool.getPool(nodeID)
+	_, ok := w.pool.getPool(nodeID)
 	if !ok {
-		factory := &connFactory{nodeID: nodeID, clientPool: c.pool, timeout: c.timeout}
-		factory.metaStore = c.MetaStore
+		factory := &connFactory{nodeID: nodeID, clientPool: w.pool, timeout: w.timeout}
+		factory.metaStore = w.MetaStore
 
 		p, err := pool.NewChannelPool(1, 3, factory.dial)
 		if err != nil {
 			return nil, err
 		}
-		c.pool.setPool(nodeID, p)
+		w.pool.setPool(nodeID, p)
 	}
-	return c.pool.conn(nodeID)
+	return w.pool.conn(nodeID)
 }
 
+// Close closes ShardWriter's pool
 func (w *ShardWriter) Close() error {
 	if w.pool == nil {
 		return fmt.Errorf("client already closed")
