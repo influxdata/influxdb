@@ -406,6 +406,8 @@ func (s *Server) executeShutdown(c <-chan struct{}) {
 				os.Exit(1)
 			}
 			os.Exit(0)
+		case <-s.closing:
+			return
 		}
 	}
 }
