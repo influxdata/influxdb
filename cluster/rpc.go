@@ -16,22 +16,22 @@ type MapShardRequest struct {
 	pb internal.MapShardRequest
 }
 
-// ShardID of the storage
+// ShardID of the map request
 func (m *MapShardRequest) ShardID() uint64 { return m.pb.GetShardID() }
 
-// Query returns the protocol buffers' query string
+// Query returns the Shard map request's query
 func (m *MapShardRequest) Query() string { return m.pb.GetQuery() }
 
-// ChunkSize - proto buff's chunk size
+// ChunkSize returns Shard map request's chunk size
 func (m *MapShardRequest) ChunkSize() int32 { return m.pb.GetChunkSize() }
 
-// SetShardID sets the shard id
+// SetShardID sets the map request's shard id
 func (m *MapShardRequest) SetShardID(id uint64) { m.pb.ShardID = &id }
 
-// SetQuery sets the proto buffs query
+// SetQuery sets the Shard map request's Query
 func (m *MapShardRequest) SetQuery(query string) { m.pb.Query = &query }
 
-// SetChunkSize sets the proto buffs chunk size
+// SetChunkSize sets the Shard map request's chunk size
 func (m *MapShardRequest) SetChunkSize(chunkSize int32) { m.pb.ChunkSize = &chunkSize }
 
 // MarshalBinary encodes the object to a binary format.
@@ -60,34 +60,34 @@ func NewMapShardResponse(code int, message string) *MapShardResponse {
 	return m
 }
 
-// Code returns the proto buff code
+// Code returns the Shard map response's code
 func (r *MapShardResponse) Code() int { return int(r.pb.GetCode()) }
 
-// Message returns the proto buff Message
+// Message returns the the Shard map response's Message
 func (r *MapShardResponse) Message() string { return r.pb.GetMessage() }
 
-// TagSets returns the proto buff tag sets
+// TagSets returns Shard map response's tag sets
 func (r *MapShardResponse) TagSets() []string { return r.pb.GetTagSets() }
 
-// Fields returns the proto buff Fields
+// Fields returns the Shard map response's Fields
 func (r *MapShardResponse) Fields() []string { return r.pb.GetFields() }
 
-// Data returns the proto buff Data
+// Data returns the Shard map response's Data
 func (r *MapShardResponse) Data() []byte { return r.pb.GetData() }
 
-// SetCode sets the proto buff code
+// SetCode sets the Shard map response's code
 func (r *MapShardResponse) SetCode(code int) { r.pb.Code = proto.Int32(int32(code)) }
 
-// SetMessage sets the proto buff message
+// SetMessage sets Shard map response's message
 func (r *MapShardResponse) SetMessage(message string) { r.pb.Message = &message }
 
-// SetTagSets sets the proto buff tagsets
+// SetTagSets sets Shard map response's tagsets
 func (r *MapShardResponse) SetTagSets(tagsets []string) { r.pb.TagSets = tagsets }
 
-// SetFields sets the proto buff Fields
+// SetFields sets the Shard map response's Fields
 func (r *MapShardResponse) SetFields(fields []string) { r.pb.Fields = fields }
 
-// SetData sets the proto buff Data
+// SetData sets the Shard map response's Data
 func (r *MapShardResponse) SetData(data []byte) { r.pb.Data = data }
 
 // MarshalBinary encodes the object to a binary format.
