@@ -576,8 +576,8 @@ func (s *Store) Ready() <-chan struct{} { return s.ready }
 // Err returns a channel for all out-of-band errors.
 func (s *Store) Err() <-chan error { return s.err }
 
-// ExecuteShutdown returns a channel to monitor when this node has been told to shut down remotely
-func (s *Store) ExecuteShutdown() <-chan struct{} { return s.shutdown }
+// MonitorShutdown returns a channel to monitor when this node has been told to shut down remotely
+func (s *Store) MonitorShutdown() <-chan struct{} { return s.shutdown }
 
 // IsLeader returns true if the store is currently the leader.
 func (s *Store) IsLeader() bool {

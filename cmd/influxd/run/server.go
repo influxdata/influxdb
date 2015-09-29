@@ -383,7 +383,7 @@ func (s *Server) Open() error {
 		}
 
 		// Watch the meta store for a remote shutdown
-		go s.executeShutdown(s.MetaStore.ExecuteShutdown())
+		go s.monitorShutdown(s.MetaStore.MonitorShutdown())
 
 		return nil
 
@@ -395,7 +395,7 @@ func (s *Server) Open() error {
 	return nil
 }
 
-func (s *Server) executeShutdown(c <-chan struct{}) {
+func (s *Server) monitorShutdown(c <-chan struct{}) {
 	// TODO corylanou stop the server from coming back up
 	for {
 		select {
