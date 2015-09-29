@@ -1,5 +1,25 @@
 package pd1
 
+// Int64 encoding uses two different strategies depending on the range of values in
+// the uncompressed data.  Encoded values are first encoding used zig zag encoding.
+// This interleaves postiive and negative integers across a range of positive integers.
+//
+// For example, [-2,-1,0,1] becomes [3,1,0,2]. See
+// https://developers.google.com/protocol-buffers/docs/encoding?hl=en#signed-integers
+// for more information.
+//
+// If all the zig zag encoded values less than 1 << 60 - 1, they are compressed using
+// simple8b encoding.  If any values is larger than 1 << 60 - 1, the values are stored uncompressed.
+//
+// Each encoded byte slice, contains a 1 byte header followed by multiple 8 byte packed integers
+// or 8 byte uncompressed integers.  The 4 high bits of the first byte indicate the encoding type
+// for the remaining bytes.
+//
+// There are currently two encoding types that can be used with room for 15 more.  These additional
+// encoding slots are reserved for future use.  One improvement to to be made is to use a patched
+// encoding such as PFOR if only a small number of values exceed the max compressed value range.  This
+// should improve compression ratios with very integers near the ends of the int64 range.
+
 import (
 	"encoding/binary"
 	"fmt"
