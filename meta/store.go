@@ -1052,8 +1052,6 @@ func (s *Store) DropRetentionPolicy(database, name string) error {
 	)
 }
 
-// FIX: CreateRetentionPolicyIfNotExists(database string, rp *RetentionPolicyInfo) (*RetentionPolicyInfo, error)
-
 // CreateShardGroup creates a new shard group in a retention policy for a given time.
 func (s *Store) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
 	if err := s.exec(internal.Command_CreateShardGroupCommand, internal.E_CreateShardGroupCommand_Command,
