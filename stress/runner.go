@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"math/rand"
 	"net/url"
 	"strings"
 	"sync"
@@ -183,7 +184,15 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 				p, ok := iter.Next()
 				for ok {
 					ctr++
-					points = append(points, p)
+					// add jitter
+					if cfg.Write.Jitter != 0 {
+						rnd := rand.Intn(cfg.Write.Jitter)
+						if rnd%2 == 0 {
+							rnd = -1 * rnd
+						}
+						p.Time = p.Time.Add(time.Duration(rnd))
+					}
+					points = append(points, *p)
 					if len(points) >= cfg.Write.BatchSize {
 						ch <- points
 						points = []client.Point{}

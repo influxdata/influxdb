@@ -48,6 +48,7 @@ type write struct {
 	StartingPoint int    `toml:"starting_point"`
 	Address       string `toml:"address"`
 	Precision     string `toml:"precision"`
+	Jitter        int    `toml:"jitter"`
 }
 
 // query is a struct that contains the logic for
@@ -221,7 +222,7 @@ func (s *series) newFieldMap() map[string]interface{} {
 
 // Next returns a new point for a series.
 // Currently, there is an off by one bug here.
-func (iter *seriesIter) Next() (client.Point, bool) {
+func (iter *seriesIter) Next() (*client.Point, bool) {
 	iter.count++
 	p := client.Point{
 		Measurement: iter.s.Measurement,
@@ -230,5 +231,5 @@ func (iter *seriesIter) Next() (client.Point, bool) {
 		Time:        iter.timestamp,
 	}
 	b := iter.count < iter.s.SeriesCount
-	return p, b
+	return &p, b
 }
