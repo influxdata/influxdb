@@ -16,7 +16,6 @@ import (
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/internal"
 
-	"github.com/boltdb/bolt"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -49,7 +48,6 @@ var (
 // Data can be split across many shards. The query engine in TSDB is responsible
 // for combining the output of many shards into a single query result.
 type Shard struct {
-	db      *bolt.DB // underlying data store
 	index   *DatabaseIndex
 	path    string
 	walPath string

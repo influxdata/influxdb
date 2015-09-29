@@ -140,9 +140,6 @@ func (e *Engine) PerformMaintenance() {
 	if f := e.WAL.shouldFlush(); f != noFlush {
 		go func() {
 			e.WAL.flush(f)
-			if e.shouldCompact() {
-				e.Compact(true)
-			}
 		}()
 	} else if e.shouldCompact() {
 		go e.Compact(true)
