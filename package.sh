@@ -521,11 +521,12 @@ COMMON_FPM_ARGS="\
 --after-install $POST_INSTALL_PATH \
 --after-remove $POST_UNINSTALL_PATH \
 --name influxdb \
+--description "$DESCRIPTION" \
 --config-files $CONFIG_ROOT_DIR \
 --config-files $LOGROTATE_DIR"
 
 if [ -n "$DEB_WANTED" ]; then
-    $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS --version `full_version $VERSION $RC` .
+    $FPM -s dir -t deb $deb_args $COMMON_FPM_ARGS --version `full_version $VERSION $RC` .
     if [ $? -ne 0 ]; then
         echo "Failed to create Debian package -- aborting."
         cleanup_exit 1
@@ -534,7 +535,7 @@ if [ -n "$DEB_WANTED" ]; then
 fi
 
 if [ -n "$TAR_WANTED" ]; then
-    $FPM -s dir -t tar --prefix influxdb_`full_version $VERSION $RC`_${ARCH} -p influxdb_`full_version $VERSION $RC`_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS --version `full_version $VERSION $RC ` .
+    $FPM -s dir -t tar --prefix influxdb_`full_version $VERSION $RC`_${ARCH} -p influxdb_`full_version $VERSION $RC`_${ARCH}.tar.gz $COMMON_FPM_ARGS --version `full_version $VERSION $RC ` .
     if [ $? -ne 0 ]; then
         echo "Failed to create Tar package -- aborting."
         cleanup_exit 1
@@ -543,7 +544,7 @@ if [ -n "$TAR_WANTED" ]; then
 fi
 
 if [ -n "$RPM_WANTED" ]; then
-    $rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS --depends coreutils --version $VERSION --iteration `rpm_release $RC` .
+    $rpm_args $FPM -s dir -t rpm $COMMON_FPM_ARGS --depends coreutils --version $VERSION --iteration `rpm_release $RC` .
     if [ $? -ne 0 ]; then
         echo "Failed to create RPM package -- aborting."
         cleanup_exit 1
