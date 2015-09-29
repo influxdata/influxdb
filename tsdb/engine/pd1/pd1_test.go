@@ -363,6 +363,8 @@ func TestEngine_Compaction(t *testing.T) {
 		}
 	}
 
+	verify("cpu,host=A", []models.Point{p1, p3, p5, p7}, 0)
+	verify("cpu,host=B", []models.Point{p2, p4, p6, p8}, 0)
 	if err := e.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}

@@ -45,9 +45,9 @@ const (
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 
 	// Default WAL settings for the PD1 WAL
-	DefaultFlushMemorySizeThreshold = 10 * 1024 * 1024  // 10MB
-	DefaultMaxMemorySizeThreshold   = 200 * 1024 * 1024 // 200MB
-	DefaultIndexCompactionAge       = 10 * time.Minute
+	DefaultFlushMemorySizeThreshold = 5 * 1024 * 1024   // 5MB
+	DefaultMaxMemorySizeThreshold   = 100 * 1024 * 1024 // 100MB
+	DefaultIndexCompactionAge       = time.Minute
 	DefaultIndexCompactionFileCount = 5
 )
 
