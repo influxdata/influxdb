@@ -326,10 +326,6 @@ if [ -d $INSTALL_ROOT_DIR ]; then
     rm -r "$INSTALL_ROOT_DIR"
 fi
 
-id influxdb 2>/dev/null 1>/dev/null
-if [ $? -eq 0 ]; then
-    userdel -r influxdb
-fi
 EOF
     echo "Post-uninstall script created successfully at $POST_UNINSTALL_PATH"
 }
