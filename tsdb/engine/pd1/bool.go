@@ -1,5 +1,10 @@
 package pd1
 
+// bool encoding uses 1 bit per value.  Each compressed byte slice contains a 1 byte header
+// indicating the compression type, followed by a variable byte encoded length indicating
+// how many booleans are packed in the slice.  The remaining bytes contains 1 byte for every
+// 8 boolean values encoded.
+
 import "encoding/binary"
 
 type BoolEncoder interface {

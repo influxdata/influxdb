@@ -1,12 +1,39 @@
-// Package timestamp provides structs and functions for converting streams of timestamps
-// to byte slices.
-//
-// The encoding is adapative based on structure of the timestamps that are encoded.  By default,
-// a bit-packed format that compresses multiple 64bit timestamps into a single 64bit word is used.
-// If the values are too large to be compressed using the bit-packed format, it will fall back to
-// a raw 8byte per timestamp format.  If the the values can be run-length encoded, based on the
-// differences between consectutive values, a shorter, variable sized RLE format is used.
 package pd1
+
+// Timestamp encoding is adapative and based on structure of the timestamps that are encoded.  It
+// uses a combination of delta encoding, zig zag encoding, scaling and compression using simple8b,
+// run length encoding as well as falling back to no compression if needed.
+//
+// Timestamp values to be encoded should be sorted before encoding.  When encoded, the values are
+// first delta-encoded.  The first value is the starting timestamp, subsequent values are the difference.
+// from the prior value.
+//
+// Delta encoding can produce negative values.  After delta encoding, the values are zig zag encoded
+// to convert them to positive values.
+//
+// Timestamp resolution can also be in the nanosecond.  Many timestamps are monotonically increasing
+// and fall on even boundaries of time such as every 10s.  When the timestamps have this structure,
+// they are scaled by the largest common divisor that is also a factor of 10.  This has the effect
+// of converting very large integer deltas into very small one that can be reversed by multiplying them
+// by the scaling factor.
+//
+// Using these adjusted values, if all the deltas are the same, the time range is stored using run
+// length encoding.  If run length encoding is not possible and all values are less than 1 << 60 - 1
+//  (~36.5 yrs in nanosecond resolution), then the timestamps are encoded using simple8b encoding.  If
+// any value exceeds the maximum values, the deltas are stored uncompressed using 8b each.
+//
+// Each compressed byte slice has a 1 byte header indicating the compression type.  The 4 high bits
+// indicated the encoding type.  The 4 low bits are using by the encoding type.
+//
+// For run length encoding, the 4 low bits store the log10 of the scaling factor.  The next 8 bytes are
+// the starting timestamp, next 1-10 bytes is the delta value using variable-length encoding, finally the
+// next 1-10 bytes is the count of values.
+//
+// For simple8b encoding, the 4 low bits store the log10 of the scaling factor.  The next 8 bytes is the
+// first delta value stored uncompressed, the remaining bytes are 64bit words containg compressed delta
+// values.
+//
+// For uncompressed encoding, the delta values are stored using 8 bytes each.
 
 import (
 	"encoding/binary"
