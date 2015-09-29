@@ -10,6 +10,7 @@
 - [#4196](https://github.com/influxdb/influxdb/pull/4196): Export tsdb.Iterator
 - [#4198](https://github.com/influxdb/influxdb/pull/4198): Add basic cluster-service stats
 - [#4262](https://github.com/influxdb/influxdb/pull/4262): Allow configuration of UDP retention policy
+- [#4265](https://github.com/influxdb/influxdb/pull/4265): Add statistics for Hinted-Handoff
 
 ### Bugfixes
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
