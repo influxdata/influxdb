@@ -22,6 +22,9 @@ const (
 	// EncodingBitPacked is a basic bit-packed format
 	EncodingBitPacked = 3
 
+	// EncodingSnappy is a snappy encoded format
+	EncodingSnappy = 4
+
 	// BlockFloat64 designates a block encodes float64 values
 	BlockFloat64 = 0
 
@@ -50,8 +53,8 @@ func NewValue(t time.Time, value interface{}) Value {
 		return &FloatValue{time: t, value: v}
 	case bool:
 		return &BoolValue{time: t, value: v}
-		// case string:
-		// 	return &StringValue{time: t, value: v}
+	case string:
+		return &StringValue{time: t, value: v}
 	}
 	return &EmptyValue{}
 }
@@ -100,7 +103,12 @@ func (v Values) Encode(buf []byte) []byte {
 		}
 		return encodeBoolBlock(buf, a)
 
-		// TODO: add support for other types
+	case *StringValue:
+		a := make([]*StringValue, len(v))
+		for i, vv := range v {
+			a[i] = vv.(*StringValue)
+		}
+		return encodeStringBlock(buf, a)
 	}
 
 	return nil
@@ -116,6 +124,9 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 		return a
 	case *BoolValue:
 		a, _ := decodeBoolBlock(block)
+		return a
+	case *StringValue:
+		a, _ := decodeStringBlock(block)
 		return a
 	}
 	return nil
@@ -137,7 +148,7 @@ func DecodeBlock(block []byte) (Values, error) {
 	case BlockBool:
 		return decodeBoolBlock(block)
 	case BlockString:
-		// return decodeStringBlock(block)
+		return decodeStringBlock(block)
 	default:
 	}
 
@@ -423,8 +434,75 @@ type StringValue struct {
 	value string
 }
 
-func encodeStringBlock(buf []byte, blockType byte, values []StringValue) []byte {
-	return nil
+func (v *StringValue) Time() time.Time {
+	return v.time
+}
+
+func (v *StringValue) Value() interface{} {
+	return v.value
+}
+
+func (v *StringValue) UnixNano() int64 {
+	return v.time.UnixNano()
+}
+
+func (v *StringValue) Size() int {
+	return 8 + len(v.value)
+}
+
+func (v *StringValue) String() string { return v.value }
+
+func encodeStringBlock(buf []byte, values []*StringValue) []byte {
+	tsEnc := NewTimeEncoder()
+	vEnc := NewStringEncoder()
+	for _, v := range values {
+		tsEnc.Write(v.Time())
+		vEnc.Write(v.value)
+	}
+
+	// Encoded timestamp values
+	tb, err := tsEnc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+	// Encoded int64 values
+	vb, err := vEnc.Bytes()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Preprend the first timestamp of the block in the first 8 bytes
+	block := packBlockHeader(values[0].Time(), BlockString)
+	return append(block, packBlock(tb, vb)...)
+}
+
+func decodeStringBlock(block []byte) ([]Value, error) {
+	// slice off the first 8 bytes (min timestmap for the block)
+	block = block[8:]
+
+	blockType := block[0]
+	if blockType != BlockString {
+		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
+	}
+
+	block = block[1:]
+
+	// The first 8 bytes is the minimum timestamp of the block
+	tb, vb := unpackBlock(block)
+
+	// Setup our timestamp and value decoders
+	tsDec := NewTimeDecoder(tb)
+	vDec := NewStringDecoder(vb)
+
+	// Decode both a timestamp and value
+	var a []Value
+	for tsDec.Next() && vDec.Next() {
+		ts := tsDec.Read()
+		v := vDec.Read()
+		a = append(a, &StringValue{ts, v})
+	}
+
+	return a, nil
 }
 
 func packBlockHeader(firstTime time.Time, blockType byte) []byte {
