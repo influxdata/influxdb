@@ -737,7 +737,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	verify()
 
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 	fmt.Println("verify 2")
 	verify()
@@ -748,7 +748,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	}
 
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 	tx1, _ := e.Begin(false)
 	defer tx1.Rollback()
@@ -813,7 +813,7 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 
 	verify()
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 	fmt.Println("verify 2")
 	verify()
@@ -824,7 +824,7 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 	}
 
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 	fmt.Println("verify 3")
 	verify()
@@ -844,7 +844,7 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 	}
 
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 	verify()
 
