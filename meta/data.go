@@ -112,18 +112,16 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 	for di, d := range data.Databases {
 		for ri, rp := range d.RetentionPolicies {
 			// ignore replicated retention policies
-			if rp.ReplicaN == 1 {
-				for sgi, sg := range rp.ShardGroups {
-					for si, s := range sg.Shards {
-						if s.OwnedBy(id) {
-							var owners []ShardOwner
-							for _, o := range s.Owners {
-								if o.NodeID != id {
-									owners = append(owners, o)
-								}
+			for sgi, sg := range rp.ShardGroups {
+				for si, s := range sg.Shards {
+					if s.OwnedBy(id) {
+						var owners []ShardOwner
+						for _, o := range s.Owners {
+							if o.NodeID != id {
+								owners = append(owners, o)
 							}
-							data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = owners
 						}
+						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = owners
 					}
 				}
 			}
