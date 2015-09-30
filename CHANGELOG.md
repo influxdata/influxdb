@@ -29,6 +29,7 @@
 - [#1577](https://github.com/influxdb/influxdb/issues/1577): selectors (e.g. min, max, first, last) should have equivalents to return the actual point
 - [#4264](https://github.com/influxdb/influxdb/issues/4264): Refactor map functions to use list of values
 - [#4278](https://github.com/influxdb/influxdb/pull/4278): Fix error marshalling across the cluster
+- [#4149](https://github.com/influxdb/influxdb/pull/4149): Fix derivative unnecessarily requires aggregate function.  Thanks @peekeri!
 
 ## v0.9.4 [2015-09-14]
 
