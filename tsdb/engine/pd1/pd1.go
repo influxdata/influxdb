@@ -520,7 +520,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 
 			// write the blocks out to file that are already at their size limit
 			for {
-				// if the next block is the same ID, we don't need to decod this one
+				// if the next block is the same ID, we don't need to decode this one
 				// so we can just write it out to the file
 				nextID, _, nextBlock := df.block(newPos)
 				newPos = newPos + uint32(blockHeaderSize+len(block))
@@ -1568,7 +1568,7 @@ func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
 			// if the next block has a time less than what we're seeking to,
 			// skip decoding this block and continue on
 			nextBlockPos := pos + 12 + length
-			if nextBlockPos < c.f.size {
+			if nextBlockPos < c.f.indexPosition() {
 				nextBlockID := btou64(c.f.mmap[nextBlockPos : nextBlockPos+8])
 				if nextBlockID == c.id {
 					nextBlockTime := int64(btou64(c.f.mmap[nextBlockPos+12 : nextBlockPos+20]))
