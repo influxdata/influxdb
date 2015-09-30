@@ -1,15 +1,12 @@
 package pd1
 
 // Timestamp encoding is adapative and based on structure of the timestamps that are encoded.  It
-// uses a combination of delta encoding, zig zag encoding, scaling and compression using simple8b,
-// run length encoding as well as falling back to no compression if needed.
+// uses a combination of delta encoding, scaling and compression using simple8b, run length encoding
+// as well as falling back to no compression if needed.
 //
 // Timestamp values to be encoded should be sorted before encoding.  When encoded, the values are
 // first delta-encoded.  The first value is the starting timestamp, subsequent values are the difference.
 // from the prior value.
-//
-// Delta encoding can produce negative values.  After delta encoding, the values are zig zag encoded
-// to convert them to positive values.
 //
 // Timestamp resolution can also be in the nanosecond.  Many timestamps are monotonically increasing
 // and fall on even boundaries of time such as every 10s.  When the timestamps have this structure,
@@ -83,10 +80,7 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 	for i := len(deltas) - 1; i > 0; i-- {
 
 		// First differential encode the values
-		delta := int64(deltas[i] - deltas[i-1])
-
-		// The delta may be negative so zigzag encode it into a postive value
-		deltas[i] = ZigZagEncode(delta)
+		deltas[i] = deltas[i] - deltas[i-1]
 
 		// We're also need to keep track of the max value and largest common divisor
 		v := deltas[i]
@@ -243,8 +237,8 @@ func (d *decoder) decodePacked(b []byte) {
 
 	// Compute the prefix sum and scale the deltas back up
 	for i := 1; i < len(deltas); i++ {
-		dgap := ZigZagDecode(deltas[i] * div)
-		deltas[i] = uint64(int64(deltas[i-1]) + dgap)
+		dgap := deltas[i] * div
+		deltas[i] = deltas[i-1] + dgap
 	}
 
 	d.ts = deltas
@@ -263,8 +257,6 @@ func (d *decoder) decodeRLE(b []byte) {
 
 	// Next 1-10 bytes is our (scaled down by factor of 10) run length values
 	value, n := binary.Uvarint(b[i:])
-
-	value = uint64(ZigZagDecode(value))
 
 	// Scale the value back up
 	value *= uint64(mod)
@@ -293,10 +285,10 @@ func (d *decoder) decodeRaw(b []byte) {
 	for i := range d.ts {
 		d.ts[i] = binary.BigEndian.Uint64(b[i*8 : i*8+8])
 
-		delta := ZigZagDecode(d.ts[i])
+		delta := d.ts[i]
 		// Compute the prefix sum and scale the deltas back up
 		if i > 0 {
-			d.ts[i] = uint64(int64(d.ts[i-1]) + delta)
+			d.ts[i] = d.ts[i-1] + delta
 		}
 	}
 }

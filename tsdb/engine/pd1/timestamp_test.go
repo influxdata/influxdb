@@ -297,7 +297,7 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != pd1.EncodingPackedSimple {
+	if got := b[0] >> 4; got != pd1.EncodingUncompressed {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
