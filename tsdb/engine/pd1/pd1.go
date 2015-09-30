@@ -92,6 +92,8 @@ type Engine struct {
 	CompactionFileCount            int
 	IndexCompactionFullAge         time.Duration
 	IndexMinimumCompactionInterval time.Duration
+	MaxPointsPerBlock              int
+	RotateBlockSize                int
 
 	// filesLock is only for modifying and accessing the files slice
 	filesLock          sync.RWMutex
@@ -129,6 +131,8 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		CompactionFileCount:            opt.Config.IndexCompactionFileCount,
 		IndexCompactionFullAge:         opt.Config.IndexCompactionFullAge,
 		IndexMinimumCompactionInterval: opt.Config.IndexMinimumCompactionInterval,
+		MaxPointsPerBlock:              DefaultMaxPointsPerBlock,
+		RotateBlockSize:                DefaultRotateBlockSize,
 	}
 	e.WAL.Index = e
 
@@ -144,6 +148,7 @@ func (e *Engine) PerformMaintenance() {
 		go func() {
 			e.WAL.flush(f)
 		}()
+		return
 	} else if e.shouldCompact() {
 		e.logger.Println("compacting for maintenance")
 		go e.Compact(true)
@@ -449,7 +454,11 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		break
 	}
 
-	e.logger.Printf("Starting compaction in partition %s of %d files", e.path, len(files))
+	var s string
+	if fullCompaction {
+		s = "FULL "
+	}
+	e.logger.Printf("Starting %scompaction in partition %s of %d files", s, e.path, len(files))
 	st := time.Now()
 
 	// mark the compaction as running
@@ -486,16 +495,16 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	currentPosition := uint32(fileHeaderSize)
 	newPositions := make([]uint32, 0)
 	newIDs := make([]uint64, 0)
-	buf := make([]byte, DefaultRotateBlockSize)
+	buf := make([]byte, e.RotateBlockSize)
 	for {
 		// find the min ID so we can write it to the file
 		minID := uint64(math.MaxUint64)
 		for _, id := range ids {
-			if minID > id {
+			if minID > id && id != 0 {
 				minID = id
 			}
 		}
-		if minID == 0 { // we've emptied all the files
+		if minID == math.MaxUint64 { // we've emptied all the files
 			break
 		}
 
@@ -520,14 +529,10 @@ func (e *Engine) Compact(fullCompaction bool) error {
 
 			// write the blocks out to file that are already at their size limit
 			for {
-				// if the next block is the same ID, we don't need to decode this one
-				// so we can just write it out to the file
-				nextID, _, nextBlock := df.block(newPos)
-				newPos = newPos + uint32(blockHeaderSize+len(block))
-
+				// write the values, the block or combine with previous
 				if len(previousValues) > 0 {
 					previousValues = append(previousValues, previousValues.DecodeSameTypeBlock(block)...)
-				} else if len(block) > DefaultRotateBlockSize {
+				} else if len(block) > e.RotateBlockSize {
 					if _, err := f.Write(df.mmap[pos:newPos]); err != nil {
 						return err
 					}
@@ -538,7 +543,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 				}
 
 				// write the previous values and clear if we've hit the limit
-				if len(previousValues) > DefaultMaxPointsPerBlock {
+				if len(previousValues) > e.MaxPointsPerBlock {
 					b := previousValues.Encode(buf)
 					if err := e.writeBlock(f, id, b); err != nil {
 						// fail hard. If we can't write a file someone needs to get woken up
@@ -548,14 +553,28 @@ func (e *Engine) Compact(fullCompaction bool) error {
 					previousValues = nil
 				}
 
+				// if the next block is the same ID, we don't need to decode this one
+				// so we can just write it out to the file
+				nextID, _, nextBlock := df.block(newPos)
+
 				// move to the next block in this file only if the id is the same
 				if nextID != id {
+					// flush remaining values
+					if len(previousValues) > 0 {
+						b := previousValues.Encode(buf)
+						currentPosition += uint32(blockHeaderSize + len(b))
+						previousValues = nil
+						if err := e.writeBlock(f, id, b); err != nil {
+							panic(fmt.Sprintf("error writing file %s: %s", f.Name(), err.Error()))
+						}
+					}
 					ids[i] = nextID
 					break
 				}
+				pos = newPos
+				newPos = pos + uint32(blockHeaderSize+len(nextBlock))
 				positions[i] = newPos
 				block = nextBlock
-				newPos = newPos + uint32(blockHeaderSize+len(block))
 			}
 		}
 
@@ -595,7 +614,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	e.files = newFiles
 	e.filesLock.Unlock()
 
-	e.logger.Println("Compaction took ", time.Since(st))
+	e.logger.Printf("Compaction of %s took %s", e.path, time.Since(st))
 
 	// delete the old files in a goroutine so running queries won't block the write
 	// from completing
@@ -603,8 +622,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	go func() {
 		for _, f := range files {
 			if err := f.Delete(); err != nil {
-				// TODO: log this error
-				fmt.Println("ERROR DELETING:", f.f.Name())
+				e.logger.Println("ERROR DELETING:", f.f.Name())
 			}
 		}
 		e.deletesPending.Done()
@@ -824,7 +842,7 @@ func (e *Engine) filterDataBetweenTimes(valuesByID map[uint64]Values, minTime, m
 	filteredValues := make(map[uint64]Values)
 	for id, values := range valuesByID {
 		maxIndex := len(values)
-		minIndex := 0
+		minIndex := -1
 		// find the index of the first value in the range
 		for i, v := range values {
 			t := v.UnixNano()
@@ -832,6 +850,9 @@ func (e *Engine) filterDataBetweenTimes(valuesByID map[uint64]Values, minTime, m
 				minIndex = i
 				break
 			}
+		}
+		if minIndex == -1 {
+			continue
 		}
 		// go backwards to find the index of the last value in the range
 		for i := len(values) - 1; i >= 0; i-- {
@@ -883,6 +904,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		minTime = oldDF.MinTime()
 		maxTime = oldDF.MaxTime()
 	}
+
 	for _, v := range valuesByID {
 		if minTime > v.MinTime() {
 			minTime = v.MinTime()
@@ -919,7 +941,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	// their positions
 	currentPosition := uint32(fileHeaderSize)
 	newPositions := make([]uint32, len(ids))
-	buf := make([]byte, DefaultMaxPointsPerBlock*20)
+	buf := make([]byte, e.MaxPointsPerBlock*20)
 	for i, id := range ids {
 		// mark the position for this ID
 		newPositions[i] = currentPosition
@@ -1041,7 +1063,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		e.deletesPending.Add(1)
 		go func() {
 			if err := oldDF.Delete(); err != nil {
-				fmt.Println("ERROR DELETING FROM REWRITE:", oldDF.f.Name())
+				e.logger.Println("ERROR DELETING FROM REWRITE:", oldDF.f.Name())
 			}
 			e.deletesPending.Done()
 		}()
@@ -1346,9 +1368,9 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		}
 	}
 
-	if len(values) > DefaultMaxPointsPerBlock {
-		remainingValues = values[DefaultMaxPointsPerBlock:]
-		values = values[:DefaultMaxPointsPerBlock]
+	if len(values) > e.MaxPointsPerBlock {
+		remainingValues = values[e.MaxPointsPerBlock:]
+		values = values[:e.MaxPointsPerBlock]
 	}
 
 	return remainingValues, values.Encode(buf), nil
@@ -1485,6 +1507,11 @@ func (d *dataFile) StartingPositionForID(id uint64) uint32 {
 }
 
 func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("FUCK: ", d.f.Name(), pos, id, t)
+		}
+	}()
 	if pos < d.indexPosition() {
 		id = btou64(d.mmap[pos : pos+8])
 		length := btou32(d.mmap[pos+8 : pos+12])

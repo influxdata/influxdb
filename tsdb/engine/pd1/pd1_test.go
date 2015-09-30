@@ -681,6 +681,219 @@ func TestEngine_WritePointsInMultipleRequestsWithSameTime(t *testing.T) {
 	verify()
 }
 
+func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+
+	e.RotateFileSize = 10
+	e.MaxPointsPerBlock = 1
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=B value=1.2 2000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+
+	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if count := e.DataFileCount(); count != 3 {
+		t.Fatalf("expected 3 data files but got %d", count)
+	}
+
+	verify := func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=A", fields, nil, false)
+		k, v := c.SeekTo(0)
+		if k != 1000000000 {
+			t.Fatalf("expected time 1000000000 but got %d", k)
+		}
+		if v != 1.1 {
+			t.Fatalf("expected value 1.1 but got %f", v.(float64))
+		}
+		k, v = c.Next()
+		if k != 3000000000 {
+			t.Fatalf("expected time 3000000000 but got %d", k)
+		}
+		c = tx.Cursor("cpu,host=B", fields, nil, false)
+		k, v = c.SeekTo(0)
+		if k != 2000000000 {
+			t.Fatalf("expected time 2000000000 but got %d", k)
+		}
+		if v != 1.2 {
+			t.Fatalf("expected value 1.2 but got %f", v.(float64))
+		}
+	}
+
+	fmt.Println("verify 1")
+	verify()
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error)
+	}
+	fmt.Println("verify 2")
+	verify()
+
+	p4 := parsePoint("cpu,host=A value=1.4 4000000000")
+	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error)
+	}
+	tx1, _ := e.Begin(false)
+	defer tx1.Rollback()
+	c := tx1.Cursor("cpu,host=A", fields, nil, false)
+	k, v := c.SeekTo(0)
+	if k != 1000000000 {
+		t.Fatalf("expected time 1000000000 but got %d", k)
+	}
+	if v != 1.1 {
+		t.Fatalf("expected value 1.1 but got %f", v.(float64))
+	}
+	k, v = c.Next()
+	if k != 3000000000 {
+		t.Fatalf("expected time 3000000000 but got %d", k)
+	}
+	k, v = c.Next()
+	if k != 4000000000 {
+		t.Fatalf("expected time 3000000000 but got %d", k)
+	}
+}
+
+// Ensure that compactions that happen where blocks from old data files
+// skip decoding and just get copied over to the new data file works.
+func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+
+	e.RotateFileSize = 10
+	e.MaxPointsPerBlock = 1
+	e.RotateBlockSize = 10
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify := func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=A", fields, nil, false)
+		k, _ := c.SeekTo(0)
+		if k != 1000000000 {
+			t.Fatalf("expected time 1000000000 but got %d", k)
+		}
+		k, _ = c.Next()
+		if k != 2000000000 {
+			t.Fatalf("expected time 2000000000 but got %d", k)
+		}
+		k, _ = c.Next()
+		if k != 3000000000 {
+			t.Fatalf("expected time 3000000000 but got %d", k)
+		}
+	}
+
+	verify()
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error)
+	}
+	fmt.Println("verify 2")
+	verify()
+
+	p4 := parsePoint("cpu,host=B value=1.4 4000000000")
+	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error)
+	}
+	fmt.Println("verify 3")
+	verify()
+
+	p5 := parsePoint("cpu,host=A value=1.5 5000000000")
+	p6 := parsePoint("cpu,host=A value=1.6 6000000000")
+	p7 := parsePoint("cpu,host=B value=2.1 7000000000")
+	if err := e.WritePoints([]models.Point{p5, p6, p7}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	p8 := parsePoint("cpu,host=A value=1.5 7000000000")
+	p9 := parsePoint("cpu,host=A value=1.6 8000000000")
+	p10 := parsePoint("cpu,host=B value=2.1 8000000000")
+	if err := e.WritePoints([]models.Point{p8, p9, p10}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error)
+	}
+	verify()
+
+}
+
+func TestEngine_RewritingOldBlocks(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+
+	e.MaxPointsPerBlock = 2
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+	p4 := parsePoint("cpu,host=A value=1.5 1500000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	tx, _ := e.Begin(false)
+	defer tx.Rollback()
+	c := tx.Cursor("cpu,host=A", fields, nil, false)
+	k, _ := c.SeekTo(0)
+	if k != 1000000000 {
+		t.Fatalf("expected time 1000000000 but got %d", k)
+	}
+	k, _ = c.Next()
+	if k != 1500000000 {
+		t.Fatalf("expected time 1500000000 but got %d", k)
+	}
+	k, _ = c.Next()
+	if k != 2000000000 {
+		t.Fatalf("expected time 2000000000 but got %d", k)
+	}
+	k, _ = c.Next()
+	if k != 3000000000 {
+		t.Fatalf("expected time 3000000000 but got %d", k)
+	}
+}
+
 // Engine represents a test wrapper for pd1.Engine.
 type Engine struct {
 	*pd1.Engine
