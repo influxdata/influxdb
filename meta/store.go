@@ -1689,8 +1689,11 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 		// if we are part of the raft cluster, remove us
 		if _, ok := fsm.raftState.(*localRaft); ok {
 			fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
-			// ignore the error, as it's likely just telling you it's not the leader, and that's fine
-			fsm.raftState.removePeer(addr)
+			// the types of errors that come back are due to consensus, leader, etc.  Log them
+			// but continue
+			if err := fsm.raftState.removePeer(addr); err != nil {
+				fsm.Logger.Printf("error removing peer: %s", err)
+			}
 		}
 	}
 	return nil
