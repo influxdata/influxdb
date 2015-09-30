@@ -1526,6 +1526,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES FROM src WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `DROP SERVER`, err: `found EOF, expected number at line 1, char 13`},
+		{s: `DROP SERVER abc`, err: `found abc, expected number at line 1, char 13`},
 		{s: `DROP SERVER 1 1`, err: `found 1, expected FORCE at line 1, char 15`},
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
