@@ -71,7 +71,7 @@ var _ tsdb.Engine = &Engine{}
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	writeLock *writeLock
+	writeLock *WriteLock
 	metaLock  sync.Mutex
 	path      string
 	logger    *log.Logger
@@ -120,7 +120,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 	e := &Engine{
 		path:      path,
-		writeLock: &writeLock{},
+		writeLock: &WriteLock{},
 		logger:    log.New(os.Stderr, "[pd1] ", log.LstdFlags),
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
@@ -149,10 +149,28 @@ func (e *Engine) PerformMaintenance() {
 			e.WAL.flush(f)
 		}()
 		return
-	} else if e.shouldCompact() {
-		e.logger.Println("compacting for maintenance")
-		go e.Compact(true)
 	}
+
+	// don't do a full compaction if the WAL received writes in the time window
+	if time.Since(e.WAL.LastWriteTime()) < e.IndexCompactionFullAge {
+		return
+	}
+
+	e.filesLock.RLock()
+	running := e.compactionRunning
+	e.filesLock.RUnlock()
+	if running {
+		return
+	}
+
+	// do a full compaction if all the index files are older than the compaction time
+	for _, f := range e.copyFilesCollection() {
+		if time.Since(f.modTime) < e.IndexCompactionFullAge {
+			return
+		}
+	}
+
+	go e.Compact(true)
 }
 
 // Format returns the format type of this engine
@@ -203,6 +221,8 @@ func (e *Engine) Open() error {
 	if err := e.readCollisions(); err != nil {
 		return err
 	}
+
+	e.lastCompactionTime = time.Now()
 
 	return nil
 }
@@ -454,15 +474,12 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		break
 	}
 
-	var s string
-	if fullCompaction {
-		s = "FULL "
-	}
-	e.logger.Printf("Starting %scompaction in partition %s of %d files", s, e.path, len(files))
-	st := time.Now()
-
 	// mark the compaction as running
 	e.filesLock.Lock()
+	if e.compactionRunning {
+		e.filesLock.Unlock()
+		return nil
+	}
 	e.compactionRunning = true
 	e.filesLock.Unlock()
 	defer func() {
@@ -474,11 +491,19 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		e.filesLock.Unlock()
 	}()
 
+	var s string
+	if fullCompaction {
+		s = "FULL "
+	}
+	fileName := e.nextFileName()
+	e.logger.Printf("Starting %scompaction in partition %s of %d files to new file %s", s, e.path, len(files), fileName)
+	st := time.Now()
+
 	positions := make([]uint32, len(files))
 	ids := make([]uint64, len(files))
 
 	// initilaize for writing
-	f, err := os.OpenFile(e.nextFileName(), os.O_CREATE|os.O_RDWR, 0666)
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
@@ -929,6 +954,12 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	f, err := os.OpenFile(e.nextFileName(), os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
+	}
+
+	if oldDF == nil {
+		e.logger.Printf("writing new index file %s", f.Name())
+	} else {
+		e.logger.Printf("rewriting index file %s with %s", oldDF.f.Name(), f.Name())
 	}
 
 	// write the magic number
@@ -1509,7 +1540,7 @@ func (d *dataFile) StartingPositionForID(id uint64) uint32 {
 func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("FUCK: ", d.f.Name(), pos, id, t)
+			panic(fmt.Sprintf("panic decoding file: %s at position %d for id %d at time %d", d.f.Name(), pos, id, t))
 		}
 	}()
 	if pos < d.indexPosition() {

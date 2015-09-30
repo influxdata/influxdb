@@ -542,7 +542,7 @@ func (l *Log) flush(flush flushType) error {
 		} else if flush == startupFlush {
 			ftype = "startup"
 		}
-		l.logger.Printf("%s flush of %d keys with %d values of %d bytes\n", ftype, len(l.flushCache), valueCount, flushSize)
+		l.logger.Printf("%s flush of %s with %d keys and %d total values of %d bytes\n", ftype, l.path, len(l.flushCache), valueCount, flushSize)
 	}
 
 	startTime := time.Now()
@@ -550,7 +550,7 @@ func (l *Log) flush(flush flushType) error {
 		return err
 	}
 	if l.LoggingEnabled {
-		l.logger.Printf("flush to index took %s\n", time.Since(startTime))
+		l.logger.Printf("%s flush to index took %s\n", l.path, time.Since(startTime))
 	}
 
 	l.cacheLock.Lock()
