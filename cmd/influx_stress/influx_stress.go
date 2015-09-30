@@ -19,6 +19,7 @@ var (
 	database      = flag.String("database", "stress", "name of database")
 	address       = flag.String("addr", "localhost:8086", "IP address and port of database (e.g., localhost:8086)")
 	precision     = flag.String("precision", "n", "The precision that points in the database will be with")
+	test          = flag.String("test", "", "The stress test file")
 )
 
 var ms runner.Measurements
@@ -28,26 +29,48 @@ func init() {
 }
 
 func main() {
-	flag.Parse()
+	var cfg *runner.Config
+	var err error
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	flag.Parse()
+
+	cfg = runner.NewConfig()
 
 	if len(ms) == 0 {
 		ms = append(ms, "cpu")
 	}
 
-	cfg := &runner.Config{
-		BatchSize:     *batchSize,
-		Measurements:  ms,
-		SeriesCount:   *seriesCount,
-		PointCount:    *pointCount,
-		Concurrency:   *concurrency,
-		BatchInterval: *batchInterval,
-		Database:      *database,
-		Address:       *address,
-		Precision:     *precision,
+	for _, m := range ms {
+		cfg.Series = append(cfg.Series, runner.NewSeries(m, 100, 100000))
 	}
 
-	totalPoints, failedRequests, responseTimes, timer := runner.Run(cfg)
+	if *test != "" {
+		cfg, err = runner.DecodeFile(*test)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+	}
+
+	d := make(chan struct{})
+	seriesQueryResults := make(chan runner.QueryResults)
+
+	if cfg.SeriesQuery.Enabled {
+		go runner.SeriesQuery(cfg, d, seriesQueryResults)
+	}
+
+	measurementQueryResults := make(chan runner.QueryResults)
+
+	ts := make(chan time.Time)
+	if cfg.MeasurementQuery.Enabled {
+		go runner.MeasurementQuery(cfg, ts, measurementQueryResults)
+	}
+
+	// Get the stress results
+	totalPoints, failedRequests, responseTimes, timer := runner.Run(cfg, d, ts)
 
 	sort.Sort(sort.Reverse(sort.Interface(responseTimes)))
 
@@ -64,4 +87,35 @@ func main() {
 	for _, r := range responseTimes[:100] {
 		fmt.Println(time.Duration(r.Value))
 	}
+
+	// Get series query results
+	if cfg.SeriesQuery.Enabled {
+		qrs := <-seriesQueryResults
+
+		queryTotal := int64(0)
+		for _, qt := range qrs.ResponseTimes {
+			queryTotal += int64(qt.Value)
+		}
+		seriesQueryMean := queryTotal / int64(len(qrs.ResponseTimes))
+
+		fmt.Printf("Queried Series %d times with a average response time of %v milliseconds\n", qrs.TotalQueries, time.Duration(seriesQueryMean).Seconds()*1000)
+
+	}
+
+	// Get measurement query results
+	if cfg.MeasurementQuery.Enabled {
+		qrs := <-measurementQueryResults
+
+		queryTotal := int64(0)
+		for _, qt := range qrs.ResponseTimes {
+			queryTotal += int64(qt.Value)
+		}
+		seriesQueryMean := queryTotal / int64(len(qrs.ResponseTimes))
+
+		fmt.Printf("Queried Measurement %d times with a average response time of %v milliseconds\n", qrs.TotalQueries, time.Duration(seriesQueryMean).Seconds()*1000)
+
+	}
+
+	return
+
 }
