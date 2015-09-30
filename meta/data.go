@@ -100,7 +100,7 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 				for _, sg := range rp.ShardGroups {
 					for _, s := range sg.Shards {
 						if s.OwnedBy(id) && len(s.Owners) == 1 {
-							return ErrNodeDataLossImminent
+							return ErrShardNotReplicated
 						}
 					}
 				}

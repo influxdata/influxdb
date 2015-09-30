@@ -33,10 +33,6 @@ var (
 	// ErrNodeUnableToDropSingleNode is returned if the node being dropped is the last
 	// node in the cluster
 	ErrNodeUnableToDropFinalNode = newError("unable to drop the final node in a cluster")
-
-	// ErrNodeDataLossImminent is returned if the node requested to be dropped has
-	// the last copy of a shard present and the force keyword was not used
-	ErrNodeDataLossImminent = newError("unable to drop node - data loss would occur - use the optional keyword 'FORCE' to force this removal")
 )
 
 var (
@@ -84,6 +80,10 @@ var (
 
 	// ErrShardGroupNotFound is returned when mutating a shard group that doesn't exist.
 	ErrShardGroupNotFound = newError("shard group not found")
+
+	// ErrShardNotReplicated is returned if the node requested to be dropped has
+	// the last copy of a shard present and the force keyword was not used
+	ErrShardNotReplicated = newError("shard not replicated")
 )
 
 var (
