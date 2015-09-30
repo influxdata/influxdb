@@ -128,12 +128,13 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 		}
 	}
 
-	// Remove this from the raft peer group
+	// Remove this node from the in memory nodes
 	var nodes []NodeInfo
 	for _, n := range data.Nodes {
-		if n.ID != id {
-			nodes = append(nodes, n)
+		if n.ID == id {
+			continue
 		}
+		nodes = append(nodes, n)
 	}
 	data.Nodes = nodes
 
