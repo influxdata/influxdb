@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -136,29 +135,9 @@ func TestNewConfig(t *testing.T) {
 
 }
 
-func TestSeries_newTagMap(t *testing.T) {
-	s := NewSeries("cpu", 1000, 10000)
-	m := s.newTagMap(0)
-
-	if m["host"] != "server-0" {
-		t.Errorf("expected value to be %v, go %v", "server-0", m["host"])
-	}
-
-}
-
-func TestSeries_newFieldMap(t *testing.T) {
-	s := NewSeries("cpu", 1000, 10000)
-	m := s.newFieldMap()
-
-	if reflect.TypeOf(m["value"]).Kind() != reflect.Float64 {
-		t.Errorf("expected type of value to be %v, go %v", reflect.Float64, reflect.TypeOf(m["value"]).Kind())
-	}
-
-}
-
 func TestSeriesIter_Next(t *testing.T) {
 	s := NewSeries("cpu", 1000, 10000)
-	i := s.Iter(10, 0)
+	i := s.Iter(10, 0, "n")
 	if i.count != -1 {
 		t.Errorf("expected value to be %v, go %v", -1, i.count)
 	}

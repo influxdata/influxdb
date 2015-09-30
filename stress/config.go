@@ -170,6 +170,7 @@ type seriesIter struct {
 	s         *series
 	count     int
 	timestamp time.Time
+	precision string
 }
 
 // writeInterval returns a timestamp for the current time
@@ -181,59 +182,13 @@ func (s *series) writeInterval(weeks int, i int) time.Time {
 }
 
 // Iter returns a pointer to a seriesIter
-func (s *series) Iter(weeks int, i int) *seriesIter {
+func (s *series) Iter(weeks int, i int, p string) *seriesIter {
 
-	return &seriesIter{s: s, count: -1, timestamp: s.writeInterval(weeks, i)}
-}
-
-// newTagMap returns a tagset
-func (s *series) newTagMap(i int) map[string]string {
-	m := map[string]string{}
-
-	for _, tag := range s.Tags {
-		m[tag.Key] = fmt.Sprintf("%s-%d", tag.Value, i)
-	}
-
-	return m
-}
-
-// newFieldMap returns a new field set for
-// a given series
-func (s *series) newFieldMap() map[string]interface{} {
-	m := map[string]interface{}{}
-
-	for _, field := range s.Fields {
-		switch field.Type {
-		case "float64":
-			m[field.Key] = float64(rand.Intn(1000))
-		case "int":
-			m[field.Key] = rand.Intn(1000)
-		case "bool":
-			b := rand.Intn(2) == 1
-			m[field.Key] = b
-		default:
-			m[field.Key] = float64(rand.Intn(1000))
-		}
-
-	}
-
-	return m
+	return &seriesIter{s: s, count: -1, timestamp: s.writeInterval(weeks, i), precision: p}
 }
 
 // Next returns a new point for a series.
 // Currently, there is an off by one bug here.
-//func (iter *seriesIter) Next() (*client.Point, bool) {
-//	iter.count++
-//	p := client.Point{
-//		Measurement: iter.s.Measurement,
-//		Tags:        iter.s.newTagMap(iter.count),
-//		Fields:      iter.s.newFieldMap(),
-//		Time:        iter.timestamp,
-//	}
-//	b := iter.count < iter.s.SeriesCount
-//	return &p, b
-//}
-
 func (iter *seriesIter) Next() ([]byte, bool) {
 	var buf bytes.Buffer
 	iter.count++
@@ -243,7 +198,13 @@ func (iter *seriesIter) Next() ([]byte, bool) {
 	buf.Write([]byte(" "))
 	buf.Write(iter.s.newFieldSet())
 	buf.Write([]byte(" "))
-	buf.Write([]byte(fmt.Sprintf("%v", iter.timestamp.UnixNano())))
+
+	switch iter.precision {
+	case "s":
+		buf.Write([]byte(fmt.Sprintf("%v", iter.timestamp.Unix())))
+	default:
+		buf.Write([]byte(fmt.Sprintf("%v", iter.timestamp.UnixNano())))
+	}
 
 	b := iter.count < iter.s.SeriesCount
 	byt := buf.Bytes()
@@ -251,6 +212,8 @@ func (iter *seriesIter) Next() ([]byte, bool) {
 	return byt, b
 }
 
+// newTagSet returns a byte array representation
+// of the tagset for a series
 func (s *series) newTagSet(c int) []byte {
 	var buf bytes.Buffer
 	for _, tag := range s.Tags {
@@ -263,6 +226,8 @@ func (s *series) newTagSet(c int) []byte {
 	return b
 }
 
+// newFieldSet returns a byte array representation
+// of the field-set for a series
 func (s *series) newFieldSet() []byte {
 	var buf bytes.Buffer
 

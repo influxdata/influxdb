@@ -15,6 +15,8 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+// TODO: Add jitter to timestamps
+
 func post(url string, datatype string, data io.Reader) error {
 
 	resp, err := http.Post(url, datatype, data)
@@ -191,7 +193,6 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 
 	go func() {
 		var buf bytes.Buffer
-		//points := []client.Point{}
 		num := 0
 		for _, s := range cfg.Series {
 			num += s.PointCount * s.SeriesCount
@@ -205,21 +206,12 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 		ctr := 0
 		for _, testSeries := range cfg.Series {
 			for i := 0; i < testSeries.PointCount; i++ {
-				iter := testSeries.Iter(cfg.Write.StartingPoint, i)
+				iter := testSeries.Iter(cfg.Write.StartingPoint, i, cfg.Write.Precision)
 				p, ok := iter.Next()
 				for ok {
 					ctr++
-					// add jitter
-					//if cfg.Write.Jitter != 0 {
-					//	rnd := rand.Intn(cfg.Write.Jitter)
-					//	if rnd%2 == 0 {
-					//		rnd = -1 * rnd
-					//	}
-					//	p.Time = p.Time.Add(time.Duration(rnd))
-					//}
 					buf.Write(p)
 					buf.Write([]byte("\n"))
-					//points = append(points, *p)
 					if ctr != 0 && ctr%cfg.Write.BatchSize == 0 {
 						b := buf.Bytes()
 
@@ -254,31 +246,24 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 	timer = NewTimer()
 
 	for pnt := range ch {
-		//		batch := &client.BatchPoints{
-		//			Database:         cfg.Write.Database,
-		//			WriteConsistency: "any",
-		//			Time:             time.Now(),
-		//			Precision:        cfg.Write.Precision,
-		//			Points:           pnt,
-		//		}
 
 		wg.Add(1)
 		counter.Increment()
-		//totalPoints += len(batch.Points)
-		totalPoints += 5000
+		totalPoints += cfg.Write.BatchSize
+
+		instanceURL := fmt.Sprintf("http://%v/write?db=%v&precision=%v", cfg.Write.Address, cfg.Write.Database, cfg.Write.Precision)
 
 		go func(b *bytes.Buffer, total int) {
 			st := time.Now()
-			err := post("http://localhost:8086/write?db=stress", "application/x-www-form-urlencoded", b)
+			err := post(instanceURL, "application/x-www-form-urlencoded", b)
 			if err != nil { // Should retry write if failed
-				//if _, err := c.Write(*b); err != nil { // Should retry write if failed
 				mu.Lock()
 				if lastSuccess {
 					fmt.Println("ERROR: ", err.Error())
 				}
 				failedRequests += 1
 				//totalPoints -= len(b.Points)
-				totalPoints -= 5000
+				totalPoints -= cfg.Write.BatchSize
 				lastSuccess = false
 				mu.Unlock()
 			} else {
