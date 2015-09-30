@@ -82,12 +82,11 @@ type Store struct {
 
 	raftState raftState
 
-	ready    chan struct{}
-	err      chan error
-	closing  chan struct{}
-	wg       sync.WaitGroup
-	changed  chan struct{}
-	shutdown chan struct{}
+	ready   chan struct{}
+	err     chan error
+	closing chan struct{}
+	wg      sync.WaitGroup
+	changed chan struct{}
 
 	// clusterTracingEnabled controls whether low-level cluster communcation is logged.
 	// Useful for troubleshooting
@@ -140,11 +139,10 @@ func NewStore(c *Config) *Store {
 		peers: c.Peers,
 		data:  &Data{},
 
-		ready:    make(chan struct{}),
-		err:      make(chan error),
-		closing:  make(chan struct{}),
-		changed:  make(chan struct{}),
-		shutdown: make(chan struct{}),
+		ready:   make(chan struct{}),
+		err:     make(chan error),
+		closing: make(chan struct{}),
+		changed: make(chan struct{}),
 
 		clusterTracingEnabled: c.ClusterTracing,
 		retentionAutoCreate:   c.RetentionAutoCreate,
@@ -575,9 +573,6 @@ func (s *Store) Ready() <-chan struct{} { return s.ready }
 
 // Err returns a channel for all out-of-band errors.
 func (s *Store) Err() <-chan error { return s.err }
-
-// MonitorShutdown returns a channel to monitor when this node has been told to shut down remotely
-func (s *Store) MonitorShutdown() <-chan struct{} { return s.shutdown }
 
 // IsLeader returns true if the store is currently the leader.
 func (s *Store) IsLeader() bool {
@@ -1697,15 +1692,7 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 			// ignore the error, as it's likely just telling you it's not the leader, and that's fine
 			fsm.raftState.removePeer(addr)
 		}
-		go func(id uint64, addr string) {
-			// Give the cluster some time to responsd
-			time.Sleep(time.Second)
-			fsm.Logger.Printf("shutting down local node '%d'", id)
-			close(fsm.shutdown)
-		}(id, addr)
-
 	}
-
 	return nil
 }
 
