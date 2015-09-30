@@ -319,8 +319,11 @@ func (r *localRaft) addPeer(addr string) error {
 
 // removePeer removes addr from the list of peers in the cluster.
 func (r *localRaft) removePeer(addr string, cleanup bool) error {
-	if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
-		return fut.Error()
+	// Only do this on the leader
+	if r.isLeader() {
+		if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
+			return fut.Error()
+		}
 	}
 	// clean up the directories if this is the node removed
 	if cleanup {
