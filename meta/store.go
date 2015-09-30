@@ -692,7 +692,7 @@ func (s *Store) handleExecConn(conn net.Conn) {
 
 		// Apply against the raft log.
 		if err := s.apply(buf); err != nil {
-			return fmt.Errorf("apply: %s", err)
+			return err
 		}
 		return nil
 	}()
@@ -1553,7 +1553,7 @@ func (s *Store) remoteExec(b []byte) error {
 	if err := proto.Unmarshal(buf, &resp); err != nil {
 		return fmt.Errorf("unmarshal response: %s", err)
 	} else if !resp.GetOK() {
-		return fmt.Errorf("exec failed: %s", resp.GetError())
+		return lookupError(fmt.Errorf(resp.GetError()))
 	}
 
 	// Wait for local FSM to sync to index.
