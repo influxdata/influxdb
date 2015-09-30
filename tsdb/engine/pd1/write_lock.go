@@ -1,15 +1,14 @@
 package pd1
 
 import (
+	"reflect"
 	"sync"
 )
 
 // writeLock is a lock that enables locking of ranges between a
 // min and max value. We use this so that flushes from the WAL
 // can occur concurrently along with compactions.
-type writeLock struct {
-	mu sync.Mutex
-
+type WriteLock struct {
 	rangesLock sync.Mutex
 	ranges     []*rangeLock
 }
@@ -19,34 +18,41 @@ type writeLock struct {
 // an overlapping range will have to wait until the previous
 // lock is released. A corresponding call to UnlockRange should
 // be deferred.
-func (w *writeLock) LockRange(min, max int64) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
+func (w *WriteLock) LockRange(min, max int64) {
 	r := &rangeLock{min: min, max: max}
-	ranges := w.currentlyLockedRanges()
+	for {
+		ranges := w.currentlyLockedRanges()
 
-	// ensure there are no currently locked ranges that overlap
-	for _, rr := range ranges {
-		if rr.overlaps(r) {
-			// wait until it gets unlocked
-			rr.mu.Lock()
-			// release the lock so the object can get GC'd
-			rr.mu.Unlock()
+		// ensure there are no currently locked ranges that overlap
+		for _, rr := range ranges {
+			if rr.overlaps(r) {
+				// wait until it gets unlocked
+				rr.mu.Lock()
+				// release the lock so the object can get GC'd
+				rr.mu.Unlock()
+			}
 		}
+
+		// ensure that no one else got a lock on the range while we
+		// were waiting
+		w.rangesLock.Lock()
+		if len(w.ranges) == 0 || reflect.DeepEqual(ranges, w.ranges) {
+			// and lock the range
+			r.mu.Lock()
+
+			// now that we know the range is free, add it to the locks
+			w.ranges = append(w.ranges, r)
+			w.rangesLock.Unlock()
+			return
+		}
+
+		// try again
+		w.rangesLock.Unlock()
 	}
-
-	// and lock the range
-	r.mu.Lock()
-
-	// now that we know the range is free, add it to the locks
-	w.rangesLock.Lock()
-	w.ranges = append(w.ranges, r)
-	w.rangesLock.Unlock()
 }
 
 // UnlockRange will release a previously locked range.
-func (w *writeLock) UnlockRange(min, max int64) {
+func (w *WriteLock) UnlockRange(min, max int64) {
 	w.rangesLock.Lock()
 	defer w.rangesLock.Unlock()
 
@@ -62,7 +68,7 @@ func (w *writeLock) UnlockRange(min, max int64) {
 	w.ranges = a
 }
 
-func (w *writeLock) currentlyLockedRanges() []*rangeLock {
+func (w *WriteLock) currentlyLockedRanges() []*rangeLock {
 	w.rangesLock.Lock()
 	defer w.rangesLock.Unlock()
 	a := make([]*rangeLock, len(w.ranges))
@@ -80,6 +86,10 @@ func (r *rangeLock) overlaps(l *rangeLock) bool {
 	if l.min >= r.min && l.min <= r.max {
 		return true
 	} else if l.max >= r.min && l.max <= r.max {
+		return true
+	} else if l.min <= r.min && l.max >= r.max {
+		return true
+	} else if l.min >= r.min && l.max <= r.max {
 		return true
 	}
 	return false
