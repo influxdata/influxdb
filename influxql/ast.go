@@ -1174,8 +1174,9 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
-				// Validate that if they have a time dimension, they need a sub-call like min/max, etc.
-				if s.hasTimeDimensions(s.Condition) {
+				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
+				groupByInterval, _ := s.GroupByInterval()
+				if groupByInterval > 0 {
 					if _, ok := expr.Args[0].(*Call); !ok {
 						return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
 					}
