@@ -1686,7 +1686,7 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 	addr := v.GetAddr()
 	//Remove that node from the peer
 	fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
-	if err := fsm.raftState.removePeer(addr); err != nil {
+	if err := fsm.raftState.removePeer(addr, id == fsm.id); err != nil {
 		fsm.Logger.Printf("error removing peer: %s", err)
 	}
 	return nil
