@@ -353,7 +353,7 @@ func (l *Log) readFileToCache(fileName string) error {
 			buf = make([]byte, length)
 		}
 		_, err = io.ReadFull(f, buf[0:length])
-		if err == io.EOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			l.logger.Printf("hit end of file while reading compressed wal entry from %s", fileName)
 			return nil
 		} else if err != nil {
