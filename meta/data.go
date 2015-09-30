@@ -91,15 +91,16 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 
 	// Determine if there are any any non-replicated nodes and force was not specified
 	if !force {
-		for _, di := range data.Databases {
-			for _, rp := range di.RetentionPolicies {
+		for _, d := range data.Databases {
+			for _, rp := range d.RetentionPolicies {
 				// ignore replicated retention policies
-				if rp.ReplicaN == 1 {
-					for _, sg := range rp.ShardGroups {
-						for _, s := range sg.Shards {
-							if s.OwnedBy(id) && len(s.Owners) == 1 {
-								return ErrNodeDataLossImminent
-							}
+				if rp.ReplicaN > 1 {
+					continue
+				}
+				for _, sg := range rp.ShardGroups {
+					for _, s := range sg.Shards {
+						if s.OwnedBy(id) && len(s.Owners) == 1 {
+							return ErrNodeDataLossImminent
 						}
 					}
 				}
@@ -108,12 +109,12 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 	}
 
 	// Remove node id from all shard infos
-	for _, di := range data.Databases {
-		for _, rp := range di.RetentionPolicies {
+	for di, d := range data.Databases {
+		for ri, rp := range d.RetentionPolicies {
 			// ignore replicated retention policies
 			if rp.ReplicaN == 1 {
-				for _, sg := range rp.ShardGroups {
-					for _, s := range sg.Shards {
+				for sgi, sg := range rp.ShardGroups {
+					for si, s := range sg.Shards {
 						if s.OwnedBy(id) {
 							var owners []ShardOwner
 							for _, o := range s.Owners {
@@ -121,7 +122,7 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 									owners = append(owners, o)
 								}
 							}
-							s.Owners = owners
+							data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = owners
 						}
 					}
 				}
