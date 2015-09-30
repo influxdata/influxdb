@@ -28,6 +28,21 @@ func TestEncoding_FloatBlock(t *testing.T) {
 	}
 }
 
+func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
+	values := make(pd1.Values, 3)
+	for i := 0; i < 3; i++ {
+		values[i] = pd1.NewValue(time.Unix(0, 0), float64(i))
+	}
+
+	b := values.Encode(nil)
+
+	decodedValues := values.DecodeSameTypeBlock(b)
+
+	if !reflect.DeepEqual(decodedValues, values) {
+		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
+	}
+}
+
 func TestEncoding_IntBlock_Basic(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
