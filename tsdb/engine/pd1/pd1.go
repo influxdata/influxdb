@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -73,6 +74,7 @@ type Engine struct {
 	writeLock *writeLock
 	metaLock  sync.Mutex
 	path      string
+	logger    *log.Logger
 
 	// deletesPending mark how many old data files are waiting to be deleted. This will
 	// keep a close from returning until all deletes finish
@@ -117,6 +119,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	e := &Engine{
 		path:      path,
 		writeLock: &writeLock{},
+		logger:    log.New(os.Stderr, "[pd1] ", log.LstdFlags),
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
 		HashSeriesField:                hashSeriesField,
@@ -142,6 +145,7 @@ func (e *Engine) PerformMaintenance() {
 			e.WAL.flush(f)
 		}()
 	} else if e.shouldCompact() {
+		e.logger.Println("compacting for maintenance")
 		go e.Compact(true)
 	}
 }
@@ -445,7 +449,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		break
 	}
 
-	fmt.Println("Starting compaction with files:", len(files))
+	e.logger.Printf("Starting compaction in partition %s of %d files", e.path, len(files))
 	st := time.Now()
 
 	// mark the compaction as running
@@ -591,7 +595,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	e.files = newFiles
 	e.filesLock.Unlock()
 
-	fmt.Println("Compaction took ", time.Since(st))
+	e.logger.Println("Compaction took ", time.Since(st))
 
 	// delete the old files in a goroutine so running queries won't block the write
 	// from completing
