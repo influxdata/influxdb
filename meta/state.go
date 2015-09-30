@@ -407,9 +407,9 @@ func (r *remoteRaft) addPeer(addr string) error {
 	return fmt.Errorf("cannot add peer using remote raft")
 }
 
-// removePeer removes addr from the list of peers in the cluster.
+// removePeer does nothing for remoteRaft.
 func (r *remoteRaft) removePeer(addr string) error {
-	return fmt.Errorf("cannot remove peer using remote raft")
+	return nil
 }
 
 func (r *remoteRaft) peers() ([]string, error) {

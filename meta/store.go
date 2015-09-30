@@ -1685,16 +1685,9 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 	id := v.GetID()
 	addr := v.GetAddr()
 	//Remove that node from the peer
-	if id == fsm.id {
-		// if we are part of the raft cluster, remove us
-		if _, ok := fsm.raftState.(*localRaft); ok {
-			fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
-			// the types of errors that come back are due to consensus, leader, etc.  Log them
-			// but continue
-			if err := fsm.raftState.removePeer(addr); err != nil {
-				fsm.Logger.Printf("error removing peer: %s", err)
-			}
-		}
+	fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
+	if err := fsm.raftState.removePeer(addr); err != nil {
+		fsm.Logger.Printf("error removing peer: %s", err)
 	}
 	return nil
 }
