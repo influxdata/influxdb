@@ -120,6 +120,9 @@ func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) err
 func (s *Service) retryWrites() {
 	defer s.wg.Done()
 	currInterval := time.Duration(s.cfg.RetryInterval)
+	if currInterval > time.Duration(s.cfg.RetryMaxInterval) {
+		currInterval = time.Duration(s.cfg.RetryMaxInterval)
+	}
 
 	for {
 
