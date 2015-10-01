@@ -71,7 +71,6 @@ func (r *localRaft) shutdown() error {
 			return err
 		}
 	}
-	r.raft = nil
 	return nil
 }
 
