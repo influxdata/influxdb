@@ -860,7 +860,43 @@ func TestProcessAggregateDerivative(t *testing.T) {
 			},
 			exp: [][]interface{}{
 				[]interface{}{
-					time.Unix(0, 0), 0.0,
+					time.Unix(0, 0).Add(24 * time.Hour), nil,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), nil,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), nil,
+				},
+			},
+		},
+		{
+			name:     "bool derivatives",
+			fn:       "derivative",
+			interval: 24 * time.Hour,
+			in: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0), "1.0",
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), true,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), true,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), true,
+				},
+			},
+			exp: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), nil,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), nil,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), nil,
 				},
 			},
 		},
@@ -1123,8 +1159,53 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 			},
 			exp: []*tsdb.MapperValue{
 				{
+					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
+					Value: nil,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
+					Value: nil,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
+					Value: nil,
+				},
+			},
+		},
+		{
+			name:     "bool derivatives",
+			fn:       "derivative",
+			interval: 24 * time.Hour,
+			in: []*tsdb.MapperValue{
+				{
 					Time:  time.Unix(0, 0).Unix(),
-					Value: 0.0,
+					Value: true,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
+					Value: true,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
+					Value: false,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
+					Value: false,
+				},
+			},
+			exp: []*tsdb.MapperValue{
+				{
+					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
+					Value: nil,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
+					Value: nil,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
+					Value: nil,
 				},
 			},
 		},
@@ -1142,8 +1223,14 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 		}
 
 		for i := 0; i < len(test.exp); i++ {
-			if test.exp[i].Time != got[i].Time || math.Abs((test.exp[i].Value.(float64)-got[i].Value.(float64))) > 0.0000001 {
-				t.Fatalf("RawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
+			if v, ok := test.exp[i].Value.(float64); ok {
+				if test.exp[i].Time != got[i].Time || math.Abs((v-got[i].Value.(float64))) > 0.0000001 {
+					t.Fatalf("RawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
+				}
+			} else {
+				if test.exp[i].Time != got[i].Time || test.exp[i].Value != got[i].Value {
+					t.Fatalf("RawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
+				}
 			}
 		}
 	}

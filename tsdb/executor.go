@@ -926,16 +926,15 @@ type RawQueryDerivativeProcessor struct {
 	DerivativeInterval         time.Duration
 }
 
-func (rqdp *RawQueryDerivativeProcessor) canProcess(input []*MapperValue) bool {
-	// If we only have 1 value, then the value did not change, so return
-	// a single row with 0.0
-	if len(input) == 1 {
+func (rqdp *RawQueryDerivativeProcessor) canProcess(input *MapperValue) bool {
+	// Cannot process a nil value
+	if input == nil {
 		return false
 	}
 
 	// See if the field value is numeric, if it's not, we can't process the derivative
 	validType := false
-	switch input[0].Value.(type) {
+	switch input.Value.(type) {
 	case int64:
 		validType = true
 	case float64:
@@ -950,7 +949,7 @@ func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*Mapper
 		return input
 	}
 
-	if !rqdp.canProcess(input) {
+	if len(input) == 1 {
 		return []*MapperValue{
 			&MapperValue{
 				Time:  input[0].Time,
@@ -966,6 +965,16 @@ func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*Mapper
 	derivativeValues := []*MapperValue{}
 	for i := 1; i < len(input); i++ {
 		v := input[i]
+
+		// If we can't use the current or prev value (wrong time, nil), just append
+		// nil
+		if !rqdp.canProcess(v) || !rqdp.canProcess(rqdp.LastValueFromPreviousChunk) {
+			derivativeValues = append(derivativeValues, &MapperValue{
+				Time:  v.Time,
+				Value: nil,
+			})
+			continue
+		}
 
 		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
@@ -1044,22 +1053,6 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 		}
 	}
 
-	// Check the value's type to ensure it's an numeric, if not, return a 0 result. We only check the first value
-	// because derivatives cannot be combined with other aggregates currently.
-	validType := false
-	switch results[0][1].(type) {
-	case int64:
-		validType = true
-	case float64:
-		validType = true
-	}
-
-	if !validType {
-		return [][]interface{}{
-			[]interface{}{results[0][0], 0.0},
-		}
-	}
-
 	// Otherwise calculate the derivatives as the difference between consecutive
 	// points divided by the elapsed time.  Then normalize to the requested
 	// interval.
@@ -1068,7 +1061,28 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 		prev := results[i-1]
 		cur := results[i]
 
-		if cur[1] == nil || prev[1] == nil {
+		// If current value is nil, append nil for the value
+		if prev[1] == nil || cur[1] == nil {
+			derivatives = append(derivatives, []interface{}{
+				cur[0], nil,
+			})
+			continue
+		}
+
+		// Check the value's type to ensure it's an numeric, if not, return a nil result. We only check the first value
+		// because derivatives cannot be combined with other aggregates currently.
+		validType := false
+		switch cur[1].(type) {
+		case int64:
+			validType = true
+		case float64:
+			validType = true
+		}
+
+		if !validType {
+			derivatives = append(derivatives, []interface{}{
+				cur[0], nil,
+			})
 			continue
 		}
 
