@@ -399,7 +399,7 @@ func (s *Store) enableRemoteRaft() error {
 	return s.changeState(rr)
 }
 
-func (s *Store) checkRaftState() error {
+func (s *Store) enabledLocalRaftIfNecessary() error {
 	s.mu.RLock()
 	if s.raftState == nil {
 		s.mu.RUnlock()
@@ -796,7 +796,7 @@ func (s *Store) monitorPeerHealth() {
 		}
 
 		// Need to see if we were promoted, but still have a local raft.
-		if err := s.checkRaftState(); err != nil {
+		if err := s.enabledLocalRaftIfNecessary(); err != nil {
 			s.Logger.Printf("error changing raft state: %s", err)
 		}
 	}
