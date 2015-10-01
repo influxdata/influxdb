@@ -57,6 +57,7 @@ const (
 	pointsEntry walEntryType = 0x01
 	fieldsEntry walEntryType = 0x02
 	seriesEntry walEntryType = 0x03
+	deleteEntry walEntryType = 0x04
 )
 
 type Log struct {
@@ -117,6 +118,7 @@ type Log struct {
 // IndexWriter is an interface for the indexed database the WAL flushes data to
 type IndexWriter interface {
 	Write(valuesByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
+	MarkDeletes(keys []string)
 }
 
 func NewLog(path string) *Log {
@@ -385,6 +387,12 @@ func (l *Log) readFileToCache(fileName string) error {
 				return err
 			}
 			l.addToCache(nil, nil, series, false)
+		case deleteEntry:
+			var keys []string
+			if err := json.Unmarshal(data, &keys); err != nil {
+				return err
+			}
+			l.Index.MarkDeletes(keys)
 		}
 	}
 }
@@ -423,8 +431,27 @@ func (l *Log) Flush() error {
 	return l.flush(idleFlush)
 }
 
+func (l *Log) DropMeasurementFields(measurement string) {
+	l.cacheLock.Lock()
+	defer l.cacheLock.Unlock()
+	delete(l.measurementFieldsCache, measurement)
+}
+
 func (l *Log) DeleteSeries(keys []string) error {
-	panic("not implemented")
+	l.cacheLock.Lock()
+	for _, k := range keys {
+		delete(l.cache, k)
+	}
+	l.cacheLock.Unlock()
+
+	b, err := json.Marshal(keys)
+	if err != nil {
+		return err
+	}
+
+	cb := snappy.Encode(nil, b)
+
+	return l.writeToLog(deleteEntry, cb)
 }
 
 // Close will finish any flush that is currently in process and close file handles
@@ -531,7 +558,7 @@ func (l *Log) flush(flush flushType) error {
 	l.cacheLock.Unlock()
 
 	// exit if there's nothing to flush to the index
-	if len(l.flushCache) == 0 && len(mfc) == 0 && len(scc) == 0 {
+	if len(l.flushCache) == 0 && len(mfc) == 0 && len(scc) == 0 && flush != startupFlush {
 		return nil
 	}
 

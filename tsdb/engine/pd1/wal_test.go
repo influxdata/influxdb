@@ -172,3 +172,5 @@ type MockIndexWriter struct {
 func (m *MockIndexWriter) Write(valuesByKey map[string]pd1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return m.fn(valuesByKey, measurementFieldsToSave, seriesToCreate)
 }
+
+func (m *MockIndexWriter) MarkDeletes(keys []string) {}
