@@ -145,7 +145,7 @@ case $1 in
             fi
         # if PID file does not exist, check if writable
         else
-            su -c "touch $PIDFILE" $USER > /dev/null 2>&1
+            su -s /bin/sh -c "touch $PIDFILE" $USER > /dev/null 2>&1
             if [ $? -ne 0 ]; then
                 log_failure_msg "$PIDFILE not writable, check permissions"
                 exit 5
