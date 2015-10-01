@@ -170,6 +170,7 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 		points = points[1:]
 
 		for _, p := range points {
+			fmt.Println("> ", p.Time())
 			k, v := c.Next()
 			val := p.Fields()["value"]
 			if p.UnixNano() != k || val != v {
@@ -178,9 +179,13 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 		}
 	}
 
+	fmt.Println("v1")
 	verify("cpu,host=A", []models.Point{p1, p7, p3, p5}, 0)
+	fmt.Println("v2")
 	verify("cpu,host=B", []models.Point{p2, p8, p4, p6}, 0)
+	fmt.Println("v3")
 	verify("cpu,host=A", []models.Point{p5}, 5000000000)
+	fmt.Println("v4")
 	verify("cpu,host=B", []models.Point{p6}, 5000000000)
 }
 
@@ -681,6 +686,81 @@ func TestEngine_WritePointsInMultipleRequestsWithSameTime(t *testing.T) {
 	verify()
 }
 
+func TestEngine_CursorDescendingOrder(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+
+	p1 := parsePoint("foo value=1 1")
+	p2 := parsePoint("foo value=2 2")
+
+	e.WAL.SkipCache = false
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify := func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("foo", fields, nil, false)
+		fmt.Println("seek")
+		k, v := c.SeekTo(5000000)
+		if k != 2 {
+			t.Fatalf("expected 2 time but got %d", k)
+		}
+		if v != float64(2) {
+			t.Fatalf("expected 2 for value but got %f", v.(float64))
+		}
+		fmt.Println("next1")
+		k, v = c.Next()
+		if k != 1 {
+			t.Fatalf("expected 1 time but got %d", k)
+		}
+		fmt.Println("next2")
+		if v != float64(1) {
+			t.Fatalf("expected 1 for value but got %f", v.(float64))
+		}
+		k, _ = c.Next()
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF", k)
+		}
+	}
+	fmt.Println("verify 1")
+	verify()
+
+	if err := e.WAL.Flush(); err != nil {
+		t.Fatalf("error flushing WAL %s", err.Error)
+	}
+
+	fmt.Println("verify 2")
+	verify()
+
+	p3 := parsePoint("foo value=3 3")
+
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("foo", fields, nil, false)
+		k, v := c.SeekTo(234232)
+		if k != 3 {
+			t.Fatalf("expected 3 time but got %d", k)
+		}
+		if v != float64(3) {
+			t.Fatalf("expected 3 for value but got %f", v.(float64))
+		}
+		k, _ = c.Next()
+		if k != 2 {
+			t.Fatalf("expected 2 time but got %d", k)
+		}
+	}()
+}
+
 func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Cleanup()
@@ -711,7 +791,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	verify := func() {
 		tx, _ := e.Begin(false)
 		defer tx.Rollback()
-		c := tx.Cursor("cpu,host=A", fields, nil, false)
+		c := tx.Cursor("cpu,host=A", fields, nil, true)
 		k, v := c.SeekTo(0)
 		if k != 1000000000 {
 			t.Fatalf("expected time 1000000000 but got %d", k)
@@ -723,7 +803,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 		if k != 3000000000 {
 			t.Fatalf("expected time 3000000000 but got %d", k)
 		}
-		c = tx.Cursor("cpu,host=B", fields, nil, false)
+		c = tx.Cursor("cpu,host=B", fields, nil, true)
 		k, v = c.SeekTo(0)
 		if k != 2000000000 {
 			t.Fatalf("expected time 2000000000 but got %d", k)
@@ -752,7 +832,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	}
 	tx1, _ := e.Begin(false)
 	defer tx1.Rollback()
-	c := tx1.Cursor("cpu,host=A", fields, nil, false)
+	c := tx1.Cursor("cpu,host=A", fields, nil, true)
 	k, v := c.SeekTo(0)
 	if k != 1000000000 {
 		t.Fatalf("expected time 1000000000 but got %d", k)
@@ -796,7 +876,7 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 	verify := func() {
 		tx, _ := e.Begin(false)
 		defer tx.Rollback()
-		c := tx.Cursor("cpu,host=A", fields, nil, false)
+		c := tx.Cursor("cpu,host=A", fields, nil, true)
 		k, _ := c.SeekTo(0)
 		if k != 1000000000 {
 			t.Fatalf("expected time 1000000000 but got %d", k)
@@ -875,7 +955,7 @@ func TestEngine_RewritingOldBlocks(t *testing.T) {
 
 	tx, _ := e.Begin(false)
 	defer tx.Rollback()
-	c := tx.Cursor("cpu,host=A", fields, nil, false)
+	c := tx.Cursor("cpu,host=A", fields, nil, true)
 	k, _ := c.SeekTo(0)
 	if k != 1000000000 {
 		t.Fatalf("expected time 1000000000 but got %d", k)
@@ -958,6 +1038,36 @@ func TestEngine_WriteIntoCompactedFile(t *testing.T) {
 	k, _ = c.Next()
 	if k != 4000000000 {
 		t.Fatalf("wrong time: %d", k)
+	}
+}
+
+func TestEngine_DuplicatePointsInWalAndIndex(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 1000000000")
+	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	e.WAL.SkipCache = false
+	if err := e.WritePoints([]models.Point{p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	tx, _ := e.Begin(false)
+	defer tx.Rollback()
+	c := tx.Cursor("cpu,host=A", fields, nil, true)
+	k, v := c.SeekTo(0)
+	if k != 1000000000 {
+		t.Fatalf("wrong time: %d", k)
+	}
+	if v != 1.2 {
+		t.Fatalf("wrong value: %f", v.(float64))
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		t.Fatal("expected EOF", k)
 	}
 }
 
