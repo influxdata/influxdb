@@ -46,7 +46,7 @@ type EngineFormat int
 const (
 	B1Format EngineFormat = iota
 	BZ1Format
-	PD1Format
+	TSM1Format
 )
 
 // NewEngineFunc creates a new engine.
@@ -74,7 +74,7 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 	// Only bolt-based backends are currently supported so open it and check the format.
 	var format string
 	if err := func() error {
-		// if it's a dir then it's a pd1 engine
+		// if it's a dir then it's a tsm1 engine
 		f, err := os.Open(path)
 		if err != nil {
 			return err
@@ -85,7 +85,7 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 			return err
 		}
 		if fi.Mode().IsDir() {
-			format = "pd1"
+			format = "tsm1"
 			return nil
 		}
 

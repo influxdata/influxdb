@@ -24,7 +24,7 @@ import (
 
 const (
 	// Format is the file format name of this engine.
-	Format = "pd1"
+	Format = "tsm1"
 
 	// FieldsFileExtension is the extension for the file that stores compressed field
 	// encoding data for this db
@@ -125,7 +125,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	e := &Engine{
 		path:      path,
 		writeLock: &WriteLock{},
-		logger:    log.New(os.Stderr, "[pd1] ", log.LstdFlags),
+		logger:    log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
 		HashSeriesField:                hashSeriesField,
@@ -180,7 +180,7 @@ func (e *Engine) PerformMaintenance() {
 
 // Format returns the format type of this engine
 func (e *Engine) Format() tsdb.EngineFormat {
-	return tsdb.PD1Format
+	return tsdb.TSM1Format
 }
 
 // Open opens and initializes the engine.

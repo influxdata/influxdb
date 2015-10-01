@@ -234,7 +234,7 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 	// make sure all data is encoded before attempting to save to bolt
 	// only required for the b1 and bz1 formats
-	if s.engine.Format() != PD1Format {
+	if s.engine.Format() != TSM1Format {
 		for _, p := range points {
 			// Ignore if raw data has already been marshaled.
 			if p.Data() != nil {
