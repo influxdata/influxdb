@@ -39,45 +39,48 @@ func (c *combinedEngineCursor) Ascending() bool {
 }
 
 func (c *combinedEngineCursor) read() (key int64, value interface{}) {
-	key = tsdb.EOF
+	if c.walKeyBuf == tsdb.EOF && c.engineKeyBuf == tsdb.EOF {
+		return tsdb.EOF, nil
+	}
 
 	// handle the case where they have the same point
-	if c.walKeyBuf != tsdb.EOF && c.walKeyBuf == c.engineKeyBuf {
+	if c.walKeyBuf == c.engineKeyBuf {
 		// keep the wal value since it will overwrite the engine value
 		key = c.walKeyBuf
 		value = c.walValueBuf
 		c.walKeyBuf, c.walValueBuf = c.walCursor.Next()
-		// drop the engine value
-		_, _ = c.engineCursor.Next()
+
+		// overwrite the buffered engine values
+		c.engineKeyBuf, c.engineValueBuf = c.engineCursor.Next()
 		return
 	}
 
 	// ascending order
 	if c.ascending {
-		if c.engineKeyBuf == tsdb.EOF || (c.walKeyBuf != tsdb.EOF && c.walKeyBuf < c.engineKeyBuf) {
+		if c.walKeyBuf != tsdb.EOF && (c.walKeyBuf < c.engineKeyBuf || c.engineKeyBuf == tsdb.EOF) {
 			key = c.walKeyBuf
 			value = c.walValueBuf
 			c.walKeyBuf, c.walValueBuf = c.walCursor.Next()
-		} else {
-			key = c.engineKeyBuf
-			value = c.engineValueBuf
-			c.engineKeyBuf, c.engineValueBuf = c.engineCursor.Next()
+			return
 		}
 
+		key = c.engineKeyBuf
+		value = c.engineValueBuf
+		c.engineKeyBuf, c.engineValueBuf = c.engineCursor.Next()
 		return
 	}
 
 	// descending order
-	if c.engineKeyBuf == tsdb.EOF || (c.walKeyBuf != tsdb.EOF && c.walKeyBuf > c.engineKeyBuf) {
+	if c.walKeyBuf != tsdb.EOF && c.walKeyBuf > c.engineKeyBuf {
 		key = c.walKeyBuf
 		value = c.walValueBuf
 		c.walKeyBuf, c.walValueBuf = c.walCursor.Next()
 		return
 	}
+
 	key = c.engineKeyBuf
 	value = c.engineValueBuf
 	c.engineKeyBuf, c.engineValueBuf = c.engineCursor.Next()
-
 	return
 }
 

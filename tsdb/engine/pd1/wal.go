@@ -657,7 +657,7 @@ func (c *walCursor) SeekTo(seek int64) (int64, interface{}) {
 
 	// If seek is not in the cache, return the last value in the cache
 	if !c.ascending && c.position >= len(c.cache) {
-		c.position = len(c.cache)
+		c.position = len(c.cache) - 1
 	}
 
 	// Make sure our position points to something in the cache
