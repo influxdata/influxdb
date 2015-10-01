@@ -1,4 +1,4 @@
-package pd1_test
+package tsm1_test
 
 import (
 	"io/ioutil"
@@ -8,19 +8,19 @@ import (
 
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func TestWAL_TestWriteQueryOpen(t *testing.T) {
 	w := NewWAL()
 	defer w.Cleanup()
 
-	var vals map[string]pd1.Values
+	var vals map[string]tsm1.Values
 	var fields map[string]*tsdb.MeasurementFields
 	var series []*tsdb.SeriesCreate
 
 	w.Index = &MockIndexWriter{
-		fn: func(valuesByKey map[string]pd1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		fn: func(valuesByKey map[string]tsm1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 			vals = valuesByKey
 			fields = measurementFieldsToSave
 			series = seriesToCreate
@@ -141,18 +141,18 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 }
 
 type Log struct {
-	*pd1.Log
+	*tsm1.Log
 	path string
 }
 
 func NewWAL() *Log {
-	dir, err := ioutil.TempDir("", "pd1-test")
+	dir, err := ioutil.TempDir("", "tsm1-test")
 	if err != nil {
 		panic("couldn't get temp dir")
 	}
 
 	l := &Log{
-		Log:  pd1.NewLog(dir),
+		Log:  tsm1.NewLog(dir),
 		path: dir,
 	}
 	l.LoggingEnabled = true
@@ -166,10 +166,10 @@ func (l *Log) Cleanup() error {
 }
 
 type MockIndexWriter struct {
-	fn func(valuesByKey map[string]pd1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
+	fn func(valuesByKey map[string]tsm1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 }
 
-func (m *MockIndexWriter) Write(valuesByKey map[string]pd1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+func (m *MockIndexWriter) Write(valuesByKey map[string]tsm1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return m.fn(valuesByKey, measurementFieldsToSave, seriesToCreate)
 }
 

@@ -1,27 +1,27 @@
-package pd1_test
+package tsm1_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func Test_StringEncoder_NoValues(t *testing.T) {
-	enc := pd1.NewStringEncoder()
+	enc := tsm1.NewStringEncoder()
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := pd1.NewStringDecoder(b)
+	dec := tsm1.NewStringDecoder(b)
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
 }
 
 func Test_StringEncoder_Single(t *testing.T) {
-	enc := pd1.NewStringEncoder()
+	enc := tsm1.NewStringEncoder()
 	v1 := "v1"
 	enc.Write(v1)
 	b, err := enc.Bytes()
@@ -29,7 +29,7 @@ func Test_StringEncoder_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := pd1.NewStringDecoder(b)
+	dec := tsm1.NewStringDecoder(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got false, exp true")
 	}
@@ -40,7 +40,7 @@ func Test_StringEncoder_Single(t *testing.T) {
 }
 
 func Test_StringEncoder_Multi_Compressed(t *testing.T) {
-	enc := pd1.NewStringEncoder()
+	enc := tsm1.NewStringEncoder()
 
 	values := make([]string, 10)
 	for i := range values {
@@ -53,15 +53,15 @@ func Test_StringEncoder_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if b[0]>>4 != pd1.EncodingSnappy {
-		t.Fatalf("unexpected encoding: got %v, exp %v", b[0], pd1.EncodingSnappy)
+	if b[0]>>4 != tsm1.EncodingSnappy {
+		t.Fatalf("unexpected encoding: got %v, exp %v", b[0], tsm1.EncodingSnappy)
 	}
 
 	if exp := 47; len(b) != exp {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
-	dec := pd1.NewStringDecoder(b)
+	dec := tsm1.NewStringDecoder(b)
 
 	for i, v := range values {
 		if !dec.Next() {

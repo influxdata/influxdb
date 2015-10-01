@@ -1,4 +1,4 @@
-package pd1_test
+package tsm1_test
 
 import (
 	"encoding/binary"
@@ -13,7 +13,7 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func TestEngine_WriteAndReadFloats(t *testing.T) {
@@ -1236,21 +1236,21 @@ func TestEngine_Deletes(t *testing.T) {
 	}()
 }
 
-// Engine represents a test wrapper for pd1.Engine.
+// Engine represents a test wrapper for tsm1.Engine.
 type Engine struct {
-	*pd1.Engine
+	*tsm1.Engine
 }
 
 // NewEngine returns a new instance of Engine.
 func NewEngine(opt tsdb.EngineOptions) *Engine {
-	dir, err := ioutil.TempDir("", "pd1-test")
+	dir, err := ioutil.TempDir("", "tsm1-test")
 	if err != nil {
 		panic("couldn't get temp dir")
 	}
 
 	// Create test wrapper and attach mocks.
 	e := &Engine{
-		Engine: pd1.NewEngine(dir, dir, opt).(*pd1.Engine),
+		Engine: tsm1.NewEngine(dir, dir, opt).(*tsm1.Engine),
 	}
 
 	return e

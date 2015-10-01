@@ -1,4 +1,4 @@
-package pd1
+package tsm1
 
 import (
 	"encoding/json"
@@ -131,7 +131,7 @@ func NewLog(path string) *Log {
 		SegmentSize:              DefaultSegmentSize,
 		FlushMemorySizeThreshold: tsdb.DefaultFlushMemorySizeThreshold,
 		MaxMemorySizeThreshold:   tsdb.DefaultMaxMemorySizeThreshold,
-		logger:                   log.New(os.Stderr, "[pd1wal] ", log.LstdFlags),
+		logger:                   log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 	}
 }
 
@@ -139,8 +139,8 @@ func NewLog(path string) *Log {
 func (l *Log) Open() error {
 
 	if l.LoggingEnabled {
-		l.logger.Printf("PD1 WAL starting with %d flush memory size threshold and %d max memory size threshold\n", l.FlushMemorySizeThreshold, l.MaxMemorySizeThreshold)
-		l.logger.Printf("PD1 WAL writing to %s\n", l.path)
+		l.logger.Printf("tsm1 WAL starting with %d flush memory size threshold and %d max memory size threshold\n", l.FlushMemorySizeThreshold, l.MaxMemorySizeThreshold)
+		l.logger.Printf("tsm1 WAL writing to %s\n", l.path)
 	}
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err

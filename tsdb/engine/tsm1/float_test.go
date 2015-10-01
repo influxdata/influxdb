@@ -1,15 +1,15 @@
-package pd1_test
+package tsm1_test
 
 import (
 	"testing"
 
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func TestFloatEncoder_Simple(t *testing.T) {
 
 	// Example from the paper
-	s := pd1.NewFloatEncoder()
+	s := tsm1.NewFloatEncoder()
 
 	s.Push(12)
 	s.Push(12)
@@ -94,7 +94,7 @@ var TwoHoursData = []struct {
 
 func TestFloatEncoder_Roundtrip(t *testing.T) {
 
-	s := pd1.NewFloatEncoder()
+	s := tsm1.NewFloatEncoder()
 	for _, p := range TwoHoursData {
 		s.Push(p.v)
 	}
@@ -123,7 +123,7 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 
 func BenchmarkFloatEncoder(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		s := pd1.NewFloatEncoder()
+		s := tsm1.NewFloatEncoder()
 		for _, tt := range TwoHoursData {
 			s.Push(tt.v)
 		}
@@ -132,7 +132,7 @@ func BenchmarkFloatEncoder(b *testing.B) {
 }
 
 func BenchmarkFloatDecoder(b *testing.B) {
-	s := pd1.NewFloatEncoder()
+	s := tsm1.NewFloatEncoder()
 	for _, tt := range TwoHoursData {
 		s.Push(tt.v)
 	}

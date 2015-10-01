@@ -1,4 +1,4 @@
-package pd1
+package tsm1
 
 // String encoding uses snappy compression to compress each string.  Each string is
 // appended to byte slice prefixed with a variable byte length followed by the string

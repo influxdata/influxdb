@@ -1,4 +1,4 @@
-package pd1
+package tsm1
 
 /*
 This code is originally from: https://github.com/dgryski/go-tsz and has been modified to remove
