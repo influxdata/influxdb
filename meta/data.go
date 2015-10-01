@@ -111,7 +111,6 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 	// Remove node id from all shard infos
 	for di, d := range data.Databases {
 		for ri, rp := range d.RetentionPolicies {
-			// ignore replicated retention policies
 			for sgi, sg := range rp.ShardGroups {
 				for si, s := range sg.Shards {
 					if s.OwnedBy(id) {
