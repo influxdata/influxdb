@@ -1,26 +1,26 @@
-package pd1_test
+package tsm1_test
 
 import (
 	"testing"
 
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func Test_BoolEncoder_NoValues(t *testing.T) {
-	enc := pd1.NewBoolEncoder()
+	enc := tsm1.NewBoolEncoder()
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := pd1.NewBoolDecoder(b)
+	dec := tsm1.NewBoolDecoder(b)
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
 }
 
 func Test_BoolEncoder_Single(t *testing.T) {
-	enc := pd1.NewBoolEncoder()
+	enc := tsm1.NewBoolEncoder()
 	v1 := true
 	enc.Write(v1)
 	b, err := enc.Bytes()
@@ -28,7 +28,7 @@ func Test_BoolEncoder_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := pd1.NewBoolDecoder(b)
+	dec := tsm1.NewBoolDecoder(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got false, exp true")
 	}
@@ -39,7 +39,7 @@ func Test_BoolEncoder_Single(t *testing.T) {
 }
 
 func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
-	enc := pd1.NewBoolEncoder()
+	enc := tsm1.NewBoolEncoder()
 
 	values := make([]bool, 10)
 	for i := range values {
@@ -56,7 +56,7 @@ func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
-	dec := pd1.NewBoolDecoder(b)
+	dec := tsm1.NewBoolDecoder(b)
 
 	for i, v := range values {
 		if !dec.Next() {

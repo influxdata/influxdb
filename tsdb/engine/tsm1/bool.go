@@ -1,4 +1,4 @@
-package pd1
+package tsm1
 
 // bool encoding uses 1 bit per value.  Each compressed byte slice contains a 1 byte header
 // indicating the compression type, followed by a variable byte encoded length indicating

@@ -1,4 +1,4 @@
-package pd1
+package tsm1
 
 // Int64 encoding uses two different strategies depending on the range of values in
 // the uncompressed data.  Encoded values are first encoding used zig zag encoding.

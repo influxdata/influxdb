@@ -1,4 +1,4 @@
-package pd1_test
+package tsm1_test
 
 import (
 	// "math/rand"
@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func TestEncoding_FloatBlock(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
-	values := make(pd1.Values, len(times))
+	values := make(tsm1.Values, len(times))
 	for i, t := range times {
-		values[i] = pd1.NewValue(t, float64(i))
+		values[i] = tsm1.NewValue(t, float64(i))
 	}
 
 	b := values.Encode(nil)
@@ -29,9 +29,9 @@ func TestEncoding_FloatBlock(t *testing.T) {
 }
 
 func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
-	values := make(pd1.Values, 3)
+	values := make(tsm1.Values, 3)
 	for i := 0; i < 3; i++ {
-		values[i] = pd1.NewValue(time.Unix(0, 0), float64(i))
+		values[i] = tsm1.NewValue(time.Unix(0, 0), float64(i))
 	}
 
 	b := values.Encode(nil)
@@ -46,9 +46,9 @@ func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
 func TestEncoding_IntBlock_Basic(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
-	values := make(pd1.Values, len(times))
+	values := make(tsm1.Values, len(times))
 	for i, t := range times {
-		values[i] = pd1.NewValue(t, int64(i))
+		values[i] = tsm1.NewValue(t, int64(i))
 	}
 
 	b := values.Encode(nil)
@@ -74,13 +74,13 @@ func TestEncoding_IntBlock_Basic(t *testing.T) {
 func TestEncoding_IntBlock_Negatives(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
-	values := make(pd1.Values, len(times))
+	values := make(tsm1.Values, len(times))
 	for i, t := range times {
 		v := int64(i)
 		if i%2 == 0 {
 			v = -v
 		}
-		values[i] = pd1.NewValue(t, int64(v))
+		values[i] = tsm1.NewValue(t, int64(v))
 	}
 
 	b := values.Encode(nil)
@@ -95,13 +95,13 @@ func TestEncoding_IntBlock_Negatives(t *testing.T) {
 func TestEncoding_BoolBlock_Basic(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
-	values := make(pd1.Values, len(times))
+	values := make(tsm1.Values, len(times))
 	for i, t := range times {
 		v := true
 		if i%2 == 0 {
 			v = false
 		}
-		values[i] = pd1.NewValue(t, v)
+		values[i] = tsm1.NewValue(t, v)
 	}
 
 	b := values.Encode(nil)
@@ -116,9 +116,9 @@ func TestEncoding_BoolBlock_Basic(t *testing.T) {
 func TestEncoding_StringBlock_Basic(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
-	values := make(pd1.Values, len(times))
+	values := make(tsm1.Values, len(times))
 	for i, t := range times {
-		values[i] = pd1.NewValue(t, fmt.Sprintf("value %d", i))
+		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
 	}
 
 	b := values.Encode(nil)

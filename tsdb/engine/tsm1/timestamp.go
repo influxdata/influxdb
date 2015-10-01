@@ -1,4 +1,4 @@
-package pd1
+package tsm1
 
 // Timestamp encoding is adapative and based on structure of the timestamps that are encoded.  It
 // uses a combination of delta encoding, scaling and compression using simple8b, run length encoding

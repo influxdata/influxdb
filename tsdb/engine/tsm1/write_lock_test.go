@@ -1,15 +1,15 @@
-package pd1_test
+package tsm1_test
 
 import (
 	// "sync"
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/tsdb/engine/pd1"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func TestWriteLock_FullCover(t *testing.T) {
-	w := &pd1.WriteLock{}
+	w := &tsm1.WriteLock{}
 	w.LockRange(2, 10)
 
 	lock := make(chan bool)
@@ -27,7 +27,7 @@ func TestWriteLock_FullCover(t *testing.T) {
 }
 
 func TestWriteLock_RightIntersect(t *testing.T) {
-	w := &pd1.WriteLock{}
+	w := &tsm1.WriteLock{}
 	w.LockRange(2, 10)
 
 	lock := make(chan bool)
@@ -45,7 +45,7 @@ func TestWriteLock_RightIntersect(t *testing.T) {
 }
 
 func TestWriteLock_LeftIntersect(t *testing.T) {
-	w := &pd1.WriteLock{}
+	w := &tsm1.WriteLock{}
 	w.LockRange(1, 4)
 
 	lock := make(chan bool)
@@ -63,7 +63,7 @@ func TestWriteLock_LeftIntersect(t *testing.T) {
 }
 
 func TestWriteLock_Inside(t *testing.T) {
-	w := &pd1.WriteLock{}
+	w := &tsm1.WriteLock{}
 	w.LockRange(4, 8)
 
 	lock := make(chan bool)
@@ -81,7 +81,7 @@ func TestWriteLock_Inside(t *testing.T) {
 }
 
 func TestWriteLock_Same(t *testing.T) {
-	w := &pd1.WriteLock{}
+	w := &tsm1.WriteLock{}
 	w.LockRange(2, 10)
 
 	lock := make(chan bool)
@@ -99,7 +99,7 @@ func TestWriteLock_Same(t *testing.T) {
 }
 
 // func TestWriteLock_FreeRangeWithContentionElsewhere(t *testing.T) {
-// 	w := &pd1.WriteLock{}
+// 	w := &tsm1.WriteLock{}
 // 	w.LockRange(2, 10)
 
 // 	lock := make(chan bool)
