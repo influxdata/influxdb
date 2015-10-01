@@ -427,15 +427,16 @@ func (s *Store) checkRaftState() error {
 }
 
 func (s *Store) changeState(state raftState) error {
-	if err := s.raftState.close(); err != nil {
-		return err
-	}
+	if s.raftState != nil {
+		if err := s.raftState.close(); err != nil {
+			return err
+		}
 
-	// Clear out any persistent state
-	if err := s.raftState.remove(); err != nil {
-		return err
+		// Clear out any persistent state
+		if err := s.raftState.remove(); err != nil {
+			return err
+		}
 	}
-
 	s.raftState = state
 
 	if err := s.raftState.open(); err != nil {
