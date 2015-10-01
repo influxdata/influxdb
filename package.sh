@@ -38,8 +38,8 @@ AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
 INFLUXDB_LOG_DIR=/var/log/influxdb
-INFLUXDB_DATA_DIR=/var/opt/influxdb
-CONFIG_ROOT_DIR=/etc/opt/influxdb
+INFLUXDB_DATA_DIR=/var/lib/influxdb
+CONFIG_ROOT_DIR=/etc/influxdb
 LOGROTATE_DIR=/etc/logrotate.d
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
