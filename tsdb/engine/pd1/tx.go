@@ -13,10 +13,20 @@ type tx struct {
 
 // TODO: handle multiple fields and descending
 func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
+	t.engine.filesLock.RLock()
+	defer t.engine.filesLock.RUnlock()
+
 	// don't add the overhead of the multifield cursor if we only have one field
 	if len(fields) == 1 {
 		id := t.engine.keyAndFieldToID(series, fields[0])
-		indexCursor := newCursor(id, t.files, ascending)
+		isDeleted := t.engine.deletes[id]
+
+		var indexCursor tsdb.Cursor
+		if isDeleted {
+			indexCursor = &emptyCursor{ascending: ascending}
+		} else {
+			indexCursor = newCursor(id, t.files, ascending)
+		}
 		wc := t.engine.WAL.Cursor(series, fields, dec, ascending)
 		return NewCombinedEngineCursor(wc, indexCursor, ascending)
 	}
@@ -27,7 +37,14 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 	cursorFields := make([]string, 0)
 	for _, field := range fields {
 		id := t.engine.keyAndFieldToID(series, field)
-		indexCursor := newCursor(id, t.files, ascending)
+		isDeleted := t.engine.deletes[id]
+
+		var indexCursor tsdb.Cursor
+		if isDeleted {
+			indexCursor = &emptyCursor{ascending: ascending}
+		} else {
+			indexCursor = newCursor(id, t.files, ascending)
+		}
 		wc := t.engine.WAL.Cursor(series, []string{field}, dec, ascending)
 		// double up the fields since there's one for the wal and one for the index
 		cursorFields = append(cursorFields, field, field)

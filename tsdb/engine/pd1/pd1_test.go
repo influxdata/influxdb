@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/pd1"
@@ -170,7 +171,6 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 		points = points[1:]
 
 		for _, p := range points {
-			fmt.Println("> ", p.Time())
 			k, v := c.Next()
 			val := p.Fields()["value"]
 			if p.UnixNano() != k || val != v {
@@ -1069,6 +1069,171 @@ func TestEngine_DuplicatePointsInWalAndIndex(t *testing.T) {
 	if k != tsdb.EOF {
 		t.Fatal("expected EOF", k)
 	}
+}
+
+func TestEngine_Deletes(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+	// Create metadata.
+	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
+	mf.CreateFieldIfNotExists("value", influxql.Float)
+	atag := map[string]string{"host": "A"}
+	btag := map[string]string{"host": "B"}
+	seriesToCreate := []*tsdb.SeriesCreate{
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), atag)), atag)},
+		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("cpu"), btag)), btag)},
+	}
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000001")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000001")
+	p3 := parsePoint("cpu,host=B value=2.1 1000000000")
+	p4 := parsePoint("cpu,host=B value=2.1 2000000000")
+
+	e.SkipCompaction = true
+	e.WAL.SkipCache = false
+
+	if err := e.WritePoints([]models.Point{p1, p3}, map[string]*tsdb.MeasurementFields{"cpu": mf}, seriesToCreate); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=A", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != p1.UnixNano() {
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+		}
+	}()
+
+	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
+		t.Fatalf("failed to delete series: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=B", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != p3.UnixNano() {
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+		}
+		c = tx.Cursor("cpu,host=A", fields, nil, true)
+		k, _ = c.SeekTo(0)
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF", k)
+		}
+	}()
+
+	if err := e.WritePoints([]models.Point{p2, p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.WAL.Flush(); err != nil {
+		t.Fatalf("error flushing wal: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=A", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != p2.UnixNano() {
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+		}
+	}()
+
+	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
+		t.Fatalf("failed to delete series: %s", err.Error())
+	}
+
+	// we already know the delete on the wal works. open and close so
+	// the wal flushes to the index. To verify that the delete gets
+	// persisted and will go all the way through the index
+
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	verify := func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=B", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != p3.UnixNano() {
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+		}
+		c = tx.Cursor("cpu,host=A", fields, nil, true)
+		k, _ = c.SeekTo(0)
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF")
+		}
+	}
+
+	fmt.Println("verify 1")
+	verify()
+
+	// open and close to verify thd delete was persisted
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	fmt.Println("verify 2")
+	verify()
+
+	if err := e.DeleteSeries([]string{"cpu,host=B"}); err != nil {
+		t.Fatalf("failed to delete series: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=B", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF")
+		}
+	}()
+
+	if err := e.WAL.Flush(); err != nil {
+		t.Fatalf("error flushing: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=B", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF")
+		}
+	}()
+
+	// open and close to verify thd delete was persisted
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+	if err := e.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c := tx.Cursor("cpu,host=B", fields, nil, true)
+		k, _ := c.SeekTo(0)
+		if k != tsdb.EOF {
+			t.Fatal("expected EOF")
+		}
+	}()
 }
 
 // Engine represents a test wrapper for pd1.Engine.

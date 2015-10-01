@@ -102,6 +102,10 @@ type Engine struct {
 	compactionRunning  bool
 	lastCompactionTime time.Time
 
+	// deletes is a map of keys that are deleted, but haven't yet been
+	// compacted and flushed
+	deletes map[uint64]bool
+
 	collisionsLock sync.RWMutex
 	collisions     map[string]uint64
 
@@ -158,8 +162,9 @@ func (e *Engine) PerformMaintenance() {
 
 	e.filesLock.RLock()
 	running := e.compactionRunning
+	deletesPending := len(e.deletes) > 0
 	e.filesLock.RUnlock()
-	if running {
+	if running || deletesPending {
 		return
 	}
 
@@ -214,11 +219,17 @@ func (e *Engine) Open() error {
 	}
 	sort.Sort(e.files)
 
-	if err := e.WAL.Open(); err != nil {
+	if err := e.readCollisions(); err != nil {
 		return err
 	}
 
-	if err := e.readCollisions(); err != nil {
+	e.deletes = make(map[uint64]bool)
+
+	// mark the last compaction as now so it doesn't try to compact while
+	// flushing the WAL on load
+	e.lastCompactionTime = time.Now()
+
+	if err := e.WAL.Open(); err != nil {
 		return err
 	}
 
@@ -249,6 +260,7 @@ func (e *Engine) Close() error {
 	e.files = nil
 	e.currentFileID = 0
 	e.collisions = nil
+	e.deletes = nil
 	return nil
 }
 
@@ -307,6 +319,14 @@ func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[
 }
 
 func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+	// Flush any deletes before writing new data from the WAL
+	e.filesLock.RLock()
+	hasDeletes := len(e.deletes) > 0
+	e.filesLock.RUnlock()
+	if hasDeletes {
+		e.flushDeletes()
+	}
+
 	err, startTime, endTime, valuesByID := e.convertKeysAndWriteMetadata(pointsByKey, measurementFieldsToSave, seriesToCreate)
 	if err != nil {
 		return err
@@ -395,6 +415,16 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	}
 
 	return nil
+}
+
+// MarkDeletes will mark the given keys for deletion in memory. They will be deleted from data
+// files on the next flush. This mainly for the WAL to use on startup
+func (e *Engine) MarkDeletes(keys []string) {
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
+	for _, k := range keys {
+		e.deletes[e.keyToID(k)] = true
+	}
 }
 
 // filesAndLock returns the data files that match the given range and
@@ -613,7 +643,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		}
 	}
 
-	err, newDF := e.writeIndexAndGetDataFile(f, minTime, maxTime, newIDs, newPositions)
+	newDF, err := e.writeIndexAndGetDataFile(f, minTime, maxTime, newIDs, newPositions)
 	if err != nil {
 		return err
 	}
@@ -664,50 +694,51 @@ func (e *Engine) writeBlock(f *os.File, id uint64, block []byte) error {
 	return err
 }
 
-func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, ids []uint64, newPositions []uint32) (error, *dataFile) {
+func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, ids []uint64, newPositions []uint32) (*dataFile, error) {
 	// write the file index, starting with the series ids and their positions
 	for i, id := range ids {
 		if _, err := f.Write(u64tob(id)); err != nil {
-			return err, nil
+			return nil, err
 		}
 		if _, err := f.Write(u32tob(newPositions[i])); err != nil {
-			return err, nil
+			return nil, err
 		}
 	}
 
 	// write the min time, max time
 	if _, err := f.Write(append(u64tob(uint64(minTime)), u64tob(uint64(maxTime))...)); err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	// series count
 	if _, err := f.Write(u32tob(uint32(len(ids)))); err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	// sync it and see4k back to the beginning to hand off to the mmap
 	if err := f.Sync(); err != nil {
-		return err, nil
+		return nil, err
 	}
 	if _, err := f.Seek(0, 0); err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	// now open it as a memory mapped data file
 	newDF, err := NewDataFile(f)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
-	return nil, newDF
+	return newDF, nil
 }
 
 func (e *Engine) shouldCompact() bool {
 	e.filesLock.RLock()
 	running := e.compactionRunning
 	since := time.Since(e.lastCompactionTime)
+	deletesPending := len(e.deletes) > 0
 	e.filesLock.RUnlock()
-	if running || since < e.IndexMinimumCompactionInterval {
+	if running || since < e.IndexMinimumCompactionInterval || deletesPending {
 		return false
 	}
 	return len(e.filesToCompact()) >= e.CompactionFileCount
@@ -1069,7 +1100,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		}
 	}
 
-	err, newDF := e.writeIndexAndGetDataFile(f, minTime, maxTime, ids, newPositions)
+	newDF, err := e.writeIndexAndGetDataFile(f, minTime, maxTime, ids, newPositions)
 	if err != nil {
 		f.Close()
 		return err
@@ -1101,6 +1132,81 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	}
 
 	return nil
+}
+
+// flushDeletes will lock the entire shard and rewrite all index files so they no
+// longer contain the flushed IDs
+func (e *Engine) flushDeletes() error {
+	e.writeLock.LockRange(math.MinInt64, math.MaxInt64)
+	defer e.writeLock.UnlockRange(math.MinInt64, math.MaxInt64)
+
+	files := e.copyFilesCollection()
+	newFiles := make(dataFiles, 0, len(files))
+	for _, f := range files {
+		newFiles = append(newFiles, e.writeNewFileExcludeDeletes(f))
+	}
+
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
+	e.files = newFiles
+	e.deletes = make(map[uint64]bool)
+
+	e.deletesPending.Add(1)
+	go func() {
+		for _, oldDF := range files {
+			if err := oldDF.Delete(); err != nil {
+				e.logger.Println("ERROR DELETING FROM REWRITE:", oldDF.f.Name())
+			}
+		}
+		e.deletesPending.Done()
+	}()
+	return nil
+}
+
+func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
+	// TODO: add checkpoint file that indicates if this completed or not
+	f, err := os.OpenFile(e.nextFileName(), os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		panic(fmt.Sprintf("error opening new index file: %s", err.Error()))
+	}
+	// write the magic number
+	if _, err := f.Write(u32tob(magicNumber)); err != nil {
+		panic(fmt.Sprintf("error writing new index file: %s", err.Error()))
+	}
+
+	ids := make([]uint64, 0)
+	positions := make([]uint32, 0)
+
+	indexPosition := oldDF.indexPosition()
+	currentPosition := uint32(fileHeaderSize)
+	currentID := uint64(0)
+	for currentPosition < indexPosition {
+		id := btou64(oldDF.mmap[currentPosition : currentPosition+8])
+		length := btou32(oldDF.mmap[currentPosition+8 : currentPosition+blockHeaderSize])
+		newPosition := currentPosition + blockHeaderSize + length
+
+		if _, ok := e.deletes[id]; ok {
+			currentPosition = newPosition
+			continue
+		}
+
+		if _, err := f.Write(oldDF.mmap[currentPosition:newPosition]); err != nil {
+			panic(fmt.Sprintf("error writing new index file: %s", err.Error()))
+		}
+		if id != currentID {
+			currentID = id
+			ids = append(ids, id)
+			positions = append(positions, currentPosition)
+		}
+		currentPosition = newPosition
+	}
+
+	df, err := e.writeIndexAndGetDataFile(f, oldDF.MinTime(), oldDF.MaxTime(), ids, positions)
+	if err != nil {
+		panic(fmt.Sprintf("error writing new index file: %s", err.Error()))
+	}
+
+	return df
 }
 
 func (e *Engine) nextFileName() string {
@@ -1146,14 +1252,86 @@ func (e *Engine) replaceCompressedFile(name string, data []byte) error {
 	return os.Rename(tmpName, filepath.Join(e.path, name))
 }
 
+// keysWithFields takes the map of measurements to their fields and a set of series keys
+// and returns the columnar keys for the keys and fields
+func (e *Engine) keysWithFields(fields map[string]*tsdb.MeasurementFields, keys []string) []string {
+	e.WAL.cacheLock.RLock()
+	defer e.WAL.cacheLock.RUnlock()
+
+	a := make([]string, 0)
+	for _, k := range keys {
+		measurement := tsdb.MeasurementFromSeriesKey(k)
+
+		// add the fields from the index
+		mf := fields[measurement]
+		if mf != nil {
+			for _, f := range mf.Fields {
+				a = append(a, seriesFieldKey(k, f.Name))
+			}
+		}
+
+		// now add any fields from the WAL that haven't been flushed yet
+		mf = e.WAL.measurementFieldsCache[measurement]
+		if mf != nil {
+			for _, f := range mf.Fields {
+				a = append(a, seriesFieldKey(k, f.Name))
+			}
+		}
+	}
+
+	return a
+}
+
 // DeleteSeries deletes the series from the engine.
 func (e *Engine) DeleteSeries(keys []string) error {
+	fields, err := e.readFields()
+	if err != nil {
+		return err
+	}
+
+	keyFields := e.keysWithFields(fields, keys)
+
+	return e.deleteKeyFields(keyFields)
+}
+
+func (e *Engine) deleteKeyFields(keyFields []string) error {
+	err := e.WAL.DeleteSeries(keyFields)
+	if err != nil {
+		return err
+	}
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
+
+	for _, k := range keyFields {
+		e.deletes[e.keyToID(k)] = true
+	}
+
 	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
-	return nil
+	e.metaLock.Lock()
+	defer e.metaLock.Unlock()
+
+	// remove the field data from the index
+	fields, err := e.readFields()
+	if err != nil {
+		return err
+	}
+
+	keyFields := e.keysWithFields(fields, seriesKeys)
+
+	delete(fields, name)
+
+	if err := e.writeFields(fields); err != nil {
+		return err
+	}
+
+	e.WAL.DropMeasurementFields(name)
+
+	// now delete all the measurement's series
+	return e.deleteKeyFields(keyFields)
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -1203,9 +1381,8 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
-func (e *Engine) keyAndFieldToID(series, field string) uint64 {
+func (e *Engine) keyToID(key string) uint64 {
 	// get the ID for the key and be sure to check if it had hash collision before
-	key := seriesFieldKey(series, field)
 	e.collisionsLock.RLock()
 	id, ok := e.collisions[key]
 	e.collisionsLock.RUnlock()
@@ -1214,6 +1391,11 @@ func (e *Engine) keyAndFieldToID(series, field string) uint64 {
 		id = e.HashSeriesField(key)
 	}
 	return id
+}
+
+func (e *Engine) keyAndFieldToID(series, field string) uint64 {
+	key := seriesFieldKey(series, field)
+	return e.keyToID(key)
 }
 
 func (e *Engine) copyFilesCollection() []*dataFile {
@@ -1557,293 +1739,6 @@ type dataFiles []*dataFile
 func (a dataFiles) Len() int           { return len(a) }
 func (a dataFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() }
-
-type cursor struct {
-	id       uint64
-	f        *dataFile
-	filesPos int // the index in the files slice we're looking at
-	pos      uint32
-	vals     Values
-
-	ascending bool
-
-	blockPositions []uint32 // only used for descending queries
-
-	// time acending list of data files
-	files []*dataFile
-}
-
-func newCursor(id uint64, files []*dataFile, ascending bool) *cursor {
-	return &cursor{
-		id:        id,
-		ascending: ascending,
-		files:     files,
-	}
-}
-
-func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
-	if len(c.files) == 0 {
-		return tsdb.EOF, nil
-	}
-
-	if c.ascending {
-		if seek <= c.files[0].MinTime() {
-			c.filesPos = 0
-			c.f = c.files[0]
-		} else {
-			for i, f := range c.files {
-				if seek >= f.MinTime() && seek <= f.MaxTime() {
-					c.filesPos = i
-					c.f = f
-					break
-				}
-			}
-		}
-	} else {
-		if seek >= c.files[len(c.files)-1].MaxTime() {
-			c.filesPos = len(c.files) - 1
-			c.f = c.files[c.filesPos]
-		} else if seek < c.files[0].MinTime() {
-			return tsdb.EOF, nil
-		} else {
-			for i, f := range c.files {
-				if seek >= f.MinTime() && seek <= f.MaxTime() {
-					c.filesPos = i
-					c.f = f
-					break
-				}
-			}
-		}
-	}
-
-	if c.f == nil {
-		return tsdb.EOF, nil
-	}
-
-	// find the first file we need to check in
-	for {
-		if c.filesPos < 0 || c.filesPos >= len(c.files) {
-			return tsdb.EOF, nil
-		}
-		c.f = c.files[c.filesPos]
-
-		c.pos = c.f.StartingPositionForID(c.id)
-
-		// if this id isn't in this file, move to next one or return
-		if c.pos == 0 {
-			if c.ascending {
-				c.filesPos++
-			} else {
-				c.filesPos--
-				c.blockPositions = nil
-			}
-			continue
-		}
-
-		// handle seek for correct order
-		k := tsdb.EOF
-		var v interface{}
-
-		if c.ascending {
-			k, v = c.seekAscending(seek)
-		} else {
-			k, v = c.seekDescending(seek)
-		}
-
-		if k != tsdb.EOF {
-			return k, v
-		}
-
-		if c.ascending {
-			c.filesPos++
-		} else {
-			c.filesPos--
-			c.blockPositions = nil
-		}
-	}
-}
-
-func (c *cursor) seekAscending(seek int64) (int64, interface{}) {
-	// seek to the block and values we're looking for
-	for {
-		// if the time is between this block and the next,
-		// decode this block and go, otherwise seek to next block
-		length := c.blockLength(c.pos)
-
-		// if the next block has a time less than what we're seeking to,
-		// skip decoding this block and continue on
-		nextBlockPos := c.pos + blockHeaderSize + length
-		if nextBlockPos < c.f.indexPosition() {
-			nextBlockID := btou64(c.f.mmap[nextBlockPos : nextBlockPos+8])
-			if nextBlockID == c.id {
-				nextBlockTime := c.blockMinTime(nextBlockPos)
-				if nextBlockTime <= seek {
-					c.pos = nextBlockPos
-					continue
-				}
-			}
-		}
-
-		// it must be in this block or not at all
-		c.decodeBlock(c.pos)
-
-		// see if we can find it in this block
-		for i, v := range c.vals {
-			if v.Time().UnixNano() >= seek {
-				c.vals = c.vals[i+1:]
-				return v.Time().UnixNano(), v.Value()
-			}
-		}
-	}
-}
-
-func (c *cursor) seekDescending(seek int64) (int64, interface{}) {
-	c.setBlockPositions()
-	if len(c.blockPositions) == 0 {
-		return tsdb.EOF, nil
-	}
-
-	for i := len(c.blockPositions) - 1; i >= 0; i-- {
-		pos := c.blockPositions[i]
-		if c.blockMinTime(pos) > seek {
-			continue
-		}
-
-		c.decodeBlock(pos)
-		c.blockPositions = c.blockPositions[:i]
-
-		for i := len(c.vals) - 1; i >= 0; i-- {
-			val := c.vals[i]
-			if seek >= val.UnixNano() {
-				c.vals = c.vals[:i]
-				return val.UnixNano(), val.Value()
-			}
-			if seek < val.UnixNano() {
-				// we need to move to the next block
-				if i == 0 {
-					break
-				}
-				val := c.vals[i-1]
-				c.vals = c.vals[:i-1]
-				return val.UnixNano(), val.Value()
-			}
-		}
-		c.blockPositions = c.blockPositions[:i]
-	}
-
-	return tsdb.EOF, nil
-}
-
-func (c *cursor) blockMinTime(pos uint32) int64 {
-	return int64(btou64(c.f.mmap[pos+12 : pos+20]))
-}
-
-func (c *cursor) setBlockPositions() {
-	pos := c.pos
-
-	for {
-		if pos >= c.f.indexPosition() {
-			return
-		}
-
-		length := c.blockLength(pos)
-		id := btou64(c.f.mmap[pos : pos+8])
-
-		if id != c.id {
-			return
-		}
-
-		c.blockPositions = append(c.blockPositions, pos)
-		pos += blockHeaderSize + length
-	}
-}
-
-func (c *cursor) Next() (int64, interface{}) {
-	if c.ascending {
-		return c.nextAscending()
-	}
-	return c.nextDescending()
-}
-
-func (c *cursor) nextAscending() (int64, interface{}) {
-	if len(c.vals) > 0 {
-		v := c.vals[0]
-		c.vals = c.vals[1:]
-
-		return v.Time().UnixNano(), v.Value()
-	}
-
-	// if we have a file set, see if the next block is for this ID
-	if c.f != nil && c.pos < c.f.indexPosition() {
-		nextBlockID := btou64(c.f.mmap[c.pos : c.pos+8])
-		if nextBlockID == c.id {
-			c.decodeBlock(c.pos)
-			return c.nextAscending()
-		}
-	}
-
-	// loop through the files until we hit the next one that has this id
-	for {
-		c.filesPos++
-		if c.filesPos >= len(c.files) {
-			return tsdb.EOF, nil
-		}
-		c.f = c.files[c.filesPos]
-
-		startingPos := c.f.StartingPositionForID(c.id)
-		if startingPos == 0 {
-			// move to next file because it isn't in this one
-			continue
-		}
-
-		// we have a block with this id, decode and return
-		c.decodeBlock(startingPos)
-		return c.nextAscending()
-	}
-}
-
-func (c *cursor) nextDescending() (int64, interface{}) {
-	if len(c.vals) > 0 {
-		v := c.vals[len(c.vals)-1]
-		if len(c.vals) >= 1 {
-			c.vals = c.vals[:len(c.vals)-1]
-		} else {
-			c.vals = nil
-		}
-		return v.UnixNano(), v.Value()
-	}
-
-	for i := len(c.blockPositions) - 1; i >= 0; i-- {
-		c.decodeBlock(c.blockPositions[i])
-		c.blockPositions = c.blockPositions[:i]
-		if len(c.vals) == 0 {
-			continue
-		}
-		val := c.vals[len(c.vals)-1]
-		c.vals = c.vals[:len(c.vals)-1]
-		return val.UnixNano(), val.Value()
-	}
-
-	return tsdb.EOF, nil
-}
-
-func (c *cursor) blockLength(pos uint32) uint32 {
-	return btou32(c.f.mmap[pos+8 : pos+12])
-}
-
-func (c *cursor) decodeBlock(position uint32) {
-	length := c.blockLength(position)
-	block := c.f.mmap[position+blockHeaderSize : position+blockHeaderSize+length]
-	c.vals, _ = DecodeBlock(block)
-
-	// only adavance the position if we're asceending.
-	// Descending queries use the blockPositions
-	if c.ascending {
-		c.pos = position + blockHeaderSize + length
-	}
-}
-
-func (c *cursor) Ascending() bool { return c.ascending }
 
 // u64tob converts a uint64 into an 8-byte slice.
 func u64tob(v uint64) []byte {
