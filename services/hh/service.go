@@ -119,17 +119,29 @@ func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) err
 
 func (s *Service) retryWrites() {
 	defer s.wg.Done()
-	ticker := time.NewTicker(time.Duration(s.cfg.RetryInterval))
-	defer ticker.Stop()
+	currInterval := time.Duration(s.cfg.RetryInterval)
+	if currInterval > time.Duration(s.cfg.RetryMaxInterval) {
+		currInterval = time.Duration(s.cfg.RetryMaxInterval)
+	}
+
 	for {
+
 		select {
 		case <-s.closing:
 			return
-		case <-ticker.C:
+		case <-time.After(currInterval):
 			s.statMap.Add(processReq, 1)
 			if err := s.HintedHandoff.Process(); err != nil && err != io.EOF {
 				s.statMap.Add(processReqFail, 1)
 				s.Logger.Printf("retried write failed: %v", err)
+
+				currInterval = currInterval * 2
+				if currInterval > time.Duration(s.cfg.RetryMaxInterval) {
+					currInterval = time.Duration(s.cfg.RetryMaxInterval)
+				}
+			} else {
+				// Success! Return to configured interval.
+				currInterval = time.Duration(s.cfg.RetryInterval)
 			}
 		}
 	}

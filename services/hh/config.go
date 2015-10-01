@@ -19,26 +19,34 @@ const (
 	// value of 0 disables the rate limit.
 	DefaultRetryRateLimit = 0
 
-	// DefaultRetryInterval is the default amout of time the system waits before
-	// attempting to flush hinted handoff queues.
+	// DefaultRetryInterval is the default amount of time the system waits before
+	// attempting to flush hinted handoff queues. With each failure of a hinted
+	// handoff write, this retry interval increases exponentially until it reaches
+	// the maximum
 	DefaultRetryInterval = time.Second
+
+	// DefaultRetryMaxInterval is the maximum the hinted handoff retry interval
+	// will ever be.
+	DefaultRetryMaxInterval = time.Minute
 )
 
 type Config struct {
-	Enabled        bool          `toml:"enabled"`
-	Dir            string        `toml:"dir"`
-	MaxSize        int64         `toml:"max-size"`
-	MaxAge         toml.Duration `toml:"max-age"`
-	RetryRateLimit int64         `toml:"retry-rate-limit"`
-	RetryInterval  toml.Duration `toml:"retry-interval"`
+	Enabled          bool          `toml:"enabled"`
+	Dir              string        `toml:"dir"`
+	MaxSize          int64         `toml:"max-size"`
+	MaxAge           toml.Duration `toml:"max-age"`
+	RetryRateLimit   int64         `toml:"retry-rate-limit"`
+	RetryInterval    toml.Duration `toml:"retry-interval"`
+	RetryMaxInterval toml.Duration `toml:"retry-max-interval"`
 }
 
 func NewConfig() Config {
 	return Config{
-		Enabled:        true,
-		MaxSize:        DefaultMaxSize,
-		MaxAge:         toml.Duration(DefaultMaxAge),
-		RetryRateLimit: DefaultRetryRateLimit,
-		RetryInterval:  toml.Duration(DefaultRetryInterval),
+		Enabled:          true,
+		MaxSize:          DefaultMaxSize,
+		MaxAge:           toml.Duration(DefaultMaxAge),
+		RetryRateLimit:   DefaultRetryRateLimit,
+		RetryInterval:    toml.Duration(DefaultRetryInterval),
+		RetryMaxInterval: toml.Duration(DefaultRetryMaxInterval),
 	}
 }
