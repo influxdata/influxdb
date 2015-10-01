@@ -910,7 +910,7 @@ func (s *Store) DeleteNode(id uint64, force bool) error {
 
 func (s *Store) promoteRandomNodeToPeer() error {
 	// Only do this if you are the leader
-	if s.raftState.isLeader() {
+	if s.IsLeader() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
