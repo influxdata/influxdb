@@ -28,7 +28,7 @@ type raftState interface {
 	sync(index uint64, timeout time.Duration) error
 	setPeers(addrs []string) error
 	addPeer(addr string) error
-	removePeer(addr string, cleanup bool) error
+	removePeer(addr string) error
 	peers() ([]string, error)
 	invalidate() error
 	close() error
@@ -318,16 +318,12 @@ func (r *localRaft) addPeer(addr string) error {
 }
 
 // removePeer removes addr from the list of peers in the cluster.
-func (r *localRaft) removePeer(addr string, cleanup bool) error {
+func (r *localRaft) removePeer(addr string) error {
 	// Only do this on the leader
 	if r.isLeader() {
 		if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
 			return fut.Error()
 		}
-	}
-	// clean up the directories if this is the node removed
-	if cleanup {
-		return r.remove()
 	}
 	return nil
 }
@@ -414,7 +410,7 @@ func (r *remoteRaft) addPeer(addr string) error {
 }
 
 // removePeer does nothing for remoteRaft.
-func (r *remoteRaft) removePeer(addr string, cleanup bool) error {
+func (r *remoteRaft) removePeer(addr string) error {
 	return nil
 }
 

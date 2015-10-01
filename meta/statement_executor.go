@@ -15,6 +15,7 @@ type StatementExecutor struct {
 	Store interface {
 		Nodes() ([]NodeInfo, error)
 		Peers() ([]string, error)
+		Leader() string
 
 		DeleteNode(nodeID uint64, force bool) error
 		Database(name string) (*DatabaseInfo, error)
@@ -145,9 +146,11 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 		return &influxql.Result{Err: err}
 	}
 
-	row := &models.Row{Columns: []string{"id", "cluster_addr", "raft"}}
+	leader := e.Store.Leader()
+
+	row := &models.Row{Columns: []string{"id", "cluster_addr", "raft", "raft-leader"}}
 	for _, ni := range nis {
-		row.Values = append(row.Values, []interface{}{ni.ID, ni.Host, contains(peers, ni.Host)})
+		row.Values = append(row.Values, []interface{}{ni.ID, ni.Host, contains(peers, ni.Host), leader == ni.Host})
 	}
 	return &influxql.Result{Series: []*models.Row{row}}
 }

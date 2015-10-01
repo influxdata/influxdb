@@ -125,15 +125,18 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 	e.Store.PeersFn = func() ([]string, error) {
 		return []string{"node0"}, nil
 	}
+	e.Store.LeaderFn = func() string {
+		return "node0"
+	}
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
-			Columns: []string{"id", "cluster_addr", "raft"},
+			Columns: []string{"id", "cluster_addr", "raft", "raft-leader"},
 			Values: [][]interface{}{
-				{uint64(1), "node0", true},
-				{uint64(2), "node1", false},
+				{uint64(1), "node0", true, true},
+				{uint64(2), "node1", false, false},
 			},
 		},
 	}) {
@@ -834,6 +837,7 @@ func NewStatementExecutor() *StatementExecutor {
 type StatementExecutorStore struct {
 	NodesFn                     func() ([]meta.NodeInfo, error)
 	PeersFn                     func() ([]string, error)
+	LeaderFn                    func() string
 	DatabaseFn                  func(name string) (*meta.DatabaseInfo, error)
 	DatabasesFn                 func() ([]meta.DatabaseInfo, error)
 	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
@@ -863,6 +867,13 @@ func (s *StatementExecutorStore) Nodes() ([]meta.NodeInfo, error) {
 
 func (s *StatementExecutorStore) Peers() ([]string, error) {
 	return s.PeersFn()
+}
+
+func (s *StatementExecutorStore) Leader() string {
+	if s.LeaderFn != nil {
+		return s.LeaderFn()
+	}
+	return ""
 }
 
 func (s *StatementExecutorStore) DeleteNode(nodeID uint64, force bool) error {

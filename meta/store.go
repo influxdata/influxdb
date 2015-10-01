@@ -824,6 +824,11 @@ func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
 
 // DeleteNode removes a node from the metastore by id.
 func (s *Store) DeleteNode(id uint64, force bool) error {
+	ni := s.data.Node(id)
+	if ni == nil {
+		return ErrNodeNotFound
+	}
+
 	err := s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
 		&internal.DeleteNodeCommand{
 			ID:    proto.Uint64(id),
@@ -838,7 +843,7 @@ func (s *Store) DeleteNode(id uint64, force bool) error {
 	return s.exec(internal.Command_RemovePeerCommand, internal.E_RemovePeerCommand_Command,
 		&internal.RemovePeerCommand{
 			ID:   proto.Uint64(id),
-			Addr: proto.String(s.RemoteAddr.String()),
+			Addr: proto.String(ni.Host),
 		},
 	)
 }
@@ -1686,7 +1691,7 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 	addr := v.GetAddr()
 	//Remove that node from the peer
 	fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
-	if err := fsm.raftState.removePeer(addr, id == fsm.id); err != nil {
+	if err := fsm.raftState.removePeer(addr); err != nil {
 		fsm.Logger.Printf("error removing peer: %s", err)
 	}
 	return nil
