@@ -8,7 +8,7 @@ import (
 
 const (
 	// DefaultEngine is the default engine for new shards
-	DefaultEngine = "pd1"
+	DefaultEngine = "tsm1"
 
 	// DefaultMaxWALSize is the default size of the WAL before it is flushed.
 	DefaultMaxWALSize = 100 * 1024 * 1024 // 100MB
@@ -44,7 +44,7 @@ const (
 	// size for the in-memory WAL cache.
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 
-	// Default WAL settings for the PD1 WAL
+	// Default WAL settings for the TSM1 WAL
 	DefaultFlushMemorySizeThreshold       = 5 * 1024 * 1024   // 5MB
 	DefaultMaxMemorySizeThreshold         = 100 * 1024 * 1024 // 100MB
 	DefaultIndexCompactionAge             = time.Minute
@@ -71,11 +71,11 @@ type Config struct {
 	WALFlushColdInterval      toml.Duration `toml:"wal-flush-cold-interval"`
 	WALPartitionSizeThreshold uint64        `toml:"wal-partition-size-threshold"`
 
-	// WAL configuration options for pd1 introduced in 0.9.5
+	// WAL configuration options for tsm1 introduced in 0.9.5
 	WALFlushMemorySizeThreshold int `toml:"wal-flush-memory-size-threshold"`
 	WALMaxMemorySizeThreshold   int `toml:"wal-max-memory-size-threshold"`
 
-	// compaction options for pd1 introduced in 0.9.5
+	// compaction options for tsm1 introduced in 0.9.5
 
 	// IndexCompactionAge specifies the duration after the data file creation time
 	// at which it is eligible to be compacted
