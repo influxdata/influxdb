@@ -38,7 +38,7 @@ DAEMON=/opt/influxdb/influxd
 [ -x $DAEMON ] || exit 5
 
 # Configuration file
-CONFIG=/etc/opt/influxdb/influxdb.conf
+CONFIG=/etc/influxdb/influxdb.conf
 
 # PID file for the daemon
 PIDFILE=/var/run/influxdb/influxd.pid
