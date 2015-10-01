@@ -21,7 +21,7 @@ const (
 
 	// DefaultRetryInterval is the default amout of time the system waits before
 	// attempting to flush hinted handoff queues.
-	DefaultRetryInterval = time.Second
+	DefaultRetryInterval = 10 * time.Second
 )
 
 type Config struct {

@@ -272,4 +272,4 @@ reporting-disabled = false
   max-size = 1073741824
   max-age = "168h"
   retry-rate-limit = 0
-  retry-interval = "1s"
+  retry-interval = "10s"
