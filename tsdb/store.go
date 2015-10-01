@@ -131,7 +131,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return err
 	}
 
-	if err := os.Remove(sh.path); err != nil {
+	if err := os.RemoveAll(sh.path); err != nil {
 		return err
 	}
 
