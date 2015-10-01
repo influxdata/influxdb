@@ -378,6 +378,8 @@ func (s *Store) joinCluster() error {
 }
 
 func (s *Store) enableLocalRaft() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, ok := s.raftState.(*localRaft); ok {
 		return nil
 	}
@@ -398,6 +400,13 @@ func (s *Store) enableRemoteRaft() error {
 }
 
 func (s *Store) checkRaftState() error {
+	s.mu.RLock()
+	if s.raftState == nil {
+		s.mu.RUnlock()
+		return nil
+	}
+	s.mu.RUnlock()
+
 	peers, err := s.raftState.peers()
 	if err != nil {
 		return err
@@ -411,10 +420,6 @@ func (s *Store) checkRaftState() error {
 		return err
 	}
 	if !contains(peers, ni.Host) {
-		return nil
-	}
-
-	if _, ok := s.raftState.(*localRaft); ok {
 		return nil
 	}
 
@@ -905,6 +910,13 @@ func (s *Store) DeleteNode(id uint64, force bool) error {
 func (s *Store) promoteRandomNodeToPeer() error {
 	// Only do this if you are the leader
 	if s.raftState.isLeader() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if s.raftState == nil {
+			return nil
+		}
+
 		peers, err := s.raftState.peers()
 		if err != nil {
 			return err
