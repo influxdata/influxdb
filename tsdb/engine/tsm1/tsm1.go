@@ -599,7 +599,11 @@ func (e *Engine) Compact(fullCompaction bool) error {
 
 				// write the previous values and clear if we've hit the limit
 				if len(previousValues) > e.MaxPointsPerBlock {
-					b := previousValues.Encode(buf)
+					b, err := previousValues.Encode(buf)
+					if err != nil {
+						panic(fmt.Sprintf("failure encoding block: %v", err))
+					}
+
 					if err := e.writeBlock(f, id, b); err != nil {
 						// fail hard. If we can't write a file someone needs to get woken up
 						panic(fmt.Sprintf("failure writing block: %s", err.Error()))
@@ -616,7 +620,10 @@ func (e *Engine) Compact(fullCompaction bool) error {
 				if nextID != id {
 					// flush remaining values
 					if len(previousValues) > 0 {
-						b := previousValues.Encode(buf)
+						b, err := previousValues.Encode(buf)
+						if err != nil {
+							panic(fmt.Sprintf("failure encoding block: %v", err))
+						}
 						currentPosition += uint32(blockHeaderSize + len(b))
 						previousValues = nil
 						if err := e.writeBlock(f, id, b); err != nil {
@@ -634,7 +641,11 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		}
 
 		if len(previousValues) > 0 {
-			b := previousValues.Encode(buf)
+			b, err := previousValues.Encode(buf)
+			if err != nil {
+				panic(fmt.Sprintf("failure encoding block: %v", err))
+			}
+
 			if err := e.writeBlock(f, minID, b); err != nil {
 				// fail hard. If we can't write a file someone needs to get woken up
 				panic(fmt.Sprintf("failure writing block: %s", err.Error()))
@@ -1041,7 +1052,12 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		fpos, ok := oldIDToPosition[id]
 		if !ok {
 			// TODO: ensure we encode only the amount in a block
-			block := newVals.Encode(buf)
+			block, err := newVals.Encode(buf)
+			if err != nil {
+				f.Close()
+				return err
+			}
+
 			if err := e.writeBlock(f, id, block); err != nil {
 				f.Close()
 				return err
@@ -1087,7 +1103,12 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		// TODO: ensure we encode only the amount in a block, refactor this wil line 450 into func
 		if len(newVals) > 0 {
 			// TODO: ensure we encode only the amount in a block
-			block := newVals.Encode(buf)
+			block, err := newVals.Encode(buf)
+			if err != nil {
+				f.Close()
+				return err
+			}
+
 			if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
 				f.Close()
 				return err
@@ -1586,7 +1607,11 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		values = values[:e.MaxPointsPerBlock]
 	}
 
-	return remainingValues, values.Encode(buf), nil
+	encoded, err := values.Encode(buf)
+	if err != nil {
+		return nil, nil, err
+	}
+	return remainingValues, encoded, nil
 }
 
 type dataFile struct {

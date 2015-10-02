@@ -60,6 +60,7 @@ type TimeEncoder interface {
 type TimeDecoder interface {
 	Next() bool
 	Read() time.Time
+	Error() error
 }
 
 type encoder struct {
@@ -191,8 +192,9 @@ func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 }
 
 type decoder struct {
-	v  time.Time
-	ts []uint64
+	v   time.Time
+	ts  []uint64
+	err error
 }
 
 func NewTimeDecoder(b []byte) TimeDecoder {
@@ -214,6 +216,10 @@ func (d *decoder) Read() time.Time {
 	return d.v
 }
 
+func (d *decoder) Error() error {
+	return d.err
+}
+
 func (d *decoder) decode(b []byte) {
 	if len(b) == 0 {
 		return
@@ -229,7 +235,7 @@ func (d *decoder) decode(b []byte) {
 	case timeCompressedPackedSimple:
 		d.decodePacked(b)
 	default:
-		panic(fmt.Sprintf("unknown encoding: %v", encoding))
+		d.err = fmt.Errorf("unknown encoding: %v", encoding)
 	}
 }
 

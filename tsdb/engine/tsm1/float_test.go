@@ -62,8 +62,8 @@ func TestFloatEncoder_Simple(t *testing.T) {
 		t.Fatalf("Next()=true, want false")
 	}
 
-	if err := it.Err(); err != nil {
-		t.Errorf("it.Err()=%v, want nil", err)
+	if err := it.Error(); err != nil {
+		t.Errorf("it.Error()=%v, want nil", err)
 	}
 }
 
@@ -127,8 +127,8 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 		t.Fatalf("Next()=true, want false")
 	}
 
-	if err := it.Err(); err != nil {
-		t.Errorf("it.Err()=%v, want nil", err)
+	if err := it.Error(); err != nil {
+		t.Errorf("it.Error()=%v, want nil", err)
 	}
 }
 

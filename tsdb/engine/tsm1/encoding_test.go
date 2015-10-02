@@ -19,7 +19,10 @@ func TestEncoding_FloatBlock(t *testing.T) {
 		values[i] = tsm1.NewValue(t, float64(i))
 	}
 
-	b := values.Encode(nil)
+	b, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 
@@ -34,7 +37,10 @@ func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
 		values[i] = tsm1.NewValue(time.Unix(0, 0), float64(i))
 	}
 
-	b := values.Encode(nil)
+	b, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 
@@ -51,7 +57,10 @@ func TestEncoding_IntBlock_Basic(t *testing.T) {
 		values[i] = tsm1.NewValue(t, int64(i))
 	}
 
-	b := values.Encode(nil)
+	b, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 
@@ -83,7 +92,10 @@ func TestEncoding_IntBlock_Negatives(t *testing.T) {
 		values[i] = tsm1.NewValue(t, int64(v))
 	}
 
-	b := values.Encode(nil)
+	b, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 
@@ -104,7 +116,10 @@ func TestEncoding_BoolBlock_Basic(t *testing.T) {
 		values[i] = tsm1.NewValue(t, v)
 	}
 
-	b := values.Encode(nil)
+	b, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 
@@ -121,7 +136,10 @@ func TestEncoding_StringBlock_Basic(t *testing.T) {
 		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
 	}
 
-	b := values.Encode(nil)
+	b, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	decodedValues := values.DecodeSameTypeBlock(b)
 

@@ -27,6 +27,7 @@ type StringEncoder interface {
 type StringDecoder interface {
 	Next() bool
 	Read() string
+	Error() error
 }
 
 type stringEncoder struct {
@@ -56,21 +57,21 @@ func (e *stringEncoder) Bytes() ([]byte, error) {
 }
 
 type stringDecoder struct {
-	b []byte
-	l int
-	i int
+	b   []byte
+	l   int
+	i   int
+	err error
 }
 
-func NewStringDecoder(b []byte) StringDecoder {
+func NewStringDecoder(b []byte) (StringDecoder, error) {
 	// First byte stores the encoding type, only have snappy format
 	// currently so ignore for now.
 	data, err := snappy.Decode(nil, b[1:])
 	if err != nil {
-		// TODO: Need to propogate errors up the call stack better
-		panic(fmt.Sprintf("failed to decode string block: %v", err.Error()))
+		return nil, fmt.Errorf("failed to decode string block: %v", err.Error())
 	}
 
-	return &stringDecoder{b: data}
+	return &stringDecoder{b: data}, nil
 }
 
 func (e *stringDecoder) Next() bool {
@@ -86,4 +87,8 @@ func (e *stringDecoder) Read() string {
 	e.l = int(length) + n
 
 	return string(e.b[e.i+n : e.i+n+int(length)])
+}
+
+func (e *stringDecoder) Error() error {
+	return e.err
 }
