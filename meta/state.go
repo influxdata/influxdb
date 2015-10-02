@@ -22,7 +22,6 @@ import (
 type raftState interface {
 	open() error
 	remove() error
-	shutdown() error
 	initialize() error
 	leader() string
 	isLeader() bool
@@ -60,16 +59,6 @@ func (r *localRaft) remove() error {
 	}
 	if err := os.RemoveAll(filepath.Join(r.store.path, "snapshots")); err != nil {
 		return err
-	}
-	return nil
-}
-
-func (r *localRaft) shutdown() error {
-	// Shutdown raft.
-	if r.raft != nil {
-		if err := r.raft.Shutdown().Error(); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -371,10 +360,6 @@ type remoteRaft struct {
 }
 
 func (r *remoteRaft) remove() error {
-	return nil
-}
-
-func (r *remoteRaft) shutdown() error {
 	return nil
 }
 

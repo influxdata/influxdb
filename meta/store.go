@@ -1801,10 +1801,10 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 		}
 	}
 
-	// If this is the node being shutdown, stop raft
+	// If this is the node being shutdown, close raft
 	if fsm.id == id {
 		fsm.Logger.Printf("shutting down raft for %s", addr)
-		if err := fsm.raftState.shutdown(); err != nil {
+		if err := fsm.raftState.close(); err != nil {
 			fsm.Logger.Printf("failed to shut down raft: %s", err)
 		}
 	}
