@@ -15,9 +15,7 @@ type StatementExecutor struct {
 	Store interface {
 		Nodes() ([]NodeInfo, error)
 		Peers() ([]string, error)
-		Leader() string
 
-		DeleteNode(nodeID uint64, force bool) error
 		Database(name string) (*DatabaseInfo, error)
 		Databases() ([]DatabaseInfo, error)
 		CreateDatabase(name string) (*DatabaseInfo, error)
@@ -90,8 +88,6 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeShowShardsStatement(stmt)
 	case *influxql.ShowStatsStatement:
 		return e.executeShowStatsStatement(stmt)
-	case *influxql.DropServerStatement:
-		return e.executeDropServerStatement(stmt)
 	default:
 		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 	}
@@ -146,18 +142,11 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 		return &influxql.Result{Err: err}
 	}
 
-	leader := e.Store.Leader()
-
-	row := &models.Row{Columns: []string{"id", "cluster_addr", "raft", "raft-leader"}}
+	row := &models.Row{Columns: []string{"id", "cluster_addr", "raft"}}
 	for _, ni := range nis {
-		row.Values = append(row.Values, []interface{}{ni.ID, ni.Host, contains(peers, ni.Host), leader == ni.Host})
+		row.Values = append(row.Values, []interface{}{ni.ID, ni.Host, contains(peers, ni.Host)})
 	}
 	return &influxql.Result{Series: []*models.Row{row}}
-}
-
-func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerStatement) *influxql.Result {
-	err := e.Store.DeleteNode(q.NodeID, q.Force)
-	return &influxql.Result{Err: err}
 }
 
 func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserStatement) *influxql.Result {

@@ -17,17 +17,15 @@ It has these top-level messages:
 package internal
 
 import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = fmt.Errorf
 var _ = math.Inf
 
 type WriteShardRequest struct {
-	ShardID          *uint64  `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	Points           [][]byte `protobuf:"bytes,2,rep,name=Points" json:"Points,omitempty"`
+	ShardID          *uint64  `protobuf:"varint,1,req" json:"ShardID,omitempty"`
+	Points           [][]byte `protobuf:"bytes,2,rep" json:"Points,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -50,8 +48,8 @@ func (m *WriteShardRequest) GetPoints() [][]byte {
 }
 
 type WriteShardResponse struct {
-	Code             *int32  `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
+	Code             *int32  `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string `protobuf:"bytes,2,opt" json:"Message,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -74,9 +72,9 @@ func (m *WriteShardResponse) GetMessage() string {
 }
 
 type MapShardRequest struct {
-	ShardID          *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	Query            *string `protobuf:"bytes,2,req,name=Query" json:"Query,omitempty"`
-	ChunkSize        *int32  `protobuf:"varint,3,req,name=ChunkSize" json:"ChunkSize,omitempty"`
+	ShardID          *uint64 `protobuf:"varint,1,req" json:"ShardID,omitempty"`
+	Query            *string `protobuf:"bytes,2,req" json:"Query,omitempty"`
+	ChunkSize        *int32  `protobuf:"varint,3,req" json:"ChunkSize,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -106,11 +104,11 @@ func (m *MapShardRequest) GetChunkSize() int32 {
 }
 
 type MapShardResponse struct {
-	Code             *int32   `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string  `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
-	Data             []byte   `protobuf:"bytes,3,opt,name=Data" json:"Data,omitempty"`
-	TagSets          []string `protobuf:"bytes,4,rep,name=TagSets" json:"TagSets,omitempty"`
-	Fields           []string `protobuf:"bytes,5,rep,name=Fields" json:"Fields,omitempty"`
+	Code             *int32   `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string  `protobuf:"bytes,2,opt" json:"Message,omitempty"`
+	Data             []byte   `protobuf:"bytes,3,opt" json:"Data,omitempty"`
+	TagSets          []string `protobuf:"bytes,4,rep" json:"TagSets,omitempty"`
+	Fields           []string `protobuf:"bytes,5,rep" json:"Fields,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -151,4 +149,7 @@ func (m *MapShardResponse) GetFields() []string {
 		return m.Fields
 	}
 	return nil
+}
+
+func init() {
 }
