@@ -26,6 +26,10 @@ const (
 	// Format is the file format name of this engine.
 	Format = "tsm1"
 
+	//IDsFileExtension is the extension for the file that keeps the compressed map
+	// of keys to uint64 IDs.
+	IDsFileExtension = "ids"
+
 	// FieldsFileExtension is the extension for the file that stores compressed field
 	// encoding data for this db
 	FieldsFileExtension = "fields"
@@ -34,7 +38,15 @@ const (
 	// series metadata for series in this db
 	SeriesFileExtension = "series"
 
+	// CollisionsFileExtension is the extension for the file that keeps a map of which
+	// keys have hash collisions and what their actual IDs are
 	CollisionsFileExtension = "collisions"
+
+	//CheckpointExtension is the extension given to files that checkpoint.
+	// The checkpoint files are created when a new file is first created. They
+	// are removed after the file has been synced and is safe for use. If a file
+	// has an associated checkpoint file, it wasn't safely written and both should be removed
+	CheckpointExtension = "check"
 )
 
 type TimePrecision uint8
@@ -189,17 +201,22 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	// TODO: clean up previous series write
-	// TODO: clean up previous fields write
-	// TODO: clean up previous names write
-	// TODO: clean up any data files that didn't get cleaned up
-	// TODO: clean up previous collisions write
+	// perform any cleanup on metafiles that were halfway written
+	e.cleanupMetafile(SeriesFileExtension)
+	e.cleanupMetafile(FieldsFileExtension)
+	e.cleanupMetafile(IDsFileExtension)
+	e.cleanupMetafile(CollisionsFileExtension)
 
 	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", Format)))
 	if err != nil {
 		return err
 	}
 	for _, fn := range files {
+		// if the file has a checkpoint it's not valid, so remove it
+		if removed := e.removeFileIfCheckpointExists(fn); removed {
+			continue
+		}
+
 		id, err := idFromFileName(fn)
 		if err != nil {
 			return err
@@ -533,16 +550,8 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	ids := make([]uint64, len(files))
 
 	// initilaize for writing
-	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return err
-	}
+	f, err := e.openFileAndCheckpoint(fileName)
 
-	// write the magic number
-	if _, err := f.Write(u32tob(magicNumber)); err != nil {
-		f.Close()
-		return err
-	}
 	for i, df := range files {
 		ids[i] = btou64(df.mmap[4:12])
 		positions[i] = 4
@@ -734,6 +743,10 @@ func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, id
 		return nil, err
 	}
 
+	if err := e.removeCheckpoint(f.Name()); err != nil {
+		return nil, err
+	}
+
 	// now open it as a memory mapped data file
 	newDF, err := NewDataFile(f)
 	if err != nil {
@@ -788,7 +801,7 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 	}
 
 	// read in keys and assign any that aren't defined
-	b, err := e.readCompressedFile("ids")
+	b, err := e.readCompressedFile(IDsFileExtension)
 	if err != nil {
 		return err, 0, 0, nil
 	}
@@ -858,7 +871,7 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 		if err != nil {
 			return err, 0, 0, nil
 		}
-		if err := e.replaceCompressedFile("ids", b); err != nil {
+		if err := e.replaceCompressedFile(IDsFileExtension, b); err != nil {
 			return err, 0, 0, nil
 		}
 	}
@@ -992,8 +1005,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	// always write in order by ID
 	sort.Sort(uint64slice(ids))
 
-	// TODO: add checkpoint file that indicates if this completed or not
-	f, err := os.OpenFile(e.nextFileName(), os.O_CREATE|os.O_RDWR, 0666)
+	f, err := e.openFileAndCheckpoint(e.nextFileName())
 	if err != nil {
 		return err
 	}
@@ -1002,12 +1014,6 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		e.logger.Printf("writing new index file %s", f.Name())
 	} else {
 		e.logger.Printf("rewriting index file %s with %s", oldDF.f.Name(), f.Name())
-	}
-
-	// write the magic number
-	if _, err := f.Write(u32tob(magicNumber)); err != nil {
-		f.Close()
-		return err
 	}
 
 	// now combine the old file data with the new values, keeping track of
@@ -1185,14 +1191,9 @@ func (e *Engine) flushDeletes() error {
 }
 
 func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
-	// TODO: add checkpoint file that indicates if this completed or not
-	f, err := os.OpenFile(e.nextFileName(), os.O_CREATE|os.O_RDWR, 0666)
+	f, err := e.openFileAndCheckpoint(e.nextFileName())
 	if err != nil {
-		panic(fmt.Sprintf("error opening new index file: %s", err.Error()))
-	}
-	// write the magic number
-	if _, err := f.Write(u32tob(magicNumber)); err != nil {
-		panic(fmt.Sprintf("error writing new index file: %s", err.Error()))
+		panic(fmt.Sprintf("error opening new data file: %s", err.Error()))
 	}
 
 	ids := make([]uint64, 0)
@@ -1614,6 +1615,99 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 	return remainingValues, encoded, nil
 }
 
+// removeFileIfCheckpointExists will remove the file if its associated checkpoint fil is there.
+// It returns true if the file was removed. This is for recovery of data files on startup
+func (e *Engine) removeFileIfCheckpointExists(fileName string) bool {
+	checkpointName := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
+	_, err := os.Stat(checkpointName)
+
+	// if there's no checkpoint, move on
+	if err != nil {
+		return false
+	}
+
+	// there's a checkpoint so we know this file isn't safe so we should remove it
+	err = os.Remove(fileName)
+	if err != nil {
+		panic(fmt.Sprintf("error removing file %s", err.Error()))
+	}
+
+	err = os.Remove(checkpointName)
+	if err != nil {
+		panic(fmt.Sprintf("error removing file %s", err.Error()))
+	}
+
+	return true
+}
+
+// cleanupMetafile will remove the tmp file if the other file exists, or rename the
+// tmp file to be a regular file if the normal file is missing. This is for recovery on
+// startup.
+func (e *Engine) cleanupMetafile(name string) {
+	fileName := filepath.Join(e.path, name)
+	tmpName := fileName + "tmp"
+
+	_, err := os.Stat(tmpName)
+
+	// if the tmp file isn't there, we can just exit
+	if err != nil {
+		return
+	}
+
+	_, err = os.Stat(fileName)
+
+	// the regular file is there so we should just remove the tmp file
+	if err == nil {
+		err = os.Remove(tmpName)
+		if err != nil {
+			panic(fmt.Sprintf("error removing meta file %s: %s", tmpName, err.Error()))
+		}
+	}
+
+	// regular file isn't there so have the tmp file take its place
+	err = os.Rename(tmpName, fileName)
+	if err != nil {
+		panic(fmt.Sprintf("error renaming meta file %s: %s", tmpName, err.Error()))
+	}
+}
+
+// openFileAndCehckpoint will create a checkpoint file, open a new file for
+// writing a data index, write the header and return the file
+func (e *Engine) openFileAndCheckpoint(fileName string) (*os.File, error) {
+	checkpointFile := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
+	cf, err := os.OpenFile(checkpointFile, os.O_CREATE, 0666)
+	if err != nil {
+		return nil, err
+	}
+	// _, err = cf.Write(u32tob(magicNumber))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	if err := cf.Close(); err != nil {
+		return nil, err
+	}
+	_, err = os.Stat(checkpointFile)
+
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	// write the header, which is just the magic number
+	if _, err := f.Write(u32tob(magicNumber)); err != nil {
+		f.Close()
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// removeCheckpoint removes the checkpoint for a new data file that was getting written
+func (e *Engine) removeCheckpoint(fileName string) error {
+	checkpointFile := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
+	return os.Remove(checkpointFile)
+}
+
 type dataFile struct {
 	f       *os.File
 	mu      sync.RWMutex
@@ -1631,6 +1725,8 @@ const (
 	seriesIDSize       = 8
 	seriesPositionSize = 4
 	seriesHeaderSize   = seriesIDSize + seriesPositionSize
+	minTimeOffset      = 20
+	maxTimeOffset      = 12
 )
 
 func NewDataFile(f *os.File) (*dataFile, error) {
@@ -1685,11 +1781,15 @@ func (d *dataFile) close() error {
 }
 
 func (d *dataFile) MinTime() int64 {
-	return int64(btou64(d.mmap[d.size-20 : d.size-12]))
+	minTimePosition := d.size - minTimeOffset
+	timeBytes := d.mmap[minTimePosition : minTimePosition+timeSize]
+	return int64(btou64(timeBytes))
 }
 
 func (d *dataFile) MaxTime() int64 {
-	return int64(btou64(d.mmap[d.size-12 : d.size-4]))
+	maxTimePosition := d.size - maxTimeOffset
+	timeBytes := d.mmap[maxTimePosition : maxTimePosition+timeSize]
+	return int64(btou64(timeBytes))
 }
 
 func (d *dataFile) SeriesCount() uint32 {
