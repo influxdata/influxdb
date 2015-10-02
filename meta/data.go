@@ -74,70 +74,14 @@ func (data *Data) CreateNode(host string) error {
 }
 
 // DeleteNode removes a node from the metadata.
-func (data *Data) DeleteNode(id uint64, force bool) error {
-	// Node has to be larger than 0 to be real
-	if id == 0 {
-		return ErrNodeIDRequired
-	}
-	// Is this a valid node?
-	nodeInfo := data.Node(id)
-	if nodeInfo == nil {
-		return ErrNodeNotFound
-	}
-	// Am I the only node?  If so, nothing to do
-	if len(data.Nodes) == 1 {
-		return ErrNodeUnableToDropFinalNode
-	}
-
-	// Determine if there are any any non-replicated nodes and force was not specified
-	if !force {
-		for _, d := range data.Databases {
-			for _, rp := range d.RetentionPolicies {
-				// ignore replicated retention policies
-				if rp.ReplicaN > 1 {
-					continue
-				}
-				for _, sg := range rp.ShardGroups {
-					for _, s := range sg.Shards {
-						if s.OwnedBy(id) && len(s.Owners) == 1 {
-							return ErrShardNotReplicated
-						}
-					}
-				}
-			}
+func (data *Data) DeleteNode(id uint64) error {
+	for i := range data.Nodes {
+		if data.Nodes[i].ID == id {
+			data.Nodes = append(data.Nodes[:i], data.Nodes[i+1:]...)
+			return nil
 		}
 	}
-
-	// Remove node id from all shard infos
-	for di, d := range data.Databases {
-		for ri, rp := range d.RetentionPolicies {
-			for sgi, sg := range rp.ShardGroups {
-				for si, s := range sg.Shards {
-					if s.OwnedBy(id) {
-						var owners []ShardOwner
-						for _, o := range s.Owners {
-							if o.NodeID != id {
-								owners = append(owners, o)
-							}
-						}
-						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = owners
-					}
-				}
-			}
-		}
-	}
-
-	// Remove this node from the in memory nodes
-	var nodes []NodeInfo
-	for _, n := range data.Nodes {
-		if n.ID == id {
-			continue
-		}
-		nodes = append(nodes, n)
-	}
-	data.Nodes = nodes
-
-	return nil
+	return ErrNodeNotFound
 }
 
 // Database returns a database by name.
