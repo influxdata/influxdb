@@ -204,9 +204,18 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 		}
 
 		ctr := 0
+
+		start, err := time.Parse("2006-Jan-02", cfg.Write.StartDate)
+		if err != nil {
+			start, err = time.Parse("Jan 2, 2006 at 3:04pm (MST)", cfg.Write.StartDate)
+			if err != nil {
+				panic(err)
+			}
+		}
+
 		for _, testSeries := range cfg.Series {
 			for i := 0; i < testSeries.PointCount; i++ {
-				iter := testSeries.Iter(cfg.Write.StartingPoint, i, cfg.Write.Precision)
+				iter := testSeries.Iter(i, start, cfg.Write.Precision)
 				p, ok := iter.Next()
 				for ok {
 					ctr++

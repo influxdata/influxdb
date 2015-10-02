@@ -28,6 +28,7 @@ type field struct {
 // during a stress test
 type series struct {
 	PointCount  int     `toml:"point_count"`
+	Tick        string  `toml:"tick"`
 	Measurement string  `toml:"measurement"`
 	SeriesCount int     `toml:"series_count"`
 	TagCount    int     `toml:"tag_count"`
@@ -45,10 +46,10 @@ type write struct {
 	BatchInterval string `toml:"batch_interval"`
 	Database      string `toml:"database"`
 	ResetDatabase bool   `toml:"reset_database"`
-	StartingPoint int    `toml:"starting_point"`
 	Address       string `toml:"address"`
 	Precision     string `toml:"precision"`
 	Jitter        int    `toml:"jitter"`
+	StartDate     string `toml:"start_date"`
 }
 
 // query is a struct that contains the logic for
@@ -93,6 +94,7 @@ func NewSeries(m string, p int, sc int) series {
 	s := series{
 		PointCount:  p,
 		SeriesCount: sc,
+		Tick:        "1s",
 		Measurement: m,
 		Tags: []tag{
 			tag{
@@ -175,16 +177,24 @@ type seriesIter struct {
 
 // writeInterval returns a timestamp for the current time
 // interval
-func (s *series) writeInterval(weeks int, i int) time.Time {
-	st := time.Duration(weeks) * 7 * 24 * time.Hour
-	w := st - (st/time.Duration(s.PointCount))*time.Duration(i)
-	return time.Now().Add(-1 * w)
+func (s *series) writeInterval(i int, start time.Time) time.Time {
+	var tick time.Duration
+	var err error
+
+	tick, err = time.ParseDuration(s.Tick)
+	if err != nil {
+		panic(err)
+	}
+
+	tick = tick * time.Duration(i)
+
+	return start.Add(tick)
 }
 
 // Iter returns a pointer to a seriesIter
-func (s *series) Iter(weeks int, i int, p string) *seriesIter {
+func (s *series) Iter(i int, start time.Time, p string) *seriesIter {
 
-	return &seriesIter{s: s, count: -1, timestamp: s.writeInterval(weeks, i), precision: p}
+	return &seriesIter{s: s, count: -1, timestamp: s.writeInterval(i, start), precision: p}
 }
 
 // Next returns a new point for a series.
@@ -196,7 +206,7 @@ func (iter *seriesIter) Next() ([]byte, bool) {
 	buf.Write([]byte(fmt.Sprintf("%v,", iter.s.Measurement)))
 	buf.Write(iter.s.newTagSet(iter.count))
 	buf.Write([]byte(" "))
-	buf.Write(iter.s.newFieldSet())
+	buf.Write(iter.s.newFieldSet(iter.count))
 	buf.Write([]byte(" "))
 
 	switch iter.precision {
@@ -228,11 +238,21 @@ func (s *series) newTagSet(c int) []byte {
 
 // newFieldSet returns a byte array representation
 // of the field-set for a series
-func (s *series) newFieldSet() []byte {
+func (s *series) newFieldSet(c int) []byte {
 	var buf bytes.Buffer
 
 	for _, field := range s.Fields {
 		switch field.Type {
+		case "float64-flat":
+			if rand.Intn(10) > 2 {
+				buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, 100)))
+			} else {
+				buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, 100+rand.Intn(100))))
+			}
+		case "float64-inc+":
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, c+rand.Intn(2))))
+		case "float64-inc":
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, c)))
 		case "float64":
 			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, rand.Intn(1000))))
 		case "int":
