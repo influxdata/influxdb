@@ -42,6 +42,7 @@ type Int64Encoder interface {
 type Int64Decoder interface {
 	Next() bool
 	Read() int64
+	Error() error
 }
 
 type int64Encoder struct {
@@ -101,6 +102,7 @@ type int64Decoder struct {
 	n      int
 
 	encoding byte
+	err      error
 }
 
 func NewInt64Decoder(b []byte) Int64Decoder {
@@ -135,10 +137,14 @@ func (d *int64Decoder) Next() bool {
 		case intCompressedSimple:
 			d.decodePacked()
 		default:
-			panic(fmt.Sprintf("unknown encoding %v", d.encoding))
+			d.err = fmt.Errorf("unknown encoding %v", d.encoding)
 		}
 	}
 	return d.i < d.n
+}
+
+func (d *int64Decoder) Error() error {
+	return d.err
 }
 
 func (d *int64Decoder) Read() int64 {
@@ -151,7 +157,12 @@ func (d *int64Decoder) decodePacked() {
 	}
 
 	v := binary.BigEndian.Uint64(d.bytes[0:8])
-	n, _ := simple8b.Decode(d.values, v)
+	n, err := simple8b.Decode(d.values, v)
+	if err != nil {
+		// Should never happen, only error that could be returned is if the the value to be decoded was not
+		// actually encoded by simple8b encoder.
+		d.err = fmt.Errorf("failed to decode value %v: %v", v, err)
+	}
 
 	d.n = n
 	d.i = 0

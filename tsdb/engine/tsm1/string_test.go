@@ -12,7 +12,10 @@ func Test_StringEncoder_NoValues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := NewStringDecoder(b)
+	dec, err := NewStringDecoder(b)
+	if err != nil {
+		t.Fatalf("unexpected erorr creating string decoder: %v", err)
+	}
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -27,7 +30,10 @@ func Test_StringEncoder_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := NewStringDecoder(b)
+	dec, err := NewStringDecoder(b)
+	if err != nil {
+		t.Fatalf("unexpected erorr creating string decoder: %v", err)
+	}
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got false, exp true")
 	}
@@ -59,7 +65,10 @@ func Test_StringEncoder_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
-	dec := NewStringDecoder(b)
+	dec, err := NewStringDecoder(b)
+	if err != nil {
+		t.Fatalf("unexpected erorr creating string decoder: %v", err)
+	}
 
 	for i, v := range values {
 		if !dec.Next() {

@@ -205,6 +205,6 @@ func (it *FloatDecoder) Values() float64 {
 	return it.val
 }
 
-func (it *FloatDecoder) Err() error {
+func (it *FloatDecoder) Error() error {
 	return it.err
 }

@@ -22,6 +22,7 @@ type BoolEncoder interface {
 type BoolDecoder interface {
 	Next() bool
 	Read() bool
+	Error() error
 }
 
 type boolEncoder struct {
@@ -93,9 +94,10 @@ func (e *boolEncoder) Bytes() ([]byte, error) {
 }
 
 type boolDecoder struct {
-	b []byte
-	i int
-	n int
+	b   []byte
+	i   int
+	n   int
+	err error
 }
 
 func NewBoolDecoder(b []byte) BoolDecoder {
@@ -127,4 +129,8 @@ func (e *boolDecoder) Read() bool {
 
 	// Returns true if the bit is set
 	return v&mask == mask
+}
+
+func (e *boolDecoder) Error() error {
+	return e.err
 }

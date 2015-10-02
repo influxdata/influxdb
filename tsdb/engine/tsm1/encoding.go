@@ -65,7 +65,7 @@ func (v Values) MaxTime() int64 {
 	return v[len(v)-1].Time().UnixNano()
 }
 
-func (v Values) Encode(buf []byte) []byte {
+func (v Values) Encode(buf []byte) ([]byte, error) {
 	switch v[0].(type) {
 	case *FloatValue:
 		a := make([]*FloatValue, len(v))
@@ -96,7 +96,7 @@ func (v Values) Encode(buf []byte) []byte {
 		return encodeStringBlock(buf, a)
 	}
 
-	return nil
+	return nil, fmt.Errorf("unsupported value type %T", v[0])
 }
 
 func (v Values) DecodeSameTypeBlock(block []byte) Values {
@@ -185,9 +185,9 @@ func (f *FloatValue) Size() int {
 	return 16
 }
 
-func encodeFloatBlock(buf []byte, values []*FloatValue) []byte {
+func encodeFloatBlock(buf []byte, values []*FloatValue) ([]byte, error) {
 	if len(values) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// A float block is encoded using different compression strategies
@@ -209,7 +209,7 @@ func encodeFloatBlock(buf []byte, values []*FloatValue) []byte {
 	// Encoded timestamp values
 	tb, err := tsenc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	// Encoded float values
 	vb := venc.Bytes()
@@ -218,7 +218,7 @@ func encodeFloatBlock(buf []byte, values []*FloatValue) []byte {
 	// in the next byte, followed by the block
 	block := packBlockHeader(values[0].Time(), BlockFloat64)
 	block = append(block, packBlock(tb, vb)...)
-	return block
+	return block, nil
 }
 
 func decodeFloatBlock(block []byte) ([]Value, error) {
@@ -249,6 +249,15 @@ func decodeFloatBlock(block []byte) ([]Value, error) {
 		a = append(a, &FloatValue{ts, v})
 	}
 
+	// Did timestamp decoding have an error?
+	if dec.Error() != nil {
+		return nil, dec.Error()
+	}
+	// Did float decoding have an error?
+	if iter.Error() != nil {
+		return nil, iter.Error()
+	}
+
 	return a, nil
 }
 
@@ -273,9 +282,9 @@ func (b *BoolValue) Value() interface{} {
 	return b.value
 }
 
-func encodeBoolBlock(buf []byte, values []*BoolValue) []byte {
+func encodeBoolBlock(buf []byte, values []*BoolValue) ([]byte, error) {
 	if len(values) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// A bool block is encoded using different compression strategies
@@ -295,19 +304,19 @@ func encodeBoolBlock(buf []byte, values []*BoolValue) []byte {
 	// Encoded timestamp values
 	tb, err := tsenc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	// Encoded float values
 	vb, err := venc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	// Preprend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
 	block := packBlockHeader(values[0].Time(), BlockBool)
 	block = append(block, packBlock(tb, vb)...)
-	return block
+	return block, nil
 }
 
 func decodeBoolBlock(block []byte) ([]Value, error) {
@@ -333,6 +342,15 @@ func decodeBoolBlock(block []byte) ([]Value, error) {
 		ts := dec.Read()
 		v := vdec.Read()
 		a = append(a, &BoolValue{ts, v})
+	}
+
+	// Did timestamp decoding have an error?
+	if dec.Error() != nil {
+		return nil, dec.Error()
+	}
+	// Did bool decoding have an error?
+	if vdec.Error() != nil {
+		return nil, vdec.Error()
 	}
 
 	return a, nil
@@ -361,7 +379,7 @@ func (v *Int64Value) Size() int {
 
 func (v *Int64Value) String() string { return fmt.Sprintf("%v", v.value) }
 
-func encodeInt64Block(buf []byte, values []*Int64Value) []byte {
+func encodeInt64Block(buf []byte, values []*Int64Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewInt64Encoder()
 	for _, v := range values {
@@ -372,17 +390,17 @@ func encodeInt64Block(buf []byte, values []*Int64Value) []byte {
 	// Encoded timestamp values
 	tb, err := tsEnc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	// Encoded int64 values
 	vb, err := vEnc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	// Preprend the first timestamp of the block in the first 8 bytes
 	block := packBlockHeader(values[0].Time(), BlockInt64)
-	return append(block, packBlock(tb, vb)...)
+	return append(block, packBlock(tb, vb)...), nil
 }
 
 func decodeInt64Block(block []byte) ([]Value, error) {
@@ -411,6 +429,15 @@ func decodeInt64Block(block []byte) ([]Value, error) {
 		a = append(a, &Int64Value{ts, v})
 	}
 
+	// Did timestamp decoding have an error?
+	if tsDec.Error() != nil {
+		return nil, tsDec.Error()
+	}
+	// Did int64 decoding have an error?
+	if vDec.Error() != nil {
+		return nil, vDec.Error()
+	}
+
 	return a, nil
 }
 
@@ -437,7 +464,7 @@ func (v *StringValue) Size() int {
 
 func (v *StringValue) String() string { return v.value }
 
-func encodeStringBlock(buf []byte, values []*StringValue) []byte {
+func encodeStringBlock(buf []byte, values []*StringValue) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewStringEncoder()
 	for _, v := range values {
@@ -448,17 +475,17 @@ func encodeStringBlock(buf []byte, values []*StringValue) []byte {
 	// Encoded timestamp values
 	tb, err := tsEnc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 	// Encoded int64 values
 	vb, err := vEnc.Bytes()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	// Preprend the first timestamp of the block in the first 8 bytes
 	block := packBlockHeader(values[0].Time(), BlockString)
-	return append(block, packBlock(tb, vb)...)
+	return append(block, packBlock(tb, vb)...), nil
 }
 
 func decodeStringBlock(block []byte) ([]Value, error) {
@@ -477,7 +504,10 @@ func decodeStringBlock(block []byte) ([]Value, error) {
 
 	// Setup our timestamp and value decoders
 	tsDec := NewTimeDecoder(tb)
-	vDec := NewStringDecoder(vb)
+	vDec, err := NewStringDecoder(vb)
+	if err != nil {
+		return nil, err
+	}
 
 	// Decode both a timestamp and value
 	var a []Value
@@ -485,6 +515,15 @@ func decodeStringBlock(block []byte) ([]Value, error) {
 		ts := tsDec.Read()
 		v := vDec.Read()
 		a = append(a, &StringValue{ts, v})
+	}
+
+	// Did timestamp decoding have an error?
+	if tsDec.Error() != nil {
+		return nil, tsDec.Error()
+	}
+	// Did string decoding have an error?
+	if vDec.Error() != nil {
+		return nil, vDec.Error()
 	}
 
 	return a, nil
