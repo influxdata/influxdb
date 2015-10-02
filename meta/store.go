@@ -407,7 +407,7 @@ func (s *Store) enabledLocalRaftIfNecessary() error {
 	}
 	s.mu.RUnlock()
 
-	peers, err := s.raftState.peers()
+	peers, err := s.Peers()
 	if err != nil {
 		return err
 	}
