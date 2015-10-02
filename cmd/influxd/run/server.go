@@ -426,6 +426,7 @@ func (s *Server) Close() error {
 	}
 
 	close(s.closing)
+
 	return nil
 }
 

@@ -92,6 +92,7 @@ func (*DropDatabaseStatement) node()          {}
 func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
+func (*DropServerStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
@@ -198,6 +199,7 @@ func (*DropDatabaseStatement) stmt()          {}
 func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
+func (*DropServerStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
@@ -1822,6 +1824,30 @@ func (s *DropSeriesStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
+}
+
+// DropServerStatement represents a command for removing a server from the cluster.
+type DropServerStatement struct {
+	// ID of the node to be dropped.
+	NodeID uint64
+	// Force will force the server to drop even it it means losing data
+	Force bool
+}
+
+// String returns a string representation of the drop series statement.
+func (s *DropServerStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP SERVER ")
+	_, _ = buf.WriteString(strconv.FormatUint(s.NodeID, 10))
+	if s.Force {
+		_, _ = buf.WriteString(" FORCE")
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a DropServerStatement.
+func (s *DropServerStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
