@@ -34,6 +34,7 @@
 - [#4237](https://github.com/influxdb/influxdb/issues/4237): DERIVATIVE() edge conditions
 - [#4263](https://github.com/influxdb/influxdb/issues/4263): derivative does not work when data is missing
 - [#4293](https://github.com/influxdb/influxdb/pull/4293): Ensure shell is invoked when touching PID file. Thanks @christopherjdickson
+- [#4296](https://github.com/influxdb/influxdb/pull/4296): Reject line protocol ending with '-'. Fixes [#4272](https://github.com/influxdb/influxdb/issues/4272)
 
 ## v0.9.4 [2015-09-14]
 

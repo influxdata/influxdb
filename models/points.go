@@ -560,6 +560,10 @@ func scanNumber(buf []byte, i int) (int, error) {
 	// Is negative number?
 	if i < len(buf) && buf[i] == '-' {
 		i += 1
+		// There must be more characters now, as just '-' is illegal.
+		if i == len(buf) {
+			return i, fmt.Errorf("invalid number")
+		}
 	}
 
 	// how many decimal points we've see
