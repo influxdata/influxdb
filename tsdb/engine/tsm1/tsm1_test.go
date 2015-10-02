@@ -731,7 +731,7 @@ func TestEngine_CursorDescendingOrder(t *testing.T) {
 	verify()
 
 	if err := e.WAL.Flush(); err != nil {
-		t.Fatalf("error flushing WAL %s", err.Error)
+		t.Fatalf("error flushing WAL %s", err.Error())
 	}
 
 	fmt.Println("verify 2")
@@ -997,7 +997,7 @@ func TestEngine_WriteIntoCompactedFile(t *testing.T) {
 	}
 
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 
 	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
@@ -1005,7 +1005,7 @@ func TestEngine_WriteIntoCompactedFile(t *testing.T) {
 	}
 
 	if err := e.Compact(true); err != nil {
-		t.Fatalf("error compacting: %s", err.Error)
+		t.Fatalf("error compacting: %s", err.Error())
 	}
 
 	if err := e.WritePoints([]models.Point{p5}, nil, nil); err != nil {
