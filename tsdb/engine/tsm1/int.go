@@ -27,6 +27,13 @@ import (
 	"github.com/jwilder/encoding/simple8b"
 )
 
+const (
+	// intUncompressed is an uncompressed format using 8 bytes per point
+	intUncompressed = 0
+	// intCompressedSimple is a bit-packed format using simple8b encoding
+	intCompressedSimple = 1
+)
+
 type Int64Encoder interface {
 	Write(v int64)
 	Bytes() ([]byte, error)
@@ -68,7 +75,7 @@ func (e *int64Encoder) encodePacked() ([]byte, error) {
 
 	b := make([]byte, 1+len(encoded)*8)
 	// 4 high bits of first byte store the encoding type for the block
-	b[0] = byte(EncodingPackedSimple) << 4
+	b[0] = byte(intCompressedSimple) << 4
 
 	for i, v := range encoded {
 		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
@@ -79,7 +86,7 @@ func (e *int64Encoder) encodePacked() ([]byte, error) {
 func (e *int64Encoder) encodeUncompressed() ([]byte, error) {
 	b := make([]byte, 1+len(e.values)*8)
 	// 4 high bits of first byte store the encoding type for the block
-	b[0] = byte(EncodingUncompressed) << 4
+	b[0] = byte(intUncompressed) << 4
 
 	for i, v := range e.values {
 		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
@@ -123,9 +130,9 @@ func (d *int64Decoder) Next() bool {
 
 	if d.i >= d.n {
 		switch d.encoding {
-		case EncodingUncompressed:
+		case intUncompressed:
 			d.decodeUncompressed()
-		case EncodingPackedSimple:
+		case intCompressedSimple:
 			d.decodePacked()
 		default:
 			panic(fmt.Sprintf("unknown encoding %v", d.encoding))

@@ -17,6 +17,13 @@ import (
 	"github.com/dgryski/go-bitstream"
 )
 
+const (
+	// floatUncompressed is an uncompressed format using 8 bytes per value
+	floatUncompressed = 0
+	// floatCompressedGorilla is a compressed format using the gorilla paper encoding
+	floatCompressedGorilla = 1
+)
+
 type FloatEncoder struct {
 	val float64
 
@@ -43,7 +50,7 @@ func NewFloatEncoder() *FloatEncoder {
 }
 
 func (s *FloatEncoder) Bytes() []byte {
-	return s.buf.Bytes()
+	return append([]byte{floatCompressedGorilla << 4}, s.buf.Bytes()...)
 }
 
 func (s *FloatEncoder) Finish() {
@@ -95,11 +102,6 @@ func (s *FloatEncoder) Push(v float64) {
 	s.val = v
 }
 
-func (s *FloatEncoder) FloatDecoder() *FloatDecoder {
-	iter, _ := NewFloatDecoder(s.buf.Bytes())
-	return iter
-}
-
 type FloatDecoder struct {
 	val float64
 
@@ -117,7 +119,9 @@ type FloatDecoder struct {
 }
 
 func NewFloatDecoder(b []byte) (*FloatDecoder, error) {
-	br := bitstream.NewReader(bytes.NewReader(b))
+	// first byte is the compression type but we currently just have gorilla
+	// compression
+	br := bitstream.NewReader(bytes.NewReader(b[1:]))
 
 	v, err := br.ReadBits(64)
 	if err != nil {

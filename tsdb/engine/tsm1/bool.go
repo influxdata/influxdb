@@ -7,6 +7,13 @@ package tsm1
 
 import "encoding/binary"
 
+const (
+	// boolUncompressed is an uncompressed boolean format
+	boolUncompressed = 0
+	// boolCompressedBitPacked is an bit packed format using 1 bit per boolean
+	boolCompressedBitPacked = 1
+)
+
 type BoolEncoder interface {
 	Write(b bool)
 	Bytes() ([]byte, error)
@@ -75,7 +82,7 @@ func (e *boolEncoder) Bytes() ([]byte, error) {
 	b := make([]byte, 10+1)
 
 	// Store the encoding type in the 4 high bits of the first byte
-	b[0] = byte(EncodingBitPacked) << 4
+	b[0] = byte(boolCompressedBitPacked) << 4
 
 	i := 1
 	// Encode the number of bools written

@@ -28,7 +28,12 @@ func TestFloatEncoder_Simple(t *testing.T) {
 
 	s.Finish()
 
-	it := s.FloatDecoder()
+	b := s.Bytes()
+
+	it, err := tsm1.NewFloatDecoder(b)
+	if err != nil {
+		t.Fatalf("unexpected error creating float decoder: %v", err)
+	}
 
 	want := []float64{
 		12,
@@ -100,7 +105,13 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 	}
 	s.Finish()
 
-	it := s.FloatDecoder()
+	b := s.Bytes()
+
+	it, err := tsm1.NewFloatDecoder(b)
+	if err != nil {
+		t.Fatalf("unexpected error creating float decoder: %v", err)
+	}
+
 	for _, w := range TwoHoursData {
 		if !it.Next() {
 			t.Fatalf("Next()=false, want true")
@@ -137,11 +148,16 @@ func BenchmarkFloatDecoder(b *testing.B) {
 		s.Push(tt.v)
 	}
 	s.Finish()
+	bytes := s.Bytes()
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		it := s.FloatDecoder()
+		it, err := tsm1.NewFloatDecoder(bytes)
+		if err != nil {
+			b.Fatalf("unexpected error creating float decoder: %v", err)
+		}
+
 		for j := 0; j < len(TwoHoursData); it.Next() {
 			j++
 		}

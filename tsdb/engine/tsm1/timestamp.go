@@ -41,6 +41,15 @@ import (
 	"github.com/jwilder/encoding/simple8b"
 )
 
+const (
+	// timeUncompressed is a an uncompressed format using 8 bytes per timestamp
+	timeUncompressed = 0
+	// timeCompressedPackedSimple is a bit-packed format using simple8b encoding
+	timeCompressedPackedSimple = 1
+	// timeCompressedRLE is a run-length encoding format
+	timeCompressedRLE = 2
+)
+
 // TimeEncoder encodes time.Time to byte slices.
 type TimeEncoder interface {
 	Write(t time.Time)
@@ -135,7 +144,7 @@ func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 	b := make([]byte, 8+1)
 
 	// 4 high bits used for the encoding type
-	b[0] = byte(EncodingPackedSimple) << 4
+	b[0] = byte(timeCompressedPackedSimple) << 4
 	// 4 low bits are the log10 divisor
 	b[0] |= byte(math.Log10(float64(div)))
 
@@ -153,7 +162,7 @@ func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 
 func (e *encoder) encodeRaw() ([]byte, error) {
 	b := make([]byte, 1+len(e.ts)*8)
-	b[0] = byte(EncodingUncompressed) << 4
+	b[0] = byte(timeUncompressed) << 4
 	for i, v := range e.ts {
 		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], uint64(v))
 	}
@@ -165,7 +174,7 @@ func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 	b := make([]byte, 1+10*3)
 
 	// 4 high bits used for the encoding type
-	b[0] = byte(EncodingRLE) << 4
+	b[0] = byte(timeCompressedRLE) << 4
 	// 4 low bits are the log10 divisor
 	b[0] |= byte(math.Log10(float64(div)))
 
@@ -213,11 +222,11 @@ func (d *decoder) decode(b []byte) {
 	// Encoding type is stored in the 4 high bits of the first byte
 	encoding := b[0] >> 4
 	switch encoding {
-	case EncodingUncompressed:
+	case timeUncompressed:
 		d.decodeRaw(b[1:])
-	case EncodingRLE:
+	case timeCompressedRLE:
 		d.decodeRLE(b)
-	case EncodingPackedSimple:
+	case timeCompressedPackedSimple:
 		d.decodePacked(b)
 	default:
 		panic(fmt.Sprintf("unknown encoding: %v", encoding))

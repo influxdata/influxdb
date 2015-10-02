@@ -10,21 +10,6 @@ import (
 )
 
 const (
-	// EncodingPackedSimple is a bit-packed format
-	EncodingPackedSimple = 0
-
-	// EncodingRLE is a run-length encoded format
-	EncodingRLE = 1
-
-	// EncodingUncompressed is a non-compressed format
-	EncodingUncompressed = 2
-
-	// EncodingBitPacked is a basic bit-packed format
-	EncodingBitPacked = 3
-
-	// EncodingSnappy is a snappy encoded format
-	EncodingSnappy = 4
-
 	// BlockFloat64 designates a block encodes float64 values
 	BlockFloat64 = 0
 

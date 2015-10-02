@@ -12,6 +12,13 @@ import (
 	"github.com/golang/snappy"
 )
 
+const (
+	// stringUncompressed is a an uncompressed format encoding strings as raw bytes
+	stringUncompressed = 0
+	// stringCompressedSnappy is a compressed encoding using Snappy compression
+	stringCompressedSnappy = 1
+)
+
 type StringEncoder interface {
 	Write(s string)
 	Bytes() ([]byte, error)
@@ -45,7 +52,7 @@ func (e *stringEncoder) Bytes() ([]byte, error) {
 	// Compress the currently appended bytes using snappy and prefix with
 	// a 1 byte header for future extension
 	data := snappy.Encode(nil, e.bytes)
-	return append([]byte{EncodingSnappy << 4}, data...), nil
+	return append([]byte{stringCompressedSnappy << 4}, data...), nil
 }
 
 type stringDecoder struct {
