@@ -12,18 +12,6 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-var cover *testing.Cover
-
-func init() {
-	cover = &testing.Cover{
-		Mode:            "set",
-		Counters:        make(map[string][]uint32),
-		Blocks:          make(map[string][]testing.CoverBlock),
-		CoveredPackages: "influxql",
-	}
-	testing.RegisterCover(*cover)
-}
-
 // Ensure the parser can parse a multi-statement query.
 func TestParser_ParseQuery(t *testing.T) {
 	s := `SELECT a FROM b; SELECT c FROM d`
