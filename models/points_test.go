@@ -412,12 +412,18 @@ func TestParsePointNegativeWrongPlace(t *testing.T) {
 	}
 }
 
+func TestParsePointOnlyNegativeSign(t *testing.T) {
+	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=-`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=-`)
+	}
+}
+
 func TestParsePointFloatMultipleDecimals(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1.1.1`)
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1.1.1`)
 	}
-	println(err.Error())
 }
 
 func TestParsePointInteger(t *testing.T) {
