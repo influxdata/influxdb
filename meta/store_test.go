@@ -151,7 +151,7 @@ func TestStore_DeleteNode(t *testing.T) {
 	}
 
 	// Remove second node.
-	if err := s.DeleteNode(3); err != nil {
+	if err := s.DeleteNode(3, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -173,7 +173,7 @@ func TestStore_DeleteNode_ErrNodeNotFound(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	if err := s.DeleteNode(2); err != meta.ErrNodeNotFound {
+	if err := s.DeleteNode(2, false); err != meta.ErrNodeNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

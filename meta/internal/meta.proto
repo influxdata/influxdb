@@ -123,6 +123,7 @@ message DeleteNodeCommand {
         optional DeleteNodeCommand command = 102;
     }
 	required uint64 ID = 1;
+	required bool Force = 2;
 }
 
 message CreateDatabaseCommand {
