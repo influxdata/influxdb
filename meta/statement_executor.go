@@ -70,8 +70,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeGrantStatement(stmt)
 	case *influxql.GrantAdminStatement:
 		return e.executeGrantAdminStatement(stmt)
-	case *influxql.RenameDatabaseStatement:
-		return e.executeRenameDatabaseStatement(stmt)
+	case *influxql.AlterDatabaseRenameStatement:
+		return e.executeAlterDatabaseRenameStatement(stmt)
 	case *influxql.RevokeStatement:
 		return e.executeRevokeStatement(stmt)
 	case *influxql.RevokeAdminStatement:
@@ -215,7 +215,7 @@ func (e *StatementExecutor) executeGrantAdminStatement(stmt *influxql.GrantAdmin
 	return &influxql.Result{Err: e.Store.SetAdminPrivilege(stmt.User, true)}
 }
 
-func (e *StatementExecutor) executeRenameDatabaseStatement(q *influxql.RenameDatabaseStatement) *influxql.Result {
+func (e *StatementExecutor) executeAlterDatabaseRenameStatement(q *influxql.AlterDatabaseRenameStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.RenameDatabase(q.OldName, q.NewName)}
 }
 
