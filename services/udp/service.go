@@ -140,7 +140,7 @@ func (s *Service) serve() {
 		}
 
 		n, _, err := s.conn.ReadFromUDP(buf[0:])
-		
+
 		if err != nil {
 			s.statMap.Add(statReadFail, 1)
 			s.Logger.Printf("Failed to read UDP message: %s", err)
