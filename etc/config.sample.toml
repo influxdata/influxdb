@@ -272,7 +272,7 @@ reporting-disabled = false
   max-size = 1073741824
   max-age = "168h"
   retry-rate-limit = 0
-  
+
   # Hinted handoff will start retrying writes to down nodes at a rate of once per second.
   # If any error occurs, it will backoff in an exponential manner, until the interval
   # reaches retry-max-interval. Once writes to all nodes are successfully completed the
