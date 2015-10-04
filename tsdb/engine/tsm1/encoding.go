@@ -66,7 +66,7 @@ func (v Values) MaxTime() int64 {
 }
 
 func (v Values) Encode(buf []byte) ([]byte, error) {
-	if(len(v) == 0){
+	if len(v) == 0 {
 		return make([]byte, 0), nil
 	}
 
@@ -104,7 +104,7 @@ func (v Values) Encode(buf []byte) ([]byte, error) {
 }
 
 func (v Values) DecodeSameTypeBlock(block []byte) Values {
-	if(len(v) == 0){
+	if len(v) == 0 {
 		return nil
 	}
 
