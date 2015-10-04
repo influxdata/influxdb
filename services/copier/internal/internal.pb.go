@@ -15,14 +15,16 @@ It has these top-level messages:
 package internal
 
 import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
 var _ = math.Inf
 
 type Request struct {
-	ShardID          *uint64 `protobuf:"varint,1,req" json:"ShardID,omitempty"`
+	ShardID          *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -38,7 +40,7 @@ func (m *Request) GetShardID() uint64 {
 }
 
 type Response struct {
-	Error            *string `protobuf:"bytes,1,opt" json:"Error,omitempty"`
+	Error            *string `protobuf:"bytes,1,opt,name=Error" json:"Error,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -51,7 +53,4 @@ func (m *Response) GetError() string {
 		return *m.Error
 	}
 	return ""
-}
-
-func init() {
 }

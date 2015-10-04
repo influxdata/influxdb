@@ -823,10 +823,16 @@ func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
 }
 
 // DeleteNode removes a node from the metastore by id.
-func (s *Store) DeleteNode(id uint64) error {
+func (s *Store) DeleteNode(id uint64, force bool) error {
+	ni := s.data.Node(id)
+	if ni == nil {
+		return ErrNodeNotFound
+	}
+
 	return s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
 		&internal.DeleteNodeCommand{
-			ID: proto.Uint64(id),
+			ID:    proto.Uint64(id),
+			Force: proto.Bool(force),
 		},
 	)
 }
@@ -1706,10 +1712,13 @@ func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.DeleteNode(v.GetID()); err != nil {
+	if err := other.DeleteNode(v.GetID(), v.GetForce()); err != nil {
 		return err
 	}
 	fsm.data = other
+
+	id := v.GetID()
+	fsm.Logger.Printf("node '%d' removed", id)
 
 	return nil
 }

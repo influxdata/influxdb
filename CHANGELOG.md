@@ -12,6 +12,7 @@
 - [#4262](https://github.com/influxdb/influxdb/pull/4262): Allow configuration of UDP retention policy
 - [#4265](https://github.com/influxdb/influxdb/pull/4265): Add statistics for Hinted-Handoff
 - [#4284](https://github.com/influxdb/influxdb/pull/4284): Add exponential backoff for hinted-handoff failures
+- [#4310](https://github.com/influxdb/influxdb/pull/4310): Support dropping non-Raft nodes. Work mostly by @corylanou
 
 ### Bugfixes
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW

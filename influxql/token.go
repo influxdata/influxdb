@@ -77,6 +77,7 @@ const (
 	EXPLAIN
 	FIELD
 	FOR
+	FORCE
 	FROM
 	GRANT
 	GRANTS
@@ -108,6 +109,7 @@ const (
 	REVOKE
 	SELECT
 	SERIES
+	SERVER
 	SERVERS
 	SET
 	SHOW
@@ -187,6 +189,7 @@ var tokens = [...]string{
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
 	FOR:          "FOR",
+	FORCE:        "FORCE",
 	FROM:         "FROM",
 	GRANT:        "GRANT",
 	GRANTS:       "GRANTS",
@@ -218,6 +221,7 @@ var tokens = [...]string{
 	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
+	SERVER:       "SERVER",
 	SERVERS:      "SERVERS",
 	SET:          "SET",
 	SHOW:         "SHOW",
