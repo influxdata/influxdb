@@ -65,7 +65,7 @@ func NewService() *Service {
 ```
 When calling `NewStatistics` `key` should be unique for the Service instance (if a network service, the protocol and binding port are good to include in the key). `name` will be the name of the Measurement used to store these statistics. Finally, when these statistics are written to the `monitor` database, all points will be tagged with `tags`. A value of nil for `tags` is legal. 
 
-To register diagnostic information, `monitor.RegisterDiagnosticsClient` is called, passing a `influxdb.monitor.DiagsClient` object to `monitor`.
+To register diagnostic information, `monitor.RegisterDiagnosticsClient` is called, passing a `influxdb.monitor.DiagsClient` object to `monitor`. Implementing the `influxdb.monitor.DiagsClient` interface requires that your component have function returning diagnostic information in specific form, so that it can be displayed by the `monitor` system.
 
 ## expvar
 Statistical information is gathered by each package using [expvar](https://golang.org/pkg/expvar). Each package registers a map using its package name.
