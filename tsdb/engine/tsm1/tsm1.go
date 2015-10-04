@@ -1587,7 +1587,9 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 
 	var remainingValues Values
 
-	if hasFutureBlock {
+	if values == nil {
+		values = newValues
+	} else if hasFutureBlock {
 		// take all values that have times less than the future block and update the vals array
 		pos := sort.Search(len(newValues), func(i int) bool {
 			return newValues[i].Time().UnixNano() >= nextTime
