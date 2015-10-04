@@ -39,7 +39,34 @@ A new module named `monitor` supports all basic statistics and diagnostic functi
 
 ## Registering statistics and diagnostics
 
-To export statistical information with the `monitor` system, code simply calls `influxdb.NewStatistics()` and receives an `expvar.Map` instance in response. This object can then be used to store statistics. To register diagnostic information, `monitor.RegisterDiagnosticsClient` is called, passing a `influxdb.monitor.DiagsClient` object to `monitor`.
+To export statistical information with the `monitor` system, code simply calls `influxdb.NewStatistics()` and receives an `expvar.Map` instance in response. This object can then be used to store statistics.
+
+For example, if you have a module called `Service`, you can statistics like so:
+
+```
+import (
+     "expvar"
+     "github.com/influxdb/influxdb"
+)
+.
+.
+.
+.
+type Service struct {
+  ....some other fields....
+  statMap *expvar.Map         /// Add a map of type *expvar.Map. Check GoDocs for how to use this.
+}
+
+
+func NewService() *Service {
+  s = &NewService{}
+  .
+  s.statMap = NewStatistics(key, name, tags)
+}
+```
+When calling `NewStatistics` `key` should be unique for the Service instance (if a network service, the protocol and binding port are good to include in the key). `name` will be the name of the Measurement used to store these statistics. Finally, when these statistics are written to the `monitor` database, all points will be tagged with `tags`. A value of nil for `tags` is legal. 
+
+To register diagnostic information, `monitor.RegisterDiagnosticsClient` is called, passing a `influxdb.monitor.DiagsClient` object to `monitor`.
 
 ## expvar
 Statistical information is gathered by each package using [expvar](https://golang.org/pkg/expvar). Each package registers a map using its package name.
