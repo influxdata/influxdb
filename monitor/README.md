@@ -41,7 +41,7 @@ A new module named `monitor` supports all basic statistics and diagnostic functi
 
 To export statistical information with the `monitor` system, code simply calls `influxdb.NewStatistics()` and receives an `expvar.Map` instance in response. This object can then be used to store statistics.
 
-For example, if you have a module called `Service`, you can statistics like so:
+For example, if you have a component called `Service`, you can statistics like so:
 
 ```
 import (
@@ -60,7 +60,6 @@ type Service struct {
 
 func NewService() *Service {
   s = &NewService{}
-  .
   s.statMap = NewStatistics(key, name, tags)
 }
 ```
