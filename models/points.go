@@ -1017,6 +1017,10 @@ func (p *point) Tags() Tags {
 			i, key = scanTo(p.key, i, '=')
 			i, value = scanTagValue(p.key, i+1)
 
+			if len(value) == 0 {
+				continue
+			}
+
 			tags[string(unescapeTag(key))] = string(unescapeTag(value))
 
 			i += 1
@@ -1137,7 +1141,10 @@ func (t Tags) HashKey() []byte {
 	for k, v := range t {
 		ek := escapeTag([]byte(k))
 		ev := escapeTag([]byte(v))
-		escaped[string(ek)] = string(ev)
+
+		if len(string(ev)) > 0 {
+			escaped[string(ek)] = string(ev)
+		}
 	}
 
 	// Extract keys and determine final size.
