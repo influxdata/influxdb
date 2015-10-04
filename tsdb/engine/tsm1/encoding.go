@@ -104,7 +104,7 @@ func (v Values) Encode(buf []byte) ([]byte, error) {
 }
 
 func (v Values) DecodeSameTypeBlock(block []byte) Values {
-	if len(v) == 0 {
+	if len(v) == 0 || len(block) < 9 {
 		return nil
 	}
 
@@ -128,7 +128,7 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
 // based on the block
 func DecodeBlock(block []byte) (Values, error) {
-	if len(block) == 0 {
+	if len(block) < 9 {
 		return Values{}, nil
 	}
 
