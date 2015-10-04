@@ -98,14 +98,14 @@ type Engine struct {
 
 	WAL *Log
 
-	RotateFileSize                 uint32
-	SkipCompaction                 bool
-	CompactionAge                  time.Duration
-	CompactionFileCount            int
-	IndexCompactionFullAge         time.Duration
-	IndexMinimumCompactionInterval time.Duration
-	MaxPointsPerBlock              int
-	RotateBlockSize                int
+	RotateFileSize             uint32
+	SkipCompaction             bool
+	CompactionAge              time.Duration
+	MinCompactionFileCount     int
+	IndexCompactionFullAge     time.Duration
+	IndexMinCompactionInterval time.Duration
+	MaxPointsPerBlock          int
+	RotateBlockSize            int
 
 	// filesLock is only for modifying and accessing the files slice
 	filesLock          sync.RWMutex
@@ -140,15 +140,15 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		logger:    log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 
 		// TODO: this is the function where we can inject a check against the in memory collisions
-		HashSeriesField:                hashSeriesField,
-		WAL:                            w,
-		RotateFileSize:                 DefaultRotateFileSize,
-		CompactionAge:                  opt.Config.IndexCompactionAge,
-		CompactionFileCount:            opt.Config.IndexCompactionFileCount,
-		IndexCompactionFullAge:         opt.Config.IndexCompactionFullAge,
-		IndexMinimumCompactionInterval: opt.Config.IndexMinimumCompactionInterval,
-		MaxPointsPerBlock:              DefaultMaxPointsPerBlock,
-		RotateBlockSize:                DefaultRotateBlockSize,
+		HashSeriesField:            hashSeriesField,
+		WAL:                        w,
+		RotateFileSize:             DefaultRotateFileSize,
+		CompactionAge:              opt.Config.IndexCompactionAge,
+		MinCompactionFileCount:     opt.Config.IndexMinCompactionFileCount,
+		IndexCompactionFullAge:     opt.Config.IndexCompactionFullAge,
+		IndexMinCompactionInterval: opt.Config.IndexMinCompactionInterval,
+		MaxPointsPerBlock:          DefaultMaxPointsPerBlock,
+		RotateBlockSize:            DefaultRotateBlockSize,
 	}
 	e.WAL.Index = e
 
@@ -762,10 +762,10 @@ func (e *Engine) shouldCompact() bool {
 	since := time.Since(e.lastCompactionTime)
 	deletesPending := len(e.deletes) > 0
 	e.filesLock.RUnlock()
-	if running || since < e.IndexMinimumCompactionInterval || deletesPending {
+	if running || since < e.IndexMinCompactionInterval || deletesPending {
 		return false
 	}
-	return len(e.filesToCompact()) >= e.CompactionFileCount
+	return len(e.filesToCompact()) >= e.MinCompactionFileCount
 }
 
 func (e *Engine) filesToCompact() dataFiles {
