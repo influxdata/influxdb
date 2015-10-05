@@ -319,17 +319,6 @@ EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }
 
-generate_postuninstall_script() {
-    cat << EOF >$POST_UNINSTALL_PATH
-#!/bin/sh
-if [ -d $INSTALL_ROOT_DIR ]; then
-    rm -r "$INSTALL_ROOT_DIR"
-fi
-
-EOF
-    echo "Post-uninstall script created successfully at $POST_UNINSTALL_PATH"
-}
-
 ###########################################################################
 # Process options
 while :
@@ -479,7 +468,6 @@ if [ $? -ne 0 ]; then
 fi
 
 generate_postinstall_script `full_version $VERSION $RC`
-generate_postuninstall_script
 
 ###########################################################################
 # Create the actual packages.
