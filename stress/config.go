@@ -187,7 +187,7 @@ func (s *series) writeInterval(i int, start time.Time) time.Time {
 		panic(err)
 	}
 
-	if true {
+	if s.Jitter {
 		j = rand.Intn(int(tick))
 	}
 
