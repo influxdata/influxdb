@@ -55,7 +55,7 @@ LICENSE=MIT
 URL=influxdb.com
 MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
-DESCRIPTION="Distributed time-series database"
+DESCRIPTION="\"Distributed time-series database\""
 
 # Allow path to FPM to be set by environment variables. Some execution contexts
 # like cron don't have PATH set correctly to pick it up.
