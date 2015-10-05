@@ -88,6 +88,7 @@ type Monitor struct {
 		ClusterID() (uint64, error)
 		NodeID() uint64
 		WaitForLeader(d time.Duration) error
+		IsLeader() bool
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 		CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 		SetDefaultRetentionPolicy(database, name string) error
@@ -297,7 +298,7 @@ func (m *Monitor) Diagnostics() (map[string]*Diagnostic, error) {
 
 // createInternalStorage ensures the internal storage has been created.
 func (m *Monitor) createInternalStorage() {
-	if m.storeCreated {
+	if !m.MetaStore.IsLeader() || m.storeCreated {
 		return
 	}
 
