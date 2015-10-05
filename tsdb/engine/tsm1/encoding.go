@@ -72,32 +72,13 @@ func (v Values) MaxTime() int64 {
 func (v Values) Encode(buf []byte) ([]byte, error) {
 	switch v[0].(type) {
 	case *FloatValue:
-		a := make([]*FloatValue, len(v))
-		for i, vv := range v {
-			a[i] = vv.(*FloatValue)
-		}
-		return encodeFloatBlock(buf, a)
-
+		return encodeFloatBlock(buf, v)
 	case *Int64Value:
-		a := make([]*Int64Value, len(v))
-		for i, vv := range v {
-			a[i] = vv.(*Int64Value)
-		}
-		return encodeInt64Block(buf, a)
-
+		return encodeInt64Block(buf, v)
 	case *BoolValue:
-		a := make([]*BoolValue, len(v))
-		for i, vv := range v {
-			a[i] = vv.(*BoolValue)
-		}
-		return encodeBoolBlock(buf, a)
-
+		return encodeBoolBlock(buf, v)
 	case *StringValue:
-		a := make([]*StringValue, len(v))
-		for i, vv := range v {
-			a[i] = vv.(*StringValue)
-		}
-		return encodeStringBlock(buf, a)
+		return encodeStringBlock(buf, v)
 	}
 
 	return nil, fmt.Errorf("unsupported value type %T", v[0])
@@ -187,7 +168,7 @@ func (f *FloatValue) Size() int {
 	return 16
 }
 
-func encodeFloatBlock(buf []byte, values []*FloatValue) ([]byte, error) {
+func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -204,7 +185,7 @@ func encodeFloatBlock(buf []byte, values []*FloatValue) ([]byte, error) {
 
 	for _, v := range values {
 		tsenc.Write(v.Time())
-		venc.Push(v.value)
+		venc.Push(v.(*FloatValue).value)
 	}
 	venc.Finish()
 
@@ -284,7 +265,7 @@ func (b *BoolValue) Value() interface{} {
 	return b.value
 }
 
-func encodeBoolBlock(buf []byte, values []*BoolValue) ([]byte, error) {
+func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -300,7 +281,7 @@ func encodeBoolBlock(buf []byte, values []*BoolValue) ([]byte, error) {
 
 	for _, v := range values {
 		tsenc.Write(v.Time())
-		venc.Write(v.value)
+		venc.Write(v.(*BoolValue).value)
 	}
 
 	// Encoded timestamp values
@@ -381,12 +362,12 @@ func (v *Int64Value) Size() int {
 
 func (v *Int64Value) String() string { return fmt.Sprintf("%v", v.value) }
 
-func encodeInt64Block(buf []byte, values []*Int64Value) ([]byte, error) {
+func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewInt64Encoder()
 	for _, v := range values {
 		tsEnc.Write(v.Time())
-		vEnc.Write(v.value)
+		vEnc.Write(v.(*Int64Value).value)
 	}
 
 	// Encoded timestamp values
@@ -466,12 +447,12 @@ func (v *StringValue) Size() int {
 
 func (v *StringValue) String() string { return v.value }
 
-func encodeStringBlock(buf []byte, values []*StringValue) ([]byte, error) {
+func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewStringEncoder()
 	for _, v := range values {
 		tsEnc.Write(v.Time())
-		vEnc.Write(v.value)
+		vEnc.Write(v.(*StringValue).value)
 	}
 
 	// Encoded timestamp values
