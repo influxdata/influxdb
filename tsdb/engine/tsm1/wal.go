@@ -119,6 +119,7 @@ type Log struct {
 type IndexWriter interface {
 	Write(valuesByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 	MarkDeletes(keys []string)
+	MarkMeasurementDelete(name string)
 }
 
 func NewLog(path string) *Log {
@@ -168,7 +169,7 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 	if len(fields) != 1 {
 		panic("wal cursor should only ever be called with 1 field")
 	}
-	ck := seriesFieldKey(series, fields[0])
+	ck := SeriesFieldKey(series, fields[0])
 	values := l.cache[ck]
 
 	// if we're in the middle of a flush, combine the previous cache
@@ -268,7 +269,7 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 
 	for _, p := range points {
 		for name, value := range p.Fields() {
-			k := seriesFieldKey(string(p.Key()), name)
+			k := SeriesFieldKey(string(p.Key()), name)
 			v := NewValue(p.Time(), value)
 			cacheValues := l.cache[k]
 
@@ -388,11 +389,16 @@ func (l *Log) readFileToCache(fileName string) error {
 			}
 			l.addToCache(nil, nil, series, false)
 		case deleteEntry:
-			var keys []string
-			if err := json.Unmarshal(data, &keys); err != nil {
+			d := &deleteData{}
+			if err := json.Unmarshal(data, &d); err != nil {
 				return err
 			}
-			l.Index.MarkDeletes(keys)
+			l.Index.MarkDeletes(d.Keys)
+			l.Index.MarkMeasurementDelete(d.MeasurementName)
+			l.deleteKeysFromCache(d.Keys)
+			if d.MeasurementName != "" {
+				l.deleteMeasurementFromCache(d.MeasurementName)
+			}
 		}
 	}
 }
@@ -431,27 +437,62 @@ func (l *Log) Flush() error {
 	return l.flush(idleFlush)
 }
 
-func (l *Log) DropMeasurementFields(measurement string) {
-	l.cacheLock.Lock()
-	defer l.cacheLock.Unlock()
-	delete(l.measurementFieldsCache, measurement)
-}
-
-func (l *Log) DeleteSeries(keys []string) error {
-	l.cacheLock.Lock()
-	for _, k := range keys {
-		delete(l.cache, k)
-	}
-	l.cacheLock.Unlock()
-
-	b, err := json.Marshal(keys)
+func (l *Log) DeleteMeasurement(measurement string, keys []string) error {
+	d := &deleteData{MeasurementName: measurement, Keys: keys}
+	err := l.writeDeleteEntry(d)
 	if err != nil {
 		return err
 	}
 
-	cb := snappy.Encode(nil, b)
+	l.deleteKeysFromCache(keys)
+	l.deleteMeasurementFromCache(measurement)
 
-	return l.writeToLog(deleteEntry, cb)
+	return nil
+}
+
+func (l *Log) deleteMeasurementFromCache(name string) {
+	l.cacheLock.Lock()
+	defer l.cacheLock.Unlock()
+	delete(l.measurementFieldsCache, name)
+}
+
+func (l *Log) writeDeleteEntry(d *deleteData) error {
+	js, err := json.Marshal(d)
+	if err != nil {
+		return err
+	}
+	data := snappy.Encode(nil, js)
+	return l.writeToLog(deleteEntry, data)
+}
+
+func (l *Log) DeleteSeries(keys []string) error {
+	l.deleteKeysFromCache(keys)
+
+	return l.writeDeleteEntry(&deleteData{Keys: keys})
+}
+
+func (l *Log) deleteKeysFromCache(keys []string) {
+	seriesKeys := make(map[string]bool)
+	for _, k := range keys {
+		series, _ := seriesAndFieldFromCompositeKey(k)
+		seriesKeys[series] = true
+	}
+
+	l.cacheLock.Lock()
+	defer l.cacheLock.Unlock()
+
+	for _, k := range keys {
+		delete(l.cache, k)
+	}
+
+	// now remove any of these that are marked for creation
+	var seriesCreate []*tsdb.SeriesCreate
+	for _, sc := range l.seriesToCreateCache {
+		if _, ok := seriesKeys[sc.Series.Key]; !ok {
+			seriesCreate = append(seriesCreate, sc)
+		}
+	}
+	l.seriesToCreateCache = seriesCreate
 }
 
 // Close will finish any flush that is currently in process and close file handles
@@ -729,6 +770,13 @@ func (c *walCursor) nextReverse() Value {
 	}
 
 	return c.cache[c.position]
+}
+
+// deleteData holds the information for a delete entry
+type deleteData struct {
+	// MeasurementName will be empty for deletes that are only against series
+	MeasurementName string
+	Keys            []string
 }
 
 // idFromFileName parses the segment file ID from its name

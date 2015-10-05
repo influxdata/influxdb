@@ -111,11 +111,11 @@ func TestWAL_TestWriteQueryOpen(t *testing.T) {
 		t.Fatalf("failed to open: %s", err.Error())
 	}
 
-	if len(vals["cpu,host=A#value"]) != 2 {
+	if len(vals[tsm1.SeriesFieldKey("cpu,host=A", "value")]) != 2 {
 		t.Fatal("expected host A values to flush to index on open")
 	}
 
-	if len(vals["cpu,host=B#value"]) != 1 {
+	if len(vals[tsm1.SeriesFieldKey("cpu,host=B", "value")]) != 1 {
 		t.Fatal("expected host B values to flush to index on open")
 	}
 
@@ -174,3 +174,5 @@ func (m *MockIndexWriter) Write(valuesByKey map[string]tsm1.Values, measurementF
 }
 
 func (m *MockIndexWriter) MarkDeletes(keys []string) {}
+
+func (m *MockIndexWriter) MarkMeasurementDelete(name string) {}

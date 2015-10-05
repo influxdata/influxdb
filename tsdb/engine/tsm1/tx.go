@@ -19,7 +19,7 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 	// don't add the overhead of the multifield cursor if we only have one field
 	if len(fields) == 1 {
 		id := t.engine.keyAndFieldToID(series, fields[0])
-		isDeleted := t.engine.deletes[id]
+		_, isDeleted := t.engine.deletes[id]
 
 		var indexCursor tsdb.Cursor
 		if isDeleted {
@@ -37,7 +37,7 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 	cursorFields := make([]string, 0)
 	for _, field := range fields {
 		id := t.engine.keyAndFieldToID(series, field)
-		isDeleted := t.engine.deletes[id]
+		_, isDeleted := t.engine.deletes[id]
 
 		var indexCursor tsdb.Cursor
 		if isDeleted {

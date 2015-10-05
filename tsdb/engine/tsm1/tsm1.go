@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -47,6 +48,10 @@ const (
 	// are removed after the file has been synced and is safe for use. If a file
 	// has an associated checkpoint file, it wasn't safely written and both should be removed
 	CheckpointExtension = "check"
+
+	// keyFieldSeparator separates the series key from the field name in the composite key
+	// that identifies a specific field in series
+	keyFieldSeparator = "#!~#"
 )
 
 type TimePrecision uint8
@@ -115,8 +120,12 @@ type Engine struct {
 	lastCompactionTime time.Time
 
 	// deletes is a map of keys that are deleted, but haven't yet been
-	// compacted and flushed
-	deletes map[uint64]bool
+	// compacted and flushed. They map the ID to the corresponding key
+	deletes map[uint64]string
+
+	// deleteMeasurements is a map of the measurements that are deleted
+	// but haven't yet been compacted and flushed
+	deleteMeasurements map[string]bool
 
 	collisionsLock sync.RWMutex
 	collisions     map[string]uint64
@@ -240,7 +249,8 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	e.deletes = make(map[uint64]bool)
+	e.deletes = make(map[uint64]string)
+	e.deleteMeasurements = make(map[string]bool)
 
 	// mark the last compaction as now so it doesn't try to compact while
 	// flushing the WAL on load
@@ -278,6 +288,7 @@ func (e *Engine) Close() error {
 	e.currentFileID = 0
 	e.collisions = nil
 	e.deletes = nil
+	e.deleteMeasurements = nil
 	return nil
 }
 
@@ -440,8 +451,14 @@ func (e *Engine) MarkDeletes(keys []string) {
 	e.filesLock.Lock()
 	defer e.filesLock.Unlock()
 	for _, k := range keys {
-		e.deletes[e.keyToID(k)] = true
+		e.deletes[e.keyToID(k)] = k
 	}
+}
+
+func (e *Engine) MarkMeasurementDelete(name string) {
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
+	e.deleteMeasurements[name] = true
 }
 
 // filesAndLock returns the data files that match the given range and
@@ -1166,17 +1183,66 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 func (e *Engine) flushDeletes() error {
 	e.writeLock.LockRange(math.MinInt64, math.MaxInt64)
 	defer e.writeLock.UnlockRange(math.MinInt64, math.MaxInt64)
+	e.metaLock.Lock()
+	defer e.metaLock.Unlock()
 
+	measurements := make(map[string]bool)
+	deletes := make(map[uint64]string)
+	e.filesLock.RLock()
+	for name, _ := range e.deleteMeasurements {
+		measurements[name] = true
+	}
+	for id, key := range e.deletes {
+		deletes[id] = key
+	}
+	e.filesLock.RUnlock()
+
+	// if we're deleting measurements, rewrite the field data
+	if len(measurements) > 0 {
+		fields, err := e.readFields()
+		if err != nil {
+			return err
+		}
+		for name, _ := range measurements {
+			delete(fields, name)
+		}
+		if err := e.writeFields(fields); err != nil {
+			return err
+		}
+	}
+
+	series, err := e.readSeries()
+	if err != nil {
+		return err
+	}
+	for _, key := range deletes {
+		seriesName, _ := seriesAndFieldFromCompositeKey(key)
+		delete(series, seriesName)
+	}
+	if err := e.writeSeries(series); err != nil {
+		return err
+	}
+
+	// now remove the raw time series data from the data files
 	files := e.copyFilesCollection()
 	newFiles := make(dataFiles, 0, len(files))
 	for _, f := range files {
 		newFiles = append(newFiles, e.writeNewFileExcludeDeletes(f))
 	}
 
+	// update the delete map and files
 	e.filesLock.Lock()
 	defer e.filesLock.Unlock()
+
 	e.files = newFiles
-	e.deletes = make(map[uint64]bool)
+
+	// remove the things we've deleted from the map
+	for name, _ := range measurements {
+		delete(e.deleteMeasurements, name)
+	}
+	for id, _ := range deletes {
+		delete(e.deletes, id)
+	}
 
 	e.deletesPending.Add(1)
 	go func() {
@@ -1288,7 +1354,7 @@ func (e *Engine) keysWithFields(fields map[string]*tsdb.MeasurementFields, keys 
 		mf := fields[measurement]
 		if mf != nil {
 			for _, f := range mf.Fields {
-				a = append(a, seriesFieldKey(k, f.Name))
+				a = append(a, SeriesFieldKey(k, f.Name))
 			}
 		}
 
@@ -1296,7 +1362,7 @@ func (e *Engine) keysWithFields(fields map[string]*tsdb.MeasurementFields, keys 
 		mf = e.WAL.measurementFieldsCache[measurement]
 		if mf != nil {
 			for _, f := range mf.Fields {
-				a = append(a, seriesFieldKey(k, f.Name))
+				a = append(a, SeriesFieldKey(k, f.Name))
 			}
 		}
 	}
@@ -1305,30 +1371,23 @@ func (e *Engine) keysWithFields(fields map[string]*tsdb.MeasurementFields, keys 
 }
 
 // DeleteSeries deletes the series from the engine.
-func (e *Engine) DeleteSeries(keys []string) error {
+func (e *Engine) DeleteSeries(seriesKeys []string) error {
+	e.metaLock.Lock()
+	defer e.metaLock.Unlock()
+
 	fields, err := e.readFields()
 	if err != nil {
 		return err
 	}
 
-	keyFields := e.keysWithFields(fields, keys)
-
-	return e.deleteKeyFields(keyFields)
-}
-
-func (e *Engine) deleteKeyFields(keyFields []string) error {
-	err := e.WAL.DeleteSeries(keyFields)
-	if err != nil {
-		return err
-	}
+	keyFields := e.keysWithFields(fields, seriesKeys)
 	e.filesLock.Lock()
 	defer e.filesLock.Unlock()
-
-	for _, k := range keyFields {
-		e.deletes[e.keyToID(k)] = true
+	for _, key := range keyFields {
+		e.deletes[e.keyToID(key)] = key
 	}
 
-	return nil
+	return e.WAL.DeleteSeries(keyFields)
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
@@ -1336,24 +1395,23 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 	e.metaLock.Lock()
 	defer e.metaLock.Unlock()
 
-	// remove the field data from the index
 	fields, err := e.readFields()
 	if err != nil {
 		return err
 	}
 
+	// mark the measurement, series keys and the fields for deletion on the next flush
+	// also serves as a tombstone for any queries that come in before the flush
 	keyFields := e.keysWithFields(fields, seriesKeys)
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
 
-	delete(fields, name)
-
-	if err := e.writeFields(fields); err != nil {
-		return err
+	e.deleteMeasurements[name] = true
+	for _, k := range keyFields {
+		e.deletes[e.keyToID(k)] = k
 	}
 
-	e.WAL.DropMeasurementFields(name)
-
-	// now delete all the measurement's series
-	return e.deleteKeyFields(keyFields)
+	return e.WAL.DeleteMeasurement(name, seriesKeys)
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -1416,7 +1474,7 @@ func (e *Engine) keyToID(key string) uint64 {
 }
 
 func (e *Engine) keyAndFieldToID(series, field string) uint64 {
-	key := seriesFieldKey(series, field)
+	key := SeriesFieldKey(series, field)
 	return e.keyToID(key)
 }
 
@@ -1892,9 +1950,17 @@ func hashSeriesField(key string) uint64 {
 	return h.Sum64()
 }
 
-// seriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID
-func seriesFieldKey(seriesKey, field string) string {
-	return seriesKey + "#" + field
+// SeriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID
+func SeriesFieldKey(seriesKey, field string) string {
+	return seriesKey + keyFieldSeparator + field
+}
+
+func seriesAndFieldFromCompositeKey(key string) (string, string) {
+	parts := strings.Split(key, keyFieldSeparator)
+	if len(parts) != 0 {
+		return parts[0], strings.Join(parts[1:], keyFieldSeparator)
+	}
+	return parts[0], parts[1]
 }
 
 type uint64slice []uint64
