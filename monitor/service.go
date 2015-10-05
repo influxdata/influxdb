@@ -75,6 +75,7 @@ type Monitor struct {
 
 	diagRegistrations map[string]DiagsClient
 
+	storeCreated           bool
 	storeEnabled           bool
 	storeDatabase          string
 	storeRetentionPolicy   string
@@ -294,6 +295,42 @@ func (m *Monitor) Diagnostics() (map[string]*Diagnostic, error) {
 	return diags, nil
 }
 
+// createInternalStorage ensures the internal storage has been created.
+func (m *Monitor) createInternalStorage() {
+	if m.storeCreated {
+		return
+	}
+
+	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
+		m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
+			m.storeDatabase, err.Error())
+		return
+	}
+
+	rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
+	rpi.Duration = MonitorRetentionPolicyDuration
+	rpi.ReplicaN = 1
+	if _, err := m.MetaStore.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
+		m.Logger.Printf("failed to create retention policy '%s', failed to create internal storage: %s",
+			rpi.Name, err.Error())
+		return
+	}
+
+	if err := m.MetaStore.SetDefaultRetentionPolicy(m.storeDatabase, rpi.Name); err != nil {
+		m.Logger.Printf("failed to set default retention policy on '%s', failed to create internal storage: %s",
+			m.storeDatabase, err.Error())
+		return
+	}
+
+	if err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default"); err != nil && err != meta.ErrRetentionPolicyNotFound {
+		m.Logger.Printf("failed to delete retention policy 'default', failed to created internal storage: %s", err.Error())
+		return
+	}
+
+	// Mark storage creation complete.
+	m.storeCreated = true
+}
+
 // storeStatistics writes the statistics to an InfluxDB system.
 func (m *Monitor) storeStatistics() {
 	defer m.wg.Done()
@@ -315,37 +352,14 @@ func (m *Monitor) storeStatistics() {
 		"hostname":  hostname,
 	}
 
-	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
-		m.Logger.Printf("failed to create database '%s', terminating storage: %s",
-			m.storeDatabase, err.Error())
-		return
-	}
-
-	rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
-	rpi.Duration = MonitorRetentionPolicyDuration
-	rpi.ReplicaN = 1
-	if _, err := m.MetaStore.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
-		m.Logger.Printf("failed to create retention policy '%s', terminating storage: %s",
-			rpi.Name, err.Error())
-		return
-	}
-
-	if err := m.MetaStore.SetDefaultRetentionPolicy(m.storeDatabase, rpi.Name); err != nil {
-		m.Logger.Printf("failed to set default retention policy on '%s', terminating storage: %s",
-			m.storeDatabase, err.Error())
-		return
-	}
-
-	if err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default"); err != nil && err != meta.ErrRetentionPolicyNotFound {
-		m.Logger.Printf("failed to delete retention policy 'default', terminating storage: %s", err.Error())
-		return
-	}
-
 	tick := time.NewTicker(m.storeInterval)
 	defer tick.Stop()
 	for {
 		select {
+
 		case <-tick.C:
+			m.createInternalStorage()
+
 			stats, err := m.Statistics(clusterTags)
 			if err != nil {
 				m.Logger.Printf("failed to retrieve registered statistics: %s", err)
