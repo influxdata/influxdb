@@ -80,6 +80,8 @@ const (
 	// MAP_POPULATE is for the mmap syscall. For some reason this isn't defined in golang's syscall
 	MAP_POPULATE = 0x8000
 
+	// magicNumber is written as the first 4 bytes of a data file to
+	// identify the file as a tsm1 formatted file
 	magicNumber uint32 = 0x16D116D1
 )
 
@@ -1298,6 +1300,8 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
 }
 
 func (e *Engine) nextFileName() string {
+	e.filesLock.Lock()
+	defer e.filesLock.Unlock()
 	e.currentFileID++
 	return filepath.Join(e.path, fmt.Sprintf("%07d.%s", e.currentFileID, Format))
 }

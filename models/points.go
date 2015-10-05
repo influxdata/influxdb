@@ -1142,7 +1142,7 @@ func (t Tags) HashKey() []byte {
 		ek := escapeTag([]byte(k))
 		ev := escapeTag([]byte(v))
 
-		if len(string(ev)) > 0 {
+		if len(ev) > 0 {
 			escaped[string(ek)] = string(ev)
 		}
 	}
