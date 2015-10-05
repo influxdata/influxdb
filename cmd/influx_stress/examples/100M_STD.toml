@@ -30,18 +30,3 @@ channel_buffer_size = 100000
   [[series.field]]
     key = "value"
     type = "float64"
-
-  # Doesnt work as expected
-##  [[series.field]]
-##    key = "value-2"
-##    type = "float64-inc"
-##
-##  [[series.field]]
-##    key = "value-3"
-##    type = "float64-inc+"
-
- # Has 80% probability of being a constant value
-  [[series.field]]
-    key = "flat_value"
-    type = "float64-flat"
-
