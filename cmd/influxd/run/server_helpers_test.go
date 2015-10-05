@@ -53,7 +53,6 @@ func OpenServer(c *run.Config, joinURLs string) *Server {
 	if err := s.Open(); err != nil {
 		panic(err.Error())
 	}
-
 	return s
 }
 
@@ -75,6 +74,18 @@ func OpenServerWithVersion(c *run.Config, version string) *Server {
 	}
 
 	return &s
+}
+
+// OpenDefaultServer opens a test server with a default database & retention policy.
+func OpenDefaultServer(c *run.Config, joinURLs string) *Server {
+	s := OpenServer(c, joinURLs)
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		panic(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		panic(err)
+	}
+	return s
 }
 
 // Close shuts down the server and removes all temporary paths.
@@ -178,6 +189,15 @@ func (s *Server) Write(db, rp, body string, params url.Values) (results string, 
 		return "", fmt.Errorf("invalid status code: code=%d, body=%s", resp.StatusCode, MustReadAll(resp.Body))
 	}
 	return string(MustReadAll(resp.Body)), nil
+}
+
+// MustWrite executes a write to the server. Panic on error.
+func (s *Server) MustWrite(db, rp, body string, params url.Values) string {
+	results, err := s.Write(db, rp, body, params)
+	if err != nil {
+		panic(err)
+	}
+	return results
 }
 
 // NewConfig returns the default config with temporary paths.

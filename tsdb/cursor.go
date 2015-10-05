@@ -154,8 +154,7 @@ type TagSetCursor struct {
 	cursors       []*TagsCursor     // Underlying tags cursors.
 	currentTags   map[string]string // the current tags for the underlying series cursor in play
 
-	SelectFields      []string // fields to be selected
-	SelectWhereFields []string // fields in both the select and where clause to be returned or filtered on
+	SelectFields []string // fields to be selected
 
 	// Min-heap of cursors ordered by timestamp.
 	heap *pointHeap

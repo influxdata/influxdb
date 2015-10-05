@@ -45,7 +45,7 @@ func TestMapMean(t *testing.T) {
 					{Timestamp: 2, Value: float64(8.0)},
 				},
 			},
-			output: &meanMapOutput{2, 5.0, Float64Type},
+			output: &meanMapOutput{2, 10.0, Float64Type},
 		},
 	}
 
@@ -55,7 +55,7 @@ func TestMapMean(t *testing.T) {
 			t.Fatalf("MapMean(%v): output mismatch: exp %v got %v", test.input, test.output, got)
 		}
 
-		if got.(*meanMapOutput).Count != test.output.Count || got.(*meanMapOutput).Mean != test.output.Mean {
+		if got.(*meanMapOutput).Count != test.output.Count || got.(*meanMapOutput).Total != test.output.Total {
 			t.Errorf("output mismatch: exp %v got %v", test.output, got)
 		}
 	}
