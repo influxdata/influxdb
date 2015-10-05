@@ -1,13 +1,11 @@
 package runner
 
 import (
-	"fmt"
-	//"math/rand"
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -132,8 +130,8 @@ func (ms *Measurements) Set(value string) error {
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
 func (cfg *Config) NewClient() (*client.Client, error) {
-	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Write.Address))
-	c, err := client.NewClient(client.Config{URL: *u})
+	u, _ := client.ParseConnectionString(cfg.Write.Address, cfg.SSL)
+	c, err := client.NewClient(client.Config{URL: u})
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +256,13 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 		counter.Increment()
 		totalPoints += cfg.Write.BatchSize
 
-		instanceURL := fmt.Sprintf("http://%v/write?db=%v&precision=%v", cfg.Write.Address, cfg.Write.Database, cfg.Write.Precision)
+		protocol := "http"
+
+		if cfg.SSL {
+			protocol = fmt.Sprintf("%vs", protocol)
+		}
+
+		instanceURL := fmt.Sprintf("%v://%v/write?db=%v&precision=%v", protocol, cfg.Write.Address, cfg.Write.Database, cfg.Write.Precision)
 
 		go func(b *bytes.Buffer, total int) {
 			st := time.Now()

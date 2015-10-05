@@ -86,6 +86,7 @@ type Config struct {
 	MeasurementQuery  measurementQuery `toml:"measurement_query"`
 	SeriesQuery       seriesQuery      `toml:"series_query"`
 	ChannelBufferSize int              `toml:"channel_buffer_size"`
+	SSL               bool             `toml:"ssl"`
 }
 
 // NewSeries, takes a measurement, and point count,
