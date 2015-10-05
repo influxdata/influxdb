@@ -71,7 +71,7 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 		return newEngineFuncs[options.EngineVersion](path, walPath, options), nil
 	}
 
-	// Only bolt-based backends are currently supported so open it and check the format.
+	// Only bolt and tsm1 based storage engines are currently supported
 	var format string
 	if err := func() error {
 		// if it's a dir then it's a tsm1 engine
