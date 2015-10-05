@@ -157,12 +157,16 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 }
 
 func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerStatement) *influxql.Result {
-	// Dropping only non-Raft nodes supported.
-	peers, err := e.Store.Peers()
+	ni, err := e.Store.Node(q.NodeID)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
-	ni, err := e.Store.Node(q.NodeID)
+	if ni == nil {
+		return &influxql.Result{Err: ErrNodeNotFound}
+	}
+
+	// Dropping only non-Raft nodes supported.
+	peers, err := e.Store.Peers()
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
