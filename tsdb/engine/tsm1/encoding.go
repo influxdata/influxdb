@@ -21,6 +21,10 @@ const (
 
 	// BlockString designates a block encodes string values
 	BlockString = 3
+
+	// encodedBlockHeaderSize is the size of the header for an encoded block.  The first 8 bytes
+	// are the minimum timestamp of the block.  The next byte is a block encoding type indicator.
+	encodedBlockHeaderSize = 9
 )
 
 type Value interface {
@@ -120,8 +124,8 @@ func (v Values) DecodeSameTypeBlock(block []byte) Values {
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
 // based on the block
 func DecodeBlock(block []byte) (Values, error) {
-	if len(block) == 0 {
-		return Values{}, nil
+	if len(block) <= encodedBlockHeaderSize {
+		panic(fmt.Sprintf("decode of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
 	}
 
 	blockType := block[8]
@@ -135,10 +139,8 @@ func DecodeBlock(block []byte) (Values, error) {
 	case BlockString:
 		return decodeStringBlock(block)
 	default:
+		panic(fmt.Sprintf("unknown block type: %d", blockType))
 	}
-
-	// TODO: add support for other block types
-	return nil, fmt.Errorf("unknown block type: %d", blockType)
 }
 
 // Deduplicate returns a new Values slice with any values
