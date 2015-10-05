@@ -357,7 +357,6 @@ func (m *Monitor) storeStatistics() {
 	defer tick.Stop()
 	for {
 		select {
-
 		case <-tick.C:
 			m.createInternalStorage()
 
