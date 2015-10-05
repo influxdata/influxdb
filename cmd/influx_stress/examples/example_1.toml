@@ -29,7 +29,7 @@ channel_buffer_size = 100000
   # How much time between each timestamp
   tick = "5s"
   # Randomize timestamp a bit
-  jitter = true
+  jitter = false
   # number of points that will be written for each of the series
   point_count = 1000
   # name of the measurement that will be written
