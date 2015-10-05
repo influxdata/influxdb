@@ -40,6 +40,8 @@
 - [#4276](https://github.com/influxdb/influxdb/issues/4276): Walk DropSeriesStatement & check for empty sources
 - [#4342](https://github.com/influxdb/influxdb/pull/4342): Fix mixing aggregates and math with non-aggregates. Thanks @kostya-sh.
 - [#4349](https://github.com/influxdb/influxdb/issues/4349): If HH can't unmarshal a block, skip that block.
+- [#3700](https://github.com/influxdb/influxdb/issues/3700): [master] Panic when trying to backup data
+- [#3923](https://github.com/influxdb/influxdb/issues/3923): [0.9.3] influxd backup /tmp/mysnapshot crashes influx and creates empty file
 
 ## v0.9.4 [2015-09-14]
 

@@ -153,6 +153,7 @@ type Tx interface {
 	Size() int64
 	Commit() error
 	Rollback() error
+	Close() error
 
 	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
 }

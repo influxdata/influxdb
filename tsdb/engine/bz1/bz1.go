@@ -630,6 +630,10 @@ type Tx struct {
 	wal    WAL
 }
 
+func (tx *Tx) Close() error {
+	return tx.Rollback()
+}
+
 // Cursor returns an iterator for a key.
 func (tx *Tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	walCursor := tx.wal.Cursor(series, fields, dec, ascending)

@@ -96,17 +96,9 @@ func appendShardSnapshotFile(sw *snapshot.Writer, sh *Shard, name string) error 
 
 	// Append to snapshot writer.
 	sw.Manifest.Files = append(sw.Manifest.Files, f)
-	sw.FileWriters[f.Name] = &boltTxCloser{tx}
+	sw.FileWriters[f.Name] = tx
 	return nil
 }
-
-// boltTxCloser wraps a Bolt transaction to implement io.Closer.
-type boltTxCloser struct {
-	Tx
-}
-
-// Close rolls back the transaction.
-func (tx *boltTxCloser) Close() error { return tx.Rollback() }
 
 // NopWriteToCloser returns an io.WriterTo that implements io.Closer.
 func NopWriteToCloser(w io.WriterTo) interface {

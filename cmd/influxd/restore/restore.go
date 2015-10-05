@@ -154,11 +154,6 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 	c := config.Meta
 	c.Peers = nil
 
-	// Initialize meta store.
-	store := meta.NewStore(config.Meta)
-	store.RaftListener = newNopListener()
-	store.ExecListener = newNopListener()
-
 	// Determine advertised address.
 	_, port, err := net.SplitHostPort(config.Meta.BindAddress)
 	if err != nil {
@@ -171,6 +166,12 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 	if err != nil {
 		return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
 	}
+	// Initialize meta store.
+	store := meta.NewStore(config.Meta)
+	store.RaftListener = newNopListener()
+	store.ExecListener = newNopListener()
+	store.RPCListener = newNopListener()
+	store.RemoteAddr = addr
 	store.Addr = addr
 
 	// Open the meta store.
@@ -235,10 +236,11 @@ type Config struct {
 
 type nopListener struct {
 	closing chan struct{}
+	closed  bool
 }
 
 func newNopListener() *nopListener {
-	return &nopListener{make(chan struct{})}
+	return &nopListener{make(chan struct{}), false}
 }
 
 func (ln *nopListener) Accept() (net.Conn, error) {
@@ -246,5 +248,12 @@ func (ln *nopListener) Accept() (net.Conn, error) {
 	return nil, errors.New("listener closing")
 }
 
-func (ln *nopListener) Close() error   { close(ln.closing); return nil }
+func (ln *nopListener) Close() error {
+	if !ln.closed {
+		close(ln.closing)
+	}
+	ln.closed = true
+	return nil
+}
+
 func (ln *nopListener) Addr() net.Addr { return nil }
