@@ -1,6 +1,6 @@
 package tsm1
 
-// Timestamp encoding is adapative and based on structure of the timestamps that are encoded.  It
+// Timestamp encoding is adaptive and based on structure of the timestamps that are encoded.  It
 // uses a combination of delta encoding, scaling and compression using simple8b, run length encoding
 // as well as falling back to no compression if needed.
 //
@@ -20,9 +20,9 @@ package tsm1
 // any value exceeds the maximum values, the deltas are stored uncompressed using 8b each.
 //
 // Each compressed byte slice has a 1 byte header indicating the compression type.  The 4 high bits
-// indicated the encoding type.  The 4 low bits are using by the encoding type.
+// indicated the encoding type.  The 4 low bits are used by the encoding type.
 //
-// For run length encoding, the 4 low bits store the log10 of the scaling factor.  The next 8 bytes are
+// For run-length encoding, the 4 low bits store the log10 of the scaling factor.  The next 8 bytes are
 // the starting timestamp, next 1-10 bytes is the delta value using variable-length encoding, finally the
 // next 1-10 bytes is the count of values.
 //
@@ -86,13 +86,13 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 	// Indicates whether the the deltas can be run-length encoded
 	rle = true
 
-	// Interate in reverse so we can apply deltas in place
+	// Iterate in reverse so we can apply deltas in place
 	for i := len(deltas) - 1; i > 0; i-- {
 
 		// First differential encode the values
 		deltas[i] = deltas[i] - deltas[i-1]
 
-		// We're also need to keep track of the max value and largest common divisor
+		// We also need to keep track of the max value and largest common divisor
 		v := deltas[i]
 
 		if v > max {
@@ -121,11 +121,11 @@ func (e *encoder) Bytes() ([]byte, error) {
 
 	// Maximum and largest common divisor.  rle is true if dts (the delta timestamps),
 	// are all the same.
-	max, mod, rle, dts := e.reduce()
+	max, div, rle, dts := e.reduce()
 
 	// The deltas are all the same, so we can run-length encode them
 	if rle && len(e.ts) > 60 {
-		return e.encodeRLE(e.ts[0], e.ts[1], mod, len(e.ts))
+		return e.encodeRLE(e.ts[0], e.ts[1], div, len(e.ts))
 	}
 
 	// We can't compress this time-range, the deltas exceed 1 << 60
@@ -133,7 +133,7 @@ func (e *encoder) Bytes() ([]byte, error) {
 		return e.encodeRaw()
 	}
 
-	return e.encodePacked(mod, dts)
+	return e.encodePacked(div, dts)
 }
 
 func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {

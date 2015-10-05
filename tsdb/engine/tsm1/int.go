@@ -15,10 +15,10 @@ package tsm1
 // or 8 byte uncompressed integers.  The 4 high bits of the first byte indicate the encoding type
 // for the remaining bytes.
 //
-// There are currently two encoding types that can be used with room for 15 more.  These additional
-// encoding slots are reserved for future use.  One improvement to to be made is to use a patched
+// There are currently two encoding types that can be used with room for 16 total.  These additional
+// encoding slots are reserved for future use.  One improvement to be made is to use a patched
 // encoding such as PFOR if only a small number of values exceed the max compressed value range.  This
-// should improve compression ratios with very integers near the ends of the int64 range.
+// should improve compression ratios with very large integers near the ends of the int64 range.
 
 import (
 	"encoding/binary"
@@ -34,11 +34,13 @@ const (
 	intCompressedSimple = 1
 )
 
+// Int64Encoder encoders int64 into byte slices
 type Int64Encoder interface {
 	Write(v int64)
 	Bytes() ([]byte, error)
 }
 
+// Int64Decoder decodes a byte slice into int64s
 type Int64Decoder interface {
 	Next() bool
 	Read() int64
