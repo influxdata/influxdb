@@ -426,6 +426,8 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 	sources, err := q.expandSources(stmt.Sources)
 	if err != nil {
 		return &influxql.Result{Err: err}
+	} else if stmt.Sources != nil && len(stmt.Sources) != 0 && len(sources) == 0 {
+		return &influxql.Result{}
 	}
 
 	measurements, err := measurementsFromSourcesOrDB(db, sources...)

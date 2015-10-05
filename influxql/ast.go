@@ -2822,6 +2822,10 @@ func Walk(v Visitor, node Node) {
 			Walk(v, c)
 		}
 
+	case *DropSeriesStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
+
 	case *Field:
 		Walk(v, n.Expr)
 
