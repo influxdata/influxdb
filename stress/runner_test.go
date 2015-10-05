@@ -168,7 +168,11 @@ func TestConfig_newClient(t *testing.T) {
 
 	url := ts.URL[7:]
 
-	cfg, _ := DecodeFile("test.toml")
+	cfg, err := DecodeFile("test.toml")
+
+	if err != nil {
+		panic(err)
+	}
 
 	cfg.Write.Address = url
 

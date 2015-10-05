@@ -15,7 +15,6 @@ channel_buffer_size = 100
   point_count = 10 # number of points that will be written for each of the series
   measurement = "cpu"
   series_count = 10000
-  tick = "10s"
 
   tag_count = 0 # 
 

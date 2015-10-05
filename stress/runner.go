@@ -15,8 +15,6 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
-// TODO: Add jitter to timestamps
-
 func post(url string, datatype string, data io.Reader) error {
 
 	resp, err := http.Post(url, datatype, data)
@@ -209,7 +207,7 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 		if err != nil {
 			start, err = time.Parse("Jan 2, 2006 at 3:04pm (MST)", cfg.Write.StartDate)
 			if err != nil {
-				panic(err)
+				start = time.Now()
 			}
 		}
 

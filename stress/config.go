@@ -29,6 +29,7 @@ type field struct {
 type series struct {
 	PointCount  int     `toml:"point_count"`
 	Tick        string  `toml:"tick"`
+	Jitter      bool    `toml:"jitter"`
 	Measurement string  `toml:"measurement"`
 	SeriesCount int     `toml:"series_count"`
 	TagCount    int     `toml:"tag_count"`
@@ -48,7 +49,6 @@ type write struct {
 	ResetDatabase bool   `toml:"reset_database"`
 	Address       string `toml:"address"`
 	Precision     string `toml:"precision"`
-	Jitter        int    `toml:"jitter"`
 	StartDate     string `toml:"start_date"`
 }
 
@@ -166,7 +166,7 @@ func DecodeFile(s string) (*Config, error) {
 
 // seriesIter is a struct that contains a
 // series and a count, where count is the
-// number of points that have been written
+//number of points that have been written
 // for the series `s`
 type seriesIter struct {
 	s         *series
@@ -179,6 +179,7 @@ type seriesIter struct {
 // interval
 func (s *series) writeInterval(i int, start time.Time) time.Time {
 	var tick time.Duration
+	var j int
 	var err error
 
 	tick, err = time.ParseDuration(s.Tick)
@@ -186,7 +187,11 @@ func (s *series) writeInterval(i int, start time.Time) time.Time {
 		panic(err)
 	}
 
-	tick = tick * time.Duration(i)
+	if true {
+		j = rand.Intn(int(tick))
+	}
+
+	tick = tick*time.Duration(i) + time.Duration(j)
 
 	return start.Add(tick)
 }

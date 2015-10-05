@@ -20,14 +20,16 @@ channel_buffer_size = 100000
   address = "localhost:8086"
   # Drop and Create new DB
   reset_database = true
-  # How far back in time to start writting points in weeks
-  starting_point = 3
-  # Randomize timestamp a bit
-  jitter = 100000
+  # The date for the first point that is written into influx
+  start_date = "2006-Jan-02"
 
 # Describes the schema for series that will be
 # written
 [[series]]
+  # How much time between each timestamp
+  tick = "5s"
+  # Randomize timestamp a bit
+  jitter = true
   # number of points that will be written for each of the series
   point_count = 1000
   # name of the measurement that will be written
@@ -63,6 +65,7 @@ channel_buffer_size = 100000
     key = "default"
 
 [[series]]
+  tick = "1ns"
   point_count = 100 # number of points that will be written for each of the series
   measurement = "mem"
   series_count = 100000
