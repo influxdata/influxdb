@@ -114,7 +114,6 @@ func (e *boolDecoder) Next() bool {
 }
 
 func (e *boolDecoder) Read() bool {
-
 	// Index into the byte slice
 	idx := e.i / 8
 

@@ -24,6 +24,7 @@ const (
 	floatCompressedGorilla = 1
 )
 
+// FloatEncoder encodes multiple float64s into a byte slice
 type FloatEncoder struct {
 	val float64
 
@@ -54,7 +55,6 @@ func (s *FloatEncoder) Bytes() []byte {
 }
 
 func (s *FloatEncoder) Finish() {
-
 	if !s.finished {
 		// // write an end-of-stream record
 		s.Push(math.NaN())
@@ -64,7 +64,6 @@ func (s *FloatEncoder) Finish() {
 }
 
 func (s *FloatEncoder) Push(v float64) {
-
 	if s.first {
 		// first point
 		s.val = v
@@ -102,6 +101,7 @@ func (s *FloatEncoder) Push(v float64) {
 	s.val = v
 }
 
+// FloatDecoder decodes a byte slice into multipe float64 values
 type FloatDecoder struct {
 	val float64
 

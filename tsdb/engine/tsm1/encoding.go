@@ -214,7 +214,7 @@ func encodeFloatBlock(buf []byte, values []*FloatValue) ([]byte, error) {
 	// Encoded float values
 	vb := venc.Bytes()
 
-	// Preprend the first timestamp of the block in the first 8 bytes and the block
+	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
 	block := packBlockHeader(values[0].Time(), BlockFloat64)
 	block = append(block, packBlock(tb, vb)...)
@@ -312,7 +312,7 @@ func encodeBoolBlock(buf []byte, values []*BoolValue) ([]byte, error) {
 		return nil, err
 	}
 
-	// Preprend the first timestamp of the block in the first 8 bytes and the block
+	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
 	block := packBlockHeader(values[0].Time(), BlockBool)
 	block = append(block, packBlock(tb, vb)...)
@@ -398,7 +398,7 @@ func encodeInt64Block(buf []byte, values []*Int64Value) ([]byte, error) {
 		return nil, err
 	}
 
-	// Preprend the first timestamp of the block in the first 8 bytes
+	// Prepend the first timestamp of the block in the first 8 bytes
 	block := packBlockHeader(values[0].Time(), BlockInt64)
 	return append(block, packBlock(tb, vb)...), nil
 }
@@ -477,13 +477,13 @@ func encodeStringBlock(buf []byte, values []*StringValue) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Encoded int64 values
+	// Encoded string values
 	vb, err := vEnc.Bytes()
 	if err != nil {
 		return nil, err
 	}
 
-	// Preprend the first timestamp of the block in the first 8 bytes
+	// Prepend the first timestamp of the block in the first 8 bytes
 	block := packBlockHeader(values[0].Time(), BlockString)
 	return append(block, packBlock(tb, vb)...), nil
 }
