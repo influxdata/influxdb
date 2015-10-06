@@ -1078,7 +1078,7 @@ func TestEngine_Deletes(t *testing.T) {
 	fields := []string{"value"}
 	// Create metadata.
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
-	mf.CreateFieldIfNotExists("value", influxql.Float)
+	mf.CreateFieldIfNotExists("value", influxql.Float, false)
 	atag := map[string]string{"host": "A"}
 	btag := map[string]string{"host": "B"}
 	seriesToCreate := []*tsdb.SeriesCreate{

@@ -367,7 +367,9 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		measurementsToSave[f.Measurement] = m
 
 		// add the field to the in memory index
-		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type); err != nil {
+		// only limit the field count for non-tsm eninges
+		limitFieldCount := s.engine.Format() == B1Format || s.engine.Format() == BZ1Format
+		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, limitFieldCount); err != nil {
 			return nil, err
 		}
 
@@ -475,7 +477,7 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) error {
+func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType, limitCount bool) error {
 	// Ignore if the field already exists.
 	if f := m.Fields[name]; f != nil {
 		if f.Type != typ {
@@ -484,8 +486,8 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 		return nil
 	}
 
-	// Only 255 fields are allowed. If we go over that then return an error.
-	if len(m.Fields)+1 > math.MaxUint8 {
+	// If we're supposed to limit the number of fields, only 255 are allowed. If we go over that then return an error.
+	if len(m.Fields)+1 > math.MaxUint8 && limitCount {
 		return ErrFieldOverflow
 	}
 
