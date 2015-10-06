@@ -241,6 +241,9 @@ func (s *Store) Open() error {
 	s.wg.Add(1)
 	go s.serveRPCListener()
 
+	s.wg.Add(1)
+	go s.monitorPeerHealth()
+
 	// Join an existing cluster if we needed
 	if err := s.joinCluster(); err != nil {
 		return fmt.Errorf("join: %v", err)
@@ -375,6 +378,9 @@ func (s *Store) joinCluster() error {
 }
 
 func (s *Store) enableLocalRaft() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if _, ok := s.raftState.(*localRaft); ok {
 		return nil
 	}
@@ -394,16 +400,71 @@ func (s *Store) enableRemoteRaft() error {
 	return s.changeState(rr)
 }
 
+func (s *Store) enabledLocalRaftIfNecessary() error {
+	s.mu.RLock()
+	if s.raftState == nil {
+		s.mu.RUnlock()
+		return nil
+	}
+	s.mu.RUnlock()
+
+	peers, err := s.Peers()
+	if err != nil {
+		return err
+	}
+
+	ni, err := s.Node(s.id)
+	if ni == nil {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !contains(peers, ni.Host) {
+		return nil
+	}
+
+	return s.enableLocalRaft()
+}
+
+// monitorPeerHealth periodically checks if we have a node that can be promoted to a
+// raft peer to fill any missing slots.
+// This function runs in a separate goroutine.
+func (s *Store) monitorPeerHealth() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Wait for next tick or timeout.
+		select {
+		case <-ticker.C:
+		case <-s.closing:
+			return
+		}
+		if err := s.promoteRandomNodeToPeer(); err != nil {
+			s.Logger.Printf("error promoting random node to raft peer: %s", err)
+		}
+
+		// Need to see if we were promoted, but still have a local raft.
+		if err := s.enabledLocalRaftIfNecessary(); err != nil {
+			s.Logger.Printf("error changing raft state: %s", err)
+		}
+	}
+}
+
 func (s *Store) changeState(state raftState) error {
-	if err := s.raftState.close(); err != nil {
-		return err
-	}
+	if s.raftState != nil {
+		if err := s.raftState.close(); err != nil {
+			return err
+		}
 
-	// Clear out any persistent state
-	if err := s.raftState.remove(); err != nil {
-		return err
+		// Clear out any persistent state
+		if err := s.raftState.remove(); err != nil {
+			return err
+		}
 	}
-
 	s.raftState = state
 
 	if err := s.raftState.open(); err != nil {
@@ -829,10 +890,21 @@ func (s *Store) DeleteNode(id uint64, force bool) error {
 		return ErrNodeNotFound
 	}
 
-	return s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
+	err := s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
 		&internal.DeleteNodeCommand{
 			ID:    proto.Uint64(id),
 			Force: proto.Bool(force),
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Need to send a second message to remove the peer
+	return s.exec(internal.Command_RemovePeerCommand, internal.E_RemovePeerCommand_Command,
+		&internal.RemovePeerCommand{
+			ID:   proto.Uint64(id),
+			Addr: proto.String(ni.Host),
 		},
 	)
 }
@@ -847,6 +919,48 @@ func (s *Store) Database(name string) (di *DatabaseInfo, err error) {
 		return nil
 	})
 	return
+}
+
+func (s *Store) promoteRandomNodeToPeer() error {
+	// Only do this if you are the leader
+	if s.IsLeader() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if s.raftState == nil {
+			return nil
+		}
+
+		peers, err := s.raftState.peers()
+		if err != nil {
+			return err
+		}
+
+		nodes := s.data.Nodes
+		var nonraft []NodeInfo
+		for _, n := range nodes {
+			if contains(peers, n.Host) {
+				continue
+			}
+			nonraft = append(nonraft, n)
+		}
+
+		// Check to see if any action is required or possible
+		if len(peers) >= 3 || len(nonraft) == 0 {
+			return nil
+		}
+
+		// Get a random node
+		n := nonraft[rand.Intn(len(nonraft))]
+		s.Logger.Printf("attempting to promote node %d addr %s to raft peer", n.ID, n.Host)
+		if err := s.raftState.addPeer(n.Host); err != nil {
+			s.Logger.Printf("error adding raft peer: %s", err)
+		} else {
+			s.Logger.Printf("promoted node %d addr %s to raft peer", n.ID, n.Host)
+			return nil
+		}
+	}
+	return nil
 }
 
 // Databases returns a list of all databases.
@@ -1650,6 +1764,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 
 	err := func() interface{} {
 		switch cmd.GetType() {
+		case internal.Command_RemovePeerCommand:
+			return fsm.applyRemovePeerCommand(&cmd)
 		case internal.Command_CreateNodeCommand:
 			return fsm.applyCreateNodeCommand(&cmd)
 		case internal.Command_DeleteNodeCommand:
@@ -1703,6 +1819,33 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	s.notifyChanged()
 
 	return err
+}
+
+func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_RemovePeerCommand_Command)
+	v := ext.(*internal.RemovePeerCommand)
+
+	id := v.GetID()
+	addr := v.GetAddr()
+
+	// Only do this if you are the leader
+	if fsm.raftState.isLeader() {
+		//Remove that node from the peer
+		fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
+		if err := fsm.raftState.removePeer(addr); err != nil {
+			fsm.Logger.Printf("error removing peer: %s", err)
+		}
+	}
+
+	// If this is the node being shutdown, close raft
+	if fsm.id == id {
+		fsm.Logger.Printf("shutting down raft for %s", addr)
+		if err := fsm.raftState.close(); err != nil {
+			fsm.Logger.Printf("failed to shut down raft: %s", err)
+		}
+	}
+
+	return nil
 }
 
 func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {

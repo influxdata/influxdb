@@ -28,6 +28,7 @@ type raftState interface {
 	sync(index uint64, timeout time.Duration) error
 	setPeers(addrs []string) error
 	addPeer(addr string) error
+	removePeer(addr string) error
 	peers() ([]string, error)
 	invalidate() error
 	close() error
@@ -318,6 +319,18 @@ func (r *localRaft) addPeer(addr string) error {
 	return nil
 }
 
+// removePeer removes addr from the list of peers in the cluster.
+func (r *localRaft) removePeer(addr string) error {
+	// Only do this on the leader
+	if r.isLeader() {
+		if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
+			return fut.Error()
+		}
+	}
+
+	return nil
+}
+
 // setPeers sets a list of peers in the cluster.
 func (r *localRaft) setPeers(addrs []string) error {
 	return r.raft.SetPeers(addrs).Error()
@@ -399,6 +412,11 @@ func (r *remoteRaft) setPeers(addrs []string) error {
 // addPeer adds addr to the list of peers in the cluster.
 func (r *remoteRaft) addPeer(addr string) error {
 	return fmt.Errorf("cannot add peer using remote raft")
+}
+
+// removePeer does nothing for remoteRaft.
+func (r *remoteRaft) removePeer(addr string) error {
+	return nil
 }
 
 func (r *remoteRaft) peers() ([]string, error) {

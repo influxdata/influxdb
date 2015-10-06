@@ -42,6 +42,7 @@ It has these top-level messages:
 	UpdateNodeCommand
 	CreateSubscriptionCommand
 	DropSubscriptionCommand
+	RemovePeerCommand
 	Response
 	ResponseHeader
 	ErrorResponse
@@ -119,6 +120,7 @@ const (
 	Command_UpdateNodeCommand                Command_Type = 19
 	Command_CreateSubscriptionCommand        Command_Type = 21
 	Command_DropSubscriptionCommand          Command_Type = 22
+	Command_RemovePeerCommand                Command_Type = 23
 )
 
 var Command_Type_name = map[int32]string{
@@ -143,6 +145,7 @@ var Command_Type_name = map[int32]string{
 	19: "UpdateNodeCommand",
 	21: "CreateSubscriptionCommand",
 	22: "DropSubscriptionCommand",
+	23: "RemovePeerCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -166,6 +169,7 @@ var Command_Type_value = map[string]int32{
 	"UpdateNodeCommand":                19,
 	"CreateSubscriptionCommand":        21,
 	"DropSubscriptionCommand":          22,
+	"RemovePeerCommand":                23,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1368,6 +1372,38 @@ var E_DropSubscriptionCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,122,opt,name=command",
 }
 
+type RemovePeerCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Addr             *string `protobuf:"bytes,2,req,name=Addr" json:"Addr,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *RemovePeerCommand) Reset()         { *m = RemovePeerCommand{} }
+func (m *RemovePeerCommand) String() string { return proto.CompactTextString(m) }
+func (*RemovePeerCommand) ProtoMessage()    {}
+
+func (m *RemovePeerCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+func (m *RemovePeerCommand) GetAddr() string {
+	if m != nil && m.Addr != nil {
+		return *m.Addr
+	}
+	return ""
+}
+
+var E_RemovePeerCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*RemovePeerCommand)(nil),
+	Field:         123,
+	Name:          "internal.RemovePeerCommand.command",
+	Tag:           "bytes,123,opt,name=command",
+}
+
 type Response struct {
 	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
@@ -1598,4 +1634,5 @@ func init() {
 	proto.RegisterExtension(E_UpdateNodeCommand_Command)
 	proto.RegisterExtension(E_CreateSubscriptionCommand_Command)
 	proto.RegisterExtension(E_DropSubscriptionCommand_Command)
+	proto.RegisterExtension(E_RemovePeerCommand_Command)
 }
