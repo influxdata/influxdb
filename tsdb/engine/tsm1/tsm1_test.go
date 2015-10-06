@@ -1236,6 +1236,75 @@ func TestEngine_Deletes(t *testing.T) {
 	}()
 }
 
+func TestEngine_IndexGoodAfterFlush(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Cleanup()
+
+	fields := []string{"value"}
+
+	p1 := parsePoint("test,tag=a value=2.5 1443916800000000000")
+	p2 := parsePoint("test value=3.5 1443916810000000000")
+	p3 := parsePoint("test,tag=b value=6.5 1443916860000000000")
+	p4 := parsePoint("test value=8.5 1443916861000000000")
+
+	e.SkipCompaction = true
+	e.WAL.SkipCache = false
+
+	for _, p := range []models.Point{p1, p2, p3, p4} {
+		if err := e.WritePoints([]models.Point{p}, nil, nil); err != nil {
+			t.Fatalf("failed to write points: %s", err.Error())
+		}
+	}
+
+	verify := func() {
+		tx, _ := e.Begin(false)
+		defer tx.Rollback()
+		c1 := tx.Cursor("test", fields, nil, true)
+		c2 := tx.Cursor("test,tag=a", fields, nil, true)
+		c3 := tx.Cursor("test,tag=b", fields, nil, true)
+		k, v := c1.SeekTo(1443916800000000001)
+		if k != p2.UnixNano() {
+			t.Fatalf("time wrong: %d", k)
+		}
+		if v != 3.5 {
+			t.Fatalf("value wrong: %f", v.(float64))
+		}
+		k, v = c1.Next()
+		if k != p4.UnixNano() {
+			t.Fatalf("time wrong: %d", k)
+		}
+		if v != 8.5 {
+			t.Fatalf("value wrong: %f", v.(float64))
+		}
+		if k, _ := c1.Next(); k != tsdb.EOF {
+			t.Fatalf("expected EOF: %d", k)
+		}
+		k, _ = c2.SeekTo(1443916800000000001)
+		if k != tsdb.EOF {
+			t.Fatalf("time wrong: %d", k)
+		}
+		k, v = c3.SeekTo(1443916800000000001)
+		if k != p3.UnixNano() {
+			t.Fatalf("time wrong: %d", k)
+		}
+		if v != 6.5 {
+			t.Fatalf("value wrong: %f", v.(float64))
+		}
+		if k, _ := c3.Next(); k != tsdb.EOF {
+			t.Fatalf("expected EOF: %d", k)
+		}
+	}
+
+	fmt.Println("verify1")
+	verify()
+	fmt.Println("flush")
+	if err := e.WAL.Flush(); err != nil {
+		t.Fatalf("error flushing: %s", err.Error)
+	}
+	fmt.Println("verify2")
+	verify()
+}
+
 // Engine represents a test wrapper for tsm1.Engine.
 type Engine struct {
 	*tsm1.Engine

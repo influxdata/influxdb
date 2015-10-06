@@ -311,6 +311,10 @@ func (c *cursor) seekAscending(seek int64) (int64, interface{}) {
 		}
 
 		// it must be in this block or not at all
+		id := btou64((c.f.mmap[c.pos : c.pos+8]))
+		if id != c.id {
+			return tsdb.EOF, nil
+		}
 		c.decodeBlock(c.pos)
 
 		// see if we can find it in this block
@@ -389,7 +393,8 @@ func (c *cursor) setBlockPositions() {
 
 func (c *cursor) Next() (int64, interface{}) {
 	if c.ascending {
-		return c.nextAscending()
+		k, v := c.nextAscending()
+		return k, v
 	}
 	return c.nextDescending()
 }
