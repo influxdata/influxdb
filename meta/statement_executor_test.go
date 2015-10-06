@@ -147,6 +147,19 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 // Ensure a DROP SERVER statement can be executed.
 func TestStatementExecutor_ExecuteStatement_DropServer(t *testing.T) {
 	e := NewStatementExecutor()
+	e.Store.PeersFn = func() ([]string, error) {
+		return []string{"node1"}, nil
+	}
+
+	// Ensure non-existent nodes do not cause a problem.
+	e.Store.NodeFn = func(id uint64) (*meta.NodeInfo, error) {
+		return nil, nil
+	}
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 666`)); res.Err != meta.ErrNodeNotFound {
+		t.Fatalf("unexpected error: %s", res.Err)
+	}
+
+	// Make a node exist.
 	e.Store.NodeFn = func(id uint64) (*meta.NodeInfo, error) {
 		return &meta.NodeInfo{
 			ID: 1, Host: "node1",
@@ -154,9 +167,6 @@ func TestStatementExecutor_ExecuteStatement_DropServer(t *testing.T) {
 	}
 
 	// Ensure Raft nodes cannot be dropped.
-	e.Store.PeersFn = func() ([]string, error) {
-		return []string{"node1"}, nil
-	}
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 1`)); res.Err != meta.ErrNodeRaft {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
