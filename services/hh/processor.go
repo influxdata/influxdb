@@ -173,7 +173,9 @@ func (p *Processor) Process() error {
 					if err := q.Advance(); err != nil {
 						res <- err
 					}
-					return
+
+					// Skip and try the next block.
+					continue
 				}
 
 				// Try to send the write to the node
