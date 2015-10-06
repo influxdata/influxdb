@@ -140,9 +140,9 @@ func (s *Service) handleConn(conn net.Conn) {
 		conn.Close()
 	}()
 
-	s.Logger.Printf("accept remote write connection from %v\n", conn.RemoteAddr())
+	s.Logger.Printf("accept remote connection from %v\n", conn.RemoteAddr())
 	defer func() {
-		s.Logger.Printf("close remote write connection from %v\n", conn.RemoteAddr())
+		s.Logger.Printf("close remote connection from %v\n", conn.RemoteAddr())
 	}()
 	for {
 		// Read type-length-value.
