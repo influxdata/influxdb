@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
@@ -27,6 +28,11 @@ func NewStore(path string) *Store {
 
 var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
+	ErrStoreClosed   = fmt.Errorf("store is closed")
+)
+
+const (
+	MaintenanceCheckInterval = time.Minute
 )
 
 type Store struct {
@@ -38,7 +44,10 @@ type Store struct {
 
 	EngineOptions EngineOptions
 	Logger        *log.Logger
-	closing       chan struct{}
+
+	closing chan struct{}
+	wg      sync.WaitGroup
+	opened  bool
 }
 
 // Path returns the store's root path.
@@ -71,7 +80,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 
 	select {
 	case <-s.closing:
-		return fmt.Errorf("closing")
+		return ErrStoreClosed
 	default:
 	}
 
@@ -124,7 +133,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return err
 	}
 
-	if err := os.Remove(sh.path); err != nil {
+	if err := os.RemoveAll(sh.path); err != nil {
 		return err
 	}
 
@@ -301,6 +310,41 @@ func (s *Store) loadShards() error {
 
 }
 
+// periodicMaintenance is the method called in a goroutine on the opening of the store
+// to perform periodic maintenance of the shards.
+func (s *Store) periodicMaintenance() {
+	t := time.NewTicker(MaintenanceCheckInterval)
+	for {
+		select {
+		case <-t.C:
+			s.performMaintenance()
+		case <-s.closing:
+			t.Stop()
+			return
+		}
+	}
+}
+
+// performMaintenance will loop through the shars and tell them
+// to perform any maintenance tasks. Those tasks should kick off
+// their own goroutines if it's anything that could take time.
+func (s *Store) performMaintenance() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sh := range s.shards {
+		s.performMaintenanceOnShard(sh)
+	}
+}
+
+func (s *Store) performMaintenanceOnShard(shard *Shard) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.Logger.Printf("recovered eror in maintenance on shard %d", shard.id)
+		}
+	}()
+	shard.PerformMaintenance()
+}
+
 func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -326,12 +370,22 @@ func (s *Store) Open() error {
 		return err
 	}
 
+	go s.periodicMaintenance()
+	s.opened = true
+
 	return nil
 }
 
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	select {
+	case <-s.closing:
+		return ErrStoreClosed
+	default:
+	}
+
 	sh, ok := s.shards[shardID]
 	if !ok {
 		return ErrShardNotFound
@@ -367,15 +421,17 @@ func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.opened {
+		close(s.closing)
+	}
+	s.wg.Wait()
+
 	for _, sh := range s.shards {
 		if err := sh.Close(); err != nil {
 			return err
 		}
 	}
-	if s.closing != nil {
-		close(s.closing)
-	}
-	s.closing = nil
+	s.opened = false
 	s.shards = nil
 	s.databaseIndexes = nil
 

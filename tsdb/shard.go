@@ -16,7 +16,6 @@ import (
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/internal"
 
-	"github.com/boltdb/bolt"
 	"github.com/gogo/protobuf/proto"
 )
 
@@ -49,7 +48,6 @@ var (
 // Data can be split across many shards. The query engine in TSDB is responsible
 // for combining the output of many shards into a single query result.
 type Shard struct {
-	db      *bolt.DB // underlying data store
 	index   *DatabaseIndex
 	path    string
 	walPath string
@@ -91,6 +89,12 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 // Path returns the path set on the shard when it was created.
 func (s *Shard) Path() string { return s.path }
 
+// PerformMaintenance gets called periodically to have the engine perform
+// any maintenance tasks like WAL flushing and compaction
+func (s *Shard) PerformMaintenance() {
+	s.engine.PerformMaintenance()
+}
+
 // open initializes and opens the shard's store.
 func (s *Shard) Open() error {
 	if err := func() error {
@@ -121,7 +125,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Load metadata index.
-		if err := s.engine.LoadMetadataIndex(s.index, s.measurementFields); err != nil {
+		if err := s.engine.LoadMetadataIndex(s, s.index, s.measurementFields); err != nil {
 			return fmt.Errorf("load metadata index: %s", err)
 		}
 
@@ -229,27 +233,30 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	}
 
 	// make sure all data is encoded before attempting to save to bolt
-	for _, p := range points {
-		// Ignore if raw data has already been marshaled.
-		if p.Data() != nil {
-			continue
-		}
+	// only required for the b1 and bz1 formats
+	if s.engine.Format() != TSM1Format {
+		for _, p := range points {
+			// Ignore if raw data has already been marshaled.
+			if p.Data() != nil {
+				continue
+			}
 
-		// This was populated earlier, don't need to validate that it's there.
-		s.mu.RLock()
-		mf := s.measurementFields[p.Name()]
-		s.mu.RUnlock()
+			// This was populated earlier, don't need to validate that it's there.
+			s.mu.RLock()
+			mf := s.measurementFields[p.Name()]
+			s.mu.RUnlock()
 
-		// If a measurement is dropped while writes for it are in progress, this could be nil
-		if mf == nil {
-			return ErrFieldNotFound
-		}
+			// If a measurement is dropped while writes for it are in progress, this could be nil
+			if mf == nil {
+				return ErrFieldNotFound
+			}
 
-		data, err := mf.Codec.EncodeFields(p.Fields())
-		if err != nil {
-			return err
+			data, err := mf.Codec.EncodeFields(p.Fields())
+			if err != nil {
+				return err
+			}
+			p.SetData(data)
 		}
-		p.SetData(data)
 	}
 
 	// Write to the engine.
@@ -360,7 +367,9 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		measurementsToSave[f.Measurement] = m
 
 		// add the field to the in memory index
-		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type); err != nil {
+		// only limit the field count for non-tsm eninges
+		limitFieldCount := s.engine.Format() == B1Format || s.engine.Format() == BZ1Format
+		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, limitFieldCount); err != nil {
 			return nil, err
 		}
 
@@ -468,7 +477,7 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 // CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
-func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) error {
+func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType, limitCount bool) error {
 	// Ignore if the field already exists.
 	if f := m.Fields[name]; f != nil {
 		if f.Type != typ {
@@ -477,8 +486,8 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 		return nil
 	}
 
-	// Only 255 fields are allowed. If we go over that then return an error.
-	if len(m.Fields)+1 > math.MaxUint8 {
+	// If we're supposed to limit the number of fields, only 255 are allowed. If we go over that then return an error.
+	if len(m.Fields)+1 > math.MaxUint8 && limitCount {
 		return ErrFieldOverflow
 	}
 
@@ -741,15 +750,22 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
-	fi := f.fieldByName(name)
+	fi := f.FieldByName(name)
 	if fi == nil {
 		return 0, ErrFieldNotFound
 	}
 	return f.DecodeByID(fi.ID, b)
 }
 
+func (f *FieldCodec) Fields() (a []*Field) {
+	for _, f := range f.fieldsByID {
+		a = append(a, f)
+	}
+	return
+}
+
 // FieldByName returns the field by its name. It will return a nil if not found
-func (f *FieldCodec) fieldByName(name string) *Field {
+func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
 }
 

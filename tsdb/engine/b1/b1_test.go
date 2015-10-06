@@ -21,7 +21,7 @@ func TestEngine_WritePoints(t *testing.T) {
 
 	// Create metadata.
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
-	mf.CreateFieldIfNotExists("value", influxql.Float)
+	mf.CreateFieldIfNotExists("value", influxql.Float, true)
 	seriesToCreate := []*tsdb.SeriesCreate{
 		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("temperature"), nil)), nil)},
 	}
@@ -84,7 +84,7 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 
 	// Create metadata.
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
-	mf.CreateFieldIfNotExists("value", influxql.Float)
+	mf.CreateFieldIfNotExists("value", influxql.Float, true)
 	seriesToCreate := []*tsdb.SeriesCreate{
 		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("temperature"), nil)), nil)},
 	}

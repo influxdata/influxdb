@@ -605,6 +605,18 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
+	// tag with no value
+	test(t, `cpu,regions=east value="1"`,
+		models.NewPoint("cpu",
+			models.Tags{
+				"regions": "east",
+				"foobar":  "",
+			},
+			models.Fields{
+				"value": "1",
+			},
+			time.Unix(0, 0)))
+
 	// commas in field values
 	test(t, `cpu,regions=east value="1,0"`,
 		models.NewPoint("cpu",

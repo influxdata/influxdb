@@ -114,6 +114,14 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
+// PerformMaintenance is for periodic maintenance of the store. A no-op for bz1
+func (e *Engine) PerformMaintenance() {}
+
+// Format returns the format type of this engine
+func (e *Engine) Format() tsdb.EngineFormat {
+	return tsdb.BZ1Format
+}
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	if err := func() error {
@@ -176,7 +184,7 @@ func (e *Engine) close() error {
 func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
 	if err := e.db.View(func(tx *bolt.Tx) error {
 		// Load measurement metadata
 		fields, err := e.readFields(tx)
