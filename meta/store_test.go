@@ -1073,6 +1073,8 @@ func MustOpenStoreWithPath(addr, path string) *Store {
 	s := NewStore(c)
 	if addr != "" {
 		s.BindAddress = addr
+	} else {
+		addr = "127.0.0.1:0"
 	}
 	if err := s.Open(); err != nil {
 		panic(err)

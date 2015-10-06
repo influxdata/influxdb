@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -400,33 +401,6 @@ func (s *Store) enableRemoteRaft() error {
 	return s.changeState(rr)
 }
 
-func (s *Store) enabledLocalRaftIfNecessary() error {
-	s.mu.RLock()
-	if s.raftState == nil {
-		s.mu.RUnlock()
-		return nil
-	}
-	s.mu.RUnlock()
-
-	peers, err := s.Peers()
-	if err != nil {
-		return err
-	}
-
-	ni, err := s.Node(s.id)
-	if ni == nil {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if !contains(peers, ni.Host) {
-		return nil
-	}
-
-	return s.enableLocalRaft()
-}
-
 // monitorPeerHealth periodically checks if we have a node that can be promoted to a
 // raft peer to fill any missing slots.
 // This function runs in a separate goroutine.
@@ -447,11 +421,88 @@ func (s *Store) monitorPeerHealth() {
 			s.Logger.Printf("error promoting random node to raft peer: %s", err)
 		}
 
-		// Need to see if we were promoted, but still have a local raft.
+		//Need to see if we were promoted, but still have a local raft.
 		if err := s.enabledLocalRaftIfNecessary(); err != nil {
 			s.Logger.Printf("error changing raft state: %s", err)
 		}
 	}
+}
+
+func (s *Store) promoteRandomNodeToPeer() error {
+	// Only do this if you are the leader
+	log.Printf("promoteRandomNodeToPeer IsLeader check incoming %s", s.Addr.String())
+	if s.IsLeader() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if s.raftState == nil {
+			return nil
+		}
+
+		log.Printf("promoteRandomNodeToPeer s.raftState.peers() check incoming %s", s.Addr.String())
+		peers, err := s.raftState.peers()
+		if err != nil {
+			return err
+		}
+
+		nodes := s.data.Nodes
+		var nonraft []NodeInfo
+		for _, n := range nodes {
+			if contains(peers, n.Host) {
+				continue
+			}
+			nonraft = append(nonraft, n)
+		}
+
+		// Check to see if any action is required or possible
+		if len(peers) >= 3 || len(nonraft) == 0 {
+			return nil
+		}
+
+		// Get a random node
+		n := nonraft[rand.Intn(len(nonraft))]
+		s.Logger.Printf("attempting to promote node %d addr %s to raft peer", n.ID, n.Host)
+		if err := s.raftState.addPeer(n.Host); err != nil {
+			s.Logger.Printf("error adding raft peer: %s", err)
+		} else {
+			s.Logger.Printf("promoted node %d addr %s to raft peer", n.ID, n.Host)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *Store) enabledLocalRaftIfNecessary() error {
+	log.Printf("enableLocalRaftIfNecessary s.Peers() check incoming %s", s.Addr.String())
+	peers, err := s.Peers()
+	if err != nil {
+		return err
+	}
+
+	// If there is only one peer there is nothing to do, as it is acting
+	// in single raft mode
+	if len(peers) <= 1 {
+		return nil
+	}
+
+	ni, err := s.Node(s.id)
+	if ni == nil {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	// Make sure we haven't already promoted ourselves
+	_, isLocalRaft := s.raftState.(*localRaft)
+	if !contains(peers, ni.Host) || isLocalRaft {
+		s.mu.RUnlock()
+		return nil
+	}
+	s.mu.RUnlock()
+
+	return s.enableLocalRaft()
 }
 
 func (s *Store) changeState(state raftState) error {
@@ -672,7 +723,10 @@ func (s *Store) AddPeer(addr string) error {
 func (s *Store) Peers() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.raftState.peers()
+	if s.raftState != nil {
+		return s.raftState.peers()
+	}
+	return []string{}, nil
 }
 
 // serveExecListener processes remote exec connections.
@@ -921,48 +975,6 @@ func (s *Store) Database(name string) (di *DatabaseInfo, err error) {
 		return nil
 	})
 	return
-}
-
-func (s *Store) promoteRandomNodeToPeer() error {
-	// Only do this if you are the leader
-	if s.IsLeader() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if s.raftState == nil {
-			return nil
-		}
-
-		peers, err := s.raftState.peers()
-		if err != nil {
-			return err
-		}
-
-		nodes := s.data.Nodes
-		var nonraft []NodeInfo
-		for _, n := range nodes {
-			if contains(peers, n.Host) {
-				continue
-			}
-			nonraft = append(nonraft, n)
-		}
-
-		// Check to see if any action is required or possible
-		if len(peers) >= 3 || len(nonraft) == 0 {
-			return nil
-		}
-
-		// Get a random node
-		n := nonraft[rand.Intn(len(nonraft))]
-		s.Logger.Printf("attempting to promote node %d addr %s to raft peer", n.ID, n.Host)
-		if err := s.raftState.addPeer(n.Host); err != nil {
-			s.Logger.Printf("error adding raft peer: %s", err)
-		} else {
-			s.Logger.Printf("promoted node %d addr %s to raft peer", n.ID, n.Host)
-			return nil
-		}
-	}
-	return nil
 }
 
 // Databases returns a list of all databases.
@@ -1655,7 +1667,10 @@ func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
 	leader := s.raftState.leader()
 	if leader == "" {
-		return errors.New("no leader")
+		log.Printf("remoteExec raftState has no leader for addr: %s", s.Addr.String())
+		// Lets dump a stack to see what is going on here.
+		debug.PrintStack()
+		return errors.New("no leader detected during remoteExec")
 	}
 
 	// Create a connection to the leader.
