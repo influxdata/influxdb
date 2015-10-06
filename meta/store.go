@@ -580,7 +580,9 @@ func (s *Store) createLocalNode() error {
 	}
 
 	// Set ID locally.
+	s.mu.Lock()
 	s.id = ni.ID
+	s.mu.Unlock()
 
 	s.Logger.Printf("Created local node: id=%d, host=%s", s.id, s.RemoteAddr)
 

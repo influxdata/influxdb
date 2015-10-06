@@ -92,7 +92,7 @@ func (r *localRaft) invalidate() error {
 
 	ms, err := r.store.rpc.fetchMetaData(false)
 	if err != nil {
-		return err
+		return fmt.Errorf("error fetching meta data: %s", err)
 	}
 
 	r.updateMetaData(ms)
@@ -390,7 +390,7 @@ func (r *remoteRaft) updateMetaData(ms *Data) {
 func (r *remoteRaft) invalidate() error {
 	ms, err := r.store.rpc.fetchMetaData(false)
 	if err != nil {
-		return err
+		return fmt.Errorf("error fetching meta data: %s", err)
 	}
 
 	r.updateMetaData(ms)
