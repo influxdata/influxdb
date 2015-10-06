@@ -546,3 +546,92 @@ func TestParseTemplateWhitespace(t *testing.T) {
 		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
 	}
 }
+
+// Test basic functionality of ApplyTemplate
+func TestApplyTemplate(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{"current.* measurement.measurement"},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	measurement, _ := p.ApplyTemplate("current.users")
+	if measurement != "current_users" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			measurement, "current_users")
+	}
+}
+
+// Test basic functionality of ApplyTemplate
+func TestApplyTemplateNoMatch(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{"foo.bar measurement.measurement"},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	measurement, _ := p.ApplyTemplate("current.users")
+	if measurement != "current.users" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			measurement, "current.users")
+	}
+}
+
+// Test that most specific template is chosen
+func TestApplyTemplateSpecific(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{
+			"current.* measurement.measurement",
+			"current.*.* measurement.measurement.service",
+		},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	measurement, tags := p.ApplyTemplate("current.users.facebook")
+	if measurement != "current_users" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			measurement, "current_users")
+	}
+	service, ok := tags["service"]
+	if !ok {
+		t.Error("Expected for template to apply a 'service' tag, but not found")
+	}
+	if service != "facebook" {
+		t.Errorf("Expected service='facebook' tag, got service='%s'", service)
+	}
+}
+
+func TestApplyTemplateTags(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{"current.* measurement.measurement region=us-west"},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	measurement, tags := p.ApplyTemplate("current.users")
+	if measurement != "current_users" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			measurement, "current_users")
+	}
+
+	region, ok := tags["region"]
+	if !ok {
+		t.Error("Expected for template to apply a 'region' tag, but not found")
+	}
+	if region != "us-west" {
+		t.Errorf("Expected region='us-west' tag, got region='%s'", region)
+	}
+}
