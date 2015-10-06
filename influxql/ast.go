@@ -1131,8 +1131,11 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 	calls := map[string]struct{}{}
 	numAggregates := 0
 	for _, f := range s.Fields {
-		if c, ok := f.Expr.(*Call); ok {
+		fieldCalls := walkFunctionCalls(f.Expr)
+		for _, c := range fieldCalls {
 			calls[c.Name] = struct{}{}
+		}
+		if len(fieldCalls) != 0 {
 			numAggregates++
 		}
 	}
@@ -1166,8 +1169,7 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
-		switch expr := f.Expr.(type) {
-		case *Call:
+		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
 			case "derivative", "non_negative_derivative":
 				if err := s.validSelectWithAggregate(); err != nil {
