@@ -19,15 +19,6 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// Iterator represents a forward-only iterator over a set of points.
-// These are used by the mapFunctions in this file
-type Iterator interface {
-	Next() (time int64, value interface{})
-	Fields() map[string]interface{}
-	Tags() map[string]string
-	TMin() int64
-}
-
 type MapInput struct {
 	TMin  int64
 	Items []MapItem
