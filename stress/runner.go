@@ -1,21 +1,17 @@
 package runner
 
 import (
-	"fmt"
-	//"math/rand"
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb/client"
 )
-
-// TODO: Add jitter to timestamps
 
 func post(url string, datatype string, data io.Reader) error {
 
@@ -134,8 +130,8 @@ func (ms *Measurements) Set(value string) error {
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
 func (cfg *Config) NewClient() (*client.Client, error) {
-	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Write.Address))
-	c, err := client.NewClient(client.Config{URL: *u})
+	u, _ := client.ParseConnectionString(cfg.Write.Address, cfg.SSL)
+	c, err := client.NewClient(client.Config{URL: u})
 	if err != nil {
 		return nil, err
 	}
@@ -204,9 +200,18 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 		}
 
 		ctr := 0
+
+		start, err := time.Parse("2006-Jan-02", cfg.Write.StartDate)
+		if err != nil {
+			start, err = time.Parse("Jan 2, 2006 at 3:04pm (MST)", cfg.Write.StartDate)
+			if err != nil {
+				start = time.Now()
+			}
+		}
+
 		for _, testSeries := range cfg.Series {
 			for i := 0; i < testSeries.PointCount; i++ {
-				iter := testSeries.Iter(cfg.Write.StartingPoint, i, cfg.Write.Precision)
+				iter := testSeries.Iter(i, start, cfg.Write.Precision)
 				p, ok := iter.Next()
 				for ok {
 					ctr++
@@ -251,7 +256,13 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 		counter.Increment()
 		totalPoints += cfg.Write.BatchSize
 
-		instanceURL := fmt.Sprintf("http://%v/write?db=%v&precision=%v", cfg.Write.Address, cfg.Write.Database, cfg.Write.Precision)
+		protocol := "http"
+
+		if cfg.SSL {
+			protocol = fmt.Sprintf("%vs", protocol)
+		}
+
+		instanceURL := fmt.Sprintf("%v://%v/write?db=%v&precision=%v", protocol, cfg.Write.Address, cfg.Write.Database, cfg.Write.Precision)
 
 		go func(b *bytes.Buffer, total int) {
 			st := time.Now()

@@ -137,7 +137,9 @@ func TestNewConfig(t *testing.T) {
 
 func TestSeriesIter_Next(t *testing.T) {
 	s := NewSeries("cpu", 1000, 10000)
-	i := s.Iter(10, 0, "n")
+	const shortForm = "2006-Jan-02"
+	tm, _ := time.Parse(shortForm, "2013-Feb-03")
+	i := s.Iter(10, tm, "n")
 	if i.count != -1 {
 		t.Errorf("expected value to be %v, go %v", -1, i.count)
 	}
@@ -166,7 +168,11 @@ func TestConfig_newClient(t *testing.T) {
 
 	url := ts.URL[7:]
 
-	cfg, _ := DecodeFile("test.toml")
+	cfg, err := DecodeFile("test.toml")
+
+	if err != nil {
+		panic(err)
+	}
 
 	cfg.Write.Address = url
 

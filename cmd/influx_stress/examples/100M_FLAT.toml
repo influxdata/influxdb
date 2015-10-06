@@ -5,12 +5,14 @@ channel_buffer_size = 100000
   batch_size = 10000
   batch_interval = "0s"
   database = "stress"
-  precision = "n"
+  precision = "s"
   address = "localhost:8086"
   reset_database = true
-  starting_point = 1 # how far back in time to go in weeks
+  start_date = "2006-Jan-02"
 
 [[series]]
+  tick = "5s"
+  jitter = false
   point_count = 10000 # number of points that will be written for each of the series
   measurement = "cpu"
   series_count = 10000
@@ -19,13 +21,27 @@ channel_buffer_size = 100000
 
   [[series.tag]]
     key = "host"
-    value = "idk"
+    value = "server"
 
   [[series.tag]]
     key = "location"
-    value = "lame"
+    value = "loc"
 
   [[series.field]]
     key = "value"
     type = "float64"
+
+  # Doesnt work as expected
+##  [[series.field]]
+##    key = "value-2"
+##    type = "float64-inc"
+##
+##  [[series.field]]
+##    key = "value-3"
+##    type = "float64-inc+"
+
+ # Has 80% probability of being a constant value
+  [[series.field]]
+    key = "flat_value"
+    type = "float64-flat"
 
