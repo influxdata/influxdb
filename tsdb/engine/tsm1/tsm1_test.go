@@ -1299,7 +1299,7 @@ func TestEngine_IndexGoodAfterFlush(t *testing.T) {
 	verify()
 	fmt.Println("flush")
 	if err := e.WAL.Flush(); err != nil {
-		t.Fatalf("error flushing: %s", err.Error)
+		t.Fatalf("error flushing: %s", err.Error())
 	}
 	fmt.Println("verify2")
 	verify()
