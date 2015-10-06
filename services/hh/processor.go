@@ -18,9 +18,13 @@ import (
 )
 
 const (
-	pointsHint  = "points_hint"
-	pointsWrite = "points_write"
-	bytesWrite  = "bytes_write"
+	pointsHint   = "points_hint"
+	pointsWrite  = "points_write"
+	bytesWrite   = "bytes_write"
+	writeErr     = "write_err"
+	unmarshalErr = "unmarshal_err"
+	advanceErr   = "advance_err"
+	currentErr   = "current_err"
 )
 
 type Processor struct {
@@ -162,6 +166,7 @@ func (p *Processor) Process() error {
 				// Get the current block from the queue
 				buf, err := q.Current()
 				if err != nil {
+					p.nodeStatMaps[nodeID].Add(currentErr, 1)
 					res <- nil
 					break
 				}
@@ -169,8 +174,10 @@ func (p *Processor) Process() error {
 				// unmarshal the byte slice back to shard ID and points
 				shardID, points, err := p.unmarshalWrite(buf)
 				if err != nil {
+					p.nodeStatMaps[nodeID].Add(unmarshalErr, 1)
 					p.Logger.Printf("unmarshal write failed: %v", err)
 					if err := q.Advance(); err != nil {
+						p.nodeStatMaps[nodeID].Add(advanceErr, 1)
 						res <- err
 					}
 
@@ -180,6 +187,7 @@ func (p *Processor) Process() error {
 
 				// Try to send the write to the node
 				if err := p.writer.WriteShard(shardID, nodeID, points); err != nil && tsdb.IsRetryable(err) {
+					p.nodeStatMaps[nodeID].Add(writeErr, 1)
 					p.Logger.Printf("remote write failed: %v", err)
 					res <- nil
 					break
@@ -189,6 +197,7 @@ func (p *Processor) Process() error {
 
 				// If we get here, the write succeeded so advance the queue to the next item
 				if err := q.Advance(); err != nil {
+					p.nodeStatMaps[nodeID].Add(advanceErr, 1)
 					res <- err
 					return
 				}
