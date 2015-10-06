@@ -72,7 +72,7 @@ func (b *nodeBalancer) Next() *meta.NodeInfo {
 	}
 
 	d := &up[b.p]
-	b.p += 1
+	b.p++
 
 	return d
 }

@@ -16,15 +16,17 @@ var (
 	ErrFieldTypeConflict = errors.New("field type conflict")
 )
 
+// ErrDatabaseNotFound indicates that a database operation failed on the specified database.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
+// ErrRetentionPolicyNotFound indicates that the named retention policy could not be found in the database.
 func ErrRetentionPolicyNotFound(name string) error {
 	return fmt.Errorf("retention policy not found: %s", name)
 }
 
-func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
+func errMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
-func Errorf(format string, a ...interface{}) (err error) {
+func errorf(format string, a ...interface{}) (err error) {
 	if _, file, line, ok := runtime.Caller(2); ok {
 		a = append(a, file, line)
 		err = fmt.Errorf(format+" (%s:%d)", a...)
