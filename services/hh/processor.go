@@ -23,7 +23,20 @@ const (
 	bytesWrite  = "bytes_write"
 )
 
+// MetaProvider specifies the interface of a module that the Processor may query
+// to determine active node IDs.
+type MetaProvider interface {
+	// Nodes returns the active cluster node IDs
+	Nodes() []uint64
+}
+
+// Processor manages the loading and processing of hinted data. If MetaProvider is non-nil
+// it is queried for active nodes during processing. In this case only if a node ID is active
+// will it be processed. Data for inactive nodes remain on disk, and the purge process must
+// perform all deletions.
 type Processor struct {
+	MetaProvider MetaProvider
+
 	mu sync.RWMutex
 
 	dir            string
@@ -144,8 +157,25 @@ func (p *Processor) Process() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	res := make(chan error, len(p.queues))
-	for nodeID, q := range p.queues {
+	// Only process queues for active nodes.
+	var activeQueues map[uint64]*queue
+	if p.MetaProvider == nil {
+		// No MetaProvider so process all queues.
+		activeQueues = p.queues
+	} else {
+		activeQueues = make(map[uint64]*queue)
+		activeNodes := p.MetaProvider.Nodes()
+		for nodeID, q := range p.queues {
+			if p.MetaProvider != nil && !contains(activeNodes, nodeID) {
+				continue
+			}
+			activeQueues[nodeID] = q
+		}
+	}
+
+	res := make(chan error, len(activeQueues))
+	for nodeID, q := range activeQueues {
+
 		go func(nodeID uint64, q *queue) {
 
 			// Log how many writes we successfully sent at the end
@@ -205,7 +235,7 @@ func (p *Processor) Process() error {
 		}(nodeID, q)
 	}
 
-	for range p.queues {
+	for range activeQueues {
 		err := <-res
 		if err != nil {
 			return err
@@ -254,4 +284,13 @@ func (p *Processor) PurgeOlderThan(when time.Duration) error {
 		}
 	}
 	return nil
+}
+
+func contains(haystack []uint64, needle uint64) bool {
+	for i := range haystack {
+		if haystack[i] == needle {
+			return true
+		}
+	}
+	return false
 }

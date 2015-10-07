@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
 )
 
@@ -39,6 +40,10 @@ type Service struct {
 		Process() error
 		PurgeOlderThan(when time.Duration) error
 	}
+
+	MetaStore interface {
+		Nodes() (a []meta.NodeInfo, err error)
+	}
 }
 
 type shardWriter interface {
@@ -64,6 +69,7 @@ func NewService(c Config, w shardWriter) *Service {
 	}
 
 	processor.Logger = s.Logger
+	processor.MetaProvider = s
 	s.HintedHandoff = processor
 	return s
 }
@@ -169,4 +175,18 @@ func (s *Service) expireWrites() {
 // valid.  e.g. queued writes for a node that has been removed
 func (s *Service) purgeWrites() {
 	panic("not implemented")
+}
+
+// Nodes returns active nodes for the hinted handoff service.
+func (s *Service) Nodes() []uint64 {
+	nis, err := s.MetaStore.Nodes()
+	if err != nil {
+		return nil
+	}
+
+	nodes := make([]uint64, len(nis))
+	for i, ni := range nis {
+		nodes[i] = ni.ID
+	}
+	return nodes
 }

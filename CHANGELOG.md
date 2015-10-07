@@ -38,6 +38,7 @@
 - [#4296](https://github.com/influxdb/influxdb/pull/4296): Reject line protocol ending with '-'. Fixes [#4272](https://github.com/influxdb/influxdb/issues/4272)
 - [#4333](https://github.com/influxdb/influxdb/pull/4333): Retry monitor storage creation and only on Leader.
 - [#4276](https://github.com/influxdb/influxdb/issues/4276): Walk DropSeriesStatement & check for empty sources
+- [#4339](https://github.com/influxdb/influxdb/pull/4339): HH should only process active nodes.
 
 ## v0.9.4 [2015-09-14]
 
