@@ -157,7 +157,14 @@ func (p *Parser) ApplyTemplate(line string) (string, map[string]string) {
 	}
 	// decode the name and tags
 	template := p.matcher.Match(fields[0])
-	return template.Apply(fields[0])
+	name, tags := template.Apply(fields[0])
+	// Set the default tags on the point if they are not already set
+	for k, v := range p.tags {
+		if _, ok := tags[k]; !ok {
+			tags[k] = v
+		}
+	}
+	return name, tags
 }
 
 // template represents a pattern and tags to map a graphite metric string to a influxdb Point
