@@ -195,11 +195,23 @@ func (data *Data) RenameDatabase(oldName, newName string) error {
 	for i := range data.Databases {
 		if data.Databases[i].Name == oldName {
 			data.Databases[i].Name = newName
-			//TODO CQs
+			data.switchDatabaseUserPrivileges(oldName, newName)
+			// TODO should rename the databases used in continuous queries
 			return nil
 		}
 	}
 	return ErrDatabaseNotFound
+}
+
+// switchDatabaseUserPrivileges changes the database associated with user privileges
+func (data *Data) switchDatabaseUserPrivileges(oldDatabase, newDatabase string) error {
+	for i := range data.Users {
+		if p, ok := data.Users[i].Privileges[oldDatabase]; ok {
+			data.Users[i].Privileges[newDatabase] = p
+			delete(data.Users[i].Privileges, oldDatabase)
+		}
+	}
+	return nil
 }
 
 // RetentionPolicy returns a retention policy for a database by name.
