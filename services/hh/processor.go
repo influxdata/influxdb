@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"expvar"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -166,7 +167,9 @@ func (p *Processor) Process() error {
 				// Get the current block from the queue
 				buf, err := q.Current()
 				if err != nil {
-					p.nodeStatMaps[nodeID].Add(currentErr, 1)
+					if err != io.EOF {
+						p.nodeStatMaps[nodeID].Add(currentErr, 1)
+					}
 					res <- nil
 					break
 				}
