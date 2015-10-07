@@ -52,7 +52,7 @@ Additional tags can be added to a metric that don't exist on the received metric
 
 A field name can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_.
 
-When using the current default engine _BZ1_, it's recommended to store a use a single field per value for performance reasons.
+When using the current default engine _BZ1_, it's recommended to use a single field per value for performance reasons.
 
 When using the _TSM1_ engine it's possible to amend measurement metrics with additional fields, e.g:
 
