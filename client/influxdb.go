@@ -220,10 +220,16 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
+
+	precision := bp.Precision
+	if precision == "" {
+		precision = c.precision
+	}
+
 	params := req.URL.Query()
 	params.Set("db", bp.Database)
 	params.Set("rp", bp.RetentionPolicy)
-	params.Set("precision", bp.Precision)
+	params.Set("precision", precision)
 	params.Set("consistency", bp.WriteConsistency)
 	req.URL.RawQuery = params.Encode()
 
