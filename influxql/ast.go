@@ -92,6 +92,7 @@ func (*DropDatabaseStatement) node()          {}
 func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
+func (*DropServerStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
@@ -198,6 +199,7 @@ func (*DropDatabaseStatement) stmt()          {}
 func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
+func (*DropServerStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
@@ -718,6 +720,18 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
+// SourceNames returns a list of source names.
+func (s *SelectStatement) SourceNames() []string {
+	a := make([]string, 0, len(s.Sources))
+	for _, src := range s.Sources {
+		switch src := src.(type) {
+		case *Measurement:
+			a = append(a, src.Name)
+		}
+	}
+	return a
+}
+
 // HasDerivative returns true if one of the function calls in the statement is a
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
@@ -741,6 +755,11 @@ func (s *SelectStatement) IsSimpleDerivative() bool {
 		}
 	}
 	return false
+}
+
+// TimeAscending returns true if the time field is sorted in chronological order.
+func (s *SelectStatement) TimeAscending() bool {
+	return len(s.SortFields) == 0 || s.SortFields[0].Ascending
 }
 
 // Clone returns a deep copy of the statement.
@@ -1108,7 +1127,40 @@ func (s *SelectStatement) validateDimensions() error {
 // Currently we don't have support for all aggregates, but aggregates that
 // can be combined with fields/tags are:
 //  TOP, BOTTOM, MAX, MIN, FIRST, LAST
-func (s *SelectStatement) validSelectWithAggregate(numAggregates int) error {
+func (s *SelectStatement) validSelectWithAggregate() error {
+	calls := map[string]struct{}{}
+	numAggregates := 0
+	for _, f := range s.Fields {
+		fieldCalls := walkFunctionCalls(f.Expr)
+		for _, c := range fieldCalls {
+			calls[c.Name] = struct{}{}
+		}
+		if len(fieldCalls) != 0 {
+			numAggregates++
+		}
+	}
+	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST (selector functions) it is ok to ask for fields and tags
+	// but only if one function is specified.  Combining multiple functions and fields and tags is not currently supported
+	onlySelectors := true
+	for k := range calls {
+		switch k {
+		case "top", "bottom", "max", "min", "first", "last":
+		default:
+			onlySelectors = false
+			break
+		}
+	}
+	if onlySelectors {
+		// If they only have one selector, they can have as many fields or tags as they want
+		if numAggregates == 1 {
+			return nil
+		}
+		// If they have multiple selectors, they are not allowed to have any other fields or tags specified
+		if numAggregates > 1 && len(s.Fields) != numAggregates {
+			return fmt.Errorf("mixing multiple selector functions with tags or fields is not supported")
+		}
+	}
+
 	if numAggregates != 0 && numAggregates != len(s.Fields) {
 		return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
 	}
@@ -1116,35 +1168,26 @@ func (s *SelectStatement) validSelectWithAggregate(numAggregates int) error {
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
-	// Curently most aggregates can be the ONLY thing in a select statement
-	// Others, like TOP/BOTTOM can mix aggregates and tags/fields
-	numAggregates := 0
 	for _, f := range s.Fields {
-		if _, ok := f.Expr.(*Call); ok {
-			numAggregates++
-		}
-	}
-
-	for _, f := range s.Fields {
-		switch expr := f.Expr.(type) {
-		case *Call:
+		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
 			case "derivative", "non_negative_derivative":
-				if err := s.validSelectWithAggregate(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
 				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
-				// Validate that if they have a time dimension, they need a sub-call like min/max, etc.
-				if s.hasTimeDimensions(s.Condition) {
+				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
+				groupByInterval, _ := s.GroupByInterval()
+				if groupByInterval > 0 {
 					if _, ok := expr.Args[0].(*Call); !ok {
 						return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
 					}
 				}
 
 			case "percentile":
-				if err := s.validSelectWithAggregate(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
 				if exp, got := 2, len(expr.Args); got != exp {
@@ -1175,7 +1218,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					}
 				}
 			default:
-				if err := s.validSelectWithAggregate(numAggregates); err != nil {
+				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
 				if exp, got := 1, len(expr.Args); got != exp {
@@ -1517,6 +1560,25 @@ func (s *SelectStatement) NamesInDimension() []string {
 	return a
 }
 
+// LimitTagSets returns a tag set list with SLIMIT and SOFFSET applied.
+func (s *SelectStatement) LimitTagSets(a []*TagSet) []*TagSet {
+	// Ignore if no limit or offset is specified.
+	if s.SLimit == 0 && s.SOffset == 0 {
+		return a
+	}
+
+	// If offset is beyond the number of tag sets then return nil.
+	if s.SOffset > len(a) {
+		return nil
+	}
+
+	// Clamp limit to the max number of tag sets.
+	if s.SOffset+s.SLimit > len(a) {
+		s.SLimit = len(a) - s.SOffset
+	}
+	return a[s.SOffset : s.SOffset+s.SLimit]
+}
+
 // walkNames will walk the Expr and return the database fields
 func walkNames(exp Expr) []string {
 	switch expr := exp.(type) {
@@ -1549,6 +1611,15 @@ func (s *SelectStatement) FunctionCalls() []*Call {
 	var a []*Call
 	for _, f := range s.Fields {
 		a = append(a, walkFunctionCalls(f.Expr)...)
+	}
+	return a
+}
+
+// FunctionCallsByPosition returns the Call objects from the query in the order they appear in the select statement
+func (s *SelectStatement) FunctionCallsByPosition() [][]*Call {
+	var a [][]*Call
+	for _, f := range s.Fields {
+		a = append(a, walkFunctionCalls(f.Expr))
 	}
 	return a
 }
@@ -1757,6 +1828,30 @@ func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
 }
 
+// DropServerStatement represents a command for removing a server from the cluster.
+type DropServerStatement struct {
+	// ID of the node to be dropped.
+	NodeID uint64
+	// Force will force the server to drop even it it means losing data
+	Force bool
+}
+
+// String returns a string representation of the drop series statement.
+func (s *DropServerStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP SERVER ")
+	_, _ = buf.WriteString(strconv.FormatUint(s.NodeID, 10))
+	if s.Force {
+		_, _ = buf.WriteString(" FORCE")
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a DropServerStatement.
+func (s *DropServerStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
 type ShowContinuousQueriesStatement struct{}
 
@@ -1952,18 +2047,19 @@ func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivilege
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
-// ShowRetentionPoliciesStatement represents a command for displaying stats for a given server.
+// ShowStats statement displays statistics for a given module.
 type ShowStatsStatement struct {
-	// Hostname or IP of the server for stats.
-	Host string
+	// Module
+	Module string
 }
 
 // String returns a string representation of a ShowStatsStatement.
 func (s *ShowStatsStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW STATS ")
-	if s.Host != "" {
-		_, _ = buf.WriteString(s.Host)
+	if s.Module != "" {
+		_, _ = buf.WriteString("FOR ")
+		_, _ = buf.WriteString(s.Module)
 	}
 	return buf.String()
 }
@@ -1985,10 +2081,21 @@ func (s *ShowShardsStatement) RequiredPrivileges() ExecutionPrivileges {
 }
 
 // ShowDiagnosticsStatement represents a command for show node diagnostics.
-type ShowDiagnosticsStatement struct{}
+type ShowDiagnosticsStatement struct {
+	// Module
+	Module string
+}
 
 // String returns a string representation of the ShowDiagnosticsStatement.
-func (s *ShowDiagnosticsStatement) String() string { return "SHOW DIAGNOSTICS" }
+func (s *ShowDiagnosticsStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW DIAGNOSTICS ")
+	if s.Module != "" {
+		_, _ = buf.WriteString("FOR ")
+		_, _ = buf.WriteString(s.Module)
+	}
+	return buf.String()
+}
 
 // RequiredPrivileges returns the privilege required to execute a ShowDiagnosticsStatement
 func (s *ShowDiagnosticsStatement) RequiredPrivileges() ExecutionPrivileges {
@@ -2006,12 +2113,17 @@ type ShowTagKeysStatement struct {
 	// Fields to sort results by
 	SortFields SortFields
 
-	// Maximum number of rows to be returned.
-	// Unlimited if zero.
+	// Maximum number of tag keys per measurement. Unlimited if zero.
 	Limit int
 
-	// Returns rows starting at an offset from the first row.
+	// Returns tag keys starting at an offset from the first row.
 	Offset int
+
+	// Maxiumum number of series to be returned. Unlimited if zero.
+	SLimit int
+
+	// Returns series starting at an offset from the first one.
+	SOffset int
 }
 
 // String returns a string representation of the statement.
@@ -2038,6 +2150,14 @@ func (s *ShowTagKeysStatement) String() string {
 	if s.Offset > 0 {
 		_, _ = buf.WriteString(" OFFSET ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
+	if s.SLimit > 0 {
+		_, _ = buf.WriteString(" SLIMIT ")
+		_, _ = buf.WriteString(strconv.Itoa(s.SLimit))
+	}
+	if s.SOffset > 0 {
+		_, _ = buf.WriteString(" SOFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.SOffset))
 	}
 	return buf.String()
 }
@@ -2377,8 +2497,22 @@ func (c *Call) Fields() []string {
 			}
 		}
 		return keys
+	case "min", "max", "first", "last", "sum", "mean":
+		// maintain the order the user specified in the query
+		keyMap := make(map[string]struct{})
+		keys := []string{}
+		for _, a := range c.Args {
+			switch v := a.(type) {
+			case *VarRef:
+				if _, ok := keyMap[v.Val]; !ok {
+					keyMap[v.Val] = struct{}{}
+					keys = append(keys, v.Val)
+				}
+			}
+		}
+		return keys
 	default:
-		return []string{}
+		panic(fmt.Sprintf("*call.Fields is unable to provide information on %s", c.Name))
 	}
 }
 
@@ -2690,6 +2824,10 @@ func Walk(v Visitor, node Node) {
 			Walk(v, c)
 		}
 
+	case *DropSeriesStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
+
 	case *Field:
 		Walk(v, n.Expr)
 
@@ -2935,6 +3073,13 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 		}
 	}
 	return nil
+}
+
+// EvalBool evaluates expr and returns true if result is a boolean true.
+// Otherwise returns false.
+func EvalBool(expr Expr, m map[string]interface{}) bool {
+	v, _ := Eval(expr, m).(bool)
+	return v
 }
 
 // Reduce evaluates expr using the available values in valuer.

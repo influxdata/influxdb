@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net"
@@ -40,11 +41,7 @@ func NewShardMapper(timeout time.Duration) *ShardMapper {
 
 // CreateMapper returns a Mapper for the given shard ID.
 func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
-	m, err := s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
-	if err != nil {
-		return nil, err
-	}
-
+	// Create a remote mapper if the local node doesn't own the shard.
 	if !sh.OwnedBy(s.MetaStore.NodeID()) || s.ForceRemoteMapping {
 		// Pick a node in a pseudo-random manner.
 		conn, err := s.dial(sh.Owners[rand.Intn(len(sh.Owners))].NodeID)
@@ -53,7 +50,13 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, c
 		}
 		conn.SetDeadline(time.Now().Add(s.timeout))
 
-		m.SetRemote(NewRemoteMapper(conn, sh.ID, stmt, chunkSize))
+		return NewRemoteMapper(conn, sh.ID, stmt, chunkSize), nil
+	}
+
+	// If it is local then return the mapper from the store.
+	m, err := s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
+	if err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -87,6 +90,8 @@ type RemoteMapper struct {
 
 	conn             net.Conn
 	bufferedResponse *MapShardResponse
+
+	unmarshallers []tsdb.UnmarshalFunc // Mapping-specific unmarshal functions.
 }
 
 // NewRemoteMapper returns a new remote mapper using the given connection.
@@ -106,6 +111,7 @@ func (r *RemoteMapper) Open() (err error) {
 			r.conn.Close()
 		}
 	}()
+
 	// Build Map request.
 	var request MapShardRequest
 	request.SetShardID(r.shardID)
@@ -143,17 +149,26 @@ func (r *RemoteMapper) Open() (err error) {
 	r.tagsets = r.bufferedResponse.TagSets()
 	r.fields = r.bufferedResponse.Fields()
 
+	// Set up each mapping function for this statement.
+	if stmt, ok := r.stmt.(*influxql.SelectStatement); ok {
+		for _, c := range stmt.FunctionCalls() {
+			fn, err := tsdb.InitializeUnmarshaller(c)
+			if err != nil {
+				return err
+			}
+			r.unmarshallers = append(r.unmarshallers, fn)
+		}
+	}
+
 	return nil
 }
 
-func (r *RemoteMapper) SetRemote(m tsdb.Mapper) error {
-	return fmt.Errorf("cannot set remote mapper on a remote mapper")
-}
-
+// TagSets returns the TagSets
 func (r *RemoteMapper) TagSets() []string {
 	return r.tagsets
 }
 
+// Fields returns RemoteMapper's Fields
 func (r *RemoteMapper) Fields() []string {
 	return r.fields
 }
@@ -187,7 +202,55 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 		return nil, nil
 	}
 
-	return response.Data(), err
+	moj := &tsdb.MapperOutputJSON{}
+	if err := json.Unmarshal(response.Data(), moj); err != nil {
+		return nil, err
+	}
+	mvj := []*tsdb.MapperValueJSON{}
+	if err := json.Unmarshal(moj.Values, &mvj); err != nil {
+		return nil, err
+	}
+
+	// Prep the non-JSON version of Mapper output.
+	mo := &tsdb.MapperOutput{
+		Name:   moj.Name,
+		Tags:   moj.Tags,
+		Fields: moj.Fields,
+	}
+
+	if len(mvj) == 1 && len(mvj[0].AggData) > 0 {
+		// The MapperValue is carrying aggregate data, so run it through the
+		// custom unmarshallers for the map functions through which the data
+		// was mapped.
+		aggValues := []interface{}{}
+		for i, b := range mvj[0].AggData {
+			v, err := r.unmarshallers[i](b)
+			if err != nil {
+				return nil, err
+			}
+			aggValues = append(aggValues, v)
+		}
+		mo.Values = []*tsdb.MapperValue{&tsdb.MapperValue{
+			Value: aggValues,
+			Tags:  mvj[0].Tags,
+		}}
+	} else {
+		// Must be raw data instead.
+		for _, v := range mvj {
+			var rawValue interface{}
+			if err := json.Unmarshal(v.RawData, &rawValue); err != nil {
+				return nil, err
+			}
+
+			mo.Values = append(mo.Values, &tsdb.MapperValue{
+				Time:  v.Time,
+				Value: rawValue,
+				Tags:  v.Tags,
+			})
+		}
+	}
+
+	return mo, nil
 }
 
 // Close the Mapper

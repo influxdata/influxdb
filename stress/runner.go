@@ -1,15 +1,37 @@
 package runner
 
 import (
+	"bytes"
 	"fmt"
-	"math/rand"
-	"net/url"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb/client"
 )
+
+func post(url string, datatype string, data io.Reader) error {
+
+	resp, err := http.Post(url, datatype, data)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(string(body))
+	}
+
+	return nil
+}
 
 // Timer is struct that can be used to track elaspsed time
 type Timer struct {
@@ -104,45 +126,54 @@ func (ms *Measurements) Set(value string) error {
 	return nil
 }
 
-// Config is a struct that is passed into the `Run()` function.
-type Config struct {
-	BatchSize     int
-	Measurements  Measurements
-	SeriesCount   int
-	PointCount    int
-	Concurrency   int
-	BatchInterval time.Duration
-	Database      string
-	Address       string
-	Precision     string
-}
-
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
 func (cfg *Config) NewClient() (*client.Client, error) {
-	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Address))
-	c, err := client.NewClient(client.Config{URL: *u})
+	u, _ := client.ParseConnectionString(cfg.Write.Address, cfg.SSL)
+	c, err := client.NewClient(client.Config{URL: u})
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
+func resetDB(c *client.Client, database string) error {
+	_, err := c.Query(client.Query{
+		Command: fmt.Sprintf("DROP DATABASE %s", database),
+	})
+
+	if err != nil && !strings.Contains(err.Error(), "database not found") {
+		return err
+	}
+
+	return nil
+}
+
 // Run runs the stress test that is specified by a `Config`.
 // It returns the total number of points that were during the test,
 // an slice of all of the stress tests response times,
 // and the times that the test started at and ended as a `Timer`
-func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
-	timer = NewTimer()
-	defer timer.StopTimer()
+func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, failedRequests int, responseTimes ResponseTimes, timer *Timer) {
 
 	c, err := cfg.NewClient()
 	if err != nil {
 		panic(err)
 	}
 
-	counter := NewConcurrencyLimiter(cfg.Concurrency)
+	if cfg.Write.ResetDatabase {
+		resetDB(c, cfg.Write.Database)
+	}
+
+	_, err = c.Query(client.Query{
+		Command: fmt.Sprintf("CREATE DATABASE %s", cfg.Write.Database),
+	})
+
+	if err != nil && !strings.Contains(err.Error(), "database already exists") {
+		fmt.Println(err)
+	}
+
+	counter := NewConcurrencyLimiter(cfg.Write.Concurrency)
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -154,66 +185,125 @@ func Run(cfg *Config) (totalPoints int, failedRequests int, responseTimes Respon
 
 	lastSuccess := true
 
-	batch := &client.BatchPoints{
-		Database:         cfg.Database,
-		WriteConsistency: "any",
-		Time:             time.Now(),
-		Precision:        cfg.Precision,
-	}
+	ch := make(chan []byte, cfg.ChannelBufferSize)
 
-	for i := 1; i <= cfg.PointCount; i++ {
-		for j := 1; j <= cfg.SeriesCount; j++ {
-			for _, m := range cfg.Measurements {
-				p := client.Point{
-					Measurement: m,
-					Tags:        map[string]string{"region": "uswest", "host": fmt.Sprintf("host-%d", j)},
-					Fields:      map[string]interface{}{"value": rand.Float64()},
-				}
-				batch.Points = append(batch.Points, p)
-				if len(batch.Points) >= cfg.BatchSize {
-					wg.Add(1)
-					counter.Increment()
-					totalPoints += len(batch.Points)
-					go func(b *client.BatchPoints, total int) {
-						st := time.Now()
-						if _, err := c.Write(*b); err != nil {
-							mu.Lock()
-							if lastSuccess {
-								fmt.Println("ERROR: ", err.Error())
-							}
-							failedRequests += 1
-							totalPoints -= len(b.Points)
-							lastSuccess = false
-							mu.Unlock()
-						} else {
-							mu.Lock()
-							if !lastSuccess {
-								fmt.Println("success in ", time.Since(st))
-							}
-							lastSuccess = true
-							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
-							mu.Unlock()
-						}
-						time.Sleep(cfg.BatchInterval)
-						wg.Done()
-						counter.Decrement()
-						if total%500000 == 0 {
-							fmt.Printf("%d total points. %d in %s\n", total, cfg.BatchSize, time.Since(st))
-						}
-					}(batch, totalPoints)
+	go func() {
+		var buf bytes.Buffer
+		num := 0
+		for _, s := range cfg.Series {
+			num += s.PointCount * s.SeriesCount
 
-					batch = &client.BatchPoints{
-						Database:         cfg.Database,
-						WriteConsistency: "any",
-						Precision:        "n",
-						Time:             time.Now(),
+		}
+
+		if cfg.MeasurementQuery.Enabled {
+			num = num / (len(cfg.Series) * len(cfg.MeasurementQuery.Aggregates) * len(cfg.MeasurementQuery.Fields))
+		}
+
+		ctr := 0
+
+		start, err := time.Parse("2006-Jan-02", cfg.Write.StartDate)
+		if err != nil {
+			start, err = time.Parse("Jan 2, 2006 at 3:04pm (MST)", cfg.Write.StartDate)
+			if err != nil {
+				start = time.Now()
+			}
+		}
+
+		for _, testSeries := range cfg.Series {
+			for i := 0; i < testSeries.PointCount; i++ {
+				iter := testSeries.Iter(i, start, cfg.Write.Precision)
+				p, ok := iter.Next()
+				for ok {
+					ctr++
+					buf.Write(p)
+					buf.Write([]byte("\n"))
+					if ctr != 0 && ctr%cfg.Write.BatchSize == 0 {
+						b := buf.Bytes()
+
+						b = b[0 : len(b)-2]
+
+						ch <- b
+						var b2 bytes.Buffer
+						buf = b2
 					}
+
+					if cfg.MeasurementQuery.Enabled && ctr%num == 0 {
+						select {
+						case ts <- time.Now():
+						default:
+						}
+					}
+
+					p, ok = iter.Next()
 				}
 			}
 		}
+
+		close(ch)
+
+	}()
+
+	fmt.Println("Filling the Point Channel Buffer...")
+	fmt.Printf("Test will begin in %v seconds\n", (time.Duration(cfg.ChannelBufferSize/10) * time.Millisecond).Seconds())
+	time.Sleep(time.Duration(cfg.ChannelBufferSize/10) * time.Millisecond)
+	fmt.Println("Starting Stress...")
+
+	timer = NewTimer()
+
+	for pnt := range ch {
+
+		wg.Add(1)
+		counter.Increment()
+		totalPoints += cfg.Write.BatchSize
+
+		protocol := "http"
+
+		if cfg.SSL {
+			protocol = fmt.Sprintf("%vs", protocol)
+		}
+
+		instanceURL := fmt.Sprintf("%v://%v/write?db=%v&precision=%v", protocol, cfg.Write.Address, cfg.Write.Database, cfg.Write.Precision)
+
+		go func(b *bytes.Buffer, total int) {
+			st := time.Now()
+			err := post(instanceURL, "application/x-www-form-urlencoded", b)
+			if err != nil { // Should retry write if failed
+				mu.Lock()
+				if lastSuccess {
+					fmt.Println("ERROR: ", err.Error())
+				}
+				failedRequests += 1
+				//totalPoints -= len(b.Points)
+				totalPoints -= cfg.Write.BatchSize
+				lastSuccess = false
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				if !lastSuccess {
+					fmt.Println("success in ", time.Since(st))
+				}
+				lastSuccess = true
+				responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
+				mu.Unlock()
+			}
+			batchInterval, _ := time.ParseDuration(cfg.Write.BatchInterval)
+			time.Sleep(batchInterval)
+			wg.Done()
+			counter.Decrement()
+			if total%500000 == 0 {
+				fmt.Printf("%d total points. %d in %s\n", total, cfg.Write.BatchSize, time.Since(st))
+			}
+		}(bytes.NewBuffer(pnt), totalPoints)
+
 	}
 
 	wg.Wait()
+
+	timer.StopTimer()
+
+	if cfg.SeriesQuery.Enabled {
+		done <- struct{}{}
+	}
 
 	return
 }

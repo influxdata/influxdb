@@ -30,9 +30,10 @@ const logo = `
 
 // Command represents the command executed by "influxd run".
 type Command struct {
-	Version string
-	Branch  string
-	Commit  string
+	Version   string
+	Branch    string
+	Commit    string
+	BuildTime string
 
 	closing chan struct{}
 	Closed  chan struct{}
@@ -67,7 +68,8 @@ func (cmd *Command) Run(args ...string) error {
 	fmt.Print(logo)
 
 	// Mark start-up in log.
-	log.Printf("InfluxDB starting, version %s, branch %s, commit %s", cmd.Version, cmd.Branch, cmd.Commit)
+	log.Printf("InfluxDB starting, version %s, branch %s, commit %s, built %s",
+		cmd.Version, cmd.Branch, cmd.Commit, cmd.BuildTime)
 	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
 
 	// Write the PID file.
@@ -104,7 +106,12 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Create server from config and start it.
-	buildInfo := &BuildInfo{Version: cmd.Version, Commit: cmd.Commit, Branch: cmd.Branch}
+	buildInfo := &BuildInfo{
+		Version: cmd.Version,
+		Commit:  cmd.Commit,
+		Branch:  cmd.Branch,
+		Time:    cmd.BuildTime,
+	}
 	s, err := NewServer(config, buildInfo)
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)

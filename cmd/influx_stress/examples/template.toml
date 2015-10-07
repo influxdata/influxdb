@@ -1,0 +1,114 @@
+# Set the buffer size for the channel
+# that sends points to the influxdb
+# client
+channel_buffer_size = 100000
+
+# Configuration settings for the 
+# stress test
+[write]
+  # How many concurrent writers to the db
+  concurrency = 10
+  # Size of batches that are sent to db
+  batch_size = 5000
+  # Interval between each batch
+  batch_interval = "0s"
+  # Database that is being written to
+  database = "stress"
+  # Precision of points that are being written
+  precision = "n"
+  # Address of the Influxdb instance
+  address = "localhost:8086"
+  # Drop and Create new DB
+  reset_database = true
+  # The date for the first point that is written into influx
+  start_date = "2006-Jan-02"
+
+# Describes the schema for series that will be
+# written
+[[series]]
+  # How much time between each timestamp
+  tick = "5s"
+  # Randomize timestamp a bit
+  jitter = false
+  # number of points that will be written for each of the series
+  point_count = 1000
+  # name of the measurement that will be written
+  measurement = "cpu"
+  series_count = 10000
+
+  # number of "generic" tags on a series (e.g. tag-key-1=tag-value, ... ,tag-key-20=tag-value)
+  # tag_count = 20
+
+  # Defines a tag for a series
+  [[series.tag]]
+    key = "host"
+    value = "idk"
+
+  [[series.tag]]
+    key = "location"
+    value = "lame"
+
+  # Defines a field for a series
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  [[series.field]]
+    key = "percent"
+    type = "int"
+
+  [[series.field]]
+    key = "idk"
+    type = "bool"
+
+  [[series.field]]
+    key = "default"
+
+[[series]]
+  tick = "1ns"
+  point_count = 100 # number of points that will be written for each of the series
+  measurement = "mem"
+  series_count = 100000
+
+  [[series.tag]]
+    key = "host"
+    value = "idk"
+
+  [[series.tag]]
+    key = "location"
+    value = "lame"
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  [[series.field]]
+    key = "loc"
+    type = "float64"
+
+  [[series.field]]
+    key = "sunny"
+    type = "bool"
+
+  [[series.field]]
+    key = "idk"
+    type = "int"
+
+# Generates queries of the form
+# SELECT aggregates(values) FROM measurements WHERE time > current_timespan - offset
+[measurement_query]
+  enabled = true
+  concurrency = 10
+  aggregates = ["mean", "count"]
+  fields = ["value"]
+  offset = "5h"
+
+# Generates queries of the form
+# SELECT aggregates(values) FROM measurements WHERE tag-key='tag-values-1'
+[series_query]
+  enabled = true
+  concurrency = 1
+  aggregates = ["mean", "count"]
+  fields = ["value"]
+  # Interval between queries
+  interval = "50ms"

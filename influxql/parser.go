@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -147,7 +148,24 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowUsersStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "GRANTS", "MEASUREMENTS", "RETENTION", "SERIES", "SERVERS", "TAG", "USERS"}, pos)
+	showQueryKeywords := []string{
+		"CONTINUOUS",
+		"DATABASES",
+		"FIELD",
+		"GRANTS",
+		"MEASUREMENTS",
+		"RETENTION",
+		"SERIES",
+		"SERVERS",
+		"TAG",
+		"USERS",
+		"STATS",
+		"DIAGNOSTICS",
+		"SHARDS",
+	}
+	sort.Strings(showQueryKeywords)
+
+	return nil, newParseError(tokstr(tok, lit), showQueryKeywords, pos)
 }
 
 // parseCreateStatement parses a string and returns a create statement.
@@ -190,6 +208,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
+	} else if tok == SERVER {
+		return p.parseDropServerStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
@@ -293,8 +313,8 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	// Parse optional DEFAULT token.
 	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
 		stmt.Default = true
-	} else {
-		p.unscan()
+	} else if tok != EOF && tok != SEMICOLON {
+		return nil, newParseError(tokstr(tok, lit), []string{"DEFAULT"}, pos)
 	}
 
 	return stmt, nil
@@ -979,6 +999,16 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 		return nil, err
 	}
 
+	// Parse series limit: "SLIMIT <n>".
+	if stmt.SLimit, err = p.parseOptionalTokenAndInt(SLIMIT); err != nil {
+		return nil, err
+	}
+
+	// Parse series offset: "SOFFSET <n>".
+	if stmt.SOffset, err = p.parseOptionalTokenAndInt(SOFFSET); err != nil {
+		return nil, err
+	}
+
 	return stmt, nil
 }
 
@@ -1148,6 +1178,27 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	}
 
 	return stmt, nil
+}
+
+// parseDropServerStatement parses a string and returns a DropServerStatement.
+// This function assumes the "DROP SERVER" tokens have already been consumed.
+func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
+	s := &DropServerStatement{}
+	var err error
+
+	// Parse the server's ID.
+	if s.NodeID, err = p.parseUInt64(); err != nil {
+		return nil, err
+	}
+
+	// Parse optional FORCE token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == FORCE {
+		s.Force = true
+	} else if tok != EOF && tok != SEMICOLON {
+		return nil, newParseError(tokstr(tok, lit), []string{"FORCE"}, pos)
+	}
+
+	return s, nil
 }
 
 // parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.
@@ -1423,8 +1474,8 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 	stmt := &ShowStatsStatement{}
 	var err error
 
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
-		stmt.Host, err = p.parseString()
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
 	} else {
 		p.unscan()
 	}
@@ -1435,7 +1486,15 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 // parseShowDiagnostics parses a string and returns a ShowDiagnosticsStatement.
 func (p *Parser) parseShowDiagnosticsStatement() (*ShowDiagnosticsStatement, error) {
 	stmt := &ShowDiagnosticsStatement{}
-	return stmt, nil
+	var err error
+
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FOR {
+		stmt.Module, err = p.parseString()
+	} else {
+		p.unscan()
+	}
+
+	return stmt, err
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.

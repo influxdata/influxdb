@@ -50,7 +50,9 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 		filter := ""
 		// Format is [filter] <template> [tag1=value1,tag2=value2]
 		parts := strings.Fields(pattern)
-		if len(parts) >= 2 {
+		if len(parts) < 1 {
+			continue
+		} else if len(parts) >= 2 {
 			if strings.Contains(parts[1], "=") {
 				template = parts[0]
 			} else {
@@ -97,8 +99,8 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	}
 
 	// decode the name and tags
-	matcher := p.matcher.Match(fields[0])
-	measurement, tags, field := matcher.Apply(fields[0])
+	template := p.matcher.Match(fields[0])
+	measurement, tags, field := template.Apply(fields[0])
 
 	// Could not extract measurement, use the raw value
 	if measurement == "" {
@@ -148,6 +150,19 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	point := models.NewPoint(measurement, tags, fieldValues, timestamp)
 
 	return point, nil
+}
+
+// Apply extracts the template fields form the given line and returns the
+// measurement name and tags
+func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string) {
+	// Break line into fields (name, value, timestamp), only name is used
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return "", make(map[string]string), ""
+	}
+	// decode the name and tags
+	template := p.matcher.Match(fields[0])
+	return template.Apply(fields[0])
 }
 
 // template represents a pattern and tags to map a graphite metric string to a influxdb Point

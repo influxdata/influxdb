@@ -1,7 +1,6 @@
 package b1_test
 
 import (
-	"bytes"
 	"encoding/binary"
 	"io/ioutil"
 	"math"
@@ -22,7 +21,7 @@ func TestEngine_WritePoints(t *testing.T) {
 
 	// Create metadata.
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
-	mf.CreateFieldIfNotExists("value", influxql.Float)
+	mf.CreateFieldIfNotExists("value", influxql.Float, true)
 	seriesToCreate := []*tsdb.SeriesCreate{
 		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("temperature"), nil)), nil)},
 	}
@@ -66,16 +65,14 @@ func TestEngine_WritePoints(t *testing.T) {
 	tx := e.MustBegin(false)
 	defer tx.Rollback()
 
-	c := tx.Cursor("temperature", tsdb.Forward)
-	if k, v := c.Seek([]byte{0}); !bytes.Equal(k, u64tob(uint64(time.Unix(1434059627, 0).UnixNano()))) {
+	c := tx.Cursor("temperature", []string{"value"}, mf.Codec, true)
+	if k, v := c.SeekTo(0); k != 1434059627000000000 {
 		t.Fatalf("unexpected key: %#v", k)
-	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {
-		t.Fatal(err)
-	} else if m["value"] != float64(200) {
-		t.Errorf("unexpected value: %#v", m)
+	} else if v == nil || v.(float64) != 200 {
+		t.Errorf("unexpected value: %#v", v)
 	}
 
-	if k, v := c.Next(); k != nil {
+	if k, v := c.Next(); k != tsdb.EOF {
 		t.Fatalf("unexpected key/value: %#v / %#v", k, v)
 	}
 }
@@ -87,7 +84,7 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 
 	// Create metadata.
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
-	mf.CreateFieldIfNotExists("value", influxql.Float)
+	mf.CreateFieldIfNotExists("value", influxql.Float, true)
 	seriesToCreate := []*tsdb.SeriesCreate{
 		{Series: tsdb.NewSeries(string(models.MakeKey([]byte("temperature"), nil)), nil)},
 	}
@@ -131,18 +128,16 @@ func TestEngine_WritePoints_Reverse(t *testing.T) {
 	tx := e.MustBegin(false)
 	defer tx.Rollback()
 
-	c := tx.Cursor("temperature", tsdb.Reverse)
-	if k, _ := c.Seek(u64tob(math.MaxInt64)); !bytes.Equal(k, u64tob(uint64(time.Unix(1, 0).UnixNano()))) {
-		t.Fatalf("unexpected key: %v", btou64(k))
-	} else if k, v := c.Next(); !bytes.Equal(k, u64tob(uint64(time.Unix(0, 0).UnixNano()))) {
-		t.Fatalf("unexpected key: %#v", k)
-	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {
-		t.Fatal(err)
-	} else if m["value"] != float64(100) {
-		t.Errorf("unexpected value: %#v", m)
+	c := tx.Cursor("temperature", []string{"value"}, mf.Codec, false)
+	if k, _ := c.SeekTo(math.MaxInt64); k != time.Unix(1, 0).UnixNano() {
+		t.Fatalf("unexpected key: %v", k)
+	} else if k, v := c.Next(); k != time.Unix(0, 0).UnixNano() {
+		t.Fatalf("unexpected key: %v", k)
+	} else if v == nil || v.(float64) != 100 {
+		t.Errorf("unexpected value: %#v", v)
 	}
 
-	if k, v := c.Next(); k != nil {
+	if k, v := c.Next(); k != tsdb.EOF {
 		t.Fatalf("unexpected key/value: %#v / %#v", k, v)
 	}
 }

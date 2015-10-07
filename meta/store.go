@@ -692,7 +692,7 @@ func (s *Store) handleExecConn(conn net.Conn) {
 
 		// Apply against the raft log.
 		if err := s.apply(buf); err != nil {
-			return fmt.Errorf("apply: %s", err)
+			return err
 		}
 		return nil
 	}()
@@ -823,10 +823,16 @@ func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
 }
 
 // DeleteNode removes a node from the metastore by id.
-func (s *Store) DeleteNode(id uint64) error {
+func (s *Store) DeleteNode(id uint64, force bool) error {
+	ni := s.data.Node(id)
+	if ni == nil {
+		return ErrNodeNotFound
+	}
+
 	return s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
 		&internal.DeleteNodeCommand{
-			ID: proto.Uint64(id),
+			ID:    proto.Uint64(id),
+			Force: proto.Bool(force),
 		},
 	)
 }
@@ -1051,8 +1057,6 @@ func (s *Store) DropRetentionPolicy(database, name string) error {
 		},
 	)
 }
-
-// FIX: CreateRetentionPolicyIfNotExists(database string, rp *RetentionPolicyInfo) (*RetentionPolicyInfo, error)
 
 // CreateShardGroup creates a new shard group in a retention policy for a given time.
 func (s *Store) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
@@ -1555,7 +1559,7 @@ func (s *Store) remoteExec(b []byte) error {
 	if err := proto.Unmarshal(buf, &resp); err != nil {
 		return fmt.Errorf("unmarshal response: %s", err)
 	} else if !resp.GetOK() {
-		return fmt.Errorf("exec failed: %s", resp.GetError())
+		return lookupError(fmt.Errorf(resp.GetError()))
 	}
 
 	// Wait for local FSM to sync to index.
@@ -1708,10 +1712,13 @@ func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.DeleteNode(v.GetID()); err != nil {
+	if err := other.DeleteNode(v.GetID(), v.GetForce()); err != nil {
 		return err
 	}
 	fsm.data = other
+
+	id := v.GetID()
+	fsm.Logger.Printf("node '%d' removed", id)
 
 	return nil
 }

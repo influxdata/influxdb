@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/snapshot"
 )
 
@@ -83,7 +82,7 @@ func appendShardSnapshotFile(sw *snapshot.Writer, sh *Shard, name string) error 
 	}
 
 	// Begin transaction.
-	tx, err := sh.db.Begin(false)
+	tx, err := sh.engine.Begin(false)
 	if err != nil {
 		return fmt.Errorf("begin: %s", err)
 	}
@@ -103,7 +102,7 @@ func appendShardSnapshotFile(sw *snapshot.Writer, sh *Shard, name string) error 
 
 // boltTxCloser wraps a Bolt transaction to implement io.Closer.
 type boltTxCloser struct {
-	*bolt.Tx
+	Tx
 }
 
 // Close rolls back the transaction.

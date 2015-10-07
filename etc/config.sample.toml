@@ -37,7 +37,9 @@ reporting-disabled = false
 [data]
   dir = "/var/opt/influxdb/data"
 
-  # Controls the engine type for new shards.
+  # Controls the engine type for new shards. Options are b1, bz1, or tsm1.
+  # b1 is the 0.9.2 storage engine, bz1 is the 0.9.3 and 0.9.4 engine.
+  # tsm1 is the 0.9.5 engine
   # engine ="bz1"
 
   # The following WAL settings are for the b1 storage engine used in 0.9.2. They won't
@@ -82,7 +84,7 @@ reporting-disabled = false
 ###
 
 [cluster]
-  shard-writer-timeout = "5s" # The time within which a shard must respond to write.
+  shard-writer-timeout = "10s" # The time within which a shard must respond to write.
   write-timeout = "5s" # The time within which a write operation must complete on the cluster.
 
 ###
@@ -147,6 +149,7 @@ reporting-disabled = false
 
 [[graphite]]
   enabled = false
+  # database = "graphite"
   # bind-address = ":2003"
   # protocol = "tcp"
   # consistency-level = "one"
@@ -208,9 +211,12 @@ reporting-disabled = false
 
 [opentsdb]
   enabled = false
-  # bind-address = ""
-  # database = ""
+  # bind-address = ":4242"
+  # database = "opentsdb"
   # retention-policy = ""
+  # consistency-level = "one"
+  # tls-enabled = false
+  # certificate= ""
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Only points
@@ -230,6 +236,7 @@ reporting-disabled = false
   enabled = false
   # bind-address = ""
   # database = ""
+  # retention-policy = ""
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Batching
@@ -267,4 +274,10 @@ reporting-disabled = false
   max-size = 1073741824
   max-age = "168h"
   retry-rate-limit = 0
+
+  # Hinted handoff will start retrying writes to down nodes at a rate of once per second.
+  # If any error occurs, it will backoff in an exponential manner, until the interval
+  # reaches retry-max-interval. Once writes to all nodes are successfully completed the
+  # interval will reset to retry-interval.
   retry-interval = "1s"
+  retry-max-interval = "1m"

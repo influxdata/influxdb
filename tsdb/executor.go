@@ -27,39 +27,6 @@ type Executor interface {
 	Execute() <-chan *models.Row
 }
 
-// Mapper is the interface all Mapper types must implement.
-type Mapper interface {
-	Open() error
-	SetRemote(m Mapper) error
-	TagSets() []string
-	Fields() []string
-	NextChunk() (interface{}, error)
-	Close()
-}
-
-// StatefulMapper encapsulates a Mapper and some state that the executor needs to
-// track for that mapper.
-type StatefulMapper struct {
-	Mapper
-	bufferedChunk *MapperOutput // Last read chunk.
-	drained       bool
-}
-
-// NextChunk wraps a RawMapper and some state.
-func (sm *StatefulMapper) NextChunk() (*MapperOutput, error) {
-	c, err := sm.Mapper.NextChunk()
-	if err != nil {
-		return nil, err
-	}
-	chunk, ok := c.(*MapperOutput)
-	if !ok {
-		if chunk == interface{}(nil) {
-			return nil, nil
-		}
-	}
-	return chunk, nil
-}
-
 type SelectExecutor struct {
 	stmt           *influxql.SelectStatement
 	mappers        []*StatefulMapper
@@ -525,8 +492,8 @@ func (e *SelectExecutor) executeAggregate(out chan *models.Row) {
 			}
 		}
 
-		// Perform top/bottom unwraps
-		values, err = e.processTopBottom(values, columnNames)
+		// Perform aggregate unwraps
+		values, err = e.processFunctions(values, columnNames)
 		if err != nil {
 			out <- &models.Row{Err: err}
 		}
@@ -625,24 +592,92 @@ func (e *SelectExecutor) close() {
 	}
 }
 
-func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
-	aggregates := e.stmt.FunctionCalls()
-	var call *influxql.Call
-	process := false
-	for _, c := range aggregates {
-		if c.Name == "top" || c.Name == "bottom" {
-			process = true
-			call = c
-			break
+func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames []string) ([][]interface{}, error) {
+	callInPosition := e.stmt.FunctionCallsByPosition()
+	hasTimeField := e.stmt.HasTimeFieldSpecified()
+
+	var err error
+	for i, calls := range callInPosition {
+		// We can only support expanding fields if a single selector call was specified
+		// i.e. select tx, max(rx) from foo
+		// If you have multiple selectors or aggregates, there is no way of knowing who gets to insert the values, so we don't
+		// i.e. select tx, max(rx), min(rx) from foo
+		if len(calls) == 1 {
+			var c *influxql.Call
+			c = calls[0]
+
+			switch c.Name {
+			case "top", "bottom":
+				results, err = e.processAggregates(results, columnNames, c)
+				if err != nil {
+					return results, err
+				}
+			case "first", "last", "min", "max":
+				results, err = e.processSelectors(results, i, hasTimeField, columnNames)
+				if err != nil {
+					return results, err
+				}
+			}
 		}
 	}
-	if !process {
-		return results, nil
+
+	return results, nil
+}
+
+func (e *SelectExecutor) processSelectors(results [][]interface{}, callPosition int, hasTimeField bool, columnNames []string) ([][]interface{}, error) {
+	for i, vals := range results {
+		for j := 1; j < len(vals); j++ {
+			switch v := vals[j].(type) {
+			case PositionPoint:
+				tMin := vals[0].(time.Time)
+				results[i] = e.selectorPointToQueryResult(vals, hasTimeField, callPosition, v, tMin, columnNames)
+			}
+		}
 	}
+	return results, nil
+}
+
+func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, hasTimeField bool, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) []interface{} {
+	// if the row doesn't have enough columns, expand it
+	if len(row) != len(columnNames) {
+		row = append(row, make([]interface{}, len(columnNames)-len(row))...)
+	}
+	callCount := len(e.stmt.FunctionCalls())
+	if callCount == 1 {
+		tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+		// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
+		if len(e.stmt.Dimensions) > 0 && !hasTimeField {
+			tm = tMin.UTC().Format(time.RFC3339Nano)
+		}
+		row[0] = tm
+	}
+	for i, c := range columnNames {
+		// skip over time, we already handled that above
+		if i == 0 {
+			continue
+		}
+		if (i == columnIndex && hasTimeField) || (i == columnIndex+1 && !hasTimeField) {
+			row[i] = p.Value
+			continue
+		}
+
+		if callCount == 1 {
+			// Always favor fields over tags if there is a name collision
+			if t, ok := p.Fields[c]; ok {
+				row[i] = t
+			} else if t, ok := p.Tags[c]; ok {
+				// look in the tags for a value
+				row[i] = t
+			}
+		}
+	}
+	return row
+}
+
+func (e *SelectExecutor) processAggregates(results [][]interface{}, columnNames []string, call *influxql.Call) ([][]interface{}, error) {
 	var values [][]interface{}
 
 	// Check if we have a group by, if not, rewrite the entire result by flattening it out
-	//if len(e.stmt.Dimensions) == 0 {
 	for _, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
@@ -650,20 +685,20 @@ func (e *SelectExecutor) processTopBottom(results [][]interface{}, columnNames [
 			case PositionPoints:
 				tMin := vals[0].(time.Time)
 				for _, p := range v {
-					result := e.topBottomPointToQueryResult(p, tMin, call, columnNames)
+					result := e.aggregatePointToQueryResult(p, tMin, call, columnNames)
 					values = append(values, result)
 				}
 			case nil:
 				continue
 			default:
-				return nil, fmt.Errorf("unrechable code - processTopBottom")
+				return nil, fmt.Errorf("unrechable code - processAggregates for type %T %v", v, v)
 			}
 		}
 	}
 	return values, nil
 }
 
-func (e *SelectExecutor) topBottomPointToQueryResult(p PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
+func (e *SelectExecutor) aggregatePointToQueryResult(p PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
 	tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
 	// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
 	if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
@@ -891,16 +926,15 @@ type RawQueryDerivativeProcessor struct {
 	DerivativeInterval         time.Duration
 }
 
-func (rqdp *RawQueryDerivativeProcessor) canProcess(input []*MapperValue) bool {
-	// If we only have 1 value, then the value did not change, so return
-	// a single row with 0.0
-	if len(input) == 1 {
+func (rqdp *RawQueryDerivativeProcessor) canProcess(input *MapperValue) bool {
+	// Cannot process a nil value
+	if input == nil {
 		return false
 	}
 
 	// See if the field value is numeric, if it's not, we can't process the derivative
 	validType := false
-	switch input[0].Value.(type) {
+	switch input.Value.(type) {
 	case int64:
 		validType = true
 	case float64:
@@ -915,7 +949,7 @@ func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*Mapper
 		return input
 	}
 
-	if !rqdp.canProcess(input) {
+	if len(input) == 1 {
 		return []*MapperValue{
 			&MapperValue{
 				Time:  input[0].Time,
@@ -931,6 +965,16 @@ func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*Mapper
 	derivativeValues := []*MapperValue{}
 	for i := 1; i < len(input); i++ {
 		v := input[i]
+
+		// If we can't use the current or prev value (wrong time, nil), just append
+		// nil
+		if !rqdp.canProcess(v) || !rqdp.canProcess(rqdp.LastValueFromPreviousChunk) {
+			derivativeValues = append(derivativeValues, &MapperValue{
+				Time:  v.Time,
+				Value: nil,
+			})
+			continue
+		}
 
 		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
@@ -1009,22 +1053,6 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 		}
 	}
 
-	// Check the value's type to ensure it's an numeric, if not, return a 0 result. We only check the first value
-	// because derivatives cannot be combined with other aggregates currently.
-	validType := false
-	switch results[0][1].(type) {
-	case int64:
-		validType = true
-	case float64:
-		validType = true
-	}
-
-	if !validType {
-		return [][]interface{}{
-			[]interface{}{results[0][0], 0.0},
-		}
-	}
-
 	// Otherwise calculate the derivatives as the difference between consecutive
 	// points divided by the elapsed time.  Then normalize to the requested
 	// interval.
@@ -1033,7 +1061,28 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 		prev := results[i-1]
 		cur := results[i]
 
-		if cur[1] == nil || prev[1] == nil {
+		// If current value is nil, append nil for the value
+		if prev[1] == nil || cur[1] == nil {
+			derivatives = append(derivatives, []interface{}{
+				cur[0], nil,
+			})
+			continue
+		}
+
+		// Check the value's type to ensure it's an numeric, if not, return a nil result. We only check the first value
+		// because derivatives cannot be combined with other aggregates currently.
+		validType := false
+		switch cur[1].(type) {
+		case int64:
+			validType = true
+		case float64:
+			validType = true
+		}
+
+		if !validType {
+			derivatives = append(derivatives, []interface{}{
+				cur[0], nil,
+			})
 			continue
 		}
 

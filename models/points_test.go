@@ -412,12 +412,18 @@ func TestParsePointNegativeWrongPlace(t *testing.T) {
 	}
 }
 
+func TestParsePointOnlyNegativeSign(t *testing.T) {
+	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=-`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=-`)
+	}
+}
+
 func TestParsePointFloatMultipleDecimals(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1.1.1`)
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1.1.1`)
 	}
-	println(err.Error())
 }
 
 func TestParsePointInteger(t *testing.T) {
@@ -596,6 +602,18 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			models.Fields{
 				"value ms": 1.0, // comma in the field name
+			},
+			time.Unix(0, 0)))
+
+	// tag with no value
+	test(t, `cpu,regions=east value="1"`,
+		models.NewPoint("cpu",
+			models.Tags{
+				"regions": "east",
+				"foobar":  "",
+			},
+			models.Fields{
+				"value": "1",
 			},
 			time.Unix(0, 0)))
 

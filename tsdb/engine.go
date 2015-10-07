@@ -24,7 +24,7 @@ type Engine interface {
 	Close() error
 
 	SetLogOutput(io.Writer)
-	LoadMetadataIndex(index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
+	LoadMetadataIndex(shard *Shard, index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
 	Begin(writable bool) (Tx, error)
 	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
@@ -32,8 +32,22 @@ type Engine interface {
 	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)
 
+	// PerformMaintenance will get called periodically by the store
+	PerformMaintenance()
+
+	// Format will return the format for the engine
+	Format() EngineFormat
+
 	io.WriterTo
 }
+
+type EngineFormat int
+
+const (
+	B1Format EngineFormat = iota
+	BZ1Format
+	TSM1Format
+)
 
 // NewEngineFunc creates a new engine.
 type NewEngineFunc func(path string, walPath string, options EngineOptions) Engine
@@ -57,9 +71,24 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 		return newEngineFuncs[options.EngineVersion](path, walPath, options), nil
 	}
 
-	// Only bolt-based backends are currently supported so open it and check the format.
+	// Only bolt and tsm1 based storage engines are currently supported
 	var format string
 	if err := func() error {
+		// if it's a dir then it's a tsm1 engine
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		fi, err := f.Stat()
+		f.Close()
+		if err != nil {
+			return err
+		}
+		if fi.Mode().IsDir() {
+			format = "tsm1"
+			return nil
+		}
+
 		db, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
 		if err != nil {
 			return err
@@ -121,17 +150,11 @@ func NewEngineOptions() EngineOptions {
 type Tx interface {
 	io.WriterTo
 
-	Cursor(series string, direction Direction) Cursor
 	Size() int64
 	Commit() error
 	Rollback() error
-}
 
-// Cursor represents an iterator over a series.
-type Cursor interface {
-	Seek(seek []byte) (key, value []byte)
-	Next() (key, value []byte)
-	Direction() Direction
+	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
 }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).

@@ -323,7 +323,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
 	q := &influxql.Query{
-		Statements: influxql.Statements{cq.q},
+		Statements: influxql.Statements([]influxql.Statement{cq.q}),
 	}
 
 	// Execute the SELECT.

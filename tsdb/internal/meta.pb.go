@@ -17,15 +17,17 @@ It has these top-level messages:
 package internal
 
 import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
 var _ = math.Inf
 
 type Series struct {
-	Key              *string `protobuf:"bytes,1,req" json:"Key,omitempty"`
-	Tags             []*Tag  `protobuf:"bytes,2,rep" json:"Tags,omitempty"`
+	Key              *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
+	Tags             []*Tag  `protobuf:"bytes,2,rep,name=Tags" json:"Tags,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -48,8 +50,8 @@ func (m *Series) GetTags() []*Tag {
 }
 
 type Tag struct {
-	Key              *string `protobuf:"bytes,1,req" json:"Key,omitempty"`
-	Value            *string `protobuf:"bytes,2,req" json:"Value,omitempty"`
+	Key              *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
+	Value            *string `protobuf:"bytes,2,req,name=Value" json:"Value,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -72,7 +74,7 @@ func (m *Tag) GetValue() string {
 }
 
 type MeasurementFields struct {
-	Fields           []*Field `protobuf:"bytes,1,rep" json:"Fields,omitempty"`
+	Fields           []*Field `protobuf:"bytes,1,rep,name=Fields" json:"Fields,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -88,9 +90,9 @@ func (m *MeasurementFields) GetFields() []*Field {
 }
 
 type Field struct {
-	ID               *int32  `protobuf:"varint,1,req" json:"ID,omitempty"`
-	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
-	Type             *int32  `protobuf:"varint,3,req" json:"Type,omitempty"`
+	ID               *int32  `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
+	Type             *int32  `protobuf:"varint,3,req,name=Type" json:"Type,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -117,7 +119,4 @@ func (m *Field) GetType() int32 {
 		return *m.Type
 	}
 	return 0
-}
-
-func init() {
 }

@@ -1,0 +1,43 @@
+channel_buffer_size = 100
+
+[write]
+  concurrency = 10
+  batch_size = 10000
+  batch_interval = "0s"
+  database = "stress"
+  precision = "s"
+  address = "localhost:8086"
+  reset_database = true
+  start_date = "2006-Jan-02"
+
+[[series]]
+  tick = "10s"
+  point_count = 10 # number of points that will be written for each of the series
+  measurement = "cpu"
+  series_count = 10000
+
+  tag_count = 0 # 
+
+  [[series.tag]]
+    key = "host"
+    value = "idk"
+
+  [[series.tag]]
+    key = "location"
+    value = "lame"
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  [[series.field]]
+    key = "percent"
+    type = "int"
+
+  [[series.field]]
+    key = "idk"
+    type = "bool"
+
+  [[series.field]]
+    key = "default"
+

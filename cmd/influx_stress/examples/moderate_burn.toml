@@ -1,0 +1,30 @@
+channel_buffer_size = 100
+
+[write]
+  concurrency = 10
+  batch_size = 10000
+  batch_interval = "1s"
+  database = "stress"
+  precision = "n"
+  address = "localhost:8086"
+  reset_database = true
+
+[[series]]
+  tick = "5s"
+  jitter = true
+  point_count = 10000 # number of points that will be written for each of the series
+  measurement = "cpu"
+  series_count = 100000
+
+  [[series.tag]]
+    key = "host"
+    value = "server"
+
+  [[series.tag]]
+    key = "location"
+    value = "loc"
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+

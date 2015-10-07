@@ -63,7 +63,7 @@ if [ -z "$FPM" ]; then
     FPM=`which fpm`
 fi
 
-GO_VERSION="go1.5"
+GO_VERSION="go1.5.1"
 GOPATH_INSTALL=
 BINS=(
     influxd
@@ -110,7 +110,7 @@ full_version() {
     if [ -z "$rc" ]; then
         echo $version
     else
-        echo ${VERSION}-rc${RC}
+        echo ${version}-rc${rc}
     fi
 }
 
@@ -263,7 +263,8 @@ do_build() {
         cleanup_exit 1
     fi
 
-    go install -a -ldflags="-X main.version=$version -X main.branch=$branch -X main.commit=$commit" ./...
+    date=`date -u --iso-8601=seconds`
+    go install -a -ldflags="-X main.version=$version -X main.branch=$branch -X main.commit=$commit -X main.buildTime='$date'" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1
@@ -316,21 +317,6 @@ mkdir -p $INFLUXDB_DATA_DIR
 chown -R -L influxdb:influxdb $INFLUXDB_DATA_DIR
 EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
-}
-
-generate_postuninstall_script() {
-    cat << EOF >$POST_UNINSTALL_PATH
-#!/bin/sh
-if [ -d $INSTALL_ROOT_DIR ]; then
-    rm -r "$INSTALL_ROOT_DIR"
-fi
-
-id influxdb 2>/dev/null 1>/dev/null
-if [ $? -eq 0 ]; then
-    userdel -r influxdb
-fi
-EOF
-    echo "Post-uninstall script created successfully at $POST_UNINSTALL_PATH"
 }
 
 ###########################################################################
@@ -482,7 +468,6 @@ if [ $? -ne 0 ]; then
 fi
 
 generate_postinstall_script `full_version $VERSION $RC`
-generate_postuninstall_script
 
 ###########################################################################
 # Create the actual packages.

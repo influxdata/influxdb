@@ -125,19 +125,61 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 	e.Store.PeersFn = func() ([]string, error) {
 		return []string{"node0"}, nil
 	}
+	e.Store.LeaderFn = func() string {
+		return "node0"
+	}
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
-			Columns: []string{"id", "cluster_addr", "raft"},
+			Columns: []string{"id", "cluster_addr", "raft", "raft-leader"},
 			Values: [][]interface{}{
-				{uint64(1), "node0", true},
-				{uint64(2), "node1", false},
+				{uint64(1), "node0", true, true},
+				{uint64(2), "node1", false, false},
 			},
 		},
 	}) {
 		t.Fatalf("unexpected rows: %s", spew.Sdump(res.Series))
+	}
+}
+
+// Ensure a DROP SERVER statement can be executed.
+func TestStatementExecutor_ExecuteStatement_DropServer(t *testing.T) {
+	e := NewStatementExecutor()
+	e.Store.PeersFn = func() ([]string, error) {
+		return []string{"node1"}, nil
+	}
+
+	// Ensure non-existent nodes do not cause a problem.
+	e.Store.NodeFn = func(id uint64) (*meta.NodeInfo, error) {
+		return nil, nil
+	}
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 666`)); res.Err != meta.ErrNodeNotFound {
+		t.Fatalf("unexpected error: %s", res.Err)
+	}
+
+	// Make a node exist.
+	e.Store.NodeFn = func(id uint64) (*meta.NodeInfo, error) {
+		return &meta.NodeInfo{
+			ID: 1, Host: "node1",
+		}, nil
+	}
+
+	// Ensure Raft nodes cannot be dropped.
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 1`)); res.Err != meta.ErrNodeRaft {
+		t.Fatalf("unexpected error: %s", res.Err)
+	}
+
+	// Ensure non-Raft nodes can be dropped.
+	e.Store.PeersFn = func() ([]string, error) {
+		return []string{"node2"}, nil
+	}
+	e.Store.DeleteNodeFn = func(id uint64, force bool) error {
+		return nil
+	}
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 1`)); res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
 
@@ -832,12 +874,15 @@ func NewStatementExecutor() *StatementExecutor {
 
 // StatementExecutorStore represents a mock implementation of StatementExecutor.Store.
 type StatementExecutorStore struct {
+	NodeFn                      func(id uint64) (*meta.NodeInfo, error)
 	NodesFn                     func() ([]meta.NodeInfo, error)
 	PeersFn                     func() ([]string, error)
+	LeaderFn                    func() string
 	DatabaseFn                  func(name string) (*meta.DatabaseInfo, error)
 	DatabasesFn                 func() ([]meta.DatabaseInfo, error)
 	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
 	DropDatabaseFn              func(name string) error
+	DeleteNodeFn                func(nodeID uint64, force bool) error
 	DefaultRetentionPolicyFn    func(database string) (*meta.RetentionPolicyInfo, error)
 	CreateRetentionPolicyFn     func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	UpdateRetentionPolicyFn     func(database, name string, rpu *meta.RetentionPolicyUpdate) error
@@ -856,12 +901,27 @@ type StatementExecutorStore struct {
 	DropContinuousQueryFn       func(database, name string) error
 }
 
+func (s *StatementExecutorStore) Node(id uint64) (*meta.NodeInfo, error) {
+	return s.NodeFn(id)
+}
+
 func (s *StatementExecutorStore) Nodes() ([]meta.NodeInfo, error) {
 	return s.NodesFn()
 }
 
 func (s *StatementExecutorStore) Peers() ([]string, error) {
 	return s.PeersFn()
+}
+
+func (s *StatementExecutorStore) Leader() string {
+	if s.LeaderFn != nil {
+		return s.LeaderFn()
+	}
+	return ""
+}
+
+func (s *StatementExecutorStore) DeleteNode(nodeID uint64, force bool) error {
+	return s.DeleteNodeFn(nodeID, force)
 }
 
 func (s *StatementExecutorStore) Database(name string) (*meta.DatabaseInfo, error) {

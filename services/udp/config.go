@@ -21,10 +21,11 @@ type Config struct {
 	Enabled     bool   `toml:"enabled"`
 	BindAddress string `toml:"bind-address"`
 
-	Database     string        `toml:"database"`
-	BatchSize    int           `toml:"batch-size"`
-	BatchPending int           `toml:"batch-pending"`
-	BatchTimeout toml.Duration `toml:"batch-timeout"`
+	Database        string        `toml:"database"`
+	RetentionPolicy string        `toml:"retention-policy"`
+	BatchSize       int           `toml:"batch-size"`
+	BatchPending    int           `toml:"batch-pending"`
+	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 }
 
 // WithDefaults takes the given config and returns a new config with any required

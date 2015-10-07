@@ -1,0 +1,47 @@
+channel_buffer_size = 100000
+
+[write]
+  concurrency = 10
+  batch_size = 10000
+  batch_interval = "0s"
+  database = "stress"
+  precision = "s"
+  address = "localhost:8086"
+  reset_database = true
+  start_date = "2006-Jan-02"
+
+[[series]]
+  tick = "5s"
+  jitter = false
+  point_count = 10000 # number of points that will be written for each of the series
+  measurement = "cpu"
+  series_count = 10000
+
+ # tag_count = 20 # number of "generic" tags on a series (e.g. tag-key-1=tag-value, ... ,tag-key-20=tag-value)
+
+  [[series.tag]]
+    key = "host"
+    value = "server"
+
+  [[series.tag]]
+    key = "location"
+    value = "loc"
+
+  [[series.field]]
+    key = "value"
+    type = "float64"
+
+  # Doesnt work as expected
+##  [[series.field]]
+##    key = "value-2"
+##    type = "float64-inc"
+##
+##  [[series.field]]
+##    key = "value-3"
+##    type = "float64-inc+"
+
+ # Has 80% probability of being a constant value
+  [[series.field]]
+    key = "flat_value"
+    type = "float64-flat"
+

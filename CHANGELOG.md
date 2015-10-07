@@ -4,13 +4,42 @@
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
 - [#4140](https://github.com/influxdb/influxdb/pull/4140): Make storage engine configurable
+- [#4161](https://github.com/influxdb/influxdb/pull/4161): Implement bottom selector function
+- [#4204](https://github.com/influxdb/influxdb/pull/4204): Allow module-level selection for SHOW STATS
+- [#4208](https://github.com/influxdb/influxdb/pull/4208): Allow module-level selection for SHOW DIAGNOSTICS
+- [#4196](https://github.com/influxdb/influxdb/pull/4196): Export tsdb.Iterator
+- [#4198](https://github.com/influxdb/influxdb/pull/4198): Add basic cluster-service stats
+- [#4262](https://github.com/influxdb/influxdb/pull/4262): Allow configuration of UDP retention policy
+- [#4265](https://github.com/influxdb/influxdb/pull/4265): Add statistics for Hinted-Handoff
+- [#4284](https://github.com/influxdb/influxdb/pull/4284): Add exponential backoff for hinted-handoff failures
+- [#4310](https://github.com/influxdb/influxdb/pull/4310): Support dropping non-Raft nodes. Work mostly by @corylanou
 
 ### Bugfixes
+- [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
 - [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
+- [#4225](https://github.com/influxdb/influxdb/pull/4225): Always display diags in name-sorted order
 - [#4111](https://github.com/influxdb/influxdb/pull/4111): Update pre-commit hook for go vet composites
 - [#4136](https://github.com/influxdb/influxdb/pull/4136): Return an error-on-write if target retention policy does not exist. Thanks for the report @ymettier
+- [#4228](https://github.com/influxdb/influxdb/pull/4228): Add build timestamp to version information.
 - [#4124](https://github.com/influxdb/influxdb/issues/4124): Missing defer/recover/panic idiom in HTTPD service
-- [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to _internal
+- [#4238](https://github.com/influxdb/influxdb/pull/4238): Fully disable hinted-handoff service if so requested.
+- [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to internal database.
+- [#4118](https://github.com/influxdb/influxdb/issues/4118): Return consistent, correct result for SHOW MEASUREMENTS with multiple AND conditions
+- [#4191](https://github.com/influxdb/influxdb/pull/4191): Correctly marshal remote mapper responses. Fixes [#4170](https://github.com/influxdb/influxdb/issues/4170)
+- [#4222](https://github.com/influxdb/influxdb/pull/4222): Graphite TCP connections should not block shutdown
+- [#4180](https://github.com/influxdb/influxdb/pull/4180): Cursor & SelectMapper Refactor
+- [#1577](https://github.com/influxdb/influxdb/issues/1577): selectors (e.g. min, max, first, last) should have equivalents to return the actual point
+- [#4264](https://github.com/influxdb/influxdb/issues/4264): Refactor map functions to use list of values
+- [#4278](https://github.com/influxdb/influxdb/pull/4278): Fix error marshalling across the cluster
+- [#4149](https://github.com/influxdb/influxdb/pull/4149): Fix derivative unnecessarily requires aggregate function.  Thanks @peekeri!
+- [#4237](https://github.com/influxdb/influxdb/issues/4237): DERIVATIVE() edge conditions
+- [#4263](https://github.com/influxdb/influxdb/issues/4263): derivative does not work when data is missing
+- [#4293](https://github.com/influxdb/influxdb/pull/4293): Ensure shell is invoked when touching PID file. Thanks @christopherjdickson
+- [#4296](https://github.com/influxdb/influxdb/pull/4296): Reject line protocol ending with '-'. Fixes [#4272](https://github.com/influxdb/influxdb/issues/4272)
+- [#4333](https://github.com/influxdb/influxdb/pull/4333): Retry monitor storage creation and only on Leader.
+- [#4276](https://github.com/influxdb/influxdb/issues/4276): Walk DropSeriesStatement & check for empty sources
+- [#4342](https://github.com/influxdb/influxdb/pull/4342): Fix mixing aggregates and math with non-aggregates. Thanks @kostya-sh.
+- [#4349](https://github.com/influxdb/influxdb/issues/4349): If HH can't unmarshal a block, skip that block.
 
 ## v0.9.4 [2015-09-14]
 

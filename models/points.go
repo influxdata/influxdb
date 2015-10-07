@@ -560,6 +560,10 @@ func scanNumber(buf []byte, i int) (int, error) {
 	// Is negative number?
 	if i < len(buf) && buf[i] == '-' {
 		i += 1
+		// There must be more characters now, as just '-' is illegal.
+		if i == len(buf) {
+			return i, fmt.Errorf("invalid number")
+		}
 	}
 
 	// how many decimal points we've see
@@ -1017,6 +1021,10 @@ func (p *point) Tags() Tags {
 			i, key = scanTo(p.key, i, '=')
 			i, value = scanTagValue(p.key, i+1)
 
+			if len(value) == 0 {
+				continue
+			}
+
 			tags[string(unescapeTag(key))] = string(unescapeTag(value))
 
 			i += 1
@@ -1137,7 +1145,10 @@ func (t Tags) HashKey() []byte {
 	for k, v := range t {
 		ek := escapeTag([]byte(k))
 		ev := escapeTag([]byte(v))
-		escaped[string(ek)] = string(ev)
+
+		if len(ev) > 0 {
+			escaped[string(ek)] = string(ev)
+		}
 	}
 
 	// Extract keys and determine final size.
