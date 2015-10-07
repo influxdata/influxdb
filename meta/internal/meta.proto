@@ -105,7 +105,7 @@ message Command {
 		SetDataCommand                   = 17;
 		SetAdminPrivilegeCommand         = 18;
 		UpdateNodeCommand                = 19;
-                RenameDatabaseCommand            = 20;
+		RenameDatabaseCommand            = 20;
     }
 
     required Type type = 1;
