@@ -7,7 +7,6 @@ import (
 )
 
 func TestFloatEncoder_Simple(t *testing.T) {
-
 	// Example from the paper
 	s := tsm1.NewFloatEncoder()
 
@@ -46,6 +45,49 @@ func TestFloatEncoder_Simple(t *testing.T) {
 		24,
 		24,
 		24,
+	}
+
+	for _, w := range want {
+		if !it.Next() {
+			t.Fatalf("Next()=false, want true")
+		}
+		vv := it.Values()
+		if w != vv {
+			t.Errorf("Values()=(%v), want (%v)\n", vv, w)
+		}
+	}
+
+	if it.Next() {
+		t.Fatalf("Next()=true, want false")
+	}
+
+	if err := it.Error(); err != nil {
+		t.Errorf("it.Error()=%v, want nil", err)
+	}
+}
+
+func TestFloatEncoder_SimilarFloats(t *testing.T) {
+	s := tsm1.NewFloatEncoder()
+	want := []float64{
+		6.00065e+06,
+		6.000656e+06,
+		6.000657e+06,
+
+		6.000659e+06,
+		6.000661e+06,
+	}
+
+	for _, v := range want {
+		s.Push(v)
+	}
+
+	s.Finish()
+
+	b := s.Bytes()
+
+	it, err := tsm1.NewFloatDecoder(b)
+	if err != nil {
+		t.Fatalf("unexpected error creating float decoder: %v", err)
 	}
 
 	for _, w := range want {
