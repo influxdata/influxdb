@@ -16,10 +16,12 @@ var (
 	ErrFieldTypeConflict = errors.New("field type conflict")
 )
 
-// ErrDatabaseNotFound indicates that a database operation failed on the specified database.
+// ErrDatabaseNotFound indicates that a database operation failed on the
+// specified database because the specified database does not exist.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
-// ErrRetentionPolicyNotFound indicates that the named retention policy could not be found in the database.
+// ErrRetentionPolicyNotFound indicates that the named retention policy could
+// not be found in the database.
 func ErrRetentionPolicyNotFound(name string) error {
 	return fmt.Errorf("retention policy not found: %s", name)
 }
