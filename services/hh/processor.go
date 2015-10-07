@@ -103,10 +103,9 @@ func (p *Processor) loadQueues() error {
 	return nil
 }
 
+// addQueue adds a hinted-handoff queue for the given node. This function is not thread-safe
+// and the caller must ensure this function is not called concurrently.
 func (p *Processor) addQueue(nodeID uint64) (*queue, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	path := filepath.Join(p.dir, strconv.FormatUint(nodeID, 10))
 	if err := os.MkdirAll(path, 0700); err != nil {
 		return nil, err
@@ -128,11 +127,27 @@ func (p *Processor) addQueue(nodeID uint64) (*queue, error) {
 	return queue, nil
 }
 
+// WriteShard writes hinted-handoff data for the given shard and node. Since it may manipulate
+// hinted-handoff queues, and be called concurrently, it takes a lock during queue access.
 func (p *Processor) WriteShard(shardID, ownerID uint64, points []models.Point) error {
+	p.mu.RLock()
 	queue, ok := p.queues[ownerID]
+	p.mu.RUnlock()
 	if !ok {
-		var err error
-		if queue, err = p.addQueue(ownerID); err != nil {
+		if err := func() error {
+			// Check again under write-lock.
+			p.mu.Lock()
+			defer p.mu.Unlock()
+
+			queue, ok = p.queues[ownerID]
+			if !ok {
+				var err error
+				if queue, err = p.addQueue(ownerID); err != nil {
+					return err
+				}
+			}
+			return nil
+		}(); err != nil {
 			return err
 		}
 	}
