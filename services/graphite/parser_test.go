@@ -670,8 +670,8 @@ func TestApplyTemplateFieldError(t *testing.T) {
 	}
 
 	_, _, _, err = p.ApplyTemplate("current.users.logged_in")
-  if err == nil {
-    t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s", err,
-      "'field' can only be used once in each template: current.users.logged_in")
-  }
+	if err == nil {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s", err,
+			"'field' can only be used once in each template: current.users.logged_in")
+	}
 }
