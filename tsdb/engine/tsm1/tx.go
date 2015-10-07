@@ -63,6 +63,10 @@ func (t *tx) Rollback() error {
 	return nil
 }
 
+func (t *tx) Close() error {
+	return t.Rollback()
+}
+
 // TODO: refactor the Tx interface to not have Size, Commit, or WriteTo since they're not used
 func (t *tx) Size() int64                              { panic("not implemented") }
 func (t *tx) Commit() error                            { panic("not implemented") }
