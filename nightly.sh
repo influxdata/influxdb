@@ -21,8 +21,8 @@ function send_failure_notification {
         --body "The nightly build has failed, version: $version"
 }
 
-if [ $# -ne 4 ]; then
-    echo "$0 <smtp server> <user> <password> <to>"
+if [ $# -lt 4 ]; then
+    echo "$0 <smtp server> <user> <password> <to> [RACE_ENABLED]"
     exit 1
 fi
 SMTP=$1
@@ -33,6 +33,7 @@ RACE_ENABLED=$5
 
 if [ -n "$RACE_ENABLED" ]; then
     race="-x"
+    echo "Race-detection build enabled."
 fi
 
 REPO_DIR=`mktemp -d`
