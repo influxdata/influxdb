@@ -99,10 +99,10 @@ type Client struct {
 }
 
 const (
-	ConsistencyOne    = "one"
-	ConsistencyAll    = "all"
-	ConsistencyQuorum = "quorum"
-	ConsistencyAny    = "any"
+	consistencyOne    = "one"
+	consistencyAll    = "all"
+	consistencyQuorum = "quorum"
+	consistencyAny    = "any"
 )
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
@@ -201,7 +201,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 				p.Tags[k] = v
 			}
 
-			if _, err := b.WriteString(p.MarshalString()); err != nil {
+			if _, err := b.WriteString(p.marshalString()); err != nil {
 				return nil, err
 			}
 		}
@@ -464,7 +464,7 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&point)
 }
 
-func (p *Point) MarshalString() string {
+func (p *Point) marshalString() string {
 	pt := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
 	if p.Precision == "" || p.Precision == "ns" || p.Precision == "n" {
 		return pt.String()
