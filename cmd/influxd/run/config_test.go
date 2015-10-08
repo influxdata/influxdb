@@ -45,6 +45,9 @@ bind-address = ":4444"
 [monitoring]
 enabled = true
 
+[subscriber]
+enabled = true
+
 [continuous_queries]
 enabled = true
 `, &c); err != nil {
@@ -72,6 +75,8 @@ enabled = true
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
 	} else if c.UDPs[0].BindAddress != ":4444" {
 		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
+	} else if c.Subscriber.Enabled != true {
+		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
 		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
 	}

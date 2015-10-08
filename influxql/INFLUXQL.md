@@ -82,16 +82,17 @@ _cpu_stats
 ## Keywords
 
 ```
-ALL          ALTER        AS           ASC          BEGIN        BY
-CREATE       CONTINUOUS   DATABASE     DATABASES    DEFAULT      DELETE
-DESC         DROP         DURATION     END          EXISTS       EXPLAIN
-FIELD        FROM         GRANT        GROUP        IF           IN
-INNER        INSERT       INTO         KEY          KEYS         LIMIT
-SHOW         MEASUREMENT  MEASUREMENTS NOT          OFFSET       ON
-ORDER        PASSWORD     POLICY       POLICIES     PRIVILEGES   QUERIES
-QUERY        READ         REPLICATION  RETENTION    REVOKE       SELECT
-SERIES       SLIMIT       SOFFSET      TAG          TO           USER
-USERS        VALUES       WHERE        WITH         WRITE
+ALL           ALTER         ANY           AS            ASC           BEGIN
+BY            CREATE        CONTINUOUS    DATABASE      DATABASES     DEFAULT
+DELETE        DESC          DESTINATIONS  DROP          DURATION      END
+EXISTS        EXPLAIN       FIELD         FROM          GRANT         GROUP
+IF            IN            INNER         INSERT        INTO          KEY
+KEYS          LIMIT         SHOW          MEASUREMENT   MEASUREMENTS  NOT
+OFFSET        ON            ORDER         PASSWORD      POLICY        POLICIES
+PRIVILEGES    QUERIES       QUERY         READ          REPLICATION   RETENTION
+REVOKE        SELECT        SERIES        SLIMIT        SOFFSET       SUBSCRIPTION
+SUBSCRIPTIONS TAG           TO            USER          USERS         VALUES
+WHERE         WITH          WRITE
 ```
 
 ## Literals
@@ -174,12 +175,14 @@ statement           = alter_retention_policy_stmt |
                       create_database_stmt |
                       create_retention_policy_stmt |
                       create_user_stmt |
+                      create_subscription_stmt |
                       delete_stmt |
                       drop_continuous_query_stmt |
                       drop_database_stmt |
                       drop_measurement_stmt |
                       drop_retention_policy_stmt |
                       drop_series_stmt |
+                      drop_subscription_stmt |
                       drop_user_stmt |
                       grant_stmt |
                       show_continuous_queries_stmt |
@@ -189,6 +192,7 @@ statement           = alter_retention_policy_stmt |
                       show_retention_policies |
                       show_series_stmt |
                       show_shards_stmt |
+                      show_subscriptions_stmt|
                       show_tag_keys_stmt |
                       show_tag_values_stmt |
                       show_users_stmt |
@@ -292,6 +296,22 @@ CREATE RETENTION POLICY "10m.events" ON somedb DURATION 10m REPLICATION 2;
 CREATE RETENTION POLICY "10m.events" ON somedb DURATION 10m REPLICATION 2 DEFAULT;
 ```
 
+### CREATE SUBSCRIPTION
+
+```
+create_subscription_stmt = "CREATE SUBSCRIPTION" subscription_name "ON" db_name "." retention_policy "DESTINATIONS" ("ANY"|"ALL") host { "," host} .
+```
+
+#### Examples:
+
+```sql
+-- Create a SUBSCRIPTION on database 'mydb' and retention policy 'default' that send data to 'example.com:9090' via UDP.
+CREATE SUBSCRIPTION sub0 ON "mydb"."default" DESTINATIONS ALL 'udp://example.com:9090' ;
+
+-- Create a SUBSCRIPTION on database 'mydb' and retention policy 'default' that round robins the data to 'h1.example.com:9090' and 'h2.example.com:9090'.
+CREATE SUBSCRIPTION sub0 ON "mydb"."default" DESTINATIONS ANY 'udp://h1.example.com:9090', 'udp://h2.example.com:9090';
+```
+
 ### CREATE USER
 
 ```
@@ -379,6 +399,19 @@ drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ]
 #### Example:
 
 ```sql
+
+```
+
+### DROP SUBSCRIPTION
+
+```
+drop_subscription_stmt = "DROP SUBSCRIPTION" subscription_name "ON" db_name "." retention_policy .
+```
+
+#### Example:
+
+```sql
+DROP SUBSCRIPTION sub0 ON "mydb"."default";
 
 ```
 
@@ -500,6 +533,18 @@ show_shards_stmt = "SHOW SHARDS" .
 
 ```sql
 SHOW SHARDS;
+```
+
+### SHOW SUBSCRIPTIONS
+
+```
+show_subscriptions_stmt = "SHOW SUBSCRIPTIONS" .
+```
+
+#### Example:
+
+```sql
+SHOW SUBSCRIPTIONS;
 ```
 
 ### SHOW TAG KEYS

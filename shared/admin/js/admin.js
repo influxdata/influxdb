@@ -309,9 +309,11 @@ var TableHeader = React.createClass({
 
 var TableBody = React.createClass({
     render: function() {
-        var tableRows = this.props.data.values.map(function (row) {
-            return React.createElement(TableRow, {data: row});
-        });
+        if (this.props.data.values) {
+            var tableRows = this.props.data.values.map(function (row) {
+                return React.createElement(TableRow, {data: row});
+            });
+        }
 
         return React.createElement("tbody", null, tableRows);
     }

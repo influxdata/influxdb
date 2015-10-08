@@ -38,6 +38,7 @@ message RetentionPolicyInfo {
 	required int64 ShardGroupDuration = 3;
 	required uint32 ReplicaN = 4;
 	repeated ShardGroupInfo ShardGroups = 5;
+	repeated SubscriptionInfo Subscriptions = 6;
 }
 
 message ShardGroupInfo {
@@ -52,6 +53,12 @@ message ShardInfo {
     required uint64 ID = 1;
     repeated uint64 OwnerIDs = 2 [deprecated=true];
     repeated ShardOwner Owners = 3;
+}
+
+message SubscriptionInfo{
+	required string Name = 1;
+	required string Mode = 2;
+	repeated string Destinations = 3;
 }
 
 message ShardOwner {
@@ -106,6 +113,8 @@ message Command {
 		SetAdminPrivilegeCommand         = 18;
 		UpdateNodeCommand                = 19;
 		RenameDatabaseCommand            = 20;
+		CreateSubscriptionCommand        = 22;
+		DropSubscriptionCommand          = 23;
     }
 
     required Type type = 1;
@@ -271,8 +280,29 @@ message RenameDatabaseCommand {
     extend Command {
         optional RenameDatabaseCommand command = 120;
     }
-	required string oldName = 1;
-	required string newName = 2;
+    required string oldName = 1;
+    required string newName = 2;
+}
+
+message CreateSubscriptionCommand {
+    extend Command {
+        optional CreateSubscriptionCommand command = 121;
+    }
+    required string Name = 1;
+    required string Database = 2;
+    required string RetentionPolicy = 3;
+    required string Mode = 4;
+    repeated string Destinations = 5;
+
+}
+
+message DropSubscriptionCommand {
+    extend Command {
+        optional DropSubscriptionCommand command = 122;
+    }
+    required string Name = 1;
+    required string Database = 2;
+    required string RetentionPolicy = 3;
 }
 
 message Response {

@@ -85,6 +85,7 @@ func (*AlterRetentionPolicyStatement) node()  {}
 func (*CreateContinuousQueryStatement) node() {}
 func (*CreateDatabaseStatement) node()        {}
 func (*CreateRetentionPolicyStatement) node() {}
+func (*CreateSubscriptionStatement) node()    {}
 func (*CreateUserStatement) node()            {}
 func (*Distinct) node()                       {}
 func (*DeleteStatement) node()                {}
@@ -94,6 +95,7 @@ func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
 func (*DropServerStatement) node()            {}
+func (*DropSubscriptionStatement) node()      {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
@@ -111,6 +113,7 @@ func (*ShowMeasurementsStatement) node()      {}
 func (*ShowSeriesStatement) node()            {}
 func (*ShowShardsStatement) node()            {}
 func (*ShowStatsStatement) node()             {}
+func (*ShowSubscriptionsStatement) node()     {}
 func (*ShowDiagnosticsStatement) node()       {}
 func (*ShowTagKeysStatement) node()           {}
 func (*ShowTagValuesStatement) node()         {}
@@ -194,6 +197,7 @@ func (*AlterRetentionPolicyStatement) stmt()  {}
 func (*CreateContinuousQueryStatement) stmt() {}
 func (*CreateDatabaseStatement) stmt()        {}
 func (*CreateRetentionPolicyStatement) stmt() {}
+func (*CreateSubscriptionStatement) stmt()    {}
 func (*CreateUserStatement) stmt()            {}
 func (*DeleteStatement) stmt()                {}
 func (*DropContinuousQueryStatement) stmt()   {}
@@ -202,6 +206,7 @@ func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
 func (*DropServerStatement) stmt()            {}
+func (*DropSubscriptionStatement) stmt()      {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
@@ -215,6 +220,7 @@ func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
 func (*ShowShardsStatement) stmt()            {}
 func (*ShowStatsStatement) stmt()             {}
+func (*ShowSubscriptionsStatement) stmt()     {}
 func (*ShowDiagnosticsStatement) stmt()       {}
 func (*ShowTagKeysStatement) stmt()           {}
 func (*ShowTagValuesStatement) stmt()         {}
@@ -2080,6 +2086,65 @@ func (s *ShowDiagnosticsStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowDiagnosticsStatement
 func (s *ShowDiagnosticsStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// CreateSubscriptionStatement represents a command to add a subscription to the incoming data stream
+type CreateSubscriptionStatement struct {
+	Name            string
+	Database        string
+	RetentionPolicy string
+	Destinations    []string
+	Mode            string
+}
+
+// String returns a string representation of the CreateSubscriptionStatement.
+func (s *CreateSubscriptionStatement) String() string {
+	var destinations bytes.Buffer
+	for i, dest := range s.Destinations {
+		if i != 0 {
+			destinations.Write([]byte(`, `))
+		}
+		destinations.Write([]byte(`'`))
+		destinations.Write([]byte(dest))
+		destinations.Write([]byte(`'`))
+	}
+	return fmt.Sprintf(`CREATE SUBSCRIPTION "%s" ON "%s"."%s" DESTINATIONS %s %s `, s.Name, s.Database, s.RetentionPolicy, s.Mode, string(destinations.Bytes()))
+}
+
+// RequiredPrivileges returns the privilege required to execute a CreateSubscriptionStatement
+func (s *CreateSubscriptionStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// DropSubscriptionStatement represents a command to drop a subscription to the incoming data stream.
+type DropSubscriptionStatement struct {
+	Name            string
+	Database        string
+	RetentionPolicy string
+}
+
+// String returns a string representation of the DropSubscriptionStatement.
+func (s *DropSubscriptionStatement) String() string {
+	return fmt.Sprintf(`DROP SUBSCRIPTION "%s" ON "%s"."%s"`, s.Name, s.Database, s.RetentionPolicy)
+}
+
+// RequiredPrivileges returns the privilege required to execute a DropSubscriptionStatement
+func (s *DropSubscriptionStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// ShowSubscriptionsStatement represents a command to show a list of subscriptions.
+type ShowSubscriptionsStatement struct {
+}
+
+// String returns a string representation of the ShowSubscriptionStatement.
+func (s *ShowSubscriptionsStatement) String() string {
+	return "SHOW SUBSCRIPTIONS"
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowSubscriptionStatement
+func (s *ShowSubscriptionsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 

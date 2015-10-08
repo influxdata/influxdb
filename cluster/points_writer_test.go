@@ -308,11 +308,19 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			return nil, nil
 		}
 		ms.NodeIDFn = func() uint64 { return 1 }
+
+		subPoints := make(chan *cluster.WritePointsRequest, 1)
+		sub := Subscriber{}
+		sub.PointsFn = func() chan<- *cluster.WritePointsRequest {
+			return subPoints
+		}
+
 		c := cluster.NewPointsWriter()
 		c.MetaStore = ms
 		c.ShardWriter = sw
 		c.TSDBStore = store
 		c.HintedHandoff = hh
+		c.Subscriber = sub
 
 		err := c.WritePoints(pr)
 		if err == nil && test.expErr != nil {
@@ -324,6 +332,16 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 		if err != nil && test.expErr != nil && err.Error() != test.expErr.Error() {
 			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+		}
+		if test.expErr == nil {
+			select {
+			case p := <-subPoints:
+				if p != pr {
+					t.Errorf("PointsWriter.WritePoints(): '%s' error: unexpected WritePointsRequest got %v, exp %v", test.name, p, pr)
+				}
+			default:
+				t.Errorf("PointsWriter.WritePoints(): '%s' error: Subscriber.Points not called", test.name)
+			}
 		}
 	}
 }
@@ -404,6 +422,14 @@ func (m MetaStore) Database(database string) (*meta.DatabaseInfo, error) {
 
 func (m MetaStore) ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo) {
 	return m.ShardOwnerFn(shardID)
+}
+
+type Subscriber struct {
+	PointsFn func() chan<- *cluster.WritePointsRequest
+}
+
+func (s Subscriber) Points() chan<- *cluster.WritePointsRequest {
+	return s.PointsFn()
 }
 
 func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {

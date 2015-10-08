@@ -19,6 +19,7 @@
 - [#4291](https://github.com/influxdb/influxdb/pull/4291): Added ALTER DATABASE RENAME. Thanks @linearb
 - [#4409](https://github.com/influxdb/influxdb/pull/4291): wire up INTO queries.
 - [#4379](https://github.com/influxdb/influxdb/pull/4379): Auto-create database for UDP input.
+- [#4375](https://github.com/influxdb/influxdb/pull/4375): Add Subscriptions so data can be 'forked' out of InfluxDB to another third party.
 
 ### Bugfixes
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
@@ -62,6 +63,7 @@
 - [#4434](https://github.com/influxdb/influxdb/pull/4434): Allow 'E' for scientific values. Fixes [#4433](https://github.com/influxdb/influxdb/issues/4433)
 - [#4431](https://github.com/influxdb/influxdb/issues/4431): Add tsm1 WAL QuickCheck
 - [#4438](https://github.com/influxdb/influxdb/pull/4438): openTSDB service shutdown fixes
+- [#3820](https://github.com/influxdb/influxdb/issues/3820): Fix js error in admin UI.
 
 ## v0.9.4 [2015-09-14]
 
