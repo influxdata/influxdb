@@ -2,7 +2,9 @@ package tsm1_test
 
 import (
 	"math"
+	"reflect"
 	"testing"
+	"testing/quick"
 
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
@@ -253,6 +255,39 @@ func Test_Int64Encoder_AllNegative(t *testing.T) {
 		t.Fatalf("failed to read enough values: got %v, exp %v", i, len(values))
 	}
 
+}
+
+func Test_Int64Encoder_Quick(t *testing.T) {
+	quick.Check(func(values []int64) bool {
+		// Write values to encoder.
+		enc := tsm1.NewInt64Encoder()
+		for _, v := range values {
+			enc.Write(v)
+		}
+
+		// Retrieve encoded bytes from encoder.
+		buf, err := enc.Bytes()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Read values out of decoder.
+		got := make([]int64, 0, len(values))
+		dec := tsm1.NewInt64Decoder(buf)
+		for dec.Next() {
+			if err := dec.Error(); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, dec.Read())
+		}
+
+		// Verify that input and output values match.
+		if !reflect.DeepEqual(values, got) {
+			t.Fatalf("mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", values, got)
+		}
+
+		return true
+	}, nil)
 }
 
 func BenchmarkInt64Encoder(b *testing.B) {

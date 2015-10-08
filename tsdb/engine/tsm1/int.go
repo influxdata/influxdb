@@ -2,7 +2,7 @@ package tsm1
 
 // Int64 encoding uses two different strategies depending on the range of values in
 // the uncompressed data.  Encoded values are first encoding used zig zag encoding.
-// This interleaves postiive and negative integers across a range of positive integers.
+// This interleaves positive and negative integers across a range of positive integers.
 //
 // For example, [-2,-1,0,1] becomes [3,1,0,2]. See
 // https://developers.google.com/protocol-buffers/docs/encoding?hl=en#signed-integers

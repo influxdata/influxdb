@@ -1,7 +1,9 @@
 package tsm1_test
 
 import (
+	"reflect"
 	"testing"
+	"testing/quick"
 
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
@@ -172,6 +174,34 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 	if err := it.Error(); err != nil {
 		t.Errorf("it.Error()=%v, want nil", err)
 	}
+}
+
+func Test_FloatEncoder_Quick(t *testing.T) {
+	quick.Check(func(values []float64) bool {
+		// Write values to encoder.
+		enc := tsm1.NewFloatEncoder()
+		for _, v := range values {
+			enc.Push(v)
+		}
+		enc.Finish()
+
+		// Read values out of decoder.
+		got := make([]float64, 0, len(values))
+		dec, err := tsm1.NewFloatDecoder(enc.Bytes())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for dec.Next() {
+			got = append(got, dec.Values())
+		}
+
+		// Verify that input and output values match.
+		if !reflect.DeepEqual(values, got) {
+			t.Fatalf("mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", values, got)
+		}
+
+		return true
+	}, nil)
 }
 
 func BenchmarkFloatEncoder(b *testing.B) {

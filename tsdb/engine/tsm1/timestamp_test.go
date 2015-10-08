@@ -1,7 +1,9 @@
 package tsm1
 
 import (
+	"reflect"
 	"testing"
+	"testing/quick"
 	"time"
 )
 
@@ -351,6 +353,41 @@ func Test_TimeEncoder_220SecondDelta(t *testing.T) {
 	if dec.Next() {
 		t.Fatalf("expecte Next() = false, got true")
 	}
+}
+
+func Test_TimeEncoder_Quick(t *testing.T) {
+	quick.Check(func(values []int64) bool {
+		// Write values to encoder.
+		enc := NewTimeEncoder()
+		exp := make([]time.Time, len(values))
+		for i, v := range values {
+			exp[i] = time.Unix(0, v)
+			enc.Write(exp[i])
+		}
+
+		// Retrieve encoded bytes from encoder.
+		buf, err := enc.Bytes()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Read values out of decoder.
+		got := make([]time.Time, 0, len(values))
+		dec := NewTimeDecoder(buf)
+		for dec.Next() {
+			if err := dec.Error(); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, dec.Read())
+		}
+
+		// Verify that input and output values match.
+		if !reflect.DeepEqual(exp, got) {
+			t.Fatalf("mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", exp, got)
+		}
+
+		return true
+	}, nil)
 }
 
 func BenchmarkTimeEncoder(b *testing.B) {
