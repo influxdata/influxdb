@@ -276,6 +276,7 @@ func TestScanRegex(t *testing.T) {
 		{in: `/foo\/bar/`, tok: influxql.REGEX, lit: `foo/bar`},
 		{in: `/foo\\/bar/`, tok: influxql.REGEX, lit: `foo\/bar`},
 		{in: `/foo\\bar/`, tok: influxql.REGEX, lit: `foo\\bar`},
+		{in: `/http\:\/\/www\.example\.com/`, tok: influxql.REGEX, lit: `http\://www\.example\.com`},
 	}
 
 	for i, tt := range tests {

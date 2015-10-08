@@ -157,6 +157,24 @@ func TestHandler_Query(t *testing.T) {
 	}
 }
 
+// Ensure the handler returns results from a query (including nil results).
+func TestHandler_QueryRegex(t *testing.T) {
+	h := NewHandler(false)
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
+		if q.String() != `SELECT * FROM test WHERE url =~ /http\:\/\/www.akamai\.com/` {
+			t.Fatalf("unexpected query: %s", q.String())
+		} else if db != `test` {
+			t.Fatalf("unexpected db: %s", db)
+		}
+		return NewResultChan(
+			nil,
+		), nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/query?db=test&q=SELECT%20%2A%20FROM%20test%20WHERE%20url%20%3D~%20%2Fhttp%5C%3A%5C%2F%5C%2Fwww.akamai%5C.com%2F", nil))
+}
+
 // Ensure the handler merges results from the same statement.
 func TestHandler_Query_MergeResults(t *testing.T) {
 	h := NewHandler(false)

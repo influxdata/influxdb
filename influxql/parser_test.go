@@ -1768,11 +1768,21 @@ func TestParser_ParseExpr(t *testing.T) {
 
 		// Binary expression with regex.
 		{
-			s: "region =~ /us.*/",
+			s: `region =~ /us.*/`,
 			expr: &influxql.BinaryExpr{
 				Op:  influxql.EQREGEX,
 				LHS: &influxql.VarRef{Val: "region"},
 				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
+			},
+		},
+
+		// Binary expression with quoted '/' regex.
+		{
+			s: `url =~ /http\:\/\/www\.example\.com/`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "url"},
+				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`http\://www\.example\.com`)},
 			},
 		},
 
