@@ -157,7 +157,6 @@ func TestHandler_Query(t *testing.T) {
 	}
 }
 
-
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_QueryRegex(t *testing.T) {
 	h := NewHandler(false)
