@@ -173,6 +173,10 @@ func (d *int64Decoder) decodePacked() {
 }
 
 func (d *int64Decoder) decodeUncompressed() {
+	if len(d.bytes) == 0 {
+		return
+	}
+
 	d.values[0] = binary.BigEndian.Uint64(d.bytes[0:8])
 	d.i = 0
 	d.n = 1
