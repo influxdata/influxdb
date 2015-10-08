@@ -125,7 +125,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.ShardWriter.MetaStore = s.MetaStore
 
 	// Create the hinted handoff service
-	s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter)
+	s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaStore)
 
 	// Initialize points writer.
 	s.PointsWriter = cluster.NewPointsWriter()

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
 )
 
@@ -45,8 +46,12 @@ type shardWriter interface {
 	WriteShard(shardID, ownerID uint64, points []models.Point) error
 }
 
+type metaStore interface {
+	Node(id uint64) (ni *meta.NodeInfo, err error)
+}
+
 // NewService returns a new instance of Service.
-func NewService(c Config, w shardWriter) *Service {
+func NewService(c Config, w shardWriter, m metaStore) *Service {
 	key := strings.Join([]string{"hh", c.Dir}, ":")
 	tags := map[string]string{"path": c.Dir}
 
@@ -55,7 +60,7 @@ func NewService(c Config, w shardWriter) *Service {
 		statMap: influxdb.NewStatistics(key, "hh", tags),
 		Logger:  log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 	}
-	processor, err := NewProcessor(c.Dir, w, ProcessorOptions{
+	processor, err := NewProcessor(c.Dir, w, m, ProcessorOptions{
 		MaxSize:        c.MaxSize,
 		RetryRateLimit: c.RetryRateLimit,
 	})
