@@ -105,7 +105,7 @@ func TestTemplateApply(t *testing.T) {
 			continue
 		}
 
-		measurement, tags := tmpl.Apply(test.input)
+		measurement, tags, _, _ := tmpl.Apply(test.input)
 		if measurement != test.measurement {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, measurement)
 		}
@@ -558,7 +558,7 @@ func TestApplyTemplate(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	measurement, _ := p.ApplyTemplate("current.users")
+	measurement, _, _, _ := p.ApplyTemplate("current.users")
 	if measurement != "current_users" {
 		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
 			measurement, "current_users")
@@ -576,7 +576,7 @@ func TestApplyTemplateNoMatch(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	measurement, _ := p.ApplyTemplate("current.users")
+	measurement, _, _, _ := p.ApplyTemplate("current.users")
 	if measurement != "current.users" {
 		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
 			measurement, "current.users")
@@ -597,7 +597,7 @@ func TestApplyTemplateSpecific(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	measurement, tags := p.ApplyTemplate("current.users.facebook")
+	measurement, tags, _, _ := p.ApplyTemplate("current.users.facebook")
 	if measurement != "current_users" {
 		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
 			measurement, "current_users")
@@ -621,7 +621,7 @@ func TestApplyTemplateTags(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	measurement, tags := p.ApplyTemplate("current.users")
+	measurement, tags, _, _ := p.ApplyTemplate("current.users")
 	if measurement != "current_users" {
 		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
 			measurement, "current_users")
@@ -633,5 +633,45 @@ func TestApplyTemplateTags(t *testing.T) {
 	}
 	if region != "us-west" {
 		t.Errorf("Expected region='us-west' tag, got region='%s'", region)
+	}
+}
+
+func TestApplyTemplateField(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{"current.* measurement.measurement.field"},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	measurement, _, field, err := p.ApplyTemplate("current.users.logged_in")
+
+	if measurement != "current_users" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			measurement, "current_users")
+	}
+
+	if field != "logged_in" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			field, "logged_in")
+	}
+}
+
+func TestApplyTemplateFieldError(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{"current.* measurement.field.field"},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	_, _, _, err = p.ApplyTemplate("current.users.logged_in")
+	if err == nil {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s", err,
+			"'field' can only be used once in each template: current.users.logged_in")
 	}
 }

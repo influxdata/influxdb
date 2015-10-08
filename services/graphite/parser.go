@@ -100,7 +100,10 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 
 	// decode the name and tags
 	template := p.matcher.Match(fields[0])
-	measurement, tags := template.Apply(fields[0])
+	measurement, tags, field, err := template.Apply(fields[0])
+	if err != nil {
+		return nil, err
+	}
 
 	// Could not extract measurement, use the raw value
 	if measurement == "" {
@@ -113,7 +116,12 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 		return nil, fmt.Errorf(`field "%s" value: %s`, fields[0], err)
 	}
 
-	fieldValues := map[string]interface{}{"value": v}
+	fieldValues := map[string]interface{}{}
+	if field != "" {
+		fieldValues[field] = v
+	} else {
+		fieldValues["value"] = v
+	}
 
 	// If no 3rd field, use now as timestamp
 	timestamp := time.Now().UTC()
@@ -149,11 +157,11 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 
 // Apply extracts the template fields form the given line and returns the
 // measurement name and tags
-func (p *Parser) ApplyTemplate(line string) (string, map[string]string) {
+func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string, error) {
 	// Break line into fields (name, value, timestamp), only name is used
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
-		return "", make(map[string]string)
+		return "", make(map[string]string), "", nil
 	}
 	// decode the name and tags
 	template := p.matcher.Match(fields[0])
@@ -198,11 +206,12 @@ func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*te
 
 // Apply extracts the template fields form the given line and returns the measurement
 // name and tags
-func (t *template) Apply(line string) (string, map[string]string) {
+func (t *template) Apply(line string) (string, map[string]string, string, error) {
 	fields := strings.Split(line, ".")
 	var (
 		measurement []string
 		tags        = make(map[string]string)
+		field       string
 	)
 
 	// Set any default tags
@@ -217,6 +226,12 @@ func (t *template) Apply(line string) (string, map[string]string) {
 
 		if tag == "measurement" {
 			measurement = append(measurement, fields[i])
+		} else if tag == "field" {
+			if len(field) != 0 {
+				return "", nil, "", fmt.Errorf("'field' can only be used once in each template: %q", line)
+			} else {
+				field = fields[i]
+			}
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
 			break
@@ -225,7 +240,7 @@ func (t *template) Apply(line string) (string, map[string]string) {
 		}
 	}
 
-	return strings.Join(measurement, t.separator), tags
+	return strings.Join(measurement, t.separator), tags, field, nil
 }
 
 // matcher determines which template should be applied to a given metric

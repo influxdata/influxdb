@@ -48,6 +48,39 @@ Additional tags can be added to a metric that don't exist on the received metric
 * Template: `.host.resource.measurement* region=us-west,zone=1a`
 * Output:  _measurement_ = `loadavg.10` _tags_ = `host=localhost resource=cpu region=us-west zone=1a`
 
+### Fields
+
+A field name can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_.
+
+When using the current default engine _BZ1_, it's recommended to use a single field per value for performance reasons.
+
+When using the _TSM1_ engine it's possible to amend measurement metrics with additional fields, e.g:
+
+Input:
+```
+sensu.metric.net.server0.eth0.rx_packets 461295119435 1444234982
+sensu.metric.net.server0.eth0.tx_bytes 1093086493388480 1444234982
+sensu.metric.net.server0.eth0.rx_bytes 1015633926034834 1444234982
+sensu.metric.net.server0.eth0.tx_errors 0 1444234982
+sensu.metric.net.server0.eth0.rx_errors 0 1444234982
+sensu.metric.net.server0.eth0.tx_dropped 0 1444234982
+sensu.metric.net.server0.eth0.rx_dropped 0 1444234982
+```
+
+With template:
+```
+sensu.metric.* ..measurement.host.interface.field
+```
+
+Becomes database entry:
+```
+> select * from net
+name: net
+---------
+time      host  interface rx_bytes    rx_dropped  rx_errors rx_packets    tx_bytes    tx_dropped  tx_errors
+1444234982000000000 server0  eth0    1.015633926034834e+15 0   0   4.61295119435e+11 1.09308649338848e+15  0 0
+```
+
 ## Multiple Templates
 
 One template may not match all metrics.  For example, using multiple plugins with diamond will produce metrics in different formats.  If you need to use multiple templates, you'll need to define a prefix filter that must match before the template can be applied.
@@ -119,13 +152,16 @@ If you need to add the same set of tags to all metrics, you can define them glob
    separator = "_"
    tags = ["region=us-east", "zone=1c"]
    templates = [
-      # filter + template
-      "*.app env.service.resource.measurement",
+     # filter + template
+     "*.app env.service.resource.measurement",
 
      # filter + template + extra tag
      "stats.* .host.measurement* region=us-west,agent=sensu",
 
-      # default template. Ignore the first graphite component "servers"
+     # filter + template with field name
+     "stats.* .host.measurement.field",
+
+     # default template. Ignore the first graphite component "servers"
      ".measurement*",
  ]
 ```

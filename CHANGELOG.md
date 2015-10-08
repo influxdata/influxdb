@@ -13,6 +13,8 @@
 - [#4265](https://github.com/influxdb/influxdb/pull/4265): Add statistics for Hinted-Handoff
 - [#4284](https://github.com/influxdb/influxdb/pull/4284): Add exponential backoff for hinted-handoff failures
 - [#4310](https://github.com/influxdb/influxdb/pull/4310): Support dropping non-Raft nodes. Work mostly by @corylanou
+- [#4348](https://github.com/influxdb/influxdb/pull/4348): Public ApplyTemplate function for graphite parser.
+- [#4178](https://github.com/influxdb/influxdb/pull/4178): Support fields in graphite parser. Thanks @roobert!
 
 ### Bugfixes
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
