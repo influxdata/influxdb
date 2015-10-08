@@ -154,6 +154,13 @@ func (it *FloatDecoder) Next() bool {
 
 	if it.first {
 		it.first = false
+
+		// mark as finished if there were no values.
+		if math.IsNaN(it.val) {
+			it.finished = true
+			return false
+		}
+
 		return true
 	}
 

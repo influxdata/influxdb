@@ -1,7 +1,9 @@
 package tsm1_test
 
 import (
+	"reflect"
 	"testing"
+	"testing/quick"
 
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
@@ -70,4 +72,34 @@ func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
+}
+
+func Test_BoolEncoder_Quick(t *testing.T) {
+	quick.Check(func(values []bool) bool {
+		// Write values to encoder.
+		enc := tsm1.NewBoolEncoder()
+		for _, v := range values {
+			enc.Write(v)
+		}
+
+		// Retrieve compressed bytes.
+		buf, err := enc.Bytes()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Read values out of decoder.
+		got := make([]bool, 0, len(values))
+		dec := tsm1.NewBoolDecoder(buf)
+		for dec.Next() {
+			got = append(got, dec.Read())
+		}
+
+		// Verify that input and output values match.
+		if !reflect.DeepEqual(values, got) {
+			t.Fatalf("mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", values, got)
+		}
+
+		return true
+	}, nil)
 }
