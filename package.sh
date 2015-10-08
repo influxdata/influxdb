@@ -83,6 +83,7 @@ $0 [-h] [-p|-w] [-t <dist>] [-r <number>] <version>
     -r release candidate number, if any.
        Example: -r 7
     -p just build packages
+    -x build with race-detection enabled
     -w build packages for current working directory
        imply -p
     -t <dist>
@@ -264,7 +265,7 @@ do_build() {
     fi
 
     date=`date -u --iso-8601=seconds`
-    go install -a -ldflags="-X main.version=$version -X main.branch=$branch -X main.commit=$commit -X main.buildTime='$date'" ./...
+    go install $RACE -a -ldflags="-X main.version=$version -X main.branch=$branch -X main.commit=$commit -X main.buildTime='$date'" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1
@@ -355,6 +356,11 @@ do
             echo "RC number required"
         fi
         shift 2
+        ;;
+
+    -x)
+        RACE="-race"
+        shift
         ;;
 
     -w | --working-directory)
@@ -482,19 +488,6 @@ if [ -z "$NIGHTLY_BUILD" -a -z "$PACKAGES_ONLY" ]; then
     fi
 fi
 
-if [ $ARCH == "i386" ]; then
-    rpm_package=influxdb-${VERSION}-1.i686.rpm # RPM packages use 1 for default package release.
-    debian_package=influxdb_`full_version $VERSION $RC`_i686.deb
-    deb_args="-a i686"
-    rpm_args="setarch i686"
-elif [ $ARCH == "arm" ]; then
-    rpm_package=influxdb-${VERSION}-1.armel.rpm
-    debian_package=influxdb_`full_version $VERSION $RC`_armel.deb
-else
-    rpm_package=influxdb-${VERSION}-1.x86_64.rpm
-    debian_package=influxdb_`full_version $VERSION $RC`_amd64.deb
-fi
-
 COMMON_FPM_ARGS="\
 --log error \
 -C $TMP_WORK_DIR \
@@ -504,7 +497,7 @@ COMMON_FPM_ARGS="\
 --maintainer $MAINTAINER \
 --after-install $POST_INSTALL_PATH \
 --after-remove $POST_UNINSTALL_PATH \
---name influxdb \
+--name influxdb${RACE} \
 --config-files $CONFIG_ROOT_DIR \
 --config-files $LOGROTATE_DIR"
 
@@ -518,7 +511,11 @@ if [ -n "$DEB_WANTED" ]; then
 fi
 
 if [ -n "$TAR_WANTED" ]; then
-    $FPM -s dir -t tar --prefix influxdb_`full_version $VERSION $RC`_${ARCH} -p influxdb_`full_version $VERSION $RC`_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS --version `full_version $VERSION $RC ` .
+    if [ -n "$RACE" ]; then
+        # Tweak race prefix for tarball.
+        race="race_"
+    fi
+    $FPM -s dir -t tar --prefix influxdb_$race`full_version $VERSION $RC`_${ARCH} -p influxdb_$race`full_version $VERSION $RC`_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS --version `full_version $VERSION $RC ` .
     if [ $? -ne 0 ]; then
         echo "Failed to create Tar package -- aborting."
         cleanup_exit 1
