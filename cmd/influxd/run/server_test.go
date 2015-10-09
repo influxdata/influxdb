@@ -2607,6 +2607,12 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","min"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:20Z",4,5]]}]}]}`,
 		},
 		&Query{
+			name:    "max,min - baseline 30s",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(rx), min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max","min"],"values":[["2000-01-01T00:00:00Z",40,10],["2000-01-01T00:00:30Z",50,40],["2000-01-01T00:01:00Z",90,5]]}]}]}`,
+		},
+		&Query{
 			name:    "first - baseline 30s",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT first(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,

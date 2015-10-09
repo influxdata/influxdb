@@ -625,23 +625,23 @@ func (e *SelectExecutor) processFunctions(results [][]interface{}, columnNames [
 }
 
 func (e *SelectExecutor) processSelectors(results [][]interface{}, callPosition int, hasTimeField bool, columnNames []string) ([][]interface{}, error) {
-	for i, vals := range results {
-		for j := 1; j < len(vals); j++ {
-			switch v := vals[j].(type) {
+	// if the columns doesn't have enough columns, expand it
+	for i, columns := range results {
+		if len(columns) != len(columnNames) {
+			columns = append(columns, make([]interface{}, len(columnNames)-len(columns))...)
+		}
+		for j := 1; j < len(columns); j++ {
+			switch v := columns[j].(type) {
 			case PositionPoint:
-				tMin := vals[0].(time.Time)
-				results[i] = e.selectorPointToQueryResult(vals, hasTimeField, callPosition, v, tMin, columnNames)
+				tMin := columns[0].(time.Time)
+				results[i] = e.selectorPointToQueryResult(columns, hasTimeField, callPosition, v, tMin, columnNames)
 			}
 		}
 	}
 	return results, nil
 }
 
-func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, hasTimeField bool, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) []interface{} {
-	// if the row doesn't have enough columns, expand it
-	if len(row) != len(columnNames) {
-		row = append(row, make([]interface{}, len(columnNames)-len(row))...)
-	}
+func (e *SelectExecutor) selectorPointToQueryResult(columns []interface{}, hasTimeField bool, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) []interface{} {
 	callCount := len(e.stmt.FunctionCalls())
 	if callCount == 1 {
 		tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
@@ -649,29 +649,34 @@ func (e *SelectExecutor) selectorPointToQueryResult(row []interface{}, hasTimeFi
 		if len(e.stmt.Dimensions) > 0 && !hasTimeField {
 			tm = tMin.UTC().Format(time.RFC3339Nano)
 		}
-		row[0] = tm
+		columns[0] = tm
 	}
+
 	for i, c := range columnNames {
 		// skip over time, we already handled that above
 		if i == 0 {
 			continue
 		}
 		if (i == columnIndex && hasTimeField) || (i == columnIndex+1 && !hasTimeField) {
-			row[i] = p.Value
+			// Check to see if we previously processed this column, if so, continue
+			if _, ok := columns[i].(PositionPoint); !ok && columns[i] != nil {
+				continue
+			}
+			columns[i] = p.Value
 			continue
 		}
 
 		if callCount == 1 {
 			// Always favor fields over tags if there is a name collision
 			if t, ok := p.Fields[c]; ok {
-				row[i] = t
+				columns[i] = t
 			} else if t, ok := p.Tags[c]; ok {
 				// look in the tags for a value
-				row[i] = t
+				columns[i] = t
 			}
 		}
 	}
-	return row
+	return columns
 }
 
 func (e *SelectExecutor) processAggregates(results [][]interface{}, columnNames []string, call *influxql.Call) ([][]interface{}, error) {
