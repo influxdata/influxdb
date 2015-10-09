@@ -68,6 +68,8 @@ GOPATH_INSTALL=
 BINS=(
     influxd
     influx
+    influx_stress
+    influx_inspect
     )
 
 ###########################################################################
