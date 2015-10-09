@@ -17,6 +17,7 @@
 - [#4178](https://github.com/influxdb/influxdb/pull/4178): Support fields in graphite parser. Thanks @roobert!
 
 ### Bugfixes
+- [#4227](https://github.com/influxdb/influxdb/pull/4227): Correctly identify running InfluxDB process during shutdown. Thanks @daachi
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
 - [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
 - [#4225](https://github.com/influxdb/influxdb/pull/4225): Always display diags in name-sorted order
