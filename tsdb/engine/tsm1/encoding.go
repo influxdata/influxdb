@@ -69,7 +69,13 @@ func (v Values) MaxTime() int64 {
 	return v[len(v)-1].Time().UnixNano()
 }
 
+// Encode converts the values to a byte slice.  If there are no values,
+// this function panics.
 func (v Values) Encode(buf []byte) ([]byte, error) {
+	if len(v) == 0 {
+		panic("unable to encode block type")
+	}
+
 	switch v[0].(type) {
 	case *FloatValue:
 		return encodeFloatBlock(buf, v)
@@ -82,24 +88,6 @@ func (v Values) Encode(buf []byte) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("unsupported value type %T", v[0])
-}
-
-func (v Values) DecodeSameTypeBlock(block []byte) Values {
-	switch v[0].(type) {
-	case *FloatValue:
-		a, _ := decodeFloatBlock(block)
-		return a
-	case *Int64Value:
-		a, _ := decodeInt64Block(block)
-		return a
-	case *BoolValue:
-		a, _ := decodeBoolBlock(block)
-		return a
-	case *StringValue:
-		a, _ := decodeStringBlock(block)
-		return a
-	}
-	return nil
 }
 
 // DecodeBlock takes a byte array and will decode into values of the appropriate type

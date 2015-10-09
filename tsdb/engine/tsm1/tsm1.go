@@ -614,7 +614,11 @@ func (e *Engine) Compact(fullCompaction bool) error {
 			for {
 				// write the values, the block or combine with previous
 				if len(previousValues) > 0 {
-					previousValues = append(previousValues, previousValues.DecodeSameTypeBlock(block)...)
+					decoded, err := DecodeBlock(block)
+					if err != nil {
+						panic(fmt.Sprintf("failure decoding block: %v", err))
+					}
+					previousValues = append(previousValues, decoded...)
 				} else if len(block) > e.RotateBlockSize {
 					if _, err := f.Write(df.mmap[pos:newPos]); err != nil {
 						return err
@@ -1645,7 +1649,10 @@ func (e *Engine) readSeries() (map[string]*tsdb.Series, error) {
 // has future encoded blocks so that this method can know how much of its values can be
 // combined and output in the resulting encoded block.
 func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime int64, hasFutureBlock bool) (Values, []byte, error) {
-	values := newValues.DecodeSameTypeBlock(block)
+	values, err := DecodeBlock(block)
+	if err != nil {
+		panic(fmt.Sprintf("failure decoding block: %v", err))
+	}
 
 	var remainingValues Values
 

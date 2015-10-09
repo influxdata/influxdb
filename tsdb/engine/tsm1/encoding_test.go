@@ -24,7 +24,10 @@ func TestEncoding_FloatBlock(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
@@ -42,7 +45,10 @@ func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
@@ -62,7 +68,10 @@ func TestEncoding_FloatBlock_SimilarFloats(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
@@ -82,7 +91,10 @@ func TestEncoding_IntBlock_Basic(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if len(decodedValues) != len(values) {
 		t.Fatalf("unexpected results length:\n\tgot: %v\n\texp: %v\n", len(decodedValues), len(values))
@@ -117,7 +129,10 @@ func TestEncoding_IntBlock_Negatives(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
@@ -141,7 +156,10 @@ func TestEncoding_BoolBlock_Basic(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
@@ -161,7 +179,10 @@ func TestEncoding_StringBlock_Basic(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := values.DecodeSameTypeBlock(b)
+	decodedValues, err := tsm1.DecodeBlock(b)
+	if err != nil {
+		t.Fatalf("unexpected error decoding block: %v", err)
+	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
