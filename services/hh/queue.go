@@ -173,6 +173,10 @@ func (l *queue) PurgeOlderThan(when time.Time) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	if len(l.segments) == 0 {
+		return nil
+	}
+
 	cutoff := when.Truncate(time.Second)
 	for {
 		mod, err := l.head.lastModified()
