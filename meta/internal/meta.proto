@@ -105,6 +105,7 @@ message Command {
 		SetDataCommand                   = 17;
 		SetAdminPrivilegeCommand         = 18;
 		UpdateNodeCommand                = 19;
+		RenameDatabaseCommand            = 20;
     }
 
     required Type type = 1;
@@ -264,6 +265,14 @@ message UpdateNodeCommand {
     }
     required uint64 ID = 1;
     required string Host = 2;
+}
+
+message RenameDatabaseCommand {
+    extend Command {
+        optional RenameDatabaseCommand command = 120;
+    }
+	required string oldName = 1;
+	required string newName = 2;
 }
 
 message Response {

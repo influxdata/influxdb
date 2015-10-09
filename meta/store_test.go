@@ -244,6 +244,76 @@ func TestStore_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	}
 }
 
+// Ensure the store can rename an existing database.
+func TestStore_RenameDatabase(t *testing.T) {
+	t.Parallel()
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create three databases.
+	for i := 0; i < 3; i++ {
+		if _, err := s.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Rename database db1, leaving db0 and db2 unchanged.
+	if err := s.RenameDatabase("db1", "db3"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ensure the nodes are correct.
+	exp := &meta.DatabaseInfo{Name: "db0"}
+	if di, _ := s.Database("db0"); !reflect.DeepEqual(di, exp) {
+		t.Fatalf("unexpected database(0): \ngot: %#v\nexp: %#v", di, exp)
+
+	}
+	if di, _ := s.Database("db1"); di != nil {
+		t.Fatalf("unexpected database(1): %#v", di)
+	}
+
+	exp = &meta.DatabaseInfo{Name: "db2"}
+	if di, _ := s.Database("db2"); !reflect.DeepEqual(di, exp) {
+		t.Fatalf("unexpected database(2): \ngot: %#v\nexp: %#v", di, exp)
+	}
+
+	exp = &meta.DatabaseInfo{Name: "db3"}
+	if di, _ := s.Database("db3"); !reflect.DeepEqual(di, exp) {
+		t.Fatalf("unexpected database(2): \ngot: %#v\nexp: %#v", di, exp)
+	}
+}
+
+// Ensure the store returns an error when renaming a database that doesn't exist.
+func TestStore_RenameDatabase_ErrDatabaseNotFound(t *testing.T) {
+	t.Parallel()
+	s := MustOpenStore()
+	defer s.Close()
+
+	if err := s.RenameDatabase("no_such_database", "another_database"); err != meta.ErrDatabaseNotFound {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure the store returns an error when renaming a database to a database that already exists.
+func TestStore_RenameDatabase_ErrDatabaseExists(t *testing.T) {
+	t.Parallel()
+	s := MustOpenStore()
+	defer s.Close()
+
+	// create two databases
+	if _, err := s.CreateDatabase("db00"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.CreateDatabase("db01"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.RenameDatabase("db00", "db01"); err != meta.ErrDatabaseExists {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 // Ensure the store can create a retention policy on a database.
 func TestStore_CreateRetentionPolicy(t *testing.T) {
 	t.Parallel()

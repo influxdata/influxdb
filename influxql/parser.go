@@ -219,14 +219,18 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 // This function assumes the ALTER token has already been consumed.
 func (p *Parser) parseAlterStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == RETENTION {
+
+	switch tok {
+	case RETENTION:
 		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
 			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
 		}
 		return p.parseAlterRetentionPolicyStatement()
+	case DATABASE:
+		return p.parseAlterDatabaseRenameStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION", "DATABASE"}, pos)
 }
 
 // parseSetPasswordUserStatement parses a string and returns a set statement.
@@ -1348,6 +1352,33 @@ func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
 		return nil, err
 	}
 	stmt.Name = lit
+
+	return stmt, nil
+}
+
+// parseAlterDatabaseRenameStatement parses a string and returns an AlterDatabaseRenameStatement.
+// This function assumes the "ALTER DATABASE" tokens have already been consumed.
+func (p *Parser) parseAlterDatabaseRenameStatement() (*AlterDatabaseRenameStatement, error) {
+	stmt := &AlterDatabaseRenameStatement{}
+
+	// Parse the name of the database to be renamed.
+	lit, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.OldName = lit
+
+	// Parse required RENAME TO tokens.
+	if err := p.parseTokens([]Token{RENAME, TO}); err != nil {
+		return nil, err
+	}
+
+	// Parse the new name of the database.
+	lit, err = p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.NewName = lit
 
 	return stmt, nil
 }

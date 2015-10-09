@@ -1418,6 +1418,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: newAlterRetentionPolicyStatement("default", "testdb", -1, 4, false),
 		},
 
+		// ALTER DATABASE RENAME
+		{
+			s:    `ALTER DATABASE db0 RENAME TO db1`,
+			stmt: newAlterDatabaseRenameStatement("db0", "db1"),
+		},
+
 		// SHOW STATS
 		{
 			s: `SHOW STATS`,
@@ -1639,11 +1645,15 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 0`, err: `invalid value 0: must be 1 <= n <= 2147483647 at line 1, char 67`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION bad`, err: `found bad, expected number at line 1, char 67`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 1 foo`, err: `found foo, expected DEFAULT at line 1, char 69`},
-		{s: `ALTER`, err: `found EOF, expected RETENTION at line 1, char 7`},
+		{s: `ALTER`, err: `found EOF, expected RETENTION, DATABASE at line 1, char 7`},
 		{s: `ALTER RETENTION`, err: `found EOF, expected POLICY at line 1, char 17`},
 		{s: `ALTER RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 24`},
 		{s: `ALTER RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 32`}, {s: `ALTER RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, RETENTION, DEFAULT at line 1, char 42`},
+		{s: `ALTER DATABASE`, err: `found EOF, expected identifier at line 1, char 16`},
+		{s: `ALTER DATABASE db0`, err: `found EOF, expected RENAME at line 1, char 20`},
+		{s: `ALTER DATABASE db0 RENAME`, err: `found EOF, expected TO at line 1, char 27`},
+		{s: `ALTER DATABASE db0 RENAME TO`, err: `found EOF, expected identifier at line 1, char 30`},
 		{s: `SET`, err: `found EOF, expected PASSWORD at line 1, char 5`},
 		{s: `SET PASSWORD`, err: `found EOF, expected FOR at line 1, char 14`},
 		{s: `SET PASSWORD something`, err: `found something, expected FOR at line 1, char 14`},
@@ -2075,6 +2085,14 @@ func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, r
 	}
 
 	return stmt
+}
+
+// newAlterDatabaseRenameStatement creates an initialized AlterDatabaseRenameStatement.
+func newAlterDatabaseRenameStatement(oldName, newName string) *influxql.AlterDatabaseRenameStatement {
+	return &influxql.AlterDatabaseRenameStatement{
+		OldName: oldName,
+		NewName: newName,
+	}
 }
 
 // mustMarshalJSON encodes a value to JSON.

@@ -104,6 +104,7 @@ const (
 	QUERIES
 	QUERY
 	READ
+	RENAME
 	REPLICATION
 	RETENTION
 	REVOKE
@@ -216,6 +217,7 @@ var tokens = [...]string{
 	QUERIES:      "QUERIES",
 	QUERY:        "QUERY",
 	READ:         "READ",
+	RENAME:       "RENAME",
 	REPLICATION:  "REPLICATION",
 	RETENTION:    "RETENTION",
 	REVOKE:       "REVOKE",

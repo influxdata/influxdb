@@ -927,6 +927,16 @@ func (s *Store) DropDatabase(name string) error {
 	)
 }
 
+// RenameDatabase renames a database in the metastore
+func (s *Store) RenameDatabase(oldName, newName string) error {
+	return s.exec(internal.Command_RenameDatabaseCommand, internal.E_RenameDatabaseCommand_Command,
+		&internal.RenameDatabaseCommand{
+			OldName: proto.String(oldName),
+			NewName: proto.String(newName),
+		},
+	)
+}
+
 // RetentionPolicy returns a retention policy for a database by name.
 func (s *Store) RetentionPolicy(database, name string) (rpi *RetentionPolicyInfo, err error) {
 	err = s.read(func(data *Data) error {
@@ -1626,6 +1636,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyCreateDatabaseCommand(&cmd)
 		case internal.Command_DropDatabaseCommand:
 			return fsm.applyDropDatabaseCommand(&cmd)
+		case internal.Command_RenameDatabaseCommand:
+			return fsm.applyRenameDatabaseCommand(&cmd)
 		case internal.Command_CreateRetentionPolicyCommand:
 			return fsm.applyCreateRetentionPolicyCommand(&cmd)
 		case internal.Command_DropRetentionPolicyCommand:
@@ -1744,6 +1756,20 @@ func (fsm *storeFSM) applyDropDatabaseCommand(cmd *internal.Command) interface{}
 	// Copy data and update.
 	other := fsm.data.Clone()
 	if err := other.DropDatabase(v.GetName()); err != nil {
+		return err
+	}
+	fsm.data = other
+
+	return nil
+}
+
+func (fsm *storeFSM) applyRenameDatabaseCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_RenameDatabaseCommand_Command)
+	v := ext.(*internal.RenameDatabaseCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	if err := other.RenameDatabase(v.GetOldName(), v.GetNewName()); err != nil {
 		return err
 	}
 	fsm.data = other
