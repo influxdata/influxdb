@@ -39,7 +39,7 @@
 - [#4263](https://github.com/influxdb/influxdb/issues/4263): derivative does not work when data is missing
 - [#4293](https://github.com/influxdb/influxdb/pull/4293): Ensure shell is invoked when touching PID file. Thanks @christopherjdickson
 - [#4296](https://github.com/influxdb/influxdb/pull/4296): Reject line protocol ending with '-'. Fixes [#4272](https://github.com/influxdb/influxdb/issues/4272)
-- [#4333](https://github.com/influxdb/influxdb/pull/4333): Retry monitor storage creation and only on Leader.
+- [#4333](https://github.com/influxdb/influxdb/pull/4333): Retry monitor storage creation and storage only on Leader.
 - [#4276](https://github.com/influxdb/influxdb/issues/4276): Walk DropSeriesStatement & check for empty sources
 - [#4342](https://github.com/influxdb/influxdb/pull/4342): Fix mixing aggregates and math with non-aggregates. Thanks @kostya-sh.
 - [#4349](https://github.com/influxdb/influxdb/issues/4349): If HH can't unmarshal a block, skip that block.
