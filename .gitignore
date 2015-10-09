@@ -34,6 +34,10 @@ influxdb
 **/influxdb
 !**/influxdb/
 
+influx_inspect
+**/influx_inspect
+!**/influx_inspect/
+
 /benchmark-tool
 /main
 /benchmark-storage
