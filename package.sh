@@ -288,6 +288,9 @@ ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
 ln -s $INSTALL_ROOT_DIR/versions/$version/influx $INSTALL_ROOT_DIR/influx
 ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
+ln -s $INSTALL_ROOT_DIR/influxd /usr/bin/
+ln -s $INSTALL_ROOT_DIR/influx /usr/bin/
+
 if ! id influxdb >/dev/null 2>&1; then
         useradd --system -U -M influxdb
 fi
