@@ -134,6 +134,19 @@ func (l *queue) Close() error {
 	return nil
 }
 
+// Remove removes all underlying file-based resources for the queue.
+// It is an error to call this on an open queue.
+func (l *queue) Remove() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.head != nil || l.tail != nil || l.segments != nil {
+		return fmt.Errorf("queue is open")
+	}
+
+	return os.RemoveAll(l.dir)
+}
+
 // SetMaxSegmentSize updates the max segment size for new and existing
 // segments.
 func (l *queue) SetMaxSegmentSize(size int64) error {
@@ -179,6 +192,17 @@ func (l *queue) PurgeOlderThan(when time.Time) error {
 			return err
 		}
 	}
+}
+
+// LastModified returns the last time the queue was modified.
+func (l *queue) LastModified() (time.Time, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	if l.tail != nil {
+		return l.tail.lastModified()
+	}
+	return time.Time{}, nil
 }
 
 // diskUsage returns the total size on disk used by the queue

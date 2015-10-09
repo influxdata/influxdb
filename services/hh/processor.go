@@ -306,3 +306,41 @@ func (p *Processor) PurgeOlderThan(when time.Duration) error {
 	}
 	return nil
 }
+
+func (p *Processor) PurgeInactiveOlderThan(when time.Duration) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	deletedQueues := make([]uint64, 0)
+	for nodeID, queue := range p.queues {
+		// Only delete queues for inactive nodes.
+		ni, err := p.metastore.Node(nodeID)
+		if err != nil {
+			return err
+		}
+		if ni != nil {
+			continue
+		}
+
+		last, err := queue.LastModified()
+		if err != nil {
+			return err
+		}
+		if last.Before(time.Now().Add(-when)) {
+			// Close and remove the queue.
+			if err := queue.Close(); err != nil {
+				return err
+			}
+			if err := queue.Remove(); err != nil {
+				return err
+			}
+
+			deletedQueues = append(deletedQueues, nodeID)
+		}
+	}
+
+	for _, id := range deletedQueues {
+		delete(p.queues, id)
+	}
+	return nil
+}

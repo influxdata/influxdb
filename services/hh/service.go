@@ -39,6 +39,7 @@ type Service struct {
 		WriteShard(shardID, ownerID uint64, points []models.Point) error
 		Process() error
 		PurgeOlderThan(when time.Duration) error
+		PurgeInactiveOlderThan(when time.Duration) error
 	}
 }
 
@@ -88,9 +89,10 @@ func (s *Service) Open() error {
 
 	s.Logger.Printf("Using data dir: %v", s.cfg.Dir)
 
-	s.wg.Add(2)
+	s.wg.Add(3)
 	go s.retryWrites()
 	go s.expireWrites()
+	go s.deleteInactiveQueues()
 
 	return nil
 }
@@ -170,8 +172,19 @@ func (s *Service) expireWrites() {
 	}
 }
 
-// purgeWrites will cause the handoff queues to remove writes that are no longer
-// valid.  e.g. queued writes for a node that has been removed
-func (s *Service) purgeWrites() {
-	panic("not implemented")
+// deleteInactiveQueues will cause the service to remove queues for inactive nodes.
+func (s *Service) deleteInactiveQueues() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return
+		case <-ticker.C:
+			if err := s.HintedHandoff.PurgeInactiveOlderThan(time.Duration(s.cfg.MaxAge)); err != nil {
+				s.Logger.Printf("delete queues failed: %v", err)
+			}
+		}
+	}
 }
