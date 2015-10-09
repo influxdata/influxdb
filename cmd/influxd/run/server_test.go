@@ -497,6 +497,24 @@ func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    "Drop series with WHERE field should error",
+			command: `DROP SERIES FROM c WHERE val > 50.0`,
+			exp:     `{"results":[{"error":"DROP SERIES doesn't support fields in WHERE clause"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "make sure DROP SERIES with field in WHERE didn't delete data",
+			command: `SHOW SERIES`,
+			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "Drop series with WHERE time should error",
+			command: `DROP SERIES FROM c WHERE time > now() - 1d`,
+			exp:     `{"results":[{"error":"DROP SERIES doesn't support time in WHERE clause"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	for i, query := range test.queries {
@@ -4255,6 +4273,18 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		&Query{
+			name:    `show series with WHERE time should fail`,
+			command: "SHOW SERIES WHERE time > now() - 1h",
+			exp:     `{"results":[{"error":"SHOW SERIES doesn't support time in WHERE clause"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series with WHERE field should fail`,
+			command: "SHOW SERIES WHERE value > 10.0",
+			exp:     `{"results":[{"error":"SHOW SERIES doesn't support fields in WHERE clause"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	for i, query := range test.queries {
@@ -4317,6 +4347,12 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			name:    `show measurements where tag does not match a regular expression`,
 			command: "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
 			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements with time in WHERE clauses errors`,
+			command: `SHOW MEASUREMENTS WHERE time > now() - 1h`,
+			exp:     `{"results":[{"error":"SHOW MEASUREMENTS doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -4390,6 +4426,12 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    "show tag keys with time in WHERE clause errors",
+			command: "SHOW TAG KEYS FROM cpu WHERE time > now() - 1h",
+			exp:     `{"results":[{"error":"SHOW TAG KEYS doesn't support time in WHERE clause"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    "show tag values with key",
 			command: "SHOW TAG VALUES WITH KEY = host",
 			exp:     `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
@@ -4423,6 +4465,12 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			name:    `show tag values with key and measurement matches regular expression`,
 			command: `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host`,
 			exp:     `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag values with key and time in WHERE clause should error`,
+			command: `SHOW TAG VALUES WITH KEY = host WHERE time > now() - 1h`,
+			exp:     `{"results":[{"error":"SHOW SERIES doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

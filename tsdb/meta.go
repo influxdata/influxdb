@@ -603,7 +603,7 @@ func (m *Measurement) DropSeries(seriesID uint64) {
 // filters walks the where clause of a select statement and returns a map with all series ids
 // matching the where clause and any filter expression that should be applied to each
 func (m *Measurement) filters(stmt *influxql.SelectStatement) (map[uint64]influxql.Expr, error) {
-	if stmt.Condition == nil || stmt.OnlyTimeDimensions() {
+	if stmt.Condition == nil || influxql.OnlyTimeExpr(stmt.Condition) {
 		seriesIdsToExpr := make(map[uint64]influxql.Expr)
 		for _, id := range m.seriesIDs {
 			seriesIdsToExpr[id] = nil
@@ -699,7 +699,7 @@ func (m *Measurement) TagSets(stmt *influxql.SelectStatement, dimensions []strin
 }
 
 // mergeSeriesFilters merges two sets of filter expressions and culls series IDs.
-func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters map[uint64]influxql.Expr) (SeriesIDs, map[uint64]influxql.Expr) {
+func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters FilterExprs) (SeriesIDs, FilterExprs) {
 	// Create a map to hold the final set of series filter expressions.
 	filters := make(map[uint64]influxql.Expr, 0)
 	// Resulting list of series IDs
@@ -833,10 +833,30 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	return nil, nil, nil
 }
 
+// FilterExprs represents a map of series IDs to filter expressions.
+type FilterExprs map[uint64]influxql.Expr
+
+// DeleteBoolLiteralTrues deletes all elements whose filter expression is a boolean literal true.
+func (fe FilterExprs) DeleteBoolLiteralTrues() {
+	for id, expr := range fe {
+		if e, ok := expr.(*influxql.BooleanLiteral); ok && e.Val == true {
+			delete(fe, id)
+		}
+	}
+}
+
+// Len returns the number of elements.
+func (fe FilterExprs) Len() int {
+	if fe == nil {
+		return 0
+	}
+	return len(fe)
+}
+
 // walkWhereForSeriesIds recursively walks the WHERE clause and returns an ordered set of series IDs and
 // a map from those series IDs to filter expressions that should be used to limit points returned in
 // the final query result.
-func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, map[uint64]influxql.Expr, error) {
+func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, FilterExprs, error) {
 	switch n := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch n.Op {
@@ -847,7 +867,7 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, map[
 				return nil, nil, err
 			}
 
-			filters := map[uint64]influxql.Expr{}
+			filters := FilterExprs{}
 			for _, id := range ids {
 				filters[id] = expr
 			}

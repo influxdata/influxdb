@@ -1007,31 +1007,6 @@ func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ep
 }
 
-// OnlyTimeDimensions returns true if the statement has a where clause with only time constraints
-func (s *SelectStatement) OnlyTimeDimensions() bool {
-	return s.walkForTime(s.Condition)
-}
-
-// walkForTime is called by the OnlyTimeDimensions method to walk the where clause to determine if
-// the only things specified are based on time
-func (s *SelectStatement) walkForTime(node Node) bool {
-	switch n := node.(type) {
-	case *BinaryExpr:
-		if n.Op == AND || n.Op == OR {
-			return s.walkForTime(n.LHS) && s.walkForTime(n.RHS)
-		}
-		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
-			return true
-		}
-		return false
-	case *ParenExpr:
-		// walk down the tree
-		return s.walkForTime(n.Expr)
-	default:
-		return false
-	}
-}
-
 // HasWildcard returns whether or not the select statement has at least 1 wildcard
 func (s *SelectStatement) HasWildcard() bool {
 	return s.HasFieldWildcard() || s.HasDimensionWildcard()
@@ -1060,26 +1035,6 @@ func (s *SelectStatement) HasDimensionWildcard() bool {
 	}
 
 	return false
-}
-
-// hasTimeDimensions returns whether or not the select statement has at least 1
-// where condition with time as the condition
-func (s *SelectStatement) hasTimeDimensions(node Node) bool {
-	switch n := node.(type) {
-	case *BinaryExpr:
-		if n.Op == AND || n.Op == OR {
-			return s.hasTimeDimensions(n.LHS) || s.hasTimeDimensions(n.RHS)
-		}
-		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
-			return true
-		}
-		return false
-	case *ParenExpr:
-		// walk down the tree
-		return s.hasTimeDimensions(n.Expr)
-	default:
-		return false
-	}
 }
 
 func (s *SelectStatement) validate(tr targetRequirement) error {
@@ -1280,7 +1235,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 
 	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
 	if tr == targetNotRequired { // ignore create continuous query statements
-		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
+		if !s.IsRawQuery && groupByDuration > 0 && !HasTimeExpr(s.Condition) {
 			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
 		}
 	}
@@ -2722,6 +2677,47 @@ func CloneExpr(expr Expr) Expr {
 		return &Wildcard{}
 	}
 	panic("unreachable")
+}
+
+// HasTimeExpr returns true if the expression has a time term.
+func HasTimeExpr(expr Expr) bool {
+	switch n := expr.(type) {
+	case *BinaryExpr:
+		if n.Op == AND || n.Op == OR {
+			return HasTimeExpr(n.LHS) || HasTimeExpr(n.RHS)
+		}
+		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+			return true
+		}
+		return false
+	case *ParenExpr:
+		// walk down the tree
+		return HasTimeExpr(n.Expr)
+	default:
+		return false
+	}
+}
+
+// OnlyTimeExpr returns true if the expression only has time constraints.
+func OnlyTimeExpr(expr Expr) bool {
+	if expr == nil {
+		return false
+	}
+	switch n := expr.(type) {
+	case *BinaryExpr:
+		if n.Op == AND || n.Op == OR {
+			return OnlyTimeExpr(n.LHS) && OnlyTimeExpr(n.RHS)
+		}
+		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+			return true
+		}
+		return false
+	case *ParenExpr:
+		// walk down the tree
+		return OnlyTimeExpr(n.Expr)
+	default:
+		return false
+	}
 }
 
 // TimeRange returns the minimum and maximum times specified by an expression.

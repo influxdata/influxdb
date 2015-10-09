@@ -521,7 +521,7 @@ func TestTimeRange(t *testing.T) {
 }
 
 // Ensure that we see if a where clause has only time limitations
-func TestSelectStatement_OnlyTimeDimensions(t *testing.T) {
+func TestOnlyTimeExpr(t *testing.T) {
 	var tests = []struct {
 		stmt string
 		exp  bool
@@ -554,7 +554,7 @@ func TestSelectStatement_OnlyTimeDimensions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
-		if stmt.(*influxql.SelectStatement).OnlyTimeDimensions() != tt.exp {
+		if influxql.OnlyTimeExpr(stmt.(*influxql.SelectStatement).Condition) != tt.exp {
 			t.Fatalf("%d. expected statement to return only time dimension to be %t: %s", i, tt.exp, tt.stmt)
 		}
 	}
