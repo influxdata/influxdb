@@ -311,7 +311,6 @@ func (p *Processor) PurgeInactiveOlderThan(when time.Duration) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	deletedQueues := make([]uint64, 0)
 	for nodeID, queue := range p.queues {
 		// Only delete queues for inactive nodes.
 		ni, err := p.metastore.Node(nodeID)
@@ -335,12 +334,8 @@ func (p *Processor) PurgeInactiveOlderThan(when time.Duration) error {
 				return err
 			}
 
-			deletedQueues = append(deletedQueues, nodeID)
+			delete(p.queues, nodeID)
 		}
-	}
-
-	for _, id := range deletedQueues {
-		delete(p.queues, id)
 	}
 	return nil
 }
