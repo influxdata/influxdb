@@ -36,9 +36,11 @@ type Processor struct {
 	maxAge         time.Duration
 	retryRateLimit int64
 
-	queues map[uint64]*queue
-	writer shardWriter
-	Logger *log.Logger
+	queues    map[uint64]*queue
+	meta      metaStore
+	writer    shardWriter
+	metastore metaStore
+	Logger    *log.Logger
 
 	// Shard-level and node-level HH stats.
 	shardStatMaps map[uint64]*expvar.Map
@@ -50,11 +52,12 @@ type ProcessorOptions struct {
 	RetryRateLimit int64
 }
 
-func NewProcessor(dir string, writer shardWriter, options ProcessorOptions) (*Processor, error) {
+func NewProcessor(dir string, writer shardWriter, metastore metaStore, options ProcessorOptions) (*Processor, error) {
 	p := &Processor{
 		dir:           dir,
 		queues:        map[uint64]*queue{},
 		writer:        writer,
+		metastore:     metastore,
 		Logger:        log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 		shardStatMaps: make(map[uint64]*expvar.Map),
 		nodeStatMaps:  make(map[uint64]*expvar.Map),
@@ -164,8 +167,13 @@ func (p *Processor) Process() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	res := make(chan error, len(p.queues))
-	for nodeID, q := range p.queues {
+	activeQueues, err := p.activeQueues()
+	if err != nil {
+		return err
+	}
+
+	res := make(chan error, len(activeQueues))
+	for nodeID, q := range activeQueues {
 		go func(nodeID uint64, q *queue) {
 
 			// Log how many writes we successfully sent at the end
@@ -234,7 +242,7 @@ func (p *Processor) Process() error {
 		}(nodeID, q)
 	}
 
-	for range p.queues {
+	for range activeQueues {
 		err := <-res
 		if err != nil {
 			return err
@@ -273,6 +281,20 @@ func (p *Processor) updateShardStats(shardID uint64, stat string, inc int64) {
 	m.Add(stat, inc)
 }
 
+func (p *Processor) activeQueues() (map[uint64]*queue, error) {
+	queues := make(map[uint64]*queue)
+	for id, q := range p.queues {
+		ni, err := p.metastore.Node(id)
+		if err != nil {
+			return nil, err
+		}
+		if ni != nil {
+			queues[id] = q
+		}
+	}
+	return queues, nil
+}
+
 func (p *Processor) PurgeOlderThan(when time.Duration) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -281,6 +303,44 @@ func (p *Processor) PurgeOlderThan(when time.Duration) error {
 		if err := queue.PurgeOlderThan(time.Now().Add(-when)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (p *Processor) PurgeInactiveOlderThan(when time.Duration) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	deletedQueues := make([]uint64, 0)
+	for nodeID, queue := range p.queues {
+		// Only delete queues for inactive nodes.
+		ni, err := p.metastore.Node(nodeID)
+		if err != nil {
+			return err
+		}
+		if ni != nil {
+			continue
+		}
+
+		last, err := queue.LastModified()
+		if err != nil {
+			return err
+		}
+		if last.Before(time.Now().Add(-when)) {
+			// Close and remove the queue.
+			if err := queue.Close(); err != nil {
+				return err
+			}
+			if err := queue.Remove(); err != nil {
+				return err
+			}
+
+			deletedQueues = append(deletedQueues, nodeID)
+		}
+	}
+
+	for _, id := range deletedQueues {
+		delete(p.queues, id)
 	}
 	return nil
 }
