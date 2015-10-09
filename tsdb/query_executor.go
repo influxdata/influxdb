@@ -452,9 +452,11 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 			}
 
 			// Delete boolean literal true filter expressions.
+			// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
 			filters.DeleteBoolLiteralTrues()
 
 			// Check for unsupported field filters.
+			// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
 			if filters.Len() > 0 {
 				return &influxql.Result{Err: errors.New("DROP SERIES doesn't support fields in WHERE clause")}
 			}
