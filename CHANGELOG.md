@@ -51,6 +51,7 @@
 - [#4374](https://github.com/influxdb/influxdb/issues/4374): Add tsm1 quickcheck tests
 - [#4377](https://github.com/influxdb/influxdb/pull/4377): Hinted handoff should not process dropped nodes
 - [#4365](https://github.com/influxdb/influxdb/issues/4365): Prevent panic in DecodeSameTypeBlock
+- [#4280](https://github.com/influxdb/influxdb/issues/4280): Only drop points matching WHERE clause
 
 ## v0.9.4 [2015-09-14]
 
