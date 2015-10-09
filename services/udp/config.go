@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// DefaultDatabase is the default database for UDP traffic.
+	DefaultDatabase = "udp"
+
 	// DefaultBatchSize is the default UDP batch size.
 	DefaultBatchSize = 1000
 
@@ -32,6 +35,9 @@ type Config struct {
 // default values set.
 func (c *Config) WithDefaults() *Config {
 	d := *c
+	if d.Database == "" {
+		d.Database = DefaultDatabase
+	}
 	if d.BatchSize == 0 {
 		d.BatchSize = DefaultBatchSize
 	}

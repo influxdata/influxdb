@@ -235,7 +235,7 @@ reporting-disabled = false
 [[udp]]
   enabled = false
   # bind-address = ""
-  # database = ""
+  # database = "udp"
   # retention-policy = ""
 
   # These next lines control how batching works. You should have this enabled
