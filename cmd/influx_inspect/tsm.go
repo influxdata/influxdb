@@ -228,6 +228,7 @@ func dumpTsm1(path string) {
 	b := make([]byte, 8)
 	f.Read(b[:4])
 
+	// Verify magic number
 	if binary.BigEndian.Uint32(b[:4]) != 0x16D116D1 {
 		println("Not a tsm1 file.")
 		os.Exit(1)
@@ -275,16 +276,13 @@ func dumpTsm1(path string) {
 
 	}
 	tw.Flush()
-
 	println()
-
 	println("Blocks:")
 
-	// current file pointer offset.  First 4 bytes are the magic number.
 	tw = tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
-
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Blk", "Ofs", "Len", "ID", "Type", "Min Time", "Points", "Enc [T/V]", "Len [T/V]"}, "\t"))
 
+	// Staring at 4 because the magic number is 4 bytes
 	i := int64(4)
 	var blockCount, pointCount, blockSize int64
 	indexSize := stat.Size() - index.offset
