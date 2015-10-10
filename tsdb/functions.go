@@ -182,6 +182,7 @@ func initializeReduceFunc(c *influxql.Call) (reduceFunc, error) {
 	}
 }
 
+// InitializeUnmarshaller retrieves an unmarshaller function by name.
 func InitializeUnmarshaller(c *influxql.Call) (UnmarshalFunc, error) {
 	// if c is nil it's a raw data query
 	if c == nil {
@@ -283,7 +284,7 @@ func MapDistinct(input *MapInput) interface{} {
 
 	results := make(interfaceValues, len(m))
 	var i int
-	for value, _ := range m {
+	for value := range m {
 		results[i] = value
 		i++
 	}
@@ -312,7 +313,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 	// convert map keys to an array
 	results := make(interfaceValues, len(index))
 	var i int
-	for k, _ := range index {
+	for k := range index {
 		results[i] = k
 		i++
 	}
@@ -352,7 +353,7 @@ func ReduceCountDistinct(values []interface{}) interface{} {
 			msg := fmt.Sprintf("expected map[interface{}]struct{}, got: %T", v)
 			panic(msg)
 		}
-		for distinctCountValue, _ := range d {
+		for distinctCountValue := range d {
 			index[distinctCountValue] = struct{}{}
 		}
 	}
@@ -360,8 +361,10 @@ func ReduceCountDistinct(values []interface{}) interface{} {
 	return len(index)
 }
 
+// NumberType is an 8 bit integer used to represent a number type.
 type NumberType int8
 
+// Float64Type and Int64Type are constants indicating a number type.
 const (
 	Float64Type NumberType = iota
 	Int64Type
@@ -1553,7 +1556,7 @@ func MapTopBottom(input *MapInput, limit int, fields []string, argCount int, cal
 	return result
 }
 
-// ReduceTop computes the top values for each key.
+// ReduceTopBottom computes the top values for each key.
 // This function assumes that its inputs are in sorted ascending order.
 func ReduceTopBottom(values []interface{}, limit int, fields []string, callName string) interface{} {
 	out := positionOut{callArgs: fields}

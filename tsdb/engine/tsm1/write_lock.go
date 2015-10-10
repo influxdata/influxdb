@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// writeLock is a lock that enables locking of ranges between a
+// WriteLock is a lock that enables locking of ranges between a
 // min and max value. We use this so that flushes from the WAL
 // can occur concurrently along with compactions.
 type WriteLock struct {

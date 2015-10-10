@@ -193,7 +193,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 		}
 		for k, mf := range fields {
 			m := index.CreateMeasurementIndexIfNotExists(string(k))
-			for name, _ := range mf.Fields {
+			for name := range mf.Fields {
 				m.SetFieldName(name)
 			}
 			mf.Codec = tsdb.NewFieldCodec(mf.Fields)
@@ -209,7 +209,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 		// Load the series into the in-memory index in sorted order to ensure
 		// it's always consistent for testing purposes
 		a := make([]string, 0, len(series))
-		for k, _ := range series {
+		for k := range series {
 			a = append(a, k)
 		}
 		sort.Strings(a)
@@ -672,9 +672,10 @@ func (c *Cursor) last() {
 	c.setBuf(v)
 }
 
+// Ascending returns true if the cursor is ascending.
 func (c *Cursor) Ascending() bool { return c.ascending }
 
-// Seek moves the cursor to a position and returns the closest key/value pair.
+// SeekTo moves the cursor to a position and returns the closest key/value pair.
 func (c *Cursor) SeekTo(seek int64) (key int64, value interface{}) {
 	seekBytes := u64tob(uint64(seek))
 
@@ -720,7 +721,7 @@ func (c *Cursor) seekBuf(seek []byte) (key, value []byte) {
 			// Otherwise skip ahead to the next entry.
 			c.off += entryHeaderSize + entryDataSize(buf)
 		} else {
-			c.index -= 1
+			c.index--
 			if c.index < 0 {
 				return
 			}
@@ -749,7 +750,7 @@ func (c *Cursor) Next() (key int64, value interface{}) {
 		if len(c.fieldIndices) > 0 {
 			c.off = c.fieldIndices[c.index]
 		}
-		c.index -= 1
+		c.index--
 	}
 
 	// If no items left then read first item from next block.

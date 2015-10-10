@@ -37,7 +37,7 @@ const (
 	// for writes that a full flush and compaction are forced
 	DefaultFlushColdInterval = 5 * time.Second
 
-	// DefaultParititionSizeThreshold specifies when a partition gets to this size in
+	// DefaultPartitionSizeThreshold specifies when a partition gets to this size in
 	// memory, we should slow down writes until it gets a chance to compact.
 	// This will force clients to get backpressure if they're writing too fast. We need
 	// this because the WAL can take writes much faster than the index. So eventually
@@ -45,8 +45,10 @@ const (
 	// This number multiplied by the parition count is roughly the max possible memory
 	// size for the in-memory WAL cache.
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
+)
 
-	// Default WAL settings for the TSM1 WAL
+// Default WAL settings for the TSM1 WAL.
+const (
 	DefaultFlushMemorySizeThreshold    = 5 * 1024 * 1024   // 5MB
 	DefaultMaxMemorySizeThreshold      = 100 * 1024 * 1024 // 100MB
 	DefaultIndexCompactionAge          = time.Minute
@@ -55,6 +57,8 @@ const (
 	DefaultIndexCompactionFullAge      = 5 * time.Minute
 )
 
+// Config is a struct holding tsdb/engine/wal configuration options.
+// The tag strings define toml values.
 type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"engine"`
@@ -99,6 +103,7 @@ type Config struct {
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 }
 
+// NewConfig returns a default engine/wal Config.
 func NewConfig() Config {
 	defaultEngine := DefaultEngine
 	if engine := os.Getenv("INFLUXDB_DATA_ENGINE"); engine != "" {

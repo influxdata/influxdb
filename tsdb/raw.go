@@ -11,17 +11,18 @@ import (
 )
 
 const (
-	// Return an error if the user is trying to select more than this number of points in a group by statement.
+	// MaxGroupByPoints is the maximum number of points a user can select in a group by statement.
 	// Most likely they specified a group by interval without time boundaries.
 	MaxGroupByPoints = 100000
 
-	// Since time is always selected, the column count when selecting only a single other value will be 2
+	// SelectColumnCountWithOneValue is 2 since time is always selected.
 	SelectColumnCountWithOneValue = 2
 
 	// IgnoredChunkSize is what gets passed into Mapper.Begin for aggregate queries as they don't chunk points out
 	IgnoredChunkSize = 0
 )
 
+// RawExecutor is a struct encapsulating a raw executor.
 type RawExecutor struct {
 	stmt           *influxql.SelectStatement
 	mappers        []*StatefulMapper
@@ -377,11 +378,10 @@ func (r *limitedRowWriter) Add(values []*MapperValue) (limited bool) {
 		if offsetRequired >= len(values) {
 			r.totalOffSet += len(values)
 			return false
-		} else {
-			// Drop leading values and keep going.
-			values = values[offsetRequired:]
-			r.totalOffSet += offsetRequired
 		}
+		// Drop leading values and keep going.
+		values = values[offsetRequired:]
+		r.totalOffSet += offsetRequired
 	}
 	r.currValues = append(r.currValues, values...)
 
@@ -538,6 +538,7 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *models.Row {
 	return row
 }
 
+// RawQueryDerivativeProcessor is a processor for a derivative.
 type RawQueryDerivativeProcessor struct {
 	LastValueFromPreviousChunk *MapperValue
 	IsNonNegative              bool // Whether to drop negative differences
@@ -562,6 +563,7 @@ func (rqdp *RawQueryDerivativeProcessor) canProcess(input *MapperValue) bool {
 	return validType
 }
 
+// Process calculates the derivative for a chunk of input.
 func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*MapperValue {
 	if len(input) == 0 {
 		return input
@@ -644,7 +646,7 @@ func processForMath(fields influxql.Fields, results [][]interface{}) [][]interfa
 	}
 
 	mathResults := make([][]interface{}, len(results))
-	for i, _ := range mathResults {
+	for i := range mathResults {
 		mathResults[i] = make([]interface{}, len(fields)+1)
 		// put the time in
 		mathResults[i][0] = results[i][0]
@@ -922,10 +924,9 @@ func (m *RawMapper) NextChunk() (interface{}, error) {
 			if output != nil {
 				// There is data, so return it and continue when next called.
 				return output, nil
-			} else {
-				// Just go straight to the next cursor.
-				continue
 			}
+			// Just go straight to the next cursor.
+			continue
 		}
 
 		if output == nil {

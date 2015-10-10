@@ -15,6 +15,7 @@ import (
 	"github.com/influxdb/influxdb/models"
 )
 
+// NewStore returns a pointer to an initialized Store.
 func NewStore(path string) *Store {
 	opts := NewEngineOptions()
 	opts.Config = NewConfig()
@@ -26,15 +27,21 @@ func NewStore(path string) *Store {
 	}
 }
 
+// ErrShardNotFound is a shard not found error.
+// ErrStoreClosed is an error returned when the store is closed.
 var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
 	ErrStoreClosed   = fmt.Errorf("store is closed")
 )
 
+// MaintenanceCheckInterval is the interval between periodic maintenance
+// checks of the shards.
 const (
 	MaintenanceCheckInterval = time.Minute
 )
 
+// Store encapsulates information about the store, including
+// database indexes, shards and engine options.
 type Store struct {
 	mu   sync.RWMutex
 	path string
@@ -74,6 +81,7 @@ func (s *Store) ShardN() int {
 	return len(s.shards)
 }
 
+// CreateShard creates a shard on the disk, if it does not exist already.
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -173,12 +181,15 @@ func (s *Store) ShardIDs() []uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	ids := make([]uint64, 0, len(s.shards))
-	for i, _ := range s.shards {
+	for i := range s.shards {
 		ids = append(ids, i)
 	}
 	return ids
 }
 
+// ValidateAggregateFieldsInStatement calls the shard's
+// ValidateAggregateFieldsInStatement to validate the fields
+// used in a aggregate in a select statement.
 func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error {
 	s.mu.RLock()
 	shard := s.shards[shardID]
@@ -189,13 +200,14 @@ func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementNa
 	return shard.ValidateAggregateFieldsInStatement(measurementName, stmt)
 }
 
+// DatabaseIndex returns the DatabaseIndex in a store, given a database name.
 func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.databaseIndexes[name]
 }
 
-// Databases returns all the databases in the indexes
+// Databases returns all the database indexes in the store.
 func (s *Store) Databases() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -206,6 +218,7 @@ func (s *Store) Databases() []string {
 	return databases
 }
 
+// Measurement returns a given measurement from a given database.
 func (s *Store) Measurement(database, name string) *Measurement {
 	s.mu.RLock()
 	db := s.databaseIndexes[database]
@@ -232,7 +245,7 @@ func (s *Store) DiskSize() (int64, error) {
 	return size, nil
 }
 
-// deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
+// deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys.
 func (s *Store) deleteSeries(keys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -244,7 +257,7 @@ func (s *Store) deleteSeries(keys []string) error {
 	return nil
 }
 
-// deleteMeasurement loops through the local shards and removes the measurement field encodings from each shard
+// deleteMeasurement loops through the local shards and removes the measurement field encodings from each shard.
 func (s *Store) deleteMeasurement(name string, seriesKeys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -349,6 +362,7 @@ func (s *Store) performMaintenanceOnShard(shard *Shard) {
 	shard.PerformMaintenance()
 }
 
+// Open opens and initializes the store.
 func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -380,6 +394,7 @@ func (s *Store) Open() error {
 	return nil
 }
 
+// WriteToShard writes the given points to the given shard.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -398,6 +413,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	return sh.WritePoints(points)
 }
 
+// CreateMapper returns a mapper for the given influxql statement.
 func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (Mapper, error) {
 	shard := s.Shard(shardID)
 
@@ -421,6 +437,7 @@ func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize 
 	}
 }
 
+// Close closes the store.
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

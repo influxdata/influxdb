@@ -96,9 +96,9 @@ func (c *combinedEngineCursor) read() (key int64, value interface{}) {
 	return
 }
 
-// multieFieldCursor wraps cursors for multiple fields on the same series
-// key. Instead of returning a plain interface value in the call for Next(),
-// it returns a map[string]interface{} for the field values
+// multiFieldCursor wraps cursors for multiple fields on the same series key.
+// Instead of returning a plain interface value in the call for Next(),
+// it returns a map[string]interface{} for the field values.
 type multiFieldCursor struct {
 	fields      []string
 	cursors     []tsdb.Cursor

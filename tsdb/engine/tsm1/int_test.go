@@ -242,7 +242,7 @@ func Test_Int64Encoder_NegativeUncompressed(t *testing.T) {
 		if values[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
 		}
-		i += 1
+		i++
 	}
 
 	if i != len(values) {
@@ -279,7 +279,7 @@ func Test_Int64Encoder_AllNegative(t *testing.T) {
 		if values[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
 		}
-		i += 1
+		i++
 	}
 
 	if i != len(values) {
@@ -322,7 +322,7 @@ func Test_Int64Encoder_CounterPacked(t *testing.T) {
 		if values[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
 		}
-		i += 1
+		i++
 	}
 
 	if i != len(values) {
@@ -365,7 +365,7 @@ func Test_Int64Encoder_CounterRLE(t *testing.T) {
 		if values[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
 		}
-		i += 1
+		i++
 	}
 
 	if i != len(values) {
@@ -406,7 +406,7 @@ func Test_Int64Encoder_MinMax(t *testing.T) {
 		if values[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
 		}
-		i += 1
+		i++
 	}
 
 	if i != len(values) {

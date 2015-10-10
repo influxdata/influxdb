@@ -57,7 +57,7 @@ type QueryExecutor struct {
 	Store *Store
 }
 
-// partial copy of cluster.WriteRequest
+// IntoWriteRequest is a partial copy of cluster.WriteRequest.
 type IntoWriteRequest struct {
 	Database        string
 	RetentionPolicy string
@@ -232,7 +232,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 	return results, nil
 }
 
-// Plan creates an execution plan for the given SelectStatement and returns an Executor.
+// PlanSelect creates an execution plan for the given SelectStatement and returns an Executor.
 func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
 	var shardIDs []uint64
 	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
@@ -298,9 +298,8 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 
 	if (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative() {
 		return NewRawExecutor(stmt, mappers, chunkSize), nil
-	} else {
-		return NewAggregateExecutor(stmt, mappers), nil
 	}
+	return NewAggregateExecutor(stmt, mappers), nil
 }
 
 // expandSources expands regex sources and removes duplicates.
@@ -405,7 +404,7 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 
 	m := db.Measurement(stmt.Name)
 	if m == nil {
-		return &influxql.Result{Err: ErrMeasurementNotFound(stmt.Name)}
+		return &influxql.Result{Err: errMeasurementNotFound(stmt.Name)}
 	}
 
 	// first remove from the index
@@ -1019,7 +1018,7 @@ type ErrAuthorize struct {
 
 const authErrLogFmt string = "unauthorized request | user: %q | query: %q | database %q\n"
 
-// newAuthorizationError returns a new instance of AuthorizationError.
+// NewErrAuthorize returns a new instance of ErrAuthorize.
 func NewErrAuthorize(qe *QueryExecutor, q *influxql.Query, u, db, m string) *ErrAuthorize {
 	return &ErrAuthorize{q: qe, query: q, user: u, database: db, message: m}
 }
@@ -1042,9 +1041,10 @@ var (
 	ErrNotExecuted = errors.New("not executed")
 )
 
+// ErrDatabaseNotFound takes a database name and returns a database not found error.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
-func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
+func errMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
 type uint64Slice []uint64
 

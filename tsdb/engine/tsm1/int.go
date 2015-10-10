@@ -55,6 +55,7 @@ type int64Encoder struct {
 	values []uint64
 }
 
+// NewInt64Encoder returns a structure to hold encoded int64s.
 func NewInt64Encoder() Int64Encoder {
 	return &int64Encoder{rle: true}
 }
@@ -165,6 +166,7 @@ type int64Decoder struct {
 	err      error
 }
 
+// NewInt64Decoder returns a new int64Decoder.
 func NewInt64Decoder(b []byte) Int64Decoder {
 	d := &int64Decoder{
 		// 240 is the maximum number of values that can be encoded into a single uint64 using simple8b

@@ -109,22 +109,22 @@ func TestReducePercentileNil(t *testing.T) {
 
 func TestMapDistinct(t *testing.T) {
 	const ( // prove that we're ignoring time
-		timeId1 = iota + 1
-		timeId2
-		timeId3
-		timeId4
-		timeId5
-		timeId6
+		timeID1 = iota + 1
+		timeID2
+		timeID3
+		timeID4
+		timeID5
+		timeID6
 	)
 
 	input := &MapInput{
 		Items: []MapItem{
-			{Timestamp: timeId1, Value: uint64(1)},
-			{Timestamp: timeId2, Value: uint64(1)},
-			{Timestamp: timeId3, Value: "1"},
-			{Timestamp: timeId4, Value: uint64(1)},
-			{Timestamp: timeId5, Value: float64(1.0)},
-			{Timestamp: timeId6, Value: "1"},
+			{Timestamp: timeID1, Value: uint64(1)},
+			{Timestamp: timeID2, Value: uint64(1)},
+			{Timestamp: timeID3, Value: "1"},
+			{Timestamp: timeID4, Value: uint64(1)},
+			{Timestamp: timeID5, Value: float64(1.0)},
+			{Timestamp: timeID6, Value: "1"},
 		},
 	}
 
@@ -253,24 +253,24 @@ func Test_distinctValues_Sort(t *testing.T) {
 
 func TestMapCountDistinct(t *testing.T) {
 	const ( // prove that we're ignoring time
-		timeId1 = iota + 1
-		timeId2
-		timeId3
-		timeId4
-		timeId5
-		timeId6
-		timeId7
+		timeID1 = iota + 1
+		timeID2
+		timeID3
+		timeID4
+		timeID5
+		timeID6
+		timeID7
 	)
 
 	input := &MapInput{
 		Items: []MapItem{
-			{Timestamp: timeId1, Value: uint64(1)},
-			{Timestamp: timeId2, Value: uint64(1)},
-			{Timestamp: timeId3, Value: "1"},
-			{Timestamp: timeId4, Value: uint64(1)},
-			{Timestamp: timeId5, Value: float64(1.0)},
-			{Timestamp: timeId6, Value: "1"},
-			{Timestamp: timeId7, Value: true},
+			{Timestamp: timeID1, Value: uint64(1)},
+			{Timestamp: timeID2, Value: uint64(1)},
+			{Timestamp: timeID3, Value: "1"},
+			{Timestamp: timeID4, Value: uint64(1)},
+			{Timestamp: timeID5, Value: float64(1.0)},
+			{Timestamp: timeID6, Value: "1"},
+			{Timestamp: timeID7, Value: true},
 		},
 	}
 

@@ -40,6 +40,8 @@ type FloatEncoder struct {
 	finished bool
 }
 
+// NewFloatEncoder returns a new FloatEncoder to encode multiple
+// float64s into a byte slice.
 func NewFloatEncoder() *FloatEncoder {
 	s := FloatEncoder{
 		first:   true,
@@ -52,10 +54,12 @@ func NewFloatEncoder() *FloatEncoder {
 
 }
 
+// Bytes returns the bytes in an encoder buffer.
 func (s *FloatEncoder) Bytes() []byte {
 	return append([]byte{floatCompressedGorilla << 4}, s.buf.Bytes()...)
 }
 
+// Finish writes an end-of-stream record.
 func (s *FloatEncoder) Finish() {
 	if !s.finished {
 		// write an end-of-stream record
@@ -65,6 +69,7 @@ func (s *FloatEncoder) Finish() {
 	}
 }
 
+// Push pushes an encoded float64 on to the stream.
 func (s *FloatEncoder) Push(v float64) {
 	if s.first {
 		// first point
@@ -114,7 +119,7 @@ func (s *FloatEncoder) Push(v float64) {
 	s.val = v
 }
 
-// FloatDecoder decodes a byte slice into multipe float64 values
+// FloatDecoder decodes a byte slice into multiple float64 values.
 type FloatDecoder struct {
 	val float64
 
@@ -131,6 +136,8 @@ type FloatDecoder struct {
 	err error
 }
 
+// NewFloatDecoder returns a new FloatDecoder to decode a byte slice
+// into multiple float64s.
 func NewFloatDecoder(b []byte) (*FloatDecoder, error) {
 	// first byte is the compression type but we currently just have gorilla
 	// compression
@@ -149,6 +156,8 @@ func NewFloatDecoder(b []byte) (*FloatDecoder, error) {
 	}, nil
 }
 
+// Next gets the next float64 from the encoded stream, returning false
+// if there isn't one.
 func (it *FloatDecoder) Next() bool {
 	if it.err != nil || it.finished {
 		return false
@@ -225,6 +234,7 @@ func (it *FloatDecoder) Next() bool {
 	return true
 }
 
+// Values returns the current decoded float64 value.
 func (it *FloatDecoder) Values() float64 {
 	return it.val
 }

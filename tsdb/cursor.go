@@ -184,6 +184,7 @@ func (tsc *TagSetCursor) key() string {
 	return tsc.memokey
 }
 
+// Init initializes a min-heap of cursors, and primes the buffers.
 func (tsc *TagSetCursor) Init(seek int64) {
 	tsc.heap = newPointHeap()
 
@@ -349,7 +350,7 @@ func NewTagsCursor(c Cursor, filter influxql.Expr, tags map[string]string) *Tags
 	}
 }
 
-// Seek positions returning the key and value at that key.
+// SeekTo positions returning the key and value at that key.
 func (c *TagsCursor) SeekTo(seek int64) (int64, interface{}) {
 	// We've seeked on this cursor. This seek is after that previous cached seek
 	// and the result it gave was after the key for this seek.
@@ -386,6 +387,7 @@ func (a TagSetCursors) Len() int           { return len(a) }
 func (a TagSetCursors) Less(i, j int) bool { return a[i].key() < a[j].key() }
 func (a TagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+// Keys returns the keys from each TagSetCursor in a slice of TagSetCursors.
 func (a TagSetCursors) Keys() []string {
 	keys := []string{}
 	for i := range a {

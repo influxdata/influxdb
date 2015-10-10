@@ -156,6 +156,7 @@ func (e *Engine) Open() error {
 	return nil
 }
 
+// Close the engine safely.
 func (e *Engine) Close() error {
 	e.mu.Lock()
 	err := e.close()
@@ -193,7 +194,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 			if err := mf.UnmarshalBinary(v); err != nil {
 				return err
 			}
-			for name, _ := range mf.Fields {
+			for name := range mf.Fields {
 				m.SetFieldName(name)
 			}
 			mf.Codec = tsdb.NewFieldCodec(mf.Fields)
@@ -310,7 +311,7 @@ func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[
 
 		// Sort by timestamp if not appending.
 		for partitionID, cache := range resorts {
-			for key, _ := range cache {
+			for key := range cache {
 				sort.Sort(byteSlices(e.cache[partitionID][key]))
 			}
 		}
@@ -620,9 +621,10 @@ type Cursor struct {
 	ascending bool
 }
 
+// Ascending returns true if the cursor is ascending.
 func (c *Cursor) Ascending() bool { return c.ascending }
 
-// Seek moves the cursor to a position and returns the closest key/value pair.
+// SeekTo moves the cursor to a position and returns the closest key/value pair.
 func (c *Cursor) SeekTo(seek int64) (key int64, value interface{}) {
 	// Seek bolt cursor.
 	seekBytes := u64tob(uint64(seek))

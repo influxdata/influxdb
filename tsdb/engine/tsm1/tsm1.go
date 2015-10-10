@@ -61,8 +61,11 @@ const (
 	blockBufferSize = 1024 * 1024
 )
 
+// TimePrecision is a type to indicate time precision.
 type TimePrecision uint8
 
+// Second, Milliseconds, Microseconds and Nanoseconds are
+// constants to mark the time precision.
 const (
 	Seconds TimePrecision = iota
 	Milliseconds
@@ -74,6 +77,7 @@ func init() {
 	tsdb.RegisterEngine(Format, NewEngine)
 }
 
+// Default constants for tsm1 data file.
 const (
 	MaxDataFileSize = 1024 * 1024 * 1024 * 2 // 2GB
 
@@ -251,7 +255,7 @@ func (e *Engine) Open() error {
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %s", fn, err.Error())
 		}
-		df, err := NewDataFile(f)
+		df, err := newDataFile(f)
 		if err != nil {
 			return fmt.Errorf("error opening memory map for file %s: %s", fn, err.Error())
 		}
@@ -508,6 +512,7 @@ func (e *Engine) MarkDeletes(keys []string) {
 	}
 }
 
+// MarkMeasurementDelete marks the given measurement as deleted.
 func (e *Engine) MarkMeasurementDelete(name string) {
 	e.filesLock.Lock()
 	defer e.filesLock.Unlock()
@@ -657,7 +662,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	newDataFiles := make(dataFiles, len(newFiles))
 	for i, f := range newFiles {
 		// now open it as a memory mapped data file
-		newDF, err := NewDataFile(f)
+		newDF, err := newDataFile(f)
 		if err != nil {
 			return err
 		}
@@ -779,7 +784,7 @@ func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, id
 	}
 
 	// now open it as a memory mapped data file
-	newDF, err := NewDataFile(f)
+	newDF, err := newDataFile(f)
 	if err != nil {
 		return nil, err
 	}
@@ -828,7 +833,7 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 	}
 
 	if len(pointsByKey) == 0 {
-		return 0, 0, nil, nil
+		return 0, 0, nil, err
 	}
 
 	// read in keys and assign any that aren't defined
@@ -1472,6 +1477,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 	return &tx{files: files, engine: e}, nil
 }
 
+// WriteTo is not implemented yet.
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 func (e *Engine) keyToID(key string) uint64 {
@@ -1965,7 +1971,8 @@ const (
 	maxTimeOffset      = 12
 )
 
-func NewDataFile(f *os.File) (*dataFile, error) {
+// newDataFile returns a new mmap'ed data file, given an os file pointer.
+func newDataFile(f *os.File) (*dataFile, error) {
 	// seek back to the beginning to hand off to the mmap
 	if _, err := f.Seek(0, 0); err != nil {
 		return nil, err
