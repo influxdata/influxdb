@@ -621,11 +621,15 @@ func (l *Log) flush(flush flushType) error {
 	}
 
 	startTime := time.Now()
-	if err := l.Index.Write(l.flushCache, mfc, scc); err != nil {
-		l.cacheLock.RUnlock()
+	err := func() error {
+		defer l.cacheLock.RUnlock()
+		return l.Index.Write(l.flushCache, mfc, scc)
+	}()
+	
+	if  err != nil {
 		return err
 	}
-	l.cacheLock.RUnlock()
+	
 	
 	if l.LoggingEnabled {
 		l.logger.Printf("%s flush to index took %s\n", l.path, time.Since(startTime))
