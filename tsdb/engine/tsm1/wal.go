@@ -557,6 +557,8 @@ func (l *Log) flush(flush flushType) error {
 	if flush == idleFlush {
 		if l.currentSegmentFile != nil {
 			if err := l.currentSegmentFile.Close(); err != nil {
+				l.cacheLock.Unlock()
+				l.writeLock.Unlock()
 				return err
 			}
 			l.currentSegmentFile = nil
@@ -564,6 +566,9 @@ func (l *Log) flush(flush flushType) error {
 		}
 	} else {
 		if err := l.newSegmentFile(); err != nil {
+			l.cacheLock.Unlock()
+			l.writeLock.Unlock()
+				
 			// there's no recovering from this, fail hard
 			panic(fmt.Sprintf("error creating new wal file: %s", err.Error()))
 		}
@@ -597,9 +602,11 @@ func (l *Log) flush(flush flushType) error {
 	l.seriesToCreateCache = nil
 
 	l.cacheLock.Unlock()
+	l.cacheLock.RLock()
 
 	// exit if there's nothing to flush to the index
 	if len(l.flushCache) == 0 && len(mfc) == 0 && len(scc) == 0 && flush != startupFlush {
+		l.cacheLock.RUnlock()
 		return nil
 	}
 
@@ -614,9 +621,16 @@ func (l *Log) flush(flush flushType) error {
 	}
 
 	startTime := time.Now()
-	if err := l.Index.Write(l.flushCache, mfc, scc); err != nil {
+	err := func() error {
+		defer l.cacheLock.RUnlock()
+		return l.Index.Write(l.flushCache, mfc, scc)
+	}()
+	
+	if  err != nil {
 		return err
 	}
+	
+	
 	if l.LoggingEnabled {
 		l.logger.Printf("%s flush to index took %s\n", l.path, time.Since(startTime))
 	}
