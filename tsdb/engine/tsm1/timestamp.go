@@ -124,7 +124,7 @@ func (e *encoder) Bytes() ([]byte, error) {
 	max, div, rle, dts := e.reduce()
 
 	// The deltas are all the same, so we can run-length encode them
-	if rle && len(e.ts) > 60 {
+	if rle && len(e.ts) > 1 {
 		return e.encodeRLE(e.ts[0], e.ts[1], div, len(e.ts))
 	}
 

@@ -24,8 +24,8 @@ func Test_TimeEncoder(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != timeCompressedPackedSimple {
-		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	if got := b[0] >> 4; got != timeCompressedRLE {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
 	dec := NewTimeDecoder(b)
@@ -89,8 +89,8 @@ func Test_TimeEncoder_Two(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != timeCompressedPackedSimple {
-		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	if got := b[0] >> 4; got != timeCompressedRLE {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
 	dec := NewTimeDecoder(b)
@@ -115,7 +115,7 @@ func Test_TimeEncoder_Three(t *testing.T) {
 	enc := NewTimeEncoder()
 	t1 := time.Unix(0, 0)
 	t2 := time.Unix(0, 1)
-	t3 := time.Unix(0, 2)
+	t3 := time.Unix(0, 3)
 
 	enc.Write(t1)
 	enc.Write(t2)
@@ -127,7 +127,7 @@ func Test_TimeEncoder_Three(t *testing.T) {
 	}
 
 	if got := b[0] >> 4; got != timeCompressedPackedSimple {
-		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
 	dec := NewTimeDecoder(b)
@@ -167,8 +167,8 @@ func Test_TimeEncoder_Large_Range(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != timeCompressedPackedSimple {
-		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
+	if got := b[0] >> 4; got != timeCompressedRLE {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
 	dec := NewTimeDecoder(b)
@@ -285,7 +285,7 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 	ts := []time.Time{
 		time.Unix(0, 3),
 		time.Unix(0, 2),
-		time.Unix(0, 1),
+		time.Unix(0, 0),
 	}
 
 	for _, v := range ts {
@@ -390,6 +390,46 @@ func Test_TimeEncoder_Quick(t *testing.T) {
 	}, nil)
 }
 
+func Test_TimeEncoder_RLESeconds(t *testing.T) {
+	enc := NewTimeEncoder()
+	ts := make([]time.Time, 6)
+
+	ts[0] = time.Unix(0, 1444448158000000000)
+	ts[1] = time.Unix(0, 1444448168000000000)
+	ts[2] = time.Unix(0, 1444448178000000000)
+	ts[3] = time.Unix(0, 1444448188000000000)
+	ts[4] = time.Unix(0, 1444448198000000000)
+	ts[5] = time.Unix(0, 1444448208000000000)
+
+	for _, v := range ts {
+		enc.Write(v)
+	}
+
+	b, err := enc.Bytes()
+	if got := b[0] >> 4; got != timeCompressedRLE {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	dec := NewTimeDecoder(b)
+	for i, v := range ts {
+		if !dec.Next() {
+			t.Fatalf("Next == false, expected true")
+		}
+
+		if v != dec.Read() {
+			t.Fatalf("Item %d mismatch, got %v, exp %v", i, dec.Read(), v)
+		}
+	}
+
+	if dec.Next() {
+		t.Fatalf("unexpected extra values")
+	}
+
+}
 func BenchmarkTimeEncoder(b *testing.B) {
 	enc := NewTimeEncoder()
 	x := make([]time.Time, 1024)
