@@ -368,7 +368,7 @@ func (m *Monitor) storeStatistics() {
 
 			points := make(models.Points, 0, len(stats))
 			for _, s := range stats {
-				points = append(points, models.NewPoint(s.Name, s.Tags, s.Values, time.Now()))
+				points = append(points, models.NewPoint(s.Name, s.Tags, s.Values, time.Now().Truncate(time.Second)))
 			}
 
 			err = m.PointsWriter.WritePoints(&cluster.WritePointsRequest{
