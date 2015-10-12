@@ -1717,7 +1717,7 @@ func (s *DeleteStatement) String() string {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())
 	}
-	return s.String()
+	return buf.String()
 }
 
 // RequiredPrivileges returns the privilege required to execute a DeleteStatement.
