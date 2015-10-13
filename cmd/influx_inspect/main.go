@@ -16,18 +16,76 @@ import (
 	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
 
+func usage() {
+	println(`Usage: influx_inspect <command> [options]
+
+Displays detailed information about InfluxDB data files.
+`)
+
+	println(`Commands:
+  info - displays series meta-data for all shards.  Default location [$HOME/.influxdb]
+  dumptsm - dumps low-level details about tsm1 files.`)
+	println()
+}
+
 func main() {
 
-	var path, tsm string
-	flag.StringVar(&path, "p", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
-	flag.StringVar(&tsm, "tsm", "", "Path to a tsm1 files")
+	flag.Usage = usage
 	flag.Parse()
 
-	if tsm != "" {
-		dumpTsm1(tsm)
-		return
+	if len(flag.Args()) == 0 {
+		flag.Usage()
+		os.Exit(0)
 	}
 
+	switch flag.Args()[0] {
+	case "info":
+		var path string
+		fs := flag.NewFlagSet("info", flag.ExitOnError)
+		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+
+		fs.Usage = func() {
+			println("Usage: influx_inspect info [options]\n\n   Displays series meta-data for all shards..")
+			println()
+			println("Options:")
+			fs.PrintDefaults()
+		}
+
+		if err := fs.Parse(flag.Args()[1:]); err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+		cmdInfo(path)
+	case "dumptsm":
+		var file string
+		fs := flag.NewFlagSet("file", flag.ExitOnError)
+		fs.Usage = func() {
+			println("Usage: influx_inspect dumptsm [options] <path>\n\n  Dumps low-level details about tsm1 files.")
+			println()
+		}
+
+		if err := fs.Parse(flag.Args()[1:]); err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+
+		if len(fs.Args()) == 0 || fs.Args()[0] == "" {
+			fmt.Printf("TSM file not specified\n\n")
+			fs.Usage()
+			fs.PrintDefaults()
+			os.Exit(1)
+		}
+		file = fs.Args()[0]
+		dumpTsm1(file)
+		return
+
+	default:
+		flag.Usage()
+		os.Exit(1)
+	}
+}
+
+func cmdInfo(path string) {
 	tstore := tsdb.NewStore(filepath.Join(path, "data"))
 	tstore.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 	tstore.EngineOptions.Config.Dir = filepath.Join(path, "data")
