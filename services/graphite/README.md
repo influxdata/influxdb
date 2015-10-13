@@ -50,7 +50,7 @@ Additional tags can be added to a metric that don't exist on the received metric
 
 ### Fields
 
-A field name can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_.
+A field key can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_.
 
 When using the current default engine _BZ1_, it's recommended to use a single field per value for performance reasons.
 
@@ -158,7 +158,7 @@ If you need to add the same set of tags to all metrics, you can define them glob
      # filter + template + extra tag
      "stats.* .host.measurement* region=us-west,agent=sensu",
 
-     # filter + template with field name
+     # filter + template with field key
      "stats.* .host.measurement.field",
 
      # default template. Ignore the first graphite component "servers"
