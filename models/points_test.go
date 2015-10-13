@@ -198,7 +198,6 @@ func TestParsePointNoFields(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu,,, value=1")
 	}
-
 }
 
 func TestParsePointNoTimestamp(t *testing.T) {
@@ -252,7 +251,6 @@ func TestParsePointMissingTagValue(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=,zone=us-west value=1i`)
 	}
-
 }
 
 func TestParsePointMissingFieldName(t *testing.T) {
@@ -274,7 +272,6 @@ func TestParsePointMissingFieldName(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=123i,=456i`)
 	}
-
 }
 
 func TestParsePointMissingFieldValue(t *testing.T) {
@@ -473,7 +470,6 @@ func TestParsePointFloatScientific(t *testing.T) {
 	if pts[0].Fields()["value"] != 1e4 {
 		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1e4`, err)
 	}
-
 }
 
 func TestParsePointFloatScientificUpper(t *testing.T) {
@@ -490,7 +486,6 @@ func TestParsePointFloatScientificUpper(t *testing.T) {
 	if pts[0].Fields()["value"] != 1e4 {
 		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1E4`, err)
 	}
-
 }
 
 func TestParsePointFloatScientificDecimal(t *testing.T) {
