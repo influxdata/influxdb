@@ -211,7 +211,7 @@ func TestParsePointMissingQuote(t *testing.T) {
 	}
 }
 
-func TestParsePointMissingTagName(t *testing.T) {
+func TestParsePointMissingTagKey(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,=us-east value=1i`)
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,=us-east value=1i`)
@@ -560,7 +560,7 @@ func TestParsePointUnescape(t *testing.T) {
 	test(t, `cpu,region\,zone=east value=1.0`,
 		models.NewPoint("cpu",
 			models.Tags{
-				"region,zone": "east", // comma in the tag name
+				"region,zone": "east", // comma in the tag key
 			},
 			models.Fields{
 				"value": 1.0,
@@ -571,7 +571,7 @@ func TestParsePointUnescape(t *testing.T) {
 	test(t, `cpu,region\ zone=east value=1.0`,
 		models.NewPoint("cpu",
 			models.Tags{
-				"region zone": "east", // comma in the tag name
+				"region zone": "east", // comma in the tag key
 			},
 			models.Fields{
 				"value": 1.0,
