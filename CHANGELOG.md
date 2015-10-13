@@ -59,6 +59,7 @@
 - [#4360](https://github.com/influxdb/influxdb/issues/4360): Aggregate Selectors overwrite values during post-processing
 - [#4421](https://github.com/influxdb/influxdb/issues/4421): Fix line protocol accepting tags with no values
 - [#4434](https://github.com/influxdb/influxdb/pull/4434): Allow 'E' for scientific values. Fixes [#4433](https://github.com/influxdb/influxdb/issues/4433)
+- [#4431](https://github.com/influxdb/influxdb/issues/4431): Add tsm1 WAL QuickCheck
 
 ## v0.9.4 [2015-09-14]
 

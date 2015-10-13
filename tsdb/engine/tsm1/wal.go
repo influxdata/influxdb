@@ -100,8 +100,8 @@ type Log struct {
 	// MaxMemorySizeThreshold specifies the limit at which writes to the WAL should be rejected
 	MaxMemorySizeThreshold int
 
-	// Index is the database series will be flushed to
-	Index IndexWriter
+	// IndexWriter is the database series will be flushed to
+	IndexWriter IndexWriter
 
 	// LoggingEnabled specifies if detailed logs should be output
 	LoggingEnabled bool
@@ -135,6 +135,9 @@ func NewLog(path string) *Log {
 		logger:                   log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 	}
 }
+
+// Path returns the path the log was initialized with.
+func (l *Log) Path() string { return l.path }
 
 // Open opens and initializes the Log. Will recover from previous unclosed shutdowns
 func (l *Log) Open() error {
@@ -393,8 +396,8 @@ func (l *Log) readFileToCache(fileName string) error {
 			if err := json.Unmarshal(data, &d); err != nil {
 				return err
 			}
-			l.Index.MarkDeletes(d.Keys)
-			l.Index.MarkMeasurementDelete(d.MeasurementName)
+			l.IndexWriter.MarkDeletes(d.Keys)
+			l.IndexWriter.MarkMeasurementDelete(d.MeasurementName)
 			l.deleteKeysFromCache(d.Keys)
 			if d.MeasurementName != "" {
 				l.deleteMeasurementFromCache(d.MeasurementName)
@@ -505,28 +508,11 @@ func (l *Log) Close() error {
 	l.cache = nil
 	l.measurementFieldsCache = nil
 	l.seriesToCreateCache = nil
-	if l.currentSegmentFile == nil {
-		return nil
-	}
-	if err := l.currentSegmentFile.Close(); err != nil {
-		return err
-	}
-	l.currentSegmentFile = nil
 
-	return nil
-}
-
-// close all the open Log partitions and file handles
-func (l *Log) close() error {
-	l.cache = nil
-	l.cacheDirtySort = nil
-	if l.currentSegmentFile == nil {
-		return nil
+	if l.currentSegmentFile != nil {
+		l.currentSegmentFile.Close()
+		l.currentSegmentFile = nil
 	}
-	if err := l.currentSegmentFile.Close(); err != nil {
-		return err
-	}
-	l.currentSegmentFile = nil
 
 	return nil
 }
@@ -614,7 +600,7 @@ func (l *Log) flush(flush flushType) error {
 	}
 
 	startTime := time.Now()
-	if err := l.Index.Write(l.flushCache, mfc, scc); err != nil {
+	if err := l.IndexWriter.Write(l.flushCache, mfc, scc); err != nil {
 		return err
 	}
 	if l.LoggingEnabled {
