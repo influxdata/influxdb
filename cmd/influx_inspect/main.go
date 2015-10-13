@@ -57,11 +57,20 @@ func main() {
 		}
 		cmdInfo(path)
 	case "dumptsm":
-		var file string
+
+		var dumpAll bool
+		opts := &tsdmDumpOpts{}
 		fs := flag.NewFlagSet("file", flag.ExitOnError)
+		fs.BoolVar(&opts.dumpIndex, "dump-index", false, "Dump raw index data")
+		fs.BoolVar(&opts.dumpBlocks, "dump-blocks", false, "Dump raw block data")
+		fs.BoolVar(&dumpAll, "dump-all", false, "Dump all data. Caution: This may print a lot of information")
+
 		fs.Usage = func() {
 			println("Usage: influx_inspect dumptsm [options] <path>\n\n  Dumps low-level details about tsm1 files.")
 			println()
+			println("Options:")
+			fs.PrintDefaults()
+			os.Exit(0)
 		}
 
 		if err := fs.Parse(flag.Args()[1:]); err != nil {
@@ -75,8 +84,10 @@ func main() {
 			fs.PrintDefaults()
 			os.Exit(1)
 		}
-		file = fs.Args()[0]
-		dumpTsm1(file)
+		opts.path = fs.Args()[0]
+		opts.dumpBlocks = opts.dumpBlocks || dumpAll
+		opts.dumpIndex = opts.dumpIndex || dumpAll
+		dumpTsm1(opts)
 		return
 
 	default:

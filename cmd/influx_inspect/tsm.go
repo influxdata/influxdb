@@ -17,6 +17,12 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
+type tsdmDumpOpts struct {
+	dumpIndex  bool
+	dumpBlocks bool
+	path       string
+}
+
 type tsmIndex struct {
 	series  int
 	offset  int64
@@ -211,10 +217,10 @@ func readIndex(f *os.File) *tsmIndex {
 	return index
 }
 
-func dumpTsm1(path string) {
+func dumpTsm1(opts *tsdmDumpOpts) {
 	var errors []error
 
-	f, err := os.Open(path)
+	f, err := os.Open(opts.path)
 	if err != nil {
 		println(err.Error())
 		os.Exit(1)
@@ -236,7 +242,7 @@ func dumpTsm1(path string) {
 		os.Exit(1)
 	}
 
-	ids, err := readIds(filepath.Dir(path))
+	ids, err := readIds(filepath.Dir(opts.path))
 	if err != nil {
 		println("Failed to read series:", err.Error())
 		os.Exit(1)
@@ -251,7 +257,7 @@ func dumpTsm1(path string) {
 	blockStats := &blockStats{}
 
 	println("Summary:")
-	fmt.Printf("  File: %s\n", path)
+	fmt.Printf("  File: %s\n", opts.path)
 	fmt.Printf("  Time Range: %s - %s\n",
 		index.minTime.UTC().Format(time.RFC3339Nano),
 		index.maxTime.UTC().Format(time.RFC3339Nano),
@@ -261,7 +267,6 @@ func dumpTsm1(path string) {
 	fmt.Printf("  File Size: %d\n", stat.Size())
 	println()
 
-	println("Index:")
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "ID", "Ofs", "Key", "Field"}, "\t"))
 	for i, block := range index.blocks {
@@ -297,9 +302,12 @@ func dumpTsm1(path string) {
 		}, "\t"))
 
 	}
-	tw.Flush()
-	println()
-	println("Blocks:")
+
+	if opts.dumpIndex {
+		println("Index:")
+		tw.Flush()
+		println()
+	}
 
 	tw = tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Blk", "Ofs", "Len", "ID", "Type", "Min Time", "Points", "Enc [T/V]", "Len [T/V]"}, "\t"))
@@ -368,9 +376,11 @@ func dumpTsm1(path string) {
 		i += (12 + int64(length))
 		blockCount += 1
 	}
-
-	tw.Flush()
-	println()
+	if opts.dumpBlocks {
+		println("Blocks:")
+		tw.Flush()
+		println()
+	}
 
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Blocks:\n")
