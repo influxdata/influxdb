@@ -268,8 +268,8 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			i += 1
 			equals += 1
 
-			// Check for "cpu,a=1,b= value=1"
-			if i < len(buf) && buf[i] == ' ' {
+			// Check for "cpu,a=1,b= value=1" or "cpu,a=1,b=,c=foo value=1"
+			if i < len(buf) && (buf[i] == ' ' || buf[i] == ',') {
 				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
 			continue
