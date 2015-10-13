@@ -136,7 +136,7 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 			tag, ok := e.LHS.(*influxql.VarRef)
 			if !ok {
-				return nil, fmt.Errorf("left side of '%s' must be a tag name", e.Op.String())
+				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
 			}
 
 			tf := &TagFilter{
