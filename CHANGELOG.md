@@ -54,6 +54,7 @@
 - [#4280](https://github.com/influxdb/influxdb/issues/4280): Only drop points matching WHERE clause
 - [#4410](https://github.com/influxdb/influxdb/pull/4410): Fix infinite recursion in statement string(). Thanks @kostya-sh
 - [#4360](https://github.com/influxdb/influxdb/issues/4360): Aggregate Selectors overwrite values during post-processing
+- [#4421](https://github.com/influxdb/influxdb/issues/4421): Fix line protocol accepting tags with no values
 
 ## v0.9.4 [2015-09-14]
 

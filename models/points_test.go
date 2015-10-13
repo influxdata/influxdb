@@ -248,6 +248,11 @@ func TestParsePointMissingTagValue(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region= value=1i`)
 	}
+	_, err = models.ParsePointsString(`cpu,host=serverA,region=,zone=us-west value=1i`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=,zone=us-west value=1i`)
+	}
+
 }
 
 func TestParsePointMissingFieldName(t *testing.T) {
