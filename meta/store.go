@@ -1612,6 +1612,14 @@ func (s *Store) SetHashPasswordFn(fn HashPasswordFn) {
 	s.hashPassword = fn
 }
 
+// notifiyChanged will close a changed channel which brooadcasts to all waiting
+// goroutines that the meta store has been updated.  Callers are responsible for locking
+// the meta store before calling this.
+func (s *Store) notifyChanged() {
+	close(s.changed)
+	s.changed = make(chan struct{})
+}
+
 // storeFSM represents the finite state machine used by Store to interact with Raft.
 type storeFSM Store
 
@@ -1676,8 +1684,7 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	// Copy term and index to new metadata.
 	fsm.data.Term = l.Term
 	fsm.data.Index = l.Index
-	close(s.changed)
-	s.changed = make(chan struct{})
+	s.notifyChanged()
 
 	return err
 }
