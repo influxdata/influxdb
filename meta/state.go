@@ -78,6 +78,8 @@ func (r *localRaft) updateMetaData(ms *Data) {
 		r.store.Logger.Printf("Updating metastore to term=%v index=%v", ms.Term, ms.Index)
 		r.store.mu.Lock()
 		r.store.data = ms
+		// Signal any blocked goroutines that the meta store has been updated
+		r.store.notifyChanged()
 		r.store.mu.Unlock()
 	}
 }
@@ -366,6 +368,8 @@ func (r *remoteRaft) updateMetaData(ms *Data) {
 		r.store.Logger.Printf("Updating metastore to term=%v index=%v", ms.Term, ms.Index)
 		r.store.mu.Lock()
 		r.store.data = ms
+		// Signal any blocked goroutines that the meta store has been updated
+		r.store.notifyChanged()
 		r.store.mu.Unlock()
 	}
 }
