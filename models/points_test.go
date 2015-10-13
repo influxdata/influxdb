@@ -600,25 +600,25 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// commas in field names
+	// commas in field keys
 	test(t, `cpu,regions=east value\,ms=1.0`,
 		models.NewPoint("cpu",
 			models.Tags{
 				"regions": "east",
 			},
 			models.Fields{
-				"value,ms": 1.0, // comma in the field name
+				"value,ms": 1.0, // comma in the field keys
 			},
 			time.Unix(0, 0)))
 
-	// spaces in field names
+	// spaces in field keys
 	test(t, `cpu,regions=east value\ ms=1.0`,
 		models.NewPoint("cpu",
 			models.Tags{
 				"regions": "east",
 			},
 			models.Fields{
-				"value ms": 1.0, // comma in the field name
+				"value ms": 1.0, // comma in the field keys
 			},
 			time.Unix(0, 0)))
 
@@ -657,7 +657,7 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// field name using escape char.
+	// field keys using escape char.
 	test(t, `cpu \a=1i`,
 		models.NewPoint(
 			"cpu",
