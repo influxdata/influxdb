@@ -597,14 +597,14 @@ func scanNumber(buf []byte, i int) (int, error) {
 		}
 
 		// `e` is valid for floats but not as the first char
-		if i > start && (buf[i] == 'e') {
+		if i > start && (buf[i] == 'e' || buf[i] == 'E') {
 			scientific = true
 			i += 1
 			continue
 		}
 
 		// + and - are only valid at this point if they follow an e (scientific notation)
-		if (buf[i] == '+' || buf[i] == '-') && buf[i-1] == 'e' {
+		if (buf[i] == '+' || buf[i] == '-') && (buf[i-1] == 'e' || buf[i-1] == 'E') {
 			i += 1
 			continue
 		}

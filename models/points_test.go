@@ -476,6 +476,23 @@ func TestParsePointFloatScientific(t *testing.T) {
 
 }
 
+func TestParsePointFloatScientificUpper(t *testing.T) {
+	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1.0E4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1.0E4`, err)
+	}
+
+	pts, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1E4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1.0E4`, err)
+	}
+
+	if pts[0].Fields()["value"] != 1e4 {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1E4`, err)
+	}
+
+}
+
 func TestParsePointFloatScientificDecimal(t *testing.T) {
 	_, err := models.ParsePointsString(`cpu,host=serverA,region=us-west value=1.0e-4`)
 	if err != nil {
