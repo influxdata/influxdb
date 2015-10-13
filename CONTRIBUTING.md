@@ -229,7 +229,8 @@ When troubleshooting problems with CPU or memory the Go toolchain can be helpful
 # start influx with profiling
 ./influxd -cpuprofile influxd.prof
 # run queries, writes, whatever you're testing
-# open up pprof
+# Quit out of influxd and influxd.prof will then be written.
+# open up pprof to examine the profiling data.
 go tool pprof influxd influxd.prof
 # once inside run "web", opens up browser with the CPU graph
 # can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
