@@ -459,12 +459,12 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 
 			// check for "... =123" but allow "a\ =123"
 			if buf[i-1] == ' ' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing field name")
+				return i, buf[start:i], fmt.Errorf("missing field key")
 			}
 
 			// check for "...a=123,=456" but allow "a=123,a\,=456"
 			if buf[i-1] == ',' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing field name")
+				return i, buf[start:i], fmt.Errorf("missing field key")
 			}
 
 			// check for "... value="
