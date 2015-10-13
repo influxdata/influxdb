@@ -14,7 +14,7 @@ To extract tags from metrics, one or more templates must be configured to parse 
 
 ## Templates
 
-Templates allow matching parts of a metric name to be used as tag names in the stored metric.  They have a similar format to graphite metric names.  The values in between the separators are used as the tag name.  The location of the tag name that matches the same position as the graphite metric section is used as the value.  If there is no value, the graphite portion is skipped.
+Templates allow matching parts of a metric name to be used as tag keys in the stored metric.  They have a similar format to graphite metric names.  The values in between the separators are used as the tag keys.  The location of the tag key that matches the same position as the graphite metric section is used as the value.  If there is no value, the graphite portion is skipped.
 
 The special value _measurement_ is used to define the measurement name.  It can have a trailing `*` to indicate that the remainder of the metric should be used.  If a _measurement_ is not specified, the full metric name is used.
 
