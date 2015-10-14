@@ -135,6 +135,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter.ShardWriter = s.ShardWriter
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
+	// needed for executing INTO queries.
+	s.QueryExecutor.IntoWriter = s.PointsWriter
+
 	// Initialize the monitor
 	s.Monitor.Version = s.buildInfo.Version
 	s.Monitor.Commit = s.buildInfo.Commit
@@ -299,7 +302,6 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv := continuous_querier.NewService(c)
 	srv.MetaStore = s.MetaStore
 	srv.QueryExecutor = s.QueryExecutor
-	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
 

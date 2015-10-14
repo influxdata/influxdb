@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -38,95 +37,6 @@ func TestOpenAndClose(t *testing.T) {
 	}
 }
 
-// Test ExecuteContinuousQuery.
-func TestExecuteContinuousQuery(t *testing.T) {
-	s := NewTestService(t)
-	dbis, _ := s.MetaStore.Databases()
-	dbi := dbis[0]
-	cqi := dbi.ContinuousQueries[0]
-
-	pointCnt := 100
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.Results = []*influxql.Result{genResult(1, pointCnt)}
-
-	pw := s.PointsWriter.(*PointsWriter)
-	pw.WritePointsFn = func(p *cluster.WritePointsRequest) error {
-		if len(p.Points) != pointCnt {
-			return fmt.Errorf("exp = %d, got = %d", pointCnt, len(p.Points))
-		}
-		return nil
-	}
-
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-// Test ExecuteContinuousQuery when INTO measurements are taken from the FROM clause.
-func TestExecuteContinuousQuery_ReferenceSource(t *testing.T) {
-	s := NewTestService(t)
-	dbis, _ := s.MetaStore.Databases()
-	dbi := dbis[2]
-	cqi := dbi.ContinuousQueries[0]
-
-	rowCnt := 2
-	pointCnt := 1
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.Results = []*influxql.Result{genResult(rowCnt, pointCnt)}
-
-	pw := s.PointsWriter.(*PointsWriter)
-	pw.WritePointsFn = func(p *cluster.WritePointsRequest) error {
-		if len(p.Points) != pointCnt*rowCnt {
-			return fmt.Errorf("exp = %d, got = %d", pointCnt, len(p.Points))
-		}
-
-		exp := "cpu,host=server01 value=0"
-		got := p.Points[0].String()
-		if !strings.Contains(got, exp) {
-			return fmt.Errorf("\n\tExpected ':MEASUREMENT' to be expanded to the measurement name(s) in the FROM regexp.\n\tqry = %s\n\texp = %s\n\tgot = %s\n", cqi.Query, got, exp)
-		}
-
-		exp = "cpu2,host=server01 value=0"
-		got = p.Points[1].String()
-		if !strings.Contains(got, exp) {
-			return fmt.Errorf("\n\tExpected ':MEASUREMENT' to be expanded to the measurement name(s) in the FROM regexp.\n\tqry = %s\n\texp = %s\n\tgot = %s\n", cqi.Query, got, exp)
-		}
-
-		return nil
-	}
-
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-// Test the service happy path.
-func TestContinuousQueryService(t *testing.T) {
-	s := NewTestService(t)
-
-	pointCnt := 100
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.Results = []*influxql.Result{genResult(1, pointCnt)}
-
-	pw := s.PointsWriter.(*PointsWriter)
-	ch := make(chan int, 10)
-	defer close(ch)
-	pw.WritePointsFn = func(p *cluster.WritePointsRequest) error {
-		ch <- len(p.Points)
-		return nil
-	}
-
-	s.Open()
-	if cnt, err := waitInt(ch, time.Second); err != nil {
-		t.Error(err)
-	} else if cnt != pointCnt {
-		t.Errorf("exp = %d, got = %d", pointCnt, cnt)
-	}
-	s.Close()
-}
-
 // Test Run method.
 func TestContinuousQueryService_Run(t *testing.T) {
 	s := NewTestService(t)
@@ -148,7 +58,9 @@ func TestContinuousQueryService_Run(t *testing.T) {
 		if callCnt >= expectCallCnt {
 			done <- struct{}{}
 		}
-		return nil, nil
+		dummych := make(chan *influxql.Result, 1)
+		dummych <- &influxql.Result{}
+		return dummych, nil
 	}
 
 	s.Open()
@@ -280,7 +192,6 @@ func NewTestService(t *testing.T) *Service {
 	ms := NewMetaStore(t)
 	s.MetaStore = ms
 	s.QueryExecutor = NewQueryExecutor(t)
-	s.PointsWriter = NewPointsWriter(t)
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
@@ -406,21 +317,19 @@ func (ms *MetaStore) CreateContinuousQuery(database, name, query string) error {
 
 // QueryExecutor is a mock query executor.
 type QueryExecutor struct {
-	ExecuteQueryFn      func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error)
-	Results             []*influxql.Result
-	ResultInterval      time.Duration
-	Err                 error
-	ErrAfterResult      int
-	StopRespondingAfter int
-	t                   *testing.T
+	ExecuteQueryFn func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error)
+	Results        []*influxql.Result
+	ResultInterval time.Duration
+	Err            error
+	ErrAfterResult int
+	t              *testing.T
 }
 
 // NewQueryExecutor returns a *QueryExecutor.
 func NewQueryExecutor(t *testing.T) *QueryExecutor {
 	return &QueryExecutor{
-		ErrAfterResult:      -1,
-		StopRespondingAfter: -1,
-		t:                   t,
+		ErrAfterResult: -1,
+		t:              t,
 	}
 }
 
@@ -450,15 +359,15 @@ func (qe *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, ch
 				ch <- &influxql.Result{Err: qe.Err}
 				close(ch)
 				return
-			} else if i == qe.StopRespondingAfter {
-				qe.t.Log("ExecuteQuery(): StopRespondingAfter")
-				return
 			}
 			ch <- r
 			n++
 			time.Sleep(qe.ResultInterval)
 		}
 		qe.t.Logf("ExecuteQuery(): all (%d) results sent", n)
+		if n == 0 {
+			ch <- &influxql.Result{Err: qe.Err}
+		}
 		close(ch)
 	}()
 

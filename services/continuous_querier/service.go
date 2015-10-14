@@ -11,10 +11,8 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -48,11 +46,6 @@ type metaStore interface {
 	Database(name string) (*meta.DatabaseInfo, error)
 }
 
-// pointsWriter is an internal interface to make testing easier.
-type pointsWriter interface {
-	WritePoints(p *cluster.WritePointsRequest) error
-}
-
 // RunRequest is a request to run one or more CQs.
 type RunRequest struct {
 	// Now tells the CQ serivce what the current time is.
@@ -79,7 +72,6 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 type Service struct {
 	MetaStore     metaStore
 	QueryExecutor queryExecutor
-	PointsWriter  pointsWriter
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
@@ -119,7 +111,6 @@ func (s *Service) Open() error {
 
 	assert(s.MetaStore != nil, "MetaStore is nil")
 	assert(s.QueryExecutor != nil, "QueryExecutor is nil")
-	assert(s.PointsWriter != nil, "PointsWriter is nil")
 
 	s.stop = make(chan struct{})
 	s.wg = &sync.WaitGroup{}
@@ -331,102 +322,15 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	if err != nil {
 		return err
 	}
-
-	// Read all rows from the result channel.
-	points := make([]models.Point, 0, 100)
-	for result := range ch {
-		if result.Err != nil {
-			return result.Err
-		}
-
-		for _, row := range result.Series {
-			// Get the measurement name for the result.
-			measurement := cq.intoMeasurement()
-			if measurement == "" {
-				measurement = row.Name
-			}
-			// Convert the result row to points.
-			part, err := s.convertRowToPoints(measurement, row)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			if len(part) == 0 {
-				continue
-			}
-
-			// If the points have any nil values, can't write.
-			// This happens if the CQ is created and running before data is written to the measurement.
-			for _, p := range part {
-				fields := p.Fields()
-				for _, v := range fields {
-					if v == nil {
-						return nil
-					}
-				}
-			}
-			points = append(points, part...)
-		}
+	// There is only one statement, so we will only ever receive one result
+	res, ok := <-ch
+	if !ok {
+		panic("result channel was closed")
 	}
-
-	if len(points) == 0 {
-		return nil
+	if res.Err != nil {
+		return res.Err
 	}
-
-	// Create a write request for the points.
-	req := &cluster.WritePointsRequest{
-		Database:         cq.intoDB(),
-		RetentionPolicy:  cq.intoRP(),
-		ConsistencyLevel: cluster.ConsistencyLevelAny,
-		Points:           points,
-	}
-
-	// Write the request.
-	if err := s.PointsWriter.WritePoints(req); err != nil {
-		s.Logger.Println(err)
-		return err
-	}
-
-	s.statMap.Add(statPointsWritten, int64(len(points)))
-	if s.loggingEnabled {
-		s.Logger.Printf("wrote %d point(s) to %s.%s", len(points), cq.intoDB(), cq.intoRP())
-	}
-
 	return nil
-}
-
-// convertRowToPoints will convert a query result Row into Points that can be written back in.
-// Used for continuous and INTO queries
-func (s *Service) convertRowToPoints(measurementName string, row *models.Row) ([]models.Point, error) {
-	// figure out which parts of the result are the time and which are the fields
-	timeIndex := -1
-	fieldIndexes := make(map[string]int)
-	for i, c := range row.Columns {
-		if c == "time" {
-			timeIndex = i
-		} else {
-			fieldIndexes[c] = i
-		}
-	}
-
-	if timeIndex == -1 {
-		return nil, errors.New("error finding time index in result")
-	}
-
-	points := make([]models.Point, 0, len(row.Values))
-	for _, v := range row.Values {
-		vals := make(map[string]interface{})
-		for fieldName, fieldIndex := range fieldIndexes {
-			vals[fieldName] = v[fieldIndex]
-		}
-
-		p := models.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
-
-		points = append(points, p)
-	}
-
-	return points, nil
 }
 
 // ContinuousQuery is a local wrapper / helper around continuous queries.
@@ -437,16 +341,8 @@ type ContinuousQuery struct {
 	q        *influxql.SelectStatement
 }
 
-func (cq *ContinuousQuery) intoDB() string {
-	if cq.q.Target.Measurement.Database != "" {
-		return cq.q.Target.Measurement.Database
-	}
-	return cq.Database
-}
-
-func (cq *ContinuousQuery) intoRP() string          { return cq.q.Target.Measurement.RetentionPolicy }
-func (cq *ContinuousQuery) setIntoRP(rp string)     { cq.q.Target.Measurement.RetentionPolicy = rp }
-func (cq *ContinuousQuery) intoMeasurement() string { return cq.q.Target.Measurement.Name }
+func (cq *ContinuousQuery) intoRP() string      { return cq.q.Target.Measurement.RetentionPolicy }
+func (cq *ContinuousQuery) setIntoRP(rp string) { cq.q.Target.Measurement.RetentionPolicy = rp }
 
 // NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
 func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*ContinuousQuery, error) {
