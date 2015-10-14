@@ -11,22 +11,14 @@ import (
 )
 
 var (
-	batchSize     = flag.Int("batchsize", 5000, "number of points per batch")
-	seriesCount   = flag.Int("series", 100000, "number of unique series to create")
-	pointCount    = flag.Int("points", 100, "number of points per series to create")
-	concurrency   = flag.Int("concurrency", 10, "number of simultaneous writes to run")
+	batchSize     = flag.Int("batchsize", 0, "number of points per batch")
+	concurrency   = flag.Int("concurrency", 0, "number of simultaneous writes to run")
 	batchInterval = flag.Duration("batchinterval", 0*time.Second, "duration between batches")
-	database      = flag.String("database", "stress", "name of database")
-	address       = flag.String("addr", "localhost:8086", "IP address and port of database (e.g., localhost:8086)")
-	precision     = flag.String("precision", "n", "The precision that points in the database will be with")
+	database      = flag.String("database", "", "name of database")
+	address       = flag.String("addr", "", "IP address and port of database (e.g., localhost:8086)")
+	precision     = flag.String("precision", "", "The precision that points in the database will be with")
 	test          = flag.String("test", "", "The stress test file")
 )
-
-var ms runner.Measurements
-
-func init() {
-	flag.Var(&ms, "m", "comma-separated list of intervals to use between events")
-}
 
 func main() {
 	var cfg *runner.Config
@@ -35,25 +27,44 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	cfg = runner.NewConfig()
-
-	if len(ms) == 0 {
-		ms = append(ms, "cpu")
+	if *test == "" {
+		fmt.Println("'-test' flag is required")
+		return
 	}
 
-	for _, m := range ms {
-		cfg.Series = append(cfg.Series, runner.NewSeries(m, 100, 100000))
+	cfg, err = runner.DecodeFile(*test)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
-	if *test != "" {
-		cfg, err = runner.DecodeFile(*test)
+	fmt.Printf("%#v\n", cfg.Write)
 
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
+	if *batchSize != 0 {
+		cfg.Write.BatchSize = *batchSize
 	}
+
+	if *concurrency != 0 {
+		cfg.Write.Concurrency = *concurrency
+	}
+
+	if *batchInterval != 0*time.Second {
+		cfg.Write.BatchInterval = batchInterval.String()
+	}
+
+	if *database != "" {
+		cfg.Write.Database = *database
+	}
+
+	if *address != "" {
+		cfg.Write.Address = *address
+	}
+
+	if *precision != "" {
+		cfg.Write.Precision = *precision
+	}
+
+	fmt.Printf("%#v\n", cfg.Write)
 
 	d := make(chan struct{})
 	seriesQueryResults := make(chan runner.QueryResults)
