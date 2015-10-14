@@ -61,9 +61,9 @@ func main() {
 		var dumpAll bool
 		opts := &tsdmDumpOpts{}
 		fs := flag.NewFlagSet("file", flag.ExitOnError)
-		fs.BoolVar(&opts.dumpIndex, "dump-index", false, "Dump raw index data")
-		fs.BoolVar(&opts.dumpBlocks, "dump-blocks", false, "Dump raw block data")
-		fs.BoolVar(&dumpAll, "dump-all", false, "Dump all data. Caution: This may print a lot of information")
+		fs.BoolVar(&opts.dumpIndex, "index", false, "Dump raw index data")
+		fs.BoolVar(&opts.dumpBlocks, "blocks", false, "Dump raw block data")
+		fs.BoolVar(&dumpAll, "all", false, "Dump all data. Caution: This may print a lot of information")
 		fs.StringVar(&opts.filterKey, "filter-key", "", "Only display index and block data match this key substring")
 
 		fs.Usage = func() {
