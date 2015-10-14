@@ -30,6 +30,7 @@
 // identifiers, a standardized format in the form of a 128 bit number.
 //
 // http://tools.ietf.org/html/rfc4122
+
 package uuid
 
 import (
@@ -37,6 +38,7 @@ import (
 	"time"
 )
 
+// UUID - unique identifier type representing a 128 bit number
 type UUID [16]byte
 
 var timeBase = time.Date(1582, time.October, 15, 0, 0, 0, 0, time.UTC).Unix()
@@ -46,13 +48,13 @@ var clockSeq uint32
 // TimeUUID generates a new time based UUID (version 1) using the current
 // time as the timestamp.
 func TimeUUID() UUID {
-	return UUIDFromTime(time.Now())
+	return FromTime(time.Now())
 }
 
-// UUIDFromTime generates a new time based UUID (version 1) as described in
+// FromTime generates a new time based UUID (version 1) as described in
 // RFC 4122. This UUID contains the MAC address of the node that generated
 // the UUID, the given timestamp and a sequence number.
-func UUIDFromTime(aTime time.Time) UUID {
+func FromTime(aTime time.Time) UUID {
 	var u UUID
 
 	utcTime := aTime.In(time.UTC)
