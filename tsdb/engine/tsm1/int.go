@@ -48,6 +48,7 @@ type Int64Decoder interface {
 }
 
 type int64Encoder struct {
+	prev   int64
 	values []uint64
 }
 
@@ -56,7 +57,11 @@ func NewInt64Encoder() Int64Encoder {
 }
 
 func (e *int64Encoder) Write(v int64) {
-	e.values = append(e.values, ZigZagEncode(v))
+	// Delta-encode each value as it's written.  This happens before
+	// ZigZagEncoding because the deltas could be negative.
+	delta := v - e.prev
+	e.prev = v
+	e.values = append(e.values, ZigZagEncode(delta))
 }
 
 func (e *int64Encoder) Bytes() ([]byte, error) {
@@ -71,22 +76,36 @@ func (e *int64Encoder) Bytes() ([]byte, error) {
 }
 
 func (e *int64Encoder) encodePacked() ([]byte, error) {
-	encoded, err := simple8b.EncodeAll(e.values)
+	if len(e.values) == 0 {
+		return nil, nil
+	}
+
+	// Encode all but the first value.  Fist value is written unecoded
+	// using 8 bytes.
+	encoded, err := simple8b.EncodeAll(e.values[1:])
 	if err != nil {
 		return nil, err
 	}
 
-	b := make([]byte, 1+len(encoded)*8)
+	b := make([]byte, 1+(len(encoded)+1)*8)
 	// 4 high bits of first byte store the encoding type for the block
 	b[0] = byte(intCompressedSimple) << 4
 
+	// Write the first value since it's not part of the encoded values
+	binary.BigEndian.PutUint64(b[1:9], e.values[0])
+
+	// Write the encoded values
 	for i, v := range encoded {
-		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], v)
+		binary.BigEndian.PutUint64(b[9+i*8:9+i*8+8], v)
 	}
 	return b, nil
 }
 
 func (e *int64Encoder) encodeUncompressed() ([]byte, error) {
+	if len(e.values) == 0 {
+		return nil, nil
+	}
+
 	b := make([]byte, 1+len(e.values)*8)
 	// 4 high bits of first byte store the encoding type for the block
 	b[0] = byte(intUncompressed) << 4
@@ -102,6 +121,8 @@ type int64Decoder struct {
 	bytes  []byte
 	i      int
 	n      int
+	prev   int64
+	first  bool
 
 	encoding byte
 	err      error
@@ -122,6 +143,7 @@ func (d *int64Decoder) SetBytes(b []byte) {
 		d.encoding = b[0] >> 4
 		d.bytes = b[1:]
 	}
+	d.first = true
 	d.i = 0
 	d.n = 0
 }
@@ -151,7 +173,11 @@ func (d *int64Decoder) Error() error {
 }
 
 func (d *int64Decoder) Read() int64 {
-	return ZigZagDecode(d.values[d.i])
+	v := ZigZagDecode(d.values[d.i])
+	// v is the delta encoded value, we need to add the prior value to get the original
+	v = v + d.prev
+	d.prev = v
+	return v
 }
 
 func (d *int64Decoder) decodePacked() {
@@ -160,14 +186,21 @@ func (d *int64Decoder) decodePacked() {
 	}
 
 	v := binary.BigEndian.Uint64(d.bytes[0:8])
-	n, err := simple8b.Decode(d.values, v)
-	if err != nil {
-		// Should never happen, only error that could be returned is if the the value to be decoded was not
-		// actually encoded by simple8b encoder.
-		d.err = fmt.Errorf("failed to decode value %v: %v", v, err)
-	}
+	// The first value is always unencoded
+	if d.first {
+		d.first = false
+		d.n = 1
+		d.values[0] = v
+	} else {
+		n, err := simple8b.Decode(d.values, v)
+		if err != nil {
+			// Should never happen, only error that could be returned is if the the value to be decoded was not
+			// actually encoded by simple8b encoder.
+			d.err = fmt.Errorf("failed to decode value %v: %v", v, err)
+		}
 
-	d.n = n
+		d.n = n
+	}
 	d.i = 0
 	d.bytes = d.bytes[8:]
 }
