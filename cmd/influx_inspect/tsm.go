@@ -218,7 +218,7 @@ func readIndex(f *os.File) *tsmIndex {
 	return index
 }
 
-func dumpTsm1(opts *tsdmDumpOpts) {
+func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	var errors []error
 
 	f, err := os.Open(opts.path)
