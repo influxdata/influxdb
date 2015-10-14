@@ -168,6 +168,8 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 
 // ShardIDs returns a slice of all ShardIDs under management.
 func (s *Store) ShardIDs() []uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	ids := make([]uint64, 0, len(s.shards))
 	for i, _ := range s.shards {
 		ids = append(ids, i)
