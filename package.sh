@@ -286,6 +286,8 @@ rm -f $INSTALL_ROOT_DIR/influx
 rm -f $INSTALL_ROOT_DIR/init.sh
 ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
 ln -s $INSTALL_ROOT_DIR/versions/$version/influx $INSTALL_ROOT_DIR/influx
+ln -s $INSTALL_ROOT_DIR/versions/$version/influx_inspect $INSTALL_ROOT_DIR/influx_inspect
+ln -s $INSTALL_ROOT_DIR/versions/$version/influx_stress $INSTALL_ROOT_DIR/influx_stress
 ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
 if ! id influxdb >/dev/null 2>&1; then
