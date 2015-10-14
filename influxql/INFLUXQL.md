@@ -54,7 +54,7 @@ digit               = "0" … "9" .
 
 ## Identifiers
 
-Identifiers are tokens which refer to database names, retention policy names, user names, measurement names, tag keys, and field names.
+Identifiers are tokens which refer to database names, retention policy names, user names, measurement names, tag keys, and field keys.
 
 The rules:
 
@@ -652,7 +652,7 @@ privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
 
 series_id        = int_lit .
 
-sort_field       = field_name [ ASC | DESC ] .
+sort_field       = field_key [ ASC | DESC ] .
 
 sort_fields      = sort_field { "," sort_field } .
 

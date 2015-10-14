@@ -248,21 +248,21 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			break
 		}
 
-		// equals is special in the tags section.  It must be escaped if part of a tag name or value.
+		// equals is special in the tags section.  It must be escaped if part of a tag key or value.
 		// It does not need to be escaped if part of the measurement.
 		if buf[i] == '=' && commas > 0 {
 			if i-1 < 0 || i-2 < 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag name")
+				return i, buf[start:i], fmt.Errorf("missing tag key")
 			}
 
 			// Check for "cpu,=value" but allow "cpu,a\,=value"
 			if buf[i-1] == ',' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing tag name")
+				return i, buf[start:i], fmt.Errorf("missing tag key")
 			}
 
 			// Check for "cpu,\ =value"
 			if buf[i-1] == ' ' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing tag name")
+				return i, buf[start:i], fmt.Errorf("missing tag key")
 			}
 
 			i += 1
@@ -459,12 +459,12 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 
 			// check for "... =123" but allow "a\ =123"
 			if buf[i-1] == ' ' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing field name")
+				return i, buf[start:i], fmt.Errorf("missing field key")
 			}
 
 			// check for "...a=123,=456" but allow "a=123,a\,=456"
 			if buf[i-1] == ',' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing field name")
+				return i, buf[start:i], fmt.Errorf("missing field key")
 			}
 
 			// check for "... value="

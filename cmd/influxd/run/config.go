@@ -141,7 +141,7 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
 		configName := typeOfSpec.Field(i).Tag.Get("toml")
 		// Replace hyphens with underscores to avoid issues with shells
 		configName = strings.Replace(configName, "-", "_", -1)
-		fieldName := typeOfSpec.Field(i).Name
+		fieldKey := typeOfSpec.Field(i).Name
 
 		// Skip any fields that we cannot set
 		if f.CanSet() || f.Kind() == reflect.Slice {
@@ -188,14 +188,14 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
 				if f.Type().Name() == "Duration" {
 					dur, err := time.ParseDuration(value)
 					if err != nil {
-						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldName, f.Type().String(), value)
+						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
 					}
 					intValue = dur.Nanoseconds()
 				} else {
 					var err error
 					intValue, err = strconv.ParseInt(value, 0, f.Type().Bits())
 					if err != nil {
-						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldName, f.Type().String(), value)
+						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
 					}
 				}
 
@@ -203,14 +203,14 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
 			case reflect.Bool:
 				boolValue, err := strconv.ParseBool(value)
 				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldName, f.Type().String(), value)
+					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
 
 				}
 				f.SetBool(boolValue)
 			case reflect.Float32, reflect.Float64:
 				floatValue, err := strconv.ParseFloat(value, f.Type().Bits())
 				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldName, f.Type().String(), value)
+					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
 
 				}
 				f.SetFloat(floatValue)

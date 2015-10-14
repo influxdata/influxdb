@@ -1,4 +1,4 @@
-The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. However, if the measurement, field, or tag contains any character other than [A-Z,a-z,0-9,_], or if it starts with a digit, it must be double-quoted. Therefore anywhere a measurement name, field name, field value, tag name, or tag value appears it should be wrapped in double quotes.
+The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. However, if the measurement, field, or tag contains any character other than [A-Z,a-z,0-9,_], or if it starts with a digit, it must be double-quoted. Therefore anywhere a measurement name, field key, or tag key appears it should be wrapped in double quotes.
 
 # Databases & retention policies
 

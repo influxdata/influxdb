@@ -3432,7 +3432,7 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","c","h","region","value"],"values":[["2000-01-01T00:00:00Z",80,"A","us-east",10],["2000-01-01T00:00:10Z",90,"B","us-east",20],["2000-01-01T00:00:20Z",70,"B","us-west",30],["2000-01-01T00:00:30Z",60,"A","us-east",40]]}]}]}`,
 		},
 		&Query{
-			name:    "duplicate tag and field name, always favor field over tag",
+			name:    "duplicate tag and field key, always favor field over tag",
 			command: `SELECT * FROM dupnames`,
 			params:  url.Values{"db": []string{"db0"}},
 			exp:     `{"results":[{"series":[{"name":"dupnames","columns":["time","day","region","value"],"values":[["2000-01-01T00:00:00Z",3,"us-east",10],["2000-01-01T00:00:10Z",2,"us-east",20],["2000-01-01T00:00:20Z",1,"us-west",30]]}]}]}`,
