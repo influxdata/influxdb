@@ -99,10 +99,17 @@ type Client struct {
 }
 
 const (
-	ConsistencyOne    = "one"
-	ConsistencyAll    = "all"
+	// ConsistencyOne requires at least one data node acknowledged a write.
+	ConsistencyOne = "one"
+
+	// ConsistencyAll requires all data nodes to acknowledge a write.
+	ConsistencyAll = "all"
+
+	// ConsistencyQuorum requires a quorum of data nodes to acknowledge a write.
 	ConsistencyQuorum = "quorum"
-	ConsistencyAny    = "any"
+
+	// ConsistencyAny allows for hinted hand off, potentially no write happened yet.
+	ConsistencyAny = "any"
 )
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
@@ -464,6 +471,8 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&point)
 }
 
+// MarshalString renders string representation of a Point with specified
+// precision. The default precision is nanoseconds.
 func (p *Point) MarshalString() string {
 	pt := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
 	if p.Precision == "" || p.Precision == "ns" || p.Precision == "n" {
