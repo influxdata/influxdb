@@ -161,7 +161,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		MaxPointsPerBlock:          DefaultMaxPointsPerBlock,
 		RotateBlockSize:            DefaultRotateBlockSize,
 	}
-	e.WAL.Index = e
+	e.WAL.IndexWriter = e
 
 	return e
 }

@@ -1,13 +1,15 @@
 package tsm1_test
 
 import (
-	"github.com/influxdb/influxdb/tsdb"
-	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 	"math/rand"
 	"reflect"
 	"sort"
 	"testing"
 	"testing/quick"
+	"time"
+
+	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 func TestCombinedEngineCursor_Quick(t *testing.T) {
@@ -172,4 +174,31 @@ func MergeCursorItems(a, b []CursorItem) []CursorItem {
 		}
 	}
 	return items
+}
+
+// ReadAllCursor slurps all values from a cursor.
+func ReadAllCursor(c tsdb.Cursor) tsm1.Values {
+	var values tsm1.Values
+	for k, v := c.Next(); k != tsdb.EOF; k, v = c.Next() {
+		values = append(values, tsm1.NewValue(time.Unix(0, k).UTC(), v))
+	}
+	return values
+}
+
+// DedupeValues returns a list of values with duplicate times removed.
+func DedupeValues(a tsm1.Values) tsm1.Values {
+	other := make(tsm1.Values, 0, len(a))
+	m := map[int64]struct{}{}
+
+	for i := len(a) - 1; i >= 0; i-- {
+		value := a[i]
+		if _, ok := m[value.UnixNano()]; ok {
+			continue
+		}
+
+		other = append(other, value)
+		m[value.UnixNano()] = struct{}{}
+	}
+
+	return other
 }

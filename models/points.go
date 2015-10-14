@@ -207,7 +207,7 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		if err != nil {
 			return nil, err
 		}
-		pt.time = time.Unix(0, ts*pt.GetPrecisionMultiplier(precision))
+		pt.time = time.Unix(0, ts*pt.GetPrecisionMultiplier(precision)).UTC()
 	}
 	return pt, nil
 }
