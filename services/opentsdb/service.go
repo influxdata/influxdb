@@ -49,6 +49,7 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
+	mu   sync.Mutex
 	wg   sync.WaitGroup
 	done chan struct{}
 	err  chan error
@@ -104,6 +105,9 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the service
 func (s *Service) Open() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.Logger.Println("Starting OpenTSDB service")
 
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
@@ -164,13 +168,18 @@ func (s *Service) Open() error {
 	return nil
 }
 
-// Close closes the underlying listener.
+// Close closes the openTSDB service
 func (s *Service) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.ln != nil {
 		return s.ln.Close()
 	}
 
-	s.batcher.Stop()
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 	close(s.done)
 	s.wg.Wait()
 	return nil
