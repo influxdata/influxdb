@@ -190,6 +190,9 @@ func (s *series) writeInterval(i int, start time.Time) time.Time {
 
 	if s.Jitter {
 		j = rand.Intn(int(tick))
+		if j%2 == 0 {
+			j = -1 * j
+		}
 	}
 
 	tick = tick*time.Duration(i) + time.Duration(j)
