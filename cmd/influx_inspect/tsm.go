@@ -20,6 +20,7 @@ import (
 type tsdmDumpOpts struct {
 	dumpIndex  bool
 	dumpBlocks bool
+	filterKey  string
 	path       string
 }
 
@@ -293,6 +294,9 @@ func dumpTsm1(opts *tsdmDumpOpts) {
 			}
 		}
 
+		if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
+			continue
+		}
 		fmt.Fprintln(tw, "  "+strings.Join([]string{
 			strconv.FormatInt(int64(i), 10),
 			strconv.FormatUint(block.id, 10),
@@ -300,7 +304,6 @@ func dumpTsm1(opts *tsdmDumpOpts) {
 			measurement,
 			field,
 		}, "\t"))
-
 	}
 
 	if opts.dumpIndex {
@@ -360,6 +363,12 @@ func dumpTsm1(opts *tsdmDumpOpts) {
 		blockStats.inc(0, ts[0]>>4)
 		blockStats.inc(int(blockType+1), values[0]>>4)
 		blockStats.size(len(buf))
+
+		if opts.filterKey != "" && !strings.Contains(invIds[id], opts.filterKey) {
+			i += (12 + int64(length))
+			blockCount += 1
+			continue
+		}
 
 		fmt.Fprintln(tw, "  "+strings.Join([]string{
 			strconv.FormatInt(blockCount, 10),

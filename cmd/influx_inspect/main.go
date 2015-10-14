@@ -64,6 +64,7 @@ func main() {
 		fs.BoolVar(&opts.dumpIndex, "dump-index", false, "Dump raw index data")
 		fs.BoolVar(&opts.dumpBlocks, "dump-blocks", false, "Dump raw block data")
 		fs.BoolVar(&dumpAll, "dump-all", false, "Dump all data. Caution: This may print a lot of information")
+		fs.StringVar(&opts.filterKey, "filter-key", "", "Only display index and block data match this key substring")
 
 		fs.Usage = func() {
 			println("Usage: influx_inspect dumptsm [options] <path>\n\n  Dumps low-level details about tsm1 files.")
@@ -85,8 +86,8 @@ func main() {
 			os.Exit(1)
 		}
 		opts.path = fs.Args()[0]
-		opts.dumpBlocks = opts.dumpBlocks || dumpAll
-		opts.dumpIndex = opts.dumpIndex || dumpAll
+		opts.dumpBlocks = opts.dumpBlocks || dumpAll || opts.filterKey != ""
+		opts.dumpIndex = opts.dumpIndex || dumpAll || opts.filterKey != ""
 		dumpTsm1(opts)
 		return
 
