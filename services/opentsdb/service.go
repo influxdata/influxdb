@@ -177,7 +177,9 @@ func (s *Service) Close() error {
 		return s.ln.Close()
 	}
 
-	s.batcher.Stop()
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 	close(s.done)
 	s.wg.Wait()
 	return nil
