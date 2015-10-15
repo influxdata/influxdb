@@ -739,6 +739,9 @@ func (q *QueryExecutor) writeInto(row *models.Row, selectstmt *influxql.SelectSt
 	// limitedRowWriter and ExecuteAggregate/Raw makes it ridiculously hard to make sure that the
 	// results will be the same as when queried normally.
 	measurement := intoMeasurement(selectstmt)
+	if measurement == "" {
+		measurement = row.Name
+	}
 	intodb, err := intoDB(selectstmt)
 	if err != nil {
 		return err
