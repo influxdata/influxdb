@@ -604,6 +604,52 @@ func TestData_DropContinuousQuery(t *testing.T) {
 	}
 }
 
+// Ensure a subscription can be created.
+func TestData_CreateSubscription(t *testing.T) {
+	var data meta.Data
+	rpi := &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		ReplicaN: 3,
+	}
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateRetentionPolicy("db0", rpi); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateSubscription("db0", "rp0", "s0", "ANY", []string{"udp://h0:1234", "udp://h1:1234"}); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Databases[0].RetentionPolicies[0].Subscriptions, []meta.SubscriptionInfo{
+		{Name: "s0", Mode: "ANY", Destinations: []string{"udp://h0:1234", "udp://h1:1234"}},
+	}) {
+		t.Fatalf("unexpected subscriptions: %#v", data.Databases[0].RetentionPolicies[0].Subscriptions)
+	}
+}
+
+// Ensure a subscription can be removed.
+func TestData_DropSubscription(t *testing.T) {
+	var data meta.Data
+	rpi := &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		ReplicaN: 3,
+	}
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateRetentionPolicy("db0", rpi); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateSubscription("db0", "rp0", "s0", "ANY", []string{"udp://h0:1234", "udp://h1:1234"}); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateSubscription("db0", "rp0", "s1", "ALL", []string{"udp://h0:1234", "udp://h1:1234"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.DropSubscription("db0", "rp0", "s0"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Databases[0].RetentionPolicies[0].Subscriptions, []meta.SubscriptionInfo{
+		{Name: "s1", Mode: "ALL", Destinations: []string{"udp://h0:1234", "udp://h1:1234"}},
+	}) {
+		t.Fatalf("unexpected subscriptions: %#v", data.Databases[0].RetentionPolicies[0].Subscriptions)
+	}
+}
+
 // Ensure a user can be created.
 func TestData_CreateUser(t *testing.T) {
 	var data meta.Data

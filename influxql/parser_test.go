@@ -1456,6 +1456,34 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE SUBSCRIPTION
+		{
+			s: `CREATE SUBSCRIPTION "name" ON "db"."rp" DESTINATIONS ANY 'udp://host1:9093', 'udp://host2:9093'`,
+			stmt: &influxql.CreateSubscriptionStatement{
+				Name:            "name",
+				Database:        "db",
+				RetentionPolicy: "rp",
+				Destinations:    []string{"udp://host1:9093", "udp://host2:9093"},
+				Mode:            "ANY",
+			},
+		},
+
+		// DROP SUBSCRIPTION
+		{
+			s: `DROP SUBSCRIPTION "name" ON "db"."rp"`,
+			stmt: &influxql.DropSubscriptionStatement{
+				Name:            "name",
+				Database:        "db",
+				RetentionPolicy: "rp",
+			},
+		},
+
+		// SHOW SUBSCRIPTIONS
+		{
+			s:    `SHOW SUBSCRIPTIONS`,
+			stmt: &influxql.ShowSubscriptionsStatement{},
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
@@ -1541,7 +1569,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected ON at line 1, char 25`},
 		{s: `SHOW RETENTION POLICIES mydb`, err: `found mydb, expected ON at line 1, char 25`},
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
-		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, SHARDS, STATS, TAG, USERS at line 1, char 6`},
+		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, SHARDS, STATS, SUBSCRIPTIONS, TAG, USERS at line 1, char 6`},
 		{s: `SHOW STATS FOR`, err: `found EOF, expected string at line 1, char 16`},
 		{s: `SHOW DIAGNOSTICS FOR`, err: `found EOF, expected string at line 1, char 22`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},
@@ -1552,7 +1580,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP CONTINUOUS QUERY myquery ON`, err: `found EOF, expected identifier at line 1, char 34`},
 		{s: `CREATE CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 19`},
 		{s: `CREATE CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 25`},
-		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENT at line 1, char 6`},
+		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENT, SERVER, SUBSCRIPTION at line 1, char 6`},
+		{s: `CREATE FOO`, err: `found FOO, expected CONTINUOUS, DATABASE, USER, RETENTION, SUBSCRIPTION at line 1, char 8`},
 		{s: `CREATE DATABASE`, err: `found EOF, expected identifier at line 1, char 17`},
 		{s: `CREATE DATABASE IF`, err: `found EOF, expected NOT at line 1, char 20`},
 		{s: `CREATE DATABASE IF NOT`, err: `found EOF, expected EXISTS at line 1, char 24`},
@@ -1563,11 +1592,24 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
 		{s: `DROP RETENTION POLICY "1h.cpu" ON`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
+		{s: `DROP SUBSCRIPTION`, err: `found EOF, expected identifier at line 1, char 19`},
+		{s: `DROP SUBSCRIPTION "name"`, err: `found EOF, expected ON at line 1, char 25`},
+		{s: `DROP SUBSCRIPTION "name" ON `, err: `found EOF, expected identifier at line 1, char 30`},
+		{s: `DROP SUBSCRIPTION "name" ON "db"`, err: `found EOF, expected . at line 1, char 33`},
+		{s: `DROP SUBSCRIPTION "name" ON "db".`, err: `found EOF, expected identifier at line 1, char 34`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
 		{s: `CREATE USER testuser WITH`, err: `found EOF, expected PASSWORD at line 1, char 27`},
 		{s: `CREATE USER testuser WITH PASSWORD`, err: `found EOF, expected string at line 1, char 36`},
 		{s: `CREATE USER testuser WITH PASSWORD 'pwd' WITH`, err: `found EOF, expected ALL at line 1, char 47`},
 		{s: `CREATE USER testuser WITH PASSWORD 'pwd' WITH ALL`, err: `found EOF, expected PRIVILEGES at line 1, char 51`},
+		{s: `CREATE SUBSCRIPTION`, err: `found EOF, expected identifier at line 1, char 21`},
+		{s: `CREATE SUBSCRIPTION "name"`, err: `found EOF, expected ON at line 1, char 27`},
+		{s: `CREATE SUBSCRIPTION "name" ON `, err: `found EOF, expected identifier at line 1, char 32`},
+		{s: `CREATE SUBSCRIPTION "name" ON "db"`, err: `found EOF, expected . at line 1, char 35`},
+		{s: `CREATE SUBSCRIPTION "name" ON "db".`, err: `found EOF, expected identifier at line 1, char 36`},
+		{s: `CREATE SUBSCRIPTION "name" ON "db"."rp"`, err: `found EOF, expected DESTINATIONS at line 1, char 40`},
+		{s: `CREATE SUBSCRIPTION "name" ON "db"."rp" DESTINATIONS`, err: `found EOF, expected ALL, ANY at line 1, char 54`},
+		{s: `CREATE SUBSCRIPTION "name" ON "db"."rp" DESTINATIONS ALL `, err: `found EOF, expected string at line 1, char 59`},
 		{s: `GRANT`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 7`},
 		{s: `GRANT READ`, err: `found EOF, expected ON at line 1, char 12`},

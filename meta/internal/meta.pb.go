@@ -15,6 +15,7 @@ It has these top-level messages:
 	RetentionPolicyInfo
 	ShardGroupInfo
 	ShardInfo
+	SubscriptionInfo
 	ShardOwner
 	ContinuousQueryInfo
 	UserInfo
@@ -40,6 +41,8 @@ It has these top-level messages:
 	SetAdminPrivilegeCommand
 	UpdateNodeCommand
 	RenameDatabaseCommand
+	CreateSubscriptionCommand
+	DropSubscriptionCommand
 	Response
 	ResponseHeader
 	ErrorResponse
@@ -118,6 +121,8 @@ const (
 	Command_SetAdminPrivilegeCommand         Command_Type = 18
 	Command_UpdateNodeCommand                Command_Type = 19
 	Command_RenameDatabaseCommand            Command_Type = 20
+	Command_CreateSubscriptionCommand        Command_Type = 22
+	Command_DropSubscriptionCommand          Command_Type = 23
 )
 
 var Command_Type_name = map[int32]string{
@@ -141,6 +146,8 @@ var Command_Type_name = map[int32]string{
 	18: "SetAdminPrivilegeCommand",
 	19: "UpdateNodeCommand",
 	20: "RenameDatabaseCommand",
+	22: "CreateSubscriptionCommand",
+	23: "DropSubscriptionCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -163,6 +170,8 @@ var Command_Type_value = map[string]int32{
 	"SetAdminPrivilegeCommand":         18,
 	"UpdateNodeCommand":                19,
 	"RenameDatabaseCommand":            20,
+	"CreateSubscriptionCommand":        22,
+	"DropSubscriptionCommand":          23,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -327,12 +336,13 @@ func (m *DatabaseInfo) GetContinuousQueries() []*ContinuousQueryInfo {
 }
 
 type RetentionPolicyInfo struct {
-	Name               *string           `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
-	Duration           *int64            `protobuf:"varint,2,req,name=Duration" json:"Duration,omitempty"`
-	ShardGroupDuration *int64            `protobuf:"varint,3,req,name=ShardGroupDuration" json:"ShardGroupDuration,omitempty"`
-	ReplicaN           *uint32           `protobuf:"varint,4,req,name=ReplicaN" json:"ReplicaN,omitempty"`
-	ShardGroups        []*ShardGroupInfo `protobuf:"bytes,5,rep,name=ShardGroups" json:"ShardGroups,omitempty"`
-	XXX_unrecognized   []byte            `json:"-"`
+	Name               *string             `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Duration           *int64              `protobuf:"varint,2,req,name=Duration" json:"Duration,omitempty"`
+	ShardGroupDuration *int64              `protobuf:"varint,3,req,name=ShardGroupDuration" json:"ShardGroupDuration,omitempty"`
+	ReplicaN           *uint32             `protobuf:"varint,4,req,name=ReplicaN" json:"ReplicaN,omitempty"`
+	ShardGroups        []*ShardGroupInfo   `protobuf:"bytes,5,rep,name=ShardGroups" json:"ShardGroups,omitempty"`
+	Subscriptions      []*SubscriptionInfo `protobuf:"bytes,6,rep,name=Subscriptions" json:"Subscriptions,omitempty"`
+	XXX_unrecognized   []byte              `json:"-"`
 }
 
 func (m *RetentionPolicyInfo) Reset()         { *m = RetentionPolicyInfo{} }
@@ -370,6 +380,13 @@ func (m *RetentionPolicyInfo) GetReplicaN() uint32 {
 func (m *RetentionPolicyInfo) GetShardGroups() []*ShardGroupInfo {
 	if m != nil {
 		return m.ShardGroups
+	}
+	return nil
+}
+
+func (m *RetentionPolicyInfo) GetSubscriptions() []*SubscriptionInfo {
+	if m != nil {
+		return m.Subscriptions
 	}
 	return nil
 }
@@ -450,6 +467,38 @@ func (m *ShardInfo) GetOwnerIDs() []uint64 {
 func (m *ShardInfo) GetOwners() []*ShardOwner {
 	if m != nil {
 		return m.Owners
+	}
+	return nil
+}
+
+type SubscriptionInfo struct {
+	Name             *string  `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Mode             *string  `protobuf:"bytes,2,req,name=Mode" json:"Mode,omitempty"`
+	Destinations     []string `protobuf:"bytes,3,rep,name=Destinations" json:"Destinations,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *SubscriptionInfo) Reset()         { *m = SubscriptionInfo{} }
+func (m *SubscriptionInfo) String() string { return proto.CompactTextString(m) }
+func (*SubscriptionInfo) ProtoMessage()    {}
+
+func (m *SubscriptionInfo) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
+func (m *SubscriptionInfo) GetMode() string {
+	if m != nil && m.Mode != nil {
+		return *m.Mode
+	}
+	return ""
+}
+
+func (m *SubscriptionInfo) GetDestinations() []string {
+	if m != nil {
+		return m.Destinations
 	}
 	return nil
 }
@@ -1261,6 +1310,102 @@ var E_RenameDatabaseCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,120,opt,name=command",
 }
 
+type CreateSubscriptionCommand struct {
+	Name             *string  `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Database         *string  `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	RetentionPolicy  *string  `protobuf:"bytes,3,req,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
+	Mode             *string  `protobuf:"bytes,4,req,name=Mode" json:"Mode,omitempty"`
+	Destinations     []string `protobuf:"bytes,5,rep,name=Destinations" json:"Destinations,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *CreateSubscriptionCommand) Reset()         { *m = CreateSubscriptionCommand{} }
+func (m *CreateSubscriptionCommand) String() string { return proto.CompactTextString(m) }
+func (*CreateSubscriptionCommand) ProtoMessage()    {}
+
+func (m *CreateSubscriptionCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
+func (m *CreateSubscriptionCommand) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+func (m *CreateSubscriptionCommand) GetRetentionPolicy() string {
+	if m != nil && m.RetentionPolicy != nil {
+		return *m.RetentionPolicy
+	}
+	return ""
+}
+
+func (m *CreateSubscriptionCommand) GetMode() string {
+	if m != nil && m.Mode != nil {
+		return *m.Mode
+	}
+	return ""
+}
+
+func (m *CreateSubscriptionCommand) GetDestinations() []string {
+	if m != nil {
+		return m.Destinations
+	}
+	return nil
+}
+
+var E_CreateSubscriptionCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*CreateSubscriptionCommand)(nil),
+	Field:         121,
+	Name:          "internal.CreateSubscriptionCommand.command",
+	Tag:           "bytes,121,opt,name=command",
+}
+
+type DropSubscriptionCommand struct {
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Database         *string `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	RetentionPolicy  *string `protobuf:"bytes,3,req,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DropSubscriptionCommand) Reset()         { *m = DropSubscriptionCommand{} }
+func (m *DropSubscriptionCommand) String() string { return proto.CompactTextString(m) }
+func (*DropSubscriptionCommand) ProtoMessage()    {}
+
+func (m *DropSubscriptionCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
+func (m *DropSubscriptionCommand) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+func (m *DropSubscriptionCommand) GetRetentionPolicy() string {
+	if m != nil && m.RetentionPolicy != nil {
+		return *m.RetentionPolicy
+	}
+	return ""
+}
+
+var E_DropSubscriptionCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DropSubscriptionCommand)(nil),
+	Field:         122,
+	Name:          "internal.DropSubscriptionCommand.command",
+	Tag:           "bytes,122,opt,name=command",
+}
+
 type Response struct {
 	OK               *bool   `protobuf:"varint,1,req,name=OK" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt,name=Error" json:"Error,omitempty"`
@@ -1490,4 +1635,6 @@ func init() {
 	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
 	proto.RegisterExtension(E_UpdateNodeCommand_Command)
 	proto.RegisterExtension(E_RenameDatabaseCommand_Command)
+	proto.RegisterExtension(E_CreateSubscriptionCommand_Command)
+	proto.RegisterExtension(E_DropSubscriptionCommand_Command)
 }

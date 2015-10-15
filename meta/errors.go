@@ -101,6 +101,14 @@ var (
 )
 
 var (
+	// ErrSubscriptionExists is returned when creating an already existing subscription.
+	ErrSubscriptionExists = newError("subscription already exists")
+
+	// ErrSubscriptionNotFound is returned when removing a subscription that doesn't exist.
+	ErrSubscriptionNotFound = newError("subscription not found")
+)
+
+var (
 	// ErrUserExists is returned when creating an already existing user.
 	ErrUserExists = newError("user already exists")
 

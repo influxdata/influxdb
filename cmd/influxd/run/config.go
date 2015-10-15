@@ -23,6 +23,7 @@ import (
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
+	"github.com/influxdb/influxdb/services/subscriber"
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -35,13 +36,14 @@ type Config struct {
 	Retention  retention.Config  `toml:"retention"`
 	Precreator precreator.Config `toml:"shard-precreation"`
 
-	Admin     admin.Config      `toml:"admin"`
-	Monitor   monitor.Config    `toml:"monitor"`
-	HTTPD     httpd.Config      `toml:"http"`
-	Graphites []graphite.Config `toml:"graphite"`
-	Collectd  collectd.Config   `toml:"collectd"`
-	OpenTSDB  opentsdb.Config   `toml:"opentsdb"`
-	UDPs      []udp.Config      `toml:"udp"`
+	Admin      admin.Config      `toml:"admin"`
+	Monitor    monitor.Config    `toml:"monitor"`
+	Subscriber subscriber.Config `toml:"subscriber"`
+	HTTPD      httpd.Config      `toml:"http"`
+	Graphites  []graphite.Config `toml:"graphite"`
+	Collectd   collectd.Config   `toml:"collectd"`
+	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
+	UDPs       []udp.Config      `toml:"udp"`
 
 	// Snapshot SnapshotConfig `toml:"snapshot"`
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
@@ -62,6 +64,7 @@ func NewConfig() *Config {
 
 	c.Admin = admin.NewConfig()
 	c.Monitor = monitor.NewConfig()
+	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()

@@ -31,6 +31,8 @@ const (
 	statWriteTimeout        = "write_timeout"
 	statWriteErr            = "write_error"
 	statWritePointReqHH     = "point_req_hh"
+	statSubWriteOK          = "sub_write_ok"
+	statSubWriteDrop        = "sub_write_drop"
 )
 
 const (
@@ -105,6 +107,10 @@ type PointsWriter struct {
 
 	HintedHandoff interface {
 		WriteShard(shardID, ownerID uint64, points []models.Point) error
+	}
+
+	Subscriber interface {
+		Points() chan<- *WritePointsRequest
 	}
 
 	statMap *expvar.Map
@@ -243,6 +249,16 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
 			ch <- w.writeToShard(shard, p.Database, p.RetentionPolicy, p.ConsistencyLevel, points)
 		}(shardMappings.Shards[shardID], p.Database, p.RetentionPolicy, points)
+	}
+
+	// Send points to subscriptions if possible.
+	if w.Subscriber != nil {
+		select {
+		case w.Subscriber.Points() <- p:
+			w.statMap.Add(statSubWriteOK, 1)
+		default:
+			w.statMap.Add(statSubWriteDrop, 1)
+		}
 	}
 
 	for range shardMappings.Points {
