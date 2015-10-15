@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -402,6 +403,11 @@ func (s *Server) Open() error {
 			go s.startServerReporting()
 		}
 
+		// Register server
+		if err := s.registerServer(); err != nil {
+			log.Printf("failed to register server: %s", err.Error())
+		}
+
 		return nil
 
 	}(); err != nil {
@@ -543,8 +549,26 @@ func (s *Server) registerServer() error {
 	}
 
 	url := fmt.Sprintf("%s/api/v1/servers?token=%s", s.enterpriseURL, s.enterpriseToken)
-	client := http.Client{Timeout: time.Duration(5 * time.Second)}
-	go client.Post(url, "application/json", bytes.NewBuffer(b))
+	go func() {
+		client := http.Client{Timeout: time.Duration(5 * time.Second)}
+		resp, err := client.Post(url, "application/json", bytes.NewBuffer(b))
+		if err != nil {
+			log.Printf("failed to register server with %s: %s", s.enterpriseURL, err.Error())
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusCreated {
+			return
+		}
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("failed to read response from registration server: %s", err.Error())
+			return
+		}
+		log.Printf("failed to register server with %s: received code %s, body: %s", s.enterpriseURL, resp.Status, string(body))
+	}()
 	return nil
 }
 
