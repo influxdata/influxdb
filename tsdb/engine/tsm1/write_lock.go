@@ -57,7 +57,7 @@ func (w *WriteLock) UnlockRange(min, max int64) {
 	defer w.rangesLock.Unlock()
 
 	// take the range out of the slice and unlock it
-	a := make([]*rangeLock, 0)
+	var a []*rangeLock
 	for _, r := range w.ranges {
 		if r.min == min && r.max == max {
 			r.mu.Unlock()

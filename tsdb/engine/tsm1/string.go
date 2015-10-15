@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	// stringUncompressed is a an uncompressed format encoding strings as raw bytes
+	// stringUncompressed is a an uncompressed format encoding strings as raw bytes.
+	// Not yet implemented.
 	stringUncompressed = 0
+
 	// stringCompressedSnappy is a compressed encoding using Snappy compression
 	stringCompressedSnappy = 1
 )

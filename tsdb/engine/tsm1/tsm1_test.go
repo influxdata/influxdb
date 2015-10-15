@@ -18,7 +18,7 @@ import (
 
 func TestEngine_WriteAndReadFloats(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
 	p2 := parsePoint("cpu,host=B value=1.2 1000000000")
@@ -64,7 +64,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 		}
 
 		if checkSingleBVal {
-			k, v = c.Next()
+			k, _ = c.Next()
 			if k != tsdb.EOF {
 				t.Fatal("expected EOF")
 			}
@@ -113,7 +113,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	}
 	tx.Rollback()
 
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 
@@ -129,7 +129,7 @@ func TestEngine_WriteIndexWithCollision(t *testing.T) {
 
 func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	e.RotateFileSize = 10
 
@@ -191,7 +191,7 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 
 func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -232,7 +232,7 @@ func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 	if 1.3 != v {
 		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.3, v.(float64))
 	}
-	k, v = c.Next()
+	k, _ = c.Next()
 	if k != tsdb.EOF {
 		t.Fatal("expected EOF")
 	}
@@ -240,7 +240,7 @@ func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 
 func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -272,7 +272,7 @@ func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 	if 1.2 != v {
 		t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", 1.2, v.(float64))
 	}
-	k, v = c.Next()
+	k, _ = c.Next()
 	if k != tsdb.EOF {
 		t.Fatal("expected EOF")
 	}
@@ -280,7 +280,7 @@ func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 
 func TestEngine_Compaction(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	e.RotateFileSize = 10
 
@@ -348,7 +348,7 @@ func TestEngine_Compaction(t *testing.T) {
 
 	verify("cpu,host=A", []models.Point{p1, p3, p5, p7}, 0)
 	verify("cpu,host=B", []models.Point{p2, p4, p6, p8}, 0)
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
@@ -361,7 +361,7 @@ func TestEngine_Compaction(t *testing.T) {
 // Ensure that if two keys have the same fnv64-a id, we handle it
 func TestEngine_KeyCollisionsAreHandled(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -416,7 +416,7 @@ func TestEngine_KeyCollisionsAreHandled(t *testing.T) {
 	verify("cpu,host=C", []models.Point{p3, p6}, 0)
 
 	// verify collisions are handled after closing and reopening
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
@@ -442,7 +442,7 @@ func TestEngine_KeyCollisionsAreHandled(t *testing.T) {
 
 func TestEngine_SupportMultipleFields(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value", "foo"}
 
@@ -605,7 +605,7 @@ func TestEngine_SupportMultipleFields(t *testing.T) {
 
 func TestEngine_WriteManyPointsToSingleSeries(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -641,7 +641,7 @@ func TestEngine_WriteManyPointsToSingleSeries(t *testing.T) {
 
 func TestEngine_WritePointsInMultipleRequestsWithSameTime(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -676,7 +676,7 @@ func TestEngine_WritePointsInMultipleRequestsWithSameTime(t *testing.T) {
 
 	verify()
 
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
@@ -688,7 +688,7 @@ func TestEngine_WritePointsInMultipleRequestsWithSameTime(t *testing.T) {
 
 func TestEngine_CursorDescendingOrder(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -763,7 +763,7 @@ func TestEngine_CursorDescendingOrder(t *testing.T) {
 
 func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -844,7 +844,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	if k != 3000000000 {
 		t.Fatalf("expected time 3000000000 but got %d", k)
 	}
-	k, v = c.Next()
+	k, _ = c.Next()
 	if k != 4000000000 {
 		t.Fatalf("expected time 3000000000 but got %d", k)
 	}
@@ -854,7 +854,7 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 // skip decoding and just get copied over to the new data file works.
 func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -932,7 +932,7 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 
 func TestEngine_RewritingOldBlocks(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -976,7 +976,7 @@ func TestEngine_RewritingOldBlocks(t *testing.T) {
 
 func TestEngine_WriteIntoCompactedFile(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -1043,7 +1043,7 @@ func TestEngine_WriteIntoCompactedFile(t *testing.T) {
 
 func TestEngine_DuplicatePointsInWalAndIndex(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
@@ -1073,7 +1073,7 @@ func TestEngine_DuplicatePointsInWalAndIndex(t *testing.T) {
 
 func TestEngine_Deletes(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 	// Create metadata.
@@ -1153,7 +1153,7 @@ func TestEngine_Deletes(t *testing.T) {
 	// the wal flushes to the index. To verify that the delete gets
 	// persisted and will go all the way through the index
 
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
@@ -1179,7 +1179,7 @@ func TestEngine_Deletes(t *testing.T) {
 	verify()
 
 	// open and close to verify thd delete was persisted
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
@@ -1218,7 +1218,7 @@ func TestEngine_Deletes(t *testing.T) {
 	}()
 
 	// open and close to verify thd delete was persisted
-	if err := e.Close(); err != nil {
+	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
@@ -1238,7 +1238,7 @@ func TestEngine_Deletes(t *testing.T) {
 
 func TestEngine_IndexGoodAfterFlush(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Close()
 
 	fields := []string{"value"}
 
@@ -1339,8 +1339,8 @@ func OpenEngine(opt tsdb.EngineOptions) *Engine {
 // OpenDefaultEngine returns an open Engine with default options.
 func OpenDefaultEngine() *Engine { return OpenEngine(tsdb.NewEngineOptions()) }
 
-// Cleanup closes the engine and removes all data.
-func (e *Engine) Cleanup() error {
+// Close closes the engine and removes all data.
+func (e *Engine) Close() error {
 	e.Engine.Close()
 	os.RemoveAll(e.Path())
 	return nil

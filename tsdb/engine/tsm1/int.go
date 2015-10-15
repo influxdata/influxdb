@@ -190,7 +190,7 @@ func (d *int64Decoder) Next() bool {
 		return false
 	}
 
-	d.i += 1
+	d.i++
 
 	if d.i >= d.n {
 		switch d.encoding {
