@@ -17,6 +17,13 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
+type tsdmDumpOpts struct {
+	dumpIndex  bool
+	dumpBlocks bool
+	filterKey  string
+	path       string
+}
+
 type tsmIndex struct {
 	series  int
 	offset  int64
@@ -211,8 +218,10 @@ func readIndex(f *os.File) *tsmIndex {
 	return index
 }
 
-func dumpTsm1(path string) {
-	f, err := os.Open(path)
+func cmdDumpTsm1(opts *tsdmDumpOpts) {
+	var errors []error
+
+	f, err := os.Open(opts.path)
 	if err != nil {
 		println(err.Error())
 		os.Exit(1)
@@ -234,7 +243,7 @@ func dumpTsm1(path string) {
 		os.Exit(1)
 	}
 
-	ids, err := readIds(filepath.Dir(path))
+	ids, err := readIds(filepath.Dir(opts.path))
 	if err != nil {
 		println("Failed to read series:", err.Error())
 		os.Exit(1)
@@ -249,7 +258,7 @@ func dumpTsm1(path string) {
 	blockStats := &blockStats{}
 
 	println("Summary:")
-	fmt.Printf("  File: %s\n", path)
+	fmt.Printf("  File: %s\n", opts.path)
 	fmt.Printf("  Time Range: %s - %s\n",
 		index.minTime.UTC().Format(time.RFC3339Nano),
 		index.maxTime.UTC().Format(time.RFC3339Nano),
@@ -259,25 +268,49 @@ func dumpTsm1(path string) {
 	fmt.Printf("  File Size: %d\n", stat.Size())
 	println()
 
-	println("Index:")
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "ID", "Ofs", "Key", "Field"}, "\t"))
 	for i, block := range index.blocks {
 		key := invIds[block.id]
 		split := strings.Split(key, "#!~#")
 
+		// We dont' know know if we have fields so use an informative default
+		var measurement, field string = "UNKNOWN", "UNKNOWN"
+
+		// We read some IDs from the ids file
+		if len(invIds) > 0 {
+			// Change the default to error until we know we have a valid key
+			measurement = "ERR"
+			field = "ERR"
+
+			// Possible corruption? Try to read as much as we can and point to the problem.
+			if key == "" {
+				errors = append(errors, fmt.Errorf("index pos %d, field id: %d, missing key for id.", i, block.id))
+			} else if len(split) < 2 {
+				errors = append(errors, fmt.Errorf("index pos %d, field id: %d, key corrupt: got '%v'", i, block.id, key))
+			} else {
+				measurement = split[0]
+				field = split[1]
+			}
+		}
+
+		if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
+			continue
+		}
 		fmt.Fprintln(tw, "  "+strings.Join([]string{
 			strconv.FormatInt(int64(i), 10),
 			strconv.FormatUint(block.id, 10),
 			strconv.FormatInt(int64(block.offset), 10),
-			split[0],
-			split[1],
+			measurement,
+			field,
 		}, "\t"))
-
 	}
-	tw.Flush()
-	println()
-	println("Blocks:")
+
+	if opts.dumpIndex {
+		println("Index:")
+		tw.Flush()
+		println()
+	}
 
 	tw = tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Blk", "Ofs", "Len", "ID", "Type", "Min Time", "Points", "Enc [T/V]", "Len [T/V]"}, "\t"))
@@ -331,6 +364,12 @@ func dumpTsm1(path string) {
 		blockStats.inc(int(blockType+1), values[0]>>4)
 		blockStats.size(len(buf))
 
+		if opts.filterKey != "" && !strings.Contains(invIds[id], opts.filterKey) {
+			i += (12 + int64(length))
+			blockCount += 1
+			continue
+		}
+
 		fmt.Fprintln(tw, "  "+strings.Join([]string{
 			strconv.FormatInt(blockCount, 10),
 			strconv.FormatInt(i, 10),
@@ -346,9 +385,11 @@ func dumpTsm1(path string) {
 		i += (12 + int64(length))
 		blockCount += 1
 	}
-
-	tw.Flush()
-	println()
+	if opts.dumpBlocks {
+		println("Blocks:")
+		tw.Flush()
+		println()
+	}
 
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Blocks:\n")
@@ -375,5 +416,12 @@ func dumpTsm1(path string) {
 	fmt.Printf("    Per block: %0.2f bytes/point\n", float64(blockSize)/float64(pointCount))
 	fmt.Printf("    Total: %0.2f bytes/point\n", float64(stat.Size())/float64(pointCount))
 
-	println()
+	if len(errors) > 0 {
+		println()
+		fmt.Printf("Errors (%d):\n", len(errors))
+		for _, err := range errors {
+			fmt.Printf("  * %v\n", err)
+		}
+		println()
+	}
 }
