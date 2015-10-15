@@ -158,7 +158,10 @@ Examples:
 	}
 
 	if err := c.connect(""); err != nil {
-
+		fmt.Fprintf(os.Stderr,
+			"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.\n",
+			c.Client.Addr())
+		return
 	}
 	if c.Execute == "" && !c.Import {
 		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
