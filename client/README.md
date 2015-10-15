@@ -114,8 +114,8 @@ func writePoints(con *client.Client) {
 		pts[i] = client.Point{
 			Measurement: "shapes",
 			Tags: map[string]string{
-				"color": strconv.Itoa(rand.Intn(len(colors))),
-				"shape": strconv.Itoa(rand.Intn(len(shapes))),
+				"color": colors[(rand.Intn(len(colors)))],
+				"shape": shapes[(rand.Intn(len(shapes)))],
 			},
 			Fields: map[string]interface{}{
 				"value": rand.Intn(sampleSize),
