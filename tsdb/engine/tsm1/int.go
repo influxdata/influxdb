@@ -112,7 +112,7 @@ func (e *int64Encoder) encodePacked() ([]byte, error) {
 		return nil, nil
 	}
 
-	// Encode all but the first value.  Fist value is written unecoded
+	// Encode all but the first value.  Fist value is written unencoded
 	// using 8 bytes.
 	encoded, err := simple8b.EncodeAll(e.values[1:])
 	if err != nil {
@@ -245,7 +245,7 @@ func (d *int64Decoder) decodeRLE() {
 	count, n := binary.Uvarint(d.bytes[i:])
 
 	// Store the first value and delta value so we do not need to allocate
-	// a large values slice.  We can comput the value at position d.i on
+	// a large values slice.  We can compute the value at position d.i on
 	// demand.
 	d.rleFirst = first
 	d.rleDelta = value
