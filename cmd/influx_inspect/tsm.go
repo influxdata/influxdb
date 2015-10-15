@@ -68,7 +68,7 @@ var (
 		"none", "gor",
 	}
 	intEnc = []string{
-		"none", "s8b",
+		"none", "s8b", "rle",
 	}
 	boolEnc = []string{
 		"none", "bp",
