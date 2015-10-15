@@ -20,6 +20,7 @@
 - [#4409](https://github.com/influxdb/influxdb/pull/4409): wire up INTO queries.
 - [#4379](https://github.com/influxdb/influxdb/pull/4379): Auto-create database for UDP input.
 - [#4375](https://github.com/influxdb/influxdb/pull/4375): Add Subscriptions so data can be 'forked' out of InfluxDB to another third party.
+- [#4459](https://github.com/influxdb/influxdb/pull/4459): Register with Enterprise service if token available.
 
 ### Bugfixes
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
