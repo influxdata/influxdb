@@ -6,7 +6,7 @@ Each UDP input also performs internal batching of the points it receives, as bat
 
 # Processing
 
-The UDP input can receive up 64KB per read, and splits the received data by newline. Each part is then interpreted as line-protocol, and parsed accordingly.
+The UDP input can receive up to 64KB per read, and splits the received data by newline. Each part is then interpreted as line-protocol encoded points, and parsed accordingly.
 
 # UDP is connectionless
 
