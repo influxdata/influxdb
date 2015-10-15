@@ -537,8 +537,8 @@ func (s *Server) registerServer() error {
 	}
 
 	j := map[string]interface{}{
-		"cluster_id": clusterID,
-		"server_id":  s.MetaStore.NodeID(),
+		"cluster_id": fmt.Sprintf("%d", clusterID),
+		"server_id":  fmt.Sprintf("%d", s.MetaStore.NodeID()),
 		"host":       hostname,
 		"product":    "influxdb",
 		"version":    s.buildInfo.Version,
