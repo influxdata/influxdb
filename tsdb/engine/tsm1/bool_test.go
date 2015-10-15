@@ -75,7 +75,7 @@ func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
 }
 
 func Test_BoolEncoder_Quick(t *testing.T) {
-	quick.Check(func(values []bool) bool {
+	if err := quick.Check(func(values []bool) bool {
 		// Write values to encoder.
 		enc := tsm1.NewBoolEncoder()
 		for _, v := range values {
@@ -101,5 +101,7 @@ func Test_BoolEncoder_Quick(t *testing.T) {
 		}
 
 		return true
-	}, nil)
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
 }

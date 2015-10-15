@@ -61,33 +61,33 @@ func (e *EmptyValue) Size() int          { return 0 }
 // makes the code cleaner.
 type Values []Value
 
-func (v Values) MinTime() int64 {
-	return v[0].Time().UnixNano()
+func (a Values) MinTime() int64 {
+	return a[0].Time().UnixNano()
 }
 
-func (v Values) MaxTime() int64 {
-	return v[len(v)-1].Time().UnixNano()
+func (a Values) MaxTime() int64 {
+	return a[len(a)-1].Time().UnixNano()
 }
 
 // Encode converts the values to a byte slice.  If there are no values,
 // this function panics.
-func (v Values) Encode(buf []byte) ([]byte, error) {
-	if len(v) == 0 {
+func (a Values) Encode(buf []byte) ([]byte, error) {
+	if len(a) == 0 {
 		panic("unable to encode block type")
 	}
 
-	switch v[0].(type) {
+	switch a[0].(type) {
 	case *FloatValue:
-		return encodeFloatBlock(buf, v)
+		return encodeFloatBlock(buf, a)
 	case *Int64Value:
-		return encodeInt64Block(buf, v)
+		return encodeInt64Block(buf, a)
 	case *BoolValue:
-		return encodeBoolBlock(buf, v)
+		return encodeBoolBlock(buf, a)
 	case *StringValue:
-		return encodeStringBlock(buf, v)
+		return encodeStringBlock(buf, a)
 	}
 
-	return nil, fmt.Errorf("unsupported value type %T", v[0])
+	return nil, fmt.Errorf("unsupported value type %T", a[0])
 }
 
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
@@ -115,19 +115,19 @@ func DecodeBlock(block []byte) (Values, error) {
 // Deduplicate returns a new Values slice with any values
 // that have the same  timestamp removed. The Value that appears
 // last in the slice is the one that is kept. The returned slice is in ascending order
-func (v Values) Deduplicate() Values {
+func (a Values) Deduplicate() Values {
 	m := make(map[int64]Value)
-	for _, val := range v {
+	for _, val := range a {
 		m[val.UnixNano()] = val
 	}
 
-	a := make([]Value, 0, len(m))
+	other := make([]Value, 0, len(m))
 	for _, val := range m {
-		a = append(a, val)
+		other = append(other, val)
 	}
-	sort.Sort(Values(a))
+	sort.Sort(Values(other))
 
-	return a
+	return other
 }
 
 // Sort methods
@@ -340,8 +340,8 @@ func (v *Int64Value) Value() interface{} {
 	return v.value
 }
 
-func (f *Int64Value) UnixNano() int64 {
-	return f.time.UnixNano()
+func (v *Int64Value) UnixNano() int64 {
+	return v.time.UnixNano()
 }
 
 func (v *Int64Value) Size() int {

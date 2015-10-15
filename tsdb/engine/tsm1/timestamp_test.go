@@ -307,7 +307,7 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 		if ts[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), ts[i])
 		}
-		i += 1
+		i++
 	}
 }
 
@@ -343,7 +343,7 @@ func Test_TimeEncoder_220SecondDelta(t *testing.T) {
 		if ts[i] != dec.Read() {
 			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), ts[i])
 		}
-		i += 1
+		i++
 	}
 
 	if i != len(ts) {

@@ -44,8 +44,6 @@ const (
 	// idleFlush indicates that we should flush all series in the parition,
 	// delete all segment files and hold off on opening a new one
 	idleFlush
-	// deleteFlush indicates that we're flushing because series need to be removed from the WAL
-	deleteFlush
 	// startupFlush indicates that we're flushing because the database is starting up
 	startupFlush
 )
@@ -62,9 +60,6 @@ const (
 
 type Log struct {
 	path string
-
-	flushCheckTimer    *time.Timer // check this often to see if a background flush should happen
-	flushCheckInterval time.Duration
 
 	// write variables
 	writeLock          sync.Mutex
@@ -386,7 +381,7 @@ func (l *Log) readFileToCache(fileName string) error {
 			}
 			l.addToCache(nil, fields, nil, false)
 		case seriesEntry:
-			series := make([]*tsdb.SeriesCreate, 0)
+			var series []*tsdb.SeriesCreate
 			if err := json.Unmarshal(data, &series); err != nil {
 				return err
 			}
@@ -564,7 +559,7 @@ func (l *Log) flush(flush flushType) error {
 		valueCount += len(v)
 	}
 	l.cache = make(map[string]Values)
-	for k, _ := range l.cacheDirtySort {
+	for k := range l.cacheDirtySort {
 		l.flushCache[k] = l.flushCache[k].Deduplicate()
 	}
 	l.cacheDirtySort = make(map[string]bool)
@@ -644,7 +639,7 @@ func (l *Log) segmentFileNames() ([]string, error) {
 
 // newSegmentFile will close the current segment file and open a new one, updating bookkeeping info on the log
 func (l *Log) newSegmentFile() error {
-	l.currentSegmentID += 1
+	l.currentSegmentID++
 	if l.currentSegmentFile != nil {
 		if err := l.currentSegmentFile.Close(); err != nil {
 			return err

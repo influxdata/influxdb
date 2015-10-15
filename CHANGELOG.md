@@ -64,6 +64,7 @@
 - [#4431](https://github.com/influxdb/influxdb/issues/4431): Add tsm1 WAL QuickCheck
 - [#4438](https://github.com/influxdb/influxdb/pull/4438): openTSDB service shutdown fixes
 - [#3820](https://github.com/influxdb/influxdb/issues/3820): Fix js error in admin UI.
+- [#4460](https://github.com/influxdb/influxdb/issues/4460): tsm1 meta lint
 
 ## v0.9.4 [2015-09-14]
 

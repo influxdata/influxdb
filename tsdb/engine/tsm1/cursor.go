@@ -20,6 +20,8 @@ type combinedEngineCursor struct {
 	ascending      bool
 }
 
+// NewCombinedEngineCursor returns a Cursor that joins wc and ec.
+// Values from wc take precedence over ec when identical timestamps are returned.
 func NewCombinedEngineCursor(wc, ec tsdb.Cursor, ascending bool) tsdb.Cursor {
 	return &combinedEngineCursor{
 		walCursor:    wc,
@@ -105,6 +107,7 @@ type multiFieldCursor struct {
 	valueBuffer []interface{}
 }
 
+// NewMultiFieldCursor returns an instance of Cursor that joins the results of cursors.
 func NewMultiFieldCursor(fields []string, cursors []tsdb.Cursor, ascending bool) tsdb.Cursor {
 	return &multiFieldCursor{
 		fields:      fields,

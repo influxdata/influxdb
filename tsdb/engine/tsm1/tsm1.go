@@ -313,7 +313,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 	}
 	for k, mf := range fields {
 		m := index.CreateMeasurementIndexIfNotExists(string(k))
-		for name, _ := range mf.Fields {
+		for name := range mf.Fields {
 			m.SetFieldName(name)
 		}
 		mf.Codec = tsdb.NewFieldCodec(mf.Fields)
@@ -329,7 +329,7 @@ func (e *Engine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex,
 	// Load the series into the in-memory index in sorted order to ensure
 	// it's always consistent for testing purposes
 	a := make([]string, 0, len(series))
-	for k, _ := range series {
+	for k := range series {
 		a = append(a, k)
 	}
 	sort.Strings(a)
@@ -357,7 +357,7 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 		e.flushDeletes()
 	}
 
-	err, startTime, endTime, valuesByID := e.convertKeysAndWriteMetadata(pointsByKey, measurementFieldsToSave, seriesToCreate)
+	startTime, endTime, valuesByID, err := e.convertKeysAndWriteMetadata(pointsByKey, measurementFieldsToSave, seriesToCreate)
 	if err != nil {
 		return err
 	}
@@ -576,8 +576,8 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		positions[i] = 4
 	}
 	currentPosition := uint32(fileHeaderSize)
-	newPositions := make([]uint32, 0)
-	newIDs := make([]uint64, 0)
+	var newPositions []uint32
+	var newIDs []uint64
 	buf := make([]byte, e.RotateBlockSize)
 	for {
 		// find the min ID so we can write it to the file
@@ -808,30 +808,30 @@ func (e *Engine) filesToCompact() dataFiles {
 	return a
 }
 
-func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) (err error, minTime, maxTime int64, valuesByID map[uint64]Values) {
+func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) (minTime, maxTime int64, valuesByID map[uint64]Values, err error) {
 	e.metaLock.Lock()
 	defer e.metaLock.Unlock()
 
 	if err := e.writeNewFields(measurementFieldsToSave); err != nil {
-		return err, 0, 0, nil
+		return 0, 0, nil, err
 	}
 	if err := e.writeNewSeries(seriesToCreate); err != nil {
-		return err, 0, 0, nil
+		return 0, 0, nil, err
 	}
 
 	if len(pointsByKey) == 0 {
-		return nil, 0, 0, nil
+		return 0, 0, nil, nil
 	}
 
 	// read in keys and assign any that aren't defined
 	b, err := e.readCompressedFile(IDsFileExtension)
 	if err != nil {
-		return err, 0, 0, nil
+		return 0, 0, nil, err
 	}
 	ids := make(map[string]uint64)
 	if b != nil {
 		if err := json.Unmarshal(b, &ids); err != nil {
-			return err, 0, 0, nil
+			return 0, 0, nil, err
 		}
 	}
 
@@ -892,10 +892,10 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 	if newKeys {
 		b, err := json.Marshal(ids)
 		if err != nil {
-			return err, 0, 0, nil
+			return 0, 0, nil, err
 		}
 		if err := e.replaceCompressedFile(IDsFileExtension, b); err != nil {
-			return err, 0, 0, nil
+			return 0, 0, nil, err
 		}
 	}
 
@@ -993,7 +993,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	// we need the values in sorted order so that we can merge them into the
 	// new file as we read the old file
 	ids := make([]uint64, 0, len(valuesByID))
-	for id, _ := range valuesByID {
+	for id := range valuesByID {
 		ids = append(ids, id)
 	}
 
@@ -1019,7 +1019,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	}
 
 	// add any ids that are in the file that aren't getting flushed here
-	for id, _ := range oldIDToPosition {
+	for id := range oldIDToPosition {
 		if _, ok := valuesByID[id]; !ok {
 			ids = append(ids, id)
 		}
@@ -1195,7 +1195,7 @@ func (e *Engine) flushDeletes() error {
 	measurements := make(map[string]bool)
 	deletes := make(map[uint64]string)
 	e.filesLock.RLock()
-	for name, _ := range e.deleteMeasurements {
+	for name := range e.deleteMeasurements {
 		measurements[name] = true
 	}
 	for id, key := range e.deletes {
@@ -1209,7 +1209,7 @@ func (e *Engine) flushDeletes() error {
 		if err != nil {
 			return err
 		}
-		for name, _ := range measurements {
+		for name := range measurements {
 			delete(fields, name)
 		}
 		if err := e.writeFields(fields); err != nil {
@@ -1243,10 +1243,10 @@ func (e *Engine) flushDeletes() error {
 	e.files = newFiles
 
 	// remove the things we've deleted from the map
-	for name, _ := range measurements {
+	for name := range measurements {
 		delete(e.deleteMeasurements, name)
 	}
-	for id, _ := range deletes {
+	for id := range deletes {
 		delete(e.deletes, id)
 	}
 
@@ -1268,8 +1268,8 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
 		panic(fmt.Sprintf("error opening new data file: %s", err.Error()))
 	}
 
-	ids := make([]uint64, 0)
-	positions := make([]uint32, 0)
+	var ids []uint64
+	var positions []uint32
 
 	indexPosition := oldDF.indexPosition()
 	currentPosition := uint32(fileHeaderSize)
@@ -1354,7 +1354,7 @@ func (e *Engine) keysWithFields(fields map[string]*tsdb.MeasurementFields, keys 
 	e.WAL.cacheLock.RLock()
 	defer e.WAL.cacheLock.RUnlock()
 
-	a := make([]string, 0)
+	var a []string
 	for _, k := range keys {
 		measurement := tsdb.MeasurementFromSeriesKey(k)
 
@@ -1862,7 +1862,7 @@ func (d *dataFile) MaxTime() int64 {
 }
 
 func (d *dataFile) SeriesCount() uint32 {
-	return btou32(d.mmap[d.size-4:])
+	return btou32(d.mmap[d.size-seriesCountSize:])
 }
 
 func (d *dataFile) IDToPosition() map[uint64]uint32 {

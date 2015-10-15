@@ -33,8 +33,8 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 
 	// multiple fields. use just the MultiFieldCursor, which also handles time collisions
 	// so we don't need to use the combined cursor
-	cursors := make([]tsdb.Cursor, 0)
-	cursorFields := make([]string, 0)
+	var cursors []tsdb.Cursor
+	var cursorFields []string
 	for _, field := range fields {
 		id := t.engine.keyAndFieldToID(series, field)
 		_, isDeleted := t.engine.deletes[id]

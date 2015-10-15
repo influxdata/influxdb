@@ -8,21 +8,18 @@ package tsm1
 import "encoding/binary"
 
 const (
-	// boolUncompressed is an uncompressed boolean format
+	// boolUncompressed is an uncompressed boolean format.
+	// Not yet implemented.
 	boolUncompressed = 0
+
 	// boolCompressedBitPacked is an bit packed format using 1 bit per boolean
 	boolCompressedBitPacked = 1
 )
 
+// BoolEncoder encodes a series of bools to an in-memory buffer.
 type BoolEncoder interface {
 	Write(b bool)
 	Bytes() ([]byte, error)
-}
-
-type BoolDecoder interface {
-	Next() bool
-	Read() bool
-	Error() error
 }
 
 type boolEncoder struct {
@@ -39,6 +36,7 @@ type boolEncoder struct {
 	n int
 }
 
+// NewBoolEncoder returns a new instance of BoolEncoder.
 func NewBoolEncoder() BoolEncoder {
 	return &boolEncoder{}
 }
@@ -57,16 +55,16 @@ func (e *boolEncoder) Write(b bool) {
 	}
 
 	// Increment the current bool count
-	e.i += 1
+	e.i++
 	// Increment the total bool count
-	e.n += 1
+	e.n++
 }
 
 func (e *boolEncoder) flush() {
 	// Pad remaining byte w/ 0s
 	for e.i < 8 {
 		e.b = e.b << 1
-		e.i += 1
+		e.i++
 	}
 
 	// If we have bits set, append them to the byte slice
@@ -93,6 +91,13 @@ func (e *boolEncoder) Bytes() ([]byte, error) {
 	return append(b[:i], e.bytes...), nil
 }
 
+// BoolDecoder decodes a series of bools from an in-memory buffer.
+type BoolDecoder interface {
+	Next() bool
+	Read() bool
+	Error() error
+}
+
 type boolDecoder struct {
 	b   []byte
 	i   int
@@ -100,6 +105,7 @@ type boolDecoder struct {
 	err error
 }
 
+// NewBoolDecoder returns a new instance of BoolDecoder.
 func NewBoolDecoder(b []byte) BoolDecoder {
 	// First byte stores the encoding type, only have 1 bit-packet format
 	// currently ignore for now.
@@ -109,7 +115,7 @@ func NewBoolDecoder(b []byte) BoolDecoder {
 }
 
 func (e *boolDecoder) Next() bool {
-	e.i += 1
+	e.i++
 	return e.i < e.n
 }
 
