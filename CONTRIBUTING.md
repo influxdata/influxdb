@@ -122,10 +122,7 @@ Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary
 Pre-commit checks
 -------------
 
-We have a pre commit hook to make sure code is formatted properly
-and vetted before you commit any changes. We strongly recommend using the pre
-commit hook to guard against accidentally committing unformatted
-code. To use the pre-commit hook, run the following:
+We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
 
     cd $GOPATH/src/github.com/influxdb/influxdb
     cp .hooks/pre-commit .git/hooks/
