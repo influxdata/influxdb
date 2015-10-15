@@ -101,7 +101,7 @@ func TestReducePercentileNil(t *testing.T) {
 	}
 
 	// ReducePercentile should ignore nil values when calculating the percentile
-	got := ReducePercentile(input, &influxql.Call{Name: "top", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.NumberLiteral{Val: 100}}})
+	got := ReducePercentile(input, 100)
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
 	}
@@ -847,7 +847,10 @@ func TestReduceTopBottom(t *testing.T) {
 		if test.skip {
 			continue
 		}
-		values := ReduceTopBottom(test.values, test.call)
+		lit, _ := test.call.Args[len(test.call.Args)-1].(*influxql.NumberLiteral)
+		limit := int(lit.Val)
+		fields := topCallArgs(test.call)
+		values := ReduceTopBottom(test.values, limit, fields, test.call.Name)
 		t.Logf("Test: %s", test.name)
 		if values != nil {
 			v, _ := values.(PositionPoints)

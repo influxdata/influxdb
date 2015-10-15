@@ -154,11 +154,18 @@ func initializeReduceFunc(c *influxql.Call) (reduceFunc, error) {
 		return ReduceLast, nil
 	case "top", "bottom":
 		return func(values []interface{}) interface{} {
-			return ReduceTopBottom(values, c)
+			lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
+			limit := int(lit.Val)
+			fields := topCallArgs(c)
+			return ReduceTopBottom(values, limit, fields, c.Name)
 		}, nil
 	case "percentile":
 		return func(values []interface{}) interface{} {
-			return ReducePercentile(values, c)
+			// Checks that this arg exists and is a valid type are done in the parsing validation
+			// and have test coverage there
+			lit, _ := c.Args[1].(*influxql.NumberLiteral)
+			percentile := lit.Val
+			return ReducePercentile(values, percentile)
 		}, nil
 	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
@@ -1574,12 +1581,10 @@ func MapTopBottom(input *MapInput, limit int, fields []string, argCount int, cal
 
 // ReduceTop computes the top values for each key.
 // This function assumes that its inputs are in sorted ascending order.
-func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
-	lit, _ := c.Args[len(c.Args)-1].(*influxql.NumberLiteral)
-	limit := int(lit.Val)
+func ReduceTopBottom(values []interface{}, limit int, fields []string, callName string) interface{} {
 
-	out := positionOut{callArgs: topCallArgs(c)}
-	minheap := topBottomMapOut{&out, c.Name == "bottom"}
+	out := positionOut{callArgs: fields}
+	minheap := topBottomMapOut{&out, callName == "bottom"}
 	results := make([]PositionPoints, 0, len(values))
 	out.points = make([]PositionPoint, 0, limit)
 	for _, v := range values {
@@ -1606,7 +1611,7 @@ func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
 		if whichselected == -1 {
 			// none of the points have any values
 			// so we can return what we have now
-			sort.Sort(topBottomReduceOut{out, c.Name == "bottom"})
+			sort.Sort(topBottomReduceOut{out, callName == "bottom"})
 			return out.points
 		}
 		v := results[whichselected]
@@ -1615,7 +1620,7 @@ func ReduceTopBottom(values []interface{}, c *influxql.Call) interface{} {
 	}
 
 	// now we need to resort the tops by time
-	sort.Sort(topBottomReduceOut{out, c.Name == "bottom"})
+	sort.Sort(topBottomReduceOut{out, callName == "bottom"})
 	return out.points
 }
 
@@ -1629,11 +1634,7 @@ func MapEcho(input *MapInput) interface{} {
 }
 
 // ReducePercentile computes the percentile of values for each key.
-func ReducePercentile(values []interface{}, c *influxql.Call) interface{} {
-	// Checks that this arg exists and is a valid type are done in the parsing validation
-	// and have test coverage there
-	lit, _ := c.Args[1].(*influxql.NumberLiteral)
-	percentile := lit.Val
+func ReducePercentile(values []interface{}, percentile float64) interface{} {
 
 	var allValues []float64
 
