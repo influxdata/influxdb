@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -72,8 +73,10 @@ type Server struct {
 
 	Monitor *monitor.Monitor
 
-	// Server reporting
+	// Server reporting and registration
 	reportingDisabled bool
+	enterpriseURL     string
+	enterpriseToken   string
 
 	// Profiling
 	CPUProfile string
@@ -100,6 +103,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		Monitor: monitor.New(c.Monitor),
 
 		reportingDisabled: c.ReportingDisabled,
+		enterpriseURL:     c.EnterpriseURL,
+		enterpriseToken:   c.EnterpriseToken,
 	}
 
 	// Copy TSDB configuration.
@@ -506,6 +511,41 @@ func (s *Server) reportServer() {
 
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
 	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+}
+
+// registerServer registers the server on start-up.
+func (s *Server) registerServer() error {
+	if s.enterpriseToken == "" {
+		return nil
+	}
+
+	clusterID, err := s.MetaStore.ClusterID()
+	if err != nil {
+		log.Printf("failed to retrieve cluster ID for registration: %s", err.Error())
+		return err
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
+	j := map[string]interface{}{
+		"cluster_id": clusterID,
+		"server_id":  s.MetaStore.NodeID(),
+		"host":       hostname,
+		"product":    "influxdb",
+		"version":    s.buildInfo.Version,
+	}
+	b, err := json.Marshal(j)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/api/v1/servers?token=%s", s.enterpriseURL, s.enterpriseToken)
+	client := http.Client{Timeout: time.Duration(5 * time.Second)}
+	go client.Post(url, "application/json", bytes.NewBuffer(b))
+	return nil
 }
 
 // monitorErrorChan reads an error channel and resends it through the server.
