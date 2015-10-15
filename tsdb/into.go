@@ -29,7 +29,10 @@ func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point
 	for _, v := range row.Values {
 		vals := make(map[string]interface{})
 		for fieldName, fieldIndex := range fieldIndexes {
-			vals[fieldName] = v[fieldIndex]
+			val := v[fieldIndex]
+			if val != nil {
+				vals[fieldName] = v[fieldIndex]
+			}
 		}
 
 		p := models.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))

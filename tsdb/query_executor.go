@@ -748,14 +748,6 @@ func (q *QueryExecutor) writeInto(row *models.Row, selectstmt *influxql.SelectSt
 	if err != nil {
 		return err
 	}
-	for _, p := range points {
-		fields := p.Fields()
-		for _, v := range fields {
-			if v == nil {
-				return nil
-			}
-		}
-	}
 	req := &IntoWriteRequest{
 		Database:        intodb,
 		RetentionPolicy: rp,
