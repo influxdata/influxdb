@@ -31,9 +31,8 @@ func cmdInfo(path string) {
 	}
 
 	// Summary stats
-	fmt.Printf("Shards: %d, Indexes: %d, Databases: %d, Disk Size: %d, Series: %d\n",
+	fmt.Printf("Shards: %d, Indexes: %d, Databases: %d, Disk Size: %d, Series: %d\n\n",
 		tstore.ShardN(), tstore.DatabaseIndexN(), len(tstore.Databases()), size, countSeries(tstore))
-	fmt.Println()
 
 	tw := tabwriter.NewWriter(os.Stdout, 16, 8, 0, '\t', 0)
 
@@ -63,10 +62,6 @@ func cmdInfo(path string) {
 			// Sample a point from each measurement to determine the field types
 			for _, shardID := range shardIDs {
 				shard := tstore.Shard(shardID)
-				if err != nil {
-					fmt.Printf("Failed to get transaction: %v", err)
-				}
-
 				codec := shard.FieldCodec(m.Name)
 				for _, field := range codec.Fields() {
 					ft := fmt.Sprintf("%s:%s", field.Name, field.Type)
