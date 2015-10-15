@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"math"
+	"math/rand"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -12,6 +13,10 @@ func Test_Int64Encoder_NoValues(t *testing.T) {
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(b) > 0 {
+		t.Fatalf("unexpected lenght: exp 0, got %v", len(b))
 	}
 
 	dec := NewInt64Decoder(b)
@@ -28,6 +33,10 @@ func Test_Int64Encoder_One(t *testing.T) {
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; intCompressedSimple != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
 	dec := NewInt64Decoder(b)
@@ -50,6 +59,10 @@ func Test_Int64Encoder_Two(t *testing.T) {
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; intCompressedSimple != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
 	dec := NewInt64Decoder(b)
@@ -81,6 +94,10 @@ func Test_Int64Encoder_Negative(t *testing.T) {
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; intCompressedSimple != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
 	dec := NewInt64Decoder(b)
@@ -119,6 +136,10 @@ func Test_Int64Encoder_Large_Range(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if got := b[0] >> 4; intUncompressed != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
+	}
+
 	dec := NewInt64Decoder(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -153,6 +174,10 @@ func Test_Int64Encoder_Uncompressed(t *testing.T) {
 	// 1 byte header + 3 * 8 byte values
 	if exp := 25; len(b) != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", len(b), exp)
+	}
+
+	if got := b[0] >> 4; intUncompressed != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
 	dec := NewInt64Decoder(b)
@@ -202,6 +227,10 @@ func Test_Int64Encoder_NegativeUncompressed(t *testing.T) {
 		t.Fatalf("expected error: %v", err)
 	}
 
+	if got := b[0] >> 4; intUncompressed != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
+	}
+
 	dec := NewInt64Decoder(b)
 
 	i := 0
@@ -236,6 +265,10 @@ func Test_Int64Encoder_AllNegative(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if got := b[0] >> 4; intCompressedSimple != got {
+		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
+	}
+
 	dec := NewInt64Decoder(b)
 	i := 0
 	for dec.Next() {
@@ -254,10 +287,10 @@ func Test_Int64Encoder_AllNegative(t *testing.T) {
 	}
 }
 
-func Test_Int64Encoder_Counter(t *testing.T) {
+func Test_Int64Encoder_CounterPacked(t *testing.T) {
 	enc := NewInt64Encoder()
 	values := []int64{
-		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 5,
+		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 6,
 	}
 
 	for _, v := range values {
@@ -276,6 +309,49 @@ func Test_Int64Encoder_Counter(t *testing.T) {
 	// Should use 1 header byte + 2, 8 byte words if delta-encoding is used based on
 	// values sizes.  Without delta-encoding, we'd get 49 bytes.
 	if exp := 17; len(b) != exp {
+		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
+	}
+
+	dec := NewInt64Decoder(b)
+	i := 0
+	for dec.Next() {
+		if i > len(values) {
+			t.Fatalf("read too many values: got %v, exp %v", i, len(values))
+		}
+
+		if values[i] != dec.Read() {
+			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
+		}
+		i += 1
+	}
+
+	if i != len(values) {
+		t.Fatalf("failed to read enough values: got %v, exp %v", i, len(values))
+	}
+}
+
+func Test_Int64Encoder_CounterRLE(t *testing.T) {
+	enc := NewInt64Encoder()
+	values := []int64{
+		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 5,
+	}
+
+	for _, v := range values {
+		enc.Write(v)
+	}
+
+	b, err := enc.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if b[0]>>4 != intCompressedRLE {
+		t.Fatalf("unexpected encoding format: expected simple, got %v", b[0]>>4)
+	}
+
+	// Should use 1 header byte, 8 byte first value, 1 var-byte for delta and 1 var-byte for
+	// count of deltas in this particular RLE.
+	if exp := 11; len(b) != exp {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
@@ -371,7 +447,7 @@ func Test_Int64Encoder_Quick(t *testing.T) {
 	}, nil)
 }
 
-func BenchmarkInt64Encoder(b *testing.B) {
+func BenchmarkInt64EncoderRLE(b *testing.B) {
 	enc := NewInt64Encoder()
 	x := make([]int64, 1024)
 	for i := 0; i < len(x); i++ {
@@ -385,11 +461,47 @@ func BenchmarkInt64Encoder(b *testing.B) {
 	}
 }
 
+func BenchmarkInt64EncoderPackedSimple(b *testing.B) {
+	enc := NewInt64Encoder()
+	x := make([]int64, 1024)
+	for i := 0; i < len(x); i++ {
+		// Small amount of randomness prevents RLE from being used
+		x[i] = int64(i) + int64(rand.Intn(10))
+		enc.Write(x[i])
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		enc.Bytes()
+	}
+}
+
 type byteSetter interface {
 	SetBytes(b []byte)
 }
 
-func BenchmarkInt64Decoder(b *testing.B) {
+func BenchmarkInt64DecoderPackedSimple(b *testing.B) {
+	x := make([]int64, 1024)
+	enc := NewInt64Encoder()
+	for i := 0; i < len(x); i++ {
+		// Small amount of randomness prevents RLE from being used
+		x[i] = int64(i) + int64(rand.Intn(10))
+		enc.Write(x[i])
+	}
+	bytes, _ := enc.Bytes()
+
+	b.ResetTimer()
+
+	dec := NewInt64Decoder(bytes)
+
+	for i := 0; i < b.N; i++ {
+		dec.(byteSetter).SetBytes(bytes)
+		for dec.Next() {
+		}
+	}
+}
+
+func BenchmarkInt64DecoderRLE(b *testing.B) {
 	x := make([]int64, 1024)
 	enc := NewInt64Encoder()
 	for i := 0; i < len(x); i++ {
