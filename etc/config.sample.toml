@@ -7,6 +7,8 @@
 # is very helpful for us.
 # Change this option to true to disable reporting.
 reporting-disabled = false
+# enterprise-url = "https://enterprise.influxdata.com" # The Enterprise server URL
+# enterprise-token = "" # Registration token for Enterprise server
 
 ###
 ### [meta]
