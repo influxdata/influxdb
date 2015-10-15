@@ -28,6 +28,8 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+const DefaultEnterpriseURL = "https://enterprise.influxdata.com"
+
 // Config represents the configuration format for the influxd binary.
 type Config struct {
 	Meta       *meta.Config      `toml:"meta"`
@@ -52,11 +54,16 @@ type Config struct {
 
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
+
+	// Server registration
+	EnterpriseURL   string `toml:"enterprise-url"`
+	EnterpriseToken string `toml:"enterprise-token"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
 	c := &Config{}
+	c.EnterpriseURL = DefaultEnterpriseURL
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
 	c.Cluster = cluster.NewConfig()

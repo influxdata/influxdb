@@ -13,6 +13,8 @@ func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
 	if _, err := toml.Decode(`
+enterprise-token = "deadbeef"
+
 [meta]
 dir = "/tmp/meta"
 
@@ -55,7 +57,9 @@ enabled = true
 	}
 
 	// Validate configuration.
-	if c.Meta.Dir != "/tmp/meta" {
+	if c.EnterpriseToken != "deadbeef" {
+		t.Fatalf("unexpected Enterprise token: %s", c.EnterpriseToken)
+	} else if c.Meta.Dir != "/tmp/meta" {
 		t.Fatalf("unexpected meta dir: %s", c.Meta.Dir)
 	} else if c.Data.Dir != "/tmp/data" {
 		t.Fatalf("unexpected data dir: %s", c.Data.Dir)
@@ -87,6 +91,8 @@ func TestConfig_Parse_EnvOverride(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
 	if _, err := toml.Decode(`
+enterprise-token = "deadbeef"
+
 [meta]
 dir = "/tmp/meta"
 
@@ -125,6 +131,10 @@ enabled = true
 		t.Fatal(err)
 	}
 
+	if err := os.Setenv("INFLUXDB_ENTERPRISE_TOKEN", "wheresthebeef"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := os.Setenv("INFLUXDB_UDP_BIND_ADDRESS", ":1234"); err != nil {
 		t.Fatalf("failed to set env var: %v", err)
 	}
@@ -135,6 +145,10 @@ enabled = true
 
 	if err := c.ApplyEnvOverrides(); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
+	}
+
+	if c.EnterpriseToken != "wheresthebeef" {
+		t.Fatalf("unexpected Enterprise token: %s", c.EnterpriseToken)
 	}
 
 	if c.UDPs[0].BindAddress != ":4444" {
