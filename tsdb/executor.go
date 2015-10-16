@@ -644,10 +644,10 @@ func (e *SelectExecutor) processSelectors(results [][]interface{}, callPosition 
 func (e *SelectExecutor) selectorPointToQueryResult(columns []interface{}, hasTimeField bool, columnIndex int, p PositionPoint, tMin time.Time, columnNames []string) []interface{} {
 	callCount := len(e.stmt.FunctionCalls())
 	if callCount == 1 {
-		tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+		tm := time.Unix(0, p.Time).UTC()
 		// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
 		if len(e.stmt.Dimensions) > 0 && !hasTimeField {
-			tm = tMin.UTC().Format(time.RFC3339Nano)
+			tm = tMin.UTC()
 		}
 		columns[0] = tm
 	}
@@ -704,10 +704,10 @@ func (e *SelectExecutor) processAggregates(results [][]interface{}, columnNames 
 }
 
 func (e *SelectExecutor) aggregatePointToQueryResult(p PositionPoint, tMin time.Time, call *influxql.Call, columnNames []string) []interface{} {
-	tm := time.Unix(0, p.Time).UTC().Format(time.RFC3339Nano)
+	tm := time.Unix(0, p.Time).UTC()
 	// If we didn't explicity ask for time, and we have a group by, then use TMIN for the time returned
 	if len(e.stmt.Dimensions) > 0 && !e.stmt.HasTimeFieldSpecified() {
-		tm = tMin.UTC().Format(time.RFC3339Nano)
+		tm = tMin.UTC()
 	}
 	vals := []interface{}{tm}
 	for _, c := range columnNames {

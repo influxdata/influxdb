@@ -67,6 +67,7 @@
 - [#4438](https://github.com/influxdb/influxdb/pull/4438): openTSDB service shutdown fixes
 - [#3820](https://github.com/influxdb/influxdb/issues/3820): Fix js error in admin UI.
 - [#4460](https://github.com/influxdb/influxdb/issues/4460): tsm1 meta lint
+- [#4415](https://github.com/influxdb/influxdb/issues/4415): Selector (like max, min, first, etc) return a string instead of timestamp
 
 ## v0.9.4 [2015-09-14]
 
