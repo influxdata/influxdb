@@ -65,6 +65,7 @@
 - [#4434](https://github.com/influxdb/influxdb/pull/4434): Allow 'E' for scientific values. Fixes [#4433](https://github.com/influxdb/influxdb/issues/4433)
 - [#4431](https://github.com/influxdb/influxdb/issues/4431): Add tsm1 WAL QuickCheck
 - [#4438](https://github.com/influxdb/influxdb/pull/4438): openTSDB service shutdown fixes
+- [#4447](https://github.com/influxdb/influxdb/pull/4447): Fixes to logrotate file. Thanks @linsomniac.
 - [#3820](https://github.com/influxdb/influxdb/issues/3820): Fix js error in admin UI.
 - [#4460](https://github.com/influxdb/influxdb/issues/4460): tsm1 meta lint
 - [#4415](https://github.com/influxdb/influxdb/issues/4415): Selector (like max, min, first, etc) return a string instead of timestamp
