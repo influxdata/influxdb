@@ -4504,7 +4504,7 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 		&Query{
 			name:    `show tag values with key and time in WHERE clause should error`,
 			command: `SHOW TAG VALUES WITH KEY = host WHERE time > now() - 1h`,
-			exp:     `{"results":[{"error":"SHOW SERIES doesn't support time in WHERE clause"}]}`,
+			exp:     `{"results":[{"error":"SHOW TAG VALUES doesn't support time in WHERE clause"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
