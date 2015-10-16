@@ -2144,6 +2144,12 @@ func TestServer_Query_AggregatesCommon(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
+			name:    "first - int - epoch ms",
+			params:  url.Values{"db": []string{"db0"}, "epoch": []string{"ms"}},
+			command: `SELECT FIRST(value) FROM intmany`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[[%d,2]]}]}]}`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()/int64(time.Millisecond)),
+		},
+		&Query{
 			name:    "last - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM intmany`,
@@ -2565,6 +2571,17 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",90]]}]}]}`,
 		},
 		&Query{
+			name:    "max - baseline 30s - epoch ms",
+			params:  url.Values{"db": []string{"db0"}, "epoch": []string{"ms"}},
+			command: `SELECT max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
+			exp: fmt.Sprintf(
+				`{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[[%d,40],[%d,50],[%d,90]]}]}]}`,
+				mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()/int64(time.Millisecond),
+				mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()/int64(time.Millisecond),
+				mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()/int64(time.Millisecond),
+			),
+		},
+		&Query{
 			name:    "max - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
@@ -2893,6 +2910,17 @@ func TestServer_Query_TopInt(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, TOP(value, 1) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:20Z",4],["2000-01-01T01:00:10Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "top - cpu - time specified - hourly - epoch ms",
+			params:  url.Values{"db": []string{"db0"}, "epoch": []string{"ms"}},
+			command: `SELECT time, TOP(value, 1) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
+			exp: fmt.Sprintf(
+				`{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[[%d,4],[%d,7],[%d,9]]}]}]}`,
+				mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()/int64(time.Millisecond),
+				mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:10Z").UnixNano()/int64(time.Millisecond),
+				mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:10Z").UnixNano()/int64(time.Millisecond),
+			),
 		},
 		&Query{
 			name:    "top - cpu - time specified (not first) - hourly",
