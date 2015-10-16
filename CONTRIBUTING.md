@@ -228,10 +228,11 @@ When troubleshooting problems with CPU or memory the Go toolchain can be helpful
 # run queries, writes, whatever you're testing
 # Quit out of influxd and influxd.prof will then be written.
 # open up pprof to examine the profiling data.
-go tool pprof influxd influxd.prof
+go tool pprof ./influxd influxd.prof
 # once inside run "web", opens up browser with the CPU graph
 # can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
 ```
+Note that when you pass the binary to `go tool pprof` *you must specify the path to the binary*.
 
 Continuous Integration testing
 -----
