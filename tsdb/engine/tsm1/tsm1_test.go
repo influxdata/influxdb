@@ -1309,7 +1309,7 @@ func TestEngine_IndexGoodAfterFlush(t *testing.T) {
 // series not in the file doesn't cause corruption on compaction
 func TestEngine_RewriteFileAndCompact(t *testing.T) {
 	e := OpenDefaultEngine()
-	defer e.Cleanup()
+	defer e.Engine.Close()
 
 	fields := []string{"value"}
 
