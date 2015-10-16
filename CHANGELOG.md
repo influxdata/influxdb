@@ -1,5 +1,14 @@
 ## v0.9.5 [unreleased]
 
+### Release Notes
+
+There are breaking changes in this release:
+- The filesystem hierarchy for packages has been changed, namely:
+  - Binaries are now located in `/usr/bin` (previously `/opt/influxdb`)
+  - Configuration files are now located in `/etc/influxdb` (previously `/etc/opt/influxdb`)
+  - Data directories are now located in `/var/lib/influxdb` (previously `/var/opt/influxdb`)
+  - Scripts are now located in `/usr/lib/influxdb/scripts` (previously `/opt/influxdb`)
+
 ### Features
 - [#4098](https://github.com/influxdb/influxdb/issues/4098): Enable `golint` on the code base - uuid subpackage
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
