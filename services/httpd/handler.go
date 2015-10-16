@@ -189,7 +189,7 @@ func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.R
 	// Get the name of the CQ to run (blank means run all).
 	name := q.Get("name")
 	// Get the time for which the CQ should be evaluated.
-	var t time.Time
+	t := time.Now()
 	var err error
 	s := q.Get("time")
 	if s != "" {
