@@ -1069,7 +1069,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 				currentPosition += (12 + length)
 
 				// make sure we're not at the end of the file
-				if fpos >= oldDF.size {
+				if fpos >= oldDF.indexPosition() {
 					break
 				}
 			}
