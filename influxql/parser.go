@@ -1011,6 +1011,29 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 	stmt := &ShowMeasurementsStatement{}
 	var err error
 
+	// Parse optional WITH clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == WITH {
+		// Parse required MEASUREMENT token.
+		if err := p.parseTokens([]Token{MEASUREMENT}); err != nil {
+			return nil, err
+		}
+
+		// Parse required operator: = or =~.
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		switch tok {
+		case EQ, EQREGEX:
+			// Parse required source (measurement name or regex).
+			if stmt.Source, err = p.parseSource(); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, newParseError(tokstr(tok, lit), []string{"=", "=~"}, pos)
+		}
+	} else {
+		// Not a WITH clause so put the token back.
+		p.unscan()
+	}
+
 	// Parse condition: "WHERE EXPR".
 	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err

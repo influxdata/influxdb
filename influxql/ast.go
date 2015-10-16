@@ -1953,6 +1953,9 @@ func (s *DropContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges 
 
 // ShowMeasurementsStatement represents a command for listing measurements.
 type ShowMeasurementsStatement struct {
+	// Measurement name or regex.
+	Source Source
+
 	// An expression evaluated on data point.
 	Condition Expr
 
