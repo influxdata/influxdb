@@ -771,7 +771,7 @@ func (q *QueryExecutor) writeInto(row *models.Row, selectstmt *influxql.SelectSt
 func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) *influxql.Result {
 	// Check for time in WHERE clause (not supported).
 	if influxql.HasTimeExpr(stmt.Condition) {
-		return &influxql.Result{Err: errors.New("SHOW SERIES doesn't support time in WHERE clause")}
+		return &influxql.Result{Err: errors.New("SHOW TAG VALUES doesn't support time in WHERE clause")}
 	}
 
 	// Find the database.
