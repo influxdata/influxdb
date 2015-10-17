@@ -228,9 +228,9 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			expErr:          nil,
 		},
 
-		// Write to non-existant database
+		// Write to non-existent database
 		{
-			name:            "write to non-existant database",
+			name:            "write to non-existent database",
 			database:        "doesnt_exist",
 			retentionPolicy: "",
 			consistency:     cluster.ConsistencyLevelAny,
