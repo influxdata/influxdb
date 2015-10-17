@@ -8,6 +8,8 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+// QueryResults holds the total number of executed queries
+// and the response time for each query
 type QueryResults struct {
 	TotalQueries  int
 	ResponseTimes ResponseTimes

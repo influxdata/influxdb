@@ -80,13 +80,14 @@ type ResponseTime struct {
 	Time  time.Time
 }
 
-// newResponseTime returns a new response time
+// NewResponseTime returns a new response time
 // with value `v` and time `time.Now()`.
 func NewResponseTime(v int) ResponseTime {
 	r := ResponseTime{Value: v, Time: time.Now()}
 	return r
 }
 
+// ResponseTimes is a slice of response times
 type ResponseTimes []ResponseTime
 
 // Implements the `Len` method for the
@@ -107,6 +108,7 @@ func (rs ResponseTimes) Swap(i, j int) {
 	rs[i], rs[j] = rs[j], rs[i]
 }
 
+// Measurements holds all measurement results of the stress test
 type Measurements []string
 
 // String returns a string and implements the `String` method for
@@ -126,7 +128,7 @@ func (ms *Measurements) Set(value string) error {
 	return nil
 }
 
-// newClient returns a pointer to an InfluxDB client for
+// NewClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
 func (cfg *Config) NewClient() (*client.Client, error) {
