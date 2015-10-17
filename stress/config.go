@@ -89,7 +89,7 @@ type Config struct {
 	SSL               bool             `toml:"ssl"`
 }
 
-// NewSeries, takes a measurement, and point count,
+// NewSeries takes a measurement, and point count,
 // and a series count and returns a series
 func NewSeries(m string, p int, sc int) series {
 	s := series{
