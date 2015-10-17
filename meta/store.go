@@ -88,7 +88,7 @@ type Store struct {
 	wg      sync.WaitGroup
 	changed chan struct{}
 
-	// clusterTracingEnabled controls whether low-level cluster communcation is logged.
+	// clusterTracingEnabled controls whether low-level cluster communication is logged.
 	// Useful for troubleshooting
 	clusterTracingEnabled bool
 

@@ -341,7 +341,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	}
 
 	// Now we know where the key region is within buf, and the locations of tags, we
-	// need to deterimine if duplicate tags exist and if the tags are sorted.  This iterates
+	// need to determine if duplicate tags exist and if the tags are sorted.  This iterates
 	// 1/2 of the list comparing each end with each other, walking towards the center from
 	// both sides.
 	for j := 0; j < commas/2; j++ {
