@@ -323,7 +323,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 				// If the write consistency level is ANY, then a successful hinted handoff can
 				// be considered a successful write so send nil to the response channel
-				// otherwise, let the original error propogate to the response channel
+				// otherwise, let the original error propagate to the response channel
 				if hherr == nil && consistency == ConsistencyLevelAny {
 					ch <- &AsyncWriteResult{owner, nil}
 					return
