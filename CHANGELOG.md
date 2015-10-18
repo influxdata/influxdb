@@ -71,6 +71,7 @@
 - [#4415](https://github.com/influxdb/influxdb/issues/4415): Selector (like max, min, first, etc) return a string instead of timestamp
 - [#4472](https://github.com/influxdb/influxdb/issues/4472): Fix 'too many points in GROUP BY interval' error
 - [#4475](https://github.com/influxdb/influxdb/issues/4475): Fix SHOW TAG VALUES error message.
+- [#4486](https://github.com/influxdb/influxdb/pull/4486): Fix missing comments for runner package
 
 ## v0.9.4 [2015-09-14]
 
