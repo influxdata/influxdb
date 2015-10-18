@@ -74,6 +74,7 @@
 - [#4472](https://github.com/influxdb/influxdb/issues/4472): Fix 'too many points in GROUP BY interval' error
 - [#4475](https://github.com/influxdb/influxdb/issues/4475): Fix SHOW TAG VALUES error message.
 - [#4486](https://github.com/influxdb/influxdb/pull/4486): Fix missing comments for runner package
+- [#4481](https://github.com/influxdb/influxdb/issues/4481): GROUP BY on intervals < 1ms makes too many buckets
 - [#4497](https://github.com/influxdb/influxdb/pull/4497): Fix sequence in meta proto
 
 ## v0.9.4 [2015-09-14]
