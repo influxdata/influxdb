@@ -18,7 +18,7 @@ When each test runs it does the following:
 
 ## Idempotent - Allows for parallel tests
 
-Each test should be `idempotent`, meaining that its data will not be affected by other tests, or use cases within the table tests themselves.
+Each test should be `idempotent`, meaning that its data will not be affected by other tests, or use cases within the table tests themselves.
 This allows for parallel testing, keeping the test suite total execution time very low.
 
 ### Basic sample test

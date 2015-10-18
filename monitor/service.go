@@ -115,7 +115,7 @@ func New(c Config) *Monitor {
 }
 
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
-// for identification purposem.
+// for identification purpose.
 func (m *Monitor) Open() error {
 	m.Logger.Printf("Starting monitor system")
 

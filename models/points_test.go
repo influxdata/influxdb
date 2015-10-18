@@ -330,7 +330,7 @@ func TestParsePointMaxInt64(t *testing.T) {
 		t.Fatalf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=9223372036854775807i`, err)
 	}
 	if exp, got := int64(9223372036854775807), p[0].Fields()["value"].(int64); exp != got {
-		t.Fatalf("ParsePoints Value mistmatch. \nexp: %v\ngot: %v", exp, got)
+		t.Fatalf("ParsePoints Value mismatch. \nexp: %v\ngot: %v", exp, got)
 	}
 
 	// leading zeros
@@ -532,7 +532,7 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// commas in measuremnt name
+	// commas in measurement name
 	test(t, `cpu\,main,regions=east\,west value=1.0`,
 		models.NewPoint(
 			"cpu,main", // comma in the name
