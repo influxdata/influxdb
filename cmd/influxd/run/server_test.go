@@ -5008,6 +5008,7 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 		fmt.Sprintf(`foo value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
 		fmt.Sprintf(`foo value=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
 		fmt.Sprintf(`foo value=4 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`foo value=4,foobar=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -5017,14 +5018,14 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 		&Query{
 			name:    "into",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT value AS something INTO baz FROM foo`,
-			exp:     `{"results":[{"series":[{"name":"result","columns":["time","written"],"values":[["1970-01-01T00:00:00Z",4]]}]}]}`,
+			command: `SELECT * INTO baz FROM foo`,
+			exp:     `{"results":[{"series":[{"name":"result","columns":["time","written"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "confirm results",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT something FROM baz`,
-			exp:     `{"results":[{"series":[{"name":"baz","columns":["time","something"],"values":[["2000-01-01T00:00:00Z",1],["2000-01-01T00:00:10Z",2],["2000-01-01T00:00:20Z",3],["2000-01-01T00:00:30Z",4]]}]}]}`,
+			command: `SELECT * FROM baz`,
+			exp:     `{"results":[{"series":[{"name":"baz","columns":["time","foobar","value"],"values":[["2000-01-01T00:00:00Z",null,1],["2000-01-01T00:00:10Z",null,2],["2000-01-01T00:00:20Z",null,3],["2000-01-01T00:00:30Z",null,4],["2000-01-01T00:00:40Z",3,4]]}]}]}`,
 		},
 	}...)
 
