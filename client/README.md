@@ -168,7 +168,7 @@ func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
 		}
 		res = response.Results
 	}
-	return response, nil
+	return res, nil
 }
 ```
 
