@@ -164,6 +164,16 @@ func (m *ShowMeasurementsMapper) Open() error {
 	// Start a goroutine to send the names over the channel as needed.
 	go func() {
 		for _, mm := range measurements {
+			// Filter measurements by WITH clause, if one was given.
+			if m.stmt.Source != nil {
+				s, ok := m.stmt.Source.(*influxql.Measurement)
+				if !ok ||
+					s.Regex != nil && !s.Regex.Val.MatchString(mm.Name) ||
+					s.Name != "" && s.Name != mm.Name {
+					continue
+				}
+			}
+
 			ch <- mm.Name
 		}
 		close(ch)

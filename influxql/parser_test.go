@@ -751,6 +751,24 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW MEASUREMENTS WITH MEASUREMENT = cpu
+		{
+			s: `SHOW MEASUREMENTS WITH MEASUREMENT = cpu`,
+			stmt: &influxql.ShowMeasurementsStatement{
+				Source: &influxql.Measurement{Name: "cpu"},
+			},
+		},
+
+		// SHOW MEASUREMENTS WITH MEASUREMENT =~ /regex/
+		{
+			s: `SHOW MEASUREMENTS WITH MEASUREMENT =~ /[cg]pu/`,
+			stmt: &influxql.ShowMeasurementsStatement{
+				Source: &influxql.Measurement{
+					Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+				},
+			},
+		},
+
 		// SHOW RETENTION POLICIES
 		{
 			s: `SHOW RETENTION POLICIES ON mydb`,
