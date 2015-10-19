@@ -29,7 +29,7 @@ type Service struct {
 	logger *log.Logger
 }
 
-// NewService returns a configure retention policy enforcement service.
+// NewService returns a configured retention policy enforcement service.
 func NewService(c Config) *Service {
 	return &Service{
 		checkInterval: time.Duration(c.CheckInterval),
