@@ -1013,7 +1013,81 @@ func TestEngine_WriteIntoCompactedFile(t *testing.T) {
 	}
 
 	if count := e.DataFileCount(); count != 1 {
-		t.Fatalf("execpted 1 data file but got %d", count)
+		t.Fatalf("expected 1 data file but got %d", count)
+	}
+
+	tx, _ := e.Begin(false)
+	defer tx.Rollback()
+	c := tx.Cursor("cpu,host=A", fields, nil, true)
+	k, _ := c.SeekTo(0)
+	if k != 1000000000 {
+		t.Fatalf("wrong time: %d", k)
+	}
+	k, _ = c.Next()
+	if k != 2000000000 {
+		t.Fatalf("wrong time: %d", k)
+	}
+	k, _ = c.Next()
+	if k != 2500000000 {
+		t.Fatalf("wrong time: %d", k)
+	}
+	k, _ = c.Next()
+	if k != 3000000000 {
+		t.Fatalf("wrong time: %d", k)
+	}
+	k, _ = c.Next()
+	if k != 4000000000 {
+		t.Fatalf("wrong time: %d", k)
+	}
+}
+
+func TestEngine_WriteIntoCompactedFile_MaxPointsPerBlockZero(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	fields := []string{"value"}
+
+	e.MaxPointsPerBlock = 4
+	e.RotateFileSize = 10
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+	p4 := parsePoint("cpu,host=A value=1.5 4000000000")
+	p5 := parsePoint("cpu,host=A value=1.6 2500000000")
+	p6 := parsePoint("cpu,host=A value=1.7 5000000000")
+	p7 := parsePoint("cpu,host=A value=1.8 6000000000")
+	p8 := parsePoint("cpu,host=A value=1.9 7000000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error())
+	}
+
+	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.WritePoints([]models.Point{p6, p7, p8}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error())
+	}
+
+	if err := e.WritePoints([]models.Point{p5}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if count := e.DataFileCount(); count != 1 {
+		t.Fatalf("expected 1 data file but got %d", count)
 	}
 
 	tx, _ := e.Begin(false)
@@ -1351,6 +1425,32 @@ func TestEngine_RewriteFileAndCompact(t *testing.T) {
 			t.Fatalf("wrong time %d", k)
 		}
 	}()
+}
+
+func TestEngine_DecodeAndCombine_NoNewValues(t *testing.T) {
+	var newValues tsm1.Values
+	e := OpenDefaultEngine()
+	defer e.Engine.Close()
+
+	values := make(tsm1.Values, 1)
+	values[0] = tsm1.NewValue(time.Unix(0, 0), float64(1))
+
+	block, err := values.Encode(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	remaining, encoded, err := e.DecodeAndCombine(newValues, block, nil, time.Unix(1, 0).UnixNano(), false)
+	if len(remaining) != 0 {
+		t.Fatalf("unexpected remaining values: exp %v, got %v", 0, len(remaining))
+	}
+
+	if len(encoded) != len(block) {
+		t.Fatalf("unexpected encoded block length: exp %v, got %v", len(block), len(encoded))
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 // Engine represents a test wrapper for tsm1.Engine.
