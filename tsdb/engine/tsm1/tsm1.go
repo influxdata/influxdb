@@ -1649,6 +1649,11 @@ func (e *Engine) readSeries() (map[string]*tsdb.Series, error) {
 // has future encoded blocks so that this method can know how much of its values can be
 // combined and output in the resulting encoded block.
 func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime int64, hasFutureBlock bool) (Values, []byte, error) {
+	// No new values passed in, so nothing to combine.  Just return the existing block.
+	if len(newValues) == 0 {
+		return newValues, block, nil
+	}
+
 	values, err := DecodeBlock(block)
 	if err != nil {
 		panic(fmt.Sprintf("failure decoding block: %v", err))
