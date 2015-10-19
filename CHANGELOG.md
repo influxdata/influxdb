@@ -50,6 +50,7 @@
 - [#4465](https://github.com/influxdb/influxdb/pull/4465): Actually display a message if the CLI can't connect to the database.
 - [#4342](https://github.com/influxdb/influxdb/pull/4342): Fix mixing aggregates and math with non-aggregates. Thanks @kostya-sh.
 - [#4349](https://github.com/influxdb/influxdb/issues/4349): If HH can't unmarshal a block, skip that block.
+- [#4502](https://github.com/influxdb/influxdb/pull/4502): Don't crash on Graphite close, if Graphite not fully open. Thanks for the report @ranjib
 - [#4354](https://github.com/influxdb/influxdb/pull/4353): Fully lock node queues during hinted handoff. Fixes one cause of missing data on clusters.
 - [#4357](https://github.com/influxdb/influxdb/issues/4357): Fix similar float values encoding overflow Thanks @dgryski!
 - [#4344](https://github.com/influxdb/influxdb/issues/4344): Make client.Write default to client.precision if none is given.

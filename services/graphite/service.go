@@ -47,6 +47,8 @@ func (c *tcpConnection) Close() {
 }
 
 type Service struct {
+	mu sync.Mutex
+
 	bindAddress      string
 	database         string
 	protocol         string
@@ -121,6 +123,9 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the Graphite input processing data.
 func (s *Service) Open() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
 
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
@@ -176,6 +181,9 @@ func (s *Service) closeAllConnections() {
 
 // Close stops all data processing on the Graphite input.
 func (s *Service) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.closeAllConnections()
 
 	if s.ln != nil {
@@ -185,7 +193,9 @@ func (s *Service) Close() error {
 		s.udpConn.Close()
 	}
 
-	s.batcher.Stop()
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 	close(s.done)
 	s.wg.Wait()
 	s.done = nil
