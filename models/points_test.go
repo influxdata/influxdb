@@ -975,6 +975,65 @@ func TestParsePointUnicodeString(t *testing.T) {
 	)
 }
 
+func TestParsePointNegativeTimestamp(t *testing.T) {
+	test(t, `cpu value=1 -1`,
+		models.NewPoint(
+			"cpu",
+			models.Tags{},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, -1)),
+	)
+}
+
+func TestParsePointMaxTimestamp(t *testing.T) {
+	test(t, `cpu value=1 9223372036854775807`,
+		models.NewPoint(
+			"cpu",
+			models.Tags{},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, int64(1<<63-1))),
+	)
+}
+
+func TestParsePointMinTimestamp(t *testing.T) {
+	test(t, `cpu value=1 -9223372036854775807`,
+		models.NewPoint(
+			"cpu",
+			models.Tags{},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, -int64(1<<63-1))),
+	)
+}
+
+func TestParsePointInvalidTimestamp(t *testing.T) {
+	_, err := models.ParsePointsString("cpu value=1 9223372036854775808")
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
+	_, err = models.ParsePointsString("cpu value=1 -92233720368547758078")
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
+	_, err = models.ParsePointsString("cpu value=1 -")
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
+	_, err = models.ParsePointsString("cpu value=1 -/")
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
+	_, err = models.ParsePointsString("cpu value=1 -1?")
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
+}
+
 func TestNewPointFloatWithoutDecimal(t *testing.T) {
 	test(t, `cpu value=1 1000000000`,
 		models.NewPoint(
@@ -1064,7 +1123,6 @@ func TestNewPointNaN(t *testing.T) {
 			},
 			time.Unix(0, 0)),
 	)
-
 }
 
 func TestNewPointLargeNumberOfTags(t *testing.T) {
@@ -1105,7 +1163,6 @@ func TestParsePointIntsFloats(t *testing.T) {
 	if _, ok := pt.Fields()["float2"].(float64); !ok {
 		t.Errorf("ParsePoint() float field mismatch: got %T, exp %T", pt.Fields()["float64"], float64(12.1))
 	}
-
 }
 
 func TestParsePointKeyUnsorted(t *testing.T) {

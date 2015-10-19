@@ -531,9 +531,14 @@ func scanTime(buf []byte, i int) (int, []byte, error) {
 			break
 		}
 
-		// Timestamps should integers, make sure they are so we don't need to actually
+		// Timestamps should be integers, make sure they are so we don't need to actually
 		// parse the timestamp until needed
 		if buf[i] < '0' || buf[i] > '9' {
+			// Handle negative timestamps
+			if i == start && buf[i] == '-' {
+				i += 1
+				continue
+			}
 			return i, buf[start:i], fmt.Errorf("bad timestamp")
 		}
 
