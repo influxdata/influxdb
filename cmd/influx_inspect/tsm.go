@@ -165,11 +165,11 @@ func readIds(path string) (map[string]uint64, error) {
 	}
 	return ids, err
 }
-func readIndex(f *os.File) *tsmIndex {
+func readIndex(f *os.File) (*tsmIndex, error) {
 	// Get the file size
 	stat, err := f.Stat()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	// Seek to the series count
@@ -177,8 +177,7 @@ func readIndex(f *os.File) *tsmIndex {
 	b := make([]byte, 8)
 	_, err = f.Read(b[:4])
 	if err != nil {
-		fmt.Printf("error: %v\n", err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
 	seriesCount := binary.BigEndian.Uint32(b)
@@ -206,6 +205,10 @@ func readIndex(f *os.File) *tsmIndex {
 		series:  count,
 	}
 
+	if indexStart < 0 {
+		return nil, fmt.Errorf("index corrupt: offset=%d", indexStart)
+	}
+
 	// Read the index entries
 	for i := 0; i < count; i++ {
 		f.Read(b)
@@ -215,7 +218,7 @@ func readIndex(f *os.File) *tsmIndex {
 		index.blocks = append(index.blocks, &block{id: id, offset: int64(pos)})
 	}
 
-	return index
+	return index, nil
 }
 
 func cmdDumpTsm1(opts *tsdmDumpOpts) {
@@ -254,7 +257,19 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		invIds[v] = k
 	}
 
-	index := readIndex(f)
+	index, err := readIndex(f)
+	if err != nil {
+		println("Failed to readIndex:", err.Error())
+
+		// Create a stubbed out index so we can still try and read the block data directly
+		// w/o panicing ourselves.
+		index = &tsmIndex{
+			minTime: time.Unix(0, 0),
+			maxTime: time.Unix(0, 0),
+			offset:  stat.Size(),
+		}
+	}
+
 	blockStats := &blockStats{}
 
 	println("Summary:")
