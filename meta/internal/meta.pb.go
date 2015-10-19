@@ -121,8 +121,8 @@ const (
 	Command_SetAdminPrivilegeCommand         Command_Type = 18
 	Command_UpdateNodeCommand                Command_Type = 19
 	Command_RenameDatabaseCommand            Command_Type = 20
-	Command_CreateSubscriptionCommand        Command_Type = 22
-	Command_DropSubscriptionCommand          Command_Type = 23
+	Command_CreateSubscriptionCommand        Command_Type = 21
+	Command_DropSubscriptionCommand          Command_Type = 22
 )
 
 var Command_Type_name = map[int32]string{
@@ -146,8 +146,8 @@ var Command_Type_name = map[int32]string{
 	18: "SetAdminPrivilegeCommand",
 	19: "UpdateNodeCommand",
 	20: "RenameDatabaseCommand",
-	22: "CreateSubscriptionCommand",
-	23: "DropSubscriptionCommand",
+	21: "CreateSubscriptionCommand",
+	22: "DropSubscriptionCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -170,8 +170,8 @@ var Command_Type_value = map[string]int32{
 	"SetAdminPrivilegeCommand":         18,
 	"UpdateNodeCommand":                19,
 	"RenameDatabaseCommand":            20,
-	"CreateSubscriptionCommand":        22,
-	"DropSubscriptionCommand":          23,
+	"CreateSubscriptionCommand":        21,
+	"DropSubscriptionCommand":          22,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1569,15 +1569,11 @@ func (m *JoinRequest) GetAddr() string {
 }
 
 type JoinResponse struct {
-	Header *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
-	// Indicates that this node should take part in the raft cluster.
-	EnableRaft *bool `protobuf:"varint,2,opt,name=EnableRaft" json:"EnableRaft,omitempty"`
-	// The addresses of raft peers to use if joining as a raft member. If not joining
-	// as a raft member, these are the nodes running raft.
-	RaftNodes []string `protobuf:"bytes,3,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
-	// The node ID assigned to the requesting node.
-	NodeID           *uint64 `protobuf:"varint,4,opt,name=NodeID" json:"NodeID,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
+	EnableRaft       *bool           `protobuf:"varint,2,opt,name=EnableRaft" json:"EnableRaft,omitempty"`
+	RaftNodes        []string        `protobuf:"bytes,3,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
+	NodeID           *uint64         `protobuf:"varint,4,opt,name=NodeID" json:"NodeID,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
 }
 
 func (m *JoinResponse) Reset()         { *m = JoinResponse{} }

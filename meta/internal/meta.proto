@@ -113,8 +113,8 @@ message Command {
 		SetAdminPrivilegeCommand         = 18;
 		UpdateNodeCommand                = 19;
 		RenameDatabaseCommand            = 20;
-		CreateSubscriptionCommand        = 22;
-		DropSubscriptionCommand          = 23;
+		CreateSubscriptionCommand        = 21;
+		DropSubscriptionCommand          = 22;
     }
 
     required Type type = 1;
