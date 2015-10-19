@@ -1032,6 +1032,10 @@ func TestParsePointInvalidTimestamp(t *testing.T) {
 	if err == nil {
 		t.Fatalf("ParsePoints failed: %v", err)
 	}
+	_, err = models.ParsePointsString("cpu value=1 1-")
+	if err == nil {
+		t.Fatalf("ParsePoints failed: %v", err)
+	}
 }
 
 func TestNewPointFloatWithoutDecimal(t *testing.T) {
