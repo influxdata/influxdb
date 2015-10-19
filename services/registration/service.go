@@ -57,6 +57,10 @@ func NewService(c Config, version string) (*Service, error) {
 
 // Open starts retention policy enforcement.
 func (s *Service) Open() error {
+	if !s.enabled {
+		return nil
+	}
+
 	s.logger.Println("Starting registration service")
 	if err := s.registerServer(); err != nil {
 		return err
