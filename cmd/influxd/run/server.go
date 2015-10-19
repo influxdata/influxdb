@@ -305,6 +305,7 @@ func (s *Server) appendRegistrationService(c registration.Config) error {
 	}
 
 	srv.MetaStore = s.MetaStore
+	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 	return nil
 }

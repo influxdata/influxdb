@@ -11,6 +11,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/influxdb/influxdb/monitor"
 )
 
 // Service represents the registration service.
@@ -19,11 +21,15 @@ type Service struct {
 		ClusterID() (uint64, error)
 		NodeID() uint64
 	}
+	Monitor interface {
+		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
+	}
 
-	enabled bool
-	url     *url.URL
-	token   string
-	version string
+	enabled       bool
+	url           *url.URL
+	token         string
+	statsInterval time.Duration
+	version       string
 
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -39,12 +45,13 @@ func NewService(c Config, version string) (*Service, error) {
 	}
 
 	return &Service{
-		enabled: c.Enabled,
-		url:     url,
-		token:   c.Token,
-		version: version,
-		done:    make(chan struct{}),
-		logger:  log.New(os.Stderr, "[registration] ", log.LstdFlags),
+		enabled:       c.Enabled,
+		url:           url,
+		token:         c.Token,
+		statsInterval: time.Duration(c.StatsInterval),
+		version:       version,
+		done:          make(chan struct{}),
+		logger:        log.New(os.Stderr, "[registration] ", log.LstdFlags),
 	}, nil
 }
 
@@ -54,6 +61,9 @@ func (s *Service) Open() error {
 	if err := s.registerServer(); err != nil {
 		return err
 	}
+
+	s.wg.Add(1)
+	go s.reportStats()
 
 	return nil
 }
@@ -115,4 +125,56 @@ func (s *Service) registerServer() error {
 		s.logger.Printf("failed to register server with %s: received code %s, body: %s", s.url.String(), resp.Status, string(body))
 	}()
 	return nil
+}
+
+func (s *Service) reportStats() {
+	defer s.wg.Done()
+	if s.token == "" {
+		// No reporting, for now, without token.
+		return
+	}
+	statsURL := fmt.Sprintf("%s/api/v1/stats/influxdb?token=%s", s.url.String(), s.token)
+
+	clusterID, err := s.MetaStore.ClusterID()
+	if err != nil {
+		s.logger.Printf("failed to retrieve cluster ID for registration -- aborting stats upload: %s", err.Error())
+		return
+	}
+
+	t := time.NewTicker(s.statsInterval)
+	for {
+		select {
+		case <-t.C:
+			stats, err := s.Monitor.Statistics(nil)
+			if err != nil {
+				s.logger.Printf("failed to retrieve statistics: %s", err.Error())
+				continue
+			}
+
+			o := map[string]interface{}{
+				"cluster_id": fmt.Sprintf("%d", clusterID),
+				"server_id":  fmt.Sprintf("%d", s.MetaStore.NodeID()),
+				"stats":      stats,
+			}
+			b, err := json.Marshal(o)
+			if err != nil {
+				s.logger.Printf("failed to JSON-encode stats: %s", err.Error())
+				continue
+			}
+
+			client := http.Client{Timeout: time.Duration(5 * time.Second)}
+			resp, err := client.Post(statsURL, "application/json", bytes.NewBuffer(b))
+			if err != nil {
+				s.logger.Printf("failed to post statistics to %s: %s", statsURL, err.Error())
+				continue
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				s.logger.Printf("failed to post statistics to %s: repsonse code: %d", statsURL, resp.StatusCode)
+				continue
+			}
+		case <-s.done:
+			return
+		}
+	}
 }

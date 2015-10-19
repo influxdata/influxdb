@@ -2,6 +2,7 @@ package registration_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/services/registration"
@@ -14,6 +15,7 @@ func TestConfig_Parse(t *testing.T) {
 enabled = true
 url = "a.b.c"
 token = "1234"
+stats-interval = "1s"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -25,5 +27,7 @@ token = "1234"
 		t.Fatalf("unexpected Enterprise URL: %s", c.URL)
 	} else if c.Token != "1234" {
 		t.Fatalf("unexpected Enterprise URL: %s", c.URL)
+	} else if time.Duration(c.StatsInterval) != time.Second {
+		t.Fatalf("unexpected stats interval: %v", c.StatsInterval)
 	}
 }
