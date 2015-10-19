@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -183,6 +184,54 @@ func TestClient_PointWithoutTimeString(t *testing.T) {
 	if p.PrecisionString("ms") != s {
 		t.Errorf("Point String Error, got %s, expected %s",
 			p.PrecisionString("ms"), s)
+	}
+}
+
+func TestClient_PointName(t *testing.T) {
+	tags := map[string]string{"cpu": "cpu-total"}
+	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
+	p := NewPoint("cpu_usage", tags, fields)
+
+	exp := "cpu_usage"
+	if p.Name() != exp {
+		t.Errorf("Error, got %s, expected %s",
+			p.Name(), exp)
+	}
+}
+
+func TestClient_PointTags(t *testing.T) {
+	tags := map[string]string{"cpu": "cpu-total"}
+	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
+	p := NewPoint("cpu_usage", tags, fields)
+
+	if !reflect.DeepEqual(tags, p.Tags()) {
+		t.Errorf("Error, got %v, expected %v",
+			p.Tags(), tags)
+	}
+}
+
+func TestClient_PointUnixNano(t *testing.T) {
+	const shortForm = "2006-Jan-02"
+	time1, _ := time.Parse(shortForm, "2013-Feb-03")
+	tags := map[string]string{"cpu": "cpu-total"}
+	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
+	p := NewPoint("cpu_usage", tags, fields, time1)
+
+	exp := int64(1359849600000000000)
+	if p.UnixNano() != exp {
+		t.Errorf("Error, got %d, expected %d",
+			p.UnixNano(), exp)
+	}
+}
+
+func TestClient_PointFields(t *testing.T) {
+	tags := map[string]string{"cpu": "cpu-total"}
+	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
+	p := NewPoint("cpu_usage", tags, fields)
+
+	if !reflect.DeepEqual(fields, p.Fields()) {
+		t.Errorf("Error, got %v, expected %v",
+			p.Fields(), fields)
 	}
 }
 
