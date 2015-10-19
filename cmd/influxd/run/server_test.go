@@ -5017,3 +5017,67 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestServer_ContinuousQuery_Backfill(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	testepoch := time.Now().UTC().Add(-10 * time.Minute)
+	rounded := testepoch.Round(10 * time.Minute).Add(-10 * time.Minute)
+
+	writes := []string{
+		fmt.Sprintf(`foo value=1 %d`, testepoch.Add(1*time.Minute).UnixNano()),
+		fmt.Sprintf(`foo value=1 %d`, testepoch.Add(2*time.Minute).UnixNano()),
+		fmt.Sprintf(`foo value=1 %d`, testepoch.Add(3*time.Minute).UnixNano()),
+		fmt.Sprintf(`foo value=1 %d`, testepoch.Add(4*time.Minute).UnixNano()),
+		fmt.Sprintf(`foo value=1 %d`, testepoch.Add(5*time.Minute).UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "create cq",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `CREATE CONTINUOUS QUERY foobar ON db0 BEGIN SELECT mean(value) INTO baz FROM foo GROUP BY time(10m) END`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "execute backfill",
+			params:  url.Values{"db": []string{"db0"}},
+			command: fmt.Sprintf(`BACKFILL foobar ON db0 UNTIL '%s'`, testepoch.Format(time.RFC3339)),
+			exp:     `{"results":[{"series":[{"name":"result","columns":["time","written"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "check backfill results",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from baz`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"baz","columns":["time","mean"],"values":[["%s",1],["%s",1]]}]}]}`, rounded.Format(time.RFC3339), rounded.Add(10*time.Minute).Format(time.RFC3339)),
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}

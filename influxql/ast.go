@@ -82,6 +82,7 @@ func (Statements) node() {}
 
 func (*AlterDatabaseRenameStatement) node()   {}
 func (*AlterRetentionPolicyStatement) node()  {}
+func (*BackfillStatement) node()              {}
 func (*CreateContinuousQueryStatement) node() {}
 func (*CreateDatabaseStatement) node()        {}
 func (*CreateRetentionPolicyStatement) node() {}
@@ -191,6 +192,7 @@ type ExecutionPrivileges []ExecutionPrivilege
 
 func (*AlterDatabaseRenameStatement) stmt()   {}
 func (*AlterRetentionPolicyStatement) stmt()  {}
+func (*BackfillStatement) stmt()              {}
 func (*CreateContinuousQueryStatement) stmt() {}
 func (*CreateDatabaseStatement) stmt()        {}
 func (*CreateRetentionPolicyStatement) stmt() {}
@@ -550,6 +552,26 @@ func (s *SetPasswordUserStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a SetPasswordUserStatement.
 func (s *SetPasswordUserStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+type BackfillStatement struct {
+	QueryName string
+	Database  string
+	Until     Expr
+}
+
+func (b *BackfillStatement) String() string {
+	return fmt.Sprintf("BACKFILL %s ON %s UNTIL %s", b.QueryName, b.Database, b.Until.String())
+}
+
+func (b *BackfillStatement) RequiredPrivileges() ExecutionPrivileges {
+	return []ExecutionPrivilege{
+		{
+			Admin:     false,
+			Name:      b.Database,
+			Privilege: WritePrivilege,
+		},
+	}
 }
 
 // RevokeStatement represents a command to revoke a privilege from a user.

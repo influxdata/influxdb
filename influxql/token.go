@@ -61,6 +61,7 @@ const (
 	AS
 	ASC
 	BEGIN
+	BACKFILL
 	BY
 	CREATE
 	CONTINUOUS
@@ -121,6 +122,7 @@ const (
 	SOFFSET
 	TAG
 	TO
+	UNTIL
 	USER
 	USERS
 	VALUES
@@ -173,6 +175,7 @@ var tokens = [...]string{
 	ALTER:        "ALTER",
 	AS:           "AS",
 	ASC:          "ASC",
+	BACKFILL:     "BACKFILL",
 	BEGIN:        "BEGIN",
 	BY:           "BY",
 	CREATE:       "CREATE",
@@ -234,6 +237,7 @@ var tokens = [...]string{
 	DIAGNOSTICS:  "DIAGNOSTICS",
 	TAG:          "TAG",
 	TO:           "TO",
+	UNTIL:        "UNTIL",
 	USER:         "USER",
 	USERS:        "USERS",
 	VALUES:       "VALUES",

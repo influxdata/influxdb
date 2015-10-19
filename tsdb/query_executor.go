@@ -204,6 +204,8 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			case *influxql.ShowStatsStatement, *influxql.ShowDiagnosticsStatement:
 				// Send monitor-related queries to the monitor service.
 				res = q.MonitorStatementExecutor.ExecuteStatement(stmt)
+			case *influxql.BackfillStatement:
+				res = q.executeBackfillStatement(stmt)
 			default:
 				// Delegate all other meta statements to a separate executor. They don't hit tsdb storage.
 				res = q.MetaStatementExecutor.ExecuteStatement(stmt)
@@ -984,6 +986,65 @@ func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDat
 	}
 
 	return nil
+}
+
+func (q *QueryExecutor) executeBackfillStatement(stmt *influxql.BackfillStatement) *influxql.Result {
+	db, err := q.MetaStore.Database(stmt.Database)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+	cq, err := findContinuousQuery(db.ContinuousQueries, stmt.QueryName)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	// reduce the expression in the UNTIL clause.
+	// If it's not a time literal, then this is an invalid
+	// statement.
+	until := influxql.Reduce(stmt.Until, &influxql.NowValuer{time.Now()})
+	timelit, ok := until.(*influxql.TimeLiteral)
+	if !ok {
+		return &influxql.Result{Err: fmt.Errorf("%s is not a valid time expression", stmt.Until)}
+	}
+
+	cqstmt, err := influxql.ParseStatement(cq.Query)
+	if err != nil {
+		panic("invalid CQ query" + err.Error())
+	}
+	// Get the statement within the continuous query
+	selectstmt := cqstmt.(*influxql.CreateContinuousQueryStatement).Source
+	// limit it to only time after UNTIL
+	timecondition := &influxql.BinaryExpr{
+		LHS: &influxql.VarRef{Val: "time"},
+		RHS: timelit,
+		Op:  influxql.GT,
+	}
+	// If there is already a Condition on the select expression, add the time
+	// condition by constructing an AND expression
+	if selectstmt.Condition != nil {
+		selectstmt.Condition = &influxql.BinaryExpr{
+			LHS: selectstmt.Condition,
+			RHS: timecondition,
+			Op:  influxql.AND,
+		}
+	} else {
+		selectstmt.Condition = timecondition
+	}
+	results := make(chan *influxql.Result, 1)
+	err = q.executeStatement(0, selectstmt, stmt.Database, results, 64<<10)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+	return <-results
+}
+
+func findContinuousQuery(cqi []meta.ContinuousQueryInfo, name string) (meta.ContinuousQueryInfo, error) {
+	for _, cq := range cqi {
+		if cq.Name == name {
+			return cq, nil
+		}
+	}
+	return meta.ContinuousQueryInfo{}, fmt.Errorf("Continuous query %s not found", name)
 }
 
 // ErrAuthorize represents an authorization error.

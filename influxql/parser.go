@@ -96,8 +96,10 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseAlterStatement()
 	case SET:
 		return p.parseSetPasswordUserStatement()
+	case BACKFILL:
+		return p.parseBackfillStatement()
 	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET", "BACKFILL"}, pos)
 	}
 }
 
@@ -261,6 +263,45 @@ func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, err
 		return nil, err
 	}
 	stmt.Password = ident
+
+	return stmt, nil
+}
+
+// parseBackfillStatement parses the backfill statement. It assumes that the
+// BACKFILL keyword has already been consumed.
+func (p *Parser) parseBackfillStatement() (*BackfillStatement, error) {
+	stmt := &BackfillStatement{}
+	// Parse the CQ name
+	ident, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.QueryName = ident
+
+	// get the ON keywork
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Get the database name
+	ident, err = p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Database = ident
+
+	// get the UNTIL keywork
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok != UNTIL {
+		return nil, newParseError(tokstr(tok, lit), []string{"UNTIL"}, pos)
+	}
+
+	expr, err := p.ParseExpr()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Until = expr
 
 	return stmt, nil
 }
