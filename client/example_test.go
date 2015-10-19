@@ -19,7 +19,7 @@ func ExampleNewClient() {
 	}
 
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
-	// namely INFLUX_USER/INFLUX_PWD. If not just ommit Username/Password below.
+	// namely INFLUX_USER/INFLUX_PWD. If not just omit Username/Password below.
 	conf := client.Config{
 		URL:      *host,
 		Username: os.Getenv("INFLUX_USER"),

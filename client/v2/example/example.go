@@ -15,7 +15,7 @@ func ExampleNewClient() client.Client {
 	u, _ := url.Parse("http://localhost:8086")
 
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
-	// namely INFLUX_USER/INFLUX_PWD. If not just ommit Username/Password below.
+	// namely INFLUX_USER/INFLUX_PWD. If not just omit Username/Password below.
 	client := client.NewClient(client.Config{
 		URL:      u,
 		Username: os.Getenv("INFLUX_USER"),
