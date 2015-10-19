@@ -23,6 +23,7 @@ type Service struct {
 	}
 	Monitor interface {
 		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
+		RegisterDiagnosticsClient(name string, client monitor.DiagsClient)
 	}
 
 	enabled       bool
@@ -30,6 +31,8 @@ type Service struct {
 	token         string
 	statsInterval time.Duration
 	version       string
+	mu            sync.Mutex
+	lastContact   time.Time
 
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -66,6 +69,11 @@ func (s *Service) Open() error {
 		return err
 	}
 
+	// Register diagnostics if a Monitor service is available.
+	if s.Monitor != nil {
+		s.Monitor.RegisterDiagnosticsClient("registration", s)
+	}
+
 	s.wg.Add(1)
 	go s.reportStats()
 
@@ -78,6 +86,16 @@ func (s *Service) Close() error {
 	close(s.done)
 	s.wg.Wait()
 	return nil
+}
+
+func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
+	diagnostics := map[string]interface{}{
+		"URL":          s.url.String(),
+		"token":        s.token,
+		"last_contact": s.getLastContact().String(),
+	}
+
+	return monitor.DiagnosticFromMap(diagnostics), nil
 }
 
 // registerServer registers the server.
@@ -117,6 +135,8 @@ func (s *Service) registerServer() error {
 			s.logger.Printf("failed to register server with %s: %s", s.url.String(), err.Error())
 			return
 		}
+		s.updateLastContact(time.Now().UTC())
+
 		defer resp.Body.Close()
 		if resp.StatusCode == http.StatusCreated {
 			return
@@ -172,6 +192,8 @@ func (s *Service) reportStats() {
 				s.logger.Printf("failed to post statistics to %s: %s", statsURL, err.Error())
 				continue
 			}
+			s.updateLastContact(time.Now().UTC())
+
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
 				s.logger.Printf("failed to post statistics to %s: repsonse code: %d", statsURL, resp.StatusCode)
@@ -181,4 +203,16 @@ func (s *Service) reportStats() {
 			return
 		}
 	}
+}
+
+func (s *Service) updateLastContact(t time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastContact = t
+}
+
+func (s *Service) getLastContact() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastContact
 }
