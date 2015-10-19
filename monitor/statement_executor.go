@@ -11,7 +11,7 @@ import (
 // StatementExecutor translates InfluxQL queries to Monitor methods.
 type StatementExecutor struct {
 	Monitor interface {
-		Statistics(map[string]string) ([]*statistic, error)
+		Statistics(map[string]string) ([]*Statistic, error)
 		Diagnostics() (map[string]*Diagnostic, error)
 	}
 }

@@ -171,8 +171,8 @@ func (m *Monitor) DeregisterDiagnosticsClient(name string) {
 
 // Statistics returns the combined statistics for all expvar data. The given
 // tags are added to each of the returned statistics.
-func (m *Monitor) Statistics(tags map[string]string) ([]*statistic, error) {
-	statistics := make([]*statistic, 0)
+func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
+	statistics := make([]*Statistic, 0)
 
 	expvar.Do(func(kv expvar.KeyValue) {
 		// Skip built-in expvar stats.
@@ -180,7 +180,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*statistic, error) {
 			return
 		}
 
-		statistic := &statistic{
+		statistic := &Statistic{
 			Tags:   make(map[string]string),
 			Values: make(map[string]interface{}),
 		}
@@ -246,7 +246,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*statistic, error) {
 	})
 
 	// Add Go memstats.
-	statistic := &statistic{
+	statistic := &Statistic{
 		Name:   "runtime",
 		Tags:   make(map[string]string),
 		Values: make(map[string]interface{}),
@@ -388,16 +388,16 @@ func (m *Monitor) storeStatistics() {
 	}
 }
 
-// statistic represents the information returned by a single monitor client.
-type statistic struct {
+// Statistic represents the information returned by a single monitor client.
+type Statistic struct {
 	Name   string
 	Tags   map[string]string
 	Values map[string]interface{}
 }
 
 // newStatistic returns a new statistic object.
-func newStatistic(name string, tags map[string]string, values map[string]interface{}) *statistic {
-	return &statistic{
+func newStatistic(name string, tags map[string]string, values map[string]interface{}) *Statistic {
+	return &Statistic{
 		Name:   name,
 		Tags:   tags,
 		Values: values,
@@ -405,7 +405,7 @@ func newStatistic(name string, tags map[string]string, values map[string]interfa
 }
 
 // valueNames returns a sorted list of the value names, if any.
-func (s *statistic) valueNames() []string {
+func (s *Statistic) valueNames() []string {
 	a := make([]string, 0, len(s.Values))
 	for k, _ := range s.Values {
 		a = append(a, k)
