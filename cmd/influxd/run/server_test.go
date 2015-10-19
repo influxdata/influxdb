@@ -4372,6 +4372,18 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    `show measurements using WITH`,
+			command: "SHOW MEASUREMENTS WITH MEASUREMENT = cpu",
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show measurements using WITH and regex`,
+			command: "SHOW MEASUREMENTS WITH MEASUREMENT =~ /[cg]pu/",
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    `show measurements where tag matches regular expression`,
 			command: "SHOW MEASUREMENTS WHERE region =~ /ca.*/",
 			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
