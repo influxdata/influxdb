@@ -66,7 +66,7 @@ To assist in review for the PR, please add the following to your pull request co
 
 Use of third-party packages
 ------------
-A third-party package is defined as one that is not part of the standard Go distribution. Generally speaking we prefer to minimize our use of third-party packages, and avoid them unless absolutely necessarly. We'll often write a little bit of code rather than pull in a third-party package. Of course, we do use some third-party packages -- most importantly we use [BoltDB](https://github.com/boltdb/bolt) as the storage engine. So to maximise the chance your change will be accepted by us, use only the standard libaries, or the third-party packages we have decided to use.
+A third-party package is defined as one that is not part of the standard Go distribution. Generally speaking we prefer to minimize our use of third-party packages, and avoid them unless absolutely necessarily. We'll often write a little bit of code rather than pull in a third-party package. Of course, we do use some third-party packages -- most importantly we use [BoltDB](https://github.com/boltdb/bolt) as the storage engine. So to maximise the chance your change will be accepted by us, use only the standard libraries, or the third-party packages we have decided to use.
 
 For rationale, check out the post [The Case Against Third Party Libraries](http://blog.gopheracademy.com/advent-2014/case-against-3pl/).
 
@@ -236,7 +236,7 @@ Note that when you pass the binary to `go tool pprof` *you must specify the path
 
 Continuous Integration testing
 -----
-InfluxDB uses CirceCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdb/influxdb/blob/master/circle-test.sh). It closely follows the build and test process outlined above. You can see the exact version of Go InfluxDB uses for testing by consulting that file.
+InfluxDB uses CircleCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdb/influxdb/blob/master/circle-test.sh). It closely follows the build and test process outlined above. You can see the exact version of Go InfluxDB uses for testing by consulting that file.
 
 Useful links
 ------------
