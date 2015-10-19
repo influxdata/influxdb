@@ -218,6 +218,31 @@ func (p *Point) PrecisionString(precison string) string {
 	return p.pt.PrecisionString(precison)
 }
 
+// Name returns the measurement name of the point
+func (p *Point) Name() string {
+	return p.pt.Name()
+}
+
+// Name returns the tags associated with the point
+func (p *Point) Tags() map[string]string {
+	return p.pt.Tags()
+}
+
+// Time return the timestamp for the point
+func (p *Point) Time() time.Time {
+	return p.pt.Time()
+}
+
+// UnixNano returns the unix nano time of the point
+func (p *Point) UnixNano() int64 {
+	return p.pt.UnixNano()
+}
+
+// Fields returns the fields for the point
+func (p *Point) Fields() map[string]interface{} {
+	return p.pt.Fields()
+}
+
 func (c *client) Write(bp BatchPoints) error {
 	u := c.url
 	u.Path = "write"
