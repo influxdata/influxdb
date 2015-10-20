@@ -240,6 +240,8 @@ func (p *Parser) parseAlterStatement() (Statement, error) {
 	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION", "DATABASE"}, pos)
 }
 
+// parseDropStatement parses a string and returns a drop statement.
+
 // parseSetPasswordUserStatement parses a string and returns a set statement.
 // This function assumes the SET token has already been consumed.
 func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, error) {
@@ -1484,9 +1486,20 @@ func (p *Parser) parseAlterDatabaseRenameStatement() (*AlterDatabaseRenameStatem
 	}
 	stmt.OldName = lit
 
-	// Parse required RENAME TO tokens.
-	if err := p.parseTokens([]Token{RENAME, TO}); err != nil {
-		return nil, err
+	// Parse RENAME clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
+
+	// Check for required RENAME token.
+	if tok != RENAME {
+		return nil, newParseError(tokstr(tok, lit), []string{"RENAME"}, pos)
+	}
+
+	// Parse TO clause.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+
+	// Check for required TO token.
+	if tok != TO {
+		return nil, newParseError(tokstr(tok, lit), []string{"TO"}, pos)
 	}
 
 	// Parse the new name of the database.
