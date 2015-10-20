@@ -151,35 +151,6 @@ func TestData_RenameDatabase(t *testing.T) {
 	}
 }
 
-// Ensure that user privileges are updated correctly when database is renamed.
-func TestData_RenameDatabaseUpdatesPrivileges(t *testing.T) {
-	var data meta.Data
-	for i := 0; i < 2; i++ {
-		if err := data.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	data.Users = []meta.UserInfo{{
-		Name:  "susy",
-		Hash:  "ABC123",
-		Admin: true,
-		Privileges: map[string]influxql.Privilege{
-			"db1": influxql.AllPrivileges, "db0": influxql.ReadPrivilege}}}
-
-	if err := data.RenameDatabase("db1", "db2"); err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(data.Users,
-		[]meta.UserInfo{{
-			Name:  "susy",
-			Hash:  "ABC123",
-			Admin: true,
-			Privileges: map[string]influxql.Privilege{
-				"db2": influxql.AllPrivileges, "db0": influxql.ReadPrivilege}}}) {
-		t.Fatalf("unexpected user privileges: %#v", data.Users)
-	}
-}
-
 // Ensure that renaming a database without both old and new names returns an error.
 func TestData_RenameDatabase_ErrNameRequired(t *testing.T) {
 	var data meta.Data
