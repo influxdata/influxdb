@@ -1509,3 +1509,51 @@ func TestPrecisionString(t *testing.T) {
 		}
 	}
 }
+
+func TestFieldsMarshalBinary(t *testing.T) {
+	f := models.Fields{
+		"int":     int(1000),
+		"int8":    int8(10),
+		"int16":   int16(1000),
+		"int32":   int32(1000),
+		"int64":   int64(1000),
+		"float32": float32(1000),
+		"float64": float64(1000),
+		"bool":    true,
+		"uint32":  uint32(1000),
+		"string":  "foobar1000",
+	}
+	b := f.MarshalBinary()
+
+	exp := []byte(`bool=true,float32=1000,float64=1000,int=1000i,int16=1000i,` +
+		`int32=1000i,int64=1000i,int8=10i,string="foobar1000",uint32=1000i`)
+	if bytes.Compare(b, exp) != 0 {
+		t.Errorf("MarshalBinary error: got %s expected %s", b, exp)
+	}
+}
+
+func TestFieldsMarshalBinaryUint64(t *testing.T) {
+	f := models.Fields{
+		"value":  uint64(1000),
+		"value2": uint64(1000),
+	}
+	b := f.MarshalBinary()
+
+	exp := []byte(`value=1000i,value2=1000i`)
+	if bytes.Compare(b, exp) != 0 {
+		t.Errorf("MarshalBinary error: got %s expected %s", b, exp)
+	}
+}
+
+func TestFieldsMarshalBinaryOverMaxInt64(t *testing.T) {
+	f := models.Fields{
+		"value":  uint64(1000),
+		"value2": uint64(9223372036854775808),
+	}
+	b := f.MarshalBinary()
+
+	exp := []byte(`value=1000i,value2=-9223372036854775808i`)
+	if bytes.Compare(b, exp) != 0 {
+		t.Errorf("MarshalBinary error: got %s expected %s", b, exp)
+	}
+}
