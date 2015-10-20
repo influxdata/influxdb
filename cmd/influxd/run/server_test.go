@@ -68,7 +68,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 			},
 			&Query{
 				name:    "rename database should succeed",
-				command: `ALTER DATABASE db1 RENAME TO db2`,
+				command: `RENAME DATABASE db1 TO db2`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
@@ -78,17 +78,17 @@ func TestServer_DatabaseCommands(t *testing.T) {
 			},
 			&Query{
 				name:    "rename non-existent database should fail",
-				command: `ALTER DATABASE db4 RENAME TO db5`,
+				command: `RENAME DATABASE db4 TO db5`,
 				exp:     `{"results":[{"error":"database not found"}]}`,
 			},
 			&Query{
 				name:    "rename database to illegal name should fail",
-				command: `ALTER DATABASE db2 RENAME TO 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 30"}`,
+				command: `RENAME DATABASE db2 TO 0xdb0`,
+				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 24"}`,
 			},
 			&Query{
 				name:    "rename database to already existing datbase should fail",
-				command: `ALTER DATABASE db2 RENAME TO db0`,
+				command: `RENAME DATABASE db2 TO db0`,
 				exp:     `{"results":[{"error":"database already exists"}]}`,
 			},
 			&Query{
@@ -300,7 +300,7 @@ func TestServer_Query_RenameDatabase(t *testing.T) {
 		},
 		&Query{
 			name:    "Rename database",
-			command: `ALTER DATABASE db0 RENAME TO db1`,
+			command: `RENAME DATABASE db0 to db1`,
 			exp:     `{"results":[{}]}`,
 		},
 		&Query{

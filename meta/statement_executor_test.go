@@ -46,8 +46,8 @@ func TestStatementExecutor_ExecuteStatement_DropDatabase(t *testing.T) {
 	}
 }
 
-// Ensure an ALTER DATABASE ... RENAME TO ... statement can be executed.
-func TestStatementExecutor_ExecuteStatement_AlterDatabaseRename(t *testing.T) {
+// Ensure a RENAME DATABASE statement can be executed.
+func TestStatementExecutor_ExecuteStatement_RenameDatabase(t *testing.T) {
 	e := NewStatementExecutor()
 	e.Store.RenameDatabaseFn = func(oldName, newName string) error {
 		if oldName != "old_foo" {
@@ -59,7 +59,7 @@ func TestStatementExecutor_ExecuteStatement_AlterDatabaseRename(t *testing.T) {
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`ALTER DATABASE old_foo RENAME TO new_foo`)); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`RENAME DATABASE old_foo to new_foo`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
