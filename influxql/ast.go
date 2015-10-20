@@ -80,7 +80,6 @@ type Node interface {
 func (*Query) node()     {}
 func (Statements) node() {}
 
-func (*AlterDatabaseRenameStatement) node()   {}
 func (*AlterRetentionPolicyStatement) node()  {}
 func (*CreateContinuousQueryStatement) node() {}
 func (*CreateDatabaseStatement) node()        {}
@@ -192,7 +191,6 @@ type ExecutionPrivilege struct {
 // ExecutionPrivileges is a list of privileges required to execute a statement.
 type ExecutionPrivileges []ExecutionPrivilege
 
-func (*AlterDatabaseRenameStatement) stmt()   {}
 func (*AlterRetentionPolicyStatement) stmt()  {}
 func (*CreateContinuousQueryStatement) stmt() {}
 func (*CreateDatabaseStatement) stmt()        {}
@@ -507,30 +505,6 @@ func (s *GrantAdminStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a GrantAdminStatement.
 func (s *GrantAdminStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
-}
-
-// AlterDatabaseRenameStatement represents a command for renaming a database.
-type AlterDatabaseRenameStatement struct {
-	// Current name of the database
-	OldName string
-	// New name of the database
-	NewName string
-}
-
-// String returns a string representation of the rename database statement.
-func (s *AlterDatabaseRenameStatement) String() string {
-	var buf bytes.Buffer
-	_, _ = buf.WriteString("ALTER DATABASE ")
-	_, _ = buf.WriteString(s.OldName)
-	_, _ = buf.WriteString(" RENAME ")
-	_, _ = buf.WriteString(" TO ")
-	_, _ = buf.WriteString(s.NewName)
-	return buf.String()
-}
-
-// RequiredPrivileges returns the privilege required to execute an AlterDatabaseRenameStatement.
-func (s *AlterDatabaseRenameStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 

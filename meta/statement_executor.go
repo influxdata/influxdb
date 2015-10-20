@@ -23,7 +23,6 @@ type StatementExecutor struct {
 		Databases() ([]DatabaseInfo, error)
 		CreateDatabase(name string) (*DatabaseInfo, error)
 		DropDatabase(name string) error
-		RenameDatabase(oldName, newName string) error
 
 		DefaultRetentionPolicy(database string) (*RetentionPolicyInfo, error)
 		CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error)
@@ -73,8 +72,6 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeGrantStatement(stmt)
 	case *influxql.GrantAdminStatement:
 		return e.executeGrantAdminStatement(stmt)
-	case *influxql.AlterDatabaseRenameStatement:
-		return e.executeAlterDatabaseRenameStatement(stmt)
 	case *influxql.RevokeStatement:
 		return e.executeRevokeStatement(stmt)
 	case *influxql.RevokeAdminStatement:
@@ -222,10 +219,6 @@ func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement)
 
 func (e *StatementExecutor) executeGrantAdminStatement(stmt *influxql.GrantAdminStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.SetAdminPrivilege(stmt.User, true)}
-}
-
-func (e *StatementExecutor) executeAlterDatabaseRenameStatement(q *influxql.AlterDatabaseRenameStatement) *influxql.Result {
-	return &influxql.Result{Err: e.Store.RenameDatabase(q.OldName, q.NewName)}
 }
 
 func (e *StatementExecutor) executeRevokeStatement(stmt *influxql.RevokeStatement) *influxql.Result {

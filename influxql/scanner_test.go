@@ -150,7 +150,6 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `QUERIES`, tok: influxql.QUERIES},
 		{s: `QUERY`, tok: influxql.QUERY},
 		{s: `READ`, tok: influxql.READ},
-		{s: `RENAME`, tok: influxql.RENAME},
 		{s: `RETENTION`, tok: influxql.RETENTION},
 		{s: `REVOKE`, tok: influxql.REVOKE},
 		{s: `SELECT`, tok: influxql.SELECT},

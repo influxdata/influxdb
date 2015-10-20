@@ -1,9 +1,7 @@
 package meta
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -177,69 +175,6 @@ func (data *Data) DropDatabase(name string) error {
 		}
 	}
 	return ErrDatabaseNotFound
-}
-
-// RenameDatabase renames a database.
-// Returns an error if oldName or newName is blank
-// or if a database with the newName already exists
-// or if a database with oldName does not exist
-func (data *Data) RenameDatabase(oldName, newName string) error {
-	if newName == "" || oldName == "" {
-		return ErrDatabaseNameRequired
-	}
-	if data.Database(newName) != nil {
-		return ErrDatabaseExists
-	}
-	if data.Database(oldName) == nil {
-		return ErrDatabaseNotFound
-	}
-	// TODO should rename database in continuous queries also
-	// for now, just return an error if there is a possible conflict
-	if data.isDatabaseNameUsedInCQ(oldName) {
-		return ErrDatabaseRenameCQConflict
-	}
-	// find database named oldName and rename it to newName
-	for i := range data.Databases {
-		if data.Databases[i].Name == oldName {
-			data.Databases[i].Name = newName
-			data.switchDatabaseUserPrivileges(oldName, newName)
-			return nil
-		}
-	}
-	return ErrDatabaseNotFound
-}
-
-// isDatabaseNameUsedInCQ returns true if a database name is used in any continuous query
-func (data *Data) isDatabaseNameUsedInCQ(dbName string) bool {
-	CQOnDb := fmt.Sprintf(" ON %s ", dbName)
-	CQIntoDb := fmt.Sprintf(" INTO \"%s\".", dbName)
-	CQFromDb := fmt.Sprintf(" FROM \"%s\".", dbName)
-	for i := range data.Databases {
-		for j := range data.Databases[i].ContinuousQueries {
-			query := data.Databases[i].ContinuousQueries[j].Query
-			if strings.Contains(query, CQOnDb) {
-				return true
-			}
-			if strings.Contains(query, CQIntoDb) {
-				return true
-			}
-			if strings.Contains(query, CQFromDb) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// switchDatabaseUserPrivileges changes the database associated with user privileges
-func (data *Data) switchDatabaseUserPrivileges(oldDatabase, newDatabase string) error {
-	for i := range data.Users {
-		if p, ok := data.Users[i].Privileges[oldDatabase]; ok {
-			data.Users[i].Privileges[newDatabase] = p
-			delete(data.Users[i].Privileges, oldDatabase)
-		}
-	}
-	return nil
 }
 
 // RetentionPolicy returns a retention policy for a database by name.

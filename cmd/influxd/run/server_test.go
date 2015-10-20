@@ -67,42 +67,17 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db1"]]}]}]}`,
 			},
 			&Query{
-				name:    "rename database should succeed",
-				command: `ALTER DATABASE db1 RENAME TO db2`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show databases should reflect change of name",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db2"]]}]}]}`,
-			},
-			&Query{
-				name:    "rename non-existent database should fail",
-				command: `ALTER DATABASE db4 RENAME TO db5`,
-				exp:     `{"results":[{"error":"database not found"}]}`,
-			},
-			&Query{
-				name:    "rename database to illegal name should fail",
-				command: `ALTER DATABASE db2 RENAME TO 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 30"}`,
-			},
-			&Query{
-				name:    "rename database to already existing datbase should fail",
-				command: `ALTER DATABASE db2 RENAME TO db0`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
 				name:    "drop database db0 should succeed",
 				command: `DROP DATABASE db0`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "drop database db2 should succeed",
-				command: `DROP DATABASE db2`,
+				name:    "drop database db1 should succeed",
+				command: `DROP DATABASE db1`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "show databases should have no results after dropping all databases",
+				name:    "show database should have no results",
 				command: `SHOW DATABASES`,
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
 			},
@@ -245,96 +220,6 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 			command: `SELECT * FROM cpu GROUP BY *`,
 			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
-
-	for i, query := range test.queries {
-		if i == 0 {
-			if err := test.init(s); err != nil {
-				t.Fatalf("test init failed: %s", err)
-			}
-		}
-		if query.skip {
-			t.Logf("SKIP:: %s", query.name)
-			continue
-		}
-		if err := query.Execute(s); err != nil {
-			t.Error(query.Error(err))
-		} else if !query.success() {
-			t.Error(query.failureMessage())
-		}
-	}
-}
-
-func TestServer_Query_RenameDatabase(t *testing.T) {
-	t.Parallel()
-	s := OpenServer(NewConfig(), "")
-	defer s.Close()
-
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
-		t.Fatal(err)
-	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Query data from db0 database",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from db0 database with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Create continuous query using db0",
-			command: `CREATE CONTINUOUS QUERY "cq1" ON db0 BEGIN SELECT count(value) INTO "rp1".:MEASUREMENT FROM cpu GROUP BY time(5s) END`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Rename database should fail because of conflicting CQ",
-			command: `ALTER DATABASE db0 RENAME TO db1`,
-			exp:     `{"results":[{"error":"database rename conflict with existing continuous query"}]}`,
-		},
-		&Query{
-			name:    "Drop conflicting CQ",
-			command: `DROP CONTINUOUS QUERY "cq1" on db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Rename database should succeed now",
-			command: `ALTER DATABASE db0 RENAME TO db1`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Query data from db0 database and ensure it's gone",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"error":"database not found: db0"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from now renamed database db1 and ensure that's there",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db1"}},
-		},
-		&Query{
-			name:    "Query data from now renamed database db1 and ensure it's still there with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db1"}},
 		},
 	}...)
 

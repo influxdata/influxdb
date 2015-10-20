@@ -46,26 +46,6 @@ func TestStatementExecutor_ExecuteStatement_DropDatabase(t *testing.T) {
 	}
 }
 
-// Ensure an ALTER DATABASE ... RENAME TO ... statement can be executed.
-func TestStatementExecutor_ExecuteStatement_AlterDatabaseRename(t *testing.T) {
-	e := NewStatementExecutor()
-	e.Store.RenameDatabaseFn = func(oldName, newName string) error {
-		if oldName != "old_foo" {
-			t.Fatalf("unexpected name: %s", oldName)
-		}
-		if newName != "new_foo" {
-			t.Fatalf("unexpected name: %s", newName)
-		}
-		return nil
-	}
-
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`ALTER DATABASE old_foo RENAME TO new_foo`)); res.Err != nil {
-		t.Fatal(res.Err)
-	} else if res.Series != nil {
-		t.Fatalf("unexpected rows: %#v", res.Series)
-	}
-}
-
 // Ensure a SHOW DATABASES statement can be executed.
 func TestStatementExecutor_ExecuteStatement_ShowDatabases(t *testing.T) {
 	e := NewStatementExecutor()
@@ -1056,7 +1036,6 @@ type StatementExecutorStore struct {
 	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
 	DropDatabaseFn              func(name string) error
 	DeleteNodeFn                func(nodeID uint64, force bool) error
-	RenameDatabaseFn            func(oldName, newName string) error
 	DefaultRetentionPolicyFn    func(database string) (*meta.RetentionPolicyInfo, error)
 	CreateRetentionPolicyFn     func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	UpdateRetentionPolicyFn     func(database, name string, rpu *meta.RetentionPolicyUpdate) error
@@ -1114,10 +1093,6 @@ func (s *StatementExecutorStore) CreateDatabase(name string) (*meta.DatabaseInfo
 
 func (s *StatementExecutorStore) DropDatabase(name string) error {
 	return s.DropDatabaseFn(name)
-}
-
-func (s *StatementExecutorStore) RenameDatabase(oldName, newName string) error {
-	return s.RenameDatabaseFn(oldName, newName)
 }
 
 func (s *StatementExecutorStore) DefaultRetentionPolicy(database string) (*meta.RetentionPolicyInfo, error) {
