@@ -18,6 +18,7 @@ retry-max-interval = "100m"
 max-size=2048
 max-age="20m"
 retry-rate-limit=1000
+purge-interval = "1h"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -45,6 +46,10 @@ retry-rate-limit=1000
 
 	if exp := int64(1000); c.RetryRateLimit != exp {
 		t.Fatalf("unexpected retry rate limit: got %v, exp %v", c.RetryRateLimit, exp)
+	}
+
+	if exp := time.Hour; c.PurgeInterval.String() != exp.String() {
+		t.Fatalf("unexpected purge interval: got %v, exp %v", c.PurgeInterval, exp)
 	}
 
 }

@@ -28,6 +28,10 @@ const (
 	// DefaultRetryMaxInterval is the maximum the hinted handoff retry interval
 	// will ever be.
 	DefaultRetryMaxInterval = time.Minute
+
+	// DefaultPurgeInterval is the amount of time the system waits before attempting
+	// to purge hinted handoff data due to age or inactive nodes.
+	DefaultPurgeInterval = time.Hour
 )
 
 type Config struct {
@@ -38,6 +42,7 @@ type Config struct {
 	RetryRateLimit   int64         `toml:"retry-rate-limit"`
 	RetryInterval    toml.Duration `toml:"retry-interval"`
 	RetryMaxInterval toml.Duration `toml:"retry-max-interval"`
+	PurgeInterval    toml.Duration `toml:"purge-interval"`
 }
 
 func NewConfig() Config {
@@ -48,5 +53,6 @@ func NewConfig() Config {
 		RetryRateLimit:   DefaultRetryRateLimit,
 		RetryInterval:    toml.Duration(DefaultRetryInterval),
 		RetryMaxInterval: toml.Duration(DefaultRetryMaxInterval),
+		PurgeInterval:    toml.Duration(DefaultPurgeInterval),
 	}
 }

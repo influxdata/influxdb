@@ -86,6 +86,34 @@ reporting-disabled = false
   # query-log-enabled = true
 
 ###
+### [hinted-handoff]
+###
+### Controls the hinted handoff feature, which allows nodes to temporarily
+### store queued data when one node of a cluster is down for a short period
+### of time.
+###
+
+[hinted-handoff]
+  enabled = true
+  dir = "/var/opt/influxdb/hh"
+  max-size = 1073741824
+  max-age = "168h"
+  retry-rate-limit = 0
+
+  # Hinted handoff will start retrying writes to down nodes at a rate of once per second.
+  # If any error occurs, it will backoff in an exponential manner, until the interval
+  # reaches retry-max-interval. Once writes to all nodes are successfully completed the
+  # interval will reset to retry-interval.
+  retry-interval = "1s"
+  retry-max-interval = "1m"
+
+  # Interval between running checks for data that should be purged. Data is purged from
+  # hinted-handoff queues for two reasons. 1) The data is older than the max age, or
+  # 2) the target node has been dropped from the cluster. Data is never dropped until
+  # it has reached max-age however, for a dropped node or not.
+  purge-interval = "1h"
+
+###
 ### [cluster]
 ###
 ### Controls non-Raft cluster behavior, which generally includes how data is
@@ -268,25 +296,3 @@ reporting-disabled = false
   recompute-no-older-than = "10m"
   compute-runs-per-interval = 10
   compute-no-more-than = "2m"
-
-###
-### [hinted-handoff]
-###
-### Controls the hinted handoff feature, which allows nodes to temporarily
-### store queued data when one node of a cluster is down for a short period
-### of time.
-###
-
-[hinted-handoff]
-  enabled = true
-  dir = "/var/opt/influxdb/hh"
-  max-size = 1073741824
-  max-age = "168h"
-  retry-rate-limit = 0
-
-  # Hinted handoff will start retrying writes to down nodes at a rate of once per second.
-  # If any error occurs, it will backoff in an exponential manner, until the interval
-  # reaches retry-max-interval. Once writes to all nodes are successfully completed the
-  # interval will reset to retry-interval.
-  retry-interval = "1s"
-  retry-max-interval = "1m"
