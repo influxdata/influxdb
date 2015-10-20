@@ -211,7 +211,7 @@ func (l *queue) LastModified() (time.Time, error) {
 	if l.tail != nil {
 		return l.tail.lastModified()
 	}
-	return time.Time{}, nil
+	return time.Time{}.UTC(), nil
 }
 
 // diskUsage returns the total size on disk used by the queue
@@ -606,7 +606,7 @@ func (l *segment) lastModified() (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return stats.ModTime(), nil
+	return stats.ModTime().UTC(), nil
 }
 
 func (l *segment) diskUsage() int64 {
