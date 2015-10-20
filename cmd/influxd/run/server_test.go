@@ -299,22 +299,7 @@ func TestServer_Query_RenameDatabase(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "Create continuous query using db0",
-			command: `CREATE CONTINUOUS QUERY "cq1" ON db0 BEGIN SELECT count(value) INTO "rp1".:MEASUREMENT FROM cpu GROUP BY time(5s) END`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Rename database should fail because of conflicting CQ",
-			command: `ALTER DATABASE db0 RENAME TO db1`,
-			exp:     `{"results":[{"error":"database rename conflict with existing continuous query"}]}`,
-		},
-		&Query{
-			name:    "Drop conflicting CQ",
-			command: `DROP CONTINUOUS QUERY "cq1" on db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Rename database should succeed now",
+			name:    "Rename database",
 			command: `ALTER DATABASE db0 RENAME TO db1`,
 			exp:     `{"results":[{}]}`,
 		},

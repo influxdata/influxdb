@@ -194,38 +194,6 @@ func TestData_RenameDatabase_ErrNameRequired(t *testing.T) {
 	}
 }
 
-// Ensure that renaming a database returns an error if there is a possibly conflicting CQ
-func TestData_RenameDatabase_ErrDatabaseCQConflict(t *testing.T) {
-	var data meta.Data
-	if err := data.CreateDatabase("db0"); err != nil {
-		t.Fatal(err)
-	} else if err := data.CreateDatabase("db1"); err != nil {
-		t.Fatal(err)
-	} else if err := data.CreateContinuousQuery("db0", "cq0", `CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count() INTO "foo"."default"."bar" FROM "foo"."foobar" END`); err != nil {
-		t.Fatal(err)
-	} else if err := data.CreateContinuousQuery("db1", "cq1", `CREATE CONTINUOUS QUERY cq1 ON db1 BEGIN SELECT count() INTO "db1"."default"."bar" FROM "db0"."foobar" END`); err != nil {
-		t.Fatal(err)
-	} else if err := data.CreateContinuousQuery("db1", "cq2", `CREATE CONTINUOUS QUERY cq2 ON db1 BEGIN SELECT count() INTO "db0"."default"."bar" FROM "db1"."foobar" END`); err != nil {
-		t.Fatal(err)
-	} else if err := data.CreateContinuousQuery("db1", "noconflict", `CREATE CONTINUOUS QUERY noconflict ON db1 BEGIN SELECT count() INTO "db1"."default"."bar" FROM "db1"."foobar" END`); err != nil {
-		t.Fatal(err)
-	} else if err := data.RenameDatabase("db0", "db2"); err == nil {
-		t.Fatalf("unexpected rename database success despite cq conflict")
-	} else if err := data.DropContinuousQuery("db0", "cq0"); err != nil {
-		t.Fatal(err)
-	} else if err := data.RenameDatabase("db0", "db2"); err == nil {
-		t.Fatalf("unexpected rename database success despite cq conflict")
-	} else if err := data.DropContinuousQuery("db1", "cq1"); err != nil {
-		t.Fatal(err)
-	} else if err := data.RenameDatabase("db0", "db2"); err == nil {
-		t.Fatalf("unexpected rename database success despite cq conflict")
-	} else if err := data.DropContinuousQuery("db1", "cq2"); err != nil {
-		t.Fatal(err)
-	} else if err := data.RenameDatabase("db0", "db2"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // Ensure a retention policy can be created.
 func TestData_CreateRetentionPolicy(t *testing.T) {
 	data := meta.Data{Nodes: []meta.NodeInfo{{ID: 1}, {ID: 2}}}

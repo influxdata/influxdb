@@ -47,9 +47,6 @@ var (
 
 	// ErrDatabaseNameRequired is returned when creating a database without a name.
 	ErrDatabaseNameRequired = newError("database name required")
-
-	// ErrDatabaseRenameCQConflict is returned when attempting to rename a database in use by a CQ.
-	ErrDatabaseRenameCQConflict = newError("database rename conflict with existing continuous query")
 )
 
 var (
