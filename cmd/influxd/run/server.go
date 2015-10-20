@@ -2,9 +2,7 @@ package run
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -26,6 +24,7 @@ import (
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
+	"github.com/influxdb/influxdb/services/registration"
 	"github.com/influxdb/influxdb/services/retention"
 	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/services/subscriber"
@@ -76,8 +75,6 @@ type Server struct {
 
 	// Server reporting and registration
 	reportingDisabled bool
-	enterpriseURL     string
-	enterpriseToken   string
 
 	// Profiling
 	CPUProfile string
@@ -104,8 +101,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		Monitor: monitor.New(c.Monitor),
 
 		reportingDisabled: c.ReportingDisabled,
-		enterpriseURL:     c.EnterpriseURL,
-		enterpriseToken:   c.EnterpriseToken,
 	}
 
 	// Copy TSDB configuration.
@@ -162,6 +157,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Append services.
 	s.appendClusterService(c.Cluster)
 	s.appendPrecreatorService(c.Precreator)
+	s.appendRegistrationService(c.Registration)
 	s.appendSnapshotterService()
 	s.appendCopierService()
 	s.appendAdminService(c.Admin)
@@ -299,6 +295,21 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	return nil
 }
 
+func (s *Server) appendRegistrationService(c registration.Config) error {
+	if !c.Enabled {
+		return nil
+	}
+	srv, err := registration.NewService(c, s.buildInfo.Version)
+	if err != nil {
+		return err
+	}
+
+	srv.MetaStore = s.MetaStore
+	srv.Monitor = s.Monitor
+	s.Services = append(s.Services, srv)
+	return nil
+}
+
 func (s *Server) appendUDPService(c udp.Config) {
 	if !c.Enabled {
 		return
@@ -401,11 +412,6 @@ func (s *Server) Open() error {
 		// Start the reporting service, if not disabled.
 		if !s.reportingDisabled {
 			go s.startServerReporting()
-		}
-
-		// Register server
-		if err := s.registerServer(); err != nil {
-			log.Printf("failed to register server: %s", err.Error())
 		}
 
 		return nil
@@ -517,59 +523,6 @@ func (s *Server) reportServer() {
 
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
 	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
-}
-
-// registerServer registers the server on start-up.
-func (s *Server) registerServer() error {
-	if s.enterpriseToken == "" {
-		return nil
-	}
-
-	clusterID, err := s.MetaStore.ClusterID()
-	if err != nil {
-		log.Printf("failed to retrieve cluster ID for registration: %s", err.Error())
-		return err
-	}
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		return err
-	}
-
-	j := map[string]interface{}{
-		"cluster_id": fmt.Sprintf("%d", clusterID),
-		"server_id":  fmt.Sprintf("%d", s.MetaStore.NodeID()),
-		"host":       hostname,
-		"product":    "influxdb",
-		"version":    s.buildInfo.Version,
-	}
-	b, err := json.Marshal(j)
-	if err != nil {
-		return err
-	}
-
-	url := fmt.Sprintf("%s/api/v1/servers?token=%s", s.enterpriseURL, s.enterpriseToken)
-	go func() {
-		client := http.Client{Timeout: time.Duration(5 * time.Second)}
-		resp, err := client.Post(url, "application/json", bytes.NewBuffer(b))
-		if err != nil {
-			log.Printf("failed to register server with %s: %s", s.enterpriseURL, err.Error())
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusCreated {
-			return
-		}
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("failed to read response from registration server: %s", err.Error())
-			return
-		}
-		log.Printf("failed to register server with %s: received code %s, body: %s", s.enterpriseURL, resp.Status, string(body))
-	}()
-	return nil
 }
 
 // monitorErrorChan reads an error channel and resends it through the server.
