@@ -90,10 +90,10 @@ func OpenDefaultServer(c *run.Config, joinURLs string) *Server {
 
 // Close shuts down the server and removes all temporary paths.
 func (s *Server) Close() {
+	s.Server.Close()
 	os.RemoveAll(s.Config.Meta.Dir)
 	os.RemoveAll(s.Config.Data.Dir)
 	os.RemoveAll(s.Config.HintedHandoff.Dir)
-	s.Server.Close()
 }
 
 // URL returns the base URL for the httpd endpoint.

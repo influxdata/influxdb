@@ -14,7 +14,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -231,7 +230,6 @@ func (s *Store) Open() error {
 
 		return nil
 	}(); err != nil {
-		s.close()
 		return err
 	}
 
@@ -258,19 +256,7 @@ func (s *Store) Open() error {
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
 	<-s.ready
-	if err := s.WaitForLeader(0); err != nil {
-		return err
-	}
-
-	// Don't start up the check routines until there is a leader present
-	s.wg.Add(1)
-	go s.promoteRandomNodeToPeerCheck()
-
-	s.wg.Add(1)
-	go s.enableLocalRaftCheck()
-
-	return nil
-
+	return s.WaitForLeader(0)
 }
 
 // syncNodeInfo continuously tries to update the current nodes hostname
@@ -388,10 +374,8 @@ func (s *Store) joinCluster() error {
 }
 
 func (s *Store) enableLocalRaft() error {
-	s.Logger.Printf("enableLocalRaft obtaining lock %s", s.Addr.String())
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Logger.Printf("enableLocalRaft obtained lock %s", s.Addr.String())
 
 	if _, ok := s.raftState.(*localRaft); ok {
 		return nil
@@ -410,112 +394,6 @@ func (s *Store) enableRemoteRaft() error {
 	s.Logger.Printf("Switching to remote raft")
 	rr := &remoteRaft{store: s}
 	return s.changeState(rr)
-}
-
-func (s *Store) promoteRandomNodeToPeerCheck() {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		// Wait for next tick or timeout.
-		select {
-		case <-ticker.C:
-		case <-s.closing:
-			s.Logger.Println("exiting promoteRandomNodeToPeerCheck")
-			return
-		}
-
-		// Only do this if you are the leader
-		if s.IsLeader() {
-			s.mu.Lock()
-			defer s.mu.Unlock()
-
-			peers, err := s.raftState.peers()
-			if err != nil {
-				s.Logger.Println(err)
-				continue
-			}
-
-			nodes := s.data.Nodes
-			var nonraft []NodeInfo
-			for _, n := range nodes {
-				if contains(peers, n.Host) {
-					continue
-				}
-				nonraft = append(nonraft, n)
-			}
-
-			// Check to see if any action is required or possible
-			if len(peers) >= 3 || len(nonraft) == 0 {
-				continue
-			}
-
-			// Get a random node
-			n := nonraft[rand.Intn(len(nonraft))]
-			s.Logger.Printf("attempting to promote node %d addr %s to raft peer", n.ID, n.Host)
-			if err := s.raftState.addPeer(n.Host); err != nil {
-				s.Logger.Printf("error adding raft peer: %s", err)
-				continue
-			}
-			s.Logger.Printf("promoted node %d addr %s to raft peer", n.ID, n.Host)
-			continue
-		}
-	}
-}
-
-// enableLocalRaftCheck will enable local raft if the node has been
-// elevated to a raft peer
-func (s *Store) enableLocalRaftCheck() {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		// Wait for next tick or timeout.
-		select {
-		case <-ticker.C:
-		case <-s.closing:
-			s.Logger.Println("exiting enableLocalRaftCheck")
-			return
-		}
-		s.Logger.Printf("enableLocalRaftCheck s.Peers() check incoming %s", s.Addr.String())
-		peers, err := s.Peers()
-		s.Logger.Printf("enableLocalRaftCheck s.Peers() check successful %s", s.Addr.String())
-		if err != nil {
-			s.Logger.Println(err)
-			continue
-		}
-
-		// If there is only one peer there is nothing to do, as it is acting
-		// in single raft mode
-		if len(peers) <= 1 {
-			continue
-		}
-
-		ni, err := s.Node(s.id)
-		if ni == nil {
-			continue
-		}
-		if err != nil {
-			s.Logger.Println(err)
-			continue
-		}
-
-		s.mu.RLock()
-		// Make sure we haven't already promoted ourselves
-		_, isLocalRaft := s.raftState.(*localRaft)
-		s.mu.RUnlock()
-
-		if !contains(peers, ni.Host) || isLocalRaft {
-			continue
-		}
-		if err := s.enableLocalRaft(); err != nil {
-			s.Logger.Println(err)
-		}
-	}
 }
 
 func (s *Store) changeState(state raftState) error {
@@ -579,22 +457,27 @@ func (s *Store) close() error {
 	}
 	s.opened = false
 
-	// Notify goroutines of close.
-	close(s.closing)
-
 	// Close our exec listener
-	s.ExecListener.Close()
+	if err := s.ExecListener.Close(); err != nil {
+		s.Logger.Printf("error closing ExecListener %s", err)
+	}
 
 	// Close our RPC listener
-	s.RPCListener.Close()
-
-	s.Logger.Printf("waiting for go routines to close %s", s.Addr.String())
-	s.wg.Wait()
+	if err := s.RPCListener.Close(); err != nil {
+		s.Logger.Printf("error closing ExecListener %s", err)
+	}
 
 	if s.raftState != nil {
 		s.raftState.close()
-		s.raftState = nil
 	}
+
+	// Notify goroutines of close.
+	s.mu.Unlock()
+	close(s.closing)
+	s.wg.Wait()
+	s.mu.Lock()
+
+	s.raftState = nil
 
 	return nil
 }
@@ -713,9 +596,6 @@ func (s *Store) Err() <-chan error { return s.err }
 func (s *Store) IsLeader() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.raftState == nil {
-		return false
-	}
 	return s.raftState.isLeader()
 }
 
@@ -756,16 +636,9 @@ func (s *Store) serveExecListener() {
 		// Accept next TCP connection.
 		var err error
 		conn, err := s.ExecListener.Accept()
-		select {
-		case <-s.closing:
-			s.Logger.Printf("shutting down Execlistener for %s", s.Addr.String())
-			return
-		default:
-		}
-
 		if err != nil {
 			if strings.Contains(err.Error(), "connection closed") {
-				continue
+				return
 			}
 			s.Logger.Printf("temporary accept error: %s", err)
 			continue
@@ -774,8 +647,13 @@ func (s *Store) serveExecListener() {
 		// Handle connection in a separate goroutine.
 		s.wg.Add(1)
 		go s.handleExecConn(conn)
-	}
 
+		select {
+		case <-s.closing:
+			return
+		default:
+		}
+	}
 }
 
 // handleExecConn reads a command from the connection and executes it.
@@ -866,13 +744,6 @@ func (s *Store) serveRPCListener() {
 	defer s.wg.Done()
 
 	for {
-		select {
-		case <-s.closing:
-			s.Logger.Printf("shutting down RPClistener for %s", s.Addr.String())
-			return
-		default:
-		}
-
 		// Accept next TCP connection.
 		conn, err := s.RPCListener.Accept()
 		if err != nil {
@@ -890,6 +761,12 @@ func (s *Store) serveRPCListener() {
 			defer s.wg.Done()
 			s.rpc.handleRPCConn(conn)
 		}()
+
+		select {
+		case <-s.closing:
+			return
+		default:
+		}
 	}
 }
 
@@ -1701,9 +1578,6 @@ func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
 	leader := s.raftState.leader()
 	if leader == "" {
-		s.Logger.Printf("remoteExec raftState has no leader for addr: %s", s.Addr.String())
-		// Lets dump a stack to see what is going on here.
-		debug.PrintStack()
 		return errors.New("no leader detected during remoteExec")
 	}
 
