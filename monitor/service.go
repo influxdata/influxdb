@@ -390,9 +390,9 @@ func (m *Monitor) storeStatistics() {
 
 // Statistic represents the information returned by a single monitor client.
 type Statistic struct {
-	Name   string
-	Tags   map[string]string
-	Values map[string]interface{}
+	Name   string                 `json:"name"`
+	Tags   map[string]string      `json:"tags"`
+	Values map[string]interface{} `json:"values"`
 }
 
 // newStatistic returns a new statistic object.
