@@ -135,36 +135,6 @@ func TestData_DropDatabase(t *testing.T) {
 	}
 }
 
-// Ensure a database can be renamed.
-func TestData_RenameDatabase(t *testing.T) {
-	var data meta.Data
-	for i := 0; i < 2; i++ {
-		if err := data.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	if err := data.RenameDatabase("db1", "db2"); err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(data.Databases, []meta.DatabaseInfo{{Name: "db0"}, {Name: "db2"}}) {
-		t.Fatalf("unexpected databases: %#v", data.Databases)
-	}
-}
-
-// Ensure that renaming a database without both old and new names returns an error.
-func TestData_RenameDatabase_ErrNameRequired(t *testing.T) {
-	var data meta.Data
-	if err := data.RenameDatabase("", ""); err != meta.ErrDatabaseNameRequired {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if err := data.RenameDatabase("from_foo", ""); err != meta.ErrDatabaseNameRequired {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if err := data.RenameDatabase("", "to_foo"); err != meta.ErrDatabaseNameRequired {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
 // Ensure a retention policy can be created.
 func TestData_CreateRetentionPolicy(t *testing.T) {
 	data := meta.Data{Nodes: []meta.NodeInfo{{ID: 1}, {ID: 2}}}

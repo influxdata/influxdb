@@ -67,42 +67,17 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db1"]]}]}]}`,
 			},
 			&Query{
-				name:    "rename database should succeed",
-				command: `RENAME DATABASE db1 TO db2`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show databases should reflect change of name",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db2"]]}]}]}`,
-			},
-			&Query{
-				name:    "rename non-existent database should fail",
-				command: `RENAME DATABASE db4 TO db5`,
-				exp:     `{"results":[{"error":"database not found"}]}`,
-			},
-			&Query{
-				name:    "rename database to illegal name should fail",
-				command: `RENAME DATABASE db2 TO 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 24"}`,
-			},
-			&Query{
-				name:    "rename database to already existing datbase should fail",
-				command: `RENAME DATABASE db2 TO db0`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
 				name:    "drop database db0 should succeed",
 				command: `DROP DATABASE db0`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "drop database db2 should succeed",
-				command: `DROP DATABASE db2`,
+				name:    "drop database db1 should succeed",
+				command: `DROP DATABASE db1`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "show databases should have no results after dropping all databases",
+				name:    "show database should have no results",
 				command: `SHOW DATABASES`,
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
 			},

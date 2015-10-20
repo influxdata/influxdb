@@ -177,31 +177,6 @@ func (data *Data) DropDatabase(name string) error {
 	return ErrDatabaseNotFound
 }
 
-// RenameDatabase renames a database.
-// Returns an error if oldName or newName is blank
-// or if a database with the newName already exists
-// or if a database with oldName does not exist
-func (data *Data) RenameDatabase(oldName, newName string) error {
-	if newName == "" || oldName == "" {
-		return ErrDatabaseNameRequired
-	}
-	if data.Database(newName) != nil {
-		return ErrDatabaseExists
-	}
-	if data.Database(oldName) == nil {
-		return ErrDatabaseNotFound
-	}
-	// find database named oldName and rename it to newName
-	for i := range data.Databases {
-		if data.Databases[i].Name == oldName {
-			data.Databases[i].Name = newName
-			//TODO CQs
-			return nil
-		}
-	}
-	return ErrDatabaseNotFound
-}
-
 // RetentionPolicy returns a retention policy for a database by name.
 func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, error) {
 	di := data.Database(database)

@@ -275,14 +275,6 @@ message UpdateNodeCommand {
     required string Host = 2;
 }
 
-message RenameDatabaseCommand {
-    extend Command {
-        optional RenameDatabaseCommand command = 120;
-    }
-    required string oldName = 1;
-    required string newName = 2;
-}
-
 message CreateSubscriptionCommand {
     extend Command {
         optional CreateSubscriptionCommand command = 121;
