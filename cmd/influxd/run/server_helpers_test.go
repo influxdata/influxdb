@@ -367,6 +367,7 @@ func configureLogging(s *Server) {
 		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
 		s.QueryExecutor.SetLogger(nullLogger)
+		s.Subscriber.SetLogger(nullLogger)
 		for _, service := range s.Services {
 			if service, ok := service.(logSetter); ok {
 				service.SetLogger(nullLogger)
