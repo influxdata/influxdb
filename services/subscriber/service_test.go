@@ -387,3 +387,62 @@ func TestService_Multiple(t *testing.T) {
 	}
 	close(dataChanged)
 }
+
+func TestService_WaitForDataChanged(t *testing.T) {
+	dataChanged := make(chan bool)
+	ms := MetaStore{}
+	ms.WaitForDataChangedFn = func() error {
+		<-dataChanged
+		return nil
+	}
+	calls := make(chan bool, 2)
+	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+		calls <- true
+		return nil, nil
+	}
+
+	s := subscriber.NewService(subscriber.NewConfig())
+	s.MetaStore = ms
+	// Explicitly closed below for testing
+	s.Open()
+
+	// Should be called once during open
+	select {
+	case <-calls:
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("expected call")
+	}
+
+	select {
+	case <-calls:
+		t.Fatal("unexpected call")
+	case <-time.After(time.Millisecond):
+	}
+
+	// Signal that data has changed
+	dataChanged <- true
+
+	// Should be called once more after data changed
+	select {
+	case <-calls:
+	case <-time.After(10 * time.Millisecond):
+		t.Fatal("expected call")
+	}
+
+	select {
+	case <-calls:
+		t.Fatal("unexpected call")
+	case <-time.After(time.Millisecond):
+	}
+
+	//Close service ensure not called
+	s.Close()
+	dataChanged <- true
+	select {
+	case <-calls:
+		t.Fatal("unexpected call")
+	case <-time.After(time.Millisecond):
+	}
+
+	close(dataChanged)
+}

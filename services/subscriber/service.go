@@ -56,6 +56,7 @@ func NewService(c Config) *Service {
 		Logger:          log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
 		statMap:         influxdb.NewStatistics("subscriber", "subscriber", nil),
 		points:          make(chan *cluster.WritePointsRequest),
+		closed:          true,
 	}
 }
 
@@ -100,9 +101,10 @@ func (s *Service) waitForMetaUpdates() {
 		} else {
 			//Check that we haven't been closed before performing update.
 			s.mu.Lock()
-			if !s.closed {
+			if s.closed {
 				s.mu.Unlock()
-				break
+				s.Logger.Println("service closed not updating")
+				return
 			}
 			s.mu.Unlock()
 			s.Update()
@@ -113,7 +115,6 @@ func (s *Service) waitForMetaUpdates() {
 
 // start new and stop deleted subscriptions.
 func (s *Service) Update() error {
-	s.Logger.Println("updating subscriptions")
 	dbis, err := s.MetaStore.Databases()
 	if err != nil {
 		return err
@@ -145,6 +146,7 @@ func (s *Service) Update() error {
 	for se := range s.subs {
 		if !allEntries[se] {
 			delete(s.subs, se)
+			s.Logger.Println("deleted old subscription for", se.db, se.rp)
 		}
 	}
 
@@ -183,6 +185,7 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 		key := strings.Join([]string{"subscriber", se.db, se.rp, se.name, dest}, ":")
 		statMaps[i] = influxdb.NewStatistics(key, "subscriber", tags)
 	}
+	s.Logger.Println("created new subscription for", se.db, se.rp)
 	return &balancewriter{
 		bm:       bm,
 		writers:  writers,
