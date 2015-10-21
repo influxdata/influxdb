@@ -1080,7 +1080,6 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 
 	e.RotateFileSize = 10
 	e.MaxPointsPerBlock = 1
-	e.RotateBlockSize = 10
 
 	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
 	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
@@ -1706,6 +1705,100 @@ func TestEngine_Write_Concurrent(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// Ensure the index won't compact files that would cause the
+// resulting file to be larger than the max file size
+func TestEngine_IndexFileSizeLimitedDuringCompaction(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	e.RotateFileSize = 10
+	e.MaxFileSize = 100
+	e.MaxPointsPerBlock = 3
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+	p4 := parsePoint("cpu,host=A value=1.5 4000000000")
+	p5 := parsePoint("cpu,host=A value=1.6 5000000000")
+	p6 := parsePoint("cpu,host=B value=2.1 2000000000")
+
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := e.WritePoints([]models.Point{p4, p5, p6}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if count := e.DataFileCount(); count != 3 {
+		t.Fatalf("execpted 3 data file but got %d", count)
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("error compacting: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if count := e.DataFileCount(); count != 2 {
+		t.Fatalf("expected 1 data file but got %d", count)
+	}
+}
+
+// Ensure the index will split a large data file in two if a write
+// will cause the resulting data file to be larger than the max file
+// size limit
+func TestEngine_IndexFilesSplitOnWriteToLargeFile(t *testing.T) {
+}
+
+// checkPoints will ensure that the engine has the points passed in the block
+// along with checking that seeks in the middle work and an EOF is hit at the end
+func checkPoints(e *Engine, key string, points []models.Point) error {
+	tx, _ := e.Begin(false)
+	defer tx.Rollback()
+	c := tx.Cursor(key, []string{"value"}, nil, true)
+	k, v := c.SeekTo(0)
+	if k != points[0].UnixNano() {
+		return fmt.Errorf("wrong time:\n\texp: %d\n\tgot: %d", points[0].UnixNano(), k)
+	}
+	if got := points[0].Fields()["value"]; v != got {
+		return fmt.Errorf("wrong value:\n\texp: %v\n\tgot: %v", v, got)
+	}
+	points = points[1:]
+	for _, p := range points {
+		k, v = c.Next()
+		if k != p.UnixNano() {
+			return fmt.Errorf("wrong time:\n\texp: %d\n\tgot: %d", p.UnixNano(), k)
+		}
+		if got := p.Fields()["value"]; v != got {
+			return fmt.Errorf("wrong value:\n\texp: %v\n\tgot: %v", v, got)
+		}
+	}
+	k, _ = c.Next()
+	if k != tsdb.EOF {
+		return fmt.Errorf("expected EOF but got: %d", k)
+	}
+
+	// TODO: seek tests
+
+	return nil
 }
 
 // Engine represents a test wrapper for tsm1.Engine.

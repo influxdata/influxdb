@@ -43,15 +43,22 @@ const (
 	// keys have hash collisions and what their actual IDs are
 	CollisionsFileExtension = "collisions"
 
-	//CheckpointExtension is the extension given to files that checkpoint.
+	// CheckpointExtension is the extension given to files that checkpoint a rewrite or compaction.
 	// The checkpoint files are created when a new file is first created. They
 	// are removed after the file has been synced and is safe for use. If a file
 	// has an associated checkpoint file, it wasn't safely written and both should be removed
 	CheckpointExtension = "check"
 
+	// CompactionExtension is the extension given to the file that marks when a compaction has been
+	// fully written, but the compacted files have not yet been deleted. It is used for cleanup
+	// if the server was not cleanly shutdown before the compacted files could be deleted.
+	CompactionExtension = "compact"
+
 	// keyFieldSeparator separates the series key from the field name in the composite key
 	// that identifies a specific field in series
 	keyFieldSeparator = "#!~#"
+
+	blockBufferSize = 1024 * 1024
 )
 
 type TimePrecision uint8
@@ -68,10 +75,7 @@ func init() {
 }
 
 const (
-	MaxDataFileSize = 1024 * 1024 * 1024 // 1GB
-
-	// DefaultRotateBlockSize is the default size to rotate to a new compressed block
-	DefaultRotateBlockSize = 512 * 1024 // 512KB
+	MaxDataFileSize = 1024 * 1024 * 1024 * 2 // 2GB
 
 	DefaultRotateFileSize = 5 * 1024 * 1024 // 5MB
 
@@ -106,13 +110,13 @@ type Engine struct {
 	WAL *Log
 
 	RotateFileSize             uint32
+	MaxFileSize                uint32
 	SkipCompaction             bool
 	CompactionAge              time.Duration
 	MinCompactionFileCount     int
 	IndexCompactionFullAge     time.Duration
 	IndexMinCompactionInterval time.Duration
 	MaxPointsPerBlock          int
-	RotateBlockSize            int
 
 	// filesLock is only for modifying and accessing the files slice
 	filesLock          sync.RWMutex
@@ -154,12 +158,12 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		HashSeriesField:            hashSeriesField,
 		WAL:                        w,
 		RotateFileSize:             DefaultRotateFileSize,
+		MaxFileSize:                MaxDataFileSize,
 		CompactionAge:              opt.Config.IndexCompactionAge,
 		MinCompactionFileCount:     opt.Config.IndexMinCompactionFileCount,
 		IndexCompactionFullAge:     opt.Config.IndexCompactionFullAge,
 		IndexMinCompactionInterval: opt.Config.IndexMinCompactionInterval,
 		MaxPointsPerBlock:          DefaultMaxPointsPerBlock,
-		RotateBlockSize:            DefaultRotateBlockSize,
 	}
 	e.WAL.IndexWriter = e
 
@@ -220,6 +224,8 @@ func (e *Engine) Open() error {
 	e.cleanupMetafile(IDsFileExtension)
 	e.cleanupMetafile(CollisionsFileExtension)
 
+	e.cleanupUnfinishedCompaction()
+
 	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", Format)))
 	if err != nil {
 		return err
@@ -267,6 +273,39 @@ func (e *Engine) Open() error {
 	e.lastCompactionTime = time.Now()
 
 	return nil
+}
+
+// cleanupUnfinishedConpaction will read any compaction markers. If the marker exists, the compaction finished successfully,
+// but didn't get fully cleaned up. Remove the old files and their checkpoints
+func (e *Engine) cleanupUnfinishedCompaction() {
+	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionExtension)))
+	if err != nil {
+		panic(fmt.Sprintf("error getting compaction checkpoints: %s", err.Error()))
+	}
+
+	for _, fn := range files {
+		f, err := os.OpenFile(fn, os.O_RDONLY, 0666)
+		if err != nil {
+			panic(fmt.Sprintf("error opening compaction info file: %s", err.Error()))
+		}
+		data, err := ioutil.ReadAll(f)
+		if err != nil {
+			panic(fmt.Sprintf("error reading compaction info file: %s", err.Error()))
+		}
+
+		c := &compactionCheckpoint{}
+		err = json.Unmarshal(data, c)
+		if err == nil {
+			c.cleanup()
+		}
+
+		if err := f.Close(); err != nil {
+			panic(fmt.Sprintf("error closing compaction checkpoint: %s", err.Error()))
+		}
+		if err := os.Remove(f.Name()); err != nil {
+			panic(fmt.Sprintf("error removing compaction checkpoint: %s", err.Error()))
+		}
+	}
 }
 
 // Close closes the engine.
@@ -508,11 +547,11 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 	}
 }
 
-func (e *Engine) Compact(fullCompaction bool) error {
+// getCompactionFiles will return the list of files ready to be compacted along with the min and
+// max time of the write lock obtained for compaction
+func (e *Engine) getCompactionFiles(fullCompaction bool) (minTime, maxTime int64, files dataFiles) {
 	// we're looping here to ensure that the files we've marked to compact are
 	// still there after we've obtained the write lock
-	var minTime, maxTime int64
-	var files dataFiles
 	for {
 		if fullCompaction {
 			files = e.copyFilesCollection()
@@ -520,7 +559,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 			files = e.filesToCompact()
 		}
 		if len(files) < 2 {
-			return nil
+			return minTime, maxTimeOffset, nil
 		}
 		minTime = files[0].MinTime()
 		maxTime = files[len(files)-1].MaxTime()
@@ -541,7 +580,47 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		}
 
 		// we've got the write lock and the files are all there
-		break
+		return
+	}
+}
+
+// compactToNewFiles will compact the passed in data files into as few files as possible
+func (e *Engine) compactToNewFiles(minTime, maxTime int64, files dataFiles) []*os.File {
+	fileName := e.nextFileName()
+	e.logger.Printf("Starting compaction in %s of %d files to new file %s", e.path, len(files), fileName)
+
+	compaction := newCompactionJob(files, minTime, maxTime, e.MaxFileSize, e.MaxPointsPerBlock)
+	compaction.newCurrentFile(fileName)
+
+	// loop writing data until we've read through all the files
+	for {
+		nextID := compaction.nextID()
+		if nextID == dataFileEOF {
+			break
+		}
+
+		// write data for this ID while rotating to new files if necessary
+		for {
+			moreToWrite := compaction.writeBlocksForID(nextID)
+			if !moreToWrite {
+				break
+			}
+			compaction.newCurrentFile(e.nextFileName())
+		}
+	}
+
+	// close out the current compacted file
+	compaction.writeOutCurrentFile()
+
+	return compaction.newFiles
+}
+
+// Compact will compact data files in the directory into the fewest possible data files they
+// can be combined into
+func (e *Engine) Compact(fullCompaction bool) error {
+	minTime, maxTime, files := e.getCompactionFiles(fullCompaction)
+	if len(files) < 2 {
+		return nil
 	}
 
 	// mark the compaction as running
@@ -561,143 +640,37 @@ func (e *Engine) Compact(fullCompaction bool) error {
 		e.filesLock.Unlock()
 	}()
 
-	var s string
-	if fullCompaction {
-		s = "FULL "
-	}
-	fileName := e.nextFileName()
-	e.logger.Printf("Starting %scompaction in partition %s of %d files to new file %s", s, e.path, len(files), fileName)
 	st := time.Now()
 
-	positions := make([]uint32, len(files))
-	ids := make([]uint64, len(files))
+	newFiles := e.compactToNewFiles(minTime, maxTime, files)
 
-	// initilaize for writing
-	f, err := e.openFileAndCheckpoint(fileName)
-
-	for i, df := range files {
-		ids[i] = btou64(df.mmap[4:12])
-		positions[i] = 4
-	}
-	currentPosition := uint32(fileHeaderSize)
-	var newPositions []uint32
-	var newIDs []uint64
-	buf := make([]byte, e.RotateBlockSize)
-	for {
-		// find the min ID so we can write it to the file
-		minID := uint64(math.MaxUint64)
-		for _, id := range ids {
-			if minID > id && id != 0 {
-				minID = id
-			}
+	newDataFiles := make(dataFiles, len(newFiles))
+	for i, f := range newFiles {
+		// now open it as a memory mapped data file
+		newDF, err := NewDataFile(f)
+		if err != nil {
+			return err
 		}
-		if minID == math.MaxUint64 { // we've emptied all the files
-			break
-		}
-
-		newIDs = append(newIDs, minID)
-		newPositions = append(newPositions, currentPosition)
-
-		// write the blocks in order from the files with this id. as we
-		// go merge blocks together from one file to another, if the right size
-		var previousValues Values
-		for i, id := range ids {
-			if id != minID {
-				continue
-			}
-			df := files[i]
-			pos := positions[i]
-			fid, _, block := df.block(pos)
-			if fid != id {
-				panic("not possible")
-			}
-			newPos := pos + uint32(blockHeaderSize+len(block))
-			positions[i] = newPos
-
-			// write the blocks out to file that are already at their size limit
-			for {
-				// write the values, the block or combine with previous
-				if len(previousValues) > 0 {
-					decoded, err := DecodeBlock(block)
-					if err != nil {
-						panic(fmt.Sprintf("failure decoding block: %v", err))
-					}
-					previousValues = append(previousValues, decoded...)
-				} else if len(block) > e.RotateBlockSize {
-					if _, err := f.Write(df.mmap[pos:newPos]); err != nil {
-						return err
-					}
-					currentPosition += uint32(newPos - pos)
-				} else {
-					// TODO: handle decode error
-					previousValues, _ = DecodeBlock(block)
-				}
-
-				// write the previous values and clear if we've hit the limit
-				if len(previousValues) > e.MaxPointsPerBlock {
-					b, err := previousValues.Encode(buf)
-					if err != nil {
-						panic(fmt.Sprintf("failure encoding block: %v", err))
-					}
-
-					if err := e.writeBlock(f, id, b); err != nil {
-						// fail hard. If we can't write a file someone needs to get woken up
-						panic(fmt.Sprintf("failure writing block: %s", err.Error()))
-					}
-					currentPosition += uint32(blockHeaderSize + len(b))
-					previousValues = nil
-				}
-
-				// if the next block is the same ID, we don't need to decode this one
-				// so we can just write it out to the file
-				nextID, _, nextBlock := df.block(newPos)
-
-				// move to the next block in this file only if the id is the same
-				if nextID != id {
-					// flush remaining values
-					if len(previousValues) > 0 {
-						b, err := previousValues.Encode(buf)
-						if err != nil {
-							panic(fmt.Sprintf("failure encoding block: %v", err))
-						}
-						currentPosition += uint32(blockHeaderSize + len(b))
-						previousValues = nil
-						if err := e.writeBlock(f, id, b); err != nil {
-							panic(fmt.Sprintf("error writing file %s: %s", f.Name(), err.Error()))
-						}
-					}
-					ids[i] = nextID
-					break
-				}
-				pos = newPos
-				newPos = pos + uint32(blockHeaderSize+len(nextBlock))
-				positions[i] = newPos
-				block = nextBlock
-			}
-		}
-
-		if len(previousValues) > 0 {
-			b, err := previousValues.Encode(buf)
-			if err != nil {
-				panic(fmt.Sprintf("failure encoding block: %v", err))
-			}
-
-			if err := e.writeBlock(f, minID, b); err != nil {
-				// fail hard. If we can't write a file someone needs to get woken up
-				panic(fmt.Sprintf("failure writing block: %s", err.Error()))
-			}
-			currentPosition += uint32(blockHeaderSize + len(b))
-		}
+		newDataFiles[i] = newDF
 	}
 
-	newDF, err := e.writeIndexAndGetDataFile(f, minTime, maxTime, newIDs, newPositions)
+	// write the compaction file to note that we've successfully commpleted the write portion of compaction
+	compactedFileNames := make([]string, len(files))
+	newFileNames := make([]string, len(newFiles))
+	for i, f := range files {
+		compactedFileNames[i] = f.f.Name()
+	}
+	for i, f := range newFiles {
+		newFileNames[i] = f.Name()
+	}
+	compactionCheckpointName, err := e.writeCompactionCheckpointFile(compactedFileNames, newFileNames)
 	if err != nil {
 		return err
 	}
 
 	// update engine with new file pointers
 	e.filesLock.Lock()
-	var newFiles dataFiles
+	var replacementFiles dataFiles
 	for _, df := range e.files {
 		// exclude any files that were compacted
 		include := true
@@ -708,69 +681,90 @@ func (e *Engine) Compact(fullCompaction bool) error {
 			}
 		}
 		if include {
-			newFiles = append(newFiles, df)
+			replacementFiles = append(replacementFiles, df)
 		}
 	}
-	newFiles = append(newFiles, newDF)
-	sort.Sort(newFiles)
-	e.files = newFiles
+	replacementFiles = append(replacementFiles, newDataFiles...)
+	sort.Sort(replacementFiles)
+	e.files = replacementFiles
 	e.filesLock.Unlock()
 
 	e.logger.Printf("Compaction of %s took %s", e.path, time.Since(st))
 
-	// delete the old files in a goroutine so running queries won't block the write
-	// from completing
-	e.deletesPending.Add(1)
-	go func() {
-		for _, f := range files {
-			if err := f.Delete(); err != nil {
-				e.logger.Println("ERROR DELETING:", f.f.Name())
-			}
-		}
-		e.deletesPending.Done()
-	}()
+	e.clearCompactedFiles(compactionCheckpointName, newFiles, files)
 
 	return nil
 }
 
-func (e *Engine) writeBlock(f *os.File, id uint64, block []byte) error {
-	if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
-		return err
+// clearCompactedFiles will remove the compaction checkpoints for new files, remove the old compacted files, and
+// finally remove the compaction checkpoint
+func (e *Engine) clearCompactedFiles(compactionCheckpointName string, newFiles []*os.File, oldFiles dataFiles) {
+	// delete the old files in a goroutine so running queries won't block the write
+	// from completing
+	e.deletesPending.Add(1)
+	go func() {
+		// first clear out the compaction checkpoints
+		for _, f := range newFiles {
+			if err := removeCheckpoint(f.Name()); err != nil {
+				// panic here since continuing could cause data loss. It's better to fail hard so
+				// everything can be recovered on restart
+				panic(fmt.Sprintf("error removing checkpoint file %s: %s", f.Name(), err.Error()))
+			}
+		}
+
+		// now delete the underlying data files
+		for _, f := range oldFiles {
+			if err := f.Delete(); err != nil {
+				panic(fmt.Sprintf("error deleting old file after compaction %s: %s", f.f.Name(), err.Error()))
+			}
+		}
+
+		// finally remove the compaction marker
+		if err := os.Remove(compactionCheckpointName); err != nil {
+			e.logger.Printf("error removing %s: %s", compactionCheckpointName, err.Error())
+		}
+
+		e.deletesPending.Done()
+	}()
+}
+
+// writeCompactionCheckpointFile will save the compacted filenames and new filenames in
+// a file. This is used on startup to clean out files that weren't deleted if the server
+// wasn't shut down cleanly.
+func (e *Engine) writeCompactionCheckpointFile(compactedFiles, newFiles []string) (string, error) {
+	m := &compactionCheckpoint{
+		CompactedFiles: compactedFiles,
+		NewFiles:       newFiles,
 	}
-	_, err := f.Write(block)
-	return err
+
+	data, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+
+	// make the compacted filename the same name as the first compacted file, but with the compacted extension
+	name := strings.Split(filepath.Base(compactedFiles[0]), ".")[0]
+	fn := fmt.Sprintf("%s.%s", name, CompactionExtension)
+	fileName := filepath.Join(filepath.Dir(compactedFiles[0]), fn)
+
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return fileName, err
+	}
+
+	return fileName, f.Close()
 }
 
 func (e *Engine) writeIndexAndGetDataFile(f *os.File, minTime, maxTime int64, ids []uint64, newPositions []uint32) (*dataFile, error) {
-	// write the file index, starting with the series ids and their positions
-	for i, id := range ids {
-		if _, err := f.Write(u64tob(id)); err != nil {
-			return nil, err
-		}
-		if _, err := f.Write(u32tob(newPositions[i])); err != nil {
-			return nil, err
-		}
-	}
-
-	// write the min time, max time
-	if _, err := f.Write(append(u64tob(uint64(minTime)), u64tob(uint64(maxTime))...)); err != nil {
+	if err := writeIndex(f, minTime, maxTime, ids, newPositions); err != nil {
 		return nil, err
 	}
 
-	// series count
-	if _, err := f.Write(u32tob(uint32(len(ids)))); err != nil {
-		return nil, err
-	}
-
-	// sync it and see4k back to the beginning to hand off to the mmap
-	if err := f.Sync(); err != nil {
-		return nil, err
-	}
-	if _, err := f.Seek(0, 0); err != nil {
-		return nil, err
-	}
-
-	if err := e.removeCheckpoint(f.Name()); err != nil {
+	if err := removeCheckpoint(f.Name()); err != nil {
 		return nil, err
 	}
 
@@ -801,7 +795,7 @@ func (e *Engine) filesToCompact() dataFiles {
 
 	var a dataFiles
 	for _, df := range e.files {
-		if time.Since(df.modTime) > e.CompactionAge && df.size < MaxDataFileSize {
+		if time.Since(df.modTime) > e.CompactionAge && df.size < e.MaxFileSize {
 			a = append(a, df)
 		} else if len(a) > 0 {
 			// only compact contiguous ranges. If we hit the negative case and
@@ -889,7 +883,6 @@ func (e *Engine) convertKeysAndWriteMetadata(pointsByKey map[string]Values, meas
 		if maxTime < values.MaxTime() {
 			maxTime = values.MaxTime()
 		}
-
 		valuesByID[id] = values
 	}
 
@@ -1032,7 +1025,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 	// always write in order by ID
 	sort.Sort(uint64slice(ids))
 
-	f, err := e.openFileAndCheckpoint(e.nextFileName())
+	f, err := openFileAndCheckpoint(e.nextFileName())
 	if err != nil {
 		return err
 	}
@@ -1091,7 +1084,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 				return err
 			}
 
-			if err := e.writeBlock(f, id, block); err != nil {
+			if err := writeBlock(f, id, block); err != nil {
 				f.Close()
 				return err
 			}
@@ -1117,6 +1110,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 			if err != nil {
 				return err
 			}
+
 			if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(newBlock)))...)); err != nil {
 				f.Close()
 				return err
@@ -1267,7 +1261,7 @@ func (e *Engine) flushDeletes() error {
 }
 
 func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
-	f, err := e.openFileAndCheckpoint(e.nextFileName())
+	f, err := openFileAndCheckpoint(e.nextFileName())
 	if err != nil {
 		panic(fmt.Sprintf("error opening new data file: %s", err.Error()))
 	}
@@ -1749,41 +1743,210 @@ func (e *Engine) cleanupMetafile(name string) {
 	}
 }
 
-// openFileAndCehckpoint will create a checkpoint file, open a new file for
-// writing a data index, write the header and return the file
-func (e *Engine) openFileAndCheckpoint(fileName string) (*os.File, error) {
-	checkpointFile := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
-	cf, err := os.OpenFile(checkpointFile, os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
-	}
-	// _, err = cf.Write(u32tob(magicNumber))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	if err := cf.Close(); err != nil {
-		return nil, err
-	}
-	_, err = os.Stat(checkpointFile)
+// compactionJob contains the data and methods for compacting multiple data files
+// into fewer larger data files that ideally have larger blocks of points together
+type compactionJob struct {
+	idsInCurrentFile  []uint64
+	startingPositions []uint32
+	newFiles          []*os.File
 
-	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return nil, err
-	}
+	dataFilesToCompact []*dataFile
+	dataFilePositions  []uint32
+	currentDataFileIDs []uint64
 
-	// write the header, which is just the magic number
-	if _, err := f.Write(u32tob(magicNumber)); err != nil {
-		f.Close()
-		return nil, err
-	}
+	currentFile     *os.File
+	currentPosition uint32
 
-	return f, nil
+	maxFileSize       uint32
+	maxPointsPerBlock int
+
+	minTime int64
+	maxTime int64
+
+	// leftoverValues holds values from an ID that is getting split across multiple
+	// compacted data files
+	leftoverValues Values
+
+	// buffer for encoding
+	buf []byte
 }
 
-// removeCheckpoint removes the checkpoint for a new data file that was getting written
-func (e *Engine) removeCheckpoint(fileName string) error {
-	checkpointFile := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
-	return os.Remove(checkpointFile)
+// dataFileOEF is a sentinel values marking that there is no more data to be read from the data file
+const dataFileEOF = uint64(math.MaxUint64)
+
+func newCompactionJob(files dataFiles, minTime, maxTime int64, maxFileSize uint32, maxPointsPerBlock int) *compactionJob {
+	c := &compactionJob{
+		dataFilesToCompact: files,
+		dataFilePositions:  make([]uint32, len(files)),
+		currentDataFileIDs: make([]uint64, len(files)),
+		maxFileSize:        maxFileSize,
+		maxPointsPerBlock:  maxPointsPerBlock,
+		minTime:            minTime,
+		maxTime:            maxTime,
+		buf:                make([]byte, blockBufferSize),
+	}
+
+	// set the starting positions and ids for the files getting compacted
+	for i, df := range files {
+		c.dataFilePositions[i] = uint32(fileHeaderSize)
+		c.currentDataFileIDs[i] = df.idForPosition(uint32(fileHeaderSize))
+	}
+
+	return c
+}
+
+// newCurrentFile will create a new compaction file and reset the ids and positions
+// in the file so we can write the index out later
+func (c *compactionJob) newCurrentFile(fileName string) {
+	c.idsInCurrentFile = make([]uint64, 0)
+	c.startingPositions = make([]uint32, 0)
+
+	f, err := openFileAndCheckpoint(fileName)
+	if err != nil {
+		panic(fmt.Sprintf("error opening new file: %s", err.Error()))
+	}
+	c.currentFile = f
+	c.currentPosition = uint32(fileHeaderSize)
+}
+
+// writeBlocksForID will read data for the given ID from all the files getting compacted
+// and write it into a new compacted file. Blocks from different files will be combined to
+// create larger blocks in the compacted file. If the compacted file goes over the max
+// file size limit, true will be returned indicating that its time to create a new compaction file
+func (c *compactionJob) writeBlocksForID(id uint64) bool {
+	// mark this ID as new and track its starting position
+	c.idsInCurrentFile = append(c.idsInCurrentFile, id)
+	c.startingPositions = append(c.startingPositions, c.currentPosition)
+
+	// loop through the files in order emptying each one of its data for this ID
+
+	// first handle any values that didn't get written to the previous
+	// compaction file because it was too large
+	previousValues := c.leftoverValues
+	c.leftoverValues = nil
+	rotateFile := false
+	for i, df := range c.dataFilesToCompact {
+		idForFile := c.currentDataFileIDs[i]
+
+		// if the next ID in this file doesn't match, move to the next file
+		if idForFile != id {
+			continue
+		}
+
+		var newFilePosition uint32
+		var nextID uint64
+
+		// write out the values and keep track of the next ID and position in this file
+		previousValues, rotateFile, newFilePosition, nextID = c.writeIDFromFile(id, previousValues, c.dataFilePositions[i], df)
+		c.dataFilePositions[i] = newFilePosition
+		c.currentDataFileIDs[i] = nextID
+
+		// if we hit the max file size limit, return so a new file to compact into can be allocated
+		if rotateFile {
+			c.leftoverValues = previousValues
+			c.writeOutCurrentFile()
+			return true
+		}
+	}
+
+	if len(previousValues) > 0 {
+		bytesWritten := writeValues(c.currentFile, id, previousValues, c.buf)
+		c.currentPosition += bytesWritten
+	}
+
+	return false
+}
+
+// writeIDFromFile will read all data from the passed in file for the given ID and either buffer the values in memory if below the
+// max points allowed in a block, or write out to the file. The remaining buffer will be returned along with a bool indicating if
+// we need a new file to compact into, the current position of the data file now that we've read data, and the next ID to be read
+// from the data file
+func (c *compactionJob) writeIDFromFile(id uint64, previousValues Values, filePosition uint32, df *dataFile) (Values, bool, uint32, uint64) {
+	for {
+		// check if we're at the end of the file
+		indexPosition := df.indexPosition()
+		if filePosition >= indexPosition {
+			return previousValues, false, filePosition, dataFileEOF
+		}
+
+		// check if we're at the end of the blocks for this ID
+		nextID, _, block := df.block(filePosition)
+		if nextID != id {
+			return previousValues, false, filePosition, nextID
+		}
+
+		blockLength := uint32(blockHeaderSize + len(block))
+		filePosition += blockLength
+
+		// decode the block and append to previous values
+		// TODO: update this so that blocks already at their limit don't need decoding
+		values, err := DecodeBlock(block)
+		if err != nil {
+			panic(fmt.Sprintf("error decoding block: %s", err.Error()))
+		}
+
+		previousValues = append(previousValues, values...)
+
+		// if we've hit the block limit, encode and write out to the file
+		if len(previousValues) > c.maxPointsPerBlock {
+			valuesToEncode := previousValues[:c.maxPointsPerBlock]
+			previousValues = previousValues[c.maxPointsPerBlock:]
+
+			bytesWritten := writeValues(c.currentFile, id, valuesToEncode, c.buf)
+			c.currentPosition += bytesWritten
+
+			// if we're at the limit of what should go into the current file,
+			// return the values we've decoded and return the ID in the next
+			// block
+			if c.shouldRotateCurrentFile() {
+				if filePosition >= indexPosition {
+					return previousValues, true, filePosition, dataFileEOF
+				}
+
+				nextID, _, _ = df.block(filePosition)
+				return previousValues, true, filePosition, nextID
+			}
+		}
+	}
+}
+
+// nextID returns the lowest number ID to be read from one of the data files getting
+// compacted. Will return an EOF if all files have been read and compacted
+func (c *compactionJob) nextID() uint64 {
+	minID := dataFileEOF
+	for _, id := range c.currentDataFileIDs {
+		if minID > id {
+			minID = id
+		}
+	}
+
+	// if the min is still EOF, we're done with all the data from all files to compact
+	if minID == dataFileEOF {
+		return dataFileEOF
+	}
+
+	return minID
+}
+
+// writeOutCurrentFile will write the index out to the current file in preparation for a new file to compact into
+func (c *compactionJob) writeOutCurrentFile() {
+	if c.currentFile == nil {
+		return
+	}
+
+	// write out the current file
+	if err := writeIndex(c.currentFile, c.minTime, c.maxTime, c.idsInCurrentFile, c.startingPositions); err != nil {
+		panic(fmt.Sprintf("error writing index: %s", err.Error()))
+	}
+
+	// mark it as a new file and reset
+	c.newFiles = append(c.newFiles, c.currentFile)
+	c.currentFile = nil
+}
+
+// shouldRotateCurrentFile returns true if the current file is over the max file size
+func (c *compactionJob) shouldRotateCurrentFile() bool {
+	return c.currentPosition+footerSize(len(c.idsInCurrentFile)) > c.maxFileSize
 }
 
 type dataFile struct {
@@ -1808,6 +1971,11 @@ const (
 )
 
 func NewDataFile(f *os.File) (*dataFile, error) {
+	// seek back to the beginning to hand off to the mmap
+	if _, err := f.Seek(0, 0); err != nil {
+		return nil, err
+	}
+
 	fInfo, err := f.Stat()
 	if err != nil {
 		return nil, err
@@ -1929,7 +2097,7 @@ func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
 		}
 	}()
 	if pos < d.indexPosition() {
-		id = btou64(d.mmap[pos : pos+8])
+		id = d.idForPosition(pos)
 		length := btou32(d.mmap[pos+8 : pos+12])
 		block = d.mmap[pos+blockHeaderSize : pos+blockHeaderSize+length]
 		t = int64(btou64(d.mmap[pos+blockHeaderSize : pos+blockHeaderSize+8]))
@@ -1937,11 +2105,138 @@ func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
 	return
 }
 
+// idForPosition assumes the position is the start of an ID and will return the converted bytes as a uint64 ID
+func (d *dataFile) idForPosition(pos uint32) uint64 {
+	return btou64(d.mmap[pos : pos+seriesIDSize])
+}
+
 type dataFiles []*dataFile
 
 func (a dataFiles) Len() int           { return len(a) }
 func (a dataFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() }
+
+// compactionCheckpoint holds the new files and compacted files from a compaction
+type compactionCheckpoint struct {
+	CompactedFiles []string
+	NewFiles       []string
+}
+
+// cleanup will remove all the checkpoint files and old compacted files from a compaction
+// that finsihed, but didn't get to cleanup yet
+func (c *compactionCheckpoint) cleanup() {
+	for _, fn := range c.CompactedFiles {
+		cn := checkpointFileName(fn)
+		if err := os.Remove(cn); err != nil && err != os.ErrNotExist {
+			panic(fmt.Sprintf("error removing checkpoint file: %s", err.Error()))
+		}
+		if err := os.Remove(fn); err != nil && err != os.ErrNotExist {
+			panic(fmt.Sprintf("error removing old data file: %s", err.Error()))
+		}
+	}
+
+	for _, fn := range c.NewFiles {
+		cn := checkpointFileName(fn)
+		if err := os.Remove(cn); err != nil && err != os.ErrNotExist {
+			panic(fmt.Sprintf("error removing checkpoint file: %s", err.Error()))
+		}
+	}
+}
+
+// footerSize will return what the size of the index and footer of a data file
+// will be given the passed in series count
+func footerSize(seriesCount int) uint32 {
+	timeSizes := 2 * timeSize
+	return uint32(seriesCount*(seriesIDSize+seriesPositionSize) + timeSizes + seriesCountSize)
+}
+
+// writeValues will encode the values and write them as a compressed block to the file
+func writeValues(f *os.File, id uint64, values Values, buf []byte) uint32 {
+	b, err := values.Encode(buf)
+	if err != nil {
+		panic(fmt.Sprintf("failure encoding block: %s", err.Error()))
+	}
+
+	if err := writeBlock(f, id, b); err != nil {
+		// fail hard. If we can't write a file someone needs to get woken up
+		panic(fmt.Sprintf("failure writing block: %s", err.Error()))
+	}
+
+	return uint32(blockHeaderSize + len(b))
+}
+
+// writeBlock will write a compressed block including its header
+func writeBlock(f *os.File, id uint64, block []byte) error {
+	if _, err := f.Write(append(u64tob(id), u32tob(uint32(len(block)))...)); err != nil {
+		return err
+	}
+	_, err := f.Write(block)
+	return err
+}
+
+// writeIndex will write out the index block and the footer of the file. After this call it should
+// be a read only file that can be mmap'd as a dataFile
+func writeIndex(f *os.File, minTime, maxTime int64, ids []uint64, newPositions []uint32) error {
+	// write the file index, starting with the series ids and their positions
+	for i, id := range ids {
+		if _, err := f.Write(u64tob(id)); err != nil {
+			return err
+		}
+		if _, err := f.Write(u32tob(newPositions[i])); err != nil {
+			return err
+		}
+	}
+
+	// write the min time, max time
+	if _, err := f.Write(append(u64tob(uint64(minTime)), u64tob(uint64(maxTime))...)); err != nil {
+		return err
+	}
+
+	// series count
+	if _, err := f.Write(u32tob(uint32(len(ids)))); err != nil {
+		return err
+	}
+
+	// sync it
+	return f.Sync()
+}
+
+// openFileAndCehckpoint will create a checkpoint file, open a new file for
+// writing a data index, write the header and return the file
+func openFileAndCheckpoint(fileName string) (*os.File, error) {
+	checkpointFile := checkpointFileName(fileName)
+	cf, err := os.OpenFile(checkpointFile, os.O_CREATE, 0666)
+	if err != nil {
+		return nil, err
+	}
+	if err := cf.Close(); err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	// write the header, which is just the magic number
+	if _, err := f.Write(u32tob(magicNumber)); err != nil {
+		f.Close()
+		return nil, err
+	}
+
+	return f, nil
+}
+
+// checkpointFileName will return the checkpoint name for the data files
+func checkpointFileName(fileName string) string {
+	return fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
+}
+
+// removeCheckpoint removes the checkpoint for a new data file that was getting written
+func removeCheckpoint(fileName string) error {
+	checkpointFile := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
+	return os.Remove(checkpointFile)
+}
 
 // u64tob converts a uint64 into an 8-byte slice.
 func u64tob(v uint64) []byte {
@@ -1964,10 +2259,17 @@ func btou32(b []byte) uint32 {
 	return uint32(binary.BigEndian.Uint32(b))
 }
 
+// hashSeriesField will take the fnv-1a hash of the key. It returns the value
+// or 1 if the hash is either 0 or the max uint64. It does this to keep sentinel
+// values available.
 func hashSeriesField(key string) uint64 {
 	h := fnv.New64a()
 	h.Write([]byte(key))
-	return h.Sum64()
+	n := h.Sum64()
+	if n == uint64(0) || n == uint64(math.MaxUint64) {
+		return 1
+	}
+	return n
 }
 
 // SeriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID
