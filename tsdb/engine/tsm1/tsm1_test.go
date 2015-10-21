@@ -239,6 +239,68 @@ func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
 	}
 }
 
+// Tests that writing a point that before the earliest point
+// is queryable before and after a full compaction
+func TestEngine_Write_BeforeFirstPoint(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	e.RotateFileSize = 1
+
+	fields := []string{"value"}
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=A value=1.2 2000000000")
+	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
+	p4 := parsePoint("cpu,host=A value=1.4 0000000000") // earlier than first point
+
+	verify := func(points []models.Point) {
+		tx2, _ := e.Begin(false)
+		defer tx2.Rollback()
+		c := tx2.Cursor("cpu,host=A", fields, nil, true)
+		k, v := c.SeekTo(0)
+
+		for _, p := range points {
+			if k != p.UnixNano() {
+				t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p.UnixNano(), k)
+			}
+			if v != p.Fields()["value"] {
+				t.Fatalf("data wrong:\n\texp:%f\n\tgot:%f", p.Fields()["value"], v.(float64))
+			}
+			k, v = c.Next()
+		}
+	}
+
+	// Write each point individually to force file rotation
+	for _, p := range []models.Point{p1, p2} {
+		if err := e.WritePoints([]models.Point{p}, nil, nil); err != nil {
+			t.Fatalf("failed to write points: %s", err.Error())
+		}
+	}
+
+	verify([]models.Point{p1, p2})
+
+	// Force a full compaction
+	e.CompactionAge = time.Duration(0)
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("failed to run full compaction: %v", err)
+	}
+
+	// Write a point before the earliest data file
+	if err := e.WritePoints([]models.Point{p3, p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// Verify earlier point is returned in the correct order before compaction
+	verify([]models.Point{p4, p1, p2, p3})
+
+	if err := e.Compact(true); err != nil {
+		t.Fatalf("failed to run full compaction: %v", err)
+	}
+	// Verify earlier point is returned in the correct order after compaction
+	verify([]models.Point{p4, p1, p2, p3})
+}
+
 func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
