@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -1451,6 +1452,41 @@ func TestEngine_DecodeAndCombine_NoNewValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestEngine_Write_Concurrent(t *testing.T) {
+	t.Skip("re-enable once tsm1 Write refactor is merged")
+	e := OpenDefaultEngine()
+	defer e.Engine.Close()
+
+	values1 := make(tsm1.Values, 1)
+	values1[0] = tsm1.NewValue(time.Unix(0, 0), float64(1))
+
+	pointsByKey1 := map[string]tsm1.Values{
+		"foo": values1,
+	}
+
+	values2 := make(tsm1.Values, 1)
+	values2[0] = tsm1.NewValue(time.Unix(10, 0), float64(1))
+
+	pointsByKey2 := map[string]tsm1.Values{
+		"foo": values2,
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			e.Write(pointsByKey1, nil, nil)
+			wg.Done()
+		}()
+		wg.Add(1)
+		go func() {
+			e.Write(pointsByKey2, nil, nil)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 // Engine represents a test wrapper for tsm1.Engine.
