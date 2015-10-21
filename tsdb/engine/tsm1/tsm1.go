@@ -472,6 +472,7 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 		a = make([]*dataFile, 0)
 		files := e.copyFilesCollection()
 
+		e.filesLock.RLock()
 		for _, f := range e.files {
 			fmin, fmax := f.MinTime(), f.MaxTime()
 			if min < fmax && fmin >= fmin {
@@ -480,6 +481,7 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 				a = append(a, f)
 			}
 		}
+		e.filesLock.RUnlock()
 
 		if len(a) > 0 {
 			lockStart = a[0].MinTime()
