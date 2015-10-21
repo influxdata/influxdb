@@ -58,6 +58,8 @@ const (
 	deleteEntry walEntryType = 0x04
 )
 
+var ErrWALClosed = fmt.Errorf("WAL closed")
+
 type Log struct {
 	path string
 
@@ -68,6 +70,7 @@ type Log struct {
 	currentSegmentSize int
 
 	// cache and flush variables
+	closing                chan struct{}
 	cacheLock              sync.RWMutex
 	lastWriteTime          time.Time
 	flushRunning           bool
@@ -128,6 +131,7 @@ func NewLog(path string) *Log {
 		FlushMemorySizeThreshold: tsdb.DefaultFlushMemorySizeThreshold,
 		MaxMemorySizeThreshold:   tsdb.DefaultMaxMemorySizeThreshold,
 		logger:                   log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
+		closing:                  make(chan struct{}),
 	}
 }
 
@@ -153,7 +157,7 @@ func (l *Log) Open() error {
 	if err := l.readAndFlushWAL(); err != nil {
 		return err
 	}
-
+	l.closing = make(chan struct{})
 	return nil
 }
 
@@ -193,6 +197,12 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 }
 
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
+	select {
+	case <-l.closing:
+		return ErrWALClosed
+	default:
+	}
+
 	// add everything to the cache, or return an error if we've hit our max memory
 	if addedToCache := l.addToCache(points, fields, series, true); !addedToCache {
 		return fmt.Errorf("WAL backed up flushing to index, hit max memory")
@@ -505,6 +515,12 @@ func (l *Log) Close() error {
 	l.cacheLock.Lock()
 	defer l.writeLock.Unlock()
 	defer l.cacheLock.Unlock()
+
+	// If cache is nil, then we're not open.  This avoids a double-close in tests.
+	if l.cache != nil {
+		// Close, but don't set to nil so future goroutines can still be signaled
+		close(l.closing)
+	}
 
 	l.cache = nil
 	l.measurementFieldsCache = nil

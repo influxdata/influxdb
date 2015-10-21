@@ -146,7 +146,7 @@ func TestLog_TestWriteQueryOpen(t *testing.T) {
 }
 
 // Tests that concurrent flushes and writes do not trigger race conditions
-func TestLog_Flush_Concurrent(t *testing.T) {
+func TestLog_WritePoints_FlushConcurrent(t *testing.T) {
 	w := NewLog()
 	defer w.Close()
 	w.FlushMemorySizeThreshold = 1000
@@ -207,6 +207,65 @@ func TestLog_Flush_Concurrent(t *testing.T) {
 			i++
 		}
 	}()
+
+	// Let the goroutines run for a second
+	select {
+	case <-time.After(1 * time.Second):
+		close(done)
+	}
+
+	// Wait for them to exit
+	wg.Wait()
+}
+
+// Tests that concurrent writes when the WAL closes do not cause race conditions.
+func TestLog_WritePoints_CloseConcurrent(t *testing.T) {
+	w := NewLog()
+	defer w.Close()
+	w.FlushMemorySizeThreshold = 1000
+	total := 1000
+
+	w.IndexWriter.WriteFn = func(valuesByKey map[string]tsm1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		return nil
+	}
+
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		i := 0
+		for {
+			if i > total {
+				return
+			}
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			pt := models.NewPoint("cpu",
+				map[string]string{"host": "A"},
+				map[string]interface{}{"value": i},
+				time.Unix(int64(i), 0),
+			)
+
+			if err := w.WritePoints([]models.Point{pt}, nil, nil); err != nil && err != tsm1.ErrWALClosed {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			i++
+		}
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	if err := w.Close(); err != nil {
+		t.Fatalf("failed to close WAL: %v", err)
+	}
 
 	// Let the goroutines run for a second
 	select {
