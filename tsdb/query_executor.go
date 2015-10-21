@@ -998,27 +998,50 @@ func (q *QueryExecutor) executeBackfillStatement(stmt *influxql.BackfillStatemen
 		return &influxql.Result{Err: err}
 	}
 
-	// reduce the expression in the UNTIL clause.
+	// reduce the expression in the FROM x UNTIL y clause.
 	// If it's not a time literal, then this is an invalid
 	// statement.
-	until := influxql.Reduce(stmt.Until, &influxql.NowValuer{time.Now()})
-	timelit, ok := until.(*influxql.TimeLiteral)
+	from := influxql.Reduce(stmt.From, &influxql.NowValuer{time.Now()})
+	fromlit, ok := from.(*influxql.TimeLiteral)
 	if !ok {
-		return &influxql.Result{Err: fmt.Errorf("%s is not a valid time expression", stmt.Until)}
+		return &influxql.Result{Err: fmt.Errorf("%s is not a valid time expression", stmt.From)}
+	}
+	fromclause := &influxql.BinaryExpr{
+		LHS: &influxql.VarRef{Val: "time"},
+		RHS: fromlit,
+		Op:  influxql.GT,
 	}
 
+	var untilclause *influxql.BinaryExpr
+	if stmt.Until != nil {
+		until := influxql.Reduce(stmt.Until, &influxql.NowValuer{time.Now()})
+		untillit, ok := until.(*influxql.TimeLiteral)
+		if !ok {
+			return &influxql.Result{Err: fmt.Errorf("%s is not a valid time expression", stmt.Until)}
+		}
+		untilclause = &influxql.BinaryExpr{
+			LHS: &influxql.VarRef{Val: "time"},
+			RHS: untillit,
+			Op:  influxql.LT,
+		}
+	}
 	cqstmt, err := influxql.ParseStatement(cq.Query)
 	if err != nil {
 		panic("invalid CQ query" + err.Error())
 	}
 	// Get the statement within the continuous query
 	selectstmt := cqstmt.(*influxql.CreateContinuousQueryStatement).Source
-	// limit it to only time after UNTIL
-	timecondition := &influxql.BinaryExpr{
-		LHS: &influxql.VarRef{Val: "time"},
-		RHS: timelit,
-		Op:  influxql.GT,
+
+	// construct time range condition
+	timecondition := fromclause
+	if untilclause != nil {
+		timecondition = &influxql.BinaryExpr{
+			LHS: fromclause,
+			RHS: untilclause,
+			Op:  influxql.AND,
+		}
 	}
+
 	// If there is already a Condition on the select expression, add the time
 	// condition by constructing an AND expression
 	if selectstmt.Condition != nil {

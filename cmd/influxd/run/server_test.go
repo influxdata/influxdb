@@ -5030,8 +5030,7 @@ func TestServer_ContinuousQuery_Backfill(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testepoch := time.Now().UTC().Add(-10 * time.Minute)
-	rounded := testepoch.Round(10 * time.Minute).Add(-10 * time.Minute)
+	testepoch := mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z")
 
 	writes := []string{
 		fmt.Sprintf(`foo value=1 %d`, testepoch.Add(1*time.Minute).UnixNano()),
@@ -5054,14 +5053,14 @@ func TestServer_ContinuousQuery_Backfill(t *testing.T) {
 		&Query{
 			name:    "execute backfill",
 			params:  url.Values{"db": []string{"db0"}},
-			command: fmt.Sprintf(`BACKFILL foobar ON db0 UNTIL '%s'`, testepoch.Format(time.RFC3339)),
-			exp:     `{"results":[{"series":[{"name":"result","columns":["time","written"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+			command: fmt.Sprintf(`BACKFILL foobar ON db0 FROM '%s' UNTIL '%s'`, testepoch.Format(time.RFC3339), testepoch.Add(10*time.Minute).Format(time.RFC3339)),
+			exp:     `{"results":[{"series":[{"name":"result","columns":["time","written"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 		&Query{
 			name:    "check backfill results",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT * from baz`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"baz","columns":["time","mean"],"values":[["%s",1],["%s",1]]}]}]}`, rounded.Format(time.RFC3339), rounded.Add(10*time.Minute).Format(time.RFC3339)),
+			exp:     `{"results":[{"series":[{"name":"baz","columns":["time","mean"],"values":[["2000-01-01T00:00:00.000000001Z",1]]}]}]}`,
 		},
 	}...)
 

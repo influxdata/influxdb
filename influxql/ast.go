@@ -557,11 +557,16 @@ func (s *SetPasswordUserStatement) RequiredPrivileges() ExecutionPrivileges {
 type BackfillStatement struct {
 	QueryName string
 	Database  string
+	From      Expr
 	Until     Expr
 }
 
 func (b *BackfillStatement) String() string {
-	return fmt.Sprintf("BACKFILL %s ON %s UNTIL %s", b.QueryName, b.Database, b.Until.String())
+	untilstr := ""
+	if b.Until != nil {
+		untilstr = fmt.Sprintf(" UNTIL %s", b.Until.String())
+	}
+	return fmt.Sprintf("BACKFILL %s ON %s FROM %s%s", b.QueryName, b.Database, b.From.String(), untilstr)
 }
 
 func (b *BackfillStatement) RequiredPrivileges() ExecutionPrivileges {

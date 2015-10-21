@@ -291,13 +291,27 @@ func (p *Parser) parseBackfillStatement() (*BackfillStatement, error) {
 	}
 	stmt.Database = ident
 
-	// get the UNTIL keywork
+	// get the FROM keyword
 	tok, pos, lit = p.scanIgnoreWhitespace()
-	if tok != UNTIL {
-		return nil, newParseError(tokstr(tok, lit), []string{"UNTIL"}, pos)
+	if tok != FROM {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
 
 	expr, err := p.ParseExpr()
+	if err != nil {
+		return nil, err
+	}
+	stmt.From = expr
+
+	// Get the UNTIL keyword. This is optional, so if we see EOF, just ignore it.
+	tok, pos, lit = p.scanIgnoreWhitespace()
+	if tok == EOF {
+		return stmt, nil
+	} else if tok != UNTIL {
+		return nil, newParseError(tokstr(tok, lit), []string{"UNTIL"}, pos)
+	}
+
+	expr, err = p.ParseExpr()
 	if err != nil {
 		return nil, err
 	}
