@@ -145,6 +145,79 @@ func TestLog_TestWriteQueryOpen(t *testing.T) {
 	}
 }
 
+// Tests that concurrent flushes and writes do not trigger race conditions
+func TestLog_Flush_Concurrent(t *testing.T) {
+	w := NewLog()
+	defer w.Close()
+	w.FlushMemorySizeThreshold = 1000
+	total := 1000
+
+	w.IndexWriter.WriteFn = func(valuesByKey map[string]tsm1.Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		return nil
+	}
+
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening: %s", err.Error())
+	}
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			// Force an idle flush
+			if err := w.Flush(); err != nil {
+				t.Fatalf("failed to run full compaction: %v", err)
+			}
+			// Allow some time so memory flush can occur due to writes
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		i := 0
+		for {
+			if i > total {
+				return
+			}
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			pt := models.NewPoint("cpu",
+				map[string]string{"host": "A"},
+				map[string]interface{}{"value": i},
+				time.Unix(int64(i), 0),
+			)
+
+			if err := w.WritePoints([]models.Point{pt}, nil, nil); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			i++
+		}
+	}()
+
+	// Let the goroutines run for a second
+	select {
+	case <-time.After(1 * time.Second):
+		close(done)
+	}
+
+	// Wait for them to exit
+	wg.Wait()
+}
+
 // Ensure the log can handle random data.
 func TestLog_Quick(t *testing.T) {
 	if testing.Short() {
