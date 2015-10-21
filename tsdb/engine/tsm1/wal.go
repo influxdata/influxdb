@@ -197,15 +197,9 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 }
 
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
-	select {
-	case <-l.closing:
-		return ErrWALClosed
-	default:
-	}
-
 	// add everything to the cache, or return an error if we've hit our max memory
-	if addedToCache := l.addToCache(points, fields, series, true); !addedToCache {
-		return fmt.Errorf("WAL backed up flushing to index, hit max memory")
+	if err := l.addToCache(points, fields, series, true); err != nil {
+		return err
 	}
 
 	// make the write durable if specified
@@ -260,11 +254,17 @@ func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.Measure
 
 // addToCache will add the points, measurements, and fields to the cache and return true if successful. They will be queryable
 // immediately after return and will be flushed at the next flush cycle. Before adding to the cache we check if we're over the
-// max memory threshold. If we are we request a flush in a new goroutine and return false, indicating we didn't add the values
+// max memory threshold. If we are we request a flush in a new goroutine and return an error, indicating we didn't add the values
 // to the cache and that writes should return a failure.
-func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate, checkMemory bool) bool {
+func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate, checkMemory bool) error {
 	l.cacheLock.Lock()
 	defer l.cacheLock.Unlock()
+
+	select {
+	case <-l.closing:
+		return ErrWALClosed
+	default:
+	}
 
 	// if we should check memory and we're over the threshold, mark a flush as running and kick one off in a goroutine
 	if checkMemory && l.memorySize > l.FlushMemorySizeThreshold {
@@ -277,7 +277,7 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 			}()
 		}
 		if l.memorySize > l.MaxMemorySizeThreshold {
-			return false
+			return fmt.Errorf("WAL backed up flushing to index, hit max memory")
 		}
 	}
 
@@ -305,7 +305,7 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	l.seriesToCreateCache = append(l.seriesToCreateCache, series...)
 	l.lastWriteTime = time.Now()
 
-	return true
+	return nil
 }
 
 func (l *Log) LastWriteTime() time.Time {
@@ -420,6 +420,12 @@ func (l *Log) readFileToCache(fileName string) error {
 func (l *Log) writeToLog(writeType walEntryType, data []byte) error {
 	l.writeLock.Lock()
 	defer l.writeLock.Unlock()
+
+	select {
+	case <-l.closing:
+		return ErrWALClosed
+	default:
+	}
 
 	if l.currentSegmentFile == nil || l.currentSegmentSize > DefaultSegmentSize {
 		if err := l.newSegmentFile(); err != nil {
@@ -539,6 +545,13 @@ func (l *Log) flush(flush flushType) error {
 	// only flush if there isn't one already running. Memory flushes are only triggered
 	// by writes, which will mark the flush as running, so we can ignore it.
 	l.cacheLock.Lock()
+
+	select {
+	case <-l.closing:
+		l.cacheLock.Unlock()
+		return ErrWALClosed
+	default:
+	}
 
 	if l.flushRunning && flush != memoryFlush {
 		l.cacheLock.Unlock()
