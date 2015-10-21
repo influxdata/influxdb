@@ -240,7 +240,9 @@ func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.Measure
 	// usually skipping the cache is only for testing purposes and this was the easiest
 	// way to represent the logic (to cache and then immediately flush)
 	if l.SkipCache {
-		l.flush(idleFlush)
+		if err := l.flush(idleFlush); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -258,7 +260,11 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	if checkMemory && l.memorySize > l.FlushMemorySizeThreshold {
 		if !l.flushRunning {
 			l.flushRunning = true
-			go l.flush(memoryFlush)
+			go func() {
+				if err := l.flush(memoryFlush); err != nil {
+					l.logger.Printf("addToCache: failed to flush: %v", err)
+				}
+			}()
 		}
 		if l.memorySize > l.MaxMemorySizeThreshold {
 			return false
@@ -596,6 +602,7 @@ func (l *Log) flush(flush flushType) error {
 
 	startTime := time.Now()
 	if err := l.IndexWriter.Write(l.flushCache, mfc, scc); err != nil {
+		l.logger.Printf("failed to flush to index: %v", err)
 		return err
 	}
 	if l.LoggingEnabled {

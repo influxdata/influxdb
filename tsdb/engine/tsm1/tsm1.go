@@ -173,7 +173,9 @@ func (e *Engine) Path() string { return e.path }
 func (e *Engine) PerformMaintenance() {
 	if f := e.WAL.shouldFlush(); f != noFlush {
 		go func() {
-			e.WAL.flush(f)
+			if err := e.WAL.flush(f); err != nil {
+				e.logger.Printf("PerformMaintenance: WAL flush failed: %v", err)
+			}
 		}()
 		return
 	}
