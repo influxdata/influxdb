@@ -140,7 +140,6 @@ func (l *Log) Path() string { return l.path }
 
 // Open opens and initializes the Log. Will recover from previous unclosed shutdowns
 func (l *Log) Open() error {
-
 	if l.LoggingEnabled {
 		l.logger.Printf("tsm1 WAL starting with %d flush memory size threshold and %d max memory size threshold\n", l.FlushMemorySizeThreshold, l.MaxMemorySizeThreshold)
 		l.logger.Printf("tsm1 WAL writing to %s\n", l.path)
@@ -152,12 +151,13 @@ func (l *Log) Open() error {
 	l.cache = make(map[string]Values)
 	l.cacheDirtySort = make(map[string]bool)
 	l.measurementFieldsCache = make(map[string]*tsdb.MeasurementFields)
+	l.closing = make(chan struct{})
 
 	// flush out any WAL entries that are there from before
 	if err := l.readAndFlushWAL(); err != nil {
 		return err
 	}
-	l.closing = make(chan struct{})
+
 	return nil
 }
 
