@@ -260,6 +260,7 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	l.cacheLock.Lock()
 	defer l.cacheLock.Unlock()
 
+	// Make sure the log has not been closed
 	select {
 	case <-l.closing:
 		return ErrWALClosed
@@ -421,6 +422,7 @@ func (l *Log) writeToLog(writeType walEntryType, data []byte) error {
 	l.writeLock.Lock()
 	defer l.writeLock.Unlock()
 
+	// Make sure the log has not been closed
 	select {
 	case <-l.closing:
 		return ErrWALClosed
@@ -542,16 +544,16 @@ func (l *Log) Close() error {
 
 // flush writes all wal data in memory to the index
 func (l *Log) flush(flush flushType) error {
-	// only flush if there isn't one already running. Memory flushes are only triggered
-	// by writes, which will mark the flush as running, so we can ignore it.
-	l.cacheLock.Lock()
-
+	// Make sure the log has not been closed
 	select {
 	case <-l.closing:
-		l.cacheLock.Unlock()
 		return ErrWALClosed
 	default:
 	}
+
+	// only flush if there isn't one already running. Memory flushes are only triggered
+	// by writes, which will mark the flush as running, so we can ignore it.
+	l.cacheLock.Lock()
 
 	if l.flushRunning && flush != memoryFlush {
 		l.cacheLock.Unlock()
