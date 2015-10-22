@@ -517,10 +517,10 @@ func (l *Log) deleteKeysFromCache(keys []string) {
 
 // Close will finish any flush that is currently in process and close file handles
 func (l *Log) Close() error {
-	l.writeLock.Lock()
 	l.cacheLock.Lock()
-	defer l.writeLock.Unlock()
+	l.writeLock.Lock()
 	defer l.cacheLock.Unlock()
+	defer l.writeLock.Unlock()
 
 	// If cache is nil, then we're not open.  This avoids a double-close in tests.
 	if l.cache != nil {
