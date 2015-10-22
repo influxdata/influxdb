@@ -38,8 +38,6 @@ func main() {
 		return
 	}
 
-	fmt.Printf("%#v\n", cfg.Write)
-
 	if *batchSize != 0 {
 		cfg.Write.BatchSize = *batchSize
 	}
@@ -63,8 +61,6 @@ func main() {
 	if *precision != "" {
 		cfg.Write.Precision = *precision
 	}
-
-	fmt.Printf("%#v\n", cfg.Write)
 
 	d := make(chan struct{})
 	seriesQueryResults := make(chan runner.QueryResults)
