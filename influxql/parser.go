@@ -305,10 +305,9 @@ func (p *Parser) parseBackfillStatement() (*BackfillStatement, error) {
 
 	// Get the UNTIL keyword. This is optional, so if we see EOF, just ignore it.
 	tok, pos, lit = p.scanIgnoreWhitespace()
-	if tok == EOF {
+	if tok != UNTIL {
+		p.unscan()
 		return stmt, nil
-	} else if tok != UNTIL {
-		return nil, newParseError(tokstr(tok, lit), []string{"UNTIL"}, pos)
 	}
 
 	expr, err = p.ParseExpr()
