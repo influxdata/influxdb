@@ -3,12 +3,13 @@ package tsdb_test
 import (
 	"encoding/json"
 	"io/ioutil"
-	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
@@ -140,6 +141,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
+
 		executor, err := query_executor.PlanSelect(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
@@ -315,7 +317,7 @@ func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to create mapper1: %s", err.Error())
 		}
-		executor := tsdb.NewSelectExecutor(parsedSelectStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
+		executor := tsdb.NewRawExecutor(parsedSelectStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
 
 		// Check the results.
 		got := executeAndGetResults(executor)
@@ -659,580 +661,314 @@ func TestShowShowTagKeysMultipleShards(t *testing.T) {
 	}
 }
 
-// TestProccessAggregateDerivative tests the RawQueryDerivativeProcessor transformation function on the engine.
-// The is called for a query with a GROUP BY.
-func TestProcessAggregateDerivative(t *testing.T) {
-	tests := []struct {
-		name     string
-		fn       string
-		interval time.Duration
-		in       [][]interface{}
-		exp      [][]interface{}
-	}{
-		{
-			name:     "empty input",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in:       [][]interface{}{},
-			exp:      [][]interface{}{},
-		},
-
-		{
-			name:     "single row returns 0.0",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 1.0,
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 0.0,
-				},
-			},
-		},
-		{
-			name:     "basic derivative",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 3.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 5.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 9.0,
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-		},
-		{
-			name:     "12h interval",
-			fn:       "derivative",
-			interval: 12 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 3.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 0.5,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 0.5,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 0.5,
-				},
-			},
-		},
-		{
-			name:     "negative derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 0.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), -2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-		},
-		{
-			name:     "negative derivatives",
-			fn:       "non_negative_derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 2.0,
-				},
-				// Show resultes in negative derivative
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 0.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-		},
-		{
-			name:     "integer derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), 1.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), int64(3),
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), int64(5),
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), int64(9),
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), 2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), 2.0,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
-				},
-			},
-		},
-		{
-			name:     "string derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), "1.0",
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), "2.0",
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), "3.0",
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), "4.0",
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), nil,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), nil,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), nil,
-				},
-			},
-		},
-		{
-			name:     "bool derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0), "1.0",
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), true,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), true,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), true,
-				},
-			},
-			exp: [][]interface{}{
-				[]interface{}{
-					time.Unix(0, 0).Add(24 * time.Hour), nil,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(48 * time.Hour), nil,
-				},
-				[]interface{}{
-					time.Unix(0, 0).Add(72 * time.Hour), nil,
-				},
-			},
-		},
-	}
-
-	for _, test := range tests {
-		got := tsdb.ProcessAggregateDerivative(test.in, test.fn == "non_negative_derivative", test.interval)
-
-		if len(got) != len(test.exp) {
-			t.Fatalf("ProcessAggregateDerivative(%s) - %s\nlen mismatch: got %d, exp %d", test.fn, test.name, len(got), len(test.exp))
-		}
-
-		for i := 0; i < len(test.exp); i++ {
-			if test.exp[i][0] != got[i][0] || test.exp[i][1] != got[i][1] {
-				t.Fatalf("ProcessAggregateDerivative - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
-			}
-		}
+func TestProcessAggregateDerivative_Empty(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{}, false, 24*time.Hour)
+	if !reflect.DeepEqual(results, [][]interface{}{}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
 	}
 }
 
-// TestProcessRawQueryDerivative tests the RawQueryDerivativeProcessor transformation function on the engine.
-// The is called for a queries that do not have a group by.
-func TestProcessRawQueryDerivative(t *testing.T) {
-	tests := []struct {
-		name     string
-		fn       string
-		interval time.Duration
-		in       []*tsdb.MapperValue
-		exp      []*tsdb.MapperValue
-	}{
-		{
-			name:     "empty input",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in:       []*tsdb.MapperValue{},
-			exp:      []*tsdb.MapperValue{},
-		},
+func TestProcessAggregateDerivative_SingleRow(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+	}, false, 24*time.Hour)
 
-		{
-			name:     "single row returns 0.0",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: 1.0,
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: 0.0,
-				},
-			},
-		},
-		{
-			name:     "basic derivative",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: 0.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 3.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 5.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 9.0,
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 3.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 2.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-		},
-		{
-			name:     "integer derivative",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: int64(0),
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: int64(3),
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: int64(5),
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: int64(9),
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 3.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 2.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-		},
-		{
-			name:     "12h interval",
-			fn:       "derivative",
-			interval: 12 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).UnixNano(),
-					Value: 1.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 2.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 3.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 0.5,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 0.5,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 0.5,
-				},
-			},
-		},
-		{
-			name:     "negative derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: 1.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 2.0,
-				},
-				// should go negative
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 0.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 1.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: -2.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-		},
-		{
-			name:     "negative derivatives",
-			fn:       "non_negative_derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: 1.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 2.0,
-				},
-				// should go negative
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: 0.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: 1.0,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: 4.0,
-				},
-			},
-		},
-		{
-			name:     "string derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: "1.0",
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: "2.0",
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: "3.0",
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: "4.0",
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: nil,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: nil,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: nil,
-				},
-			},
-		},
-		{
-			name:     "bool derivatives",
-			fn:       "derivative",
-			interval: 24 * time.Hour,
-			in: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Unix(),
-					Value: true,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: true,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: false,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: false,
-				},
-			},
-			exp: []*tsdb.MapperValue{
-				{
-					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Value: nil,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
-					Value: nil,
-				},
-				{
-					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
-					Value: nil,
-				},
-			},
-		},
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0), 0.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_Basic_24h(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 3.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 5.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 9.0},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_Basic_12h(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 3.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}, false, 12*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 0.5},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 0.5},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 0.5},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_Negative(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 0.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), -2.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_Negative_NonNegative(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 0.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}, true, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_Integer(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), int64(3)},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), int64(5)},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), int64(9)},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_String(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), "1.0"},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), "2.0"},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), "3.0"},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), "4.0"},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), nil},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), nil},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), nil},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_Bool(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), "1.0"},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), true},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), true},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), true},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), nil},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), nil},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), nil},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Empty(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
 	}
 
-	for _, test := range tests {
-		p := tsdb.RawQueryDerivativeProcessor{
-			IsNonNegative:      test.fn == "non_negative_derivative",
-			DerivativeInterval: test.interval,
-		}
-		got := p.Process(test.in)
+	results := p.Process([]*tsdb.MapperValue{})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
 
-		if len(got) != len(test.exp) {
-			t.Fatalf("RawQueryDerivativeProcessor(%s) - %s\nlen mismatch: got %d, exp %d", test.fn, test.name, len(got), len(test.exp))
-		}
+func TestRawQueryDerivative_Process_Single(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
+	}
 
-		for i := 0; i < len(test.exp); i++ {
-			if v, ok := test.exp[i].Value.(float64); ok {
-				if test.exp[i].Time != got[i].Time || math.Abs((v-got[i].Value.(float64))) > 0.0000001 {
-					t.Fatalf("RawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
-				}
-			} else {
-				if test.exp[i].Time != got[i].Time || test.exp[i].Value != got[i].Value {
-					t.Fatalf("RawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
-				}
-			}
-		}
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: 1.0},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: 0.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Basic_24h(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: 0.0},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 3.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 5.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 9.0},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 3.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 2.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Basic_12h(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 12 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).UnixNano(), Value: 1.0},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 2.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 3.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 0.5},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 0.5},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 0.5},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Integer(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: int64(0)},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: int64(3)},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: int64(5)},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: int64(9)},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 3.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 2.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Negative(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: 1.0},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 2.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 0.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 1.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: -2.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Negative_NonNegative(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      true,
+		DerivativeInterval: 24 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: 1.0},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 2.0},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: 0.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: 1.0},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: 4.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_String(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: "1.0"},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: "2.0"},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: "3.0"},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: "4.0"},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: nil},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: nil},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: nil},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestRawQueryDerivative_Process_Bool(t *testing.T) {
+	p := tsdb.RawQueryDerivativeProcessor{
+		IsNonNegative:      false,
+		DerivativeInterval: 24 * time.Hour,
+	}
+
+	results := p.Process([]*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Unix(), Value: true},
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: true},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: false},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: false},
+	})
+	if !reflect.DeepEqual(results, []*tsdb.MapperValue{
+		{Time: time.Unix(0, 0).Add(24 * time.Hour).UnixNano(), Value: nil},
+		{Time: time.Unix(0, 0).Add(48 * time.Hour).UnixNano(), Value: nil},
+		{Time: time.Unix(0, 0).Add(72 * time.Hour).UnixNano(), Value: nil},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
 	}
 }
 

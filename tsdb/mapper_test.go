@@ -347,7 +347,7 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 	pt2time := time.Unix(20, 0).UTC()
 	pt2 := models.NewPoint(
 		"cpu",
-		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 60},
 		pt2time,
 	)
@@ -366,13 +366,12 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT sum(value),mean(value) FROM cpu`,
-			expected: []string{`{"name":"cpu","fields":["value"],"values":[{"value":[61,{"Count":2,"Mean":30.5,"ResultType":1}]}]}`, `null`},
+			expected: []string{`{"name":"cpu","fields":["value"],"values":[{"value":[61,{"Count":2,"Total":61,"ResultType":1}]}]}`, `null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY host`,
 			expected: []string{
-				`{"name":"cpu","tags":{"host":"serverA"},"fields":["value"],"values":[{"value":[1]}]}`,
-				`{"name":"cpu","tags":{"host":"serverB"},"fields":["value"],"values":[{"value":[60]}]}`,
+				`{"name":"cpu","tags":{"host":"serverA"},"fields":["value"],"values":[{"value":[61]}]}`,
 				`null`},
 		},
 		{
@@ -384,14 +383,13 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY region,host`,
 			expected: []string{
-				`{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"fields":["value"],"values":[{"value":[1]}]}`,
-				`{"name":"cpu","tags":{"host":"serverB","region":"us-east"},"fields":["value"],"values":[{"value":[60]}]}`,
+				`{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"fields":["value"],"values":[{"value":[61]}]}`,
 				`null`},
 		},
 		{
-			stmt: `SELECT sum(value) FROM cpu WHERE host='serverB'`,
+			stmt: `SELECT sum(value) FROM cpu WHERE host='serverA'`,
 			expected: []string{
-				`{"name":"cpu","fields":["value"],"values":[{"value":[60]}]}`,
+				`{"name":"cpu","fields":["value"],"values":[{"value":[61]}]}`,
 				`null`},
 		},
 		{
