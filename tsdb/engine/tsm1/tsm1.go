@@ -302,7 +302,7 @@ func (e *Engine) cleanupUnfinishedCompaction() {
 		if err := f.Close(); err != nil {
 			panic(fmt.Sprintf("error closing compaction checkpoint: %s", err.Error()))
 		}
-		if err := os.Remove(f.Name()); err != nil {
+		if err := os.RemoveAll(f.Name()); err != nil {
 			panic(fmt.Sprintf("error removing compaction checkpoint: %s", err.Error()))
 		}
 	}
@@ -720,7 +720,7 @@ func (e *Engine) clearCompactedFiles(compactionCheckpointName string, newFiles [
 		}
 
 		// finally remove the compaction marker
-		if err := os.Remove(compactionCheckpointName); err != nil {
+		if err := os.RemoveAll(compactionCheckpointName); err != nil {
 			e.logger.Printf("error removing %s: %s", compactionCheckpointName, err.Error())
 		}
 
@@ -1533,7 +1533,7 @@ func (e *Engine) writeFields(fields map[string]*tsdb.MeasurementFields) error {
 	fieldsFileName := filepath.Join(e.path, FieldsFileExtension)
 
 	if _, err := os.Stat(fieldsFileName); !os.IsNotExist(err) {
-		if err := os.Remove(fieldsFileName); err != nil {
+		if err := os.RemoveAll(fieldsFileName); err != nil {
 			return err
 		}
 	}
@@ -1607,7 +1607,7 @@ func (e *Engine) writeSeries(series map[string]*tsdb.Series) error {
 	seriesFileName := filepath.Join(e.path, SeriesFileExtension)
 
 	if _, err := os.Stat(seriesFileName); !os.IsNotExist(err) {
-		if err := os.Remove(seriesFileName); err != nil && err != os.ErrNotExist {
+		if err := os.RemoveAll(seriesFileName); err != nil {
 			return err
 		}
 	}
@@ -1699,12 +1699,12 @@ func (e *Engine) removeFileIfCheckpointExists(fileName string) bool {
 	}
 
 	// there's a checkpoint so we know this file isn't safe so we should remove it
-	err = os.Remove(fileName)
+	err = os.RemoveAll(fileName)
 	if err != nil {
 		panic(fmt.Sprintf("error removing file %s", err.Error()))
 	}
 
-	err = os.Remove(checkpointName)
+	err = os.RemoveAll(checkpointName)
 	if err != nil {
 		panic(fmt.Sprintf("error removing file %s", err.Error()))
 	}
@@ -2005,7 +2005,7 @@ func (d *dataFile) Delete() error {
 	if err := d.close(); err != nil {
 		return err
 	}
-	err := os.Remove(d.f.Name())
+	err := os.RemoveAll(d.f.Name())
 	if err != nil {
 		return err
 	}
@@ -2127,17 +2127,17 @@ type compactionCheckpoint struct {
 func (c *compactionCheckpoint) cleanup() {
 	for _, fn := range c.CompactedFiles {
 		cn := checkpointFileName(fn)
-		if err := os.Remove(cn); err != nil && err != os.ErrNotExist {
+		if err := os.RemoveAll(cn); err != nil {
 			panic(fmt.Sprintf("error removing checkpoint file: %s", err.Error()))
 		}
-		if err := os.Remove(fn); err != nil && err != os.ErrNotExist {
+		if err := os.RemoveAll(fn); err != nil {
 			panic(fmt.Sprintf("error removing old data file: %s", err.Error()))
 		}
 	}
 
 	for _, fn := range c.NewFiles {
 		cn := checkpointFileName(fn)
-		if err := os.Remove(cn); err != nil && err != os.ErrNotExist {
+		if err := os.RemoveAll(cn); err != nil {
 			panic(fmt.Sprintf("error removing checkpoint file: %s", err.Error()))
 		}
 	}
@@ -2235,7 +2235,7 @@ func checkpointFileName(fileName string) string {
 // removeCheckpoint removes the checkpoint for a new data file that was getting written
 func removeCheckpoint(fileName string) error {
 	checkpointFile := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
-	return os.Remove(checkpointFile)
+	return os.RemoveAll(checkpointFile)
 }
 
 // u64tob converts a uint64 into an 8-byte slice.
