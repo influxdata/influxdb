@@ -1340,9 +1340,6 @@ func (e *Engine) replaceCompressedFile(name string, data []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Remove(name); err != nil && !os.IsNotExist(err) {
-		return err
-	}
 	return os.Rename(tmpName, filepath.Join(e.path, name))
 }
 
@@ -1531,13 +1528,6 @@ func (e *Engine) writeFields(fields map[string]*tsdb.MeasurementFields) error {
 		return err
 	}
 	fieldsFileName := filepath.Join(e.path, FieldsFileExtension)
-
-	if _, err := os.Stat(fieldsFileName); !os.IsNotExist(err) {
-		if err := os.RemoveAll(fieldsFileName); err != nil {
-			return err
-		}
-	}
-
 	return os.Rename(fn, fieldsFileName)
 }
 
@@ -1605,13 +1595,6 @@ func (e *Engine) writeSeries(series map[string]*tsdb.Series) error {
 		return err
 	}
 	seriesFileName := filepath.Join(e.path, SeriesFileExtension)
-
-	if _, err := os.Stat(seriesFileName); !os.IsNotExist(err) {
-		if err := os.RemoveAll(seriesFileName); err != nil {
-			return err
-		}
-	}
-
 	return os.Rename(fn, seriesFileName)
 }
 
