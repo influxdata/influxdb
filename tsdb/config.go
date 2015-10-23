@@ -1,6 +1,8 @@
 package tsdb
 
 import (
+	"log"
+	"os"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
@@ -98,8 +100,14 @@ type Config struct {
 }
 
 func NewConfig() Config {
+	defaultEngine := DefaultEngine
+	if engine := os.Getenv("INFLUXDB_DATA_ENGINE"); engine != "" {
+		log.Println("TSDB engine selected via environment variable:", engine)
+		defaultEngine = engine
+	}
+
 	return Config{
-		Engine:                 DefaultEngine,
+		Engine:                 defaultEngine,
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
