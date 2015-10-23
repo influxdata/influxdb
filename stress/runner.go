@@ -275,7 +275,6 @@ func Run(cfg *Config, done chan struct{}, ts chan time.Time) (totalPoints int, f
 					fmt.Println("ERROR: ", err.Error())
 				}
 				failedRequests += 1
-				//totalPoints -= len(b.Points)
 				totalPoints -= cfg.Write.BatchSize
 				lastSuccess = false
 				mu.Unlock()
