@@ -50,33 +50,40 @@ It has these top-level messages:
 	FetchDataResponse
 	JoinRequest
 	JoinResponse
+	PromoteToRaftRequest
+	PromoteToRaftResponse
 */
 package internal
 
 import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
 var _ = math.Inf
 
 type RPCType int32
 
 const (
-	RPCType_Error     RPCType = 1
-	RPCType_FetchData RPCType = 2
-	RPCType_Join      RPCType = 3
+	RPCType_Error         RPCType = 1
+	RPCType_FetchData     RPCType = 2
+	RPCType_Join          RPCType = 3
+	RPCType_PromoteToRaft RPCType = 4
 )
 
 var RPCType_name = map[int32]string{
 	1: "Error",
 	2: "FetchData",
 	3: "Join",
+	4: "PromoteToRaft",
 }
 var RPCType_value = map[string]int32{
-	"Error":     1,
-	"FetchData": 2,
-	"Join":      3,
+	"Error":         1,
+	"FetchData":     2,
+	"Join":          3,
+	"PromoteToRaft": 4,
 }
 
 func (x RPCType) Enum() *RPCType {
@@ -190,15 +197,15 @@ func (x *Command_Type) UnmarshalJSON(data []byte) error {
 }
 
 type Data struct {
-	Term             *uint64         `protobuf:"varint,1,req" json:"Term,omitempty"`
-	Index            *uint64         `protobuf:"varint,2,req" json:"Index,omitempty"`
-	ClusterID        *uint64         `protobuf:"varint,3,req" json:"ClusterID,omitempty"`
-	Nodes            []*NodeInfo     `protobuf:"bytes,4,rep" json:"Nodes,omitempty"`
-	Databases        []*DatabaseInfo `protobuf:"bytes,5,rep" json:"Databases,omitempty"`
-	Users            []*UserInfo     `protobuf:"bytes,6,rep" json:"Users,omitempty"`
-	MaxNodeID        *uint64         `protobuf:"varint,7,req" json:"MaxNodeID,omitempty"`
-	MaxShardGroupID  *uint64         `protobuf:"varint,8,req" json:"MaxShardGroupID,omitempty"`
-	MaxShardID       *uint64         `protobuf:"varint,9,req" json:"MaxShardID,omitempty"`
+	Term             *uint64         `protobuf:"varint,1,req,name=Term" json:"Term,omitempty"`
+	Index            *uint64         `protobuf:"varint,2,req,name=Index" json:"Index,omitempty"`
+	ClusterID        *uint64         `protobuf:"varint,3,req,name=ClusterID" json:"ClusterID,omitempty"`
+	Nodes            []*NodeInfo     `protobuf:"bytes,4,rep,name=Nodes" json:"Nodes,omitempty"`
+	Databases        []*DatabaseInfo `protobuf:"bytes,5,rep,name=Databases" json:"Databases,omitempty"`
+	Users            []*UserInfo     `protobuf:"bytes,6,rep,name=Users" json:"Users,omitempty"`
+	MaxNodeID        *uint64         `protobuf:"varint,7,req,name=MaxNodeID" json:"MaxNodeID,omitempty"`
+	MaxShardGroupID  *uint64         `protobuf:"varint,8,req,name=MaxShardGroupID" json:"MaxShardGroupID,omitempty"`
+	MaxShardID       *uint64         `protobuf:"varint,9,req,name=MaxShardID" json:"MaxShardID,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
@@ -270,8 +277,8 @@ func (m *Data) GetMaxShardID() uint64 {
 }
 
 type NodeInfo struct {
-	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
-	Host             *string `protobuf:"bytes,2,req" json:"Host,omitempty"`
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Host             *string `protobuf:"bytes,2,req,name=Host" json:"Host,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -294,10 +301,10 @@ func (m *NodeInfo) GetHost() string {
 }
 
 type DatabaseInfo struct {
-	Name                   *string                `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	DefaultRetentionPolicy *string                `protobuf:"bytes,2,req" json:"DefaultRetentionPolicy,omitempty"`
-	RetentionPolicies      []*RetentionPolicyInfo `protobuf:"bytes,3,rep" json:"RetentionPolicies,omitempty"`
-	ContinuousQueries      []*ContinuousQueryInfo `protobuf:"bytes,4,rep" json:"ContinuousQueries,omitempty"`
+	Name                   *string                `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	DefaultRetentionPolicy *string                `protobuf:"bytes,2,req,name=DefaultRetentionPolicy" json:"DefaultRetentionPolicy,omitempty"`
+	RetentionPolicies      []*RetentionPolicyInfo `protobuf:"bytes,3,rep,name=RetentionPolicies" json:"RetentionPolicies,omitempty"`
+	ContinuousQueries      []*ContinuousQueryInfo `protobuf:"bytes,4,rep,name=ContinuousQueries" json:"ContinuousQueries,omitempty"`
 	XXX_unrecognized       []byte                 `json:"-"`
 }
 
@@ -334,12 +341,12 @@ func (m *DatabaseInfo) GetContinuousQueries() []*ContinuousQueryInfo {
 }
 
 type RetentionPolicyInfo struct {
-	Name               *string             `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Duration           *int64              `protobuf:"varint,2,req" json:"Duration,omitempty"`
-	ShardGroupDuration *int64              `protobuf:"varint,3,req" json:"ShardGroupDuration,omitempty"`
-	ReplicaN           *uint32             `protobuf:"varint,4,req" json:"ReplicaN,omitempty"`
-	ShardGroups        []*ShardGroupInfo   `protobuf:"bytes,5,rep" json:"ShardGroups,omitempty"`
-	Subscriptions      []*SubscriptionInfo `protobuf:"bytes,6,rep" json:"Subscriptions,omitempty"`
+	Name               *string             `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Duration           *int64              `protobuf:"varint,2,req,name=Duration" json:"Duration,omitempty"`
+	ShardGroupDuration *int64              `protobuf:"varint,3,req,name=ShardGroupDuration" json:"ShardGroupDuration,omitempty"`
+	ReplicaN           *uint32             `protobuf:"varint,4,req,name=ReplicaN" json:"ReplicaN,omitempty"`
+	ShardGroups        []*ShardGroupInfo   `protobuf:"bytes,5,rep,name=ShardGroups" json:"ShardGroups,omitempty"`
+	Subscriptions      []*SubscriptionInfo `protobuf:"bytes,6,rep,name=Subscriptions" json:"Subscriptions,omitempty"`
 	XXX_unrecognized   []byte              `json:"-"`
 }
 
@@ -390,11 +397,11 @@ func (m *RetentionPolicyInfo) GetSubscriptions() []*SubscriptionInfo {
 }
 
 type ShardGroupInfo struct {
-	ID               *uint64      `protobuf:"varint,1,req" json:"ID,omitempty"`
-	StartTime        *int64       `protobuf:"varint,2,req" json:"StartTime,omitempty"`
-	EndTime          *int64       `protobuf:"varint,3,req" json:"EndTime,omitempty"`
-	DeletedAt        *int64       `protobuf:"varint,4,req" json:"DeletedAt,omitempty"`
-	Shards           []*ShardInfo `protobuf:"bytes,5,rep" json:"Shards,omitempty"`
+	ID               *uint64      `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	StartTime        *int64       `protobuf:"varint,2,req,name=StartTime" json:"StartTime,omitempty"`
+	EndTime          *int64       `protobuf:"varint,3,req,name=EndTime" json:"EndTime,omitempty"`
+	DeletedAt        *int64       `protobuf:"varint,4,req,name=DeletedAt" json:"DeletedAt,omitempty"`
+	Shards           []*ShardInfo `protobuf:"bytes,5,rep,name=Shards" json:"Shards,omitempty"`
 	XXX_unrecognized []byte       `json:"-"`
 }
 
@@ -438,9 +445,9 @@ func (m *ShardGroupInfo) GetShards() []*ShardInfo {
 }
 
 type ShardInfo struct {
-	ID               *uint64       `protobuf:"varint,1,req" json:"ID,omitempty"`
-	OwnerIDs         []uint64      `protobuf:"varint,2,rep" json:"OwnerIDs,omitempty"`
-	Owners           []*ShardOwner `protobuf:"bytes,3,rep" json:"Owners,omitempty"`
+	ID               *uint64       `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	OwnerIDs         []uint64      `protobuf:"varint,2,rep,name=OwnerIDs" json:"OwnerIDs,omitempty"`
+	Owners           []*ShardOwner `protobuf:"bytes,3,rep,name=Owners" json:"Owners,omitempty"`
 	XXX_unrecognized []byte        `json:"-"`
 }
 
@@ -470,9 +477,9 @@ func (m *ShardInfo) GetOwners() []*ShardOwner {
 }
 
 type SubscriptionInfo struct {
-	Name             *string  `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Mode             *string  `protobuf:"bytes,2,req" json:"Mode,omitempty"`
-	Destinations     []string `protobuf:"bytes,3,rep" json:"Destinations,omitempty"`
+	Name             *string  `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Mode             *string  `protobuf:"bytes,2,req,name=Mode" json:"Mode,omitempty"`
+	Destinations     []string `protobuf:"bytes,3,rep,name=Destinations" json:"Destinations,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -502,7 +509,7 @@ func (m *SubscriptionInfo) GetDestinations() []string {
 }
 
 type ShardOwner struct {
-	NodeID           *uint64 `protobuf:"varint,1,req" json:"NodeID,omitempty"`
+	NodeID           *uint64 `protobuf:"varint,1,req,name=NodeID" json:"NodeID,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -518,8 +525,8 @@ func (m *ShardOwner) GetNodeID() uint64 {
 }
 
 type ContinuousQueryInfo struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Query            *string `protobuf:"bytes,2,req" json:"Query,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Query            *string `protobuf:"bytes,2,req,name=Query" json:"Query,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -542,10 +549,10 @@ func (m *ContinuousQueryInfo) GetQuery() string {
 }
 
 type UserInfo struct {
-	Name             *string          `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Hash             *string          `protobuf:"bytes,2,req" json:"Hash,omitempty"`
-	Admin            *bool            `protobuf:"varint,3,req" json:"Admin,omitempty"`
-	Privileges       []*UserPrivilege `protobuf:"bytes,4,rep" json:"Privileges,omitempty"`
+	Name             *string          `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Hash             *string          `protobuf:"bytes,2,req,name=Hash" json:"Hash,omitempty"`
+	Admin            *bool            `protobuf:"varint,3,req,name=Admin" json:"Admin,omitempty"`
+	Privileges       []*UserPrivilege `protobuf:"bytes,4,rep,name=Privileges" json:"Privileges,omitempty"`
 	XXX_unrecognized []byte           `json:"-"`
 }
 
@@ -582,8 +589,8 @@ func (m *UserInfo) GetPrivileges() []*UserPrivilege {
 }
 
 type UserPrivilege struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Privilege        *int32  `protobuf:"varint,2,req" json:"Privilege,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Privilege        *int32  `protobuf:"varint,2,req,name=Privilege" json:"Privilege,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -637,8 +644,8 @@ func (m *Command) GetType() Command_Type {
 }
 
 type CreateNodeCommand struct {
-	Host             *string `protobuf:"bytes,1,req" json:"Host,omitempty"`
-	Rand             *uint64 `protobuf:"varint,2,req" json:"Rand,omitempty"`
+	Host             *string `protobuf:"bytes,1,req,name=Host" json:"Host,omitempty"`
+	Rand             *uint64 `protobuf:"varint,2,req,name=Rand" json:"Rand,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -669,8 +676,8 @@ var E_CreateNodeCommand_Command = &proto.ExtensionDesc{
 }
 
 type DeleteNodeCommand struct {
-	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
-	Force            *bool   `protobuf:"varint,2,req" json:"Force,omitempty"`
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Force            *bool   `protobuf:"varint,2,req,name=Force" json:"Force,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -701,7 +708,7 @@ var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateDatabaseCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -725,7 +732,7 @@ var E_CreateDatabaseCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropDatabaseCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -749,8 +756,8 @@ var E_DropDatabaseCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateRetentionPolicyCommand struct {
-	Database         *string              `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	RetentionPolicy  *RetentionPolicyInfo `protobuf:"bytes,2,req" json:"RetentionPolicy,omitempty"`
+	Database         *string              `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	RetentionPolicy  *RetentionPolicyInfo `protobuf:"bytes,2,req,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
 	XXX_unrecognized []byte               `json:"-"`
 }
 
@@ -781,8 +788,8 @@ var E_CreateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropRetentionPolicyCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -813,8 +820,8 @@ var E_DropRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 }
 
 type SetDefaultRetentionPolicyCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -845,11 +852,11 @@ var E_SetDefaultRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 }
 
 type UpdateRetentionPolicyCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
-	NewName          *string `protobuf:"bytes,3,opt" json:"NewName,omitempty"`
-	Duration         *int64  `protobuf:"varint,4,opt" json:"Duration,omitempty"`
-	ReplicaN         *uint32 `protobuf:"varint,5,opt" json:"ReplicaN,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
+	NewName          *string `protobuf:"bytes,3,opt,name=NewName" json:"NewName,omitempty"`
+	Duration         *int64  `protobuf:"varint,4,opt,name=Duration" json:"Duration,omitempty"`
+	ReplicaN         *uint32 `protobuf:"varint,5,opt,name=ReplicaN" json:"ReplicaN,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -901,9 +908,9 @@ var E_UpdateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateShardGroupCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Policy           *string `protobuf:"bytes,2,req" json:"Policy,omitempty"`
-	Timestamp        *int64  `protobuf:"varint,3,req" json:"Timestamp,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Policy           *string `protobuf:"bytes,2,req,name=Policy" json:"Policy,omitempty"`
+	Timestamp        *int64  `protobuf:"varint,3,req,name=Timestamp" json:"Timestamp,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -941,9 +948,9 @@ var E_CreateShardGroupCommand_Command = &proto.ExtensionDesc{
 }
 
 type DeleteShardGroupCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Policy           *string `protobuf:"bytes,2,req" json:"Policy,omitempty"`
-	ShardGroupID     *uint64 `protobuf:"varint,3,req" json:"ShardGroupID,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Policy           *string `protobuf:"bytes,2,req,name=Policy" json:"Policy,omitempty"`
+	ShardGroupID     *uint64 `protobuf:"varint,3,req,name=ShardGroupID" json:"ShardGroupID,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -981,9 +988,9 @@ var E_DeleteShardGroupCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateContinuousQueryCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
-	Query            *string `protobuf:"bytes,3,req" json:"Query,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
+	Query            *string `protobuf:"bytes,3,req,name=Query" json:"Query,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1021,8 +1028,8 @@ var E_CreateContinuousQueryCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropContinuousQueryCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
+	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1053,9 +1060,9 @@ var E_DropContinuousQueryCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateUserCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Hash             *string `protobuf:"bytes,2,req" json:"Hash,omitempty"`
-	Admin            *bool   `protobuf:"varint,3,req" json:"Admin,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Hash             *string `protobuf:"bytes,2,req,name=Hash" json:"Hash,omitempty"`
+	Admin            *bool   `protobuf:"varint,3,req,name=Admin" json:"Admin,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1093,7 +1100,7 @@ var E_CreateUserCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropUserCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1117,8 +1124,8 @@ var E_DropUserCommand_Command = &proto.ExtensionDesc{
 }
 
 type UpdateUserCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Hash             *string `protobuf:"bytes,2,req" json:"Hash,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Hash             *string `protobuf:"bytes,2,req,name=Hash" json:"Hash,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1149,9 +1156,9 @@ var E_UpdateUserCommand_Command = &proto.ExtensionDesc{
 }
 
 type SetPrivilegeCommand struct {
-	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
-	Database         *string `protobuf:"bytes,2,req" json:"Database,omitempty"`
-	Privilege        *int32  `protobuf:"varint,3,req" json:"Privilege,omitempty"`
+	Username         *string `protobuf:"bytes,1,req,name=Username" json:"Username,omitempty"`
+	Database         *string `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	Privilege        *int32  `protobuf:"varint,3,req,name=Privilege" json:"Privilege,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1189,7 +1196,7 @@ var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{
 }
 
 type SetDataCommand struct {
-	Data             *Data  `protobuf:"bytes,1,req" json:"Data,omitempty"`
+	Data             *Data  `protobuf:"bytes,1,req,name=Data" json:"Data,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
@@ -1213,8 +1220,8 @@ var E_SetDataCommand_Command = &proto.ExtensionDesc{
 }
 
 type SetAdminPrivilegeCommand struct {
-	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
-	Admin            *bool   `protobuf:"varint,2,req" json:"Admin,omitempty"`
+	Username         *string `protobuf:"bytes,1,req,name=Username" json:"Username,omitempty"`
+	Admin            *bool   `protobuf:"varint,2,req,name=Admin" json:"Admin,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1245,8 +1252,8 @@ var E_SetAdminPrivilegeCommand_Command = &proto.ExtensionDesc{
 }
 
 type UpdateNodeCommand struct {
-	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
-	Host             *string `protobuf:"bytes,2,req" json:"Host,omitempty"`
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Host             *string `protobuf:"bytes,2,req,name=Host" json:"Host,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1277,11 +1284,11 @@ var E_UpdateNodeCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateSubscriptionCommand struct {
-	Name             *string  `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Database         *string  `protobuf:"bytes,2,req" json:"Database,omitempty"`
-	RetentionPolicy  *string  `protobuf:"bytes,3,req" json:"RetentionPolicy,omitempty"`
-	Mode             *string  `protobuf:"bytes,4,req" json:"Mode,omitempty"`
-	Destinations     []string `protobuf:"bytes,5,rep" json:"Destinations,omitempty"`
+	Name             *string  `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Database         *string  `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	RetentionPolicy  *string  `protobuf:"bytes,3,req,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
+	Mode             *string  `protobuf:"bytes,4,req,name=Mode" json:"Mode,omitempty"`
+	Destinations     []string `protobuf:"bytes,5,rep,name=Destinations" json:"Destinations,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -1333,9 +1340,9 @@ var E_CreateSubscriptionCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropSubscriptionCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Database         *string `protobuf:"bytes,2,req" json:"Database,omitempty"`
-	RetentionPolicy  *string `protobuf:"bytes,3,req" json:"RetentionPolicy,omitempty"`
+	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Database         *string `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	RetentionPolicy  *string `protobuf:"bytes,3,req,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1405,9 +1412,9 @@ var E_RemovePeerCommand_Command = &proto.ExtensionDesc{
 }
 
 type Response struct {
-	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
-	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
-	Index            *uint64 `protobuf:"varint,3,opt" json:"Index,omitempty"`
+	OK               *bool   `protobuf:"varint,1,req,name=OK" json:"OK,omitempty"`
+	Error            *string `protobuf:"bytes,2,opt,name=Error" json:"Error,omitempty"`
+	Index            *uint64 `protobuf:"varint,3,opt,name=Index" json:"Index,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1437,8 +1444,8 @@ func (m *Response) GetIndex() uint64 {
 }
 
 type ResponseHeader struct {
-	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
-	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
+	OK               *bool   `protobuf:"varint,1,req,name=OK" json:"OK,omitempty"`
+	Error            *string `protobuf:"bytes,2,opt,name=Error" json:"Error,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1461,7 +1468,7 @@ func (m *ResponseHeader) GetError() string {
 }
 
 type ErrorResponse struct {
-	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
@@ -1477,9 +1484,9 @@ func (m *ErrorResponse) GetHeader() *ResponseHeader {
 }
 
 type FetchDataRequest struct {
-	Index            *uint64 `protobuf:"varint,1,req" json:"Index,omitempty"`
-	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
-	Blocking         *bool   `protobuf:"varint,3,opt,def=0" json:"Blocking,omitempty"`
+	Index            *uint64 `protobuf:"varint,1,req,name=Index" json:"Index,omitempty"`
+	Term             *uint64 `protobuf:"varint,2,req,name=Term" json:"Term,omitempty"`
+	Blocking         *bool   `protobuf:"varint,3,opt,name=Blocking,def=0" json:"Blocking,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1511,10 +1518,10 @@ func (m *FetchDataRequest) GetBlocking() bool {
 }
 
 type FetchDataResponse struct {
-	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
-	Index            *uint64         `protobuf:"varint,2,req" json:"Index,omitempty"`
-	Term             *uint64         `protobuf:"varint,3,req" json:"Term,omitempty"`
-	Data             []byte          `protobuf:"bytes,4,opt" json:"Data,omitempty"`
+	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
+	Index            *uint64         `protobuf:"varint,2,req,name=Index" json:"Index,omitempty"`
+	Term             *uint64         `protobuf:"varint,3,req,name=Term" json:"Term,omitempty"`
+	Data             []byte          `protobuf:"bytes,4,opt,name=Data" json:"Data,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
@@ -1551,7 +1558,7 @@ func (m *FetchDataResponse) GetData() []byte {
 }
 
 type JoinRequest struct {
-	Addr             *string `protobuf:"bytes,1,req" json:"Addr,omitempty"`
+	Addr             *string `protobuf:"bytes,1,req,name=Addr" json:"Addr,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1567,15 +1574,11 @@ func (m *JoinRequest) GetAddr() string {
 }
 
 type JoinResponse struct {
-	Header *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
-	// Indicates that this node should take part in the raft cluster.
-	EnableRaft *bool `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
-	// The addresses of raft peers to use if joining as a raft member. If not joining
-	// as a raft member, these are the nodes running raft.
-	RaftNodes []string `protobuf:"bytes,3,rep" json:"RaftNodes,omitempty"`
-	// The node ID assigned to the requesting node.
-	NodeID           *uint64 `protobuf:"varint,4,opt" json:"NodeID,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
+	EnableRaft       *bool           `protobuf:"varint,2,opt,name=EnableRaft" json:"EnableRaft,omitempty"`
+	RaftNodes        []string        `protobuf:"bytes,3,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
+	NodeID           *uint64         `protobuf:"varint,4,opt,name=NodeID" json:"NodeID,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
 }
 
 func (m *JoinResponse) Reset()         { *m = JoinResponse{} }
@@ -1608,6 +1611,54 @@ func (m *JoinResponse) GetNodeID() uint64 {
 		return *m.NodeID
 	}
 	return 0
+}
+
+type PromoteToRaftRequest struct {
+	Addr             *string  `protobuf:"bytes,1,req,name=Addr" json:"Addr,omitempty"`
+	RaftNodes        []string `protobuf:"bytes,2,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *PromoteToRaftRequest) Reset()         { *m = PromoteToRaftRequest{} }
+func (m *PromoteToRaftRequest) String() string { return proto.CompactTextString(m) }
+func (*PromoteToRaftRequest) ProtoMessage()    {}
+
+func (m *PromoteToRaftRequest) GetAddr() string {
+	if m != nil && m.Addr != nil {
+		return *m.Addr
+	}
+	return ""
+}
+
+func (m *PromoteToRaftRequest) GetRaftNodes() []string {
+	if m != nil {
+		return m.RaftNodes
+	}
+	return nil
+}
+
+type PromoteToRaftResponse struct {
+	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
+	Success          *bool           `protobuf:"varint,2,opt,name=Success" json:"Success,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
+}
+
+func (m *PromoteToRaftResponse) Reset()         { *m = PromoteToRaftResponse{} }
+func (m *PromoteToRaftResponse) String() string { return proto.CompactTextString(m) }
+func (*PromoteToRaftResponse) ProtoMessage()    {}
+
+func (m *PromoteToRaftResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *PromoteToRaftResponse) GetSuccess() bool {
+	if m != nil && m.Success != nil {
+		return *m.Success
+	}
+	return false
 }
 
 func init() {

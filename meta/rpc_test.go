@@ -240,3 +240,9 @@ func (f *fakeStore) WaitForDataChanged() error {
 	<-f.blockChan
 	return nil
 }
+func (f *fakeStore) enableLocalRaft() error {
+	return nil
+}
+func (f *fakeStore) SetPeers(addrs []string) error {
+	return nil
+}

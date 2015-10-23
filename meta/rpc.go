@@ -28,9 +28,11 @@ type rpc struct {
 
 	store interface {
 		cachedData() *Data
+		enableLocalRaft() error
 		IsLeader() bool
 		Leader() string
 		Peers() ([]string, error)
+		SetPeers(addrs []string) error
 		AddPeer(host string) error
 		CreateNode(host string) (*NodeInfo, error)
 		NodeByHost(host string) (*NodeInfo, error)
@@ -124,6 +126,13 @@ func (r *rpc) handleRPCConn(conn net.Conn) {
 				return internal.RPCType_Error, nil, fmt.Errorf("join request unmarshal: %v", err)
 			}
 			resp, err := r.handleJoinRequest(&req)
+			return rpcType, resp, err
+		case internal.RPCType_PromoteToRaft:
+			var req internal.PromoteToRaftRequest
+			if err := proto.Unmarshal(buf, &req); err != nil {
+				return internal.RPCType_Error, nil, fmt.Errorf("promote to raft request unmarshal: %v", err)
+			}
+			resp, err := r.handlePromoteToRaftRequest(&req)
 			return rpcType, resp, err
 		default:
 			return internal.RPCType_Error, nil, fmt.Errorf("unknown rpc type:%v", rpcType)
@@ -271,7 +280,26 @@ func (r *rpc) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 		RaftNodes:  peers,
 		NodeID:     proto.Uint64(nodeID),
 	}, err
+}
 
+func (r *rpc) handlePromoteToRaftRequest(req *internal.PromoteToRaftRequest) (*internal.PromoteToRaftResponse, error) {
+	r.traceCluster("promote raft request from: %v", *req.Addr)
+
+	log.Println("rpc handlePromoteToRaftRequest initiated")
+	if err := r.store.enableLocalRaft(); err != nil {
+		return nil, err
+	}
+	log.Println("rpc handlePromoteToRaftRequest local raft enabled")
+
+	if !contains(req.RaftNodes, *req.Addr) {
+		req.RaftNodes = append(req.RaftNodes, *req.Addr)
+	}
+	if err := r.store.SetPeers(req.RaftNodes); err != nil {
+		return nil, err
+	}
+
+	log.Println("rpc handlePromoteToRaftRequest local set peers completed")
+	return &internal.PromoteToRaftResponse{Success: proto.Bool(true)}, nil
 }
 
 // pack returns a TLV style byte slice encoding the size of the payload, the RPC type
@@ -353,6 +381,29 @@ func (r *rpc) join(localAddr, remoteAddr string) (*JoinResult, error) {
 	}
 }
 
+// promoteToRaft attempts to promote a node at remoteAddr using localAddr as the current
+// node's cluster address
+func (r *rpc) promoteToRaft(addr string, peers []string) error {
+	req := &internal.PromoteToRaftRequest{
+		Addr:      proto.String(addr),
+		RaftNodes: peers,
+	}
+
+	resp, err := r.call(addr, req)
+	if err != nil {
+		return err
+	}
+
+	switch t := resp.(type) {
+	case *internal.PromoteToRaftResponse:
+		return nil
+	case *internal.ErrorResponse:
+		return fmt.Errorf("rpc failed: %s", t.GetHeader().GetError())
+	default:
+		return fmt.Errorf("rpc failed: unknown response type: %v", t.String())
+	}
+}
+
 // call sends an encoded request to the remote leader and returns
 // an encoded response value.
 func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
@@ -363,17 +414,22 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 		rpcType = internal.RPCType_Join
 	case *internal.FetchDataRequest:
 		rpcType = internal.RPCType_FetchData
+	case *internal.PromoteToRaftRequest:
+		rpcType = internal.RPCType_PromoteToRaft
 	default:
 		return nil, fmt.Errorf("unknown rpc request type: %v", t)
 	}
 
+	log.Printf("calling %s with %v", dest, req)
 	// Create a connection to the leader.
 	conn, err := net.DialTimeout("tcp", dest, leaderDialTimeout)
 	if err != nil {
+		log.Printf("timed out calling %s with %v", dest, req)
 		return nil, fmt.Errorf("rpc dial: %v", err)
 	}
 	defer conn.Close()
 
+	log.Printf("connected to %s with %v", dest, req)
 	// Write a marker byte for rpc messages.
 	_, err = conn.Write([]byte{MuxRPCHeader})
 	if err != nil {
@@ -390,11 +446,13 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 		return nil, fmt.Errorf("write %v rpc: %s", rpcType, err)
 	}
 
+	log.Println("wrote some stuff")
 	data, err := ioutil.ReadAll(conn)
 	if err != nil {
 		return nil, fmt.Errorf("read %v rpc: %v", rpcType, err)
 	}
 
+	log.Println("read some stuff")
 	// Should always have a size and type
 	if exp := 16; len(data) < exp {
 		r.traceCluster("recv: %v", string(data))
@@ -411,6 +469,7 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 	rpcType = internal.RPCType(btou64(data[8:16]))
 	data = data[16:]
 
+	log.Println("preparing response")
 	var resp proto.Message
 	switch rpcType {
 	case internal.RPCType_Join:
@@ -433,6 +492,7 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 		}
 	}
 
+	log.Println("all good")
 	return resp, nil
 }
 

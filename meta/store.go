@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -255,7 +256,14 @@ func (s *Store) Open() error {
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
 	<-s.ready
-	return s.WaitForLeader(0)
+	if err := s.WaitForLeader(0); err != nil {
+		return err
+	}
+
+	s.wg.Add(1)
+	go s.monitorPeerHealth()
+
+	return nil
 }
 
 // syncNodeInfo continuously tries to update the current nodes hostname
@@ -412,6 +420,74 @@ func (s *Store) changeState(state raftState) error {
 		return err
 	}
 
+	return nil
+}
+
+// monitorPeerHealth periodically checks if we have a node that can be promoted to a
+// raft peer to fill any missing slots.
+// This function runs in a separate goroutine.
+func (s *Store) monitorPeerHealth() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Wait for next tick or timeout.
+		select {
+		case <-ticker.C:
+		case <-s.closing:
+			return
+		}
+		if err := s.promoteNodeToPeer(); err != nil {
+			s.Logger.Printf("error promoting node to raft peer: %s", err)
+		}
+	}
+}
+
+func (s *Store) promoteNodeToPeer() error {
+	// Only do this if you are the leader
+	if s.IsLeader() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if s.raftState == nil {
+			return nil
+		}
+
+		peers, err := s.raftState.peers()
+		if err != nil {
+			return err
+		}
+
+		nodes := s.data.Nodes
+		var nonraft NodeInfos
+		for _, n := range nodes {
+			if contains(peers, n.Host) {
+				continue
+			}
+			nonraft = append(nonraft, n)
+		}
+
+		// Check to see if any action is required or possible
+		if len(peers) >= 3 || len(nonraft) == 0 {
+			return nil
+		}
+
+		// Sort the nodes
+		sort.Sort(nonraft)
+
+		// Get the lowest node for a deterministic outcome
+		n := nonraft[0]
+		s.Logger.Printf("attempting to notify node %d addr %s for promotion to raft peer", n.ID, n.Host)
+
+		if err := s.rpc.promoteToRaft(n.Host, peers); err != nil {
+			s.Logger.Printf("error notifying raft peer: %s", err)
+		} else {
+			s.Logger.Printf("notified node %d addr %s to promote to raft peer", n.ID, n.Host)
+			return nil
+		}
+	}
 	return nil
 }
 
