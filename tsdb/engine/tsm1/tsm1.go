@@ -1635,7 +1635,8 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		return newValues, block, nil
 	}
 
-	values, err := DecodeBlock(block)
+	var values []Value
+	err := DecodeBlock(block, &values)
 	if err != nil {
 		panic(fmt.Sprintf("failure decoding block: %v", err))
 	}
@@ -1649,12 +1650,12 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		})
 		values = append(values, newValues[:pos]...)
 		remainingValues = newValues[pos:]
-		values = values.Deduplicate()
+		values = Values(values).Deduplicate()
 	} else {
-		requireSort := values.MaxTime() >= newValues.MinTime()
+		requireSort := Values(values).MaxTime() >= newValues.MinTime()
 		values = append(values, newValues...)
 		if requireSort {
-			values = values.Deduplicate()
+			values = Values(values).Deduplicate()
 		}
 	}
 
@@ -1663,7 +1664,7 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		values = values[:e.MaxPointsPerBlock]
 	}
 
-	encoded, err := values.Encode(buf)
+	encoded, err := Values(values).Encode(buf)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1863,7 +1864,8 @@ func (c *compactionJob) writeIDFromFile(id uint64, previousValues Values, filePo
 
 		// decode the block and append to previous values
 		// TODO: update this so that blocks already at their limit don't need decoding
-		values, err := DecodeBlock(block)
+		var values []Value
+		err := DecodeBlock(block, &values)
 		if err != nil {
 			panic(fmt.Sprintf("error decoding block: %s", err.Error()))
 		}
