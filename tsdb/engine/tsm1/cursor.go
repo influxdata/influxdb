@@ -189,7 +189,7 @@ type cursor struct {
 	pos uint32
 
 	// vals is the current decoded block of Values we're iterating from
-	vals Values
+	vals []Value
 
 	ascending bool
 
@@ -207,6 +207,7 @@ func newCursor(id uint64, files []*dataFile, ascending bool) *cursor {
 		id:        id,
 		ascending: ascending,
 		files:     files,
+		vals:      make([]Value, 0),
 	}
 }
 
@@ -472,7 +473,8 @@ func (c *cursor) blockLength(pos uint32) uint32 {
 func (c *cursor) decodeBlock(position uint32) {
 	length := c.blockLength(position)
 	block := c.f.mmap[position+blockHeaderSize : position+blockHeaderSize+length]
-	c.vals, _ = DecodeBlock(block)
+	c.vals = c.vals[:0]
+	_ = DecodeBlock(block, &c.vals)
 
 	// only adavance the position if we're asceending.
 	// Descending queries use the blockPositions

@@ -8,7 +8,7 @@ import (
 
 const (
 	// DefaultEngine is the default engine for new shards
-	DefaultEngine = "bz1"
+	DefaultEngine = "tsm1"
 
 	// DefaultMaxWALSize is the default size of the WAL before it is flushed.
 	DefaultMaxWALSize = 100 * 1024 * 1024 // 100MB
