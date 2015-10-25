@@ -69,7 +69,7 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 
 // Config is used to specify what server to connect to.
 // URL: The URL of the server connecting to.
-// Username/Password are optional.  They will be passed via basic auth if provided.
+// Username/Password are optional. They will be passed via basic auth if provided.
 // UserAgent: If not provided, will default "InfluxDBClient",
 // Timeout: If not provided, will default to 0 (no timeout)
 type Config struct {
@@ -180,7 +180,7 @@ func (c *Client) Query(q Query) (*Response, error) {
 	if decErr != nil {
 		return nil, decErr
 	}
-	// If we don't have an error in our json response, and didn't get  statusOK, then send back an error
+	// If we don't have an error in our json response, and didn't get StatusOK, then send back an error
 	if resp.StatusCode != http.StatusOK && response.Error() == nil {
 		return &response, fmt.Errorf("received status code %d from server", resp.StatusCode)
 	}
@@ -561,7 +561,7 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 // BatchPoints is used to send batched data in a single write.
 // Database and Points are required
 // If no retention policy is specified, it will use the databases default retention policy.
-// If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
+// If tags are specified, they will be "merged" with all points. If a point already has that tag, it will be ignored.
 // If time is specified, it will be applied to any point with an empty time.
 // Precision can be specified if the time is in epoch format (integer).
 // Valid values for Precision are n, u, ms, s, m, and h
