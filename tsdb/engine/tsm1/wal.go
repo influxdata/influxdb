@@ -431,8 +431,9 @@ func (l *Log) writeToLog(writeType walEntryType, data []byte) error {
 
 	if l.currentSegmentFile == nil || l.currentSegmentSize > DefaultSegmentSize {
 		if err := l.newSegmentFile(); err != nil {
-			// fail hard since we can't write data
-			panic(fmt.Sprintf("error opening new segment file for wal: %s", err.Error()))
+			// A drop database or RP call could trigger this error if writes were in-flight
+			// when the drop statement executes.
+			return fmt.Errorf("error opening new segment file for wal: %s", err.Error())
 		}
 	}
 
