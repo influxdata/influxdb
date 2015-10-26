@@ -2,13 +2,16 @@ package hh
 
 import (
 	"encoding/binary"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/models"
 )
 
@@ -32,12 +35,16 @@ type NodeProcessor struct {
 	meta   metaStore
 	writer shardWriter
 
-	Logger *log.Logger
+	statMap *expvar.Map
+	Logger  *log.Logger
 }
 
 // NewNodeProcessor returns a new NodeProcessor for the given node, using dir for
 // the hinted-handoff data.
 func NewNodeProcessor(nodeID uint64, dir string, w shardWriter, m metaStore) *NodeProcessor {
+	key := strings.Join([]string{"hh_processor", dir}, ":")
+	tags := map[string]string{"node": fmt.Sprintf("%d", nodeID), "path": dir}
+
 	return &NodeProcessor{
 		PurgeInterval:    DefaultPurgeInterval,
 		RetryInterval:    DefaultRetryInterval,
@@ -48,6 +55,7 @@ func NewNodeProcessor(nodeID uint64, dir string, w shardWriter, m metaStore) *No
 		dir:              dir,
 		writer:           w,
 		meta:             m,
+		statMap:          influxdb.NewStatistics(key, "hh_processor", tags),
 		Logger:           log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 	}
 }
@@ -111,7 +119,6 @@ func (n *NodeProcessor) Purge() error {
 	defer n.mu.Unlock()
 
 	if n.done != nil {
-		// Already open.
 		return fmt.Errorf("node processor is open")
 	}
 
@@ -123,6 +130,13 @@ func (n *NodeProcessor) Purge() error {
 func (n *NodeProcessor) WriteShard(shardID uint64, points []models.Point) error {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
+
+	if n.done == nil {
+		return fmt.Errorf("node processor is closed")
+	}
+
+	n.statMap.Add(writeShardReq, 1)
+	n.statMap.Add(writeShardReqPoints, int64(len(points)))
 
 	b := marshalWrite(shardID, points)
 	return n.queue.Append(b)
@@ -162,15 +176,16 @@ func (n *NodeProcessor) run() {
 			for {
 				c, err := n.SendWrite()
 				if err != nil {
-					if err != io.EOF {
-						if currInterval != time.Duration(n.RetryInterval) {
-							currInterval = time.Duration(n.RetryInterval)
-						} else {
-							// Success! Return to configured interval.
-							currInterval = time.Duration(n.RetryInterval)
+					if err == io.EOF {
+						// No more data, return to configured interval
+						currInterval = time.Duration(n.RetryInterval)
+					} else {
+						currInterval = currInterval * 2
+						if currInterval > time.Duration(n.RetryMaxInterval) {
+							currInterval = time.Duration(n.RetryMaxInterval)
 						}
-						break
 					}
+					break
 				}
 
 				// Success! Ensure backoff is cancelled.
@@ -221,8 +236,11 @@ func (n *NodeProcessor) SendWrite() (int, error) {
 	}
 
 	if err := n.writer.WriteShard(shardID, n.nodeID, points); err != nil {
+		n.statMap.Add(writeNodeReqFail, 1)
 		return 0, err
 	}
+	n.statMap.Add(writeNodeReq, 1)
+	n.statMap.Add(writeNodeReqPoints, int64(len(points)))
 
 	if err := n.queue.Advance(); err != nil {
 		n.Logger.Printf("failed to advance queue for node %d: %s", n.nodeID, err.Error())
