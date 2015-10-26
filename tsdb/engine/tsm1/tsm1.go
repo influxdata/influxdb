@@ -204,7 +204,11 @@ func (e *Engine) PerformMaintenance() {
 		}
 	}
 
-	go e.Compact(true)
+	go func() {
+		if err := e.Compact(true); err != nil {
+			e.logger.Printf("PerformMaintenance: error during compaction: %v", err)
+		}
+	}()
 }
 
 // Format returns the format type of this engine
@@ -482,7 +486,11 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	}
 
 	if !e.SkipCompaction && e.shouldCompact() {
-		go e.Compact(false)
+		go func() {
+			if err := e.Compact(false); err != nil {
+				e.logger.Printf("Write: error during compaction: %v", err)
+			}
+		}()
 	}
 
 	return nil
