@@ -576,6 +576,8 @@ func (l *Log) flush(flush flushType) error {
 	if flush == idleFlush {
 		if l.currentSegmentFile != nil {
 			if err := l.currentSegmentFile.Close(); err != nil {
+				l.cacheLock.Unlock()
+				l.writeLock.Unlock()
 				return err
 			}
 			l.currentSegmentFile = nil
@@ -583,8 +585,9 @@ func (l *Log) flush(flush flushType) error {
 		}
 	} else {
 		if err := l.newSegmentFile(); err != nil {
-			// there's no recovering from this, fail hard
-			panic(fmt.Sprintf("error creating new wal file: %s", err.Error()))
+			l.cacheLock.Unlock()
+			l.writeLock.Unlock()
+			return fmt.Errorf("error creating new wal file: %s", err.Error())
 		}
 	}
 	l.writeLock.Unlock()
