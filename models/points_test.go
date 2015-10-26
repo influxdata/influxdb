@@ -1097,36 +1097,21 @@ func TestNewPointLargeInteger(t *testing.T) {
 	)
 }
 
-func TestNewPointNaN(t *testing.T) {
-	test(t, `cpu value=NaN 1000000000`,
-		models.NewPoint(
-			"cpu",
-			models.Tags{},
-			models.Fields{
-				"value": math.NaN(),
-			},
-			time.Unix(1, 0)),
-	)
+func TestParsePointNaN(t *testing.T) {
+	_, err := models.ParsePointsString("cpu value=NaN 1000000000")
+	if err == nil {
+		t.Fatalf("ParsePoints expected error, got nil")
+	}
 
-	test(t, `cpu value=nAn 1000000000`,
-		models.NewPoint(
-			"cpu",
-			models.Tags{},
-			models.Fields{
-				"value": math.NaN(),
-			},
-			time.Unix(1, 0)),
-	)
+	_, err = models.ParsePointsString("cpu value=nAn 1000000000")
+	if err == nil {
+		t.Fatalf("ParsePoints expected error, got nil")
+	}
 
-	test(t, `nan value=NaN`,
-		models.NewPoint(
-			"nan",
-			models.Tags{},
-			models.Fields{
-				"value": math.NaN(),
-			},
-			time.Unix(0, 0)),
-	)
+	_, err = models.ParsePointsString("cpu value=NaN")
+	if err == nil {
+		t.Fatalf("ParsePoints expected error, got nil")
+	}
 }
 
 func TestNewPointLargeNumberOfTags(t *testing.T) {
