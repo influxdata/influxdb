@@ -15,6 +15,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/monitor"
 )
 
 var ErrHintedHandoffDisabled = fmt.Errorf("hinted handoff disabled")
@@ -40,6 +41,11 @@ type Service struct {
 
 	shardWriter shardWriter
 	metastore   metaStore
+
+	Monitor interface {
+		RegisterDiagnosticsClient(name string, client monitor.DiagsClient)
+		DeregisterDiagnosticsClient(name string)
+	}
 }
 
 type shardWriter interface {
@@ -75,6 +81,11 @@ func (s *Service) Open() error {
 	}
 	s.Logger.Printf("Starting hinted handoff service")
 	s.closing = make(chan struct{})
+
+	// Register diagnostics if a Monitor service is available.
+	if s.Monitor != nil {
+		s.Monitor.RegisterDiagnosticsClient("hh", s)
+	}
 
 	// Create the root directory if it doesn't already exist.
 	s.Logger.Printf("Using data dir: %v", s.cfg.Dir)
@@ -168,6 +179,26 @@ func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) err
 	}
 
 	return nil
+}
+
+// Diagnostics returns diagnostic information.
+func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	d := &monitor.Diagnostic{
+		Columns: []string{"node", "last modified", "head", "tail"},
+		Rows:    make([][]interface{}, 0, len(s.processors)),
+	}
+	for k, v := range s.processors {
+		lm, err := v.LastModified()
+		if err != nil {
+			return nil, err
+		}
+
+		d.Rows = append(d.Rows, []interface{}{k, lm, v.Head(), v.Tail()})
+	}
+	return d, nil
 }
 
 // purgeInactiveProcessors will cause the service to remove processors for inactive nodes.

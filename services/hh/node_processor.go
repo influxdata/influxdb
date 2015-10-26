@@ -249,6 +249,22 @@ func (n *NodeProcessor) SendWrite() (int, error) {
 	return len(buf), nil
 }
 
+func (n *NodeProcessor) Head() string {
+	qp, err := n.queue.Position()
+	if err != nil {
+		return ""
+	}
+	return qp.head
+}
+
+func (n *NodeProcessor) Tail() string {
+	qp, err := n.queue.Position()
+	if err != nil {
+		return ""
+	}
+	return qp.tail
+}
+
 func marshalWrite(shardID uint64, points []models.Point) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, shardID)

@@ -72,6 +72,10 @@ type queue struct {
 	// The segments that exist on disk
 	segments segments
 }
+type queuePos struct {
+	head string
+	tail string
+}
 
 type segments []*segment
 
@@ -212,6 +216,20 @@ func (l *queue) LastModified() (time.Time, error) {
 		return l.tail.lastModified()
 	}
 	return time.Time{}.UTC(), nil
+}
+
+func (l *queue) Position() (*queuePos, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	qp := &queuePos{}
+	if l.head != nil {
+		qp.head = fmt.Sprintf("%s:%d", l.head.path, l.head.pos)
+	}
+	if l.tail != nil {
+		qp.tail = fmt.Sprintf("%s:%d", l.tail.path, l.tail.filePos())
+	}
+	return qp, nil
 }
 
 // diskUsage returns the total size on disk used by the queue
