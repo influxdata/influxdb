@@ -84,15 +84,17 @@ _cpu_stats
 ```
 ALL           ALTER         ANY           AS            ASC           BEGIN
 BY            CREATE        CONTINUOUS    DATABASE      DATABASES     DEFAULT
-DELETE        DESC          DESTINATIONS  DROP          DURATION      END
-EXISTS        EXPLAIN       FIELD         FROM          GRANT         GROUP
-IF            IN            INNER         INSERT        INTO          KEY
+DELETE        DESC          DESTINATIONS  DIAGNOSTICS   DISTINCT      DROP
+DURATION      END           EXISTS        EXPLAIN       FIELD         FOR
+FORCE         FROM          GRANT         GRANTS        GROUP         IF
+IN            INF           INNER         INSERT        INTO          KEY
 KEYS          LIMIT         SHOW          MEASUREMENT   MEASUREMENTS  NOT
 OFFSET        ON            ORDER         PASSWORD      POLICY        POLICIES
 PRIVILEGES    QUERIES       QUERY         READ          REPLICATION   RETENTION
-REVOKE        SELECT        SERIES        SLIMIT        SOFFSET       SUBSCRIPTION
-SUBSCRIPTIONS TAG           TO            USER          USERS         VALUES
-WHERE         WITH          WRITE
+REVOKE        SELECT        SERIES        SERVER        SERVERS       SET
+SHARDS        SLIMIT        SOFFSET       STATS         SUBSCRIPTION  SUBSCRIPTIONS
+TAG           TO            USER          USERS         VALUES        WHERE
+WITH          WRITE
 ```
 
 ## Literals
