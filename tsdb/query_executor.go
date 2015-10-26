@@ -382,12 +382,17 @@ func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 		}
 	}
 
+	// Remove database from meta-store first so that in-flight writes can complete without error, but new ones will
+	// be rejected.
+	res := q.MetaStatementExecutor.ExecuteStatement(stmt)
+
+	// Remove the database from the local store
 	err = q.Store.DeleteDatabase(stmt.Name, shardIDs)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
 
-	return q.MetaStatementExecutor.ExecuteStatement(stmt)
+	return res
 }
 
 // executeDropMeasurementStatement removes the measurement and all series data from the local store for the given measurement

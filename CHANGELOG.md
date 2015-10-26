@@ -77,6 +77,7 @@
 - [#4497](https://github.com/influxdb/influxdb/pull/4497): Fix sequence in meta proto
 - [#3367](https://github.com/influxdb/influxdb/issues/3367): Negative timestamps are parsed correctly by the line protocol.
 - [#4563](https://github.com/influxdb/influxdb/pull/4536): Fix broken subscriptions updates.
+- [#4538](https://github.com/influxdb/influxdb/issues/4538): Dropping database under a write load causes panics
 
 ## v0.9.4 [2015-09-14]
 
