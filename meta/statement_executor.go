@@ -174,15 +174,6 @@ func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerSta
 		return &influxql.Result{Err: ErrNodeNotFound}
 	}
 
-	// Dropping only non-Raft nodes supported.
-	peers, err := e.Store.Peers()
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
-	if contains(peers, ni.Host) {
-		return &influxql.Result{Err: ErrNodeRaft}
-	}
-
 	err = e.Store.DeleteNode(q.NodeID, q.Force)
 	return &influxql.Result{Err: err}
 }

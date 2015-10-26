@@ -166,8 +166,12 @@ func TestStatementExecutor_ExecuteStatement_DropServer(t *testing.T) {
 		}, nil
 	}
 
-	// Ensure Raft nodes cannot be dropped.
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 1`)); res.Err != meta.ErrNodeRaft {
+	e.Store.DeleteNodeFn = func(id uint64, force bool) error {
+		return nil
+	}
+
+	// Ensure Raft nodes can be dropped.
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP SERVER 1`)); res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 

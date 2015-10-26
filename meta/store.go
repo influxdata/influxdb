@@ -230,7 +230,6 @@ func (s *Store) Open() error {
 
 		return nil
 	}(); err != nil {
-		s.close()
 		return err
 	}
 
@@ -375,6 +374,9 @@ func (s *Store) joinCluster() error {
 }
 
 func (s *Store) enableLocalRaft() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if _, ok := s.raftState.(*localRaft); ok {
 		return nil
 	}
@@ -395,15 +397,16 @@ func (s *Store) enableRemoteRaft() error {
 }
 
 func (s *Store) changeState(state raftState) error {
-	if err := s.raftState.close(); err != nil {
-		return err
-	}
+	if s.raftState != nil {
+		if err := s.raftState.close(); err != nil {
+			return err
+		}
 
-	// Clear out any persistent state
-	if err := s.raftState.remove(); err != nil {
-		return err
+		// Clear out any persistent state
+		if err := s.raftState.remove(); err != nil {
+			return err
+		}
 	}
-
 	s.raftState = state
 
 	if err := s.raftState.open(); err != nil {
@@ -454,14 +457,33 @@ func (s *Store) close() error {
 	}
 	s.opened = false
 
-	// Notify goroutines of close.
-	close(s.closing)
-	// FIXME(benbjohnson): s.wg.Wait()
+	// Close our exec listener
+	if err := s.ExecListener.Close(); err != nil {
+		s.Logger.Printf("error closing ExecListener %s", err)
+	}
+
+	// Close our RPC listener
+	if err := s.RPCListener.Close(); err != nil {
+		s.Logger.Printf("error closing ExecListener %s", err)
+	}
 
 	if s.raftState != nil {
 		s.raftState.close()
-		s.raftState = nil
 	}
+
+	// Because a go routine could of already fired in the time we acquired the lock
+	// it could then try to acquire another lock, and will deadlock.
+	// For that reason, we will release our lock and signal the close so that
+	// all go routines can exit cleanly and fullfill their contract to the wait group.
+	s.mu.Unlock()
+	// Notify goroutines of close.
+	close(s.closing)
+	s.wg.Wait()
+
+	// Now that all go routines are cleaned up, w lock to do final clean up and exit
+	s.mu.Lock()
+
+	s.raftState = nil
 
 	return nil
 }
@@ -519,7 +541,9 @@ func (s *Store) createLocalNode() error {
 	}
 
 	// Set ID locally.
+	s.mu.Lock()
 	s.id = ni.ID
+	s.mu.Unlock()
 
 	s.Logger.Printf("Created local node: id=%d, host=%s", s.id, s.RemoteAddr)
 
@@ -578,9 +602,6 @@ func (s *Store) Err() <-chan error { return s.err }
 func (s *Store) IsLeader() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.raftState == nil {
-		return false
-	}
 	return s.raftState.isLeader()
 }
 
@@ -619,6 +640,7 @@ func (s *Store) serveExecListener() {
 
 	for {
 		// Accept next TCP connection.
+		var err error
 		conn, err := s.ExecListener.Accept()
 		if err != nil {
 			if strings.Contains(err.Error(), "connection closed") {
@@ -631,6 +653,12 @@ func (s *Store) serveExecListener() {
 		// Handle connection in a separate goroutine.
 		s.wg.Add(1)
 		go s.handleExecConn(conn)
+
+		select {
+		case <-s.closing:
+			return
+		default:
+		}
 	}
 }
 
@@ -739,6 +767,12 @@ func (s *Store) serveRPCListener() {
 			defer s.wg.Done()
 			s.rpc.handleRPCConn(conn)
 		}()
+
+		select {
+		case <-s.closing:
+			return
+		default:
+		}
 	}
 }
 
@@ -829,10 +863,21 @@ func (s *Store) DeleteNode(id uint64, force bool) error {
 		return ErrNodeNotFound
 	}
 
-	return s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
+	err := s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
 		&internal.DeleteNodeCommand{
 			ID:    proto.Uint64(id),
 			Force: proto.Bool(force),
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	// Need to send a second message to remove the peer
+	return s.exec(internal.Command_RemovePeerCommand, internal.E_RemovePeerCommand_Command,
+		&internal.RemovePeerCommand{
+			ID:   proto.Uint64(id),
+			Addr: proto.String(ni.Host),
 		},
 	)
 }
@@ -1539,7 +1584,7 @@ func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
 	leader := s.raftState.leader()
 	if leader == "" {
-		return errors.New("no leader")
+		return errors.New("no leader detected during remoteExec")
 	}
 
 	// Create a connection to the leader.
@@ -1650,6 +1695,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 
 	err := func() interface{} {
 		switch cmd.GetType() {
+		case internal.Command_RemovePeerCommand:
+			return fsm.applyRemovePeerCommand(&cmd)
 		case internal.Command_CreateNodeCommand:
 			return fsm.applyCreateNodeCommand(&cmd)
 		case internal.Command_DeleteNodeCommand:
@@ -1703,6 +1750,33 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	s.notifyChanged()
 
 	return err
+}
+
+func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_RemovePeerCommand_Command)
+	v := ext.(*internal.RemovePeerCommand)
+
+	id := v.GetID()
+	addr := v.GetAddr()
+
+	// Only do this if you are the leader
+	if fsm.raftState.isLeader() {
+		//Remove that node from the peer
+		fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
+		if err := fsm.raftState.removePeer(addr); err != nil {
+			fsm.Logger.Printf("error removing peer: %s", err)
+		}
+	}
+
+	// If this is the node being shutdown, close raft
+	if fsm.id == id {
+		fsm.Logger.Printf("shutting down raft for %s", addr)
+		if err := fsm.raftState.close(); err != nil {
+			fsm.Logger.Printf("failed to shut down raft: %s", err)
+		}
+	}
+
+	return nil
 }
 
 func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
