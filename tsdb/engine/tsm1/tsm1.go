@@ -325,6 +325,8 @@ func (e *Engine) Close() error {
 	e.filesLock.Lock()
 	defer e.filesLock.Unlock()
 
+	e.WAL.Close()
+
 	// ensure all deletes have been processed
 	e.deletesPending.Wait()
 
