@@ -471,10 +471,16 @@ func (s *Store) close() error {
 		s.raftState.close()
 	}
 
-	// Notify goroutines of close.
+	// Because a go routine could of already fired in the time we acquired the lock
+	// it could then try to acquire another lock, and will deadlock.
+	// For that reason, we will release our lock and signal the close so that
+	// all go routines can exit cleanly and fullfill their contract to the wait group.
 	s.mu.Unlock()
+	// Notify goroutines of close.
 	close(s.closing)
 	s.wg.Wait()
+
+	// Now that all go routines are cleaned up, w lock to do final clean up and exit
 	s.mu.Lock()
 
 	s.raftState = nil

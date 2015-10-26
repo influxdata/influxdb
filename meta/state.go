@@ -322,12 +322,12 @@ func (r *localRaft) addPeer(addr string) error {
 // removePeer removes addr from the list of peers in the cluster.
 func (r *localRaft) removePeer(addr string) error {
 	// Only do this on the leader
-	if r.isLeader() {
-		if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
-			return fut.Error()
-		}
+	if !r.isLeader() {
+		return errors.New("not the leader")
 	}
-
+	if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
+		return fut.Error()
+	}
 	return nil
 }
 
