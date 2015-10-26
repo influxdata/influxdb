@@ -578,7 +578,7 @@ func (l *Log) flush(flush flushType) error {
 			if err := l.currentSegmentFile.Close(); err != nil {
 				l.cacheLock.Unlock()
 				l.writeLock.Unlock()
-				return err
+				return fmt.Errorf("error closing current segment: %v", err)
 			}
 			l.currentSegmentFile = nil
 			l.currentSegmentSize = 0
@@ -587,7 +587,7 @@ func (l *Log) flush(flush flushType) error {
 		if err := l.newSegmentFile(); err != nil {
 			l.cacheLock.Unlock()
 			l.writeLock.Unlock()
-			return fmt.Errorf("error creating new wal file: %s", err.Error())
+			return fmt.Errorf("error creating new wal file: %v", err)
 		}
 	}
 	l.writeLock.Unlock()
