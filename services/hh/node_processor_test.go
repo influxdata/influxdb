@@ -1,6 +1,7 @@
 package hh
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -75,6 +76,15 @@ func TestNodeProcessorSendBlock(t *testing.T) {
 		t.Fatalf("Failed to open node processor: %v", err)
 	}
 
+	// Check the active state.
+	active, err := n.Active()
+	if err != nil {
+		t.Fatalf("Failed to check node processor state: %v", err)
+	}
+	if !active {
+		t.Fatalf("Node processor state is unexpected value of: %v", active)
+	}
+
 	// This should queue a write for the active node.
 	if err := n.WriteShard(expShardID, []models.Point{pt}); err != nil {
 		t.Fatalf("SendWrite() failed to write points: %v", err)
@@ -90,7 +100,7 @@ func TestNodeProcessorSendBlock(t *testing.T) {
 	}
 
 	// All data should have been handled so no writes should be sent again
-	if _, err := n.SendWrite(); err != nil {
+	if _, err := n.SendWrite(); err != nil && err != io.EOF {
 		t.Fatalf("SendWrite() failed to write points: %v", err)
 	}
 
@@ -108,13 +118,22 @@ func TestNodeProcessorSendBlock(t *testing.T) {
 		return nil, nil
 	}
 
+	// Check the active state.
+	active, err = n.Active()
+	if err != nil {
+		t.Fatalf("Failed to check node processor state: %v", err)
+	}
+	if active {
+		t.Fatalf("Node processor state is unexpected value of: %v", active)
+	}
+
 	// This should queue a write for the node.
 	if err := n.WriteShard(expShardID, []models.Point{pt}); err != nil {
 		t.Fatalf("SendWrite() failed to write points: %v", err)
 	}
 
 	// This should not send the write to the shard writer since the node is inactive.
-	if _, err := n.SendWrite(); err != nil {
+	if _, err := n.SendWrite(); err != nil && err != io.EOF {
 		t.Fatalf("SendWrite() failed to write points: %v", err)
 	}
 

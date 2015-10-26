@@ -120,6 +120,7 @@ func (s *Service) Open() error {
 }
 
 func (s *Service) Close() error {
+	s.Logger.Println("shutting down hh service")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -187,16 +188,26 @@ func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
 	defer s.mu.RUnlock()
 
 	d := &monitor.Diagnostic{
-		Columns: []string{"node", "last modified", "head", "tail"},
+		Columns: []string{"node", "active", "last modified", "head", "tail"},
 		Rows:    make([][]interface{}, 0, len(s.processors)),
 	}
+
 	for k, v := range s.processors {
 		lm, err := v.LastModified()
 		if err != nil {
 			return nil, err
 		}
 
-		d.Rows = append(d.Rows, []interface{}{k, lm, v.Head(), v.Tail()})
+		active := "no"
+		b, err := v.Active()
+		if err != nil {
+			return nil, err
+		}
+		if b {
+			active = "yes"
+		}
+
+		d.Rows = append(d.Rows, []interface{}{k, active, lm, v.Head(), v.Tail()})
 	}
 	return d, nil
 }
@@ -223,12 +234,12 @@ func (s *Service) purgeInactiveProcessors() {
 						continue
 					}
 
-					ni, err := s.metastore.Node(k)
+					active, err := v.Active()
 					if err != nil {
 						s.Logger.Printf("failed to determine if node %d is active: %s", k, err.Error())
 						continue
 					}
-					if ni != nil {
+					if active {
 						// Node is active.
 						continue
 					}

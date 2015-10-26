@@ -202,25 +202,23 @@ func (n *NodeProcessor) run() {
 }
 
 // SendWrite attempts to sent the current block of hinted data to the target node. If successful,
-// it returns the number of bytes it sent and advances to the next block.
+// it returns the number of bytes it sent and advances to the next block. Otherwise returns EOF
+// when there is no more data or the node is inactive.
 func (n *NodeProcessor) SendWrite() (int, error) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
-	if nio, err := n.meta.Node(n.nodeID); err != nil {
-		n.Logger.Printf("failed to determine if node %d is active: %s", n.nodeID, err.Error())
+	active, err := n.Active()
+	if err != nil {
 		return 0, err
-	} else if nio == nil {
-		// Node is inactive, nothing to do.
-		return 0, nil
+	}
+	if !active {
+		return 0, io.EOF
 	}
 
 	// Get the current block from the queue
 	buf, err := n.queue.Current()
 	if err != nil {
-		if err == io.EOF {
-			return 0, nil
-		}
 		return 0, err
 	}
 
@@ -263,6 +261,16 @@ func (n *NodeProcessor) Tail() string {
 		return ""
 	}
 	return qp.tail
+}
+
+// Active returns whether this node processor is for a currently active node.
+func (n *NodeProcessor) Active() (bool, error) {
+	nio, err := n.meta.Node(n.nodeID)
+	if err != nil {
+		n.Logger.Printf("failed to determine if node %d is active: %s", n.nodeID, err.Error())
+		return false, err
+	}
+	return nio != nil, nil
 }
 
 func marshalWrite(shardID uint64, points []models.Point) []byte {
