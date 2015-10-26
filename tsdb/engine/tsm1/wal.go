@@ -659,9 +659,9 @@ func (l *Log) flush(flush flushType) error {
 			return err
 		}
 		if id <= lastFileID {
-			err := os.Remove(fn)
+			err := os.RemoveAll(fn)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to remove: %v: %v", fn, err)
 			}
 		}
 	}
