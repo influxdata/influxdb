@@ -21,13 +21,11 @@ const (
 	stringCompressedSnappy = 1
 )
 
-// StringEncoder is an interface for a string encoder.
 type StringEncoder interface {
 	Write(s string)
 	Bytes() ([]byte, error)
 }
 
-// StringDecoder is an interface for a string decoder.
 type StringDecoder interface {
 	Next() bool
 	Read() string
@@ -39,8 +37,6 @@ type stringEncoder struct {
 	bytes []byte
 }
 
-// NewStringEncoder returns a new stringEncoder, a structure
-// containing the encoded bytes.
 func NewStringEncoder() StringEncoder {
 	return &stringEncoder{}
 }
@@ -69,8 +65,6 @@ type stringDecoder struct {
 	err error
 }
 
-// NewStringDecoder returns a new stringDecoder, a structure
-// containing the decoded bytes of the string.
 func NewStringDecoder(b []byte) (StringDecoder, error) {
 	// First byte stores the encoding type, only have snappy format
 	// currently so ignore for now.

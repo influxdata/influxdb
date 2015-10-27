@@ -27,7 +27,6 @@ const (
 	encodedBlockHeaderSize = 9
 )
 
-// Value is an interface for a timestamped value.
 type Value interface {
 	Time() time.Time
 	UnixNano() int64
@@ -35,8 +34,6 @@ type Value interface {
 	Size() int
 }
 
-// NewValue returns a new Value of the appropriate kind: Int64Value,
-// FloatValue, BoolValue, or StringValue, otherwise an EmptyValue.
 func NewValue(t time.Time, value interface{}) Value {
 	switch v := value.(type) {
 	case int64:
@@ -51,56 +48,46 @@ func NewValue(t time.Time, value interface{}) Value {
 	return &EmptyValue{}
 }
 
-// EmptyValue is an empty structure representing no value.
 type EmptyValue struct {
 }
 
-// UnixNano returns tsdb.EOF for EmptyValue.
-func (e *EmptyValue) UnixNano() int64 { return tsdb.EOF }
-
-// Time returns, for EmptyValue, time.Unix(0, tsdb.EOF).
-func (e *EmptyValue) Time() time.Time { return time.Unix(0, tsdb.EOF) }
-
-// Value of EmptyValue is nil.
+func (e *EmptyValue) UnixNano() int64    { return tsdb.EOF }
+func (e *EmptyValue) Time() time.Time    { return time.Unix(0, tsdb.EOF) }
 func (e *EmptyValue) Value() interface{} { return nil }
-
-// Size of EmptyValue is 0.
-func (e *EmptyValue) Size() int { return 0 }
+func (e *EmptyValue) Size() int          { return 0 }
 
 // Values represented a time ascending sorted collection of Value types.
 // the underlying type should be the same across all values, but the interface
 // makes the code cleaner.
 type Values []Value
 
-// MinTime returns the first time from a sorted collection of Values.
-func (v Values) MinTime() int64 {
-	return v[0].Time().UnixNano()
+func (a Values) MinTime() int64 {
+	return a[0].Time().UnixNano()
 }
 
-// MaxTime returns the last time from a sorted collection of Values.
-func (v Values) MaxTime() int64 {
-	return v[len(v)-1].Time().UnixNano()
+func (a Values) MaxTime() int64 {
+	return a[len(a)-1].Time().UnixNano()
 }
 
 // Encode converts the values to a byte slice.  If there are no values,
 // this function panics.
-func (v Values) Encode(buf []byte) ([]byte, error) {
-	if len(v) == 0 {
+func (a Values) Encode(buf []byte) ([]byte, error) {
+	if len(a) == 0 {
 		panic("unable to encode block type")
 	}
 
-	switch v[0].(type) {
+	switch a[0].(type) {
 	case *FloatValue:
-		return encodeFloatBlock(buf, v)
+		return encodeFloatBlock(buf, a)
 	case *Int64Value:
-		return encodeInt64Block(buf, v)
+		return encodeInt64Block(buf, a)
 	case *BoolValue:
-		return encodeBoolBlock(buf, v)
+		return encodeBoolBlock(buf, a)
 	case *StringValue:
-		return encodeStringBlock(buf, v)
+		return encodeStringBlock(buf, a)
 	}
 
-	return nil, fmt.Errorf("unsupported value type %T", v[0])
+	return nil, fmt.Errorf("unsupported value type %T", a[0])
 }
 
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
@@ -128,9 +115,9 @@ func DecodeBlock(block []byte, vals *[]Value) error {
 // Deduplicate returns a new Values slice with any values
 // that have the same  timestamp removed. The Value that appears
 // last in the slice is the one that is kept. The returned slice is in ascending order
-func (v Values) Deduplicate() Values {
+func (a Values) Deduplicate() Values {
 	m := make(map[int64]Value)
-	for _, val := range v {
+	for _, val := range a {
 		m[val.UnixNano()] = val
 	}
 
@@ -144,32 +131,27 @@ func (v Values) Deduplicate() Values {
 }
 
 // Sort methods
-func (v Values) Len() int           { return len(v) }
-func (v Values) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
-func (v Values) Less(i, j int) bool { return v[i].Time().UnixNano() < v[j].Time().UnixNano() }
+func (a Values) Len() int           { return len(a) }
+func (a Values) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a Values) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
 
-// FloatValue holds a time and a float64.
 type FloatValue struct {
 	time  time.Time
 	value float64
 }
 
-// Time returns the time of a FloatValue.
 func (f *FloatValue) Time() time.Time {
 	return f.time
 }
 
-// UnixNano returns the time of a FloatValue converted to unix nano.
 func (f *FloatValue) UnixNano() int64 {
 	return f.time.UnixNano()
 }
 
-// Value returns the value of a FloatValue.
 func (f *FloatValue) Value() interface{} {
 	return f.value
 }
 
-// Size returns the size a FloatValue (16).
 func (f *FloatValue) Size() int {
 	return 16
 }
@@ -249,28 +231,23 @@ func decodeFloatBlock(block []byte, a *[]Value) error {
 	return nil
 }
 
-// BoolValue holds a time and bool.
 type BoolValue struct {
 	time  time.Time
 	value bool
 }
 
-// Time returns the time of a BoolValue.
 func (b *BoolValue) Time() time.Time {
 	return b.time
 }
 
-// Size returns the size a BoolValue (9).
 func (b *BoolValue) Size() int {
 	return 9
 }
 
-// UnixNano returns the time of a BoolValue converted to unix nano.
 func (b *BoolValue) UnixNano() int64 {
 	return b.time.UnixNano()
 }
 
-// Value returns the value of a BoolValue.
 func (b *BoolValue) Value() interface{} {
 	return b.value
 }
@@ -348,28 +325,23 @@ func decodeBoolBlock(block []byte, a *[]Value) error {
 	return nil
 }
 
-// Int64Value is a structure holding a time and an int64.
 type Int64Value struct {
 	time  time.Time
 	value int64
 }
 
-// Time returns the time of an Int64Value.
 func (v *Int64Value) Time() time.Time {
 	return v.time
 }
 
-// Value returns the value of an Int64Value.
 func (v *Int64Value) Value() interface{} {
 	return v.value
 }
 
-// UnixNano returns the time of an Int64Value converted to unix nano.
 func (v *Int64Value) UnixNano() int64 {
 	return v.time.UnixNano()
 }
 
-// Size returns the size of an Int64Value (16).
 func (v *Int64Value) Size() int {
 	return 16
 }
@@ -437,28 +409,23 @@ func decodeInt64Block(block []byte, a *[]Value) error {
 	return nil
 }
 
-// StringValue is a structure holding a time and a string.
 type StringValue struct {
 	time  time.Time
 	value string
 }
 
-// Time returns the time of a StringValue.
 func (v *StringValue) Time() time.Time {
 	return v.time
 }
 
-// Value returns the value of a StringValue.
 func (v *StringValue) Value() interface{} {
 	return v.value
 }
 
-// UnixNano returns the time of a StringValue converted to unix nano.
 func (v *StringValue) UnixNano() int64 {
 	return v.time.UnixNano()
 }
 
-// Size returns the size of a StringValue (length of string + 8).
 func (v *StringValue) Size() int {
 	return 8 + len(v.value)
 }

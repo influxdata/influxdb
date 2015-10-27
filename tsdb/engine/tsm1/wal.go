@@ -23,10 +23,9 @@ const (
 	// DefaultSegmentSize of 2MB is the size at which segment files will be rolled over
 	DefaultSegmentSize = 2 * 1024 * 1024
 
-	// WALFileExtension is the file extension we expect for wal segments.
+	// FileExtension is the file extension we expect for wal segments
 	WALFileExtension = "wal"
 
-	// WALFilePrefix is the file prefix for wal segments.
 	WALFilePrefix = "_"
 
 	writeBufLen = 32 << 10 // 32kb
@@ -59,10 +58,8 @@ const (
 	deleteEntry walEntryType = 0x04
 )
 
-// ErrWALClosed is an error reporting WAL closed.
 var ErrWALClosed = fmt.Errorf("WAL closed")
 
-// Log encapsulates information about the wal.
 type Log struct {
 	path string
 
@@ -123,7 +120,6 @@ type IndexWriter interface {
 	MarkMeasurementDelete(name string)
 }
 
-// NewLog returns a new Log using defaults (or overriding values in the config).
 func NewLog(path string) *Log {
 	return &Log{
 		path: path,
@@ -200,7 +196,6 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 	return newWALCursor(a, ascending)
 }
 
-// WritePoints writes points to the wal.
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
 	// add everything to the cache, or return an error if we've hit our max memory
 	if err := l.addToCache(points, fields, series, true); err != nil {
@@ -314,7 +309,6 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	return nil
 }
 
-// LastWriteTime returns the last write time of a wal.
 func (l *Log) LastWriteTime() time.Time {
 	l.cacheLock.RLock()
 	defer l.cacheLock.RUnlock()
@@ -466,7 +460,6 @@ func (l *Log) Flush() error {
 	return l.flush(idleFlush)
 }
 
-// DeleteMeasurement deletes a measurement from wal (including cache).
 func (l *Log) DeleteMeasurement(measurement string, keys []string) error {
 	d := &deleteData{MeasurementName: measurement, Keys: keys}
 	err := l.writeDeleteEntry(d)
@@ -495,7 +488,6 @@ func (l *Log) writeDeleteEntry(d *deleteData) error {
 	return l.writeToLog(deleteEntry, data)
 }
 
-// DeleteSeries deletes a series from wal (including cache).
 func (l *Log) DeleteSeries(keys []string) error {
 	l.deleteKeysFromCache(keys)
 

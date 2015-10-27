@@ -197,7 +197,6 @@ type decoder struct {
 	err error
 }
 
-//NewTimeDecoder returns a new TimeDecoder.
 func NewTimeDecoder(b []byte) TimeDecoder {
 	d := &decoder{}
 	d.decode(b)
