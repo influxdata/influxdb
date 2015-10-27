@@ -473,13 +473,14 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		precision = "n"
 	}
 
-	points, err := models.ParsePointsWithPrecision(body, time.Now().UTC(), precision)
-	if err != nil {
-		if err.Error() == "EOF" {
+	points, parseError := models.ParsePointsWithPrecision(body, time.Now().UTC(), precision)
+	// Not points parsed correctly so return the error now
+	if parseError != nil && len(points) == 0 {
+		if parseError.Error() == "EOF" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		h.writeError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+		h.writeError(w, influxql.Result{Err: parseError}, http.StatusBadRequest)
 		return
 	}
 
@@ -533,6 +534,13 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 	} else if err != nil {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		h.writeError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
+		return
+	} else if parseError != nil {
+		// We wrote some of the points
+		h.statMap.Add(statPointsWrittenOK, int64(len(points)))
+		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
+		// response code as well as the lines that failed to parse.
+		h.writeError(w, influxql.Result{Err: fmt.Errorf("partial write:\n%v", parseError)}, http.StatusBadRequest)
 		return
 	}
 
