@@ -95,10 +95,12 @@ For example,
 servers.localhost.cpu.loadavg.10
 servers.host123.elasticsearch.cache_hits 100
 servers.host456.mysql.tx_count 10
+servers.host789.prod.mysql.tx_count 10
 ```
 * `servers.*` would match all values
 * `servers.*.mysql` would match `servers.host456.mysql.tx_count 10`
 * `servers.localhost.*` would match `servers.localhost.cpu.loadavg`
+* `servers.*.*.mysql` would match `servers.host789.prod.mysql.tx_count 10`
 
 ## Default Templates
 
