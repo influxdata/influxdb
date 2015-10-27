@@ -129,6 +129,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	// Create the hinted handoff service
 	s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaStore)
+	s.HintedHandoff.Monitor = s.Monitor
 
 	// Create the Subscriber service
 	s.Subscriber = subscriber.NewService(c.Subscriber)
