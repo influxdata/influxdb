@@ -183,7 +183,10 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 		return nil, err
 	}
 	// Encoded float values
-	vb := venc.Bytes()
+	vb, err := venc.Bytes()
+	if err != nil {
+		return nil, err
+	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
