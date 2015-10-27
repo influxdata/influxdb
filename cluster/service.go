@@ -61,7 +61,7 @@ type Service struct {
 func NewService(c Config) *Service {
 	return &Service{
 		closing: make(chan struct{}),
-		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
+		Logger:  log.New(os.Stderr, "[cluster] ", log.LstdFlags),
 		statMap: influxdb.NewStatistics("cluster", "cluster", nil),
 	}
 }
