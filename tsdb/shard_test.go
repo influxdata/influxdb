@@ -30,7 +30,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
 
-	pt := models.NewPoint(
+	pt := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -99,7 +99,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 	}
 	defer sh.Close()
 
-	pt := models.NewPoint(
+	pt := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -111,7 +111,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	pt = models.NewPoint(
+	pt = models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0, "value2": 2.0},
@@ -159,7 +159,7 @@ func TestShard_Autoflush(t *testing.T) {
 
 	// Write a bunch of points.
 	for i := 0; i < 100; i++ {
-		if err := sh.WritePoints([]models.Point{models.NewPoint(
+		if err := sh.WritePoints([]models.Point{models.MustNewPoint(
 			fmt.Sprintf("cpu%d", i),
 			map[string]string{"host": "server"},
 			map[string]interface{}{"value": 1.0},
@@ -199,7 +199,7 @@ func TestShard_Autoflush_FlushInterval(t *testing.T) {
 
 	// Write some points.
 	for i := 0; i < 100; i++ {
-		if err := sh.WritePoints([]models.Point{models.NewPoint(
+		if err := sh.WritePoints([]models.Point{models.MustNewPoint(
 			fmt.Sprintf("cpu%d", i),
 			map[string]string{"host": "server"},
 			map[string]interface{}{"value": 1.0},
@@ -256,7 +256,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -297,7 +297,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}

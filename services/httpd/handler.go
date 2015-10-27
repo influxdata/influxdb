@@ -905,7 +905,11 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]models.Point, error) {
 			return points, fmt.Errorf("missing fields")
 		}
 		// Need to convert from a client.Point to a influxdb.Point
-		points = append(points, models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time))
+		pt, err := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+		if err != nil {
+			return points, err
+		}
+		points = append(points, pt)
 	}
 
 	return points, nil

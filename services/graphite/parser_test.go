@@ -1,7 +1,6 @@
 package graphite_test
 
 import (
-	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -224,22 +223,9 @@ func TestParseNaN(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	pt, err := p.Parse("servers.localhost.cpu_load NaN 1435077219")
-	if err != nil {
-		t.Fatalf("parse error: %v", err)
-	}
-
-	exp := models.NewPoint("servers.localhost.cpu_load",
-		models.Tags{},
-		models.Fields{"value": math.NaN()},
-		time.Unix(1435077219, 0))
-
-	if exp.String() != pt.String() {
-		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
-	}
-
-	if !math.IsNaN(pt.Fields()["value"].(float64)) {
-		t.Errorf("parse value mismatch: expected NaN")
+	_, err = p.Parse("servers.localhost.cpu_load NaN 1435077219")
+	if err == nil {
+		t.Fatalf("expected error. got nil")
 	}
 }
 
@@ -249,7 +235,7 @@ func TestFilterMatchDefault(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("miss.servers.localhost.cpu_load",
+	exp := models.MustNewPoint("miss.servers.localhost.cpu_load",
 		models.Tags{},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -270,7 +256,7 @@ func TestFilterMatchMultipleMeasurement(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu.cpu_load.10",
+	exp := models.MustNewPoint("cpu.cpu_load.10",
 		models.Tags{"host": "localhost"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -294,7 +280,7 @@ func TestFilterMatchMultipleMeasurementSeparator(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_cpu_load_10",
+	exp := models.MustNewPoint("cpu_cpu_load_10",
 		models.Tags{"host": "localhost"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -315,7 +301,7 @@ func TestFilterMatchSingle(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -336,7 +322,7 @@ func TestParseNoMatch(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("servers.localhost.memory.VmallocChunk",
+	exp := models.MustNewPoint("servers.localhost.memory.VmallocChunk",
 		models.Tags{},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -357,7 +343,7 @@ func TestFilterMatchWildcard(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -380,7 +366,7 @@ func TestFilterMatchExactBeforeWildcard(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -408,7 +394,7 @@ func TestFilterMatchMostLongestFilter(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost", "resource": "cpu"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -435,7 +421,7 @@ func TestFilterMatchMultipleWildcards(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "server01"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -460,7 +446,7 @@ func TestParseDefaultTags(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -484,7 +470,7 @@ func TestParseDefaultTemplateTags(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -508,7 +494,7 @@ func TestParseDefaultTemplateTagsOverridGlobal(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
@@ -532,7 +518,7 @@ func TestParseTemplateWhitespace(t *testing.T) {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
 
-	exp := models.NewPoint("cpu_load",
+	exp := models.MustNewPoint("cpu_load",
 		models.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
 		models.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))

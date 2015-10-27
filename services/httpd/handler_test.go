@@ -326,7 +326,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				},
 			},
 			p: []models.Point{
-				models.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+				models.MustNewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -338,7 +338,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				},
 			},
 			p: []models.Point{
-				models.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+				models.MustNewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -351,8 +351,8 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				},
 			},
 			p: []models.Point{
-				models.NewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
-				models.NewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
+				models.MustNewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+				models.MustNewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
 			},
 		},
 	}

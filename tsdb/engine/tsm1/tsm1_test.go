@@ -388,7 +388,7 @@ func TestEngine_WriteCompaction_Concurrent(t *testing.T) {
 				return
 			}
 
-			pt := models.NewPoint("cpu",
+			pt := models.MustNewPoint("cpu",
 				map[string]string{"host": "A"},
 				map[string]interface{}{"value": i},
 				time.Unix(int64(i), 0),

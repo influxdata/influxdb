@@ -38,16 +38,17 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 		WritePointsFn: func(req *cluster.WritePointsRequest) error {
 			defer wg.Done()
 
+			pt, _ := models.NewPoint(
+				"cpu",
+				map[string]string{},
+				map[string]interface{}{"value": 23.456},
+				time.Unix(now.Unix(), 0))
+
 			if req.Database != "graphitedb" {
 				t.Fatalf("unexpected database: %s", req.Database)
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-			} else if req.Points[0].String() !=
-				models.NewPoint(
-					"cpu",
-					map[string]string{},
-					map[string]interface{}{"value": 23.456},
-					time.Unix(now.Unix(), 0)).String() {
+			} else if req.Points[0].String() != pt.String() {
 			}
 			return nil
 		},
@@ -107,16 +108,16 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 		WritePointsFn: func(req *cluster.WritePointsRequest) error {
 			defer wg.Done()
 
+			pt, _ := models.NewPoint(
+				"cpu",
+				map[string]string{},
+				map[string]interface{}{"value": 23.456},
+				time.Unix(now.Unix(), 0))
 			if req.Database != "graphitedb" {
 				t.Fatalf("unexpected database: %s", req.Database)
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-			} else if req.Points[0].String() !=
-				models.NewPoint(
-					"cpu",
-					map[string]string{},
-					map[string]interface{}{"value": 23.456},
-					time.Unix(now.Unix(), 0)).String() {
+			} else if req.Points[0].String() != pt.String() {
 				t.Fatalf("unexpected points: %#v", req.Points[0].String())
 			}
 			return nil

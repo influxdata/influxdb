@@ -23,7 +23,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	defer os.RemoveAll(store.Path())
 
 	// Write first point.
-	if err := store.WriteToShard(shardID, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(shardID, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -33,7 +33,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 
 	// Write second point.
-	if err := store.WriteToShard(shardID, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(shardID, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -76,7 +76,7 @@ func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
 	defer os.RemoveAll(store.Path())
 
 	// Write original point.
-	if err := store.WriteToShard(1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(1, []models.Point{models.MustNewPoint(
 		"temperature",
 		map[string]string{},
 		map[string]interface{}{"value": 100.0},
@@ -97,7 +97,7 @@ func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
 	executor.ShardMapper = &testShardMapper{store: store}
 
 	// Rewrite point with new value.
-	if err := store.WriteToShard(1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(1, []models.Point{models.MustNewPoint(
 		"temperature",
 		map[string]string{},
 		map[string]interface{}{"value": 200.0},
@@ -117,7 +117,7 @@ func TestDropSeriesStatement(t *testing.T) {
 	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
-	pt := models.NewPoint(
+	pt := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -173,13 +173,13 @@ func TestDropMeasurementStatement(t *testing.T) {
 	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
-	pt := models.NewPoint(
+	pt := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"memory",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -239,7 +239,7 @@ func TestDropDatabase(t *testing.T) {
 	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
-	pt := models.NewPoint(
+	pt := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},

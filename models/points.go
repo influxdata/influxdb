@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/pkg/escape"
@@ -120,8 +122,9 @@ func ParsePoints(buf []byte) ([]Point, error) {
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
 	points := []Point{}
 	var (
-		pos   int
-		block []byte
+		pos    int
+		block  []byte
+		failed []string
 	)
 	for {
 		pos, block = scanLine(buf, pos)
@@ -150,14 +153,18 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 
 		pt, err := parsePoint(block[start:len(block)], defaultTime, precision)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse '%s': %v", string(block[start:len(block)]), err)
+			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:len(block)]), err))
+		} else {
+			points = append(points, pt)
 		}
-		points = append(points, pt)
 
 		if pos >= len(buf) {
 			break
 		}
 
+	}
+	if len(failed) > 0 {
+		return points, fmt.Errorf("%s", strings.Join(failed, "\n"))
 	}
 	return points, nil
 
@@ -951,13 +958,33 @@ func unescapeStringField(in string) string {
 	return string(out)
 }
 
-// NewPoint returns a new point with the given measurement name, tags, fields and timestamp
-func NewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
+// NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
+// an unsupported field value (NaN) is passed, this function returns an error.
+func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, error) {
+	for key, value := range fields {
+		if fv, ok := value.(float64); ok {
+			// Ensure the caller validates and handles invalid field values
+			if math.IsNaN(fv) {
+				return nil, fmt.Errorf("NaN is an unsupported value for field %s", key)
+			}
+		}
+	}
+
 	return &point{
 		key:    MakeKey([]byte(name), tags),
 		time:   time,
 		fields: fields.MarshalBinary(),
+	}, nil
+}
+
+// NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
+// an unsupported field value (NaN) is passed, this function panics.
+func MustNewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
+	pt, err := NewPoint(name, tags, fields, time)
+	if err != nil {
+		panic(err.Error())
 	}
+	return pt
 }
 
 func (p *point) Data() []byte {
