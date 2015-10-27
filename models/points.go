@@ -114,7 +114,8 @@ func ParsePointsString(buf string) ([]Point, error) {
 }
 
 // ParsePoints returns a slice of Points from a text representation of a point
-// with each point separated by newlines.
+// with each point separated by newlines.  If any points fail to parse, a non-nil error
+// will be returned in addition to the points that parsed successfully.
 func ParsePoints(buf []byte) ([]Point, error) {
 	return ParsePointsWithPrecision(buf, time.Now().UTC(), "n")
 }

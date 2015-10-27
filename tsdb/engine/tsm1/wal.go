@@ -388,6 +388,7 @@ func (l *Log) readFileToCache(fileName string) error {
 		case pointsEntry:
 			points, err := models.ParsePoints(data)
 			if err != nil {
+				l.logger.Printf("failed to parse points: %v", err)
 				return err
 			}
 			l.addToCache(points, nil, nil, false)
