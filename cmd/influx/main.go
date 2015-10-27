@@ -263,35 +263,35 @@ func showVersion() {
 func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 	switch {
-	case strings.HasPrefix(lcmd, "exit"):
+	case strings.HasPrefix(lcmd, "exit "):
 		// signal the program to exit
 		return false
-	case strings.HasPrefix(lcmd, "gopher"):
+	case strings.HasPrefix(lcmd, "gopher "):
 		c.gopher()
-	case strings.HasPrefix(lcmd, "connect"):
+	case strings.HasPrefix(lcmd, "connect "):
 		c.connect(cmd)
-	case strings.HasPrefix(lcmd, "auth"):
+	case strings.HasPrefix(lcmd, "auth "):
 		c.SetAuth(cmd)
-	case strings.HasPrefix(lcmd, "help"):
+	case strings.HasPrefix(lcmd, "help "):
 		c.help()
-	case strings.HasPrefix(lcmd, "format"):
+	case strings.HasPrefix(lcmd, "format "):
 		c.SetFormat(cmd)
-	case strings.HasPrefix(lcmd, "precision"):
+	case strings.HasPrefix(lcmd, "precision "):
 		c.SetPrecision(cmd)
-	case strings.HasPrefix(lcmd, "consistency"):
+	case strings.HasPrefix(lcmd, "consistency "):
 		c.SetWriteConsistency(cmd)
-	case strings.HasPrefix(lcmd, "settings"):
+	case strings.HasPrefix(lcmd, "settings "):
 		c.Settings()
-	case strings.HasPrefix(lcmd, "pretty"):
+	case strings.HasPrefix(lcmd, "pretty "):
 		c.Pretty = !c.Pretty
 		if c.Pretty {
 			fmt.Println("Pretty print enabled")
 		} else {
 			fmt.Println("Pretty print disabled")
 		}
-	case strings.HasPrefix(lcmd, "use"):
+	case strings.HasPrefix(lcmd, "use "):
 		c.use(cmd)
-	case strings.HasPrefix(lcmd, "insert"):
+	case strings.HasPrefix(lcmd, "insert "):
 		c.Insert(cmd)
 	case lcmd == "":
 		break

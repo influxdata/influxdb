@@ -39,6 +39,7 @@
 - [#4222](https://github.com/influxdb/influxdb/pull/4222): Graphite TCP connections should not block shutdown
 - [#4180](https://github.com/influxdb/influxdb/pull/4180): Cursor & SelectMapper Refactor
 - [#1577](https://github.com/influxdb/influxdb/issues/1577): selectors (e.g. min, max, first, last) should have equivalents to return the actual point
+- [#4588](https://github.com/influxdb/influxdb/pull/4588): Correctly parse commands at the CLI.
 - [#4264](https://github.com/influxdb/influxdb/issues/4264): Refactor map functions to use list of values
 - [#4278](https://github.com/influxdb/influxdb/pull/4278): Fix error marshalling across the cluster
 - [#4149](https://github.com/influxdb/influxdb/pull/4149): Fix derivative unnecessarily requires aggregate function.  Thanks @peekeri!
