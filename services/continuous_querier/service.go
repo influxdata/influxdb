@@ -225,9 +225,6 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 
 // ExecuteContinuousQuery executes a single CQ.
 func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, now time.Time) error {
-	// TODO: re-enable stats
-	//s.stats.Inc("continuousQueryExecuted")
-
 	// Local wrapper / helper.
 	cq, err := NewContinuousQuery(dbi.Name, cqi)
 	if err != nil {
@@ -267,14 +264,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := now.Round(interval)
-	if startTime.UnixNano() > now.UnixNano() {
-		startTime = startTime.Add(-interval)
-	}
-
-	if err := cq.q.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
-		s.Logger.Printf("error setting time range: %s\n", err)
-	}
+	startTime := now.Truncate(interval)
 
 	if s.loggingEnabled {
 		s.Logger.Printf("executing continuous query %s", cq.Info.Name)
