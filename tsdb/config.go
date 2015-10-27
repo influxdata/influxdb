@@ -3,6 +3,7 @@ package tsdb
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
@@ -55,6 +56,28 @@ const (
 	DefaultIndexCompactionFullAge      = 5 * time.Minute
 )
 
+// compatDuration is a wrapper type used as a bridge to using toml.Duration where
+// time.Duration was used previously.
+type compatDuration toml.Duration
+
+func (c *compatDuration) UnmarshalText(text []byte) error {
+	// Check if the value is an integer
+	n, err := strconv.Atoi(string(text))
+	if err == nil {
+		// Previously an integer was interpreted as time in seconds.
+		*c = compatDuration(time.Duration(n) * time.Second)
+		return nil
+	}
+
+	d := toml.Duration(*c)
+	err = d.UnmarshalText(text)
+	if err != nil {
+		return err
+	}
+	*c = compatDuration(d)
+	return nil
+}
+
 type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"engine"`
@@ -81,11 +104,11 @@ type Config struct {
 
 	// IndexCompactionAge specifies the duration after the data file creation time
 	// at which it is eligible to be compacted
-	IndexCompactionAge time.Duration `toml:"index-compaction-age"`
+	IndexCompactionAge compatDuration `toml:"index-compaction-age"`
 
 	// IndexMinimumCompactionInterval specifies the minimum amount of time that must
 	// pass after a compaction before another compaction is run
-	IndexMinCompactionInterval time.Duration `toml:"index-min-compaction-interval"`
+	IndexMinCompactionInterval compatDuration `toml:"index-min-compaction-interval"`
 
 	// IndexCompactionFileCount specifies the minimum number of data files that
 	// must be eligible for compaction before actually running one
@@ -93,7 +116,7 @@ type Config struct {
 
 	// IndexCompactionFullAge specifies how long after the last write was received
 	// in the WAL that a full compaction should be performed.
-	IndexCompactionFullAge time.Duration `toml:"index-compaction-full-age"`
+	IndexCompactionFullAge compatDuration `toml:"index-compaction-full-age"`
 
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
@@ -120,10 +143,10 @@ func NewConfig() Config {
 		WALPartitionSizeThreshold:   DefaultPartitionSizeThreshold,
 		WALFlushMemorySizeThreshold: DefaultFlushMemorySizeThreshold,
 		WALMaxMemorySizeThreshold:   DefaultMaxMemorySizeThreshold,
-		IndexCompactionAge:          DefaultIndexCompactionAge,
+		IndexCompactionAge:          compatDuration(DefaultIndexCompactionAge),
 		IndexMinCompactionFileCount: DefaultIndexMinCompactionFileCount,
-		IndexCompactionFullAge:      DefaultIndexCompactionFullAge,
-		IndexMinCompactionInterval:  DefaultIndexMinCompactionInterval,
+		IndexCompactionFullAge:      compatDuration(DefaultIndexCompactionFullAge),
+		IndexMinCompactionInterval:  compatDuration(DefaultIndexMinCompactionInterval),
 
 		QueryLogEnabled: true,
 	}
