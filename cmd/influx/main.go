@@ -262,7 +262,14 @@ func showVersion() {
 
 func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
-	switch {
+	tokens := strings.Split(lcmd, " ")
+	for i := range tokens {
+		if tokens[i] == "" {
+			tokens = append(tokens[:i], tokens[i+1:]...)
+		}
+	}
+
+	switch tokens[i] {
 	case strings.HasPrefix(lcmd, "exit "):
 		// signal the program to exit
 		return false
