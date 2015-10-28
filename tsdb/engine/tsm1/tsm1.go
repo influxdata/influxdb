@@ -1040,10 +1040,10 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		return err
 	}
 
-	if oldDF == nil {
+	if oldDF == nil || oldDF.Deleted() {
 		e.logger.Printf("writing new index file %s", f.Name())
 	} else {
-		e.logger.Printf("rewriting index file %s with %s", oldDF.f.Name(), f.Name())
+		e.logger.Printf("rewriting index file %s with %s", oldDF.Name(), f.Name())
 	}
 
 	// now combine the old file data with the new values, keeping track of
@@ -1987,6 +1987,22 @@ func NewDataFile(f *os.File) (*dataFile, error) {
 		size:    uint32(fInfo.Size()),
 		modTime: fInfo.ModTime(),
 	}, nil
+}
+
+func (d *dataFile) Name() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.Deleted() {
+		return ""
+	}
+	return d.f.Name()
+}
+
+func (d *dataFile) Deleted() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.f == nil
 }
 
 func (d *dataFile) Close() error {
