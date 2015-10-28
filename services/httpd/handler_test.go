@@ -284,6 +284,65 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 	}
 }
 
+// Ensure the handler handles ping requests correctly.
+func TestHandler_Ping(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/ping", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the handler handles ping requests correctly, when waiting for leader.
+func TestHandler_PingWaitForLeader(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/ping?wait_for_leader=1s", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping?wait_for_leader=1s", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the handler handles ping requests correctly, when timeout expires waiting for leader.
+func TestHandler_PingWaitForLeaderTimeout(t *testing.T) {
+	h := NewHandler(false)
+	h.MetaStore.WaitForLeaderFn = func(d time.Duration) error {
+		return fmt.Errorf("timeout")
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/ping?wait_for_leader=1s", nil))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping?wait_for_leader=1s", nil))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the handler handles bad ping requests
+func TestHandler_PingWaitForLeaderBadRequest(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/ping?wait_for_leader=1xxx", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping?wait_for_leader=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
 func TestMarshalJSON_NoPretty(t *testing.T) {
 	if b := httpd.MarshalJSON(struct {
 		Name string `json:"name"`
@@ -397,9 +456,18 @@ func NewHandler(requireAuthentication bool) *Handler {
 
 // HandlerMetaStore is a mock implementation of Handler.MetaStore.
 type HandlerMetaStore struct {
-	DatabaseFn     func(name string) (*meta.DatabaseInfo, error)
-	AuthenticateFn func(username, password string) (ui *meta.UserInfo, err error)
-	UsersFn        func() ([]meta.UserInfo, error)
+	WaitForLeaderFn func(d time.Duration) error
+	DatabaseFn      func(name string) (*meta.DatabaseInfo, error)
+	AuthenticateFn  func(username, password string) (ui *meta.UserInfo, err error)
+	UsersFn         func() ([]meta.UserInfo, error)
+}
+
+func (s *HandlerMetaStore) WaitForLeader(d time.Duration) error {
+	if s.WaitForLeaderFn == nil {
+		// Default behaviour is to assume there is a leader.
+		return nil
+	}
+	return s.WaitForLeaderFn(d)
 }
 
 func (s *HandlerMetaStore) Database(name string) (*meta.DatabaseInfo, error) {

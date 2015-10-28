@@ -55,6 +55,7 @@ type Handler struct {
 	Version               string
 
 	MetaStore interface {
+		WaitForLeader(timeout time.Duration) error
 		Database(name string) (*meta.DatabaseInfo, error)
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		Users() ([]meta.UserInfo, error)
@@ -555,6 +556,21 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	wfl := q.Get("wait_for_leader")
+
+	if wfl != "" {
+		d, err := time.ParseDuration(wfl)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err := h.MetaStore.WaitForLeader(d); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+	}
+
 	h.statMap.Add(statPingRequest, 1)
 	w.WriteHeader(http.StatusNoContent)
 }

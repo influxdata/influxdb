@@ -23,6 +23,7 @@
 - [#4516](https://github.com/influxdb/influxdb/pull/4516): Hinted-handoff refactor, with new statistics and diagnostics
 - [#4501](https://github.com/influxdb/influxdb/pull/4501): Allow filtering SHOW MEASUREMENTS by regex.
 - [#4547](https://github.com/influxdb/influxdb/pull/4547): Allow any node to be dropped, even a raft node (even the leader).
+- [#4600](https://github.com/influxdb/influxdb/pull/4600): ping endpoint can wait for leader
 
 ### Bugfixes
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
