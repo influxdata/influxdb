@@ -215,7 +215,7 @@ for i, row := range res[0].Series[0].Values {
 ## Go Docs
 
 Please refer to
-[http://godoc.org/github.com/influxdb/influxdb/client](http://godoc.org/github.com/influxdb/influxdb/client)
+[http://godoc.org/github.com/influxdb/influxdb/client/v2](http://godoc.org/github.com/influxdb/influxdb/client/v2)
 for documentation.
 
 ## See Also

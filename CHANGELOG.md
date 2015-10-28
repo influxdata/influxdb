@@ -20,6 +20,7 @@
 - [#4379](https://github.com/influxdb/influxdb/pull/4379): Auto-create database for UDP input.
 - [#4375](https://github.com/influxdb/influxdb/pull/4375): Add Subscriptions so data can be 'forked' out of InfluxDB to another third party.
 - [#4506](https://github.com/influxdb/influxdb/pull/4506): Register with Enterprise service and upload stats, if token is available.
+- [#4516](https://github.com/influxdb/influxdb/pull/4516): Hinted-handoff refactor, with new statistics and diagnostics
 - [#4501](https://github.com/influxdb/influxdb/pull/4501): Allow filtering SHOW MEASUREMENTS by regex.
 - [#4547](https://github.com/influxdb/influxdb/pull/4547): Allow any node to be dropped, even a raft node (even the leader).
 
@@ -78,6 +79,7 @@
 - [#3367](https://github.com/influxdb/influxdb/issues/3367): Negative timestamps are parsed correctly by the line protocol.
 - [#4563](https://github.com/influxdb/influxdb/pull/4536): Fix broken subscriptions updates.
 - [#4538](https://github.com/influxdb/influxdb/issues/4538): Dropping database under a write load causes panics
+- [#4582](https://github.com/influxdb/influxdb/pull/4582): Correct logging tags in cluster and TCP package. Thanks @oiooj
 
 ## v0.9.4 [2015-09-14]
 
