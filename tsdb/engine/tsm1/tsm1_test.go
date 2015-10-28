@@ -1673,7 +1673,6 @@ func TestEngine_DecodeAndCombine_NoNewValues(t *testing.T) {
 }
 
 func TestEngine_Write_Concurrent(t *testing.T) {
-	//t.Skip("re-enable once tsm1 Write refactor is merged")
 	e := OpenDefaultEngine()
 	defer e.Engine.Close()
 
