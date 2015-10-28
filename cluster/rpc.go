@@ -113,9 +113,13 @@ type WritePointsRequest struct {
 
 // AddPoint adds a point to the WritePointRequest with field key 'value'
 func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.Points = append(w.Points, models.NewPoint(
+	pt, err := models.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
-	))
+	)
+	if err != nil {
+		return
+	}
+	w.Points = append(w.Points, pt)
 }
 
 // WriteShardRequest represents the a request to write a slice of points to a shard
@@ -139,9 +143,13 @@ func (w *WriteShardRequest) Points() []models.Point { return w.unmarshalPoints()
 
 // AddPoint adds a new time series point
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.AddPoints([]models.Point{models.NewPoint(
+	pt, err := models.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
-	)})
+	)
+	if err != nil {
+		return
+	}
+	w.AddPoints([]models.Point{pt})
 }
 
 // AddPoints adds a new time series point

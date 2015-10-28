@@ -327,14 +327,21 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		}
 
 		fields := make(map[string]interface{})
-		fields["value"], err = strconv.ParseFloat(valueStr, 64)
+		fv, err := strconv.ParseFloat(valueStr, 64)
 		if err != nil {
 			s.statMap.Add(statTelnetBadFloat, 1)
 			s.Logger.Printf("bad float '%s' from %s", valueStr, remoteAddr)
 			continue
 		}
+		fields["value"] = fv
 
-		s.batcher.In() <- models.NewPoint(measurement, tags, fields, t)
+		pt, err := models.NewPoint(measurement, tags, fields, t)
+		if err != nil {
+			s.statMap.Add(statTelnetBadFloat, 1)
+			s.Logger.Printf("bad float '%s' from %s", valueStr, remoteAddr)
+			continue
+		}
+		s.batcher.In() <- pt
 	}
 }
 

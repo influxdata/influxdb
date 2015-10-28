@@ -195,7 +195,7 @@ func TestLog_WritePoints_FlushConcurrent(t *testing.T) {
 			default:
 			}
 
-			pt := models.NewPoint("cpu",
+			pt := models.MustNewPoint("cpu",
 				map[string]string{"host": "A"},
 				map[string]interface{}{"value": i},
 				time.Unix(int64(i), 0),
@@ -249,7 +249,7 @@ func TestLog_WritePoints_CloseConcurrent(t *testing.T) {
 			default:
 			}
 
-			pt := models.NewPoint("cpu",
+			pt := models.MustNewPoint("cpu",
 				map[string]string{"host": "A"},
 				map[string]interface{}{"value": i},
 				time.Unix(int64(i), 0),
@@ -535,7 +535,7 @@ type Point struct {
 	Time   time.Time
 }
 
-func (p *Point) Encode() models.Point { return models.NewPoint(p.Name, p.Tags, p.Fields, p.Time) }
+func (p *Point) Encode() models.Point { return models.MustNewPoint(p.Name, p.Tags, p.Fields, p.Time) }
 
 type Series struct {
 	Name   string

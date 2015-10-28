@@ -35,7 +35,7 @@ func TestNodeProcessorSendBlock(t *testing.T) {
 
 	// expected data to be queue and sent to the shardWriter
 	var expShardID, expNodeID, count = uint64(100), uint64(200), 0
-	pt := models.NewPoint("cpu", models.Tags{"foo": "bar"}, models.Fields{"value": 1.0}, time.Unix(0, 0))
+	pt := models.MustNewPoint("cpu", models.Tags{"foo": "bar"}, models.Fields{"value": 1.0}, time.Unix(0, 0))
 
 	sh := &fakeShardWriter{
 		ShardWriteFn: func(shardID, nodeID uint64, points []models.Point) error {

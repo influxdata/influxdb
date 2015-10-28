@@ -116,6 +116,10 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 		return nil, fmt.Errorf(`field "%s" value: %s`, fields[0], err)
 	}
 
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return nil, fmt.Errorf(`field "%s" value: '%v" is unsupported`, fields[0], v)
+	}
+
 	fieldValues := map[string]interface{}{}
 	if field != "" {
 		fieldValues[field] = v
@@ -150,9 +154,7 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 			tags[k] = v
 		}
 	}
-	point := models.NewPoint(measurement, tags, fieldValues, timestamp)
-
-	return point, nil
+	return models.NewPoint(measurement, tags, fieldValues, timestamp)
 }
 
 // Apply extracts the template fields form the given line and returns the

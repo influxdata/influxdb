@@ -38,7 +38,7 @@ func TestService_Telnet(t *testing.T) {
 		} else if req.RetentionPolicy != "" {
 			t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
 		} else if !reflect.DeepEqual(req.Points, []models.Point{
-			models.NewPoint(
+			models.MustNewPoint(
 				"sys.cpu.user",
 				map[string]string{"host": "webserver01", "cpu": "0"},
 				map[string]interface{}{"value": 42.5},
@@ -92,7 +92,7 @@ func TestService_HTTP(t *testing.T) {
 		} else if req.RetentionPolicy != "" {
 			t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
 		} else if !reflect.DeepEqual(req.Points, []models.Point{
-			models.NewPoint(
+			models.MustNewPoint(
 				"sys.cpu.nice",
 				map[string]string{"dc": "lga", "host": "web01"},
 				map[string]interface{}{"value": 18.0},

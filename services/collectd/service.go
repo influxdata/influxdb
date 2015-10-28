@@ -293,7 +293,11 @@ func Unmarshal(packet *gollectd.Packet) []models.Point {
 		if packet.TypeInstance != "" {
 			tags["type_instance"] = packet.TypeInstance
 		}
-		p := models.NewPoint(name, tags, fields, timestamp)
+		p, err := models.NewPoint(name, tags, fields, timestamp)
+		// Drop points values of NaN since they are not supported
+		if err != nil {
+			continue
+		}
 
 		points = append(points, p)
 	}

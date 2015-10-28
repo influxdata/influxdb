@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -29,7 +30,10 @@ func TestFloatEncoder_Simple(t *testing.T) {
 
 	s.Finish()
 
-	b := s.Bytes()
+	b, err := s.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	it, err := tsm1.NewFloatDecoder(b)
 	if err != nil {
@@ -85,7 +89,10 @@ func TestFloatEncoder_SimilarFloats(t *testing.T) {
 
 	s.Finish()
 
-	b := s.Bytes()
+	b, err := s.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	it, err := tsm1.NewFloatDecoder(b)
 	if err != nil {
@@ -142,14 +149,16 @@ var TwoHoursData = []struct {
 }
 
 func TestFloatEncoder_Roundtrip(t *testing.T) {
-
 	s := tsm1.NewFloatEncoder()
 	for _, p := range TwoHoursData {
 		s.Push(p.v)
 	}
 	s.Finish()
 
-	b := s.Bytes()
+	b, err := s.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	it, err := tsm1.NewFloatDecoder(b)
 	if err != nil {
@@ -176,6 +185,21 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 	}
 }
 
+func TestFloatEncoder_Roundtrip_NaN(t *testing.T) {
+
+	s := tsm1.NewFloatEncoder()
+	s.Push(1.0)
+	s.Push(math.NaN())
+	s.Push(2.0)
+	s.Finish()
+
+	_, err := s.Bytes()
+
+	if err == nil {
+		t.Fatalf("expected error. got nil")
+	}
+}
+
 func Test_FloatEncoder_Quick(t *testing.T) {
 	quick.Check(func(values []float64) bool {
 		// Write values to encoder.
@@ -187,7 +211,12 @@ func Test_FloatEncoder_Quick(t *testing.T) {
 
 		// Read values out of decoder.
 		got := make([]float64, 0, len(values))
-		dec, err := tsm1.NewFloatDecoder(enc.Bytes())
+		b, err := enc.Bytes()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		dec, err := tsm1.NewFloatDecoder(b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,7 +249,10 @@ func BenchmarkFloatDecoder(b *testing.B) {
 		s.Push(tt.v)
 	}
 	s.Finish()
-	bytes := s.Bytes()
+	bytes, err := s.Bytes()
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
 
 	b.ResetTimer()
 

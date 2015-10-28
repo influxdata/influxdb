@@ -5,7 +5,6 @@ import (
 	"expvar"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"os"
 	"strings"
@@ -325,19 +324,9 @@ func (s *Service) handleLine(line string) {
 	// Parse it.
 	point, err := s.parser.Parse(line)
 	if err != nil {
-		s.logger.Printf("unable to parse line: %s", err)
+		s.logger.Printf("unable to parse line: %s: %s", line, err)
 		s.statMap.Add(statPointsParseFail, 1)
 		return
-	}
-
-	f, ok := point.Fields()["value"].(float64)
-	if ok {
-		// Drop NaN and +/-Inf data points since they are not supported values
-		if math.IsNaN(f) || math.IsInf(f, 0) {
-			s.logger.Printf("dropping unsupported value: '%v'", line)
-			s.statMap.Add(statPointsUnsupported, 1)
-			return
-		}
 	}
 
 	s.batcher.In() <- point

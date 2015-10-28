@@ -28,7 +28,7 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 	// Build a single point.
 	now := time.Now()
 	var points []models.Point
-	points = append(points, models.NewPoint("cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now))
+	points = append(points, models.MustNewPoint("cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now))
 
 	// Write to shard and close.
 	if err := w.WriteShard(1, 2, points); err != nil {
@@ -75,7 +75,7 @@ func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 	// Build a single point.
 	now := time.Now()
 	var points []models.Point
-	points = append(points, models.NewPoint("cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now))
+	points = append(points, models.MustNewPoint("cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now))
 
 	// Write to shard twice and close.
 	if err := w.WriteShard(1, 2, points); err != nil {
@@ -125,7 +125,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 	shardID := uint64(1)
 	ownerID := uint64(2)
 	var points []models.Point
-	points = append(points, models.NewPoint(
+	points = append(points, models.MustNewPoint(
 		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
@@ -153,7 +153,7 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	shardID := uint64(1)
 	ownerID := uint64(2)
 	var points []models.Point
-	points = append(points, models.NewPoint(
+	points = append(points, models.MustNewPoint(
 		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
@@ -176,7 +176,7 @@ func TestShardWriter_Write_ErrReadTimeout(t *testing.T) {
 	shardID := uint64(1)
 	ownerID := uint64(2)
 	var points []models.Point
-	points = append(points, models.NewPoint(
+	points = append(points, models.MustNewPoint(
 		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
