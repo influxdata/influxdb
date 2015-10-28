@@ -726,7 +726,7 @@ func skipWhitespace(buf []byte, i int) int {
 			return i
 		}
 
-		if buf[i] == ' ' || buf[i] == '\t' {
+		if buf[i] == ' ' || buf[i] == '\t' || buf[i] == 0 {
 			i += 1
 			continue
 		}

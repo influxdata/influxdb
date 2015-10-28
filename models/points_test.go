@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -1507,5 +1508,27 @@ func TestPrecisionString(t *testing.T) {
 			t.Errorf("%s: PrecisionString() mismatch:\n actual:	%v\n exp:		%v",
 				test.name, act, test.exp)
 		}
+	}
+}
+
+func TestParsePointsStringWithExtraBuffer(t *testing.T) {
+	b := make([]byte, 70*5000)
+	buf := bytes.NewBuffer(b)
+	key := "cpu,host=A,region=uswest"
+	buf.WriteString(fmt.Sprintf("%s value=%.3f 1\n", key, rand.Float64()))
+
+	points, err := models.ParsePointsString(buf.String())
+	if err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	pointKey := string(points[0].Key())
+
+	if len(key) != len(pointKey) {
+		t.Fatalf("expected length of both keys are same but got %d and %d", len(key), len(pointKey))
+	}
+
+	if key != pointKey {
+		t.Fatalf("expected both keys are same but got %s and %s", key, pointKey)
 	}
 }
