@@ -135,6 +135,17 @@ reporting-disabled = false
   check-interval = "30m"
 
 ###
+### [shard-precreation]
+###
+### Controls the precreation of shards, so they are created before data arrives.
+### Only shards that will exist in the future, at time of creation, are precreated.
+
+[shard-precreation]
+  enabled = true
+  check-interval = "10m"
+  advance-period = "30m"
+
+###
 ### Controls the system self-monitoring, statistics and diagnostics.
 ###
 ### The internal database for monitoring data is created automatically if
