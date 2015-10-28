@@ -168,16 +168,15 @@ Examples:
 		return
 	}
 
-	token, err := c.DatabaseToken()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to check token: %s\n", err.Error())
-		return
-	}
-	if token == "" {
-		fmt.Printf(noTokenMsg)
-	}
-
 	if c.Execute == "" && !c.Import {
+		token, err := c.DatabaseToken()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to check token: %s\n", err.Error())
+			return
+		}
+		if token == "" {
+			fmt.Printf(noTokenMsg)
+		}
 		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 	}
 
