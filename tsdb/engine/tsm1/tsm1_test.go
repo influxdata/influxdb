@@ -367,7 +367,7 @@ func TestEngine_Write_MixedFields(t *testing.T) {
 	verify([]models.Point{p1, p2, p3, p4})
 }
 
-// Tests that writing and compactions runnign concurrently does not
+// Tests that writing and compactions running concurrently does not
 // fail.
 func TestEngine_WriteCompaction_Concurrent(t *testing.T) {
 	e := OpenDefaultEngine()
@@ -1673,7 +1673,7 @@ func TestEngine_DecodeAndCombine_NoNewValues(t *testing.T) {
 }
 
 func TestEngine_Write_Concurrent(t *testing.T) {
-	t.Skip("re-enable once tsm1 Write refactor is merged")
+	//t.Skip("re-enable once tsm1 Write refactor is merged")
 	e := OpenDefaultEngine()
 	defer e.Engine.Close()
 
