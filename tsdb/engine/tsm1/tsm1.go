@@ -11,7 +11,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -584,7 +583,7 @@ func (e *Engine) getCompactionFiles(fullCompaction bool) (minTime, maxTime int64
 		} else {
 			filesAfterLock = e.filesToCompact()
 		}
-		if !reflect.DeepEqual(files, filesAfterLock) {
+		if !dataFilesEquals(files, filesAfterLock) {
 			e.writeLock.UnlockRange(minTime, maxTime)
 			continue
 		}
