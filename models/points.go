@@ -193,10 +193,18 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		return nil, err
 	}
 
+	// convert from slices to avoid buffer overwrites from services like UDP
+	keyBuf := make([]byte, len(key))
+	fieldsBuf := make([]byte, len(fields))
+	tsBuf := make([]byte, len(ts))
+	copy(keyBuf[:], key)
+	copy(fieldsBuf[:], fields)
+	copy(tsBuf[:], ts)
+
 	pt := &point{
-		key:    key,
-		fields: fields,
-		ts:     ts,
+		key:    keyBuf,
+		fields: fieldsBuf,
+		ts:     tsBuf,
 	}
 
 	if len(ts) == 0 {

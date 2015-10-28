@@ -136,9 +136,10 @@ func (s *Service) serve() {
 	defer s.wg.Done()
 
 	s.batcher.Start()
-	for {
-		buf := make([]byte, UDPBufferSize)
 
+	buf := make([]byte, UDPBufferSize)
+
+	for {
 		select {
 		case <-s.done:
 			// We closed the connection, time to go.
@@ -147,7 +148,8 @@ func (s *Service) serve() {
 			// Keep processing.
 		}
 
-		n, _, err := s.conn.ReadFromUDP(buf)
+		n, _, err := s.conn.ReadFromUDP(buf[0:])
+
 		if err != nil {
 			s.statMap.Add(statReadFail, 1)
 			s.Logger.Printf("Failed to read UDP message: %s", err)
