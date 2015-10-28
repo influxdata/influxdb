@@ -2017,6 +2017,11 @@ func (d *dataFile) Delete() error {
 	if err := d.close(); err != nil {
 		return err
 	}
+
+	if d.f == nil {
+		return nil
+	}
+
 	err := os.RemoveAll(d.f.Name())
 	if err != nil {
 		return err
