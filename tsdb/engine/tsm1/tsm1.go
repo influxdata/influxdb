@@ -11,7 +11,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -549,7 +548,7 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 		// were waiting for a write lock on the range. Make sure the files are still the
 		// same after we got the lock, otherwise try again. This shouldn't happen often.
 		filesAfterLock := e.copyFilesCollection()
-		if reflect.DeepEqual(files, filesAfterLock) {
+		if dataFilesEquals(files, filesAfterLock) {
 			return
 		}
 
@@ -584,7 +583,7 @@ func (e *Engine) getCompactionFiles(fullCompaction bool) (minTime, maxTime int64
 		} else {
 			filesAfterLock = e.filesToCompact()
 		}
-		if !reflect.DeepEqual(files, filesAfterLock) {
+		if !dataFilesEquals(files, filesAfterLock) {
 			e.writeLock.UnlockRange(minTime, maxTime)
 			continue
 		}
@@ -1040,10 +1039,10 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 		return err
 	}
 
-	if oldDF == nil {
+	if oldDF == nil || oldDF.Deleted() {
 		e.logger.Printf("writing new index file %s", f.Name())
 	} else {
-		e.logger.Printf("rewriting index file %s with %s", oldDF.f.Name(), f.Name())
+		e.logger.Printf("rewriting index file %s with %s", oldDF.Name(), f.Name())
 	}
 
 	// now combine the old file data with the new values, keeping track of
@@ -1118,6 +1117,7 @@ func (e *Engine) rewriteFile(oldDF *dataFile, valuesByID map[uint64]Values) erro
 			nv, newBlock, err := e.DecodeAndCombine(newVals, block, buf[:0], nextTime, hasFutureBlock)
 			newVals = nv
 			if err != nil {
+				f.Close()
 				return err
 			}
 
@@ -1988,6 +1988,22 @@ func NewDataFile(f *os.File) (*dataFile, error) {
 	}, nil
 }
 
+func (d *dataFile) Name() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.Deleted() {
+		return ""
+	}
+	return d.f.Name()
+}
+
+func (d *dataFile) Deleted() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.f == nil
+}
+
 func (d *dataFile) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1997,9 +2013,15 @@ func (d *dataFile) Close() error {
 func (d *dataFile) Delete() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	if err := d.close(); err != nil {
 		return err
 	}
+
+	if d.f == nil {
+		return nil
+	}
+
 	err := os.RemoveAll(d.f.Name())
 	if err != nil {
 		return err
@@ -2022,22 +2044,49 @@ func (d *dataFile) close() error {
 }
 
 func (d *dataFile) MinTime() int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
 	minTimePosition := d.size - minTimeOffset
 	timeBytes := d.mmap[minTimePosition : minTimePosition+timeSize]
 	return int64(btou64(timeBytes))
 }
 
 func (d *dataFile) MaxTime() int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
+
 	maxTimePosition := d.size - maxTimeOffset
 	timeBytes := d.mmap[maxTimePosition : maxTimePosition+timeSize]
 	return int64(btou64(timeBytes))
 }
 
 func (d *dataFile) SeriesCount() uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
+
 	return btou32(d.mmap[d.size-seriesCountSize:])
 }
 
 func (d *dataFile) IDToPosition() map[uint64]uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return nil
+	}
+
 	count := int(d.SeriesCount())
 	m := make(map[uint64]uint32)
 
@@ -2053,6 +2102,13 @@ func (d *dataFile) IDToPosition() map[uint64]uint32 {
 }
 
 func (d *dataFile) indexPosition() uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
+
 	return d.size - uint32(d.SeriesCount()*12+20)
 }
 
@@ -2060,6 +2116,12 @@ func (d *dataFile) indexPosition() uint32 {
 // first block for the given ID. If zero is returned the ID doesn't
 // have any data in this file.
 func (d *dataFile) StartingPositionForID(id uint64) uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
 
 	seriesCount := d.SeriesCount()
 	indexStart := d.indexPosition()
@@ -2086,6 +2148,13 @@ func (d *dataFile) StartingPositionForID(id uint64) uint32 {
 }
 
 func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0, 0, nil
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			panic(fmt.Sprintf("panic decoding file: %s at position %d for id %d at time %d", d.f.Name(), pos, id, t))
@@ -2102,6 +2171,13 @@ func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
 
 // idForPosition assumes the position is the start of an ID and will return the converted bytes as a uint64 ID
 func (d *dataFile) idForPosition(pos uint32) uint64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
+
 	return btou64(d.mmap[pos : pos+seriesIDSize])
 }
 
@@ -2110,6 +2186,18 @@ type dataFiles []*dataFile
 func (a dataFiles) Len() int           { return len(a) }
 func (a dataFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() }
+
+func dataFilesEquals(a, b []*dataFile) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v.MinTime() != b[i].MinTime() && v.MaxTime() != b[i].MaxTime() {
+			return false
+		}
+	}
+	return true
+}
 
 // compactionCheckpoint holds the new files and compacted files from a compaction
 type compactionCheckpoint struct {
