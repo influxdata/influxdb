@@ -35,6 +35,7 @@
 - [#4124](https://github.com/influxdb/influxdb/issues/4124): Missing defer/recover/panic idiom in HTTPD service
 - [#4238](https://github.com/influxdb/influxdb/pull/4238): Fully disable hinted-handoff service if so requested.
 - [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to internal database.
+- [#4586](https://github.com/influxdb/influxdb/pull/4586): Exit when invalid engine is selected
 - [#4118](https://github.com/influxdb/influxdb/issues/4118): Return consistent, correct result for SHOW MEASUREMENTS with multiple AND conditions
 - [#4191](https://github.com/influxdb/influxdb/pull/4191): Correctly marshal remote mapper responses. Fixes [#4170](https://github.com/influxdb/influxdb/issues/4170)
 - [#4222](https://github.com/influxdb/influxdb/pull/4222): Graphite TCP connections should not block shutdown

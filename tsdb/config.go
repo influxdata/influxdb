@@ -1,6 +1,8 @@
 package tsdb
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -127,4 +129,25 @@ func NewConfig() Config {
 
 		QueryLogEnabled: true,
 	}
+}
+
+func (c *Config) Validate() error {
+	if c.Dir == "" {
+		return errors.New("Data.Dir must be specified")
+	} else if c.WALDir == "" {
+		return errors.New("Data.WALDir must be specified")
+	}
+
+	valid := false
+	for _, e := range RegisteredEngines() {
+		if e == c.Engine {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("unrecognized engine %s", c.Engine)
+	}
+
+	return nil
 }

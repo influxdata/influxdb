@@ -63,6 +63,16 @@ func RegisterEngine(name string, fn NewEngineFunc) {
 	newEngineFuncs[name] = fn
 }
 
+// RegisteredEngines returns the slice of currently registered engines.
+func RegisteredEngines() []string {
+	a := make([]string, 0, len(newEngineFuncs))
+	for k, _ := range newEngineFuncs {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
+}
+
 // NewEngine returns an instance of an engine based on its format.
 // If the path does not exist then the DefaultFormat is used.
 func NewEngine(path string, walPath string, options EngineOptions) (Engine, error) {
