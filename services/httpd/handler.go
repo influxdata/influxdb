@@ -461,7 +461,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 			}
 
 			// check that the byte is in the standard ascii code range
-			if body[i] > 32 {
+			if body[i] > 32 || i >= len(body)-1 {
 				break
 			}
 			i += 1
