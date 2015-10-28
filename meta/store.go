@@ -1488,10 +1488,10 @@ func (s *Store) PrecreateShardGroups(from, to time.Time) error {
 					// Create successive shard group.
 					nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
 					if newGroup, err := s.CreateShardGroupIfNotExists(di.Name, rp.Name, nextShardGroupTime); err != nil {
-						s.Logger.Printf("failed to create successive shard group for group %d: %s",
+						s.Logger.Printf("failed to precreate successive shard group for group %d: %s",
 							g.ID, err.Error())
 					} else {
-						s.Logger.Printf("new shard group %d successfully created for database %s, retention policy %s",
+						s.Logger.Printf("new shard group %d successfully precreated for database %s, retention policy %s",
 							newGroup.ID, di.Name, rp.Name)
 					}
 				}
