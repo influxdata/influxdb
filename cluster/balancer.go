@@ -1,4 +1,4 @@
-package influxdb
+package cluster
 
 import (
 	"math/rand"
