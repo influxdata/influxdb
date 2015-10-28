@@ -160,7 +160,7 @@ And the show series output looks like this:
 
 # Continuous Queries
 
-Continous queries are going to be inspired by MySQL `TRIGGER` syntax:
+Continuous queries are going to be inspired by MySQL `TRIGGER` syntax:
 
 http://dev.mysql.com/doc/refman/5.0/en/trigger-syntax.html
 
