@@ -1646,32 +1646,6 @@ func TestEngine_RewriteFileAndCompact(t *testing.T) {
 	}()
 }
 
-func TestEngine_DecodeAndCombine_NoNewValues(t *testing.T) {
-	var newValues tsm1.Values
-	e := OpenDefaultEngine()
-	defer e.Engine.Close()
-
-	values := make(tsm1.Values, 1)
-	values[0] = tsm1.NewValue(time.Unix(0, 0), float64(1))
-
-	block, err := values.Encode(nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	remaining, encoded, err := e.DecodeAndCombine(newValues, block, nil, time.Unix(1, 0).UnixNano(), false)
-	if len(remaining) != 0 {
-		t.Fatalf("unexpected remaining values: exp %v, got %v", 0, len(remaining))
-	}
-
-	if len(encoded) != len(block) {
-		t.Fatalf("unexpected encoded block length: exp %v, got %v", len(block), len(encoded))
-	}
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestEngine_Write_Concurrent(t *testing.T) {
 	t.Skip("re-enable once tsm1 Write refactor is merged")
 	e := OpenDefaultEngine()
@@ -1759,6 +1733,30 @@ func TestEngine_IndexFileSizeLimitedDuringCompaction(t *testing.T) {
 
 	if count := e.DataFileCount(); count != 2 {
 		t.Fatalf("expected 1 data file but got %d", count)
+	}
+
+	p7 := parsePoint("cpu,host=B value=2.2 2500000000")
+	if err := e.WritePoints([]models.Point{p7}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6, p7}); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	p8 := parsePoint("cpu,host=A value=1.7 1000000000")
+	if err := e.WritePoints([]models.Point{p8}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p8, p2, p3, p4, p5}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6, p7}); err != nil {
+		t.Fatal(err.Error())
 	}
 }
 

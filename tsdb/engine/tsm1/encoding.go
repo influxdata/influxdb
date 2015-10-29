@@ -536,3 +536,8 @@ func ZigZagEncode(x int64) uint64 {
 func ZigZagDecode(v uint64) int64 {
 	return int64((v >> 1) ^ uint64((int64(v&1)<<63)>>63))
 }
+
+// MinTime will return the int64 time of the given compressed block without decoding it
+func MinTime(b []byte) int64 {
+	return int64(btou64(b[:timeSize]))
+}

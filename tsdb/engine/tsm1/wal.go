@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,6 +30,9 @@ const (
 	WALFilePrefix = "_"
 
 	writeBufLen = 32 << 10 // 32kb
+
+	// maxKeySize is the size limit on a key (measurement, tags, and field name)
+	maxKeySize = math.MaxUint16
 )
 
 // flushType indiciates why a flush and compaction are being run so the partition can
@@ -117,7 +121,6 @@ type Log struct {
 type IndexWriter interface {
 	Write(valuesByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 	MarkDeletes(keys []string)
-	MarkMeasurementDelete(name string)
 }
 
 func NewLog(path string) *Log {
@@ -197,7 +200,7 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 }
 
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
-	// add everything to the cache, or return an error if we've hit our max memory
+	// add everything to the cache, or return an error if we've hit max memory, a key is too long, or the WAL is closing
 	if err := l.addToCache(points, fields, series, true); err != nil {
 		return err
 	}
@@ -285,6 +288,10 @@ func (l *Log) addToCache(points []models.Point, fields map[string]*tsdb.Measurem
 	for _, p := range points {
 		for name, value := range p.Fields() {
 			k := SeriesFieldKey(string(p.Key()), name)
+			if len(k) > maxKeySize {
+				return fmt.Errorf("%s and %s combined exceed the max size allowed", string(p.Key()), name)
+			}
+
 			v := NewValue(p.Time(), value)
 			cacheValues := l.cache[k]
 
@@ -409,11 +416,7 @@ func (l *Log) readFileToCache(fileName string) error {
 				return err
 			}
 			l.IndexWriter.MarkDeletes(d.Keys)
-			l.IndexWriter.MarkMeasurementDelete(d.MeasurementName)
 			l.deleteKeysFromCache(d.Keys)
-			if d.MeasurementName != "" {
-				l.deleteMeasurementFromCache(d.MeasurementName)
-			}
 		}
 	}
 }
@@ -467,15 +470,8 @@ func (l *Log) DeleteMeasurement(measurement string, keys []string) error {
 	}
 
 	l.deleteKeysFromCache(keys)
-	l.deleteMeasurementFromCache(measurement)
 
 	return nil
-}
-
-func (l *Log) deleteMeasurementFromCache(name string) {
-	l.cacheLock.Lock()
-	defer l.cacheLock.Unlock()
-	delete(l.measurementFieldsCache, name)
 }
 
 func (l *Log) writeDeleteEntry(d *deleteData) error {
