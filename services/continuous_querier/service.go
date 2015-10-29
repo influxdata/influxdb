@@ -98,6 +98,10 @@ func NewService(c Config) *Service {
 		lastRuns:       map[string]time.Time{},
 	}
 
+	if s.Config.RecomputePreviousN < 1 {
+		s.Config.RecomputePreviousN = 1
+	}
+
 	return s
 }
 
