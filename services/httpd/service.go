@@ -51,8 +51,8 @@ func NewService(c Config) *Service {
 
 	s := &Service{
 		addr:  c.BindAddress,
-		https: c.HttpsEnabled,
-		cert:  c.HttpsCertificate,
+		https: c.HTTPSEnabled,
+		cert:  c.HTTPSCertificate,
 		err:   make(chan error),
 		Handler: NewHandler(
 			c.AuthEnabled,
