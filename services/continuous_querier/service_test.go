@@ -50,6 +50,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	done := make(chan struct{})
 	expectCallCnt := 3
 	callCnt := 0
+	var errQuery error
 
 	// Set a callback for ExecuteQuery.
 	qe := s.QueryExecutor.(*QueryExecutor)
@@ -58,6 +59,18 @@ func TestContinuousQueryService_Run(t *testing.T) {
 		if callCnt >= expectCallCnt {
 			done <- struct{}{}
 		}
+
+		// Check that the min & max time are aligned to interval boundaries.
+		stmt := query.Statements[0].(*influxql.SelectStatement)
+		min, max := influxql.TimeRange(stmt.Condition)
+		interval, err := stmt.GroupByInterval()
+		fmt.Printf("min, max, interval = %s, %s, %s\n\n", min, max, interval)
+		if err != nil {
+			errQuery = err
+		} else if min.UnixNano()-min.Round(interval).UnixNano() > 1 || max.Round(interval).UnixNano()-max.UnixNano() > 1 {
+			errQuery = fmt.Errorf("[%s] not aligned to [%s] interval boundaries", stmt.Condition, stmt.Dimensions)
+		}
+
 		dummych := make(chan *influxql.Result, 1)
 		dummych <- &influxql.Result{}
 		return dummych, nil
@@ -73,6 +86,10 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	// This time it should timeout because ExecuteQuery should not get called again.
 	if err := wait(done, 100*time.Millisecond); err == nil {
 		t.Error("too many queries executed")
+	}
+	// Check for error executing queries.
+	if errQuery != nil {
+		t.Error(errQuery)
 	}
 	s.Close()
 
@@ -201,9 +218,9 @@ func NewTestService(t *testing.T) *Service {
 
 	// Add a couple test databases and CQs.
 	ms.CreateDatabase("db", "rp")
-	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT count(cpu) INTO cpu_count FROM cpu WHERE time > now() - 1h GROUP BY time(1s) END`)
+	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT count(cpu) INTO cpu_count FROM cpu GROUP BY time(1s) END`)
 	ms.CreateDatabase("db2", "default")
-	ms.CreateContinuousQuery("db2", "cq2", `CREATE CONTINUOUS QUERY cq2 ON db2 BEGIN SELECT mean(value) INTO cpu_mean FROM cpu WHERE time > now() - 10m GROUP BY time(1m) END`)
+	ms.CreateContinuousQuery("db2", "cq2", `CREATE CONTINUOUS QUERY cq2 ON db2 BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
 	ms.CreateDatabase("db3", "default")
 	ms.CreateContinuousQuery("db3", "cq3", `CREATE CONTINUOUS QUERY cq3 ON db3 BEGIN SELECT mean(value) INTO "1hAverages".:MEASUREMENT FROM /cpu[0-9]?/ GROUP BY time(10s) END`)
 

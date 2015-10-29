@@ -98,6 +98,10 @@ func NewService(c Config) *Service {
 		lastRuns:       map[string]time.Time{},
 	}
 
+	if s.Config.RecomputePreviousN < 1 {
+		s.Config.RecomputePreviousN = 1
+	}
+
 	return s
 }
 
@@ -267,10 +271,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := now.Round(interval)
-	if startTime.UnixNano() > now.UnixNano() {
-		startTime = startTime.Add(-interval)
-	}
+	startTime := now.Truncate(interval)
 
 	if err := cq.q.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
 		s.Logger.Printf("error setting time range: %s\n", err)

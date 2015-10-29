@@ -90,6 +90,7 @@
 - [#4587](https://github.com/influxdb/influxdb/pull/4587): Prevent NaN float values from being stored
 - [#4596](https://github.com/influxdb/influxdb/pull/4596): Skip empty string for start position when parsing line protocol @Thanks @ch33hau
 - [#4610](https://github.com/influxdb/influxdb/pull/4610): Make internal stats names consistent with Go style.
+- [#4574](https://github.com/influxdb/influxdb/pull/4616): CQ truncate start time instead of round and RecomputePreviousN >= 1
 
 ## v0.9.4 [2015-09-14]
 

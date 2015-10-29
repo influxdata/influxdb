@@ -25,7 +25,8 @@ type Config struct {
 	Enabled bool `toml:"enabled"`
 
 	// when continuous queries are run we'll automatically recompute previous intervals
-	// in case lagged data came in. Set to zero if you never have lagged data. We do
+	// in case lagged data came in. Set to one if you never have lagged data. One is the minimum
+	// because it insures that the interval gets fully calculated after it has passed. We do
 	// it this way because invalidating previously computed intervals would be insanely hard
 	// and expensive.
 	RecomputePreviousN int `toml:"recompute-previous-n"`
