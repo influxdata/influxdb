@@ -16,8 +16,8 @@ import (
 
 // Statistics for the Subscriber service.
 const (
-	statPointsWritten = "points_written"
-	statWriteFailures = "write_failures"
+	statPointsWritten = "pointsWritten"
+	statWriteFailures = "writeFailures"
 )
 
 type PointsWriter interface {

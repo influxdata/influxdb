@@ -72,19 +72,19 @@ const (
 
 // Statistics maintained by the WAL
 const (
-	statPointsWriteReq = "points_write_req"
-	statPointsWrite    = "points_write"
+	statPointsWriteReq = "pointsWriteReq"
+	statPointsWrite    = "pointsWrite"
 	statFlush          = "flush"
-	statAutoFlush      = "auto_flush"
-	statIdleFlush      = "idle_flush"
-	statMetadataFlush  = "meta_flush"
-	statThresholdFlush = "threshold_flush"
-	statMemoryFlush    = "mem_flush"
-	statSeriesFlushed  = "series_flush"
-	statPointsFlushed  = "points_flush"
-	statFlushDuration  = "flush_duration"
-	statWriteFail      = "write_fail"
-	statMemorySize     = "mem_size"
+	statAutoFlush      = "autoFlush"
+	statIdleFlush      = "idleFlush"
+	statMetadataFlush  = "metaFlush"
+	statThresholdFlush = "thresholdFlush"
+	statMemoryFlush    = "memFlush"
+	statSeriesFlushed  = "seriesFlush"
+	statPointsFlushed  = "pointsFlush"
+	statFlushDuration  = "flushDuration"
+	statWriteFail      = "writeFail"
+	statMemorySize     = "memSize"
 )
 
 // flushType indiciates why a flush and compaction are being run so the partition can
