@@ -8,14 +8,14 @@ const (
 type Config struct {
 	Enabled          bool   `toml:"enabled"`
 	BindAddress      string `toml:"bind-address"`
-	HttpsEnabled     bool   `toml:"https-enabled"`
-	HttpsCertificate string `toml:"https-certificate"`
+	HTTPSEnabled     bool   `toml:"https-enabled"`
+	HTTPSCertificate string `toml:"https-certificate"`
 }
 
 func NewConfig() Config {
 	return Config{
 		BindAddress:      DefaultBindAddress,
-		HttpsEnabled:     false,
-		HttpsCertificate: "/etc/ssl/influxdb.pem",
+		HTTPSEnabled:     false,
+		HTTPSCertificate: "/etc/ssl/influxdb.pem",
 	}
 }
