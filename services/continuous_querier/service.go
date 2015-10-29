@@ -23,9 +23,9 @@ const (
 
 // Statistics for the CQ service.
 const (
-	statQueryOK       = "query_ok"
-	statQueryFail     = "query_fail"
-	statPointsWritten = "points_written"
+	statQueryOK       = "queryOk"
+	statQueryFail     = "queryFail"
+	statPointsWritten = "pointsWritten"
 )
 
 // ContinuousQuerier represents a service that executes continuous queries.

@@ -27,11 +27,11 @@ const MuxHeader = 2
 
 // Statistics maintained by the cluster package
 const (
-	writeShardReq       = "write_shard_req"
-	writeShardPointsReq = "write_shard_points_req"
-	writeShardFail      = "write_shard_fail"
-	mapShardReq         = "map_shard_req"
-	mapShardResp        = "map_shard_resp"
+	writeShardReq       = "writeShardReq"
+	writeShardPointsReq = "writeShardPointsReq"
+	writeShardFail      = "writeShardFail"
+	mapShardReq         = "mapShardReq"
+	mapShardResp        = "mapShardResp"
 )
 
 // Service processes data received over raw TCP connections.

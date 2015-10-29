@@ -27,21 +27,21 @@ const leaderWaitTimeout = 30 * time.Second
 
 // statistics gathered by the openTSDB package.
 const (
-	statHTTPConnectionsHandled   = "http_connections_handled"
-	statTelnetConnectionsActive  = "tl_connections_active"
-	statTelnetConnectionsHandled = "tl_connections_handled"
-	statTelnetPointsReceived     = "tl_points_rx"
-	statTelnetBytesReceived      = "tl_bytes_rx"
-	statTelnetReadError          = "tl_read_err"
-	statTelnetBadLine            = "tl_bad_line"
-	statTelnetBadTime            = "tl_bad_time"
-	statTelnetBadTag             = "tl_bad_tag"
-	statTelnetBadFloat           = "tl_bad_float"
-	statBatchesTrasmitted        = "batches_tx"
-	statPointsTransmitted        = "points_tx"
-	statBatchesTransmitFail      = "batches_tx_fail"
-	statConnectionsActive        = "connections_active"
-	statConnectionsHandled       = "connections_handled"
+	statHTTPConnectionsHandled   = "httpConnsHandled"
+	statTelnetConnectionsActive  = "tlConnsActive"
+	statTelnetConnectionsHandled = "tlConnsHandled"
+	statTelnetPointsReceived     = "tlPointsRx"
+	statTelnetBytesReceived      = "tlBytesRx"
+	statTelnetReadError          = "tlReadErr"
+	statTelnetBadLine            = "tlBadLine"
+	statTelnetBadTime            = "tlBadTime"
+	statTelnetBadTag             = "tlBadTag"
+	statTelnetBadFloat           = "tlBadFloat"
+	statBatchesTrasmitted        = "batchesTx"
+	statPointsTransmitted        = "pointsTx"
+	statBatchesTransmitFail      = "batchesTxFail"
+	statConnectionsActive        = "connsActive"
+	statConnectionsHandled       = "connsHandled"
 )
 
 // Service manages the listener and handler for an HTTP endpoint.

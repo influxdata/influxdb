@@ -25,15 +25,15 @@ const (
 
 // statistics gathered by the graphite package.
 const (
-	statPointsReceived      = "points_rx"
-	statBytesReceived       = "bytes_rx"
-	statPointsParseFail     = "points_parse_fail"
-	statPointsUnsupported   = "points_unsupported_fail"
-	statBatchesTrasmitted   = "batches_tx"
-	statPointsTransmitted   = "points_tx"
-	statBatchesTransmitFail = "batches_tx_fail"
-	statConnectionsActive   = "connections_active"
-	statConnectionsHandled  = "connections_handled"
+	statPointsReceived      = "pointsRx"
+	statBytesReceived       = "bytesRx"
+	statPointsParseFail     = "pointsParseFail"
+	statPointsUnsupported   = "pointsUnsupportedFail"
+	statBatchesTrasmitted   = "batchesTx"
+	statPointsTransmitted   = "pointsTx"
+	statBatchesTransmitFail = "batchesTxFail"
+	statConnectionsActive   = "connsActive"
+	statConnectionsHandled  = "connsHandled"
 )
 
 type tcpConnection struct {

@@ -21,11 +21,11 @@ import (
 var ErrHintedHandoffDisabled = fmt.Errorf("hinted handoff disabled")
 
 const (
-	writeShardReq       = "wr_shard_req"
-	writeShardReqPoints = "wr_shard_req_points"
-	writeNodeReq        = "wr_node_req"
-	writeNodeReqFail    = "wr_node_req_fail"
-	writeNodeReqPoints  = "wr_node_req_points"
+	writeShardReq       = "writeShardReq"
+	writeShardReqPoints = "writeShardReqPoints"
+	writeNodeReq        = "writeNodeReq"
+	writeNodeReqFail    = "writeNodeReqFail"
+	writeNodeReqPoints  = "writeNodeReqPoints"
 )
 
 type Service struct {
