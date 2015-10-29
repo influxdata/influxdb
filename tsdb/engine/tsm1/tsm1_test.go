@@ -436,6 +436,120 @@ func TestEngine_WriteCompaction_Concurrent(t *testing.T) {
 
 }
 
+// Tests that writing and querying while compactions running concurrently does not
+// fail.  This test causes a deadlock if the locking is broken.
+func TestEngine_WriteCompactQuery_Concurrent(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	e.RotateFileSize = 1
+
+	done := make(chan struct{})
+	total := 100
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		i := 0
+		for {
+			if i > total {
+				return
+			}
+
+			pt := models.MustNewPoint("cpu",
+				map[string]string{"host": "A"},
+				map[string]interface{}{"value": i},
+				time.Unix(int64(i), 0),
+			)
+			if err := e.WritePoints([]models.Point{pt}, nil, nil); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			i++
+		}
+	}()
+
+	// Force a compactions to happen
+	e.CompactionAge = time.Duration(0)
+
+	// Run compactions concurrently
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			if err := e.Compact(false); err != nil {
+				t.Fatalf("failed to run full compaction: %v", err)
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			tx2, _ := e.Begin(false)
+			c := tx2.Cursor("cpu,host=A", []string{"value"}, nil, true)
+			k, _ := c.SeekTo(0)
+			for {
+				k, _ = c.Next()
+				if k == tsdb.EOF {
+					break
+				}
+			}
+			tx2.Rollback()
+		}
+
+	}()
+
+	// Let the goroutines run for a second
+	select {
+	case <-time.After(1 * time.Second):
+		close(done)
+	}
+
+	// Wait for them to exit
+	wg.Wait()
+
+	tx2, _ := e.Begin(false)
+	defer tx2.Rollback()
+	c := tx2.Cursor("cpu,host=A", []string{"value"}, nil, true)
+	k, v := c.SeekTo(0)
+
+	// Verify we wrote and can read all the points
+	i := 0
+	for {
+		if exp := time.Unix(int64(i), 0).UnixNano(); k != exp {
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", exp, k)
+		}
+
+		if exp := int64(i); v != exp {
+			t.Fatalf("value wrong:\n\texp:%v\n\tgot:%v", exp, v)
+		}
+
+		k, v = c.Next()
+		if k == tsdb.EOF {
+			break
+		}
+		i += 1
+	}
+
+	if i != total {
+		t.Fatalf("point count mismatch: got %v, exp %v", i, total)
+	}
+}
+
 func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()

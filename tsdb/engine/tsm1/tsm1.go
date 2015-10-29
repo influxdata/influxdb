@@ -510,6 +510,11 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 
 	files, lockStart, lockEnd := e.filesAndLock(startTime, endTime)
 	defer e.writeLock.UnlockRange(lockStart, lockEnd)
+	defer func(files []*dataFile) {
+		for _, f := range files {
+			f.Unreference()
+		}
+	}(files)
 
 	// break out the values by the file that needs to be replaced with them inserted
 	fileRewrites, valuesInNewFile := e.filesAndNewValues(files, pointsByKey)
@@ -663,6 +668,10 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 				a = append(a, f)
 			}
 		}
+		for _, f := range a {
+			f.Reference()
+		}
+
 		e.filesLock.RUnlock()
 
 		if len(a) > 0 {
@@ -684,6 +693,10 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 		filesAfterLock := e.copyFilesCollection()
 		if dataFilesEquals(files, filesAfterLock) {
 			return
+		}
+
+		for _, f := range a {
+			f.Unreference()
 		}
 
 		e.writeLock.UnlockRange(lockStart, lockEnd)
@@ -1671,7 +1684,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 
 		// get the query lock
 		for _, f := range files {
-			f.mu.RLock()
+			f.Reference()
 		}
 
 		// ensure they're all still open
@@ -1686,7 +1699,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 		// if not, release and try again
 		if reset {
 			for _, f := range files {
-				f.mu.RUnlock()
+				f.Unreference()
 			}
 			continue
 		}
@@ -2145,6 +2158,9 @@ type dataFile struct {
 	size    uint32
 	modTime time.Time
 	mmap    []byte
+
+	// refs tracks lives references to this dataFile
+	refs sync.RWMutex
 }
 
 // byte size constants for the data file
@@ -2192,6 +2208,18 @@ func NewDataFile(f *os.File) *dataFile {
 	}
 }
 
+// Reference records a live usage of this dataFile.  When there are
+// live references, the dataFile will not be able to be closed or deleted
+// until it is unreferences.
+func (d *dataFile) Reference() {
+	d.refs.RLock()
+}
+
+// Ureference removes a live usage of this dataFile
+func (d *dataFile) Unreference() {
+	d.refs.RUnlock()
+}
+
 func (d *dataFile) Name() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2209,12 +2237,20 @@ func (d *dataFile) Deleted() bool {
 }
 
 func (d *dataFile) Close() error {
+	// Allow the current references to expire
+	d.refs.Lock()
+	defer d.refs.Unlock()
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.close()
 }
 
 func (d *dataFile) Delete() error {
+	// Allow the current references to expire
+	d.refs.Lock()
+	defer d.refs.Unlock()
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

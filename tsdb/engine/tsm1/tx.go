@@ -57,7 +57,7 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 func (t *tx) Rollback() error {
 	t.engine.queryLock.RUnlock()
 	for _, f := range t.files {
-		f.mu.RUnlock()
+		f.Unreference()
 	}
 
 	return nil
