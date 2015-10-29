@@ -85,6 +85,7 @@
 - [#4513](https://github.com/influxdb/influxdb/issues/4513): TSM1: panic: runtime error: index out of range
 - [#4521](https://github.com/influxdb/influxdb/issues/4521): TSM1: panic: decode of short block: got 1, exp 9
 - [#4587](https://github.com/influxdb/influxdb/pull/4587): Prevent NaN float values from being stored
+- [#4596](https://github.com/influxdb/influxdb/pull/4596): Skip empty string for start position when parsing line protocol @Thanks @ch33hau
 
 ## v0.9.4 [2015-09-14]
 
