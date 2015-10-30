@@ -1,6 +1,7 @@
 package httpd_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -338,6 +339,17 @@ func TestHandler_PingWaitForLeaderBadRequest(t *testing.T) {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
 	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping?wait_for_leader=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure write endpoint can handle bad requests
+func TestHandler_HandleBadRequestBody(t *testing.T) {
+	b := bytes.NewReader(make([]byte, 10))
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/write", b))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
