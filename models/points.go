@@ -726,16 +726,11 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 // skipWhitespace returns the end position within buf, starting at i after
 // scanning over spaces in tags
 func skipWhitespace(buf []byte, i int) int {
-	for {
-		if i >= len(buf) {
-			return i
+	for i < len(buf) {
+		if buf[i] != ' ' && buf[i] != '\t' && buf[i] != 0 {
+			break
 		}
-
-		if buf[i] == ' ' || buf[i] == '\t' || buf[i] == 0 {
-			i += 1
-			continue
-		}
-		break
+		i++
 	}
 	return i
 }
