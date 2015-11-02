@@ -547,3 +547,14 @@ func TestClient_NoTimeout(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 }
+
+func TestClient_ParseConnectionString_IPv6(t *testing.T) {
+	path := "[fdf5:9ede:1875:0:a9ee:a600:8fe3:d495]:8086"
+	u, err := client.ParseConnectionString(path, false)
+	if err != nil {
+		t.Fatalf("unexpected error, expected %v, actual %v", nil, err)
+	}
+	if u.Host != path {
+		t.Fatalf("ipv6 parse failed, expected %s, actual %s", path, u.Host)
+	}
+}

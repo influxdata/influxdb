@@ -38,22 +38,21 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	var host string
 	var port int
 
-	if strings.Contains(path, ":") {
-		h := strings.Split(path, ":")
-		i, e := strconv.Atoi(h[1])
-		if e != nil {
-			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, e)
-		}
-		port = i
-		if h[0] == "" {
+	h, p, err := net.SplitHostPort(path)
+	if err != nil {
+		if path == "" {
 			host = DefaultHost
 		} else {
-			host = h[0]
+			host = path
 		}
-	} else {
-		host = path
 		// If they didn't specify a port, always use the default port
 		port = DefaultPort
+	} else {
+		host = h
+		port, err = strconv.Atoi(p)
+		if err != nil {
+			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, err)
+		}
 	}
 
 	u := url.URL{
@@ -62,6 +61,7 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	if ssl {
 		u.Scheme = "https"
 	}
+
 	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
 
 	return u, nil
