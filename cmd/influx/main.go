@@ -549,9 +549,10 @@ func (c *CommandLine) DatabaseToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len((*response).Results[0].Series) == 0 {
+	if response.Error() != nil || len((*response).Results[0].Series) == 0 {
 		return "", nil
 	}
+
 	// Look for position of "token" column.
 	for i, s := range (*response).Results[0].Series[0].Columns {
 		if s == "token" {
