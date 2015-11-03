@@ -65,6 +65,7 @@
 - [#4344](https://github.com/influxdb/influxdb/issues/4344): Make client.Write default to client.precision if none is given.
 - [#3429](https://github.com/influxdb/influxdb/issues/3429): Incorrect parsing of regex containing '/'
 - [#4374](https://github.com/influxdb/influxdb/issues/4374): Add tsm1 quickcheck tests
+- [#4644](https://github.com/influxdb/influxdb/pull/4644): Check for response errors during token check, fixes issue [#4641](https://github.com/influxdb/influxdb/issues/4641)
 - [#4377](https://github.com/influxdb/influxdb/pull/4377): Hinted handoff should not process dropped nodes
 - [#4365](https://github.com/influxdb/influxdb/issues/4365): Prevent panic in DecodeSameTypeBlock
 - [#4280](https://github.com/influxdb/influxdb/issues/4280): Only drop points matching WHERE clause
