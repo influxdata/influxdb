@@ -94,6 +94,8 @@
 - [#4596](https://github.com/influxdb/influxdb/pull/4596): Skip empty string for start position when parsing line protocol @Thanks @ch33hau
 - [#4610](https://github.com/influxdb/influxdb/pull/4610): Make internal stats names consistent with Go style.
 - [#4625](https://github.com/influxdb/influxdb/pull/4625): Correctly handle bad write requests. Thanks @oiooj.
+- [#4650](https://github.com/influxdb/influxdb/issues/4650): Importer should skip empty lines
+- [#4651](https://github.com/influxdb/influxdb/issues/4651): Importer doesn't flush out last batch
 
 ## v0.9.4 [2015-09-14]
 

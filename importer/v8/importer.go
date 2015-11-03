@@ -145,6 +145,10 @@ func (i *Importer) processDDL(scanner *bufio.Scanner) {
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
+		// Skip blank lines
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
 		i.queryExecutor(line)
 	}
 }
@@ -162,8 +166,14 @@ func (i *Importer) processDML(scanner *bufio.Scanner) {
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
+		// Skip blank lines
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
 		i.batchAccumulator(line, start)
 	}
+	// Call batchWrite one last time to flush anything out in the batch
+	i.batchWrite()
 }
 
 func (i *Importer) execute(command string) {
@@ -185,14 +195,7 @@ func (i *Importer) queryExecutor(command string) {
 func (i *Importer) batchAccumulator(line string, start time.Time) {
 	i.batch = append(i.batch, line)
 	if len(i.batch) == batchSize {
-		if e := i.batchWrite(); e != nil {
-			log.Println("error writing batch: ", e)
-			// Output failed lines to STDOUT so users can capture lines that failed to import
-			fmt.Println(strings.Join(i.batch, "\n"))
-			i.failedInserts += len(i.batch)
-		} else {
-			i.totalInserts += len(i.batch)
-		}
+		i.batchWrite()
 		i.batch = i.batch[:0]
 		// Give some status feedback every 100000 lines processed
 		processed := i.totalInserts + i.failedInserts
@@ -204,7 +207,7 @@ func (i *Importer) batchAccumulator(line string, start time.Time) {
 	}
 }
 
-func (i *Importer) batchWrite() error {
+func (i *Importer) batchWrite() {
 	// Accumulate the batch size to see how many points we have written this second
 	i.throttlePointsWritten += len(i.batch)
 
@@ -226,11 +229,20 @@ func (i *Importer) batchWrite() error {
 
 		// Decrement the batch size back out as it is going to get called again
 		i.throttlePointsWritten -= len(i.batch)
-		return i.batchWrite()
+		i.batchWrite()
+		return
 	}
 
 	_, e := i.client.WriteLineProtocol(strings.Join(i.batch, "\n"), i.database, i.retentionPolicy, i.config.Precision, i.config.WriteConsistency)
+	if e != nil {
+		log.Println("error writing batch: ", e)
+		// Output failed lines to STDOUT so users can capture lines that failed to import
+		fmt.Println(strings.Join(i.batch, "\n"))
+		i.failedInserts += len(i.batch)
+	} else {
+		i.totalInserts += len(i.batch)
+	}
 	i.throttlePointsWritten = 0
 	i.lastWrite = time.Now()
-	return e
+	return
 }
