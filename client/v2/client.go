@@ -6,11 +6,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/influxdb/influxdb/models"
+)
+
+// from https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
+const (
+	UDPBufferSize = 65500
 )
 
 type Config struct {
@@ -52,7 +58,8 @@ type Client interface {
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
 	Write(bp BatchPoints) error
 
-	// Query makes an InfluxDB Query on the database
+	// Query makes an InfluxDB Query on the database. This will fail if using
+	// the UDP client.
 	Query(q Query) (*Response, error)
 }
 
@@ -78,12 +85,25 @@ func NewClient(conf Config) Client {
 	}
 }
 
+// NewUDPClient returns a client interface for writing to an InfluxDB UDP
+// service address, specified by addr. addr should be of the form
+// "host:port" or "[ipv6-host%zone]:port". Write will fail if addr is invalid.
+func NewUDPClient(addr string) Client {
+	return &udpclient{
+		addr: addr,
+	}
+}
+
 type client struct {
 	url        *url.URL
 	username   string
 	password   string
 	useragent  string
 	httpClient *http.Client
+}
+
+type udpclient struct {
+	addr string
 }
 
 // BatchPoints is an interface into a batched grouping of points to write into
@@ -248,11 +268,53 @@ func (p *Point) Fields() map[string]interface{} {
 	return p.pt.Fields()
 }
 
+func (uc *udpclient) Write(bp BatchPoints) error {
+	var addr *net.UDPAddr
+	var con *net.UDPConn
+	addr, err := net.ResolveUDPAddr("udp", uc.addr)
+	if err != nil {
+		return err
+	}
+
+	con, err = net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return err
+	}
+	defer con.Close()
+	if err = con.SetWriteBuffer(UDPBufferSize); err != nil {
+		return err
+	}
+
+	var b bytes.Buffer
+	var d time.Duration
+	d, _ = time.ParseDuration("1" + bp.Precision())
+
+	for _, p := range bp.Points() {
+		pointstring := p.pt.RoundedString(d) + "\n"
+
+		// Write and reset the buffer if we reach the max size
+		if b.Len()+len(pointstring) >= UDPBufferSize {
+			if _, err = con.Write(b.Bytes()); err != nil {
+				return err
+			}
+			b.Reset()
+		}
+
+		if _, err := b.WriteString(pointstring); err != nil {
+			return err
+		}
+	}
+
+	_, err = con.Write(b.Bytes())
+	return err
+}
+
 func (c *client) Write(bp BatchPoints) error {
 	u := c.url
 	u.Path = "write"
 
 	var b bytes.Buffer
+
 	for _, p := range bp.Points() {
 		if _, err := b.WriteString(p.pt.PrecisionString(bp.Precision())); err != nil {
 			return err
@@ -330,6 +392,10 @@ func (r *Response) Error() error {
 type Result struct {
 	Series []models.Row
 	Err    error
+}
+
+func (uc *udpclient) Query(q Query) (*Response, error) {
+	return nil, fmt.Errorf("Querying via UDP is not supported")
 }
 
 // Query sends a command to the server and returns the Response

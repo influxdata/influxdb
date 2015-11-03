@@ -17,6 +17,7 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+// from https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
 const (
 	UDPBufferSize = 65536
 )

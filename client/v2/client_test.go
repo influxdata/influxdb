@@ -11,6 +11,53 @@ import (
 	"time"
 )
 
+func TestUDPClient_Query(t *testing.T) {
+	c := NewUDPClient("localhost:8089")
+	query := Query{}
+	_, err := c.Query(query)
+	if err == nil {
+		t.Error("Querying UDP client should fail")
+	}
+}
+
+func TestUDPClient_Write(t *testing.T) {
+	c := NewUDPClient("localhost:8089")
+
+	bp, err := NewBatchPoints(BatchPointsConfig{})
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	fields := make(map[string]interface{})
+	fields["value"] = 1.0
+	pt, _ := NewPoint("cpu", make(map[string]string), fields)
+	bp.AddPoint(pt)
+
+	err = c.Write(bp)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestUDPClient_WriteBadAddr(t *testing.T) {
+	c := NewUDPClient("foobar@wahoo")
+
+	bp, err := NewBatchPoints(BatchPointsConfig{})
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	fields := make(map[string]interface{})
+	fields["value"] = 1.0
+	pt, _ := NewPoint("cpu", make(map[string]string), fields)
+	bp.AddPoint(pt)
+
+	err = c.Write(bp)
+	if err == nil {
+		t.Errorf("Expected write error.  expected %v, actual %v", nil, err)
+	}
+}
+
 func TestClient_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data Response
@@ -26,7 +73,7 @@ func TestClient_Query(t *testing.T) {
 	query := Query{}
 	_, err := c.Query(query)
 	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 }
 
@@ -57,7 +104,7 @@ func TestClient_BasicAuth(t *testing.T) {
 	query := Query{}
 	_, err := c.Query(query)
 	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 }
 
@@ -75,11 +122,11 @@ func TestClient_Write(t *testing.T) {
 
 	bp, err := NewBatchPoints(BatchPointsConfig{})
 	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 	err = c.Write(bp)
 	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 }
 
@@ -96,7 +143,7 @@ func TestClient_UserAgent(t *testing.T) {
 
 	_, err := http.Get(ts.URL)
 	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
 	tests := []struct {
@@ -125,29 +172,29 @@ func TestClient_UserAgent(t *testing.T) {
 		query := Query{}
 		_, err = c.Query(query)
 		if err != nil {
-			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+			t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 		}
 		if !strings.HasPrefix(receivedUserAgent, test.expected) {
-			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
+			t.Errorf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
 		}
 
 		receivedUserAgent = ""
 		bp, _ := NewBatchPoints(BatchPointsConfig{})
 		err = c.Write(bp)
 		if err != nil {
-			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+			t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 		}
 		if !strings.HasPrefix(receivedUserAgent, test.expected) {
-			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
+			t.Errorf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
 		}
 
 		receivedUserAgent = ""
 		_, err := c.Query(query)
 		if err != nil {
-			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+			t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 		}
 		if receivedUserAgent != test.expected {
-			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
+			t.Errorf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
 		}
 	}
 }

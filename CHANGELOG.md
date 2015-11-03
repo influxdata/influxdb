@@ -27,6 +27,7 @@
 - [#4501](https://github.com/influxdb/influxdb/pull/4501): Allow filtering SHOW MEASUREMENTS by regex.
 - [#4547](https://github.com/influxdb/influxdb/pull/4547): Allow any node to be dropped, even a raft node (even the leader).
 - [#4600](https://github.com/influxdb/influxdb/pull/4600): ping endpoint can wait for leader
+- [#4648](https://github.com/influxdb/influxdb/pull/4648): UDP Client (v2 client)
 
 ### Bugfixes
 - [#4643](https://github.com/influxdb/influxdb/pull/4643): Fix panic during backup restoration. Thanks @oiooj

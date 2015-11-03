@@ -1496,6 +1496,62 @@ func TestPrecisionString(t *testing.T) {
 	}
 }
 
+func TestRoundedString(t *testing.T) {
+	tags := map[string]interface{}{"value": float64(1)}
+	tm, _ := time.Parse(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z")
+	tests := []struct {
+		name      string
+		precision time.Duration
+		exp       string
+	}{
+		{
+			name:      "no precision",
+			precision: time.Duration(0),
+			exp:       "cpu value=1 946730096789012345",
+		},
+		{
+			name:      "nanosecond precision",
+			precision: time.Nanosecond,
+			exp:       "cpu value=1 946730096789012345",
+		},
+		{
+			name:      "microsecond precision",
+			precision: time.Microsecond,
+			exp:       "cpu value=1 946730096789012000",
+		},
+		{
+			name:      "millisecond precision",
+			precision: time.Millisecond,
+			exp:       "cpu value=1 946730096789000000",
+		},
+		{
+			name:      "second precision",
+			precision: time.Second,
+			exp:       "cpu value=1 946730097000000000",
+		},
+		{
+			name:      "minute precision",
+			precision: time.Minute,
+			exp:       "cpu value=1 946730100000000000",
+		},
+		{
+			name:      "hour precision",
+			precision: time.Hour,
+			exp:       "cpu value=1 946731600000000000",
+		},
+	}
+
+	for _, test := range tests {
+		pt := models.MustNewPoint("cpu", nil, tags, tm)
+		act := pt.RoundedString(test.precision)
+
+		if act != test.exp {
+			t.Errorf("%s: RoundedString() mismatch:\n actual:	%v\n exp:		%v",
+				test.name, act, test.exp)
+		}
+	}
+}
+
 func TestParsePointsStringWithExtraBuffer(t *testing.T) {
 	b := make([]byte, 70*5000)
 	buf := bytes.NewBuffer(b)

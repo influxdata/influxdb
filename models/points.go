@@ -57,6 +57,11 @@ type Point interface {
 	// is a timestamp associated with the point then it will be specified in the
 	// given unit
 	PrecisionString(precision string) string
+
+	// RoundedString returns a string representation of the point object, if there
+	// is a timestamp associated with the point, then it will be rounded to the
+	// given duration
+	RoundedString(d time.Duration) string
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -1141,6 +1146,14 @@ func (p *point) PrecisionString(precision string) string {
 	}
 	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields),
 		p.UnixNano()/p.GetPrecisionMultiplier(precision))
+}
+
+func (p *point) RoundedString(d time.Duration) string {
+	if p.Time().IsZero() {
+		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
+	}
+	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields),
+		p.time.Round(d).UnixNano())
 }
 
 func (p *point) unmarshalBinary() Fields {

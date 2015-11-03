@@ -212,6 +212,38 @@ for i, row := range res[0].Series[0].Values {
 }
 ```
 
+### Using the UDP Client
+
+The **InfluxDB** client also supports writing over UDP.
+
+```go
+func WriteUDP() {
+	// Make client
+	c := client.NewUDPClient("localhost:8089")
+
+	// Create a new point batch
+	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+		Precision: "s",
+	})
+
+	// Create a point and add to batch
+	tags := map[string]string{"cpu": "cpu-total"}
+	fields := map[string]interface{}{
+		"idle":   10.1,
+		"system": 53.3,
+		"user":   46.6,
+	}
+	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
+	if err != nil {
+		panic(err.Error())
+	}
+	bp.AddPoint(pt)
+
+	// Write the batch
+	c.Write(bp)
+}
+```
+
 ## Go Docs
 
 Please refer to
