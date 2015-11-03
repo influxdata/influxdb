@@ -29,6 +29,7 @@
 - [#4600](https://github.com/influxdb/influxdb/pull/4600): ping endpoint can wait for leader
 
 ### Bugfixes
+- [#4643](https://github.com/influxdb/influxdb/pull/4643): Fix panic during backup restoration. Thanks @oiooj
 - [#4632](https://github.com/influxdb/influxdb/pull/4632): Fix parsing of IPv6 hosts in client package. Thanks @miguelxpn
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
