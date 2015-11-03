@@ -58,7 +58,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
-	if err := store.WriteToShard(sID0, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID0, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 100},
@@ -67,7 +67,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"value": 200},
@@ -188,7 +188,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	}
 
 	// Write interleaving, by time, chunks to the shards.
-	if err := store.WriteToShard(sID0, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID0, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 100},
@@ -196,7 +196,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value": 200},
@@ -204,7 +204,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 300},
@@ -268,7 +268,7 @@ func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
 
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
-	if err := store0.WriteToShard(sID0, []models.Point{models.NewPoint(
+	if err := store0.WriteToShard(sID0, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value1": 100},
@@ -277,7 +277,7 @@ func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store1.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store1.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value2": 200},
@@ -360,7 +360,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	}
 
 	// Write tagsets "y" and "z" to first shard.
-	if err := store.WriteToShard(sID0, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID0, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "y"},
 		map[string]interface{}{"value": 100},
@@ -368,7 +368,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID0, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID0, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "z"},
 		map[string]interface{}{"value": 200},
@@ -378,7 +378,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	}
 
 	// Write tagsets "x", y" and "z" to second shard.
-	if err := store.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "x"},
 		map[string]interface{}{"value": 300},
@@ -386,7 +386,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "y"},
 		map[string]interface{}{"value": 400},
@@ -394,7 +394,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "z"},
 		map[string]interface{}{"value": 500},
@@ -452,13 +452,13 @@ func TestShowMeasurementsMultipleShards(t *testing.T) {
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
 	if err := store0.WriteToShard(sID0, []models.Point{
-		models.NewPoint(
+		models.MustNewPoint(
 			"cpu_user",
 			map[string]string{"host": "serverA", "region": "east", "cpuid": "cpu0"},
 			map[string]interface{}{"value1": 100},
 			pt1time,
 		),
-		models.NewPoint(
+		models.MustNewPoint(
 			"mem_free",
 			map[string]string{"host": "serverA", "region": "east"},
 			map[string]interface{}{"value2": 200},
@@ -468,13 +468,13 @@ func TestShowMeasurementsMultipleShards(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store1.WriteToShard(sID1, []models.Point{models.NewPoint(
+	if err := store1.WriteToShard(sID1, []models.Point{models.MustNewPoint(
 		"mem_used",
 		map[string]string{"host": "serverB", "region": "west"},
 		map[string]interface{}{"value3": 300},
 		pt2time,
 	),
-		models.NewPoint(
+		models.MustNewPoint(
 			"cpu_sys",
 			map[string]string{"host": "serverB", "region": "west", "cpuid": "cpu0"},
 			map[string]interface{}{"value4": 400},
@@ -551,13 +551,13 @@ func TestShowShowTagKeysMultipleShards(t *testing.T) {
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
 	if err := store0.WriteToShard(sID0, []models.Point{
-		models.NewPoint(
+		models.MustNewPoint(
 			"cpu",
 			map[string]string{"host": "serverA", "region": "uswest"},
 			map[string]interface{}{"value1": 100},
 			pt1time,
 		),
-		models.NewPoint(
+		models.MustNewPoint(
 			"cpu",
 			map[string]string{"host": "serverB", "region": "useast"},
 			map[string]interface{}{"value1": 100},
@@ -568,13 +568,13 @@ func TestShowShowTagKeysMultipleShards(t *testing.T) {
 	}
 	pt2time := time.Unix(2, 0).UTC()
 	if err := store1.WriteToShard(sID1, []models.Point{
-		models.NewPoint(
+		models.MustNewPoint(
 			"cpu",
 			map[string]string{"host": "serverB", "region": "useast", "rack": "12"},
 			map[string]interface{}{"value1": 100},
 			pt1time,
 		),
-		models.NewPoint(
+		models.MustNewPoint(
 			"mem",
 			map[string]string{"host": "serverB"},
 			map[string]interface{}{"value2": 200},

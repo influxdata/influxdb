@@ -198,14 +198,19 @@ func NewPoint(
 	tags map[string]string,
 	fields map[string]interface{},
 	t ...time.Time,
-) *Point {
+) (*Point, error) {
 	var T time.Time
 	if len(t) > 0 {
 		T = t[0]
 	}
-	return &Point{
-		pt: models.NewPoint(name, tags, fields, T),
+
+	pt, err := models.NewPoint(name, tags, fields, T)
+	if err != nil {
+		return nil, err
 	}
+	return &Point{
+		pt: pt,
+	}, nil
 }
 
 // String returns a line-protocol string of the Point

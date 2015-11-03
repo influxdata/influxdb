@@ -109,7 +109,12 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 			ts = time.Unix(p.Time/1000, (p.Time%1000)*1000)
 		}
 
-		points = append(points, models.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts))
+		pt, err := models.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts)
+		if err != nil {
+			h.Logger.Printf("Dropping point %v: %v", p.Metric, err)
+			continue
+		}
+		points = append(points, pt)
 	}
 
 	// Write points.

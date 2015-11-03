@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -1041,6 +1042,17 @@ func TestCluster_Restart(t *testing.T) {
 
 	// ensure all the nodes see the same metastore data
 	assertDatabaseReplicated(t, c)
+	var wg sync.WaitGroup
+	wg.Add(len(c.Stores))
+	for _, s := range c.Stores {
+		go func(s *Store) {
+			defer wg.Done()
+			if err := s.Close(); err != nil {
+				t.Fatalf("error closing store %s", err)
+			}
+		}(s)
+	}
+	wg.Wait()
 }
 
 // Store is a test wrapper for meta.Store.
@@ -1057,7 +1069,9 @@ func NewStore(c *meta.Config) *Store {
 	s := &Store{
 		Store: meta.NewStore(c),
 	}
-	s.Logger = log.New(&s.Stderr, "", log.LstdFlags)
+	if !testing.Verbose() {
+		s.Logger = log.New(&s.Stderr, "", log.LstdFlags)
+	}
 	s.SetHashPasswordFn(mockHashPassword)
 	return s
 }
@@ -1219,9 +1233,16 @@ func (c *Cluster) Open() error {
 
 // Close shuts down all stores.
 func (c *Cluster) Close() error {
+	var wg sync.WaitGroup
+	wg.Add(len(c.Stores))
+
 	for _, s := range c.Stores {
-		s.Close()
+		go func(s *Store) {
+			defer wg.Done()
+			s.Close()
+		}(s)
 	}
+	wg.Wait()
 	return nil
 }
 

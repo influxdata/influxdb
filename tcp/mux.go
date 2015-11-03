@@ -35,7 +35,7 @@ func NewMux() *Mux {
 	return &Mux{
 		m:       make(map[byte]*listener),
 		Timeout: DefaultTimeout,
-		Logger:  log.New(os.Stderr, "", log.LstdFlags),
+		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
 	}
 }
 

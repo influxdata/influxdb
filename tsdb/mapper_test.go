@@ -23,14 +23,14 @@ func TestShardMapper_RawMapperTagSetsFields(t *testing.T) {
 	shard := mustCreateShard(tmpDir)
 
 	pt1time := time.Unix(1, 0).UTC()
-	pt1 := models.NewPoint(
+	pt1 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"idle": 60},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"load": 60},
@@ -113,14 +113,14 @@ func TestShardMapper_WriteAndSingleMapperRawQuerySingleValue(t *testing.T) {
 	shard := mustCreateShard(tmpDir)
 
 	pt1time := time.Unix(1, 0).UTC()
-	pt1 := models.NewPoint(
+	pt1 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"load": 42},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"load": 60},
@@ -220,14 +220,14 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 	shard := mustCreateShard(tmpDir)
 
 	pt1time := time.Unix(1, 0).UTC()
-	pt1 := models.NewPoint(
+	pt1 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"foo": 42, "bar": 43},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"foo": 60, "bar": 61},
@@ -273,14 +273,14 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiSource(t *testing.T) {
 	shard := mustCreateShard(tmpDir)
 
 	pt1time := time.Unix(1, 0).UTC()
-	pt1 := models.NewPoint(
+	pt1 := models.MustNewPoint(
 		"cpu0",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"foo": 42},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"cpu1",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"bar": 60},
@@ -338,14 +338,14 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 	shard := mustCreateShard(tmpDir)
 
 	pt1time := time.Unix(10, 0).UTC()
-	pt1 := models.NewPoint(
+	pt1 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 1},
 		pt1time,
 	)
 	pt2time := time.Unix(20, 0).UTC()
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 60},
@@ -432,14 +432,14 @@ func TestShardMapper_SelectMapperTagSetsFields(t *testing.T) {
 	shard := mustCreateShard(tmpDir)
 
 	pt1time := time.Unix(1, 0).UTC()
-	pt1 := models.NewPoint(
+	pt1 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 42},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
-	pt2 := models.NewPoint(
+	pt2 := models.MustNewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"value": 60},

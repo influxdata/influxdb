@@ -155,7 +155,9 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 		if shard != nil {
 			shard.Close()
 		}
+		delete(s.shards, id)
 	}
+
 	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
 		return err
 	}

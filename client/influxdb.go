@@ -38,22 +38,21 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	var host string
 	var port int
 
-	if strings.Contains(path, ":") {
-		h := strings.Split(path, ":")
-		i, e := strconv.Atoi(h[1])
-		if e != nil {
-			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, e)
-		}
-		port = i
-		if h[0] == "" {
+	h, p, err := net.SplitHostPort(path)
+	if err != nil {
+		if path == "" {
 			host = DefaultHost
 		} else {
-			host = h[0]
+			host = path
 		}
-	} else {
-		host = path
 		// If they didn't specify a port, always use the default port
 		port = DefaultPort
+	} else {
+		host = h
+		port, err = strconv.Atoi(p)
+		if err != nil {
+			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, err)
+		}
 	}
 
 	u := url.URL{
@@ -62,6 +61,7 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 	if ssl {
 		u.Scheme = "https"
 	}
+
 	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
 
 	return u, nil
@@ -69,7 +69,7 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 
 // Config is used to specify what server to connect to.
 // URL: The URL of the server connecting to.
-// Username/Password are optional.  They will be passed via basic auth if provided.
+// Username/Password are optional. They will be passed via basic auth if provided.
 // UserAgent: If not provided, will default "InfluxDBClient",
 // Timeout: If not provided, will default to 0 (no timeout)
 type Config struct {
@@ -180,7 +180,7 @@ func (c *Client) Query(q Query) (*Response, error) {
 	if decErr != nil {
 		return nil, decErr
 	}
-	// If we don't have an error in our json response, and didn't get  statusOK, then send back an error
+	// If we don't have an error in our json response, and didn't get StatusOK, then send back an error
 	if resp.StatusCode != http.StatusOK && response.Error() == nil {
 		return &response, fmt.Errorf("received status code %d from server", resp.StatusCode)
 	}
@@ -474,7 +474,10 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 // MarshalString renders string representation of a Point with specified
 // precision. The default precision is nanoseconds.
 func (p *Point) MarshalString() string {
-	pt := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+	pt, err := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+	if err != nil {
+		return "# ERROR: " + err.Error() + " " + p.Measurement
+	}
 	if p.Precision == "" || p.Precision == "ns" || p.Precision == "n" {
 		return pt.String()
 	}
@@ -561,7 +564,7 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 // BatchPoints is used to send batched data in a single write.
 // Database and Points are required
 // If no retention policy is specified, it will use the databases default retention policy.
-// If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
+// If tags are specified, they will be "merged" with all points. If a point already has that tag, it will be ignored.
 // If time is specified, it will be applied to any point with an empty time.
 // Precision can be specified if the time is in epoch format (integer).
 // Valid values for Precision are n, u, ms, s, m, and h

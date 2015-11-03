@@ -1,5 +1,8 @@
 ## v0.9.5 [unreleased]
 
+### Release Notes
+- Field names for the internal stats have been changed to be more inline with Go style.
+
 ### Features
 - [#4098](https://github.com/influxdb/influxdb/issues/4098): Enable `golint` on the code base - uuid subpackage
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
@@ -20,9 +23,13 @@
 - [#4379](https://github.com/influxdb/influxdb/pull/4379): Auto-create database for UDP input.
 - [#4375](https://github.com/influxdb/influxdb/pull/4375): Add Subscriptions so data can be 'forked' out of InfluxDB to another third party.
 - [#4506](https://github.com/influxdb/influxdb/pull/4506): Register with Enterprise service and upload stats, if token is available.
+- [#4516](https://github.com/influxdb/influxdb/pull/4516): Hinted-handoff refactor, with new statistics and diagnostics
 - [#4501](https://github.com/influxdb/influxdb/pull/4501): Allow filtering SHOW MEASUREMENTS by regex.
+- [#4547](https://github.com/influxdb/influxdb/pull/4547): Allow any node to be dropped, even a raft node (even the leader).
+- [#4600](https://github.com/influxdb/influxdb/pull/4600): ping endpoint can wait for leader
 
 ### Bugfixes
+- [#4632](https://github.com/influxdb/influxdb/pull/4632): Fix parsing of IPv6 hosts in client package. Thanks @miguelxpn
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
 - [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
@@ -33,6 +40,7 @@
 - [#4124](https://github.com/influxdb/influxdb/issues/4124): Missing defer/recover/panic idiom in HTTPD service
 - [#4238](https://github.com/influxdb/influxdb/pull/4238): Fully disable hinted-handoff service if so requested.
 - [#4165](https://github.com/influxdb/influxdb/pull/4165): Tag all Go runtime stats when writing to internal database.
+- [#4586](https://github.com/influxdb/influxdb/pull/4586): Exit when invalid engine is selected
 - [#4118](https://github.com/influxdb/influxdb/issues/4118): Return consistent, correct result for SHOW MEASUREMENTS with multiple AND conditions
 - [#4191](https://github.com/influxdb/influxdb/pull/4191): Correctly marshal remote mapper responses. Fixes [#4170](https://github.com/influxdb/influxdb/issues/4170)
 - [#4222](https://github.com/influxdb/influxdb/pull/4222): Graphite TCP connections should not block shutdown
@@ -76,6 +84,14 @@
 - [#4497](https://github.com/influxdb/influxdb/pull/4497): Fix sequence in meta proto
 - [#3367](https://github.com/influxdb/influxdb/issues/3367): Negative timestamps are parsed correctly by the line protocol.
 - [#4563](https://github.com/influxdb/influxdb/pull/4536): Fix broken subscriptions updates.
+- [#4538](https://github.com/influxdb/influxdb/issues/4538): Dropping database under a write load causes panics
+- [#4582](https://github.com/influxdb/influxdb/pull/4582): Correct logging tags in cluster and TCP package. Thanks @oiooj
+- [#4513](https://github.com/influxdb/influxdb/issues/4513): TSM1: panic: runtime error: index out of range
+- [#4521](https://github.com/influxdb/influxdb/issues/4521): TSM1: panic: decode of short block: got 1, exp 9
+- [#4587](https://github.com/influxdb/influxdb/pull/4587): Prevent NaN float values from being stored
+- [#4596](https://github.com/influxdb/influxdb/pull/4596): Skip empty string for start position when parsing line protocol @Thanks @ch33hau
+- [#4610](https://github.com/influxdb/influxdb/pull/4610): Make internal stats names consistent with Go style.
+- [#4625](https://github.com/influxdb/influxdb/pull/4625): Correctly handle bad write requests. Thanks @oiooj.
 
 ## v0.9.4 [2015-09-14]
 

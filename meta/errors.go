@@ -33,9 +33,6 @@ var (
 	// ErrNodeUnableToDropSingleNode is returned if the node being dropped is the last
 	// node in the cluster
 	ErrNodeUnableToDropFinalNode = newError("unable to drop the final node in a cluster")
-
-	// ErrNodeRaft is returned when attempting an operation prohibted for a Raft-node.
-	ErrNodeRaft = newError("node is a Raft node")
 )
 
 var (

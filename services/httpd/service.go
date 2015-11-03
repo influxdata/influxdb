@@ -15,16 +15,16 @@ import (
 
 // statistics gathered by the httpd package.
 const (
-	statRequest                      = "req"                 // Number of HTTP requests served
-	statCQRequest                    = "cq_req"              // Number of CQ-execute requests served
-	statQueryRequest                 = "query_req"           // Number of query requests served
-	statWriteRequest                 = "write_req"           // Number of write requests serverd
-	statPingRequest                  = "ping_req"            // Number of ping requests served
-	statWriteRequestBytesReceived    = "write_req_bytes"     // Sum of all bytes in write requests
-	statQueryRequestBytesTransmitted = "query_resp_bytes"    // Sum of all bytes returned in query reponses
-	statPointsWrittenOK              = "points_written_ok"   // Number of points written OK
-	statPointsWrittenFail            = "points_written_fail" // Number of points that failed to be written
-	statAuthFail                     = "auth_fail"           // Number of authentication failures
+	statRequest                      = "req"               // Number of HTTP requests served
+	statCQRequest                    = "cqReq"             // Number of CQ-execute requests served
+	statQueryRequest                 = "queryReq"          // Number of query requests served
+	statWriteRequest                 = "writeReq"          // Number of write requests serverd
+	statPingRequest                  = "pingReq"           // Number of ping requests served
+	statWriteRequestBytesReceived    = "writeReqBytes"     // Sum of all bytes in write requests
+	statQueryRequestBytesTransmitted = "queryRespBytes"    // Sum of all bytes returned in query reponses
+	statPointsWrittenOK              = "pointsWritteOk"    // Number of points written OK
+	statPointsWrittenFail            = "pointsWrittenFail" // Number of points that failed to be written
+	statAuthFail                     = "authFail"          // Number of authentication failures
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
@@ -51,8 +51,8 @@ func NewService(c Config) *Service {
 
 	s := &Service{
 		addr:  c.BindAddress,
-		https: c.HttpsEnabled,
-		cert:  c.HttpsCertificate,
+		https: c.HTTPSEnabled,
+		cert:  c.HTTPSCertificate,
 		err:   make(chan error),
 		Handler: NewHandler(
 			c.AuthEnabled,

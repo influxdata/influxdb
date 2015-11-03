@@ -29,8 +29,8 @@ type Service struct {
 func NewService(c Config) *Service {
 	return &Service{
 		addr:   c.BindAddress,
-		https:  c.HttpsEnabled,
-		cert:   c.HttpsCertificate,
+		https:  c.HTTPSEnabled,
+		cert:   c.HTTPSCertificate,
 		err:    make(chan error),
 		logger: log.New(os.Stderr, "[admin] ", log.LstdFlags),
 	}

@@ -2,9 +2,10 @@ package tsdb
 
 import (
 	"errors"
+	"time"
+
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
-	"time"
 )
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
@@ -35,7 +36,11 @@ func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point
 			}
 		}
 
-		p := models.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
+		p, err := models.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
+		if err != nil {
+			// Drop points that can't be stored
+			continue
+		}
 
 		points = append(points, p)
 	}

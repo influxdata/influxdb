@@ -44,7 +44,10 @@ func ExampleWrite() {
 		"system": 53.3,
 		"user":   46.6,
 	}
-	pt := client.NewPoint("cpu_usage", tags, fields, time.Now())
+	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
+	if err != nil {
+		panic(err.Error())
+	}
 	bp.AddPoint(pt)
 
 	// Write the batch
@@ -82,12 +85,17 @@ func ExampleWrite1000() {
 			"busy": 100.0 - idle,
 		}
 
-		bp.AddPoint(client.NewPoint(
+		pt, err := client.NewPoint(
 			"cpu_usage",
 			tags,
 			fields,
 			time.Now(),
-		))
+		)
+		if err != nil {
+			println("Error:", err.Error())
+			continue
+		}
+		bp.AddPoint(pt)
 	}
 
 	err := clnt.Write(bp)

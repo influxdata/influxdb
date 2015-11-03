@@ -368,7 +368,12 @@ func (m *Monitor) storeStatistics() {
 
 			points := make(models.Points, 0, len(stats))
 			for _, s := range stats {
-				points = append(points, models.NewPoint(s.Name, s.Tags, s.Values, time.Now().Truncate(time.Second)))
+				pt, err := models.NewPoint(s.Name, s.Tags, s.Values, time.Now().Truncate(time.Second))
+				if err != nil {
+					m.Logger.Printf("Dropping point %v: %v", s.Name, err)
+					continue
+				}
+				points = append(points, pt)
 			}
 
 			err = m.PointsWriter.WritePoints(&cluster.WritePointsRequest{

@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	statWriteReq        = "write_req"
-	statSeriesCreate    = "series_create"
-	statFieldsCreate    = "fields_create"
-	statWritePointsFail = "write_points_fail"
-	statWritePointsOK   = "write_points_ok"
-	statWriteBytes      = "write_bytes"
+	statWriteReq        = "writeReq"
+	statSeriesCreate    = "seriesCreate"
+	statFieldsCreate    = "fieldsCreate"
+	statWritePointsFail = "writePointsFail"
+	statWritePointsOK   = "writePointsOk"
+	statWriteBytes      = "writeBytes"
 )
 
 var (

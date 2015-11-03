@@ -157,7 +157,7 @@ func TestClient_PointString(t *testing.T) {
 	time1, _ := time.Parse(shortForm, "2013-Feb-03")
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
-	p := NewPoint("cpu_usage", tags, fields, time1)
+	p, _ := NewPoint("cpu_usage", tags, fields, time1)
 
 	s := "cpu_usage,cpu=cpu-total idle=10.1,system=50.9,user=39 1359849600000000000"
 	if p.String() != s {
@@ -174,7 +174,7 @@ func TestClient_PointString(t *testing.T) {
 func TestClient_PointWithoutTimeString(t *testing.T) {
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
-	p := NewPoint("cpu_usage", tags, fields)
+	p, _ := NewPoint("cpu_usage", tags, fields)
 
 	s := "cpu_usage,cpu=cpu-total idle=10.1,system=50.9,user=39"
 	if p.String() != s {
@@ -190,7 +190,7 @@ func TestClient_PointWithoutTimeString(t *testing.T) {
 func TestClient_PointName(t *testing.T) {
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
-	p := NewPoint("cpu_usage", tags, fields)
+	p, _ := NewPoint("cpu_usage", tags, fields)
 
 	exp := "cpu_usage"
 	if p.Name() != exp {
@@ -202,7 +202,7 @@ func TestClient_PointName(t *testing.T) {
 func TestClient_PointTags(t *testing.T) {
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
-	p := NewPoint("cpu_usage", tags, fields)
+	p, _ := NewPoint("cpu_usage", tags, fields)
 
 	if !reflect.DeepEqual(tags, p.Tags()) {
 		t.Errorf("Error, got %v, expected %v",
@@ -215,7 +215,7 @@ func TestClient_PointUnixNano(t *testing.T) {
 	time1, _ := time.Parse(shortForm, "2013-Feb-03")
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
-	p := NewPoint("cpu_usage", tags, fields, time1)
+	p, _ := NewPoint("cpu_usage", tags, fields, time1)
 
 	exp := int64(1359849600000000000)
 	if p.UnixNano() != exp {
@@ -227,7 +227,7 @@ func TestClient_PointUnixNano(t *testing.T) {
 func TestClient_PointFields(t *testing.T) {
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
-	p := NewPoint("cpu_usage", tags, fields)
+	p, _ := NewPoint("cpu_usage", tags, fields)
 
 	if !reflect.DeepEqual(fields, p.Fields()) {
 		t.Errorf("Error, got %v, expected %v",

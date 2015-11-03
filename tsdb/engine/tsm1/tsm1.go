@@ -11,7 +11,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -203,7 +202,11 @@ func (e *Engine) PerformMaintenance() {
 		}
 	}
 
-	go e.Compact(true)
+	go func() {
+		if err := e.Compact(true); err != nil {
+			e.logger.Printf("PerformMaintenance: error during compaction: %v", err)
+		}
+	}()
 }
 
 // Format returns the format type of this engine
@@ -313,6 +316,8 @@ func (e *Engine) Close() error {
 	e.filesLock.Lock()
 	defer e.filesLock.Unlock()
 
+	e.WAL.Close()
+
 	// ensure all deletes have been processed
 	e.deletesPending.Wait()
 
@@ -386,7 +391,6 @@ func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[
 // filesAndNewValues will pair the values with the data file they should be re-written into. Any
 // vaues that have times later than the most recent data file are returned
 func (e *Engine) filesAndNewValues(files dataFiles, pointsByKey map[string]Values) (rewrites []*fileRewrite, newValues map[uint64][]*valuesWithKey) {
-	fmt.Println("filesAndNewValues")
 	// first convert the data into data by ID
 	pointsByID := make(map[uint64][]*valuesWithKey)
 	for k, vals := range pointsByKey {
@@ -406,20 +410,17 @@ func (e *Engine) filesAndNewValues(files dataFiles, pointsByKey map[string]Value
 	left := pointsByID
 	for i := len(files); i >= 0; i-- {
 		if len(left) == 0 {
-			fmt.Println("empty")
 			return
 		}
 
 		if i == len(files) {
 			// these are the values that go into a new file
 			left, newValues = e.splitValuesByTime(files[i-1].MaxTime()-1, left)
-			fmt.Println("new ones", len(left), len(newValues))
 		} else if i == 0 {
 			// anything left is on the lower end of the time range and should go into the first file
 			rewrites = append(rewrites, &fileRewrite{df: files[0], valuesByID: left})
 			return
 		} else {
-			fmt.Println("> ", i, len(files))
 			l, r := e.splitValuesByTime(files[i-1].MaxTime()-1, left)
 			rewrites = append(rewrites, &fileRewrite{df: files[i], valuesByID: r})
 			left = l
@@ -431,7 +432,6 @@ func (e *Engine) filesAndNewValues(files dataFiles, pointsByKey map[string]Value
 // splitValuesByTime will divide the values in the map by the split time. The left result will be times <= the split time while the right side
 // will be times > the split time
 func (e *Engine) splitValuesByTime(splitTime int64, pointsByID map[uint64][]*valuesWithKey) (left map[uint64][]*valuesWithKey, right map[uint64][]*valuesWithKey) {
-	fmt.Println("splitValuesByTime: ", splitTime)
 	left = make(map[uint64][]*valuesWithKey)
 	right = make(map[uint64][]*valuesWithKey)
 
@@ -440,10 +440,6 @@ func (e *Engine) splitValuesByTime(splitTime int64, pointsByID map[uint64][]*val
 		var rightVals []*valuesWithKey
 
 		for _, v := range vals {
-			fmt.Println("vals: ", v.key, len(v.values))
-			for _, vv := range v.values {
-				fmt.Println("> ", vv.UnixNano())
-			}
 			// do this check first since most of the time data will be append only
 			if v.values[0].UnixNano() > splitTime {
 				rightVals = append(rightVals, v)
@@ -453,7 +449,6 @@ func (e *Engine) splitValuesByTime(splitTime int64, pointsByID map[uint64][]*val
 			i := sort.Search(len(v.values), func(i int) bool {
 				return v.values[i].UnixNano() > splitTime
 			})
-			fmt.Println("i ", i)
 
 			if i != 0 {
 				leftVals = append(leftVals, &valuesWithKey{key: v.key, values: v.values[:i]})
@@ -516,14 +511,8 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	files, lockStart, lockEnd := e.filesAndLock(startTime, endTime)
 	defer e.writeLock.UnlockRange(lockStart, lockEnd)
 
-	fmt.Println("WRITE")
-	for _, f := range files {
-		fmt.Println(f.f.Name())
-	}
-
 	// break out the values by the file that needs to be replaced with them inserted
 	fileRewrites, valuesInNewFile := e.filesAndNewValues(files, pointsByKey)
-	fmt.Println("valsInNewFile: ", len(valuesInNewFile))
 
 	// do the rewrites in parallel
 	newFiles := e.performRewrites(fileRewrites, valuesInNewFile)
@@ -569,7 +558,11 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	e.cleanupAndDeleteCheckpoint(checkpointFileName, checkpoint, oldFiles)
 
 	if !e.SkipCompaction && e.shouldCompact() {
-		go e.Compact(false)
+		go func() {
+			if err := e.Compact(false); err != nil {
+				e.logger.Printf("Write: error during compaction: %v", err)
+			}
+		}()
 	}
 
 	return nil
@@ -611,7 +604,6 @@ func (e *Engine) performRewrites(fileRewrites []*fileRewrite, valuesInNewFile ma
 	var mu sync.Mutex
 	var newFiles []*dataFile
 	for _, rewrite := range fileRewrites {
-		fmt.Println("rewriting", rewrite.df.f.Name())
 		wg.Add(1)
 		func(rewrite *fileRewrite) {
 			files := e.rewriteFile(rewrite.df, rewrite.valuesByID)
@@ -690,7 +682,7 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 		// were waiting for a write lock on the range. Make sure the files are still the
 		// same after we got the lock, otherwise try again. This shouldn't happen often.
 		filesAfterLock := e.copyFilesCollection()
-		if reflect.DeepEqual(files, filesAfterLock) {
+		if dataFilesEquals(files, filesAfterLock) {
 			return
 		}
 
@@ -725,7 +717,7 @@ func (e *Engine) getCompactionFiles(fullCompaction bool) (minTime, maxTime int64
 		} else {
 			filesAfterLock = e.filesToCompact()
 		}
-		if !reflect.DeepEqual(files, filesAfterLock) {
+		if !dataFilesEquals(files, filesAfterLock) {
 			e.writeLock.UnlockRange(minTime, maxTime)
 			continue
 		}
@@ -1045,7 +1037,6 @@ func (r *rewriteOperation) sourceFileEOF() bool {
 // advance the pointers and rotate the new file if over the max size
 func (r *rewriteOperation) copyBlocksForCurrentID() {
 	currentID := r.currentID
-	fmt.Println("copyBlocksForCurrentID")
 	for {
 		r.writeToNextKey()
 
@@ -1080,7 +1071,6 @@ func (r *rewriteOperation) finishNewFile() {
 // copyRemainingBlocksFromFile will iterate through the source file and copy all blocks to the new file
 // while rotating if the file goes over the max size and keeping track of the new index information
 func (r *rewriteOperation) copyRemaingBlocksFromFile() {
-	fmt.Println("copyRemainingBlocksFromFile")
 	for !r.sourceFileEOF() {
 		r.copyBlocksForCurrentID()
 	}
@@ -1089,7 +1079,6 @@ func (r *rewriteOperation) copyRemaingBlocksFromFile() {
 // writeNewValues will write the new values to the new file while advancing pointers and keeping the
 // index information and ensuring the file gets rotated if over the max size
 func (r *rewriteOperation) writeNewValues(id uint64, vals []*valuesWithKey) {
-	fmt.Println("writeNewValues")
 	for _, v := range vals {
 		r.writeValues(true, id, v)
 	}
@@ -1098,9 +1087,7 @@ func (r *rewriteOperation) writeNewValues(id uint64, vals []*valuesWithKey) {
 // writeValues writes the passed in values to the new file as compressed blocks with the block header
 // data, ensuring that the new file will be switched out if it goes over the max size
 func (r *rewriteOperation) writeValues(firstInsert bool, id uint64, vals *valuesWithKey) {
-	fmt.Println("writeValues: ", len(vals.values), vals.key, firstInsert)
 	for len(vals.values) > 0 {
-		fmt.Println(">> ", len(vals.values), vals.key)
 		// rotate if over the max file limit
 		rotated := r.rotateIfOverMaxSize()
 		if rotated {
@@ -1135,17 +1122,13 @@ func (r *rewriteOperation) merge(vals *valuesWithKey) {
 	id := r.currentID
 	firstWriteToFile := true
 	r.valsWriteBuf = r.valsWriteBuf[:0]
-	fmt.Println("merge: ", vals.key, r.currentKey, len(vals.values), r.f.Name())
 	for {
-		fmt.Println("LOOP")
 		if r.sourceFileEOF() {
-			fmt.Println("source EOF")
 			r.currentID = math.MaxUint64
 			r.currentKey = ""
 
 			// add in anything that was sitting around from previous iteration
 			r.mergeValuesBuffer(vals)
-			fmt.Println("WRITE MERGE: ", firstWriteToFile, vals.key)
 			r.writeValues(firstWriteToFile, id, vals)
 			return
 		}
@@ -1159,7 +1142,6 @@ func (r *rewriteOperation) merge(vals *valuesWithKey) {
 		// decompress the block from the source file
 		key, block, nextPos := r.df.block(r.nextPos)
 		if key != "" {
-			fmt.Println("setting current key: ", key)
 			r.currentKey = key
 			r.currentID = r.engine.HashSeriesField(key)
 		}
@@ -1167,10 +1149,8 @@ func (r *rewriteOperation) merge(vals *valuesWithKey) {
 		// if we've already written all the blocks from the file for this id,
 		// write out the remaining values and return
 		if r.currentID != id {
-			fmt.Println("current not equal")
 			// add in anything that was sitting around from previous iteration
 			r.mergeValuesBuffer(vals)
-			fmt.Println("WRITE MERGE: ", firstWriteToFile, vals.key)
 			r.writeValues(firstWriteToFile, id, vals)
 			return
 		}
@@ -1181,14 +1161,11 @@ func (r *rewriteOperation) merge(vals *valuesWithKey) {
 			panic(fmt.Sprintf("error decoding block on rewrite: %s", err.Error()))
 		}
 
-		fmt.Println("DECODED: ", r.valsBuf[0].UnixNano())
-
 		// combine all new values less than the max time of the block and leave the remainder in vals.values
 		maxTime := r.valsBuf[len(r.valsBuf)-1].UnixNano()
 		i := sort.Search(len(vals.values), func(i int) bool { return vals.values[i].UnixNano() > maxTime })
 
 		if i > 0 {
-			fmt.Println("combining", len(r.valsBuf), len(vals.values[:i]))
 			r.valsBuf = append(r.valsBuf, vals.values[:i]...)
 			vals.values = vals.values[i:]
 			r.valsBuf = Values(r.valsBuf).Deduplicate()
@@ -1198,7 +1175,6 @@ func (r *rewriteOperation) merge(vals *valuesWithKey) {
 
 		// write the values out if we've hit the limit
 		if len(r.valsWriteBuf) > r.engine.MaxPointsPerBlock {
-			fmt.Println("WRITE MERGE: ", firstWriteToFile, vals.key)
 			r.writeValues(firstWriteToFile, id, &valuesWithKey{key: vals.key, values: r.valsWriteBuf})
 			r.valsWriteBuf = r.valsWriteBuf[:0]
 			firstWriteToFile = false
@@ -1219,7 +1195,6 @@ func (r *rewriteOperation) mergeValuesBuffer(vals *valuesWithKey) {
 	needSort := r.valsWriteBuf[0].UnixNano() > vals.values[0].UnixNano()
 	vals.values = append(r.valsWriteBuf, vals.values...)
 	if needSort {
-		fmt.Println("dedupe")
 		vals.values = Values(vals.values).Deduplicate()
 	}
 }
@@ -1236,7 +1211,6 @@ func (r *rewriteOperation) mergeValues(vals []*valuesWithKey) {
 
 		// if we've written all new values, copy anything left for this ID from the file
 		if len(vals) == 0 {
-			fmt.Println("mergeValues: vals 0, copying")
 			// write the rest out from the file
 			r.copyBlocksForCurrentID()
 
@@ -1245,7 +1219,6 @@ func (r *rewriteOperation) mergeValues(vals []*valuesWithKey) {
 
 		// just empty out the values if the source file is all written out
 		if r.sourceFileEOF() {
-			fmt.Println("merge: source file EOF, writing vals")
 			r.writeValues(true, r.currentID, vals[0])
 			vals = vals[1:]
 			continue
@@ -1270,10 +1243,8 @@ func (r *rewriteOperation) mergeValues(vals []*valuesWithKey) {
 // writeToNextKey will write from the source file to the new file all data for the
 // given ID and key until either the next ID or key is hit
 func (r *rewriteOperation) writeToNextKey() {
-	fmt.Println("writeToNextKey: ", r.currentKey)
 	for {
 		if r.sourceFileEOF() {
-			fmt.Println("writeToNextKey EOF")
 			r.currentID = math.MaxUint64
 			r.currentKey = ""
 			return
@@ -1283,7 +1254,6 @@ func (r *rewriteOperation) writeToNextKey() {
 
 		// if the key is blank, we have another block for the same ID and key
 		if key != "" {
-			fmt.Println("writeToNextKey: key", key)
 			// make sure we're on the right key
 			if key != r.currentKey {
 				r.currentKey = key
@@ -1342,19 +1312,12 @@ func (e *Engine) rewriteFile(df *dataFile, valuesByID map[uint64][]*valuesWithKe
 	insertIDPos := 0
 
 	rewrite := newRewriteOperation(e, df)
-	fmt.Println("rewriteFile")
-	for id, vals := range valuesByID {
-		fmt.Println("> ", id, vals[0].key, len(vals[0].values))
-	}
 
 	for {
-		fmt.Println("rewrite loop, insert IDs: ", insertIDs, insertIDPos)
 		// if there are no more new values to write, we just need to carry over the rest from the file
 		if insertIDPos >= len(insertIDs) {
-			fmt.Println("past insert ids")
 			// check if we're done with everything
 			if rewrite.sourceFileEOF() {
-				fmt.Println("EOF")
 				break
 			}
 
@@ -1366,7 +1329,6 @@ func (e *Engine) rewriteFile(df *dataFile, valuesByID map[uint64][]*valuesWithKe
 
 		// write just the source file data if its ID is not in the new data and is next
 		if nextInsertID > rewrite.currentID {
-			fmt.Println("writing source file data")
 			rewrite.copyBlocksForCurrentID()
 			continue
 		}
@@ -1376,13 +1338,11 @@ func (e *Engine) rewriteFile(df *dataFile, valuesByID map[uint64][]*valuesWithKe
 
 		// write just the new data if this ID is not in the source file and is next
 		if nextInsertID < rewrite.currentID {
-			fmt.Println("writing new values")
 			rewrite.writeNewValues(nextInsertID, valuesByID[nextInsertID])
 
 			continue
 		}
 
-		fmt.Println("merging: ", nextInsertID, valuesByID[nextInsertID])
 		// combine the new data and the old file data
 		rewrite.mergeValues(valuesByID[nextInsertID])
 	}
@@ -1402,7 +1362,6 @@ func (e *Engine) writeNewFile(valuesByID map[uint64][]*valuesWithKey) *dataFile 
 	index.maxTimes = make([]int64, len(index.ids))
 
 	f := openFileAndCheckpoint(e.nextFileName())
-	fmt.Println("writeNewFile: ", f.Name())
 
 	buf := make([]byte, blockBufferSize)
 
@@ -2037,21 +1996,17 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 
 	c.writeValsBuf = c.writeValsBuf[:0]
 
-	fmt.Println("writeBlocksForKey: ", key, id)
 	// loop through the files in order emptying each one of its data for this key
 	for i, df := range c.dataFilesToCompact {
-		fmt.Println("reading ", df.f.Name())
 		// if the id doesn't match, move to the next file
 		fid := c.currentIDs[i]
 		if fid != id {
-			fmt.Println("fid not the same")
 			continue
 		}
 
 		// if the key doesn't match, move to the next one
 		fkey := c.currentKeys[i]
 		if fkey != key {
-			fmt.Println("key not the same")
 			continue
 		}
 
@@ -2063,15 +2018,10 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 		if err := DecodeBlock(c.currentBlocks[i], &c.valsBuf); err != nil {
 			panic(fmt.Sprintf("error decoding: %s", err.Error()))
 		}
-		fmt.Println("valsBuf ", len(c.valsBuf))
-		for _, v := range c.valsBuf {
-			fmt.Println("> ", v.UnixNano(), v.Value())
-		}
 		c.writeValsBuf = append(c.writeValsBuf, c.valsBuf...)
 
 		// read any future blocks for the same key (their key value will be the empty string)
 		for {
-			fmt.Println("first for loop")
 			// write values if we're over the max size
 			if len(c.writeValsBuf) > c.engine.MaxPointsPerBlock {
 				if firstInsertToFile {
@@ -2091,7 +2041,6 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 			}
 
 			if c.nextPositions[i] >= df.indexPosition() {
-				fmt.Println("EOF at next position")
 				c.currentKeys[i] = ""
 				c.currentIDs[i] = dataFileEOF
 				break
@@ -2113,10 +2062,6 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 			if err := DecodeBlock(block, &c.valsBuf); err != nil {
 				panic(fmt.Sprintf("error decoding: %s", err.Error()))
 			}
-			fmt.Println("valsBuf ", len(c.valsBuf))
-			for _, v := range c.valsBuf {
-				fmt.Println("> ", v.UnixNano(), v.Value())
-			}
 			c.writeValsBuf = append(c.writeValsBuf, c.valsBuf...)
 		}
 	}
@@ -2136,7 +2081,6 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 			c.index.addIDPosition(id, c.currentPosition)
 		}
 
-		fmt.Println("vals; ", len(c.writeValsBuf))
 		bytesWritten := writeValues(c.currentFile, id, key, valsToWrite, firstInsertToFile, c.buf)
 		c.index.setMinTime(valsToWrite[0].UnixNano())
 		c.index.setMaxTime(valsToWrite[len(valsToWrite)-1].UnixNano())
@@ -2153,9 +2097,7 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 func (c *compactionJob) nextKey() (string, uint64) {
 	minID := dataFileEOF
 	keys := make(map[string]bool)
-	fmt.Println("nextKey")
 	for i, id := range c.currentIDs {
-		fmt.Println("> ", id)
 		if id == dataFileEOF {
 			continue
 		}
@@ -2250,6 +2192,22 @@ func NewDataFile(f *os.File) *dataFile {
 	}
 }
 
+func (d *dataFile) Name() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.Deleted() {
+		return ""
+	}
+	return d.f.Name()
+}
+
+func (d *dataFile) Deleted() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.f == nil
+}
+
 func (d *dataFile) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -2259,9 +2217,15 @@ func (d *dataFile) Close() error {
 func (d *dataFile) Delete() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	if err := d.close(); err != nil {
 		return err
 	}
+
+	if d.f == nil {
+		return nil
+	}
+
 	err := os.RemoveAll(d.f.Name())
 	if err != nil {
 		return err
@@ -2284,18 +2248,38 @@ func (d *dataFile) close() error {
 }
 
 func (d *dataFile) MinTime() int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
 	minTimePosition := d.size - minTimeOffset
 	timeBytes := d.mmap[minTimePosition : minTimePosition+timeSize]
 	return int64(btou64(timeBytes))
 }
 
 func (d *dataFile) MaxTime() int64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
+
 	maxTimePosition := d.size - maxTimeOffset
 	timeBytes := d.mmap[maxTimePosition : maxTimePosition+timeSize]
 	return int64(btou64(timeBytes))
 }
 
 func (d *dataFile) SeriesCount() uint32 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if len(d.mmap) == 0 {
+		return 0
+	}
+
 	return btou32(d.mmap[d.size-seriesCountSize:])
 }
 
@@ -2427,6 +2411,18 @@ func (a dataFiles) Len() int           { return len(a) }
 func (a dataFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() }
 
+func dataFilesEquals(a, b []*dataFile) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v.MinTime() != b[i].MinTime() && v.MaxTime() != b[i].MaxTime() {
+			return false
+		}
+	}
+	return true
+}
+
 // completionCheckpoint holds the new files and old files from a compaction or rewrite
 type completionCheckpoint struct {
 	OldFiles []string
@@ -2458,7 +2454,6 @@ func footerSize(seriesCount int) uint32 {
 
 // writeValues will encode the values and write them as a compressed block to the file.
 func writeValues(f *os.File, id uint64, key string, values Values, firstWriteForKey bool, buf []byte) uint32 {
-	fmt.Println("writeValues: ", len(values), firstWriteForKey, key)
 	bytesWritten := uint32(keyLengthSize)
 
 	// write the key length and, optionally, the key
@@ -2499,7 +2494,6 @@ func writeIndex(f *os.File, index *indexData) {
 		mustWrite(f, i64tob(index.maxTimes[i]))
 	}
 
-	fmt.Println("write min/max: ", index.fileMinTime, index.fileMaxTime)
 	// min and max time for the file
 	mustWrite(f, i64tob(index.fileMinTime))
 	mustWrite(f, i64tob(index.fileMaxTime+1))

@@ -16,8 +16,8 @@ import (
 
 // Statistics for the Subscriber service.
 const (
-	statPointsWritten = "points_written"
-	statWriteFailures = "write_failures"
+	statPointsWritten = "pointsWritten"
+	statWriteFailures = "writeFailures"
 )
 
 type PointsWriter interface {
@@ -90,6 +90,11 @@ func (s *Service) Close() error {
 	s.wg.Wait()
 	s.Logger.Println("closed service")
 	return nil
+}
+
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.Logger = l
 }
 
 func (s *Service) waitForMetaUpdates() {

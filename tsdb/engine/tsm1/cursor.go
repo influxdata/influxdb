@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/influxdb/influxdb/tsdb"
@@ -268,8 +267,6 @@ func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
 
 		c.pos = c.f.StartingPositionForID(c.hashID)
 
-		fmt.Println("POS: ", c.pos)
-
 		// if this id isn't in this file, move to next one or return
 		if c.pos == 0 {
 			if c.ascending {
@@ -280,8 +277,6 @@ func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
 			}
 			continue
 		}
-
-		fmt.Println("seektokey", c.f.f.Name())
 
 		// see if this key exists in the file
 		c.pos = c.seekToKey()
@@ -302,7 +297,6 @@ func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
 		var v interface{}
 
 		if c.ascending {
-			fmt.Println("seek asc")
 			k, v = c.seekAscending(seek)
 		} else {
 			k, v = c.seekDescending(seek)
@@ -350,11 +344,6 @@ func (c *cursor) seekAscending(seek int64) (int64, interface{}) {
 
 		c.vals = c.vals[:0]
 		_ = DecodeBlock(block, &c.vals)
-
-		fmt.Println("cursor ", c.key, len(c.vals))
-		for _, v := range c.vals {
-			fmt.Println("> ", v.UnixNano(), v.Value())
-		}
 
 		// see if we can find it in this block
 		for i, v := range c.vals {
@@ -438,7 +427,6 @@ func (c *cursor) setBlockPositions() {
 func (c *cursor) Next() (int64, interface{}) {
 	if c.ascending {
 		k, v := c.nextAscending()
-		fmt.Println("next: ", k, v)
 		return k, v
 	}
 	return c.nextDescending()
@@ -465,7 +453,6 @@ func (c *cursor) nextAscending() (int64, interface{}) {
 
 	// loop through the files until we hit the next one that has this id
 	for {
-		fmt.Println("next FOR: ", len(c.files), c.filesPos)
 		c.filesPos++
 		if c.filesPos >= len(c.files) {
 			return tsdb.EOF, nil
@@ -481,7 +468,6 @@ func (c *cursor) nextAscending() (int64, interface{}) {
 
 		// we have a block with this id, see if the key is there
 		pos := c.seekToKey()
-		fmt.Println("seek to key", pos)
 		if pos == 0 {
 			continue
 		}
@@ -500,13 +486,10 @@ func (c *cursor) seekToKey() uint32 {
 	pos := c.pos
 	for {
 		if c.pos >= indexPosition {
-			fmt.Println("ran to end of file")
 			return uint32(0)
 		}
 
 		key, _, next := c.f.block(pos)
-
-		fmt.Println("keys: ", c.key, key)
 
 		if key == c.key {
 			return pos
@@ -517,7 +500,6 @@ func (c *cursor) seekToKey() uint32 {
 
 		// read until we get to a new key so we can check it
 		if key == "" {
-			fmt.Println("blank key")
 			continue
 		}
 

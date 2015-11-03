@@ -11,6 +11,7 @@ this version.
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 
 	"github.com/dgryski/go-bits"
@@ -29,6 +30,7 @@ const (
 // FloatEncoder encodes multiple float64s into a byte slice
 type FloatEncoder struct {
 	val float64
+	err error
 
 	leading  uint64
 	trailing uint64
@@ -52,20 +54,25 @@ func NewFloatEncoder() *FloatEncoder {
 
 }
 
-func (s *FloatEncoder) Bytes() []byte {
-	return append([]byte{floatCompressedGorilla << 4}, s.buf.Bytes()...)
+func (s *FloatEncoder) Bytes() ([]byte, error) {
+	return append([]byte{floatCompressedGorilla << 4}, s.buf.Bytes()...), s.err
 }
 
 func (s *FloatEncoder) Finish() {
 	if !s.finished {
 		// write an end-of-stream record
+		s.finished = true
 		s.Push(math.NaN())
 		s.bw.Flush(bitstream.Zero)
-		s.finished = true
 	}
 }
 
 func (s *FloatEncoder) Push(v float64) {
+	// Only allow NaN as a sentinel value
+	if math.IsNaN(v) && !s.finished {
+		s.err = fmt.Errorf("unsupported value: NaN")
+		return
+	}
 	if s.first {
 		// first point
 		s.val = v

@@ -7,8 +7,8 @@ type Config struct {
 	LogEnabled       bool   `toml:"log-enabled"`
 	WriteTracing     bool   `toml:"write-tracing"`
 	PprofEnabled     bool   `toml:"pprof-enabled"`
-	HttpsEnabled     bool   `toml:"https-enabled"`
-	HttpsCertificate string `toml:"https-certificate"`
+	HTTPSEnabled     bool   `toml:"https-enabled"`
+	HTTPSCertificate string `toml:"https-certificate"`
 }
 
 func NewConfig() Config {
@@ -16,7 +16,7 @@ func NewConfig() Config {
 		Enabled:          true,
 		BindAddress:      ":8086",
 		LogEnabled:       true,
-		HttpsEnabled:     false,
-		HttpsCertificate: "/etc/ssl/influxdb.pem",
+		HTTPSEnabled:     false,
+		HTTPSCertificate: "/etc/ssl/influxdb.pem",
 	}
 }

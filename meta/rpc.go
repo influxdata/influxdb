@@ -51,7 +51,7 @@ type Reply interface {
 // proxyLeader proxies the connection to the current raft leader
 func (r *rpc) proxyLeader(conn *net.TCPConn) {
 	if r.store.Leader() == "" {
-		r.sendError(conn, "no leader")
+		r.sendError(conn, "no leader detected during proxyLeader")
 		return
 	}
 
@@ -289,7 +289,7 @@ func (r *rpc) fetchMetaData(blocking bool) (*Data, error) {
 	// Retrieve the current known leader.
 	leader := r.store.Leader()
 	if leader == "" {
-		return nil, errors.New("no leader")
+		return nil, errors.New("no leader detected during fetchMetaData")
 	}
 
 	var index, term uint64

@@ -114,6 +114,7 @@ message Command {
 		UpdateNodeCommand                = 19;
 		CreateSubscriptionCommand        = 21;
 		DropSubscriptionCommand          = 22;
+		RemovePeerCommand                = 23;
     }
 
     required Type type = 1;
@@ -294,6 +295,14 @@ message DropSubscriptionCommand {
     required string Name = 1;
     required string Database = 2;
     required string RetentionPolicy = 3;
+}
+
+message RemovePeerCommand {
+    extend Command {
+        optional RemovePeerCommand command = 123;
+    }
+	required uint64 ID = 1;
+	required string Addr = 2;
 }
 
 message Response {

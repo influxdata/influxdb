@@ -55,6 +55,7 @@ type Handler struct {
 	Version               string
 
 	MetaStore interface {
+		WaitForLeader(timeout time.Duration) error
 		Database(name string) (*meta.DatabaseInfo, error)
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		Users() ([]meta.UserInfo, error)
@@ -461,7 +462,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 			}
 
 			// check that the byte is in the standard ascii code range
-			if body[i] > 32 {
+			if body[i] > 32 || i >= len(body)-1 {
 				break
 			}
 			i += 1
@@ -473,13 +474,14 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		precision = "n"
 	}
 
-	points, err := models.ParsePointsWithPrecision(body, time.Now().UTC(), precision)
-	if err != nil {
-		if err.Error() == "EOF" {
+	points, parseError := models.ParsePointsWithPrecision(body, time.Now().UTC(), precision)
+	// Not points parsed correctly so return the error now
+	if parseError != nil && len(points) == 0 {
+		if parseError.Error() == "EOF" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		h.writeError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+		h.writeError(w, influxql.Result{Err: parseError}, http.StatusBadRequest)
 		return
 	}
 
@@ -534,6 +536,13 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		h.writeError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		return
+	} else if parseError != nil {
+		// We wrote some of the points
+		h.statMap.Add(statPointsWrittenOK, int64(len(points)))
+		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
+		// response code as well as the lines that failed to parse.
+		h.writeError(w, influxql.Result{Err: fmt.Errorf("partial write:\n%v", parseError)}, http.StatusBadRequest)
+		return
 	}
 
 	h.statMap.Add(statPointsWrittenOK, int64(len(points)))
@@ -547,6 +556,21 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	wfl := q.Get("wait_for_leader")
+
+	if wfl != "" {
+		d, err := time.ParseDuration(wfl)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err := h.MetaStore.WaitForLeader(d); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+	}
+
 	h.statMap.Add(statPingRequest, 1)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -905,7 +929,11 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]models.Point, error) {
 			return points, fmt.Errorf("missing fields")
 		}
 		// Need to convert from a client.Point to a influxdb.Point
-		points = append(points, models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time))
+		pt, err := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+		if err != nil {
+			return points, err
+		}
+		points = append(points, pt)
 	}
 
 	return points, nil

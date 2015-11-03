@@ -1,10 +1,10 @@
-package influxdb_test
+package cluster_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 )
 
@@ -20,7 +20,7 @@ func NewNodes() []meta.NodeInfo {
 }
 
 func TestBalancerEmptyNodes(t *testing.T) {
-	b := influxdb.NewNodeBalancer([]meta.NodeInfo{})
+	b := cluster.NewNodeBalancer([]meta.NodeInfo{})
 	got := b.Next()
 	if got != nil {
 		t.Errorf("expected nil, got %v", got)
@@ -29,7 +29,7 @@ func TestBalancerEmptyNodes(t *testing.T) {
 
 func TestBalancerUp(t *testing.T) {
 	nodes := NewNodes()
-	b := influxdb.NewNodeBalancer(nodes)
+	b := cluster.NewNodeBalancer(nodes)
 
 	// First node in randomized round-robin order
 	first := b.Next()
@@ -52,7 +52,7 @@ func TestBalancerUp(t *testing.T) {
 /*
 func TestBalancerDown(t *testing.T) {
 	nodes := NewNodes()
-	b := influxdb.NewNodeBalancer(nodes)
+	b := cluster.NewNodeBalancer(nodes)
 
 	nodes[0].Down()
 
@@ -78,7 +78,7 @@ func TestBalancerDown(t *testing.T) {
 /*
 func TestBalancerBackUp(t *testing.T) {
 	nodes := newDataNodes()
-	b := influxdb.NewNodeBalancer(nodes)
+	b := cluster.NewNodeBalancer(nodes)
 
 	nodes[0].Down()
 

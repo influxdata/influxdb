@@ -33,12 +33,12 @@ const (
 )
 
 const (
-	statSlowInsert               = "slow_insert"
-	statPointsWrite              = "points_write"
-	statPointsWriteDedupe        = "points_write_dedupe"
-	statBlocksWrite              = "blks_write"
-	statBlocksWriteBytes         = "blks_write_bytes"
-	statBlocksWriteBytesCompress = "blks_write_bytes_c"
+	statSlowInsert               = "slowInsert"
+	statPointsWrite              = "pointsWrite"
+	statPointsWriteDedupe        = "pointsWriteDedupe"
+	statBlocksWrite              = "blksWrite"
+	statBlocksWriteBytes         = "blksWriteBytes"
+	statBlocksWriteBytesCompress = "blksWriteBytesC"
 )
 
 func init() {

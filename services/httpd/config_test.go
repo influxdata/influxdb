@@ -36,10 +36,10 @@ https-certificate = "/dev/null"
 		t.Fatalf("unexpected write tracing: %v", c.WriteTracing)
 	} else if c.PprofEnabled != true {
 		t.Fatalf("unexpected pprof enabled: %v", c.PprofEnabled)
-	} else if c.HttpsEnabled != true {
-		t.Fatalf("unexpected https enabled: %v", c.HttpsEnabled)
-	} else if c.HttpsCertificate != "/dev/null" {
-		t.Fatalf("unexpected https certificate: %v", c.HttpsCertificate)
+	} else if c.HTTPSEnabled != true {
+		t.Fatalf("unexpected https enabled: %v", c.HTTPSEnabled)
+	} else if c.HTTPSCertificate != "/dev/null" {
+		t.Fatalf("unexpected https certificate: %v", c.HTTPSCertificate)
 	}
 }
 
