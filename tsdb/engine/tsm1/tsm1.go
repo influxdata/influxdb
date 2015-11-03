@@ -475,7 +475,7 @@ func (e *Engine) sortPointsByKey(pointsByID map[uint64][]*valuesWithKey) {
 
 func (e *Engine) hasDeletes() bool {
 	e.filesLock.RLock()
-	defer e.filesLock.Unlock()
+	defer e.filesLock.RUnlock()
 	return len(e.deletes) > 0
 }
 
