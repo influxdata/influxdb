@@ -936,7 +936,7 @@ type indexData struct {
 	maxTimes        []int64
 	fileMinTime     int64
 	fileMaxTime     int64
-	idsInIndex      map[uint64]interface{}
+	idsInIndex      map[uint64]struct{}
 	currentPosition int
 }
 
@@ -944,7 +944,7 @@ func newIndexData() *indexData {
 	return &indexData{
 		fileMinTime:     math.MaxInt64,
 		fileMaxTime:     math.MinInt64,
-		idsInIndex:      make(map[uint64]interface{}),
+		idsInIndex:      make(map[uint64]struct{}),
 		currentPosition: -1,
 	}
 }
@@ -954,6 +954,7 @@ func newIndexData() *indexData {
 func (i *indexData) addIDPosition(id uint64, pos uint32) {
 	if _, ok := i.idsInIndex[id]; !ok {
 		i.ids = append(i.ids, id)
+		i.idsInIndex[id] = struct{}{}
 		i.positions = append(i.positions, pos)
 		i.minTimes = append(i.minTimes, int64(math.MaxInt64))
 		i.maxTimes = append(i.maxTimes, int64(math.MinInt64))
