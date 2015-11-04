@@ -64,12 +64,6 @@ To assist in review for the PR, please add the following to your pull request co
 - [ ] Sign [CLA](http://influxdb.com/community/cla.html) (if not already signed)
 ```
 
-Use of third-party packages
-------------
-A third-party package is defined as one that is not part of the standard Go distribution. Generally speaking we prefer to minimize our use of third-party packages, and avoid them unless absolutely necessarily. We'll often write a little bit of code rather than pull in a third-party package. Of course, we do use some third-party packages -- most importantly we use [BoltDB](https://github.com/boltdb/bolt) as the storage engine. So to maximise the chance your change will be accepted by us, use only the standard libraries, or the third-party packages we have decided to use.
-
-For rationale, check out the post [The Case Against Third Party Libraries](http://blog.gopheracademy.com/advent-2014/case-against-3pl/).
-
 Signing the CLA
 ---------------
 
@@ -87,8 +81,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.5
-    gvm use go1.5 --default
+    gvm install go1.5.1
+    gvm use go1.5.1 --default
 
 Revision Control Systems
 -------------
@@ -233,6 +227,12 @@ go tool pprof ./influxd influxd.prof
 # can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
 ```
 Note that when you pass the binary to `go tool pprof` *you must specify the path to the binary*.
+
+Use of third-party packages
+------------
+A third-party package is defined as one that is not part of the standard Go distribution. Generally speaking we prefer to minimize our use of third-party packages, and avoid them unless absolutely necessarily. We'll often write a little bit of code rather than pull in a third-party package. Of course, we do use some third-party packages -- most importantly we use [BoltDB](https://github.com/boltdb/bolt) as the storage engine. So to maximise the chance your change will be accepted by us, use only the standard libraries, or the third-party packages we have decided to use.
+
+For rationale, check out the post [The Case Against Third Party Libraries](http://blog.gopheracademy.com/advent-2014/case-against-3pl/).
 
 Continuous Integration testing
 -----
