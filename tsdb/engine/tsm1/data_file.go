@@ -205,9 +205,6 @@ func (d *DataFiles) Overlapping(min, max int64) []DataFile {
 			a = append(a, f)
 		}
 	}
-	for _, f := range a {
-		f.Reference()
-	}
 	return a
 }
 

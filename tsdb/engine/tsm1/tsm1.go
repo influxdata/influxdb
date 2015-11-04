@@ -618,6 +618,9 @@ func (e *Engine) filesAndLock(min, max int64) (a []DataFile, lockStart, lockEnd 
 		files := e.copyFilesCollection()
 
 		a = e.dataFiles.Overlapping(min, max)
+		for _, f := range a {
+			f.Reference()
+		}
 
 		if len(a) > 0 {
 			lockStart = a[0].MinTime()
