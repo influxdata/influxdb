@@ -1553,6 +1553,10 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
 
 	writeIndex(f, index)
 
+	if err := os.RemoveAll(checkpointFileName(f.Name())); err != nil {
+		panic(fmt.Sprintf("failed to remove checkpoint file: %v: %v", f.Name(), err))
+	}
+
 	return NewDataFile(f)
 }
 

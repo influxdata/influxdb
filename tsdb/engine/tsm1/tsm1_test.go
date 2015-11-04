@@ -1549,7 +1549,7 @@ func TestEngine_Deletes(t *testing.T) {
 		c := tx.Cursor("cpu,host=B", fields, nil, true)
 		k, _ := c.SeekTo(0)
 		if k != p3.UnixNano() {
-			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
 		}
 		c = tx.Cursor("cpu,host=A", fields, nil, true)
 		k, _ = c.SeekTo(0)
