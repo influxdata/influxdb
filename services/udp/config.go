@@ -17,13 +17,18 @@ const (
 	DefaultRetentionPolicy = ""
 
 	// DefaultBatchSize is the default UDP batch size.
-	DefaultBatchSize = 1000
+	DefaultBatchSize = 5000
 
 	// DefaultBatchPending is the default number of pending UDP batches.
-	DefaultBatchPending = 5
+	DefaultBatchPending = 10
 
 	// DefaultBatchTimeout is the default UDP batch timeout.
 	DefaultBatchTimeout = time.Second
+
+	// DefaultReadBuffer is the default buffer size for the UDP listener.
+	// Increasing this increases the number of packets that the listener can handle,
+	// but also increases the memory usage.
+	DefaultReadBuffer = 8 * 1024 * 1024
 )
 
 type Config struct {
@@ -34,6 +39,7 @@ type Config struct {
 	RetentionPolicy string        `toml:"retention-policy"`
 	BatchSize       int           `toml:"batch-size"`
 	BatchPending    int           `toml:"batch-pending"`
+	ReadBuffer      int           `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 }
 
@@ -63,6 +69,9 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.BatchTimeout == 0 {
 		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	}
+	if d.ReadBuffer == 0 {
+		d.ReadBuffer = DefaultReadBuffer
 	}
 	return &d
 }
