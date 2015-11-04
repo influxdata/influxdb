@@ -130,7 +130,7 @@ func (d *DataFiles) Count() int {
 	return len(d.files)
 }
 
-func (d *DataFiles) Add(files []DataFile) {
+func (d *DataFiles) Add(files ...DataFile) {
 	// update the engine to point at the new dataFiles
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -153,7 +153,7 @@ func (d *DataFiles) Add(files []DataFile) {
 	sort.Sort(d.files)
 }
 
-func (d *DataFiles) Remove(files []DataFile) {
+func (d *DataFiles) Remove(files ...DataFile) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

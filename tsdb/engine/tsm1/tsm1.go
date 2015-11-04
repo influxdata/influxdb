@@ -496,9 +496,9 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	// do the rewrites in parallel
 	newFiles := e.performRewrites(fileRewrites, valuesInNewFile)
 
-	e.dataFiles.Add(newFiles)
+	e.dataFiles.Add(newFiles...)
 	for _, f := range fileRewrites {
-		e.dataFiles.Remove([]DataFile{f.df})
+		e.dataFiles.Remove(f.df)
 	}
 
 	// write the checkpoint file
@@ -734,8 +734,8 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	checkpoint, compactionCheckpointName := e.writeCompletionCheckpointFile(compactedFileNames, newFileNames)
 
 	// update engine with new file pointers
-	e.dataFiles.Remove(files)
-	e.dataFiles.Add(newDataFiles)
+	e.dataFiles.Remove(files...)
+	e.dataFiles.Add(newDataFiles...)
 
 	e.logger.Printf("Compaction of %s took %s", e.path, time.Since(st))
 
