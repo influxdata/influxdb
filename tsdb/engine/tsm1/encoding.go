@@ -17,8 +17,8 @@ const (
 	// BlockInt64 designates a block encodes int64 values
 	BlockInt64 = byte(1)
 
-	// BlockBool designates a block encodes bool values
-	BlockBool = byte(2)
+	// BlockBoolean designates a block encodes boolean values
+	BlockBoolean = byte(2)
 
 	// BlockString designates a block encodes string values
 	BlockString = byte(3)
@@ -44,7 +44,7 @@ func NewValue(t time.Time, value interface{}) Value {
 	case float64:
 		return &FloatValue{unixnano: un, value: v}
 	case bool:
-		return &BoolValue{unixnano: un, value: v}
+		return &BooleanValue{unixnano: un, value: v}
 	case string:
 		return &StringValue{unixnano: un, value: v}
 	}
@@ -94,7 +94,7 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 	case int64:
 		return encodeInt64Block(buf, a)
 	case bool:
-		return encodeBoolBlock(buf, a)
+		return encodeBooleanBlock(buf, a)
 	case string:
 		return encodeStringBlock(buf, a)
 	}
@@ -127,7 +127,7 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 func BlockType(block []byte) (byte, error) {
 	blockType := block[0]
 	switch blockType {
-	case BlockFloat64, BlockInt64, BlockBool, BlockString:
+	case BlockFloat64, BlockInt64, BlockBoolean, BlockString:
 		return blockType, nil
 	default:
 		return 0, fmt.Errorf("unknown block type: %d", blockType)
@@ -175,8 +175,8 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		}
 		return vals[:len(decoded)], err
 
-	case BlockBool:
-		decoded, err := DecodeBoolBlock(block, nil)
+	case BlockBoolean:
+		decoded, err := DecodeBooleanBlock(block, nil)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -329,41 +329,64 @@ func DecodeFloatBlock(block []byte, a []FloatValue) ([]FloatValue, error) {
 	return a[:i], nil
 }
 
-type BoolValue struct {
+// FloatValues represents a slice of float values.
+type FloatValues []FloatValue
+
+// Deduplicate returns a new slice with any values that have the same timestamp removed.
+// The Value that appears last in the slice is the one that is kept.
+func (a FloatValues) Deduplicate() FloatValues {
+	m := make(map[int64]FloatValue)
+	for _, val := range a {
+		m[val.UnixNano()] = val
+	}
+
+	other := make(FloatValues, 0, len(m))
+	for _, val := range m {
+		other = append(other, val)
+	}
+
+	sort.Sort(other)
+	return other
+}
+
+// Sort methods
+func (a FloatValues) Len() int           { return len(a) }
+func (a FloatValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a FloatValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
+
+type BooleanValue struct {
 	unixnano int64
 	value    bool
 }
 
-func (b *BoolValue) Time() time.Time {
-	return time.Unix(0, b.unixnano)
-}
+func (b *BooleanValue) Time() time.Time { return time.Unix(0, b.unixnano) }
 
-func (b *BoolValue) Size() int {
+func (b *BooleanValue) Size() int {
 	return 9
 }
 
-func (b *BoolValue) UnixNano() int64 {
+func (b *BooleanValue) UnixNano() int64 {
 	return b.unixnano
 }
 
-func (b *BoolValue) Value() interface{} {
+func (b *BooleanValue) Value() interface{} {
 	return b.value
 }
 
-func (f *BoolValue) String() string {
+func (f *BooleanValue) String() string {
 	return fmt.Sprintf("%v %v", f.Time(), f.Value())
 }
 
-func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
+func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
 
-	// A bool block is encoded using different compression strategies
+	// A boolean block is encoded using different compression strategies
 	// for timestamps and values.
 
 	// Encode values using Gorilla float compression
-	venc := NewBoolEncoder()
+	venc := NewBooleanEncoder()
 
 	// Encode timestamps using an adaptive encoder
 	tsenc := NewTimeEncoder()
@@ -386,16 +409,16 @@ func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 
 	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
-	block := packBlockHeader(BlockBool)
+	block := packBlockHeader(BlockBoolean)
 	block = append(block, packBlock(tb, vb)...)
 	return block, nil
 }
 
-func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
+func DecodeBooleanBlock(block []byte, a []BooleanValue) ([]BooleanValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
-	if blockType != BlockBool {
-		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockBool, blockType)
+	if blockType != BlockBoolean {
+		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockBoolean, blockType)
 	}
 	block = block[1:]
 
@@ -403,7 +426,7 @@ func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
 
 	// Setup our timestamp and value decoders
 	dec := NewTimeDecoder(tb)
-	vdec := NewBoolDecoder(vb)
+	vdec := NewBooleanDecoder(vb)
 
 	// Decode both a timestamp and value
 	i := 0
@@ -414,7 +437,7 @@ func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
 			a[i].unixnano = ts.UnixNano()
 			a[i].value = v
 		} else {
-			a = append(a, BoolValue{ts.UnixNano(), v})
+			a = append(a, BooleanValue{ts.UnixNano(), v})
 		}
 		i++
 	}
@@ -423,13 +446,38 @@ func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
 	if dec.Error() != nil {
 		return nil, dec.Error()
 	}
-	// Did bool decoding have an error?
+	// Did boolean decoding have an error?
 	if vdec.Error() != nil {
 		return nil, vdec.Error()
 	}
 
 	return a[:i], nil
 }
+
+// BooleanValues represents a slice of boolean values.
+type BooleanValues []BooleanValue
+
+// Deduplicate returns a new slice with any values that have the same timestamp removed.
+// The Value that appears last in the slice is the one that is kept.
+func (a BooleanValues) Deduplicate() BooleanValues {
+	m := make(map[int64]BooleanValue)
+	for _, val := range a {
+		m[val.UnixNano()] = val
+	}
+
+	other := make(BooleanValues, 0, len(m))
+	for _, val := range m {
+		other = append(other, val)
+	}
+
+	sort.Sort(other)
+	return other
+}
+
+// Sort methods
+func (a BooleanValues) Len() int           { return len(a) }
+func (a BooleanValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a BooleanValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
 
 type Int64Value struct {
 	unixnano int64
@@ -613,6 +661,31 @@ func DecodeStringBlock(block []byte, a []StringValue) ([]StringValue, error) {
 
 	return a[:i], nil
 }
+
+// StringValues represents a slice of string values.
+type StringValues []StringValue
+
+// Deduplicate returns a new slice with any values that have the same timestamp removed.
+// The Value that appears last in the slice is the one that is kept.
+func (a StringValues) Deduplicate() StringValues {
+	m := make(map[int64]StringValue)
+	for _, val := range a {
+		m[val.UnixNano()] = val
+	}
+
+	other := make(StringValues, 0, len(m))
+	for _, val := range m {
+		other = append(other, val)
+	}
+
+	sort.Sort(other)
+	return other
+}
+
+// Sort methods
+func (a StringValues) Len() int           { return len(a) }
+func (a StringValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a StringValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
 
 func packBlockHeader(blockType byte) []byte {
 	return []byte{blockType}

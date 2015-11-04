@@ -250,6 +250,20 @@ func (*TimeLiteral) expr()     {}
 func (*VarRef) expr()          {}
 func (*Wildcard) expr()        {}
 
+// Literal represents a static literal.
+type Literal interface {
+	Expr
+	literal()
+}
+
+func (*BooleanLiteral) literal()  {}
+func (*DurationLiteral) literal() {}
+func (*nilLiteral) literal()      {}
+func (*NumberLiteral) literal()   {}
+func (*RegexLiteral) literal()    {}
+func (*StringLiteral) literal()   {}
+func (*TimeLiteral) literal()     {}
+
 // Source represents a source of data for a statement.
 type Source interface {
 	Node

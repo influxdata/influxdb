@@ -1,8 +1,9 @@
 package influxql
 
 import (
-	"math"
 	"container/heap"
+	"fmt"
+	"math"
 	"sort"
 	"sync"
 )
@@ -53,17 +54,21 @@ func newBuf{{.Name}}Iterator(itr {{.Name}}Iterator) *buf{{.Name}}Iterator {
 // Close closes the underlying iterator.
 func (itr *buf{{.Name}}Iterator) Close() error { return itr.itr.Close() }
 
-// PeekTime returns the time of the next point.
+// peek returns the next point without removing it from the iterator.
+func (itr *buf{{.Name}}Iterator) peek() *{{.Name}}Point {
+	p := itr.Next()
+	itr.unread(p)
+	return p
+}
+
+// peekTime returns the time of the next point.
 // Returns zero time if no more points available.
-func (itr *buf{{.Name}}Iterator) PeekTime() int64 {
-	v := itr.Next()
-	if v == nil {
+func (itr *buf{{.Name}}Iterator) peekTime() int64 {
+	p := itr.peek()
+	if p == nil {
 		return ZeroTime
 	}
-
-	t := v.Time
-	itr.unread(v)
-	return t
+	return p.Time
 }
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
@@ -92,133 +97,155 @@ func (itr *buf{{.Name}}Iterator) NextInWindow(startTime, endTime int64) *{{.Name
 // unread sets v to the buffer. It is read on the next call to Next().
 func (itr *buf{{.Name}}Iterator) unread(v *{{.Name}}Point) { itr.buf = v }
 
-// buf{{.Name}}Iterators represents a list of buffered {{.Name}}Iterator.
-type buf{{.Name}}Iterators []*buf{{.Name}}Iterator
-
-// newBuf{{.Name}}Iterators returns a list of buffered {{.Name}}Iterators.
-func newBuf{{.Name}}Iterators(itrs []{{.Name}}Iterator) buf{{.Name}}Iterators {
-	a := make(buf{{.Name}}Iterators, len(itrs))
-	for i := range itrs {
-		a[i] = newBuf{{.Name}}Iterator(itrs[i])
-	}
-	return a
-}
-
-// Close closes all iterators.
-func (a buf{{.Name}}Iterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
-	}
-	return nil
-}
-
-// window calculates the next window based on sorted name & tags name and time window.
-func (a buf{{.Name}}Iterators) window(opt IteratorOptions) (name string, tags Tags, startTime, endTime int64) {
-	if opt.Ascending {
-		return a.windowAsc(opt)
-	}
-	return a.windowDesc(opt)
-}
-
-func (a buf{{.Name}}Iterators) windowAsc(opt IteratorOptions) (name string, tags Tags, startTime, endTime int64) {
-	min := ZeroTime
-	for _, itr := range a {
-		// Read next point. Ignore if no more points available.
-		p := itr.Next()
-		if p == nil {
-			continue
-		}
-
-		// Update values if point's window is lower (sorted by <name,tags,time>).
-		if min == ZeroTime || p.Name < name || (p.Name == name && p.Tags.ID() < tags.ID()) || (p.Name == name && p.Tags.Equals(&tags) && p.Time < min) {
-			name = p.Name
-			tags = p.Tags
-			min = p.Time
-		}
-
-		// Push point back onto buffer.
-		itr.unread(p)
-	}
-
-	// Calculate time window based on lowest time.
-	if min != ZeroTime {
-		startTime, endTime = opt.Window(min)
-	}
-
-	return
-}
-
-func (a buf{{.Name}}Iterators) windowDesc(opt IteratorOptions) (name string, tags Tags, startTime, endTime int64) {
-	min := ZeroTime
-	for _, itr := range a {
-		// Read next point. Ignore if no more points available.
-		p := itr.Next()
-		if p == nil {
-			continue
-		}
-
-		// Update values if point's window is higher (sorted by <name,tags,time>).
-		if min == ZeroTime || p.Name > name || (p.Name == name && p.Tags.ID() > tags.ID()) || (p.Name == name && p.Tags.Equals(&tags) && p.Time > min) {
-			name = p.Name
-			tags = p.Tags
-			min = p.Time
-		}
-
-		// Push point back onto buffer.
-		itr.unread(p)
-	}
-
-	// Calculate time window based on lowest time.
-	if min != ZeroTime {
-		startTime, endTime = opt.Window(min)
-	}
-
-	return
-}
-
 // {{.name}}MergeIterator represents an iterator that combines multiple {{.name}} iterators.
 type {{.name}}MergeIterator struct {
-	inputs buf{{.Name}}Iterators
-	opt    IteratorOptions
+	inputs []{{.Name}}Iterator
+	heap   *{{.name}}MergeHeap
+
+	// Current iterator and window.	
+	curr   *{{.name}}MergeHeapItem
+	window struct {
+		startTime int64
+		endTime int64
+	}
 }
 
 // new{{.Name}}MergeIterator returns a new instance of {{.name}}MergeIterator.
 func new{{.Name}}MergeIterator(inputs []{{.Name}}Iterator, opt IteratorOptions) *{{.name}}MergeIterator {
-	return &{{.name}}MergeIterator{
-		inputs: newBuf{{.Name}}Iterators(inputs),
-		opt:    opt,
+	itr := &{{.name}}MergeIterator{
+		inputs: inputs,
+		heap: &{{.name}}MergeHeap{
+			items: make([]*{{.name}}MergeHeapItem, 0, len(inputs)),
+  		opt: opt,
+		},
 	}
+
+	// Initialize heap items.
+	for _, input := range inputs {
+		// Wrap in buffer, ignore any inputs without anymore points.
+		bufInput := newBuf{{.Name}}Iterator(input)
+		if bufInput.peek() == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap.items = append(itr.heap.items, &{{.name}}MergeHeapItem{itr: bufInput})
+	}
+	heap.Init(itr.heap)
+
+	return itr
 }
 
 // Close closes the underlying iterators.
-func (itr *{{.name}}MergeIterator) Close() error { return itr.inputs.Close() }
+func (itr *{{.name}}MergeIterator) Close() error { 
+	for _, input := range itr.inputs {
+		return input.Close()
+	}
+	return nil
+}
 
 // Next returns the next point from the iterator.
 func (itr *{{.name}}MergeIterator) Next() *{{.Name}}Point {
-	// OPTIMIZE(benbjohnson): Buffer multiple points for a single window.
-
-	// Determine the window for the next lowest name+tags.
-	name, tags, startTime, endTime := itr.inputs.window(itr.opt)
-	for _, input := range itr.inputs {
-		v := input.Next()
-		if v == nil {
-			continue
-		} else if v.Name != name || !v.Tags.Equals(&tags) {
-			if (itr.opt.Ascending && v.Time >= endTime) || (!itr.opt.Ascending && v.Time <= startTime) {
-				input.unread(v)
-				continue
+	for {
+		// Retrieve the next iterator if we don't have one.
+		if itr.curr == nil {
+			if len(itr.heap.items) == 0 {
+				return nil
 			}
+			itr.curr = heap.Pop(itr.heap).(*{{.name}}MergeHeapItem)
+
+			// Read point and set current window.
+			p := itr.curr.itr.Next()
+			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
+			return p
 		}
-		return v
+
+		// Read the next point from the current iterator.
+		p := itr.curr.itr.Next()
+		
+		// If there are no more points then remove iterator from heap and find next.
+		if p == nil {
+			itr.curr = nil
+			continue
+		}
+
+		// If it's outside our window then push iterator back on the heap and find new iterator.
+		if (itr.heap.opt.Ascending && p.Time >= itr.window.endTime) || (!itr.heap.opt.Ascending && p.Time < itr.window.startTime) {
+			itr.curr.itr.unread(p)
+			heap.Push(itr.heap, itr.curr)
+			itr.curr = nil
+			continue
+		}
+
+		return p
 	}
-	return nil
+}
+
+// {{.name}}MergeHeap represents a heap of {{.name}}MergeHeapItems.
+// Items are sorted by their next window and then by name/tags.
+type {{.name}}MergeHeap struct {
+	opt   IteratorOptions
+	items []*{{.name}}MergeHeapItem
+}
+
+func (h {{.name}}MergeHeap) Len() int      { return len(h.items) }
+func (h {{.name}}MergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h {{.name}}MergeHeap) Less(i, j int) bool {
+	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+	xt, _ := h.opt.Window(x.Time)
+	yt, _ := h.opt.Window(y.Time)
+
+	if h.opt.Ascending {
+		if xt != yt {
+			return xt < yt
+		} else if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if x.Tags.ID() != y.Tags.ID() {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if xt != yt {
+		return xt > yt
+	} else if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if x.Tags.ID() != y.Tags.ID() {
+		return x.Tags.ID() > y.Tags.ID()
+	} 
+	return x.Time > y.Time
+}
+
+
+func (h *{{.name}}MergeHeap) Push(x interface{}) {
+	h.items = append(h.items, x.(*{{.name}}MergeHeapItem))
+}
+
+func (h *{{.name}}MergeHeap) Pop() interface{} {
+	old := h.items
+	n := len(old)
+	item := old[n-1]
+	h.items = old[0 : n-1]
+	return item
+}
+
+type {{.name}}MergeHeapItem struct {
+	itr *buf{{.Name}}Iterator
+}
+
+
+// {{.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type {{.name}}SortedMergeIterator struct {
+	inputs []{{.Name}}Iterator
+	opt    IteratorOptions
+	heap   {{.name}}SortedMergeHeap
 }
 
 // new{{.Name}}SortedMergeIterator returns an instance of {{.name}}SortedMergeIterator.
 func new{{.Name}}SortedMergeIterator(inputs []{{.Name}}Iterator, opt IteratorOptions) Iterator {
 	itr := &{{.name}}SortedMergeIterator{
-		inputs: newBuf{{.Name}}Iterators(inputs),
-		heap:   make({{.name}}Heap, 0, len(inputs)),
+		inputs: inputs,
+		heap:   make({{.name}}SortedMergeHeap, 0, len(inputs)),
 		opt:    opt,
 	}
 
@@ -231,22 +258,20 @@ func new{{.Name}}SortedMergeIterator(inputs []{{.Name}}Iterator, opt IteratorOpt
 		}
 
 		// Append to the heap.
-		itr.heap = append(itr.heap, &{{.name}}HeapItem{point: p, itr: input, ascending: opt.Ascending})
+		itr.heap = append(itr.heap, &{{.name}}SortedMergeHeapItem{point: p, itr: input, ascending: opt.Ascending})
 	}
 	heap.Init(&itr.heap)
 
 	return itr
 }
 
-// {{.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
-type {{.name}}SortedMergeIterator struct {
-	inputs buf{{.Name}}Iterators
-	opt    IteratorOptions
-	heap   {{.name}}Heap
-}
-
 // Close closes the underlying iterators.
-func (itr *{{.name}}SortedMergeIterator) Close() error { return itr.inputs.Close() }
+func (itr *{{.name}}SortedMergeIterator) Close() error { 
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	return nil
+}
 
 // Next returns the next points from the iterator.
 func (itr *{{.name}}SortedMergeIterator) Next() *{{.Name}}Point { return itr.pop() }
@@ -259,7 +284,7 @@ func (itr *{{.name}}SortedMergeIterator) pop() *{{.Name}}Point {
 	}
 
 	// Read the next item from the heap.
-	item := heap.Pop(&itr.heap).(*{{.name}}HeapItem)
+	item := heap.Pop(&itr.heap).(*{{.name}}SortedMergeHeapItem)
 
 	// Copy the point for return.
 	p := item.point.Clone()
@@ -272,12 +297,12 @@ func (itr *{{.name}}SortedMergeIterator) pop() *{{.Name}}Point {
 	return p
 }
 
-// {{.name}}Heap represents a heap of {{.name}}HeapItems.
-type {{.name}}Heap []*{{.name}}HeapItem
+// {{.name}}SortedMergeHeap represents a heap of {{.name}}SortedMergeHeapItems.
+type {{.name}}SortedMergeHeap []*{{.name}}SortedMergeHeapItem
 
-func (h {{.name}}Heap) Len() int      { return len(h) }
-func (h {{.name}}Heap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h {{.name}}Heap) Less(i, j int) bool {
+func (h {{.name}}SortedMergeHeap) Len() int      { return len(h) }
+func (h {{.name}}SortedMergeHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h {{.name}}SortedMergeHeap) Less(i, j int) bool {
 	x, y := h[i].point, h[j].point
 
 	if h[i].ascending {
@@ -297,11 +322,11 @@ func (h {{.name}}Heap) Less(i, j int) bool {
 	return x.Time > y.Time
 }
 
-func (h *{{.name}}Heap) Push(x interface{}) {
-	*h = append(*h, x.(*{{.name}}HeapItem))
+func (h *{{.name}}SortedMergeHeap) Push(x interface{}) {
+	*h = append(*h, x.(*{{.name}}SortedMergeHeapItem))
 }
 
-func (h *{{.name}}Heap) Pop() interface{} {
+func (h *{{.name}}SortedMergeHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
 	item := old[n-1]
@@ -309,7 +334,7 @@ func (h *{{.name}}Heap) Pop() interface{} {
 	return item
 }
 
-type {{.name}}HeapItem struct {
+type {{.name}}SortedMergeHeapItem struct {
 	point     *{{.Name}}Point
 	itr       {{.Name}}Iterator
 	ascending bool
@@ -448,6 +473,24 @@ func (itr *{{.name}}AuxIterator) Close() error                  { return itr.inp
 func (itr *{{.name}}AuxIterator) Next() *{{.Name}}Point             { return <-itr.output }
 func (itr *{{.name}}AuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
 
+func (itr *{{.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator, error) {
+	expr := opt.Expr
+	if expr == nil {
+		panic("unable to create an iterator with no expression from an aux iterator")
+	}
+
+	switch expr := expr.(type) {
+	case *VarRef:
+		return itr.fields.iterator(expr.Val), nil
+	default:
+		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
+	}
+}
+
+func (itr *{{.name}}AuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
+	panic("not implemented")
+}
+
 func (itr *{{.name}}AuxIterator) stream() {
 	for {
 		// Read next point.
@@ -509,7 +552,7 @@ func (itr *{{.name}}ReduceIterator) Next() *{{.Name}}Point {
 // The previous value for the dimension is passed to fn.
 func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
 	// Calculate next window.
-	startTime, endTime := itr.opt.Window(itr.input.PeekTime())
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
 	var reduceOptions = reduceOptions{
 		startTime: startTime,
@@ -592,7 +635,7 @@ func (itr *{{.name}}ReduceSliceIterator) Next() *{{.Name}}Point {
 // The previous value for the dimension is passed to fn.
 func (itr *{{.name}}ReduceSliceIterator) reduce() []{{.Name}}Point {
 	// Calculate next window.
-	startTime, endTime := itr.opt.Window(itr.input.PeekTime())
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
 	var reduceOptions = reduceOptions{
 		startTime: startTime,
@@ -658,6 +701,54 @@ func (itr *{{.name}}ReduceSliceIterator) reduce() []{{.Name}}Point {
 
 // {{.name}}ReduceSliceFunc is the function called by a {{.Name}}Point slice reducer.
 type {{.name}}ReduceSliceFunc func(a []{{.Name}}Point, opt *reduceOptions) []{{.Name}}Point
+
+// {{.name}}ReduceIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type {{.name}}TransformIterator struct {
+	input {{.Name}}Iterator
+	fn    {{.name}}TransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}TransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *{{.name}}TransformIterator) Next() *{{.Name}}Point {
+	p := itr.input.Next()
+	if p != nil {
+		p = itr.fn(p)
+	}
+	return p
+}
+
+// {{.name}}TransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type {{.name}}TransformFunc func(p *{{.Name}}Point) *{{.Name}}Point
+
+// {{.name}}ReduceIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type {{.name}}BoolTransformIterator struct {
+	input {{.Name}}Iterator
+	fn    {{.name}}BoolTransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}BoolTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *{{.name}}BoolTransformIterator) Next() *BooleanPoint {
+	p := itr.input.Next()
+	if p != nil {
+		return itr.fn(p)
+	}
+	return nil
+}
+
+// {{.name}}BoolTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type {{.name}}BoolTransformFunc func(p *{{.Name}}Point) *BooleanPoint
 
 
 {{end}}

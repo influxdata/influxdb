@@ -26,7 +26,7 @@ type Engine interface {
 	SetLogOutput(io.Writer)
 	LoadMetadataIndex(shard *Shard, index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
-	Begin(writable bool) (Tx, error)
+	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
@@ -82,7 +82,7 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 	}
 
 	// If it's a dir then it's a tsm1 engine
-	var format string
+	format := "tsm1"
 	if fi, err := os.Stat(path); err != nil {
 		return nil, err
 	} else if !fi.Mode().IsDir() {
@@ -120,119 +120,6 @@ func NewEngineOptions() EngineOptions {
 		Config:                 NewConfig(),
 	}
 }
-
-// Tx represents a transaction.
-type Tx interface {
-	io.WriterTo
-
-	Size() int64
-	Commit() error
-	Rollback() error
-
-	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
-}
-
-func newTxIterator(tx Tx, sh *Shard, opt influxql.IteratorOptions, dimensions map[string]struct{}) (influxql.Iterator, error) {
-	// If there's no expression then it's just an auxilary field selection.
-	if opt.Expr == nil {
-		return newTxVarRefIterator(tx, sh, opt, dimensions)
-	}
-
-	// If raw data is being read then read it directly.
-	// Otherwise wrap it in a call iterator.
-	switch expr := opt.Expr.(type) {
-	case *influxql.VarRef:
-		return newTxVarRefIterator(tx, sh, opt, dimensions)
-	case *influxql.Call:
-		refOpt := opt
-		refOpt.Expr = expr.Args[0].(*influxql.VarRef)
-		input, err := newTxVarRefIterator(tx, sh, refOpt, dimensions)
-		if err != nil {
-			return nil, err
-		}
-		return influxql.NewCallIterator(input, opt), nil
-	default:
-		panic(fmt.Sprintf("unsupported tx iterator expr: %T", expr))
-	}
-}
-
-// newTxVarRefIterator creates an tx iterator for a variable reference.
-func newTxVarRefIterator(tx Tx, sh *Shard, opt influxql.IteratorOptions, dimensions map[string]struct{}) (influxql.Iterator, error) {
-	ref, _ := opt.Expr.(*influxql.VarRef)
-
-	var itrs []influxql.Iterator
-	if err := func() error {
-		mms := Measurements(sh.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
-
-		// Retrieve non-time field names from condition.
-		conditionFields := influxql.ExprNames(opt.Condition)
-
-		for _, mm := range mms {
-			// Determine tagsets for this measurement based on dimensions and filters.
-			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
-			if err != nil {
-				return err
-			}
-
-			// Calculate tag sets and apply SLIMIT/SOFFSET.
-			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
-
-			for _, t := range tagSets {
-				for i, seriesKey := range t.SeriesKeys {
-					// Create field list for cursor.
-					fields := make([]string, 0, len(opt.Aux)+1)
-					if ref != nil {
-						fields = append(fields, ref.Val)
-					}
-					fields = append(fields, opt.Aux...)
-					fields = append(fields, conditionFields...)
-
-					// Create cursor.
-					cur := tx.Cursor(seriesKey, fields, sh.FieldCodec(mm.Name), opt.Ascending)
-					if cur == nil {
-						continue
-					}
-
-					// Create options specific for this series.
-					curOpt := opt
-					curOpt.Condition = t.Filters[i]
-
-					itr := NewFloatCursorIterator(mm.Name, sh.index.TagsForSeries(seriesKey), cur, curOpt)
-					itrs = append(itrs, itr)
-				}
-			}
-		}
-		return nil
-	}(); err != nil {
-		influxql.Iterators(itrs).Close()
-		return nil, err
-	}
-
-	// Merge iterators into one.
-	itr := influxql.NewMergeIterator(itrs, opt)
-	switch itr := itr.(type) {
-	case influxql.FloatIterator:
-		return &txFloatIterator{tx: tx, itr: itr}, nil
-	default:
-		panic(fmt.Sprintf("unsupported tx iterator input type: %T", itr))
-	}
-}
-
-// txFloatIterator represents an iterator with an attached transaction.
-// It is used to track the Tx so it can be closed.
-type txFloatIterator struct {
-	tx  Tx
-	itr influxql.FloatIterator
-}
-
-// Close closes the underlying iterator and rolls back the transaction.
-func (itr *txFloatIterator) Close() error {
-	defer itr.tx.Rollback()
-	return itr.itr.Close()
-}
-
-// Next returns the next point.
-func (itr *txFloatIterator) Next() *influxql.FloatPoint { return itr.itr.Next() }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).
 func DedupeEntries(a [][]byte) [][]byte {

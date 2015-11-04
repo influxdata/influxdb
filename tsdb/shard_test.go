@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -182,7 +183,7 @@ cpu,host=serverB,region=uswest value=25  0
 		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 100,
-		Aux:   []interface{}{nil},
+		Aux:   []interface{}{math.NaN()},
 	}) {
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}
@@ -202,7 +203,7 @@ cpu,host=serverB,region=uswest value=25  0
 		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 25,
-		Aux:   []interface{}{nil},
+		Aux:   []interface{}{math.NaN()},
 	}) {
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
 	}

@@ -96,6 +96,9 @@ type blockAccessor interface {
 	read(key string, timestamp time.Time) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
+	readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
+	readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error)
+	readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
 	readBytes(entry *IndexEntry, buf []byte) ([]byte, error)
 	path() string
 	close() error
@@ -202,6 +205,24 @@ func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	defer t.mu.RUnlock()
 
 	return t.accessor.readBlock(entry, vals)
+}
+
+func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, vals []FloatValue) ([]FloatValue, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.readFloatBlock(entry, vals)
+}
+
+func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, vals []StringValue) ([]StringValue, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.readStringBlock(entry, vals)
+}
+
+func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, vals []BooleanValue) ([]BooleanValue, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.readBooleanBlock(entry, vals)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
@@ -770,6 +791,51 @@ func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	return values, nil
 }
 
+func (f *fileAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error) {
+	b, err := f.readBytes(entry, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Validate checksum
+	values, err = DecodeFloatBlock(b, values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (f *fileAccessor) readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error) {
+	b, err := f.readBytes(entry, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Validate checksum
+	values, err = DecodeStringBlock(b, values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error) {
+	b, err := f.readBytes(entry, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Validate checksum
+	values, err = DecodeBooleanBlock(b, values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
 func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -911,6 +977,57 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	//TODO: Validate checksum
 	var err error
 	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		return nil, ErrTSMClosed
+	}
+	//TODO: Validate checksum
+	var err error
+	values, err = DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		return nil, ErrTSMClosed
+	}
+	//TODO: Validate checksum
+	var err error
+	values, err = DecodeStringBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		return nil, ErrTSMClosed
+	}
+	//TODO: Validate checksum
+	var err error
+	values, err = DecodeBooleanBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
 	if err != nil {
 		return nil, err
 	}

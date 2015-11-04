@@ -6,7 +6,7 @@ var (
 	bufPool          sync.Pool
 	float64ValuePool sync.Pool
 	int64ValuePool   sync.Pool
-	boolValuePool    sync.Pool
+	booleanValuePool sync.Pool
 	stringValuePool  sync.Pool
 )
 
@@ -81,9 +81,9 @@ func putInt64Values(buf []Value) {
 }
 
 // getBuf returns a buffer with length size from the buffer pool.
-func getBoolValues(size int) []Value {
+func getBooleanValues(size int) []Value {
 	var buf []Value
-	x := boolValuePool.Get()
+	x := booleanValuePool.Get()
 	if x == nil {
 		buf = make([]Value, size)
 	} else {
@@ -95,7 +95,7 @@ func getBoolValues(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &BoolValue{}
+			buf[i] = &BooleanValue{}
 		}
 	}
 	return buf[:size]
@@ -128,8 +128,8 @@ func getStringValues(size int) []Value {
 }
 
 // putBuf returns a buffer to the pool.
-func putBoolValues(buf []Value) {
-	boolValuePool.Put(buf)
+func putBooleanValues(buf []Value) {
+	booleanValuePool.Put(buf)
 }
 func putValue(buf []Value) {
 	if len(buf) > 0 {
@@ -138,10 +138,10 @@ func putValue(buf []Value) {
 			putFloat64Values(buf)
 		case *Int64Value:
 			putInt64Values(buf)
-		case *BoolValue:
-			putBoolValues(buf)
+		case *BooleanValue:
+			putBooleanValues(buf)
 		case *StringValue:
-			putBoolValues(buf)
+			putStringValues(buf)
 		}
 	}
 }

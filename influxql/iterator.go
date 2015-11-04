@@ -3,7 +3,6 @@ package influxql
 import (
 	"errors"
 	"fmt"
-	"math"
 	"time"
 )
 
@@ -17,7 +16,8 @@ const (
 	MinTime = int64(0)
 
 	// MaxTime is used as the maximum time value when computing an unbounded range.
-	MaxTime = int64(math.MaxInt64)
+	// This time is Jan 1, 2050 at midnight UTC.
+	MaxTime = int64(2524608000000000000)
 )
 
 // Iterator represents a generic interface for all Iterators.
@@ -56,16 +56,6 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return &nilFloatIterator{}
 	}
 
-	// If the expression is nil or a variable reference then do a full sort.
-	if _, ok := opt.Expr.(*VarRef); opt.Expr == nil || ok {
-		switch input := inputs[0].(type) {
-		case FloatIterator:
-			return newFloatSortedMergeIterator(newFloatIterators(inputs), opt)
-		default:
-			panic(fmt.Sprintf("unsupported sorted merge iterator type: %T", input))
-		}
-	}
-
 	// Aggregate functions can use a more relaxed sorting so that points
 	// within a window are grouped. This is much more efficient.
 	switch input := inputs[0].(type) {
@@ -73,6 +63,21 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return newFloatMergeIterator(newFloatIterators(inputs), opt)
 	default:
 		panic(fmt.Sprintf("unsupported merge iterator type: %T", input))
+	}
+}
+
+// NewSortedMergeIterator returns an iterator to merge itrs into one.
+func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
+	inputs = Iterators(inputs).filterNonNil()
+	if len(inputs) == 0 {
+		return &nilFloatIterator{}
+	}
+
+	switch input := inputs[0].(type) {
+	case FloatIterator:
+		return newFloatSortedMergeIterator(newFloatIterators(inputs), opt)
+	default:
+		panic(fmt.Sprintf("unsupported sorted merge iterator type: %T", input))
 	}
 }
 
@@ -165,6 +170,7 @@ func (itrs joinIterators) iterators() []Iterator {
 // AuxIterator represents an iterator that can split off separate auxilary iterators.
 type AuxIterator interface {
 	Iterator
+	IteratorCreator
 
 	// Auxilary iterator
 	Iterator(name string) Iterator
@@ -393,20 +399,6 @@ type IteratorOptions struct {
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
 func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err error) {
-	// Determine group by interval.
-	interval, err := stmt.GroupByInterval()
-	if err != nil {
-		return opt, err
-	}
-	opt.Interval.Duration = interval
-
-	// Determine dimensions.
-	for _, d := range stmt.Dimensions {
-		if d, ok := d.Expr.(*VarRef); ok {
-			opt.Dimensions = append(opt.Dimensions, d.Val)
-		}
-	}
-
 	// Determine time range from the condition.
 	startTime, endTime := TimeRange(stmt.Condition)
 	if !startTime.IsZero() {
@@ -420,6 +412,24 @@ func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err err
 		opt.EndTime = MaxTime
 	}
 
+	// Determine group by interval.
+	interval, err := stmt.GroupByInterval()
+	if err != nil {
+		return opt, err
+	}
+	// Set duration to entire span if no interval is specified.
+	if interval <= 0 {
+		interval = time.Duration(opt.EndTime - opt.StartTime)
+	}
+	opt.Interval.Duration = interval
+
+	// Determine dimensions.
+	for _, d := range stmt.Dimensions {
+		if d, ok := d.Expr.(*VarRef); ok {
+			opt.Dimensions = append(opt.Dimensions, d.Val)
+		}
+	}
+
 	opt.Sources = stmt.Sources
 	opt.Condition = stmt.Condition
 	opt.Ascending = stmt.TimeAscending()
@@ -428,6 +438,25 @@ func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err err
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
 
 	return opt, nil
+}
+
+// MergeSorted returns true if the options require a sorted merge.
+// This is only needed when the expression is a variable reference or there is no expr.
+func (opt IteratorOptions) MergeSorted() bool {
+	if opt.Expr == nil {
+		return true
+	}
+	_, ok := opt.Expr.(*VarRef)
+	return ok
+}
+
+// SeekTime returns the time the iterator should start from.
+// For ascending iterators this is the start time, for descending iterators it's the end time.
+func (opt IteratorOptions) SeekTime() int64 {
+	if opt.Ascending {
+		return opt.StartTime
+	}
+	return opt.EndTime
 }
 
 // Window returns the time window [start,end) that t falls within.

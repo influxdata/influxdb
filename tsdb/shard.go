@@ -164,12 +164,6 @@ func (s *Shard) DiskSize() (int64, error) {
 	return size, nil
 }
 
-// ReadOnlyTx returns a read-only transaction for the shard.  The transaction must be rolled back to
-// release resources.
-func (s *Shard) ReadOnlyTx() (Tx, error) {
-	return s.engine.Begin(false)
-}
-
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
@@ -391,36 +385,7 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	// Create iterator directly from engine, if it supports it.
-	// if e, ok := s.engine.(influxql.IteratorCreator); ok {
-	// 	return e.CreateIterator(opt)
-	// }
-
-	// If there are auxilary fields then determine which ones are tags so
-	// we can return the appropriate data type for the iterator.
-	var dimensions map[string]struct{}
-	if len(opt.Aux) > 0 {
-		_, m, err := s.FieldDimensions(opt.Sources)
-		if err != nil {
-			return nil, err
-		}
-		dimensions = m
-	}
-
-	// Otherwise create a transaction and convert between the cursor and iterator interfaces.
-	tx, err := s.engine.Begin(false)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create an iterator wrapper for the transation and its cursors.
-	// Rollback if any errors occur.
-	itr, err := newTxIterator(tx, s, opt, dimensions)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	return itr, nil
+	return s.engine.CreateIterator(opt)
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
@@ -477,6 +442,9 @@ func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator,
 	}
 
 	// Merge into a single iterator.
+	if opt.MergeSorted() {
+		return influxql.NewSortedMergeIterator(itrs, opt), nil
+	}
 	return influxql.NewMergeIterator(itrs, opt), nil
 }
 

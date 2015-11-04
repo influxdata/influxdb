@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 
@@ -11,6 +12,47 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/pkg/deep"
 )
+
+// Ensure that a set of iterators can be merged together, sorted by window and name/tag.
+func TestMergeIterator(t *testing.T) {
+	itr := influxql.NewMergeIterator([]influxql.Iterator{
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+		}},
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+		}},
+	}, influxql.IteratorOptions{
+		Interval: influxql.Interval{
+			Duration: 10 * time.Nanosecond,
+		},
+		Ascending: true,
+	}).(influxql.FloatIterator)
+
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}) {
+		t.Fatalf("unexpected point: %#v", p)
+	} else if p = itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}) {
+		t.Fatalf("unexpected point: %#v", p)
+	} else if p = itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}) {
+		t.Fatalf("unexpected point: %#v", p)
+	} else if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+}
 
 // Ensure that a set of iterators can be combined together and output synced iterators.
 func TestJoin(t *testing.T) {

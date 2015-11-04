@@ -85,7 +85,7 @@ func newMinIterator(input Iterator, opt IteratorOptions) Iterator {
 // floatMinReduce returns the minimum value between prev & curr.
 func floatMinReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
 	if prev == nil || curr.Value < prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
-		return curr.Time, curr.Value, curr.Aux
+		return opt.startTime, curr.Value, curr.Aux
 	}
 	return prev.Time, prev.Value, prev.Aux
 }
@@ -103,7 +103,7 @@ func newMaxIterator(input Iterator, opt IteratorOptions) Iterator {
 // floatMaxReduce returns the maximum value between prev & curr.
 func floatMaxReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
 	if prev == nil || curr.Value > prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
-		return curr.Time, curr.Value, curr.Aux
+		return opt.startTime, curr.Value, curr.Aux
 	}
 	return prev.Time, prev.Value, prev.Aux
 }
@@ -382,8 +382,6 @@ func newFloatDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) fl
 		output := make([]FloatPoint, 0, len(a)-1)
 		for i := 1; i < len(a); i++ {
 			p := &a[i]
-
-			fmt.Println("\033[7mDBG>>>>>>>>>>", p, "//", prev, "\033[0m")
 
 			// Calculate the derivative of successive points by dividing the
 			// difference of each value by the elapsed time normalized to the interval.

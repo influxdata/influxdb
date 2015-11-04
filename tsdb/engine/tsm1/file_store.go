@@ -20,8 +20,11 @@ type TSMFile interface {
 	// Read returns all the values in the block where time t resides
 	Read(key string, t time.Time) ([]Value, error)
 
-	// Read returns all the values in the block identified by entry.
+	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
+	ReadFloatBlockAt(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
+	ReadStringBlockAt(entry *IndexEntry, values []StringValue) ([]StringValue, error)
+	ReadBooleanBlockAt(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key string) []*IndexEntry
@@ -44,7 +47,7 @@ type TSMFile interface {
 	Keys() []string
 
 	// Type returns the block type of the values stored for the key.  Returns one of
-	// BlockFloat64, BlockInt64, BlockBool, BlockString.  If key does not exist,
+	// BlockFloat64, BlockInt64, BlockBoolean, BlockString.  If key does not exist,
 	// an error is returned.
 	Type(key string) (byte, error)
 
@@ -123,6 +126,13 @@ func (f *FileStore) Count() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return len(f.files)
+}
+
+// Files returns TSM files currently loaded.
+func (f *FileStore) Files() []TSMFile {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.files
 }
 
 // CurrentGeneration returns the current generation of the TSM files
@@ -318,10 +328,10 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 	return nil, nil
 }
 
-func (f *FileStore) KeyCursor(key string) *KeyCursor {
+func (f *FileStore) KeyCursor(key string, t time.Time, ascending bool) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return &KeyCursor{key: key, fs: f}
+	return newKeyCursor(f, key, t, ascending)
 }
 
 func (f *FileStore) Stats() []FileStat {
@@ -527,9 +537,6 @@ type KeyCursor struct {
 	pos       int
 	ascending bool
 
-	// ready indicates that we know the files and blocks to seek to for the key.
-	ready bool
-
 	// duplicates is a hint that there are overlapping blocks for this key in
 	// multiple files (e.g. points have been overwritten but not fully compacted)
 	// If this is true, we need to scan the duplicate blocks and dedup the points
@@ -545,32 +552,20 @@ type location struct {
 	read bool
 }
 
-func (c *KeyCursor) init(t time.Time, ascending bool) {
-	if c.ready {
-		// Re-set the read status of each blocks in case a cursor is Seeked to
-		// multiple times
-		for _, c := range c.seeks {
-			c.read = false
-		}
-		return
+// newKeyCursor returns a new instance of KeyCursor.
+func newKeyCursor(fs *FileStore, key string, t time.Time, ascending bool) *KeyCursor {
+	c := &KeyCursor{
+		key:       key,
+		fs:        fs,
+		seeks:     fs.locations(key, t, ascending),
+		ascending: ascending,
 	}
-	c.ascending = ascending
-	c.seeks = c.fs.locations(c.key, t, ascending)
-
-	if len(c.seeks) > 0 {
-		for i := 1; i < len(c.seeks); i++ {
-			prev := c.seeks[i-1]
-			cur := c.seeks[i]
-
-			if prev.entry.MaxTime.Equal(cur.entry.MinTime) || prev.entry.MaxTime.After(cur.entry.MinTime) {
-				c.duplicates = true
-				break
-			}
-		}
-	}
-	c.ready = true
+	c.duplicates = c.hasOverlappingBlocks()
+	c.seek(t)
+	return c
 }
 
+// Close removes all references on the cursor.
 func (c *KeyCursor) Close() {
 	c.buf = nil
 	c.seeks = nil
@@ -578,54 +573,149 @@ func (c *KeyCursor) Close() {
 	c.current = nil
 }
 
-func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
-	c.init(t, ascending)
+// hasOverlappingBlocks returns true if blocks have overlapping time ranges.
+// This result is computed once and stored as the "duplicates" field.
+func (c *KeyCursor) hasOverlappingBlocks() bool {
 	if len(c.seeks) == 0 {
-		return nil, nil
+		return false
+	}
+
+	for i := 1; i < len(c.seeks); i++ {
+		prev := c.seeks[i-1]
+		cur := c.seeks[i]
+		if prev.entry.MaxTime.Equal(cur.entry.MinTime) || prev.entry.MaxTime.After(cur.entry.MinTime) {
+			return true
+		}
+	}
+	return false
+}
+
+// seek positions the cursor at the given time.
+func (c *KeyCursor) seek(t time.Time) {
+	if len(c.seeks) == 0 {
+		return
 	}
 	c.current = nil
 
-	if ascending {
-		for i, e := range c.seeks {
-			if t.Before(e.entry.MinTime) || e.entry.Contains(t) {
-				// Record the position of the first block matching our seek time
-				if len(c.current) == 0 {
-					c.pos = i
-				}
-
-				c.current = append(c.current, e)
-
-				// If we don't have duplicates, break.  Otherwise, keep looking for additional blocks containing
-				// this point.
-				if !c.duplicates {
-					break
-				}
-			}
-		}
+	if c.ascending {
+		c.seekAscending(t)
 	} else {
-		for i := len(c.seeks) - 1; i >= 0; i-- {
-			e := c.seeks[i]
-			if t.After(e.entry.MaxTime) || e.entry.Contains(t) {
-				// Record the position of the first block matching our seek time
-				if len(c.current) == 0 {
-					c.pos = i
-				}
+		c.seekDescending(t)
+	}
+}
 
-				c.current = append(c.current, e)
+func (c *KeyCursor) seekAscending(t time.Time) {
+	for i, e := range c.seeks {
+		if t.Before(e.entry.MinTime) || e.entry.Contains(t) {
+			// Record the position of the first block matching our seek time
+			if len(c.current) == 0 {
+				c.pos = i
+			}
 
-				// If we don't have duplicates, break.  Otherwise, keep looking for additional blocks containing
-				// this point.
-				if !c.duplicates {
-					break
-				}
+			c.current = append(c.current, e)
+
+			// Exit if we don't have duplicates.
+			// Otherwise, keep looking for additional blocks containing this point.
+			if !c.duplicates {
+				return
 			}
 		}
 	}
-
-	return c.readAt()
 }
 
-func (c *KeyCursor) readAt() ([]Value, error) {
+func (c *KeyCursor) seekDescending(t time.Time) {
+	for i := len(c.seeks) - 1; i >= 0; i-- {
+		e := c.seeks[i]
+		if t.After(e.entry.MaxTime) || e.entry.Contains(t) {
+			// Record the position of the first block matching our seek time
+			if len(c.current) == 0 {
+				c.pos = i
+			}
+			c.current = append(c.current, e)
+
+			// Exit if we don't have duplicates.
+			// Otherwise, keep looking for additional blocks containing this point.
+			if !c.duplicates {
+				return
+			}
+		}
+	}
+}
+
+// Next moves the cursor to the next position.
+// Data should be read by the ReadBlock functions.
+func (c *KeyCursor) Next() {
+	c.current = c.current[:0]
+	if c.ascending {
+		c.nextAscending()
+	} else {
+		c.nextDescending()
+	}
+}
+
+func (c *KeyCursor) nextAscending() {
+	for {
+		c.pos++
+		if c.pos >= len(c.seeks) {
+			return
+		} else if !c.seeks[c.pos].read {
+			break
+		}
+	}
+
+	// Append the first matching block
+	c.current = []*location{c.seeks[c.pos]}
+
+	// We're done if there are no overlapping blocks.
+	if !c.duplicates {
+		return
+	}
+
+	// If we have ovelapping blocks, append all their values so we can dedup
+	first := c.seeks[c.pos]
+	for i := c.pos + 1; i < len(c.seeks); i++ {
+		if c.seeks[i].read {
+			continue
+		}
+
+		if c.seeks[i].entry.MinTime.Before(first.entry.MaxTime) || c.seeks[i].entry.MinTime.Equal(first.entry.MaxTime) {
+			c.current = append(c.current, c.seeks[i])
+		}
+	}
+}
+
+func (c *KeyCursor) nextDescending() {
+	for {
+		c.pos--
+		if c.pos < 0 {
+			return
+		} else if !c.seeks[c.pos].read {
+			break
+		}
+	}
+
+	// Append the first matching block
+	c.current = []*location{c.seeks[c.pos]}
+
+	// We're done if there are no overlapping blocks.
+	if !c.duplicates {
+		return
+	}
+
+	// If we have ovelapping blocks, append all their values so we can dedup
+	first := c.seeks[c.pos]
+	for i := c.pos; i >= 0; i-- {
+		if c.seeks[i].read {
+			continue
+		}
+		if c.seeks[i].entry.MaxTime.After(first.entry.MinTime) || c.seeks[i].entry.MaxTime.Equal(first.entry.MinTime) {
+			c.current = append(c.current, c.seeks[i])
+		}
+	}
+}
+
+// ReadFloatBlock reads the next block as a set of float values.
+func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -633,7 +723,7 @@ func (c *KeyCursor) readAt() ([]Value, error) {
 
 	// First block is the oldest block containing the points we're search for.
 	first := c.current[0]
-	values, err := first.r.ReadAt(first.entry, c.buf[:0])
+	values, err := first.r.ReadFloatBlockAt(first.entry, buf[:0])
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -648,7 +738,7 @@ func (c *KeyCursor) readAt() ([]Value, error) {
 		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadAt(cur.entry, nil)
+			v, err := cur.r.ReadFloatBlockAt(cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -657,7 +747,7 @@ func (c *KeyCursor) readAt() ([]Value, error) {
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadAt(cur.entry, nil)
+			v, err := cur.r.ReadFloatBlockAt(cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -665,73 +755,95 @@ func (c *KeyCursor) readAt() ([]Value, error) {
 		}
 	}
 
-	return Values(values).Deduplicate(), err
+	return FloatValues(values).Deduplicate(), err
 }
 
-func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
-	c.current = c.current[:0]
-
-	if ascending {
-		for {
-			c.pos++
-			if c.pos >= len(c.seeks) {
-				return nil, nil
-			}
-
-			if !c.seeks[c.pos].read {
-				break
-			}
-		}
-
-		// Append the first matching block
-		c.current = []*location{c.seeks[c.pos]}
-
-		// If we have ovelapping blocks, append all their values so we can dedup
-		if c.duplicates {
-			first := c.seeks[c.pos]
-			for i := c.pos + 1; i < len(c.seeks); i++ {
-				if c.seeks[i].read {
-					continue
-				}
-
-				if c.seeks[i].entry.MinTime.Before(first.entry.MaxTime) || c.seeks[i].entry.MinTime.Equal(first.entry.MaxTime) {
-					c.current = append(c.current, c.seeks[i])
-				}
-			}
-		}
-
-		return c.readAt()
-
-	} else {
-		for {
-			c.pos--
-			if c.pos < 0 {
-				return nil, nil
-			}
-
-			if !c.seeks[c.pos].read {
-				break
-			}
-		}
-
-		// Append the first matching block
-		c.current = []*location{c.seeks[c.pos]}
-
-		// If we have ovelapping blocks, append all their values so we can dedup
-		if c.duplicates {
-			first := c.seeks[c.pos]
-			for i := c.pos; i >= 0; i-- {
-				if c.seeks[i].read {
-					continue
-				}
-				if c.seeks[i].entry.MaxTime.After(first.entry.MinTime) || c.seeks[i].entry.MaxTime.Equal(first.entry.MinTime) {
-					c.current = append(c.current, c.seeks[i])
-				}
-			}
-		}
-
-		return c.readAt()
+// ReadStringBlock reads the next block as a set of string values.
+func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
+	// No matching blocks to decode
+	if len(c.current) == 0 {
+		return nil, nil
 	}
+
+	// First block is the oldest block containing the points we're search for.
+	first := c.current[0]
+	values, err := first.r.ReadStringBlockAt(first.entry, buf[:0])
+	first.read = true
+
+	// Only one block with this key and time range so return it
+	if len(c.current) == 1 {
+		return values, err
+	}
+
+	// Otherwise, search the remaining blocks that overlap and append their values so we can
+	// dedup them.
+	for i := 1; i < len(c.current); i++ {
+		cur := c.current[i]
+		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
+			c.pos++
+			v, err := cur.r.ReadStringBlockAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, v...)
+		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
+			c.pos--
+
+			v, err := cur.r.ReadStringBlockAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(v, values...)
+		}
+	}
+
+	return StringValues(values).Deduplicate(), err
+}
+
+// ReadBooleanBlock reads the next block as a set of boolean values.
+func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error) {
+	// No matching blocks to decode
+	if len(c.current) == 0 {
+		return nil, nil
+	}
+
+	// First block is the oldest block containing the points we're search for.
+	first := c.current[0]
+	values, err := first.r.ReadBooleanBlockAt(first.entry, buf[:0])
+	first.read = true
+
+	// Only one block with this key and time range so return it
+	if len(c.current) == 1 {
+		return values, err
+	}
+
+	// Otherwise, search the remaining blocks that overlap and append their values so we can
+	// dedup them.
+	for i := 1; i < len(c.current); i++ {
+		cur := c.current[i]
+		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
+			c.pos++
+			v, err := cur.r.ReadBooleanBlockAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, v...)
+		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
+			c.pos--
+
+			v, err := cur.r.ReadBooleanBlockAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(v, values...)
+		}
+	}
+
+	return BooleanValues(values).Deduplicate(), err
 }
 
 type tsmReaders []TSMFile

@@ -479,6 +479,7 @@ func (m *Measurement) filters(condition influxql.Expr) (map[uint64]influxql.Expr
 	if err != nil {
 		return nil, err
 	}
+
 	// Ensure every id is in the map and replace literal true expressions with
 	// nil so the engine doesn't waste time evaluating them.
 	for _, id := range ids {
