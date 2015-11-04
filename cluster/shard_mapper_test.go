@@ -1,5 +1,6 @@
 package cluster
 
+/*
 import (
 	"bytes"
 	"encoding/json"
@@ -108,3 +109,4 @@ func mustParseStmt(stmt string) influxql.Statement {
 	}
 	return q.Statements[0]
 }
+*/

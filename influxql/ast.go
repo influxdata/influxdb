@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -260,6 +259,18 @@ func (*Measurement) source() {}
 
 // Sources represents a list of sources.
 type Sources []Source
+
+// Names returns a list of source names.
+func (a Sources) Names() []string {
+	names := make([]string, 0, len(a))
+	for _, s := range a {
+		switch s := s.(type) {
+		case *Measurement:
+			names = append(names, s.Name)
+		}
+	}
+	return names
+}
 
 // String returns a string representation of a Sources array.
 func (a Sources) String() string {
@@ -756,18 +767,6 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
-// SourceNames returns a list of source names.
-func (s *SelectStatement) SourceNames() []string {
-	a := make([]string, 0, len(s.Sources))
-	for _, src := range s.Sources {
-		switch src := src.(type) {
-		case *Measurement:
-			a = append(a, src.Name)
-		}
-	}
-	return a
-}
-
 // HasDerivative returns true if one of the function calls in the statement is a
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
@@ -892,19 +891,40 @@ func cloneSource(s Source) Source {
 // RewriteWildcards returns the re-written form of the select statement. Any wildcard query
 // fields are replaced with the supplied fields, and any wildcard GROUP BY fields are replaced
 // with the supplied dimensions.
-func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions) *SelectStatement {
+func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement, error) {
+	// Ignore if there are no wildcards.
+	hasFieldWildcard := s.HasFieldWildcard()
+	hasDimensionWildcard := s.HasDimensionWildcard()
+	if !hasFieldWildcard && !hasDimensionWildcard {
+		return s, nil
+	}
+
+	// Retrieve a list of unqiue field and dimensions.
+	fieldSet, dimensionSet, err := ic.FieldDimensions(s.Sources)
+	if err != nil {
+		return s, err
+	}
+
+	// If there are no dimension wildcards then merge dimensions to fields.
+	if !hasDimensionWildcard {
+		for k := range dimensionSet {
+			fieldSet[k] = struct{}{}
+		}
+		dimensionSet = nil
+	}
+	fields := stringSetSlice(fieldSet)
+	dimensions := stringSetSlice(dimensionSet)
+
 	other := s.Clone()
-	selectWildcard, groupWildcard := false, false
 
 	// Rewrite all wildcard query fields
 	rwFields := make(Fields, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		switch f.Expr.(type) {
 		case *Wildcard:
-			// Sort wildcard fields for consistent output
-			sort.Sort(fields)
-			rwFields = append(rwFields, fields...)
-			selectWildcard = true
+			for _, name := range fields {
+				rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+			}
 		default:
 			rwFields = append(rwFields, f)
 		}
@@ -916,28 +936,52 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	for _, d := range s.Dimensions {
 		switch d.Expr.(type) {
 		case *Wildcard:
-			rwDimensions = append(rwDimensions, dimensions...)
-			groupWildcard = true
+			for _, name := range dimensions {
+				rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
+			}
 		default:
 			rwDimensions = append(rwDimensions, d)
 		}
 	}
 
-	if selectWildcard && !groupWildcard {
-		rwDimensions = append(rwDimensions, dimensions...)
+	if hasFieldWildcard && !hasDimensionWildcard {
+		for _, name := range dimensions {
+			rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
+		}
 	}
 	other.Dimensions = rwDimensions
 
-	return other
+	return other, nil
 }
 
 // RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly
 // This method assumes all validation has passed
 func (s *SelectStatement) RewriteDistinct() {
-	for i, f := range s.Fields {
-		if d, ok := f.Expr.(*Distinct); ok {
-			s.Fields[i].Expr = d.NewCall()
-			s.IsRawQuery = false
+	WalkFunc(s.Fields, func(n Node) {
+		switch n := n.(type) {
+		case *Field:
+			if expr, ok := n.Expr.(*Distinct); ok {
+				n.Expr = expr.NewCall()
+				s.IsRawQuery = false
+			}
+		case *Call:
+			for i, arg := range n.Args {
+				if arg, ok := arg.(*Distinct); ok {
+					n.Args[i] = arg.NewCall()
+				}
+			}
+		}
+	})
+}
+
+// RewriteTimeFields removes any "time" field references.
+func (s *SelectStatement) RewriteTimeFields() {
+	for i := 0; i < len(s.Fields); i++ {
+		switch expr := s.Fields[i].Expr.(type) {
+		case *VarRef:
+			if expr.Val == "time" {
+				s.Fields = append(s.Fields[:i], s.Fields[i+1:]...)
+			}
 		}
 	}
 }

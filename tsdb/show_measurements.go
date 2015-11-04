@@ -1,5 +1,6 @@
 package tsdb
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -273,3 +274,4 @@ func (m *ShowMeasurementsMapper) Close() {
 		m.remote.Close()
 	}
 }
+*/

@@ -295,7 +295,6 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 	for i, tt := range tests {
 		// Parse statement.
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
@@ -311,15 +310,6 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 // Test SELECT statement wildcard rewrite.
 func TestSelectStatement_RewriteWildcards(t *testing.T) {
-	var fields = influxql.Fields{
-		&influxql.Field{Expr: &influxql.VarRef{Val: "value1"}},
-		&influxql.Field{Expr: &influxql.VarRef{Val: "value2"}},
-	}
-	var dimensions = influxql.Dimensions{
-		&influxql.Dimension{Expr: &influxql.VarRef{Val: "host"}},
-		&influxql.Dimension{Expr: &influxql.VarRef{Val: "region"}},
-	}
-
 	var tests = []struct {
 		stmt    string
 		rewrite string
@@ -333,7 +323,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Query wildcard
 		{
 			stmt:    `SELECT * FROM cpu`,
-			rewrite: `SELECT value1, value2 FROM cpu GROUP BY host, region`,
+			rewrite: `SELECT host, region, value1, value2 FROM cpu`,
 		},
 
 		// Parser fundamentally prohibits multiple query sources
@@ -400,22 +390,27 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		// Parse statement.
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		// Rewrite statement.
-		rw := stmt.(*influxql.SelectStatement).RewriteWildcards(fields, dimensions)
-		if rw == nil {
-			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
-			continue
+		var ic IteratorCreator
+		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+			fields = map[string]struct{}{"value1": struct{}{}, "value2": struct{}{}}
+			dimensions = map[string]struct{}{"host": struct{}{}, "region": struct{}{}}
+			return
 		}
-		if rw := rw.String(); tt.rewrite != rw {
+
+		// Rewrite statement.
+		rw, err := stmt.(*influxql.SelectStatement).RewriteWildcards(&ic)
+		if err != nil {
+			t.Errorf("%d. %q: error: %s", i, tt.stmt, err)
+		} else if rw == nil {
+			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
+		} else if rw := rw.String(); tt.rewrite != rw {
 			t.Errorf("%d. %q: unexpected rewrite:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.rewrite, rw)
-			continue
 		}
 	}
 }
@@ -456,8 +451,7 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
+	for _, tt := range tests {
 		s := MustParseSelectStatement(tt.stmt)
 		if s.IsRawQuery != tt.isRaw {
 			t.Errorf("'%s', IsRawQuery should be %v", tt.stmt, tt.isRaw)
