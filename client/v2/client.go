@@ -6,11 +6,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/models"
+)
+
+const (
+	// DefaultHost is the default host used to connect to an InfluxDB instance
+	DefaultHost = "localhost"
+
+	// DefaultPort is the default port used to connect to an InfluxDB instance
+	DefaultPort = 8086
+
+	// DefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
+	DefaultTimeout = 0
 )
 
 type Config struct {
@@ -54,6 +68,16 @@ type Client interface {
 
 	// Query makes an InfluxDB Query on the database
 	Query(q Query) (*Response, error)
+
+	// Ping will check to see if the server is up
+	// it returns (<req time>, <version>, <error>)
+	Ping() (time.Duration, string, error)
+
+	// Addr returns a string representation of the client connection.
+	Addr() string
+
+	// SetAuth will update the username and passwords
+	SetAuth(u, p string)
 }
 
 // NewClient creates a client interface from the given config.
@@ -213,6 +237,17 @@ func NewPoint(
 	}, nil
 }
 
+// ParsePoint returns a Point object from a text representation of a point
+func ParsePoint(txt string) (*Point, error) {
+	pts, err := models.ParsePointsString(txt)
+	if err != nil {
+		return nil, err
+	}
+	return &Point{
+		pt: pts[0],
+	}, nil
+}
+
 // String returns a line-protocol string of the Point
 func (p *Point) String() string {
 	return p.pt.String()
@@ -226,6 +261,11 @@ func (p *Point) PrecisionString(precison string) string {
 // Name returns the measurement name of the point
 func (p *Point) Name() string {
 	return p.pt.Name()
+}
+
+// Addr provides the current url as a string of the server the client is connected to.
+func (c *client) Addr() string {
+	return c.url.String()
 }
 
 // Name returns the tags associated with the point
@@ -246,6 +286,12 @@ func (p *Point) UnixNano() int64 {
 // Fields returns the fields for the point
 func (p *Point) Fields() map[string]interface{} {
 	return p.pt.Fields()
+}
+
+// SetAuth will update the username and passwords
+func (c *client) SetAuth(u, p string) {
+	c.username = u
+	c.password = p
 }
 
 func (c *client) Write(bp BatchPoints) error {
@@ -297,6 +343,33 @@ func (c *client) Write(bp BatchPoints) error {
 	}
 
 	return nil
+}
+
+// Ping will check to see if the server is up
+// Ping returns how long the request took, the version of the server it connected
+// to, and an error if one occurred.
+func (c *client) Ping() (time.Duration, string, error) {
+	now := time.Now()
+	u := c.url
+	u.Path = "ping"
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("User-Agent", c.useragent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+
+	version := resp.Header.Get("X-Influxdb-Version")
+	return time.Since(now), version, nil
 }
 
 // Query defines a query to send to the server
@@ -380,4 +453,38 @@ func (c *client) Query(q Query) (*Response, error) {
 			resp.StatusCode)
 	}
 	return &response, nil
+}
+
+// ParseConnectionString will parse a string to create a valid connection URL
+func ParseConnectionString(path string, ssl bool) (url.URL, error) {
+	var host string
+	var port int
+
+	if strings.Contains(path, ":") {
+		h := strings.Split(path, ":")
+		i, e := strconv.Atoi(h[1])
+		if e != nil {
+			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, e)
+		}
+		port = i
+		if h[0] == "" {
+			host = DefaultHost
+		} else {
+			host = h[0]
+		}
+	} else {
+		host = path
+		// If they didn't specify a port, always use the default port
+		port = DefaultPort
+	}
+
+	u := url.URL{
+		Scheme: "http",
+	}
+	if ssl {
+		u.Scheme = "https"
+	}
+	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
+
+	return u, nil
 }

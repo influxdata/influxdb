@@ -308,7 +308,8 @@ func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, w
 }
 
 // Ping will check to see if the server is up
-// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
+// Ping returns how long the request took, the version of the server it connected
+// to, and an error if one occurred.
 func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
