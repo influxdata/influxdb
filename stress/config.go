@@ -21,6 +21,8 @@ type tag struct {
 type field struct {
 	Key  string `toml:"key"`
 	Type string `toml:"type"`
+	Min  int    `toml:"min"`
+	Max  int    `toml:"max"`
 }
 
 // series is a struct that contains data
@@ -262,10 +264,14 @@ func (s *series) newFieldSet(c int) []byte {
 			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, c+rand.Intn(2))))
 		case "float64-inc":
 			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, c)))
+		case "float64-range":
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, rand.Float64()*float64(field.Max-field.Min)+float64(field.Min))))
 		case "float64":
 			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, rand.Intn(1000))))
 		case "int":
 			buf.Write([]byte(fmt.Sprintf("%v=%vi,", field.Key, rand.Intn(1000))))
+		case "int-range":
+			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, rand.Intn(field.Max-field.Min)+field.Min)))
 		case "bool":
 			b := rand.Intn(2) == 1
 			buf.Write([]byte(fmt.Sprintf("%v=%v,", field.Key, b)))
