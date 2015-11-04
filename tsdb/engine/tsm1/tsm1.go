@@ -119,8 +119,7 @@ type Engine struct {
 	MaxPointsPerBlock          int
 
 	// filesLock is only for modifying and accessing the files slice
-	filesLock   sync.RWMutex
-	rewriteLock sync.Mutex
+	filesLock sync.RWMutex
 
 	dataFiles *DataFiles
 
@@ -460,8 +459,6 @@ func (e *Engine) hasDeletes() bool {
 }
 
 func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-	e.rewriteLock.Lock()
-	defer e.rewriteLock.Unlock()
 	// Flush any deletes before writing new data from the WAL
 	if e.hasDeletes() {
 		e.flushDeletes()
@@ -691,9 +688,6 @@ func (e *Engine) getCompactionFiles(fullCompaction bool) (minTime, maxTime int64
 // Compact will compact data files in the directory into the fewest possible data files they
 // can be combined into
 func (e *Engine) Compact(fullCompaction bool) error {
-	e.rewriteLock.Lock()
-	defer e.rewriteLock.Unlock()
-
 	minTime, maxTime, files := e.getCompactionFiles(fullCompaction)
 	if len(files) < 2 {
 		return nil
