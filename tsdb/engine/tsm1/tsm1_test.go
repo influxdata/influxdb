@@ -1148,6 +1148,43 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	}
 }
 
+func TestEngine_CompactionWithCopiedBlocks_MixedSeriesSameTime(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	p2 := parsePoint("cpu,host=B value=2.2 7000000000")
+	if err := e.WritePoints([]models.Point{p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p2}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	// Different series but time matches p2
+	p3 := parsePoint("cpu,host=A value=1.7 7000000000")
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p3}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
 // Ensure that compactions that happen where blocks from old data files
 // skip decoding and just get copied over to the new data file works.
 func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
