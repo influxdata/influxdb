@@ -68,7 +68,7 @@ type DataFile interface {
 	CompressedBlockMinTime(block []byte) int64
 
 	// IndexMinMaxTimes returns the minimum and maximum times for all series stored in the index.
-	IndexMinMaxTimes() map[uint64]times
+	IndexMinMaxTimes() map[uint64]TimeRange
 
 	// StartingPositionForID returns the offset within the file of the first block for a given series ID.
 	StartingPositionForID(id uint64) uint32
@@ -199,7 +199,7 @@ func (d *DataFiles) Overlapping(min, max int64) []DataFile {
 	var a []DataFile
 	for _, f := range d.files {
 		fmin, fmax := f.MinTime(), f.MaxTime()
-		if min < fmax && fmin >= fmin {
+		if min < fmax && fmin < max {
 			a = append(a, f)
 		} else if max >= fmin && max < fmax {
 			a = append(a, f)
@@ -226,7 +226,6 @@ func (d *DataFiles) Compactable(age time.Duration, size uint32) dataFiles {
 		}
 	}
 	return a
-
 }
 
 // removeFileIfCheckpointExists will remove the file if its associated checkpoint fil is there.
@@ -287,7 +286,7 @@ const (
 	fileFooterSize = 2*timeSize + seriesCountSize
 )
 
-func NewDataFile(f *os.File) *dataFile {
+func NewDataFile(f *os.File) DataFile {
 	// seek back to the beginning to hand off to the mmap
 	if _, err := f.Seek(0, 0); err != nil {
 		panic(fmt.Sprintf("error seeking to beginning of file: %s", err.Error()))
@@ -515,11 +514,11 @@ func (d *dataFile) blockLength(pos uint32) uint32 {
 }
 
 // indexMinMaxTimes will return a map of the IDs in the file along with their min and max times from the index
-func (d *dataFile) IndexMinMaxTimes() map[uint64]times {
+func (d *dataFile) IndexMinMaxTimes() map[uint64]TimeRange {
 	pos := d.IndexPosition()
 	stop := d.size - fileFooterSize
 
-	m := make(map[uint64]times)
+	m := make(map[uint64]TimeRange)
 	for pos < stop {
 		idEndPos := pos + seriesIDSize
 		minEndPos := idEndPos + timeSize
@@ -529,15 +528,15 @@ func (d *dataFile) IndexMinMaxTimes() map[uint64]times {
 		max := int64(btou64(d.mmap[minEndPos:end]))
 		pos = end
 
-		m[id] = times{min: min, max: max}
+		m[id] = TimeRange{Min: min, Max: max}
 	}
 
 	return m
 }
 
-type times struct {
-	min int64
-	max int64
+type TimeRange struct {
+	Min int64
+	Max int64
 }
 
 type dataFiles []DataFile

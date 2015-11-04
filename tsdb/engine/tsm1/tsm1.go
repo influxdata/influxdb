@@ -1280,7 +1280,7 @@ func (e *Engine) rewriteFile(df DataFile, valuesByID map[uint64][]*valuesWithKey
 	return rewrite.newFiles
 }
 
-func (e *Engine) writeNewFile(valuesByID map[uint64][]*valuesWithKey) *dataFile {
+func (e *Engine) writeNewFile(valuesByID map[uint64][]*valuesWithKey) DataFile {
 	index := newIndexData()
 
 	// data should always be written in ascending id, then ascending time for each id
@@ -1454,8 +1454,8 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF DataFile) DataFile {
 			currentID = e.HashSeriesField(key)
 			times := fileIndexTimes[currentID]
 			index.addIDPosition(currentID, currentPosition)
-			index.setMinTime(times.min)
-			index.setMaxTime(times.max)
+			index.setMinTime(times.Min)
+			index.setMaxTime(times.Max)
 		}
 
 		mustWrite(f, oldDF.Bytes(currentPosition, end))
