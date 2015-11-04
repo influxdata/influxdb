@@ -1527,14 +1527,14 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
 		// if the key is empty, then it's the same as whatever the last one was
 		if key == "" {
 			if deleteCurrentKey {
+				currentPosition = end
 				continue
 			}
 		} else {
-			seriesKey, _ := seriesAndFieldFromCompositeKey(key)
-
 			// if it's in the delete map, don't copy it to the new file
-			if _, ok := e.deletes[seriesKey]; ok {
+			if _, ok := e.deletes[key]; ok {
 				deleteCurrentKey = true
+				currentPosition = end
 				continue
 			}
 
