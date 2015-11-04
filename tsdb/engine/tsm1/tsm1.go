@@ -120,9 +120,10 @@ type Engine struct {
 	MaxPointsPerBlock          int
 
 	// filesLock is only for modifying and accessing the files slice
-	filesLock          sync.RWMutex
-	files              dataFiles
-	currentFileID      int
+	filesLock sync.RWMutex
+
+	dataFiles *DataFiles
+
 	compactionRunning  bool
 	lastCompactionTime time.Time
 
@@ -162,6 +163,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		IndexCompactionFullAge:     opt.Config.IndexCompactionFullAge,
 		IndexMinCompactionInterval: opt.Config.IndexMinCompactionInterval,
 		MaxPointsPerBlock:          DefaultMaxPointsPerBlock,
+		dataFiles:                  &DataFiles{path: path},
 	}
 	e.WAL.IndexWriter = e
 
@@ -226,31 +228,9 @@ func (e *Engine) Open() error {
 
 	e.cleanupCompletedRewritesAndCompactions()
 
-	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", Format)))
-	if err != nil {
+	if err := e.dataFiles.Open(); err != nil {
 		return err
 	}
-	for _, fn := range files {
-		// if the file has a checkpoint it's not valid, so remove it
-		if removed := e.removeFileIfCheckpointExists(fn); removed {
-			continue
-		}
-
-		id, err := idFromFileName(fn)
-		if err != nil {
-			return err
-		}
-		if id >= e.currentFileID {
-			e.currentFileID = id + 1
-		}
-		f, err := os.OpenFile(fn, os.O_RDONLY, 0666)
-		if err != nil {
-			return fmt.Errorf("error opening file %s: %s", fn, err.Error())
-		}
-		df := NewDataFile(f)
-		e.files = append(e.files, df)
-	}
-	sort.Sort(e.files)
 
 	e.deletes = make(map[string]bool)
 	e.deleteMeasurements = make(map[string]bool)
@@ -321,11 +301,8 @@ func (e *Engine) Close() error {
 	// ensure all deletes have been processed
 	e.deletesPending.Wait()
 
-	for _, df := range e.files {
-		_ = df.Close()
-	}
-	e.files = nil
-	e.currentFileID = 0
+	e.dataFiles.Close()
+
 	e.deletes = nil
 	e.deleteMeasurements = nil
 	return nil
@@ -333,9 +310,7 @@ func (e *Engine) Close() error {
 
 // DataFileCount returns the number of data files in the database
 func (e *Engine) DataFileCount() int {
-	e.filesLock.RLock()
-	defer e.filesLock.RUnlock()
-	return len(e.files)
+	return e.dataFiles.Count()
 }
 
 // SetLogOutput is a no-op.
@@ -522,26 +497,10 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 	// do the rewrites in parallel
 	newFiles := e.performRewrites(fileRewrites, valuesInNewFile)
 
-	// update the engine to point at the new dataFiles
-	e.filesLock.Lock()
-	for _, df := range e.files {
-		removeFile := false
-
-		for _, fr := range fileRewrites {
-			if df == fr.df {
-				removeFile = true
-				break
-			}
-		}
-
-		if !removeFile {
-			newFiles = append(newFiles, df)
-		}
+	e.dataFiles.Add(newFiles)
+	for _, f := range fileRewrites {
+		e.dataFiles.Remove([]*dataFile{f.df})
 	}
-
-	sort.Sort(dataFiles(newFiles))
-	e.files = newFiles
-	e.filesLock.Unlock()
 
 	// write the checkpoint file
 	oldNames := make([]string, 0, len(fileRewrites))
@@ -659,20 +618,7 @@ func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd i
 		a = make([]*dataFile, 0)
 		files := e.copyFilesCollection()
 
-		e.filesLock.RLock()
-		for _, f := range e.files {
-			fmin, fmax := f.MinTime(), f.MaxTime()
-			if min < fmax && fmin >= fmin {
-				a = append(a, f)
-			} else if max >= fmin && max < fmax {
-				a = append(a, f)
-			}
-		}
-		for _, f := range a {
-			f.Reference()
-		}
-
-		e.filesLock.RUnlock()
+		a = e.dataFiles.Overlapping(min, max)
 
 		if len(a) > 0 {
 			lockStart = a[0].MinTime()
@@ -789,25 +735,8 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	checkpoint, compactionCheckpointName := e.writeCompletionCheckpointFile(compactedFileNames, newFileNames)
 
 	// update engine with new file pointers
-	e.filesLock.Lock()
-	var replacementFiles dataFiles
-	for _, df := range e.files {
-		// exclude any files that were compacted
-		include := true
-		for _, f := range files {
-			if f == df {
-				include = false
-				break
-			}
-		}
-		if include {
-			replacementFiles = append(replacementFiles, df)
-		}
-	}
-	replacementFiles = append(replacementFiles, newDataFiles...)
-	sort.Sort(replacementFiles)
-	e.files = replacementFiles
-	e.filesLock.Unlock()
+	e.dataFiles.Remove(files)
+	e.dataFiles.Add(newDataFiles)
 
 	e.logger.Printf("Compaction of %s took %s", e.path, time.Since(st))
 
@@ -859,20 +788,7 @@ func (e *Engine) shouldCompact() bool {
 }
 
 func (e *Engine) filesToCompact() dataFiles {
-	e.filesLock.RLock()
-	defer e.filesLock.RUnlock()
-
-	var a dataFiles
-	for _, df := range e.files {
-		if time.Since(df.modTime) > e.CompactionAge && df.size < e.MaxFileSize {
-			a = append(a, df)
-		} else if len(a) > 0 {
-			// only compact contiguous ranges. If we hit the negative case and
-			// there are files to compact, stop here
-			break
-		}
-	}
-	return a
+	return e.dataFiles.Compactable(e.CompactionAge, e.MaxFileSize)
 }
 
 func (e *Engine) writeMetadata(measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) {
@@ -1484,11 +1400,7 @@ func (e *Engine) flushDeletes() error {
 		newFiles = append(newFiles, e.writeNewFileExcludeDeletes(f))
 	}
 
-	// update the delete map and files
-	e.filesLock.Lock()
-	defer e.filesLock.Unlock()
-
-	e.files = newFiles
+	e.dataFiles.Replace(newFiles)
 
 	// remove the things we've deleted from the map
 	for name := range measurements {
@@ -1561,10 +1473,7 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
 }
 
 func (e *Engine) nextFileName() string {
-	e.filesLock.Lock()
-	defer e.filesLock.Unlock()
-	e.currentFileID++
-	return filepath.Join(e.path, fmt.Sprintf("%07d.%s", e.currentFileID, Format))
+	return e.dataFiles.NextFileName()
 }
 
 func (e *Engine) readCompressedFile(name string) ([]byte, error) {
@@ -1723,11 +1632,7 @@ func (e *Engine) keyAndFieldToID(series, field string) uint64 {
 }
 
 func (e *Engine) copyFilesCollection() []*dataFile {
-	e.filesLock.RLock()
-	defer e.filesLock.RUnlock()
-	a := make([]*dataFile, len(e.files))
-	copy(a, e.files)
-	return a
+	return e.dataFiles.Copy()
 }
 
 func (e *Engine) writeNewFields(measurementFieldsToSave map[string]*tsdb.MeasurementFields) error {
@@ -1864,31 +1769,6 @@ func (e *Engine) readSeries() (map[string]*tsdb.Series, error) {
 	}
 
 	return series, nil
-}
-
-// removeFileIfCheckpointExists will remove the file if its associated checkpoint fil is there.
-// It returns true if the file was removed. This is for recovery of data files on startup
-func (e *Engine) removeFileIfCheckpointExists(fileName string) bool {
-	checkpointName := fmt.Sprintf("%s.%s", fileName, CheckpointExtension)
-	_, err := os.Stat(checkpointName)
-
-	// if there's no checkpoint, move on
-	if err != nil {
-		return false
-	}
-
-	// there's a checkpoint so we know this file isn't safe so we should remove it
-	err = os.RemoveAll(fileName)
-	if err != nil {
-		panic(fmt.Sprintf("error removing file %s", err.Error()))
-	}
-
-	err = os.RemoveAll(checkpointName)
-	if err != nil {
-		panic(fmt.Sprintf("error removing file %s", err.Error()))
-	}
-
-	return true
 }
 
 // cleanupMetafile will remove the tmp file if the other file exists, or rename the
