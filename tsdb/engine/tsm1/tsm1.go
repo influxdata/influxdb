@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/golang/snappy"
@@ -120,7 +119,8 @@ type Engine struct {
 	MaxPointsPerBlock          int
 
 	// filesLock is only for modifying and accessing the files slice
-	filesLock sync.RWMutex
+	filesLock   sync.RWMutex
+	rewriteLock sync.Mutex
 
 	dataFiles *DataFiles
 
@@ -199,7 +199,7 @@ func (e *Engine) PerformMaintenance() {
 
 	// do a full compaction if all the index files are older than the compaction time
 	for _, f := range e.copyFilesCollection() {
-		if time.Since(f.modTime) < e.IndexCompactionFullAge {
+		if time.Since(f.ModTime()) < e.IndexCompactionFullAge {
 			return
 		}
 	}
@@ -365,7 +365,7 @@ func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[
 
 // filesAndNewValues will pair the values with the data file they should be re-written into. Any
 // vaues that have times later than the most recent data file are returned
-func (e *Engine) filesAndNewValues(files dataFiles, pointsByKey map[string]Values) (rewrites []*fileRewrite, newValues map[uint64][]*valuesWithKey) {
+func (e *Engine) filesAndNewValues(files []DataFile, pointsByKey map[string]Values) (rewrites []*fileRewrite, newValues map[uint64][]*valuesWithKey) {
 	// first convert the data into data by ID
 	pointsByID := make(map[uint64][]*valuesWithKey)
 	for k, vals := range pointsByKey {
@@ -460,6 +460,8 @@ func (e *Engine) hasDeletes() bool {
 }
 
 func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+	e.rewriteLock.Lock()
+	defer e.rewriteLock.Unlock()
 	// Flush any deletes before writing new data from the WAL
 	if e.hasDeletes() {
 		e.flushDeletes()
@@ -485,7 +487,7 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 
 	files, lockStart, lockEnd := e.filesAndLock(startTime, endTime)
 	defer e.writeLock.UnlockRange(lockStart, lockEnd)
-	defer func(files []*dataFile) {
+	defer func(files []DataFile) {
 		for _, f := range files {
 			f.Unreference()
 		}
@@ -499,23 +501,23 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 
 	e.dataFiles.Add(newFiles)
 	for _, f := range fileRewrites {
-		e.dataFiles.Remove([]*dataFile{f.df})
+		e.dataFiles.Remove([]DataFile{f.df})
 	}
 
 	// write the checkpoint file
 	oldNames := make([]string, 0, len(fileRewrites))
 	for _, fr := range fileRewrites {
-		oldNames = append(oldNames, fr.df.f.Name())
+		oldNames = append(oldNames, fr.df.Name())
 	}
 	newNames := make([]string, 0, len(newFiles))
 	for _, df := range newFiles {
-		newNames = append(newNames, df.f.Name())
+		newNames = append(newNames, df.Name())
 	}
 	checkpoint, checkpointFileName := e.writeCompletionCheckpointFile(oldNames, newNames)
 
 	// remove the old data file. no need to block returning the write,
 	// but we need to let any running queries finish before deleting it
-	oldFiles := make([]*dataFile, 0, len(fileRewrites))
+	var oldFiles []DataFile
 	for _, f := range fileRewrites {
 		oldFiles = append(oldFiles, f.df)
 	}
@@ -534,7 +536,7 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 
 // cleanupAndDeleteCheckpoint will remove the checkpoint files for new files saved, delete the data files safely so
 // running queries complete first, and finally remove the completion checkpoint file
-func (e *Engine) cleanupAndDeleteCheckpoint(checkpointFileName string, checkpoint *completionCheckpoint, files []*dataFile) {
+func (e *Engine) cleanupAndDeleteCheckpoint(checkpointFileName string, checkpoint *completionCheckpoint, files []DataFile) {
 	e.deletesPending.Add(1)
 
 	// do this in a goroutine so deletes don't hold up the write completing
@@ -562,11 +564,11 @@ func (e *Engine) cleanupAndDeleteCheckpoint(checkpointFileName string, checkpoin
 
 // performRewrites will rewrite the given files with the new values and write a new file with values for those not
 // associated with an existing block of time. Writes will be done in parallel
-func (e *Engine) performRewrites(fileRewrites []*fileRewrite, valuesInNewFile map[uint64][]*valuesWithKey) []*dataFile {
+func (e *Engine) performRewrites(fileRewrites []*fileRewrite, valuesInNewFile map[uint64][]*valuesWithKey) []DataFile {
 	// do the rewrites in parallel
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	var newFiles []*dataFile
+	var newFiles []DataFile
 	for _, rewrite := range fileRewrites {
 		wg.Add(1)
 		func(rewrite *fileRewrite) {
@@ -597,7 +599,7 @@ func (e *Engine) performRewrites(fileRewrites []*fileRewrite, valuesInNewFile ma
 
 // fileRewrite has a data file and new values to be written into a new file
 type fileRewrite struct {
-	df         *dataFile
+	df         DataFile
 	valuesByID map[uint64][]*valuesWithKey
 }
 
@@ -613,9 +615,9 @@ func (e *Engine) MarkDeletes(keys []string) {
 
 // filesAndLock returns the data files that match the given range and
 // ensures that the write lock will hold for the entire range
-func (e *Engine) filesAndLock(min, max int64) (a dataFiles, lockStart, lockEnd int64) {
+func (e *Engine) filesAndLock(min, max int64) (a []DataFile, lockStart, lockEnd int64) {
 	for {
-		a = make([]*dataFile, 0)
+		a = make([]DataFile, 0)
 		files := e.copyFilesCollection()
 
 		a = e.dataFiles.Overlapping(min, max)
@@ -689,6 +691,9 @@ func (e *Engine) getCompactionFiles(fullCompaction bool) (minTime, maxTime int64
 // Compact will compact data files in the directory into the fewest possible data files they
 // can be combined into
 func (e *Engine) Compact(fullCompaction bool) error {
+	e.rewriteLock.Lock()
+	defer e.rewriteLock.Unlock()
+
 	minTime, maxTime, files := e.getCompactionFiles(fullCompaction)
 	if len(files) < 2 {
 		return nil
@@ -726,7 +731,7 @@ func (e *Engine) Compact(fullCompaction bool) error {
 	compactedFileNames := make([]string, len(files))
 	newFileNames := make([]string, len(newFiles))
 	for i, f := range files {
-		compactedFileNames[i] = f.f.Name()
+		compactedFileNames[i] = f.Name()
 	}
 	for i, f := range newFiles {
 		newFileNames[i] = f.Name()
@@ -907,7 +912,7 @@ func (i *indexData) setMaxTime(t int64) {
 
 type rewriteOperation struct {
 	// df is the data file we're rewriting with new values
-	df    *dataFile
+	df    DataFile
 	dfEOF uint32
 
 	// tracking information for the data coming from the file
@@ -923,7 +928,7 @@ type rewriteOperation struct {
 	index *indexData
 
 	// newFiles are the 1 or more files that the df and new values are written to
-	newFiles []*dataFile
+	newFiles []DataFile
 
 	engine *Engine
 
@@ -937,10 +942,10 @@ type rewriteOperation struct {
 	valsWriteBuf []Value
 }
 
-func newRewriteOperation(engine *Engine, df *dataFile) *rewriteOperation {
+func newRewriteOperation(engine *Engine, df DataFile) *rewriteOperation {
 	r := &rewriteOperation{
 		df:      df,
-		dfEOF:   df.indexPosition(),
+		dfEOF:   df.IndexPosition(),
 		nextPos: fileHeaderSize,
 
 		f:    openFileAndCheckpoint(engine.nextFileName()),
@@ -951,7 +956,7 @@ func newRewriteOperation(engine *Engine, df *dataFile) *rewriteOperation {
 		buf:    make([]byte, blockBufferSize),
 	}
 
-	r.currentKey, _, _ = df.block(fileHeaderSize)
+	r.currentKey, _, _ = df.Block(fileHeaderSize)
 	r.currentID = engine.HashSeriesField(r.currentKey)
 
 	return r
@@ -1069,7 +1074,7 @@ func (r *rewriteOperation) merge(vals *valuesWithKey) {
 		}
 
 		// decompress the block from the source file
-		key, block, nextPos := r.df.block(r.nextPos)
+		key, block, nextPos := r.df.Block(r.nextPos)
 		if key != "" {
 			r.currentKey = key
 			r.currentID = r.engine.HashSeriesField(key)
@@ -1179,7 +1184,7 @@ func (r *rewriteOperation) writeToNextKey() {
 			return
 		}
 
-		key, block, nextPos := r.df.block(r.nextPos)
+		key, block, nextPos := r.df.Block(r.nextPos)
 
 		// if the key is blank, we have another block for the same ID and key
 		if key != "" {
@@ -1206,7 +1211,7 @@ func (r *rewriteOperation) writeToNextKey() {
 			bytesWritten += uint32(len(block))
 		} else {
 			// write all the block header info and the block unmodified
-			mustWrite(r.f, r.df.mmap[r.nextPos:nextPos])
+			mustWrite(r.f, r.df.Bytes(r.nextPos, nextPos))
 
 			// mark how much we've written to the new file and the new position on the source file
 			bytesWritten += (nextPos - r.nextPos)
@@ -1214,7 +1219,7 @@ func (r *rewriteOperation) writeToNextKey() {
 
 		// store the starting position if this is the first block for this ID
 		r.index.addIDPosition(r.currentID, r.fPos)
-		r.index.setMinTime(r.df.compressedBlockMinTime(block))
+		r.index.setMinTime(r.df.CompressedBlockMinTime(block))
 
 		// save the position in the new file and the source file position
 		r.fPos += bytesWritten
@@ -1231,9 +1236,9 @@ func (r *rewriteOperation) writeToNextKey() {
 
 // rewriteFile will write a new file with the data from the source file merged with the new data
 // passed in
-func (e *Engine) rewriteFile(df *dataFile, valuesByID map[uint64][]*valuesWithKey) []*dataFile {
+func (e *Engine) rewriteFile(df DataFile, valuesByID map[uint64][]*valuesWithKey) []DataFile {
 	if len(valuesByID) == 0 {
-		return []*dataFile{df}
+		return []DataFile{df}
 	}
 
 	// insert the data by ID ascending
@@ -1414,7 +1419,7 @@ func (e *Engine) flushDeletes() error {
 	go func() {
 		for _, oldDF := range files {
 			if err := oldDF.Delete(); err != nil {
-				e.logger.Println("ERROR DELETING FROM REWRITE:", oldDF.f.Name())
+				e.logger.Println("ERROR DELETING FROM REWRITE:", oldDF.Name())
 			}
 		}
 		e.deletesPending.Done()
@@ -1422,19 +1427,19 @@ func (e *Engine) flushDeletes() error {
 	return nil
 }
 
-func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
+func (e *Engine) writeNewFileExcludeDeletes(oldDF DataFile) DataFile {
 	f := openFileAndCheckpoint(e.nextFileName())
 
 	index := newIndexData()
 
-	fileIndexTimes := oldDF.indexMinMaxTimes()
+	fileIndexTimes := oldDF.IndexMinMaxTimes()
 
-	indexPosition := oldDF.indexPosition()
+	indexPosition := oldDF.IndexPosition()
 	currentPosition := uint32(fileHeaderSize)
 	deleteCurrentKey := false
 	currentID := uint64(0)
 	for currentPosition < indexPosition {
-		key, _, end := oldDF.block(currentPosition)
+		key, _, end := oldDF.Block(currentPosition)
 
 		// if the key is empty, then it's the same as whatever the last one was
 		if key == "" {
@@ -1459,7 +1464,7 @@ func (e *Engine) writeNewFileExcludeDeletes(oldDF *dataFile) *dataFile {
 			index.setMaxTime(times.max)
 		}
 
-		mustWrite(f, oldDF.mmap[currentPosition:end])
+		mustWrite(f, oldDF.Bytes(currentPosition, end))
 		currentPosition = end
 	}
 
@@ -1603,7 +1608,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 		// ensure they're all still open
 		reset := false
 		for _, f := range files {
-			if f.f == nil {
+			if f.Deleted() {
 				reset = true
 				break
 			}
@@ -1631,7 +1636,7 @@ func (e *Engine) keyAndFieldToID(series, field string) uint64 {
 	return e.HashSeriesField(key)
 }
 
-func (e *Engine) copyFilesCollection() []*dataFile {
+func (e *Engine) copyFilesCollection() []DataFile {
 	return e.dataFiles.Copy()
 }
 
@@ -1809,7 +1814,7 @@ type compactionJob struct {
 	newFiles []*os.File
 
 	// variables for tracking the files getting compacted
-	dataFilesToCompact []*dataFile
+	dataFilesToCompact []DataFile
 	currentKeys        []string
 	currentIDs         []uint64
 	currentBlocks      [][]byte
@@ -1848,7 +1853,7 @@ func newCompactionJob(engine *Engine, files dataFiles) *compactionJob {
 	// initialize the starting variables for the files getting compacted
 	for i, df := range files {
 		pos := uint32(fileHeaderSize)
-		c.currentKeys[i], c.currentBlocks[i], c.nextPositions[i] = df.block(pos)
+		c.currentKeys[i], c.currentBlocks[i], c.nextPositions[i] = df.Block(pos)
 		c.currentIDs[i] = c.engine.HashSeriesField(c.currentKeys[i])
 	}
 
@@ -1937,13 +1942,13 @@ func (c *compactionJob) writeBlocksForKey(key string, id uint64) {
 				firstInsertToFile = c.rotateIfOverMaxSize()
 			}
 
-			if c.nextPositions[i] >= df.indexPosition() {
+			if c.nextPositions[i] >= df.IndexPosition() {
 				c.currentKeys[i] = ""
 				c.currentIDs[i] = dataFileEOF
 				break
 			}
 
-			key, block, next := df.block(c.nextPositions[i])
+			key, block, next := df.Block(c.nextPositions[i])
 			c.nextPositions[i] = next
 
 			// if it's a different key, save the values and break out
@@ -2034,313 +2039,6 @@ func (c *compactionJob) rotateIfOverMaxSize() bool {
 	}
 
 	return false
-}
-
-type dataFile struct {
-	f       *os.File
-	mu      sync.RWMutex
-	size    uint32
-	modTime time.Time
-	mmap    []byte
-
-	// refs tracks lives references to this dataFile
-	refs sync.RWMutex
-}
-
-// byte size constants for the data file
-const (
-	fileHeaderSize  = 4
-	seriesCountSize = 4
-	timeSize        = 8
-	seriesIDSize    = 8
-	positionSize    = 4
-	blockLengthSize = 4
-
-	minTimeOffset = 20
-	maxTimeOffset = 12
-
-	// keyLengthSize is the number of bytes used to specify the length of a key in a block
-	keyLengthSize = 2
-
-	// indexEntry consists of an ID, starting position, and the min and max time
-	indexEntrySize = seriesIDSize + positionSize + 2*timeSize
-
-	// fileFooterSize is the size of the footer that's written after the index
-	fileFooterSize = 2*timeSize + seriesCountSize
-)
-
-func NewDataFile(f *os.File) *dataFile {
-	// seek back to the beginning to hand off to the mmap
-	if _, err := f.Seek(0, 0); err != nil {
-		panic(fmt.Sprintf("error seeking to beginning of file: %s", err.Error()))
-	}
-
-	fInfo, err := f.Stat()
-	if err != nil {
-		panic(fmt.Sprintf("error getting stats of file: %s", err.Error()))
-	}
-	mmap, err := syscall.Mmap(int(f.Fd()), 0, int(fInfo.Size()), syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
-	if err != nil {
-		panic(fmt.Sprintf("error opening mmap: %s", err.Error()))
-	}
-
-	return &dataFile{
-		f:       f,
-		mmap:    mmap,
-		size:    uint32(fInfo.Size()),
-		modTime: fInfo.ModTime(),
-	}
-}
-
-// Reference records a live usage of this dataFile.  When there are
-// live references, the dataFile will not be able to be closed or deleted
-// until it is unreferences.
-func (d *dataFile) Reference() {
-	d.refs.RLock()
-}
-
-// Ureference removes a live usage of this dataFile
-func (d *dataFile) Unreference() {
-	d.refs.RUnlock()
-}
-
-func (d *dataFile) Name() string {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	if d.Deleted() {
-		return ""
-	}
-	return d.f.Name()
-}
-
-func (d *dataFile) Deleted() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	return d.f == nil
-}
-
-func (d *dataFile) Close() error {
-	// Allow the current references to expire
-	d.refs.Lock()
-	defer d.refs.Unlock()
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.close()
-}
-
-func (d *dataFile) Delete() error {
-	// Allow the current references to expire
-	d.refs.Lock()
-	defer d.refs.Unlock()
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if err := d.close(); err != nil {
-		return err
-	}
-
-	if d.f == nil {
-		return nil
-	}
-
-	err := os.RemoveAll(d.f.Name())
-	if err != nil {
-		return err
-	}
-	d.f = nil
-	return nil
-}
-
-func (d *dataFile) close() error {
-	if d.mmap == nil {
-		return nil
-	}
-	err := syscall.Munmap(d.mmap)
-	if err != nil {
-		return err
-	}
-
-	d.mmap = nil
-	return d.f.Close()
-}
-
-func (d *dataFile) MinTime() int64 {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	if len(d.mmap) == 0 {
-		return 0
-	}
-	minTimePosition := d.size - minTimeOffset
-	timeBytes := d.mmap[minTimePosition : minTimePosition+timeSize]
-	return int64(btou64(timeBytes))
-}
-
-func (d *dataFile) MaxTime() int64 {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	if len(d.mmap) == 0 {
-		return 0
-	}
-
-	maxTimePosition := d.size - maxTimeOffset
-	timeBytes := d.mmap[maxTimePosition : maxTimePosition+timeSize]
-	return int64(btou64(timeBytes))
-}
-
-func (d *dataFile) SeriesCount() uint32 {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	if len(d.mmap) == 0 {
-		return 0
-	}
-
-	return btou32(d.mmap[d.size-seriesCountSize:])
-}
-
-func (d *dataFile) indexPosition() uint32 {
-	return d.size - uint32(d.SeriesCount()*indexEntrySize+20)
-}
-
-// keyAndBlockStart will read the key at the beginning of a block or return an empty string
-// if the key isn't present and give the position of the compressed block
-func (d *dataFile) keyAndBlockStart(pos uint32) (string, uint32) {
-	keyStart := pos + keyLengthSize
-	keyLen := uint32(btou16(d.mmap[pos:keyStart]))
-	if keyLen == 0 {
-		return "", keyStart
-	}
-	key, err := snappy.Decode(nil, d.mmap[keyStart:keyStart+keyLen])
-	if err != nil {
-		panic(fmt.Sprintf("error decoding key: %s", err.Error()))
-	}
-	return string(key), keyStart + keyLen
-}
-
-func (d *dataFile) blockLengthAndEnd(blockStart uint32) (uint32, uint32) {
-	length := btou32(d.mmap[blockStart : blockStart+blockLengthSize])
-	return length, blockStart + length + blockLengthSize
-}
-
-// compressedBlockMinTime will return the starting time for a compressed block given
-// its position
-func (d *dataFile) compressedBlockMinTime(block []byte) int64 {
-	return int64(btou64(block[blockLengthSize : blockLengthSize+timeSize]))
-}
-
-// StartingPositionForID returns the position in the file of the
-// first block for the given ID. If zero is returned the ID doesn't
-// have any data in this file.
-func (d *dataFile) StartingPositionForID(id uint64) uint32 {
-	pos, _, _ := d.positionMinMaxTime(id)
-	return pos
-}
-
-// positionMinMaxTime will return the position of the first block for the given ID
-// and the min and max time of the values for the given ID in the data file
-func (d *dataFile) positionMinMaxTime(id uint64) (uint32, int64, int64) {
-	seriesCount := d.SeriesCount()
-	indexStart := d.indexPosition()
-
-	min := uint32(0)
-	max := uint32(seriesCount)
-
-	for min < max {
-		mid := (max-min)/2 + min
-
-		offset := mid*indexEntrySize + indexStart
-		checkID := btou64(d.mmap[offset : offset+seriesIDSize])
-
-		if checkID == id {
-			positionStart := offset + seriesIDSize
-			positionEnd := positionStart + positionSize
-			minTimeEnd := positionEnd + timeSize
-
-			return btou32(d.mmap[positionStart:positionEnd]), int64(btou64(d.mmap[positionEnd:minTimeEnd])), int64(btou64(d.mmap[minTimeEnd : minTimeEnd+timeSize]))
-		} else if checkID < id {
-			min = mid + 1
-		} else {
-			max = mid
-		}
-	}
-
-	return uint32(0), int64(0), int64(0)
-}
-
-// block will return the key, the encoded byte slice and the position of next block
-func (d *dataFile) block(pos uint32) (key string, encodedBlock []byte, nextBlockStart uint32) {
-	key, start := d.keyAndBlockStart(pos)
-	_, end := d.blockLengthAndEnd(start)
-	return key, d.mmap[start+blockLengthSize : end], end
-}
-
-// blockLength will return the length of the compressed block that starts at the given position
-func (d *dataFile) blockLength(pos uint32) uint32 {
-	return btou32(d.mmap[pos : pos+positionSize])
-}
-
-// indexMinMaxTimes will return a map of the IDs in the file along with their min and max times from the index
-func (d *dataFile) indexMinMaxTimes() map[uint64]times {
-	pos := d.indexPosition()
-	stop := d.size - fileFooterSize
-
-	m := make(map[uint64]times)
-	for pos < stop {
-		idEndPos := pos + seriesIDSize
-		minEndPos := idEndPos + timeSize
-		end := minEndPos + timeSize
-		id := btou64(d.mmap[pos:idEndPos])
-		min := int64(btou64(d.mmap[idEndPos:minEndPos]))
-		max := int64(btou64(d.mmap[minEndPos:end]))
-		pos = end
-
-		m[id] = times{min: min, max: max}
-	}
-
-	return m
-}
-
-type times struct {
-	min int64
-	max int64
-}
-
-// func (d *dataFile) block(pos uint32) (id uint64, t int64, block []byte) {
-// 	defer func() {
-// 		if r := recover(); r != nil {
-// 			panic(fmt.Sprintf("panic decoding file: %s at position %d for id %d at time %d", d.f.Name(), pos, id, t))
-// 		}
-// 	}()
-// 	if pos < d.indexPosition() {
-// 		id = d.idForPosition(pos)
-// 		length := btou32(d.mmap[pos+8 : pos+12])
-// 		block = d.mmap[pos+blockHeaderSize : pos+blockHeaderSize+length]
-// 		t = int64(btou64(d.mmap[pos+blockHeaderSize : pos+blockHeaderSize+8]))
-// 	}
-// 	return
-// }
-
-type dataFiles []*dataFile
-
-func (a dataFiles) Len() int           { return len(a) }
-func (a dataFiles) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a dataFiles) Less(i, j int) bool { return a[i].MinTime() < a[j].MinTime() }
-
-func dataFilesEquals(a, b []*dataFile) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v.MinTime() != b[i].MinTime() && v.MaxTime() != b[i].MaxTime() {
-			return false
-		}
-	}
-	return true
 }
 
 // completionCheckpoint holds the new files and old files from a compaction or rewrite

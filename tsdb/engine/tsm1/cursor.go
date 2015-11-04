@@ -186,7 +186,7 @@ type cursor struct {
 	hash func(string) uint64
 
 	// f is the current data file we're reading from
-	f *dataFile
+	f DataFile
 
 	// filesPos is the position in the files index we're reading from
 	filesPos int // the index in the files slice we're looking at
@@ -205,10 +205,10 @@ type cursor struct {
 	blockPositions []uint32
 
 	// time acending slice of read only data files
-	files []*dataFile
+	files []DataFile
 }
 
-func newCursor(hash func(string) uint64, key string, files []*dataFile, ascending bool) *cursor {
+func newCursor(hash func(string) uint64, key string, files []DataFile, ascending bool) *cursor {
 	return &cursor{
 		key:       key,
 		hashID:    hash(key),
@@ -317,7 +317,7 @@ func (c *cursor) SeekTo(seek int64) (int64, interface{}) {
 
 func (c *cursor) seekAscending(seek int64) (int64, interface{}) {
 	// seek to the block and values we're looking for
-	indexPosition := c.f.indexPosition()
+	indexPosition := c.f.IndexPosition()
 	for {
 		if c.pos >= indexPosition {
 			return tsdb.EOF, nil
@@ -325,12 +325,12 @@ func (c *cursor) seekAscending(seek int64) (int64, interface{}) {
 
 		// if the time is between this block and the next,
 		// decode this block and go, otherwise seek to next block
-		key, block, nextPos := c.f.block(c.pos)
+		key, block, nextPos := c.f.Block(c.pos)
 		c.pos = nextPos
 
 		// if the next key is an empty string, the next block is of the same key, check its min time
 		if nextPos < indexPosition {
-			nextKey, nextBlock, _ := c.f.block(nextPos)
+			nextKey, nextBlock, _ := c.f.Block(nextPos)
 			if nextKey == "" && MinTime(nextBlock) <= seek {
 				continue
 			}
@@ -363,7 +363,7 @@ func (c *cursor) seekDescending(seek int64) (int64, interface{}) {
 
 	for i := len(c.blockPositions) - 1; i >= 0; i-- {
 		pos := c.blockPositions[i]
-		_, block, _ := c.f.block(pos)
+		_, block, _ := c.f.Block(pos)
 		if MinTime(block) > seek {
 			continue
 		}
@@ -403,15 +403,15 @@ func (c *cursor) setBlockPositions() {
 	// the first postion was already read
 	c.blockPositions = append(c.blockPositions, c.pos)
 
-	_, _, pos = c.f.block(pos)
+	_, _, pos = c.f.Block(pos)
 
-	indexPosition := c.f.indexPosition()
+	indexPosition := c.f.IndexPosition()
 	for {
 		if pos >= indexPosition {
 			return
 		}
 
-		key, _, next := c.f.block(pos)
+		key, _, next := c.f.Block(pos)
 
 		// we've already done a seek to the first block for this key. once
 		// we encounter one that isn't blank we know we're done
@@ -441,8 +441,8 @@ func (c *cursor) nextAscending() (int64, interface{}) {
 	}
 
 	// if we have a file set, see if the next block is for this key
-	if c.f != nil && c.pos < c.f.indexPosition() {
-		key, block, next := c.f.block(c.pos)
+	if c.f != nil && c.pos < c.f.IndexPosition() {
+		key, block, next := c.f.Block(c.pos)
 		if key == "" {
 			c.vals = c.vals[:0]
 			_ = DecodeBlock(block, &c.vals)
@@ -473,7 +473,7 @@ func (c *cursor) nextAscending() (int64, interface{}) {
 		}
 
 		// we have a block matching this key, decode and recurse
-		_, block, next := c.f.block(pos)
+		_, block, next := c.f.Block(pos)
 		c.pos = next
 		c.vals = c.vals[:0]
 		_ = DecodeBlock(block, &c.vals)
@@ -482,14 +482,14 @@ func (c *cursor) nextAscending() (int64, interface{}) {
 }
 
 func (c *cursor) seekToKey() uint32 {
-	indexPosition := c.f.indexPosition()
+	indexPosition := c.f.IndexPosition()
 	pos := c.pos
 	for {
 		if c.pos >= indexPosition {
 			return uint32(0)
 		}
 
-		key, _, next := c.f.block(pos)
+		key, _, next := c.f.Block(pos)
 
 		if key == c.key {
 			return pos
@@ -523,7 +523,7 @@ func (c *cursor) nextDescending() (int64, interface{}) {
 	}
 
 	for i := len(c.blockPositions) - 1; i >= 0; i-- {
-		_, block, _ := c.f.block(c.blockPositions[i])
+		_, block, _ := c.f.Block(c.blockPositions[i])
 		c.vals = c.vals[:0]
 		_ = DecodeBlock(block, &c.vals)
 		c.blockPositions = c.blockPositions[:i]
