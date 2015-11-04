@@ -15,5 +15,5 @@
 - github.com/golang/snappy [BSD LICENSE](https://github.com/golang/snappy/blob/master/LICENSE)
 - github.com/boltdb/bolt [MIT LICENSE](https://github.com/boltdb/bolt/blob/master/LICENSE)
 - collectd.org [ISC LICENSE](https://github.com/collectd/go-collectd/blob/master/LICENSE)
-- golang.org/x/crypto/bcrypt [BSD LICENSE](https://go.googlesource.com/crypto/+/master/LICENSE)
+- golang.org/x/crypto/* [BSD LICENSE](https://github.com/golang/crypto/blob/master/LICENSE)
 
