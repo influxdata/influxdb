@@ -14,9 +14,10 @@ import (
 	"github.com/influxdb/influxdb/models"
 )
 
-// from https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
+// UDPPayloadSize is a reasonable default payload size for UDP packets that
+// could be travelling over the internet.
 const (
-	UDPBufferSize = 65500
+	UDPPayloadSize = 512
 )
 
 type Config struct {
@@ -40,6 +41,15 @@ type Config struct {
 	InsecureSkipVerify bool
 }
 
+type UDPConfig struct {
+	// Addr should be of the form "host:port" or "[ipv6-host%zone]:port".
+	Addr string
+
+	// PayloadSize is the maximum size of a UDP client message, optional
+	// Tune this based on your network. Defaults to UDPBufferSize.
+	PayloadSize int
+}
+
 type BatchPointsConfig struct {
 	// Precision is the write precision of the points, defaults to "ns"
 	Precision string
@@ -61,6 +71,9 @@ type Client interface {
 	// Query makes an InfluxDB Query on the database. This will fail if using
 	// the UDP client.
 	Query(q Query) (*Response, error)
+
+	// Close releases any resources a Client may be using.
+	Close() error
 }
 
 // NewClient creates a client interface from the given config.
@@ -85,13 +98,39 @@ func NewClient(conf Config) Client {
 	}
 }
 
+// Close releases the client's resources.
+func (c *client) Close() error {
+	return nil
+}
+
 // NewUDPClient returns a client interface for writing to an InfluxDB UDP
-// service address, specified by addr. addr should be of the form
-// "host:port" or "[ipv6-host%zone]:port". Write will fail if addr is invalid.
-func NewUDPClient(addr string) Client {
-	return &udpclient{
-		addr: addr,
+// service from the given config.
+func NewUDPClient(conf UDPConfig) (Client, error) {
+	var udpAddr *net.UDPAddr
+	udpAddr, err := net.ResolveUDPAddr("udp", conf.Addr)
+	if err != nil {
+		return nil, err
 	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	payloadSize := conf.PayloadSize
+	if payloadSize == 0 {
+		payloadSize = UDPPayloadSize
+	}
+
+	return &udpclient{
+		conn:        conn,
+		payloadSize: payloadSize,
+	}, nil
+}
+
+// Close releases the udpclient's resources.
+func (uc *udpclient) Close() error {
+	return uc.conn.Close()
 }
 
 type client struct {
@@ -103,7 +142,8 @@ type client struct {
 }
 
 type udpclient struct {
-	addr string
+	conn        *net.UDPConn
+	payloadSize int
 }
 
 // BatchPoints is an interface into a batched grouping of points to write into
@@ -269,22 +309,6 @@ func (p *Point) Fields() map[string]interface{} {
 }
 
 func (uc *udpclient) Write(bp BatchPoints) error {
-	var addr *net.UDPAddr
-	var con *net.UDPConn
-	addr, err := net.ResolveUDPAddr("udp", uc.addr)
-	if err != nil {
-		return err
-	}
-
-	con, err = net.DialUDP("udp", nil, addr)
-	if err != nil {
-		return err
-	}
-	defer con.Close()
-	if err = con.SetWriteBuffer(UDPBufferSize); err != nil {
-		return err
-	}
-
 	var b bytes.Buffer
 	var d time.Duration
 	d, _ = time.ParseDuration("1" + bp.Precision())
@@ -293,8 +317,8 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 		pointstring := p.pt.RoundedString(d) + "\n"
 
 		// Write and reset the buffer if we reach the max size
-		if b.Len()+len(pointstring) >= UDPBufferSize {
-			if _, err = con.Write(b.Bytes()); err != nil {
+		if b.Len()+len(pointstring) >= uc.payloadSize {
+			if _, err := uc.conn.Write(b.Bytes()); err != nil {
 				return err
 			}
 			b.Reset()
@@ -305,7 +329,7 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 		}
 	}
 
-	_, err = con.Write(b.Bytes())
+	_, err := uc.conn.Write(b.Bytes())
 	return err
 }
 
