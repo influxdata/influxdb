@@ -104,19 +104,27 @@ func (s *Service) Open() (err error) {
 		s.Logger.Printf("Failed to set up UDP listener at address %s: %s", s.addr, err)
 		return err
 	}
-	s.conn.SetReadBuffer(s.config.ReadBuffer)
+
+	if s.config.ReadBuffer != 0 {
+		err = s.conn.SetReadBuffer(s.config.ReadBuffer)
+		if err != nil {
+			s.Logger.Printf("Failed to set UDP read buffer to %d: %s",
+				s.config.ReadBuffer, err)
+			return err
+		}
+	}
 
 	s.Logger.Printf("Started listening on UDP: %s", s.config.BindAddress)
 
 	s.wg.Add(3)
 	go s.serve()
 	go s.parser()
-	go s.writePoints()
+	go s.writer()
 
 	return nil
 }
 
-func (s *Service) writePoints() {
+func (s *Service) writer() {
 	defer s.wg.Done()
 
 	for {

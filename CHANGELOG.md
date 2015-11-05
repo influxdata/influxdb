@@ -29,6 +29,7 @@
 - [#4600](https://github.com/influxdb/influxdb/pull/4600): ping endpoint can wait for leader
 - [#4648](https://github.com/influxdb/influxdb/pull/4648): UDP Client (v2 client)
 - [#4690](https://github.com/influxdb/influxdb/pull/4690): SHOW SHARDS now includes database and policy. Thanks @pires
+- [#4676](https://github.com/influxdb/influxdb/pull/4676): UDP service listener performance enhancements
 
 ### Bugfixes
 - [#4643](https://github.com/influxdb/influxdb/pull/4643): Fix panic during backup restoration. Thanks @oiooj

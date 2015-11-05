@@ -26,9 +26,17 @@ const (
 	DefaultBatchTimeout = time.Second
 
 	// DefaultReadBuffer is the default buffer size for the UDP listener.
-	// Increasing this increases the number of packets that the listener can handle,
-	// but also increases the memory usage.
-	DefaultReadBuffer = 8 * 1024 * 1024
+	// Sets the size of the operating system's receive buffer associated with
+	// the UDP traffic. Keep in mind that the OS must be able
+	// to handle the number set here or the UDP listener will error and exit.
+	//
+	// DefaultReadBuffer = 0 means to use the OS default, which is usually too
+	// small for high UDP performance.
+	//
+	// Increasing OS buffer limits:
+	//     Linux:      sudo sysctl -w net.core.rmem_max=<read-buffer>
+	//     BSD/Darwin: sudo sysctl -w kern.ipc.maxsockbuf=<read-buffer>
+	DefaultReadBuffer = 0
 )
 
 type Config struct {
