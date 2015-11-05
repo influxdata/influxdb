@@ -53,7 +53,7 @@ type Service struct {
 	wg      sync.WaitGroup
 	err     chan error
 	stop    chan struct{}
-	ln      *net.UDPConn
+	conn    *net.UDPConn
 	batcher *tsdb.PointBatcher
 	typesdb gollectd.Types
 	addr    net.Addr
@@ -118,13 +118,14 @@ func (s *Service) Open() error {
 	s.addr = addr
 
 	// Start listening
-	ln, err := net.ListenUDP("udp", addr)
+	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return fmt.Errorf("unable to listen on UDP: %s", err)
 	}
-	s.ln = ln
+	conn.SetReadBuffer(s.Config.ReadBuffer)
+	s.conn = conn
 
-	s.Logger.Println("Listening on UDP: ", ln.LocalAddr().String())
+	s.Logger.Println("Listening on UDP: ", conn.LocalAddr().String())
 
 	// Start the points batcher.
 	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
@@ -147,8 +148,8 @@ func (s *Service) Close() error {
 	if s.stop != nil {
 		close(s.stop)
 	}
-	if s.ln != nil {
-		s.ln.Close()
+	if s.conn != nil {
+		s.conn.Close()
 	}
 	if s.batcher != nil {
 		s.batcher.Stop()
@@ -157,7 +158,7 @@ func (s *Service) Close() error {
 
 	// Release all remaining resources.
 	s.stop = nil
-	s.ln = nil
+	s.conn = nil
 	s.batcher = nil
 	s.Logger.Println("collectd UDP closed")
 	return nil
@@ -179,7 +180,7 @@ func (s *Service) Err() chan error { return s.err }
 
 // Addr returns the listener's address. Returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {
-	return s.ln.LocalAddr()
+	return s.conn.LocalAddr()
 }
 
 func (s *Service) serve() {
@@ -204,7 +205,7 @@ func (s *Service) serve() {
 			// Keep processing.
 		}
 
-		n, _, err := s.ln.ReadFromUDP(buffer)
+		n, _, err := s.conn.ReadFromUDP(buffer)
 		if err != nil {
 			s.statMap.Add(statReadFail, 1)
 			s.Logger.Printf("collectd ReadFromUDP error: %s", err)

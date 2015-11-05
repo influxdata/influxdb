@@ -55,6 +55,7 @@ type Service struct {
 	batchPending     int
 	batchTimeout     time.Duration
 	consistencyLevel cluster.ConsistencyLevel
+	udpReadBuffer    int
 
 	batcher *tsdb.PointBatcher
 	parser  *Parser
@@ -95,6 +96,7 @@ func NewService(c Config) (*Service, error) {
 		protocol:       d.Protocol,
 		batchSize:      d.BatchSize,
 		batchPending:   d.BatchPending,
+		udpReadBuffer:  d.UDPReadBuffer,
 		batchTimeout:   time.Duration(d.BatchTimeout),
 		logger:         log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		tcpConnections: make(map[string]*tcpConnection),
@@ -293,6 +295,7 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.udpConn.SetReadBuffer(s.udpReadBuffer)
 
 	buf := make([]byte, udpBufferSize)
 	s.wg.Add(1)

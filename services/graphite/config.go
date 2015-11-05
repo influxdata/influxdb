@@ -26,14 +26,18 @@ const (
 	// measurment parts in a template.
 	DefaultSeparator = "."
 
-	// DefaultBatchSize is the default Graphite batch size.
-	DefaultBatchSize = 1000
+	// DefaultBatchSize is the default write batch size.
+	DefaultBatchSize = 5000
 
-	// DefaultBatchPending is the default number of pending Graphite batches.
-	DefaultBatchPending = 5
+	// DefaultBatchPending is the default number of pending write batches.
+	DefaultBatchPending = 10
 
 	// DefaultBatchTimeout is the default Graphite batch timeout.
 	DefaultBatchTimeout = time.Second
+
+	// DefaultUDPReadBuffer is the default UDP read buffer
+	// increasing this increases the number of UDP packets that can be handled.
+	DefaultUDPReadBuffer = 8 * 1024 * 1024
 )
 
 // Config represents the configuration for Graphite endpoints.
@@ -49,6 +53,7 @@ type Config struct {
 	Templates        []string      `toml:"templates"`
 	Tags             []string      `toml:"tags"`
 	Separator        string        `toml:"separator"`
+	UDPReadBuffer    int           `toml:"udp-read-buffer"`
 }
 
 func NewConfig() Config {
@@ -91,6 +96,9 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.Separator == "" {
 		d.Separator = DefaultSeparator
+	}
+	if d.UDPReadBuffer == 0 {
+		d.UDPReadBuffer = DefaultUDPReadBuffer
 	}
 	return &d
 }

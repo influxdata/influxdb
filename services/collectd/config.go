@@ -7,19 +7,29 @@ import (
 )
 
 const (
+	// DefaultBindAddress is the default port to bind to
 	DefaultBindAddress = ":25826"
 
+	// DefaultDatabase is the default DB to write to
 	DefaultDatabase = "collectd"
 
+	// DefaultRetentionPolicy is the default retention policy of the writes
 	DefaultRetentionPolicy = ""
 
-	DefaultBatchSize = 1000
+	// DefaultBatchSize is the default write batch size.
+	DefaultBatchSize = 5000
 
-	DefaultBatchPending = 5
+	// DefaultBatchPending is the default number of pending write batches.
+	DefaultBatchPending = 10
 
+	// DefaultBatchTimeout is the default batch timeout.
 	DefaultBatchDuration = toml.Duration(10 * time.Second)
 
 	DefaultTypesDB = "/usr/share/collectd/types.db"
+
+	// DefaultUDPReadBuffer is the default UDP read buffer
+	// increasing this increases the number of UDP packets that can be handled.
+	DefaultReadBuffer = 8 * 1024 * 1024
 )
 
 // Config represents a configuration for the collectd service.
@@ -31,6 +41,7 @@ type Config struct {
 	BatchSize       int           `toml:"batch-size"`
 	BatchPending    int           `toml:"batch-pending"`
 	BatchDuration   toml.Duration `toml:"batch-timeout"`
+	ReadBuffer      int           `toml:"read-buffer"`
 	TypesDB         string        `toml:"typesdb"`
 }
 
@@ -40,6 +51,7 @@ func NewConfig() Config {
 		BindAddress:     DefaultBindAddress,
 		Database:        DefaultDatabase,
 		RetentionPolicy: DefaultRetentionPolicy,
+		ReadBuffer:      DefaultReadBuffer,
 		BatchSize:       DefaultBatchSize,
 		BatchPending:    DefaultBatchPending,
 		BatchDuration:   DefaultBatchDuration,
