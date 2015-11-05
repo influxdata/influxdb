@@ -33,6 +33,8 @@
 - [#4676](https://github.com/influxdb/influxdb/pull/4676): UDP service listener performance enhancements
 - [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE. Thanks @ch33hau
 - [#4721](https://github.com/influxdb/influxdb/pull/4721): Export tsdb.InterfaceValues
+- [#4681](https://github.com/influxdb/influxdb/pull/4681): Increase default buffer size for collectd and graphite listeners
+- [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE
 
 ### Bugfixes
 - [#4715](https://github.com/influxdb/influxdb/pull/4715): Fix panic during Raft-close. Fix [issue #4707](https://github.com/influxdb/influxdb/issues/4707). Thanks @oiooj

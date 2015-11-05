@@ -212,6 +212,7 @@ reporting-disabled = false
   # batch-size = 1000 # will flush if this many points get buffered
   # batch-pending = 5 # number of batches that may be pending in memory
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+  # udp-read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
 
   ## "name-schema" configures tag names for parsing the metric name from graphite protocol;
   ## separated by `name-separator`.
@@ -252,6 +253,7 @@ reporting-disabled = false
   # batch-size = 1000 # will flush if this many points get buffered
   # batch-pending = 5 # number of batches that may be pending in memory
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+  # read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
 
 ###
 ### [opentsdb]
@@ -295,6 +297,7 @@ reporting-disabled = false
   # batch-size = 1000 # will flush if this many points get buffered
   # batch-pending = 5 # number of batches that may be pending in memory
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+  # read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
 
 ###
 ### [continuous_queries]

@@ -122,7 +122,14 @@ func (s *Service) Open() error {
 	if err != nil {
 		return fmt.Errorf("unable to listen on UDP: %s", err)
 	}
-	conn.SetReadBuffer(s.Config.ReadBuffer)
+
+	if s.Config.ReadBuffer != 0 {
+		err = conn.SetReadBuffer(s.Config.ReadBuffer)
+		if err != nil {
+			return fmt.Errorf("unable to set UDP read buffer to %d: %s",
+				s.Config.ReadBuffer, err)
+		}
+	}
 	s.conn = conn
 
 	s.Logger.Println("Listening on UDP: ", conn.LocalAddr().String())

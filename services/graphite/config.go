@@ -35,10 +35,18 @@ const (
 	// DefaultBatchTimeout is the default Graphite batch timeout.
 	DefaultBatchTimeout = time.Second
 
-	// DefaultUDPReadBuffer is the default UDP read buffer
+	// DefaultUDPReadBuffer is the default buffer size for the UDP listener.
 	// Sets the size of the operating system's receive buffer associated with
-	// the UDP traffic
-	DefaultUDPReadBuffer = 8 * 1024 * 1024
+	// the UDP traffic. Keep in mind that the OS must be able
+	// to handle the number set here or the UDP listener will error and exit.
+	//
+	// DefaultReadBuffer = 0 means to use the OS default, which is usually too
+	// small for high UDP performance.
+	//
+	// Increasing OS buffer limits:
+	//     Linux:      sudo sysctl -w net.core.rmem_max=<read-buffer>
+	//     BSD/Darwin: sudo sysctl -w kern.ipc.maxsockbuf=<read-buffer>
+	DefaultUDPReadBuffer = 0
 )
 
 // Config represents the configuration for Graphite endpoints.

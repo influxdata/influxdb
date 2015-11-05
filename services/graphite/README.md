@@ -1,10 +1,17 @@
-# Configuration
+# The graphite Input
+
+## A note on UDP/IP OS Buffer sizes
+
+If you're using UDP input and running Linux or FreeBSD, please adjust your UDP buffer
+size limit, [see here for more details.](../udp/README.md#a-note-on-udpip-os-buffer-sizes)
+
+## Configuration
 
 Each Graphite input allows the binding address, target database, and protocol to be set. If the database does not exist, it will be created automatically when the input is initialized. The write-consistency-level can also be set. If any write operations do not meet the configured consistency guarantees, an error will occur and the data will not be indexed. The default consistency-level is `ONE`.
 
 Each Graphite input also performs internal batching of the points it receives, as batched writes to the database are more efficient. The default _batch size_ is 1000, _pending batch_ factor is 5, with a _batch timeout_ of 1 second. This means the input will write batches of maximum size 1000, but if a batch has not reached 1000 points within 1 second of the first point being added to a batch, it will emit that batch regardless of size. The pending batch factor controls how many batches can be in memory at once, allowing the input to transmit a batch, while still building other batches.
 
-# Parsing Metrics
+## Parsing Metrics
 
 The graphite plugin allows measurements to be saved using the graphite line protocol. By default, enabling the graphite plugin will allow you to collect metrics and store them using the metric name as the measurement.  If you send a metric named `servers.localhost.cpu.loadavg.10`, it will store the full metric name as the measurement with no extracted tags.
 

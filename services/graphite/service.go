@@ -295,7 +295,14 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.udpConn.SetReadBuffer(s.udpReadBuffer)
+
+	if s.udpReadBuffer != 0 {
+		err = s.udpConn.SetReadBuffer(s.udpReadBuffer)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set UDP read buffer to %d: %s",
+				s.udpReadBuffer, err)
+		}
+	}
 
 	buf := make([]byte, udpBufferSize)
 	s.wg.Add(1)
