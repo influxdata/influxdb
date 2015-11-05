@@ -4,7 +4,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,8 +35,10 @@ type tsmIndex struct {
 }
 
 type block struct {
-	id     uint64
-	offset int64
+	id      uint64
+	offset  int64
+	minTime time.Time
+	maxTime time.Time
 }
 
 type blockStats struct {
@@ -193,7 +197,7 @@ func readIndex(f *os.File) (*tsmIndex, error) {
 	maxTime := time.Unix(0, int64(btou64(b)))
 
 	// Figure out where the index starts
-	indexStart := stat.Size() - int64(seriesCount*12+20)
+	indexStart := stat.Size() - int64(seriesCount*28+20)
 
 	// Seek to the start of the index
 	f.Seek(indexStart, os.SEEK_SET)
@@ -215,7 +219,17 @@ func readIndex(f *os.File) (*tsmIndex, error) {
 		id := binary.BigEndian.Uint64(b)
 		f.Read(b[:4])
 		pos := binary.BigEndian.Uint32(b[:4])
-		index.blocks = append(index.blocks, &block{id: id, offset: int64(pos)})
+		f.Read(b)
+		minTime := int64(binary.BigEndian.Uint64(b))
+		f.Read(b)
+		maxTime := int64(binary.BigEndian.Uint64(b))
+
+		index.blocks = append(index.blocks, &block{
+			id:      id,
+			offset:  int64(pos),
+			minTime: time.Unix(0, minTime),
+			maxTime: time.Unix(0, maxTime),
+		})
 	}
 
 	return index, nil
@@ -284,7 +298,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	println()
 
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
-	fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "ID", "Ofs", "Key", "Field"}, "\t"))
+	fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "ID", "Ofs", "Key", "Field", "Min Time", "Max Time"}, "\t"))
 	for i, block := range index.blocks {
 		key := invIds[block.id]
 		split := strings.Split(key, "#!~#")
@@ -318,6 +332,8 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			strconv.FormatInt(int64(block.offset), 10),
 			measurement,
 			field,
+			block.minTime.UTC().Format(time.RFC3339Nano),
+			block.maxTime.UTC().Format(time.RFC3339Nano),
 		}, "\t"))
 	}
 
@@ -339,14 +355,31 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	for i < index.offset {
 		f.Seek(int64(i), 0)
 
-		f.Read(b)
-		id := btou64(b)
-		f.Read(b[:4])
-		length := binary.BigEndian.Uint32(b[:4])
-		buf := make([]byte, length)
+		// Read key length
+		f.Read(b[:2])
+		keyLen := binary.BigEndian.Uint16(b[:2])
+
+		// Read key
+		buf := make([]byte, keyLen)
 		f.Read(buf)
 
-		blockSize += int64(len(buf)) + 12
+		// Key is snappy encoded, so decode it
+		var key []byte
+		key, err = snappy.Decode(key, buf)
+		if err != nil {
+			println(err.Error())
+		}
+		id := hash(string(key))
+
+		// Read block length
+		f.Read(b[:4])
+		blockLength := binary.BigEndian.Uint32(b[:4])
+
+		// Read the compressed block
+		buf = make([]byte, blockLength)
+		f.Read(buf)
+
+		blockSize += int64(blockLength) + int64(keyLen) + 2 + 4
 
 		startTime := time.Unix(0, int64(btou64(buf[:8])))
 		blockType := buf[8]
@@ -381,7 +414,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		blockStats.size(len(buf))
 
 		if opts.filterKey != "" && !strings.Contains(invIds[id], opts.filterKey) {
-			i += (12 + int64(length))
+			i += (2 + int64(keyLen) + 4 + int64(blockLength))
 			blockCount += 1
 			continue
 		}
@@ -389,7 +422,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		fmt.Fprintln(tw, "  "+strings.Join([]string{
 			strconv.FormatInt(blockCount, 10),
 			strconv.FormatInt(i, 10),
-			strconv.FormatInt(int64(len(buf)), 10),
+			strconv.FormatInt(int64(len(buf)+len(key)), 10),
 			strconv.FormatUint(id, 10),
 			typeDesc,
 			startTime.UTC().Format(time.RFC3339Nano),
@@ -398,7 +431,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			fmt.Sprintf("%d/%d", len(ts), len(values)),
 		}, "\t"))
 
-		i += (12 + int64(length))
+		i += (2 + int64(keyLen) + 4 + int64(blockLength))
 		blockCount += 1
 	}
 	if opts.dumpBlocks {
@@ -439,5 +472,16 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			fmt.Printf("  * %v\n", err)
 		}
 		println()
+
 	}
+}
+
+func hash(key string) uint64 {
+	h := fnv.New64a()
+	h.Write([]byte(key))
+	n := h.Sum64()
+	if n == uint64(0) || n == uint64(math.MaxUint64) {
+		return 1
+	}
+	return n
 }
