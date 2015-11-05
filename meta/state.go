@@ -114,14 +114,15 @@ func (r *localRaft) open() error {
 	config.ElectionTimeout = s.ElectionTimeout
 	config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
 	config.CommitTimeout = s.CommitTimeout
+	// Since we actually never call `removePeer` this is safe.
+	// If in the future we decide to call remove peer we have to re-evaluate how to handle this
+	config.ShutdownOnRemove = false
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
 	if len(s.peers) <= 1 {
 		config.EnableSingleNode = true
 		// Ensure we can always become the leader
 		config.DisableBootstrapAfterElect = false
-		// Don't shutdown raft automatically if we renamed our hostname back to a previous name
-		config.ShutdownOnRemove = false
 	}
 
 	// Build raft layer to multiplex listener.
@@ -152,7 +153,7 @@ func (r *localRaft) open() error {
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
 	if len(peers) > 0 && !raft.PeerContained(peers, s.RemoteAddr.String()) {
-		s.Logger.Printf("%v is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", s.RemoteAddr.String(), s.Path())
+		s.Logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", s.RemoteAddr.String(), s.Path())
 		return fmt.Errorf("peers out of sync: %v not in %v", s.RemoteAddr.String(), peers)
 	}
 

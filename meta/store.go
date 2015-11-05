@@ -447,47 +447,52 @@ func (s *Store) monitorPeerHealth() {
 
 func (s *Store) promoteNodeToPeer() error {
 	// Only do this if you are the leader
-	if s.IsLeader() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		if s.raftState == nil {
-			return nil
-		}
-
-		peers, err := s.raftState.peers()
-		if err != nil {
-			return err
-		}
-
-		nodes := s.data.Nodes
-		var nonraft NodeInfos
-		for _, n := range nodes {
-			if contains(peers, n.Host) {
-				continue
-			}
-			nonraft = append(nonraft, n)
-		}
-
-		// Check to see if any action is required or possible
-		if len(peers) >= 3 || len(nonraft) == 0 {
-			return nil
-		}
-
-		// Sort the nodes
-		sort.Sort(nonraft)
-
-		// Get the lowest node for a deterministic outcome
-		n := nonraft[0]
-		s.Logger.Printf("attempting to notify node %d addr %s for promotion to raft peer", n.ID, n.Host)
-
-		if err := s.rpc.promoteToRaft(n.Host, peers); err != nil {
-			s.Logger.Printf("error notifying raft peer: %s", err)
-		} else {
-			s.Logger.Printf("notified node %d addr %s to promote to raft peer", n.ID, n.Host)
-			return nil
-		}
+	if !s.IsLeader() {
+		return nil
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.raftState == nil {
+		return nil
+	}
+
+	peers, err := s.raftState.peers()
+	if err != nil {
+		return err
+	}
+
+	nodes := s.data.Nodes
+	var nonraft NodeInfos
+	for _, n := range nodes {
+		if contains(peers, n.Host) {
+			continue
+		}
+		nonraft = append(nonraft, n)
+	}
+
+	// Check to see if any action is required or possible
+	if len(peers) >= 3 || len(nonraft) == 0 {
+		return nil
+	}
+
+	// Sort the nodes
+	sort.Sort(nonraft)
+
+	// Get the lowest node for a deterministic outcome
+	n := nonraft[0]
+	// Set peers on the leader now to the new peers
+	if err := s.AddPeer(n.Host); err != nil {
+		return fmt.Errorf("unable to add raft peer %s on leader: %s", n.Host, err)
+	}
+
+	// add node to peers list
+	peers = append(peers, n.Host)
+	if err := s.rpc.promoteToRaft(n.Host, peers); err != nil {
+		return fmt.Errorf("error notifying raft peer: %s", err)
+	}
+
 	return nil
 }
 
