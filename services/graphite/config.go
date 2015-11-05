@@ -51,9 +51,9 @@ const (
 
 // Config represents the configuration for Graphite endpoints.
 type Config struct {
+	Enabled          bool          `toml:"enabled"`
 	BindAddress      string        `toml:"bind-address"`
 	Database         string        `toml:"database"`
-	Enabled          bool          `toml:"enabled"`
 	Protocol         string        `toml:"protocol"`
 	BatchSize        int           `toml:"batch-size"`
 	BatchPending     int           `toml:"batch-pending"`
@@ -63,6 +63,20 @@ type Config struct {
 	Tags             []string      `toml:"tags"`
 	Separator        string        `toml:"separator"`
 	UDPReadBuffer    int           `toml:"udp-read-buffer"`
+}
+
+// NewConfig returns a new instance of Config with defaults.
+func NewConfig() Config {
+	return Config{
+		BindAddress:      DefaultBindAddress,
+		Database:         DefaultDatabase,
+		Protocol:         DefaultProtocol,
+		BatchSize:        DefaultBatchSize,
+		BatchPending:     DefaultBatchPending,
+		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
+		ConsistencyLevel: DefaultConsistencyLevel,
+		Separator:        DefaultSeparator,
+	}
 }
 
 // WithDefaults takes the given config and returns a new config with any required
