@@ -1,17 +1,14 @@
 package registration
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"net/url"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/influxdb/enterprise-client/v1"
 	"github.com/influxdb/influxdb/monitor"
 )
 
@@ -103,6 +100,10 @@ func (s *Service) registerServer() error {
 	if !s.enabled || s.token == "" {
 		return nil
 	}
+
+	cl := client.New(s.token)
+	cl.URL = s.url.String()
+
 	clusterID, err := s.MetaStore.ClusterID()
 	if err != nil {
 		s.logger.Printf("failed to retrieve cluster ID for registration: %s", err.Error())
@@ -112,41 +113,26 @@ func (s *Service) registerServer() error {
 	if err != nil {
 		return err
 	}
-	j := map[string]interface{}{
-		"cluster_id": fmt.Sprintf("%d", clusterID),
-		"server_id":  fmt.Sprintf("%d", s.MetaStore.NodeID()),
-		"host":       hostname,
-		"product":    "influxdb",
-		"version":    s.version,
+
+	server := client.Server{
+		ClusterID: fmt.Sprintf("%d", clusterID),
+		ServerID:  fmt.Sprintf("%d", s.MetaStore.NodeID()),
+		Host:      hostname,
+		Product:   "influxdb",
+		Version:   s.version,
 	}
-	b, err := json.Marshal(j)
-	if err != nil {
-		return err
-	}
-	url := fmt.Sprintf("%s/api/v1/servers?token=%s", s.url.String(), s.token)
 
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 
-		client := http.Client{Timeout: time.Duration(5 * time.Second)}
-		resp, err := client.Post(url, "application/json", bytes.NewBuffer(b))
+		resp, err := cl.Save(server)
+
 		if err != nil {
-			s.logger.Printf("failed to register server with %s: %s", s.url.String(), err.Error())
+			s.logger.Printf("failed to register server with %s: received code %s, error: %s", s.url.String(), resp.Status, err)
 			return
 		}
 		s.updateLastContact(time.Now().UTC())
-
-		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusCreated {
-			return
-		}
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			s.logger.Printf("failed to read response from registration server: %s", err.Error())
-			return
-		}
-		s.logger.Printf("failed to register server with %s: received code %s, body: %s", s.url.String(), resp.Status, string(body))
 	}()
 	return nil
 }
@@ -157,7 +143,9 @@ func (s *Service) reportStats() {
 		// No reporting, for now, without token.
 		return
 	}
-	statsURL := fmt.Sprintf("%s/api/v1/stats/influxdb?token=%s", s.url.String(), s.token)
+
+	cl := client.New(s.token)
+	cl.URL = s.url.String()
 
 	clusterID, err := s.MetaStore.ClusterID()
 	if err != nil {
@@ -175,30 +163,28 @@ func (s *Service) reportStats() {
 				continue
 			}
 
-			o := map[string]interface{}{
-				"cluster_id": fmt.Sprintf("%d", clusterID),
-				"server_id":  fmt.Sprintf("%d", s.MetaStore.NodeID()),
-				"stats":      stats,
+			st := client.Stats{
+				Product:   "influxdb",
+				ClusterID: fmt.Sprintf("%d", clusterID),
+				ServerID:  fmt.Sprintf("%d", s.MetaStore.NodeID()),
 			}
-			b, err := json.Marshal(o)
-			if err != nil {
-				s.logger.Printf("failed to JSON-encode stats: %s", err.Error())
-				continue
+			data := make([]client.StatsData, len(stats))
+			for i, x := range stats {
+				data[i] = client.StatsData{
+					Name:   x.Name,
+					Tags:   x.Tags,
+					Values: x.Values,
+				}
 			}
+			st.Data = data
 
-			client := http.Client{Timeout: time.Duration(5 * time.Second)}
-			resp, err := client.Post(statsURL, "application/json", bytes.NewBuffer(b))
+			resp, err := cl.Save(st)
 			if err != nil {
-				s.logger.Printf("failed to post statistics to %s: %s", statsURL, err.Error())
+				s.logger.Printf("failed to post statistics to: repsonse code: %d: error: %s", resp.StatusCode, err)
 				continue
 			}
 			s.updateLastContact(time.Now().UTC())
 
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				s.logger.Printf("failed to post statistics to %s: repsonse code: %d", statsURL, resp.StatusCode)
-				continue
-			}
 		case <-s.done:
 			return
 		}
