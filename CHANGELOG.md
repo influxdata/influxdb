@@ -97,6 +97,7 @@
 - [#4625](https://github.com/influxdb/influxdb/pull/4625): Correctly handle bad write requests. Thanks @oiooj.
 - [#4650](https://github.com/influxdb/influxdb/issues/4650): Importer should skip empty lines
 - [#4651](https://github.com/influxdb/influxdb/issues/4651): Importer doesn't flush out last batch
+- [#4602](https://github.com/influxdb/influxdb/issues/4602): Fixes data race between PointsWriter and Subscriber services.
 
 ## v0.9.4 [2015-09-14]
 

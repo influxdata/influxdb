@@ -112,6 +112,7 @@ type PointsWriter struct {
 	Subscriber interface {
 		Points() chan<- *WritePointsRequest
 	}
+	subPoints chan<- *WritePointsRequest
 
 	statMap *expvar.Map
 }
@@ -155,8 +156,9 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
 func (w *PointsWriter) Open() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.closing == nil {
-		w.closing = make(chan struct{})
+	w.closing = make(chan struct{})
+	if w.Subscriber != nil {
+		w.subPoints = w.Subscriber.Points()
 	}
 	return nil
 }
@@ -167,7 +169,12 @@ func (w *PointsWriter) Close() error {
 	defer w.mu.Unlock()
 	if w.closing != nil {
 		close(w.closing)
-		w.closing = nil
+	}
+	if w.subPoints != nil {
+		// 'nil' channels always block so this makes the
+		// select statement in WritePoints hit its default case
+		// dropping any in-flight writes.
+		w.subPoints = nil
 	}
 	return nil
 }
@@ -252,13 +259,19 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 	}
 
 	// Send points to subscriptions if possible.
-	if w.Subscriber != nil {
-		select {
-		case w.Subscriber.Points() <- p:
-			w.statMap.Add(statSubWriteOK, 1)
-		default:
-			w.statMap.Add(statSubWriteDrop, 1)
-		}
+	ok := false
+	// We need to lock just in case the channel is about to be nil'ed
+	w.mu.RLock()
+	select {
+	case w.subPoints <- p:
+		ok = true
+	default:
+	}
+	w.mu.RUnlock()
+	if ok {
+		w.statMap.Add(statSubWriteOK, 1)
+	} else {
+		w.statMap.Add(statSubWriteDrop, 1)
 	}
 
 	for range shardMappings.Points {

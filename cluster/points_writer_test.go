@@ -322,6 +322,9 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.HintedHandoff = hh
 		c.Subscriber = sub
 
+		c.Open()
+		defer c.Close()
+
 		err := c.WritePoints(pr)
 		if err == nil && test.expErr != nil {
 			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)

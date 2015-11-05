@@ -385,10 +385,6 @@ func (s *Server) Open() error {
 		// Wait for the store to initialize.
 		<-s.MetaStore.Ready()
 
-		if err := s.Monitor.Open(); err != nil {
-			return fmt.Errorf("open monitor: %v", err)
-		}
-
 		// Open TSDB store.
 		if err := s.TSDBStore.Open(); err != nil {
 			return fmt.Errorf("open tsdb store: %s", err)
@@ -402,6 +398,16 @@ func (s *Server) Open() error {
 		// Open the subcriber service
 		if err := s.Subscriber.Open(); err != nil {
 			return fmt.Errorf("open subscriber: %s", err)
+		}
+
+		// Open the points writer service
+		if err := s.PointsWriter.Open(); err != nil {
+			return fmt.Errorf("open points writer: %s", err)
+		}
+
+		// Open the monitor service
+		if err := s.Monitor.Open(); err != nil {
+			return fmt.Errorf("open monitor: %v", err)
 		}
 
 		for _, service := range s.Services {
@@ -442,6 +448,10 @@ func (s *Server) Close() error {
 
 	if s.Monitor != nil {
 		s.Monitor.Close()
+	}
+
+	if s.PointsWriter != nil {
+		s.PointsWriter.Close()
 	}
 
 	if s.HintedHandoff != nil {
