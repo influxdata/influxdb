@@ -147,7 +147,7 @@ If you need to add the same set of tags to all metrics, you can define them glob
  #]
 ```
 
-## Customized Config 
+## Customized Config
 ```
 [[graphite]]
    enabled = true
@@ -167,3 +167,21 @@ If you need to add the same set of tags to all metrics, you can define them glob
      ".measurement*",
  ]
 ```
+
+## Two graphite listener, UDP & TCP, Config
+
+```
+[[graphite]]
+  enabled = true
+  bind-address = ":2003"
+  protocol = "tcp"
+  # consistency-level = "one"
+
+[[graphite]]
+  enabled = true
+  bind-address = ":2004" # the bind address
+  protocol = "udp" # protocol to read via
+  udp-read-buffer = 8388608 # (8*1024*1024) UDP read buffer size
+```
+
+

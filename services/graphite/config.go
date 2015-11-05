@@ -36,7 +36,8 @@ const (
 	DefaultBatchTimeout = time.Second
 
 	// DefaultUDPReadBuffer is the default UDP read buffer
-	// increasing this increases the number of UDP packets that can be handled.
+	// Sets the size of the operating system's receive buffer associated with
+	// the UDP traffic
 	DefaultUDPReadBuffer = 8 * 1024 * 1024
 )
 

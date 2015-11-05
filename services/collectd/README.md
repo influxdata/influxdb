@@ -13,3 +13,18 @@ The path to the collectd types database file may also be set
 ## Large UDP packets
 
 Please note that UDP packages larger than the standard size of 1452 are dropped at the time of ingestion, so be sure to set `MaxPacketSize` to 1452 in the collectd configuration.
+
+## Config Example
+
+```
+[collectd]
+  enabled = false
+  bind-address = ":25826" # the bind address
+  database = "collectd" # Name of the database that will be written to
+  retention-policy = ""
+  batch-size = 5000 # will flush if this many points get buffered
+  batch-pending = 10 # number of batches that may be pending in memory
+  batch-timeout = "10s"
+  read-buffer = 8388608 # (8*1024*1024) UDP read buffer size
+  typesdb = "/usr/share/collectd/types.db"
+```
