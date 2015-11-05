@@ -2111,7 +2111,7 @@ func writeIndex(f *os.File, index *indexData) {
 
 	// min and max time for the file
 	mustWrite(f, i64tob(index.fileMinTime))
-	mustWrite(f, i64tob(index.fileMaxTime+1))
+	mustWrite(f, i64tob(index.fileMaxTime))
 
 	// finally the series count
 	mustWrite(f, u32tob(uint32(len(index.ids))))
