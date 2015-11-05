@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdb/influxdb/cluster"
 )
 
 // Ensure that HTTP responses include the InfluxDB version.
@@ -5293,4 +5295,34 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 			t.Error(query.failureMessage())
 		}
 	}
+}
+
+// This test reproduced a data race with closing the
+// Subscriber points channel while writes were in-flight in the PointsWriter.
+func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
+	t.Parallel()
+	s := OpenDefaultServer(NewConfig(), "")
+	defer s.Close()
+
+	// goroutine to write points
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				wpr := &cluster.WritePointsRequest{
+					Database:        "db0",
+					RetentionPolicy: "rp0",
+				}
+				s.PointsWriter.WritePoints(wpr)
+			}
+		}
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	close(done)
+	// Race occurs on s.Close()
 }
