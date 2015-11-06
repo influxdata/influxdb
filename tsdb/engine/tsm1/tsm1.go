@@ -1205,8 +1205,9 @@ func (r *rewriteOperation) writeToNextKey() {
 			bytesWritten += writeKey(r.f, r.currentKey)
 
 			// now write the compressed block unmodified
+			mustWrite(r.f, u32tob(uint32(len(block))))
 			mustWrite(r.f, block)
-			bytesWritten += uint32(len(block))
+			bytesWritten += uint32(len(block) + blockLengthSize)
 		} else {
 			// write all the block header info and the block unmodified
 			mustWrite(r.f, r.df.Bytes(r.nextPos, nextPos))
