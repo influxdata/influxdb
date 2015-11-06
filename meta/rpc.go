@@ -90,7 +90,7 @@ func (r *rpc) handleRPCConn(conn net.Conn) {
 		return
 	}
 
-	if !r.store.IsLeader() && typ != internal.RPCType_PromoteToRaft {
+	if !r.store.IsLeader() && typ != internal.RPCType_PromoteRaft {
 		r.proxyLeader(conn.(*net.TCPConn), pack(typ, buf))
 		return
 	}
@@ -159,12 +159,12 @@ func (r *rpc) executeMessage(conn net.Conn, rpcType internal.RPCType, buf []byte
 		}
 		resp, err := r.handleJoinRequest(&req)
 		return rpcType, resp, err
-	case internal.RPCType_PromoteToRaft:
-		var req internal.PromoteToRaftRequest
+	case internal.RPCType_PromoteRaft:
+		var req internal.PromoteRaftRequest
 		if err := proto.Unmarshal(buf, &req); err != nil {
 			return internal.RPCType_Error, nil, fmt.Errorf("promote to raft request unmarshal: %v", err)
 		}
-		resp, err := r.handlePromoteToRaftRequest(&req)
+		resp, err := r.handlePromoteRaftRequest(&req)
 		return rpcType, resp, err
 	default:
 		return internal.RPCType_Error, nil, fmt.Errorf("unknown rpc type:%v", rpcType)
@@ -293,7 +293,7 @@ func (r *rpc) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 	}, err
 }
 
-func (r *rpc) handlePromoteToRaftRequest(req *internal.PromoteToRaftRequest) (*internal.PromoteToRaftResponse, error) {
+func (r *rpc) handlePromoteRaftRequest(req *internal.PromoteRaftRequest) (*internal.PromoteRaftResponse, error) {
 	r.traceCluster("promote raft request from: %v", *req.Addr)
 
 	// Need to set the local store peers to match what we are about to join
@@ -313,7 +313,7 @@ func (r *rpc) handlePromoteToRaftRequest(req *internal.PromoteToRaftRequest) (*i
 		return nil, err
 	}
 
-	return &internal.PromoteToRaftResponse{
+	return &internal.PromoteRaftResponse{
 		Header: &internal.ResponseHeader{
 			OK: proto.Bool(true),
 		},
@@ -400,10 +400,10 @@ func (r *rpc) join(localAddr, remoteAddr string) (*JoinResult, error) {
 	}
 }
 
-// promoteToRaft attempts to promote a node at remoteAddr using localAddr as the current
+// enableRaft attempts to promote a node at remoteAddr using localAddr as the current
 // node's cluster address
-func (r *rpc) promoteToRaft(addr string, peers []string) error {
-	req := &internal.PromoteToRaftRequest{
+func (r *rpc) enableRaft(addr string, peers []string) error {
+	req := &internal.PromoteRaftRequest{
 		Addr:      proto.String(addr),
 		RaftNodes: peers,
 	}
@@ -414,7 +414,7 @@ func (r *rpc) promoteToRaft(addr string, peers []string) error {
 	}
 
 	switch t := resp.(type) {
-	case *internal.PromoteToRaftResponse:
+	case *internal.PromoteRaftResponse:
 		return nil
 	case *internal.ErrorResponse:
 		return fmt.Errorf("rpc failed: %s", t.GetHeader().GetError())
@@ -433,8 +433,8 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 		rpcType = internal.RPCType_Join
 	case *internal.FetchDataRequest:
 		rpcType = internal.RPCType_FetchData
-	case *internal.PromoteToRaftRequest:
-		rpcType = internal.RPCType_PromoteToRaft
+	case *internal.PromoteRaftRequest:
+		rpcType = internal.RPCType_PromoteRaft
 	default:
 		return nil, fmt.Errorf("unknown rpc request type: %v", t)
 	}
@@ -491,8 +491,8 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 		resp = &internal.FetchDataResponse{}
 	case internal.RPCType_Error:
 		resp = &internal.ErrorResponse{}
-	case internal.RPCType_PromoteToRaft:
-		resp = &internal.PromoteToRaftResponse{}
+	case internal.RPCType_PromoteRaft:
+		resp = &internal.PromoteRaftResponse{}
 	default:
 		return nil, fmt.Errorf("unknown rpc response type: %v", rpcType)
 	}

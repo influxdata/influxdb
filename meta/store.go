@@ -489,7 +489,7 @@ func (s *Store) promoteNodeToPeer() error {
 
 	// add node to peers list
 	peers = append(peers, n.Host)
-	if err := s.rpc.promoteToRaft(n.Host, peers); err != nil {
+	if err := s.rpc.enableRaft(n.Host, peers); err != nil {
 		return fmt.Errorf("error notifying raft peer: %s", err)
 	}
 

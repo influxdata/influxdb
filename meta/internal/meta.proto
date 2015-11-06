@@ -322,7 +322,7 @@ enum RPCType {
     Error = 1;
     FetchData = 2;
     Join = 3;
-    PromoteToRaft = 4;
+    PromoteRaft = 4;
 }
 
 message ResponseHeader {
@@ -365,12 +365,12 @@ message JoinResponse {
     optional uint64 NodeID = 4;
 }
 
-message PromoteToRaftRequest {
+message PromoteRaftRequest {
     required string Addr = 1;
     repeated string RaftNodes = 2;
 }
 
-message PromoteToRaftResponse {
+message PromoteRaftResponse {
     required ResponseHeader Header = 1;
 
     optional bool Success = 2;

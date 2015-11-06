@@ -50,8 +50,8 @@ It has these top-level messages:
 	FetchDataResponse
 	JoinRequest
 	JoinResponse
-	PromoteToRaftRequest
-	PromoteToRaftResponse
+	PromoteRaftRequest
+	PromoteRaftResponse
 */
 package internal
 
@@ -67,23 +67,23 @@ var _ = math.Inf
 type RPCType int32
 
 const (
-	RPCType_Error         RPCType = 1
-	RPCType_FetchData     RPCType = 2
-	RPCType_Join          RPCType = 3
-	RPCType_PromoteToRaft RPCType = 4
+	RPCType_Error       RPCType = 1
+	RPCType_FetchData   RPCType = 2
+	RPCType_Join        RPCType = 3
+	RPCType_PromoteRaft RPCType = 4
 )
 
 var RPCType_name = map[int32]string{
 	1: "Error",
 	2: "FetchData",
 	3: "Join",
-	4: "PromoteToRaft",
+	4: "PromoteRaft",
 }
 var RPCType_value = map[string]int32{
-	"Error":         1,
-	"FetchData":     2,
-	"Join":          3,
-	"PromoteToRaft": 4,
+	"Error":       1,
+	"FetchData":   2,
+	"Join":        3,
+	"PromoteRaft": 4,
 }
 
 func (x RPCType) Enum() *RPCType {
@@ -1613,48 +1613,48 @@ func (m *JoinResponse) GetNodeID() uint64 {
 	return 0
 }
 
-type PromoteToRaftRequest struct {
+type PromoteRaftRequest struct {
 	Addr             *string  `protobuf:"bytes,1,req,name=Addr" json:"Addr,omitempty"`
 	RaftNodes        []string `protobuf:"bytes,2,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *PromoteToRaftRequest) Reset()         { *m = PromoteToRaftRequest{} }
-func (m *PromoteToRaftRequest) String() string { return proto.CompactTextString(m) }
-func (*PromoteToRaftRequest) ProtoMessage()    {}
+func (m *PromoteRaftRequest) Reset()         { *m = PromoteRaftRequest{} }
+func (m *PromoteRaftRequest) String() string { return proto.CompactTextString(m) }
+func (*PromoteRaftRequest) ProtoMessage()    {}
 
-func (m *PromoteToRaftRequest) GetAddr() string {
+func (m *PromoteRaftRequest) GetAddr() string {
 	if m != nil && m.Addr != nil {
 		return *m.Addr
 	}
 	return ""
 }
 
-func (m *PromoteToRaftRequest) GetRaftNodes() []string {
+func (m *PromoteRaftRequest) GetRaftNodes() []string {
 	if m != nil {
 		return m.RaftNodes
 	}
 	return nil
 }
 
-type PromoteToRaftResponse struct {
+type PromoteRaftResponse struct {
 	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
 	Success          *bool           `protobuf:"varint,2,opt,name=Success" json:"Success,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
-func (m *PromoteToRaftResponse) Reset()         { *m = PromoteToRaftResponse{} }
-func (m *PromoteToRaftResponse) String() string { return proto.CompactTextString(m) }
-func (*PromoteToRaftResponse) ProtoMessage()    {}
+func (m *PromoteRaftResponse) Reset()         { *m = PromoteRaftResponse{} }
+func (m *PromoteRaftResponse) String() string { return proto.CompactTextString(m) }
+func (*PromoteRaftResponse) ProtoMessage()    {}
 
-func (m *PromoteToRaftResponse) GetHeader() *ResponseHeader {
+func (m *PromoteRaftResponse) GetHeader() *ResponseHeader {
 	if m != nil {
 		return m.Header
 	}
 	return nil
 }
 
-func (m *PromoteToRaftResponse) GetSuccess() bool {
+func (m *PromoteRaftResponse) GetSuccess() bool {
 	if m != nil && m.Success != nil {
 		return *m.Success
 	}
