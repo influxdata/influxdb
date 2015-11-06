@@ -25,7 +25,7 @@ reporting-disabled = false
 ###
 
 [meta]
-  dir = "/var/opt/influxdb/meta"
+  dir = "/var/lib/influxdb/meta"
   hostname = "localhost"
   bind-address = ":8088"
   retention-autocreate = true
@@ -52,7 +52,7 @@ reporting-disabled = false
 ###
 
 [data]
-  dir = "/var/opt/influxdb/data"
+  dir = "/var/lib/influxdb/data"
 
   # Controls the engine type for new shards. Options are b1, bz1, or tsm1.
   # b1 is the 0.9.2 storage engine, bz1 is the 0.9.3 and 0.9.4 engine.
@@ -68,7 +68,7 @@ reporting-disabled = false
   wal-partition-flush-delay = "2s" # The delay time between each WAL partition being flushed.
 
   # These are the WAL settings for the storage engine >= 0.9.3
-  wal-dir = "/var/opt/influxdb/wal"
+  wal-dir = "/var/lib/influxdb/wal"
   wal-enable-logging = true
 
   # When a series in the WAL in-memory cache reaches this size in bytes it is marked as ready to
@@ -105,7 +105,7 @@ reporting-disabled = false
 
 [hinted-handoff]
   enabled = true
-  dir = "/var/opt/influxdb/hh"
+  dir = "/var/lib/influxdb/hh"
   max-size = 1073741824
   max-age = "168h"
   retry-rate-limit = 0

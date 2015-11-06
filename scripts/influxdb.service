@@ -9,9 +9,11 @@ After=network.target
 User=influxdb
 Group=influxdb
 LimitNOFILE=65536
+Environment='STDOUT=/dev/null'
+Environment='STDERR=/var/log/influxdb/influxd.log'
 EnvironmentFile=-/etc/default/influxdb
-ExecStart=/opt/influxdb/influxd -config /etc/opt/influxdb/influxdb.conf $INFLUXD_OPTS
-KillMode=process
+ExecStart=/bin/sh -c "/usr/bin/influxd -config /etc/influxdb/influxdb.conf ${INFLUXD_OPTS} >> ${STDOUT} 2>> ${STDERR}"
+KillMode=control-group
 Restart=on-failure
 
 [Install]
