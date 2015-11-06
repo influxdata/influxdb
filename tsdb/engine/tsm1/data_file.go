@@ -452,7 +452,7 @@ func (d *dataFile) blockLengthAndEnd(blockStart uint32) (uint32, uint32) {
 // compressedBlockMinTime will return the starting time for a compressed block given
 // its position
 func (d *dataFile) CompressedBlockMinTime(block []byte) int64 {
-	return int64(btou64(block[blockLengthSize : blockLengthSize+timeSize]))
+	return int64(btou64(block[seriesIDSize+blockLengthSize : seriesIDSize+blockLengthSize+timeSize]))
 }
 
 // StartingPositionForID returns the position in the file of the
