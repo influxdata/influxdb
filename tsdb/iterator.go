@@ -1,24 +1,60 @@
 package tsdb
 
 import (
+	"fmt"
+	"math"
+	"reflect"
 	"time"
 )
 
 // maxTime is used as the maximum time value when computing an unbounded range.
 var maxTime = time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-type Iterator interface {
-}
+type Value interface{}
 
-type FloatIterator interface {
-	Iterator
-	Next() *FloatValue
+type Values []Value
+
+func (a Values) Equals(other Values) bool {
+	if len(a) != len(other) {
+		return false
+	}
+	for i := range a {
+		// Special handling for float values since NaN != NaN.
+		// https://github.com/golang/go/issues/12025
+		if x, ok := a[i].(*FloatValue); ok {
+			if y, ok := other[i].(*FloatValue); ok {
+				if !x.Time.Equal(y.Time) {
+					return false
+				} else if x.Value != y.Value && !(math.IsNaN(x.Value) && math.IsNaN(y.Value)) {
+					return false
+				} else if !reflect.DeepEqual(x.Tags, y.Tags) {
+					return false
+				}
+			} else {
+				return false
+			}
+		} else {
+			if !reflect.DeepEqual(a[i], other[i]) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 type FloatValue struct {
 	Time  time.Time
 	Value float64
 	Tags  map[string]string
+}
+
+type Iterator interface{}
+
+// FloatIterator represents a stream of float values.
+type FloatIterator interface {
+	Iterator
+	Next() *FloatValue
 }
 
 // FloatMinIterator emits a float value for each interval.
@@ -47,15 +83,10 @@ func (itr *FloatMinIterator) Next() *FloatValue {
 	var min *FloatValue
 	for _, input := range itr.inputs {
 		for {
-			v := input.Next()
+			v := input.NextBefore(endTime)
 			if v == nil {
 				break
-			} else if !v.Time.Before(endTime) {
-				input.unread(v)
-				break
-			}
-
-			if min == nil || v.Value < min.Value {
+			} else if min == nil || v.Value < min.Value {
 				min = v
 			}
 		}
@@ -78,6 +109,19 @@ func (itr *bufFloatIterator) Next() *FloatValue {
 		return buf
 	}
 	return itr.itr.Next()
+}
+
+// Next returns the next value if it is before t.
+// If the next value is on or after t then it is moved to the buffer.
+func (itr *bufFloatIterator) NextBefore(t time.Time) *FloatValue {
+	v := itr.Next()
+	if v == nil {
+		return nil
+	} else if !v.Time.Before(t) {
+		itr.unread(v)
+		return nil
+	}
+	return v
 }
 
 // unread sets v to the buffer. It is read on the next call to Next().
@@ -117,4 +161,120 @@ func (a bufFloatIterators) nextWindow(interval, offset time.Duration) (startTime
 	startTime = min.Truncate(interval).Add(offset)
 	endTime = startTime.Add(interval)
 	return
+}
+
+// Join combines inputs based on timestamp and returns new iterators.
+// The output iterators guarantee that one value will be output for every timestamp.
+func Join(inputs []Iterator) (outputs []Iterator) {
+	itrs := make([]joinIterator, len(inputs))
+	for i, input := range inputs {
+		switch input := input.(type) {
+		case FloatIterator:
+			itrs[i] = newFloatJoinIterator(input)
+		default:
+			panic(fmt.Sprintf("unsupported join iterator type: %T", input))
+		}
+	}
+
+	// Begin joining goroutine.
+	go join(itrs)
+
+	return joinIterators(itrs).iterators()
+}
+
+// join runs in a separate goroutine to join input values on timestamp.
+func join(itrs []joinIterator) {
+	for {
+		// Find min timestamp.
+		var min time.Time
+		for _, itr := range itrs {
+			t := itr.loadBuf()
+			if !t.IsZero() && (min.IsZero() || t.Before(t)) {
+				min = t
+			}
+		}
+
+		// Exit when no more values are available.
+		if min.IsZero() {
+			break
+		}
+
+		// Emit value on every output.
+		for _, itr := range itrs {
+			itr.emitAt(min)
+		}
+	}
+
+	// Close all iterators.
+	for _, itr := range itrs {
+		itr.Close()
+	}
+}
+
+// joinIterator represents output iterator used by join().
+type joinIterator interface {
+	Iterator
+	Close() error
+	loadBuf() time.Time
+	emitAt(t time.Time)
+}
+
+type joinIterators []joinIterator
+
+// iterators returns itrs as a list of generic iterators.
+func (itrs joinIterators) iterators() []Iterator {
+	a := make([]Iterator, len(itrs))
+	for i, itr := range itrs {
+		a[i] = itr
+	}
+	return a
+}
+
+// floatJoinIterator represents a join iterator that processes float values.
+type floatJoinIterator struct {
+	input FloatIterator
+	buf   *FloatValue      // next value from input
+	c     chan *FloatValue // streaming output channel
+}
+
+// newFloatJoinIterator returns a new join iterator that wraps input.
+func newFloatJoinIterator(input FloatIterator) *floatJoinIterator {
+	return &floatJoinIterator{
+		input: input,
+		c:     make(chan *FloatValue, 1),
+	}
+}
+
+// Close close the iterator.
+func (itr *floatJoinIterator) Close() error {
+	close(itr.c)
+	return nil
+}
+
+// Next returns the next point from the streaming channel.
+func (itr *floatJoinIterator) Next() *FloatValue { return <-itr.c }
+
+// loadBuf reads the next value from the input into the buffer.
+func (itr *floatJoinIterator) loadBuf() time.Time {
+	if itr.buf != nil {
+		return itr.buf.Time
+	}
+
+	itr.buf = itr.input.Next()
+	if itr.buf == nil {
+		return time.Time{}
+	}
+	return itr.buf.Time
+}
+
+// emitAt emits the buffered point if its timestamp equals t.
+// Otherwise it emits a null value with the timestamp t.
+func (itr *floatJoinIterator) emitAt(t time.Time) {
+	var v *FloatValue
+	if itr.buf == nil || !itr.buf.Time.Equal(t) {
+		v = &FloatValue{Time: t, Value: math.NaN()}
+	} else {
+		v, itr.buf = itr.buf, nil
+	}
+	itr.c <- v
 }
