@@ -12,16 +12,26 @@ import (
 )
 
 func TestUDPClient_Query(t *testing.T) {
-	c := NewUDPClient("localhost:8089")
+	config := UDPConfig{Addr: "localhost:8089"}
+	c, err := NewUDPClient(config)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	defer c.Close()
 	query := Query{}
-	_, err := c.Query(query)
+	_, err = c.Query(query)
 	if err == nil {
 		t.Error("Querying UDP client should fail")
 	}
 }
 
 func TestUDPClient_Write(t *testing.T) {
-	c := NewUDPClient("localhost:8089")
+	config := UDPConfig{Addr: "localhost:8089"}
+	c, err := NewUDPClient(config)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	defer c.Close()
 
 	bp, err := NewBatchPoints(BatchPointsConfig{})
 	if err != nil {
@@ -39,22 +49,12 @@ func TestUDPClient_Write(t *testing.T) {
 	}
 }
 
-func TestUDPClient_WriteBadAddr(t *testing.T) {
-	c := NewUDPClient("foobar@wahoo")
-
-	bp, err := NewBatchPoints(BatchPointsConfig{})
-	if err != nil {
-		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
-	}
-
-	fields := make(map[string]interface{})
-	fields["value"] = 1.0
-	pt, _ := NewPoint("cpu", make(map[string]string), fields)
-	bp.AddPoint(pt)
-
-	err = c.Write(bp)
+func TestUDPClient_BadAddr(t *testing.T) {
+	config := UDPConfig{Addr: "foobar@wahoo"}
+	c, err := NewUDPClient(config)
 	if err == nil {
-		t.Errorf("Expected write error.  expected %v, actual %v", nil, err)
+		defer c.Close()
+		t.Error("Expected resolve error")
 	}
 }
 
@@ -69,6 +69,7 @@ func TestClient_Query(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 	config := Config{URL: u}
 	c := NewClient(config)
+	defer c.Close()
 
 	query := Query{}
 	_, err := c.Query(query)
@@ -100,6 +101,7 @@ func TestClient_BasicAuth(t *testing.T) {
 	u.User = url.UserPassword("username", "password")
 	config := Config{URL: u, Username: "username", Password: "password"}
 	c := NewClient(config)
+	defer c.Close()
 
 	query := Query{}
 	_, err := c.Query(query)
@@ -119,6 +121,7 @@ func TestClient_Write(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 	config := Config{URL: u}
 	c := NewClient(config)
+	defer c.Close()
 
 	bp, err := NewBatchPoints(BatchPointsConfig{})
 	if err != nil {
@@ -167,6 +170,7 @@ func TestClient_UserAgent(t *testing.T) {
 		u, _ := url.Parse(ts.URL)
 		config := Config{URL: u, UserAgent: test.userAgent}
 		c := NewClient(config)
+		defer c.Close()
 
 		receivedUserAgent = ""
 		query := Query{}

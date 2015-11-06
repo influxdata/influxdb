@@ -28,7 +28,12 @@ func ExampleClient_NewClient() client.Client {
 // Write a point using the UDP client
 func ExampleClient_WriteUDP() {
 	// Make client
-	c := client.NewUDPClient("localhost:8089")
+	config := client.UDPConfig{Addr: "localhost:8089"}
+	c, err := client.NewUDPClient(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	defer c.Close()
 
 	// Create a new point batch
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
@@ -59,6 +64,7 @@ func ExampleClient_Write() {
 	c := client.NewClient(client.Config{
 		URL: u,
 	})
+	defer c.Close()
 
 	// Create a new point batch
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
@@ -163,6 +169,7 @@ func ExampleClient_Write1000() {
 	clnt := client.NewClient(client.Config{
 		URL: u,
 	})
+	defer clnt.Close()
 
 	rand.Seed(42)
 
@@ -211,6 +218,7 @@ func ExampleClient_Query() {
 	c := client.NewClient(client.Config{
 		URL: u,
 	})
+	defer c.Close()
 
 	q := client.Query{
 		Command:   "SELECT count(value) FROM shapes",
@@ -229,6 +237,7 @@ func ExampleClient_CreateDatabase() {
 	c := client.NewClient(client.Config{
 		URL: u,
 	})
+	defer c.Close()
 
 	q := client.Query{
 		Command: "CREATE DATABASE telegraf",
