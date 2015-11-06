@@ -1,17 +1,16 @@
 package run
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"strings"
 	"time"
 
+	"github.com/influxdb/enterprise-client/v1"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
@@ -512,18 +511,28 @@ func (s *Server) reportServer() {
 		return
 	}
 
-	json := fmt.Sprintf(`[{
-    "name":"reports",
-    "columns":["os", "arch", "version", "server_id", "cluster_id", "num_series", "num_measurements", "num_databases"],
-    "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
-  }]`, runtime.GOOS, runtime.GOARCH, s.buildInfo.Version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
-
-	data := bytes.NewBufferString(json)
+	cl := client.New("")
+	usage := client.Usage{
+		Product: "influxdb",
+		Data: []client.UsageData{
+			{
+				Values: client.Values{
+					"os":               runtime.GOOS,
+					"arch":             runtime.GOARCH,
+					"version":          s.buildInfo.Version,
+					"server_id":        s.MetaStore.NodeID(),
+					"cluster_id":       clusterID,
+					"num_series":       numSeries,
+					"num_measurements": numMeasurements,
+					"num_databases":    numDatabases,
+				},
+			},
+		},
+	}
 
 	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
 
-	client := http.Client{Timeout: time.Duration(5 * time.Second)}
-	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+	go cl.Save(usage)
 }
 
 // monitorErrorChan reads an error channel and resends it through the server.
