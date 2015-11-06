@@ -1216,7 +1216,6 @@ func (r *rewriteOperation) writeToNextKey() {
 
 		// store the starting position if this is the first block for this ID
 		r.index.addIDPosition(r.currentID, r.fPos)
-		r.index.setMinTime(r.df.CompressedBlockMinTime(block))
 
 		// save the position in the new file and the source file position
 		r.fPos += bytesWritten
@@ -1227,6 +1226,7 @@ func (r *rewriteOperation) writeToNextKey() {
 		if err := DecodeBlock(block, &r.valsBuf); err != nil {
 			panic(fmt.Sprintf("error decoding block on rewrite: %s", err.Error()))
 		}
+		r.index.setMinTime(r.valsBuf[0].UnixNano())
 		r.index.setMaxTime(r.valsBuf[len(r.valsBuf)-1].UnixNano())
 	}
 }

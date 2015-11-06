@@ -64,9 +64,6 @@ type DataFile interface {
 	// Bytes returns the raw bytes specified by the range.
 	Bytes(from, to uint32) []byte
 
-	// CompressedBlockMinTime returns the minimum time stored in the given compressed block.
-	CompressedBlockMinTime(block []byte) int64
-
 	// IndexMinMaxTimes returns the minimum and maximum times for all series stored in the index.
 	IndexMinMaxTimes() map[uint64]TimeRange
 
@@ -447,12 +444,6 @@ func (d *dataFile) keyAndBlockStart(pos uint32) (string, uint32) {
 func (d *dataFile) blockLengthAndEnd(blockStart uint32) (uint32, uint32) {
 	length := btou32(d.mmap[blockStart : blockStart+blockLengthSize])
 	return length, blockStart + length + blockLengthSize
-}
-
-// compressedBlockMinTime will return the starting time for a compressed block given
-// its position
-func (d *dataFile) CompressedBlockMinTime(block []byte) int64 {
-	return int64(btou64(block[seriesIDSize+blockLengthSize : seriesIDSize+blockLengthSize+timeSize]))
 }
 
 // StartingPositionForID returns the position in the file of the
