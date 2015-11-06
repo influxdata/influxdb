@@ -974,6 +974,7 @@ func TestStatementExecutor_ExecuteStatement_ShowShards(t *testing.T) {
 				Name: "foo",
 				RetentionPolicies: []meta.RetentionPolicyInfo{
 					{
+						Name:     "rpi_foo",
 						Duration: time.Second,
 						ShardGroups: []meta.ShardGroupInfo{
 							{
@@ -1005,10 +1006,10 @@ func TestStatementExecutor_ExecuteStatement_ShowShards(t *testing.T) {
 	} else if !reflect.DeepEqual(res.Series, models.Rows{
 		{
 			Name:    "foo",
-			Columns: []string{"id", "start_time", "end_time", "expiry_time", "owners"},
+			Columns: []string{"id", "database", "retention_policy", "start_time", "end_time", "expiry_time", "owners"},
 			Values: [][]interface{}{
-				{uint64(1), "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", "1,2,3"},
-				{uint64(2), "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", ""},
+				{uint64(1), "foo", "rpi_foo", "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", "1,2,3"},
+				{uint64(2), "foo", "rpi_foo", "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z", ""},
 			},
 		},
 	}) {
