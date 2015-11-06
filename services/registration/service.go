@@ -180,7 +180,7 @@ func (s *Service) reportStats() {
 
 			resp, err := cl.Save(st)
 			if err != nil {
-				s.logger.Printf("failed to post statistics to: repsonse code: %d: error: %s", resp.StatusCode, err)
+				s.logger.Printf("failed to post statistics to Enterprise: repsonse code: %d: error: %s", resp.StatusCode, err)
 				continue
 			}
 			s.updateLastContact(time.Now().UTC())
