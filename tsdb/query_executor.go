@@ -370,6 +370,9 @@ func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 	if err != nil {
 		return &influxql.Result{Err: err}
 	} else if dbi == nil {
+		if stmt.IfExists {
+			return &influxql.Result{}
+		}
 		return &influxql.Result{Err: ErrDatabaseNotFound(stmt.Name)}
 	}
 

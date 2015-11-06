@@ -1458,6 +1458,16 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
 	stmt := &DropDatabaseStatement{}
 
+	// Look for "IF EXISTS"
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == IF {
+		if err := p.parseTokens([]Token{EXISTS}); err != nil {
+			return nil, err
+		}
+		stmt.IfExists = true
+	} else {
+		p.unscan()
+	}
+
 	// Parse the name of the database to be dropped.
 	lit, err := p.parseIdent()
 	if err != nil {

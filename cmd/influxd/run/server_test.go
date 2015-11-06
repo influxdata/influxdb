@@ -79,6 +79,16 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
+				name:    "drop database should error if it does not exists",
+				command: `DROP DATABASE db1`,
+				exp:     `{"results":[{"error":"database not found: db1"}]}`,
+			},
+			&Query{
+				name:    "drop database should not error with non-existing database db1 WITH IF EXISTS",
+				command: `DROP DATABASE IF EXISTS db1`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
 				name:    "show database should have no results",
 				command: `SHOW DATABASES`,
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
