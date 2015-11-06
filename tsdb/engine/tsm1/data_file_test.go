@@ -87,8 +87,8 @@ func TestDataFiles_Overlapping(t *testing.T) {
 		t.Fatalf("file count mismatch: exp %v, got %v", exp, got)
 	}
 
-	// Should match f2, f3, f4
-	if exp, got := 3, len(d.Overlapping(10, 20)); exp != got {
+	// Should match f1, f2, f3, f4
+	if exp, got := 4, len(d.Overlapping(10, 20)); exp != got {
 		t.Fatalf("file count mismatch: exp %v, got %v", exp, got)
 	}
 

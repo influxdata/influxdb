@@ -389,13 +389,13 @@ func (e *Engine) filesAndNewValues(files []DataFile, pointsByKey map[string]Valu
 
 		if i == len(files) {
 			// these are the values that go into a new file
-			left, newValues = e.splitValuesByTime(files[i-1].MaxTime()-1, left)
+			left, newValues = e.splitValuesByTime(files[i-1].MaxTime(), left)
 		} else if i == 0 {
 			// anything left is on the lower end of the time range and should go into the first file
 			rewrites = append(rewrites, &fileRewrite{df: files[0], valuesByID: left})
 			return
 		} else {
-			l, r := e.splitValuesByTime(files[i-1].MaxTime()-1, left)
+			l, r := e.splitValuesByTime(files[i-1].MaxTime(), left)
 			rewrites = append(rewrites, &fileRewrite{df: files[i], valuesByID: r})
 			left = l
 		}
@@ -475,6 +475,7 @@ func (e *Engine) Write(pointsByKey map[string]Values, measurementFieldsToSave ma
 			endTime = max
 		}
 	}
+	endTime++
 
 	e.writeMetadata(measurementFieldsToSave, seriesToCreate)
 

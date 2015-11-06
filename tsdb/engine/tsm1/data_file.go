@@ -196,7 +196,7 @@ func (d *DataFiles) Overlapping(min, max int64) []DataFile {
 	var a []DataFile
 	for _, f := range d.files {
 		fmin, fmax := f.MinTime(), f.MaxTime()
-		if min < fmax && fmin < max {
+		if min <= fmax && fmin < max {
 			a = append(a, f)
 		} else if max >= fmin && max < fmax {
 			a = append(a, f)
