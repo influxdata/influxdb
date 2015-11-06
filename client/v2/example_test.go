@@ -26,7 +26,7 @@ func ExampleClient() client.Client {
 }
 
 // Write a point using the UDP client
-func ExampleClient_UDP() {
+func ExampleClient_uDP() {
 	// Make client
 	config := client.UDPConfig{Addr: "localhost:8089"}
 	c, err := client.NewUDPClient(config)
@@ -58,7 +58,7 @@ func ExampleClient_UDP() {
 }
 
 // Write a point using the HTTP client
-func ExampleClient_Write() {
+func ExampleClient_write() {
 	// Make client
 	u, _ := url.Parse("http://localhost:8086")
 	c := client.NewClient(client.Config{
@@ -147,7 +147,7 @@ func ExamplePoint() {
 }
 
 // Create a new point without a timestamp
-func ExamplePoint_without_time() {
+func ExamplePoint_withoutTime() {
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{
 		"idle":   10.1,
@@ -161,7 +161,7 @@ func ExamplePoint_without_time() {
 }
 
 // Write 1000 points
-func ExampleClient_write_1000() {
+func ExampleClient_write1000() {
 	sampleSize := 1000
 
 	// Make client
@@ -212,7 +212,7 @@ func ExampleClient_write_1000() {
 }
 
 // Make a Query
-func ExampleClient_Query() {
+func ExampleClient_query() {
 	// Make client
 	u, _ := url.Parse("http://localhost:8086")
 	c := client.NewClient(client.Config{
@@ -231,7 +231,7 @@ func ExampleClient_Query() {
 }
 
 // Create a Database with a query
-func ExampleClient_create_database() {
+func ExampleClient_createDatabase() {
 	// Make client
 	u, _ := url.Parse("http://localhost:8086")
 	c := client.NewClient(client.Config{
