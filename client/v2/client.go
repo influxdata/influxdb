@@ -335,9 +335,6 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 }
 
 func (c *client) Write(bp BatchPoints) error {
-	u := c.url
-	u.Path = "write"
-
 	var b bytes.Buffer
 
 	for _, p := range bp.Points() {
@@ -350,6 +347,8 @@ func (c *client) Write(bp BatchPoints) error {
 		}
 	}
 
+	u := c.url
+	u.Path = "write"
 	req, err := http.NewRequest("POST", u.String(), &b)
 	if err != nil {
 		return err
@@ -426,24 +425,25 @@ func (uc *udpclient) Query(q Query) (*Response, error) {
 // Query sends a command to the server and returns the Response
 func (c *client) Query(q Query) (*Response, error) {
 	u := c.url
-
 	u.Path = "query"
-	values := u.Query()
-	values.Set("q", q.Command)
-	values.Set("db", q.Database)
-	if q.Precision != "" {
-		values.Set("epoch", q.Precision)
-	}
-	u.RawQuery = values.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "")
 	req.Header.Set("User-Agent", c.useragent)
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
+
+	params := req.URL.Query()
+	params.Set("q", q.Command)
+	params.Set("db", q.Database)
+	if q.Precision != "" {
+		params.Set("epoch", q.Precision)
+	}
+	req.URL.RawQuery = params.Encode()
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
