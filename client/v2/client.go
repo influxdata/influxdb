@@ -64,6 +64,7 @@ type BatchPointsConfig struct {
 	WriteConsistency string
 }
 
+// Client is a client interface for writing & querying the database
 type Client interface {
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
 	Write(bp BatchPoints) error

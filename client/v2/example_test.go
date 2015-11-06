@@ -12,7 +12,7 @@ import (
 )
 
 // Create a new client
-func ExampleClient_NewClient() client.Client {
+func ExampleClient() client.Client {
 	u, _ := url.Parse("http://localhost:8086")
 
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
@@ -26,7 +26,7 @@ func ExampleClient_NewClient() client.Client {
 }
 
 // Write a point using the UDP client
-func ExampleClient_WriteUDP() {
+func ExampleClient_UDP() {
 	// Make client
 	config := client.UDPConfig{Addr: "localhost:8089"}
 	c, err := client.NewUDPClient(config)
@@ -112,7 +112,7 @@ func ExampleBatchPoints() {
 }
 
 // Using the BatchPoints setter functions
-func ExampleBatchPoints_Setters() {
+func ExampleBatchPoints_setters() {
 	// Create a new point batch
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{})
 	bp.SetDatabase("BumbleBeeTuna")
@@ -147,7 +147,7 @@ func ExamplePoint() {
 }
 
 // Create a new point without a timestamp
-func ExamplePoint_WithoutTime() {
+func ExamplePoint_without_time() {
 	tags := map[string]string{"cpu": "cpu-total"}
 	fields := map[string]interface{}{
 		"idle":   10.1,
@@ -161,7 +161,7 @@ func ExamplePoint_WithoutTime() {
 }
 
 // Write 1000 points
-func ExampleClient_Write1000() {
+func ExampleClient_write_1000() {
 	sampleSize := 1000
 
 	// Make client
@@ -231,7 +231,7 @@ func ExampleClient_Query() {
 }
 
 // Create a Database with a query
-func ExampleClient_CreateDatabase() {
+func ExampleClient_create_database() {
 	// Make client
 	u, _ := url.Parse("http://localhost:8086")
 	c := client.NewClient(client.Config{
