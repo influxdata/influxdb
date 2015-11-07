@@ -340,12 +340,19 @@ func (s *CreateDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
 type DropDatabaseStatement struct {
 	// Name of the database to be dropped.
 	Name string
+
+	// IfExists indicates whether to return without error if the database
+	// does not exists.
+	IfExists bool
 }
 
 // String returns a string representation of the drop database statement.
 func (s *DropDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP DATABASE ")
+	if s.IfExists {
+		_, _ = buf.WriteString("IF EXISTS ")
+	}
 	_, _ = buf.WriteString(s.Name)
 	return buf.String()
 }

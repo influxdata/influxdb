@@ -1224,8 +1224,18 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// DROP DATABASE statement
 		{
-			s:    `DROP DATABASE testdb`,
-			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
+			s: `DROP DATABASE testdb`,
+			stmt: &influxql.DropDatabaseStatement{
+				Name:     "testdb",
+				IfExists: false,
+			},
+		},
+		{
+			s: `DROP DATABASE IF EXISTS testdb`,
+			stmt: &influxql.DropDatabaseStatement{
+				Name:     "testdb",
+				IfExists: true,
+			},
 		},
 
 		// DROP MEASUREMENT statement
@@ -1599,6 +1609,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `CREATE DATABASE IF NOT`, err: `found EOF, expected EXISTS at line 1, char 24`},
 		{s: `CREATE DATABASE IF NOT EXISTS`, err: `found EOF, expected identifier at line 1, char 31`},
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
+		{s: `DROP DATABASE IF`, err: `found EOF, expected EXISTS at line 1, char 18`},
+		{s: `DROP DATABASE IF EXISTS`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `DROP RETENTION`, err: `found EOF, expected POLICY at line 1, char 16`},
 		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
