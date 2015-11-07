@@ -32,6 +32,42 @@ func TestParseCommand_CommandsExist(t *testing.T) {
 	}
 }
 
+func TestParseCommand_CommandsSamePrefix(t *testing.T) {
+	t.Parallel()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	m := main.CommandLine{Client: c}
+
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "use db"},
+		{cmd: "user nodb"},
+		{cmd: "puse nodb"},
+		{cmd: ""}, // test that a blank command just returns
+	}
+	for _, test := range tests {
+		if !m.ParseCommand(test.cmd) {
+			t.Fatalf(`Command failed for %q.`, test.cmd)
+		}
+	}
+
+	if m.Database != "db" {
+		t.Fatalf(`Command "use" changed database to %q. Expected db`, m.Database)
+	}
+}
+
 func TestParseCommand_TogglePretty(t *testing.T) {
 	t.Parallel()
 	c := main.CommandLine{}
