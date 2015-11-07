@@ -54,7 +54,7 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
-		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`.", err)
+		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
 	}
 
 	toml.NewEncoder(cmd.Stdout).Encode(config)

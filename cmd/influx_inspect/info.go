@@ -101,6 +101,7 @@ func u64tob(v uint64) []byte {
 	return b
 }
 
+// ShardIDs is a collection of UINT 64 that represent shard ids.
 type ShardIDs []uint64
 
 func (a ShardIDs) Len() int           { return len(a) }

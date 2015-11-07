@@ -40,6 +40,7 @@ func (cmd *Command) Run(args ...string) error {
 	return cmd.Restore(config, path)
 }
 
+// Restore restores a database snapshot
 func (cmd *Command) Restore(config *Config, path string) error {
 	// Remove meta and data directories.
 	if err := os.RemoveAll(config.Meta.Dir); err != nil {
