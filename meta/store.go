@@ -755,10 +755,10 @@ func (s *Store) serveRPCListener() {
 		if err != nil {
 			if strings.Contains(err.Error(), "connection closed") {
 				return
-			} else {
-				s.Logger.Printf("temporary accept error: %s", err)
-				continue
 			}
+
+			s.Logger.Printf("temporary accept error: %s", err)
+			continue
 		}
 
 		// Handle connection in a separate goroutine.
@@ -1200,6 +1200,8 @@ func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Ti
 	return
 }
 
+// ShardOwner look up for a specific shard and return the shard group information
+// related with the shard.
 func (s *Store) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
 	s.read(func(data *Data) error {
 		for _, dbi := range data.Databases {
@@ -2212,9 +2214,14 @@ type RetentionPolicyUpdate struct {
 	ReplicaN *int
 }
 
-func (rpu *RetentionPolicyUpdate) SetName(v string)            { rpu.Name = &v }
+// SetName sets the RetentionPolicyUpdate.Name
+func (rpu *RetentionPolicyUpdate) SetName(v string) { rpu.Name = &v }
+
+// SetDuration sets the RetentionPolicyUpdate.Duration
 func (rpu *RetentionPolicyUpdate) SetDuration(v time.Duration) { rpu.Duration = &v }
-func (rpu *RetentionPolicyUpdate) SetReplicaN(v int)           { rpu.ReplicaN = &v }
+
+// SetReplicaN sets the RetentionPolicyUpdate.ReplicaN
+func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
 
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {

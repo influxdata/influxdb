@@ -40,6 +40,7 @@ type Config struct {
 	ClusterTracing      bool          `toml:"cluster-tracing"`
 }
 
+// NewConfig build a new configuration with default values.
 func NewConfig() *Config {
 	return &Config{
 		Hostname:            DefaultHostname,
