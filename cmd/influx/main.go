@@ -24,7 +24,7 @@ import (
 
 // These variables are populated via the Go linker.
 var (
-	version string = "0.9"
+	version = "0.9"
 )
 
 const (
@@ -43,6 +43,7 @@ const (
 	noTokenMsg = "Visit https://enterprise.influxdata.com to register for updates, InfluxDB server management, and monitoring.\n"
 )
 
+// CommandLine holds CLI configuration and state
 type CommandLine struct {
 	Client           *client.Client
 	Line             *liner.State
@@ -259,6 +260,7 @@ func showVersion() {
 	fmt.Println("InfluxDB shell " + version)
 }
 
+// ParseCommand parses an instruction and calls related method, if any
 func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 	switch {
@@ -329,14 +331,17 @@ func (c *CommandLine) connect(cmd string) error {
 		return fmt.Errorf("Could not create client %s", err)
 	}
 	c.Client = cl
-	if _, v, e := c.Client.Ping(); e != nil {
+
+	var v string
+	if _, v, e = c.Client.Ping(); e != nil {
 		return fmt.Errorf("Failed to connect to %s\n", c.Client.Addr())
-	} else {
-		c.Version = v
 	}
+	c.Version = v
+
 	return nil
 }
 
+// SetAuth sets client authentication credentials
 func (c *CommandLine) SetAuth(cmd string) {
 	// If they pass in the entire command, we should parse it
 	// auth <username> <password>
@@ -380,6 +385,7 @@ func (c *CommandLine) use(cmd string) {
 	fmt.Printf("Using database %s\n", d)
 }
 
+// SetPrecision sets client precision
 func (c *CommandLine) SetPrecision(cmd string) {
 	// Remove the "precision" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "precision", "", -1))
@@ -398,6 +404,7 @@ func (c *CommandLine) SetPrecision(cmd string) {
 	}
 }
 
+// SetFormat sets output format
 func (c *CommandLine) SetFormat(cmd string) {
 	// Remove the "format" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "format", "", -1))
@@ -412,6 +419,7 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
+// SetWriteConsistency sets cluster consistency level
 func (c *CommandLine) SetWriteConsistency(cmd string) {
 	// Remove the "consistency" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "consistency", "", -1))
@@ -496,6 +504,7 @@ func (c *CommandLine) parseInto(stmt string) string {
 	return stmt
 }
 
+// Insert runs an INSERT statement
 func (c *CommandLine) Insert(stmt string) error {
 	i, point := parseNextIdentifier(stmt)
 	if !strings.EqualFold(i, "insert") {
@@ -526,6 +535,7 @@ func (c *CommandLine) Insert(stmt string) error {
 	return nil
 }
 
+// ExecuteQuery runs any query statement
 func (c *CommandLine) ExecuteQuery(query string) error {
 	response, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
@@ -544,6 +554,7 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 	return nil
 }
 
+// DatabaseToken retrieves database token
 func (c *CommandLine) DatabaseToken() (string, error) {
 	response, err := c.Client.Query(client.Query{Command: "SHOW DIAGNOSTICS for 'registration'"})
 	if err != nil {
@@ -562,6 +573,7 @@ func (c *CommandLine) DatabaseToken() (string, error) {
 	return "", nil
 }
 
+// FormatResponse formats output to previsouly chosen format
 func (c *CommandLine) FormatResponse(response *client.Response, w io.Writer) {
 	switch c.Format {
 	case "json":
@@ -715,6 +727,7 @@ func interfaceToString(v interface{}) string {
 	}
 }
 
+// Settings prints current settings
 func (c *CommandLine) Settings() {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
