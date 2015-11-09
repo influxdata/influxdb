@@ -208,7 +208,7 @@ func InitializeUnmarshaller(c *influxql.Call) (UnmarshalFunc, error) {
 		}, nil
 	case "distinct":
 		return func(b []byte) (interface{}, error) {
-			var val interfaceValues
+			var val InterfaceValues
 			err := json.Unmarshal(b, &val)
 			return val, err
 		}, nil
@@ -257,11 +257,11 @@ func MapCount(input *MapInput) interface{} {
 	return nil
 }
 
-type interfaceValues []interface{}
+type InterfaceValues []interface{}
 
-func (d interfaceValues) Len() int      { return len(d) }
-func (d interfaceValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-func (d interfaceValues) Less(i, j int) bool {
+func (d InterfaceValues) Len() int      { return len(d) }
+func (d InterfaceValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d InterfaceValues) Less(i, j int) bool {
 	cmpt, a, b := typeCompare(d[i], d[j])
 	cmpv := valueCompare(a, b)
 	if cmpv == 0 {
@@ -281,7 +281,7 @@ func MapDistinct(input *MapInput) interface{} {
 		return nil
 	}
 
-	results := make(interfaceValues, len(m))
+	results := make(InterfaceValues, len(m))
 	var i int
 	for value, _ := range m {
 		results[i] = value
@@ -299,7 +299,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 		if v == nil {
 			continue
 		}
-		d, ok := v.(interfaceValues)
+		d, ok := v.(InterfaceValues)
 		if !ok {
 			msg := fmt.Sprintf("expected distinctValues, got: %T", v)
 			panic(msg)
@@ -310,7 +310,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 	}
 
 	// convert map keys to an array
-	results := make(interfaceValues, len(index))
+	results := make(InterfaceValues, len(index))
 	var i int
 	for k, _ := range index {
 		results[i] = k
@@ -1153,7 +1153,7 @@ func inferFloat(v reflect.Value) (weight int, value interface{}) {
 	case reflect.String:
 		return stringWeight, v.Interface()
 	}
-	panic(fmt.Sprintf("interfaceValues.Less - unreachable code; type was %T", v.Interface()))
+	panic(fmt.Sprintf("InterfaceValues.Less - unreachable code; type was %T", v.Interface()))
 }
 
 func cmpFloat(a, b float64) int {
