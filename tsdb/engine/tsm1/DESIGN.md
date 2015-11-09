@@ -296,6 +296,8 @@ The current block indexing assumes that all block indexes entries will be loaded
 
 One option is to MMAP the index into memory and record the pointers to the start of each index entry in a slice.  When searching for a given key, the pointers are used to perform a binary search on the underlying mmap data.  When the matching key is found, the block entries can be loaded and search or a subsequent binary search on the blocks can be performed.
 
+A variation of this can also be done without MMAPs by seeking and reading in the file.  The underlying file cache will still be utilized in this approach as well.
+
 ### LRU/Lazy Load
 
 A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
