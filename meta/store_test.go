@@ -972,6 +972,7 @@ func TestCluster_OpenRaft(t *testing.T) {
 
 // Ensure a multi-node cluster can restart
 func TestCluster_Restart(t *testing.T) {
+	t.Skip("ISSUE https://github.com/influxdb/influxdb/issues/4723")
 	// Start a single node.
 	c := MustOpenCluster(1)
 	defer c.Close()
