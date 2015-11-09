@@ -34,6 +34,7 @@
 - [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE. Thanks @ch33hau
 
 ### Bugfixes
+- [#4715](https://github.com/influxdb/influxdb/pull/4715): Fix panic during Raft-close. Fix [issue #4707](https://github.com/influxdb/influxdb/issues/4707). Thanks @oiooj
 - [#4643](https://github.com/influxdb/influxdb/pull/4643): Fix panic during backup restoration. Thanks @oiooj
 - [#4632](https://github.com/influxdb/influxdb/pull/4632): Fix parsing of IPv6 hosts in client package. Thanks @miguelxpn
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
