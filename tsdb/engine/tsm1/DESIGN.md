@@ -19,7 +19,7 @@ Header is composed of a magic number to identify the file type and a version num
 └─────────┴─────────┘
 ```
 
-Blocks are sequences of block CRC32 and data.  The block data is opaque to the file and CRC32 is used for recovery to ensure blocks have not been corrupted due to bugs outside of our control.  The length of the blocks is stored in the index.
+Blocks are sequences of block CRC32 and data.  The block data is opaque to the file.  The CRC32 is used for recovery to ensure blocks have not been corrupted due to bugs outside of our control.  The length of the blocks is stored in the index.
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -70,7 +70,7 @@ The file system is organized a directory per shard where each shard is integer n
 
 Writes are appended to the current WAL segment and are also added to the Cache.  Each WAL segment is size bounded and rolls-over to a new file after it fills up.  The cache is also size bounded and older entries are evicted as new entries are added to maintain the size.  The WAL and Cache are separate entities and do not interact with each other.  The Engine coordinates the writes to both.
 
-When WAL segments a filled up and closed, the Compactor reads the WAL entries and combines then with one or more existing TSM files.  This process runs continously until all WAL files are compacted and there is a minimum number of TSM files.  As each TSM file is completed, it is loaded and referenced by the FileStore.
+When WAL segments fill up and closed, the Compactor reads the WAL entries and combines then with one or more existing TSM files.  This process runs continously until all WAL files are compacted and there is a minimum number of TSM files.  As each TSM file is completed, it is loaded and referenced by the FileStore.
 
 Queries are executed by constructing Cursors for keys.  The Cursors iterate of slices of Values.  When the current Values are exhausted, a cursor requests a the next set of Values from the Engine.  The Engine returns a slice of Values by querying the FileStore and Cache.  The Values in the Cache are overlayed on top of the values returned from the FileStore.  The FileStore reads and decodes blocks of Values according to the index for the file.
 
@@ -97,7 +97,7 @@ The compaction is used to generate a set of SeriesIterators that return a sequen
 
 Deletions can occur while a new file is being written.  Since the new TSM file is not complete a tombstone would not be written for it. This could result in deleted values getting written into a new file.  To prevent this, if a compaction is running and a delete occurs, the current compaction is aborted and new compaction is started.
 
-When all files are processed and succesfully written, completion checkpoint markers are created and files are renamed.
+When all files are processed and succesfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the last written timestamp which is used for by the Cache to know what entries can be evicted in the future.
 
 This process then runs again until there are no more WAL files and the minimum number of TSM files exists that are also under the maximum file size.
 
@@ -119,7 +119,8 @@ This process then runs again until there are no more WAL files and the minimum n
 
 * Hold recently written series data
 * Has max memory limit
-* When limit is crossed, old entries are expired (writes are not blocked)
+* When limit is crossed, old entries are expired according to the last compaction checkpoint.  Entries written that are older than the last checkpoint time can be evicted.
+* If a write comes in, points after the checkpoint are evicted, but there is still not enough room to hold the write, the write returns and error.
 
 # Engine
 
@@ -239,6 +240,7 @@ There are three categories of performance this design is concerned with:
 * Query Throughput/Latency
 * Startup time
 * Compaction Throughput/Latency
+* Memory Usage
 
 ### Writes
 
@@ -264,6 +266,10 @@ The performance of compactions also has an effect on what data is visible during
 
 To address these concerns, compactions prioritize old WAL files over optimizing storage/compression to avoid data being hidden overload situations.  This also accounts for the fact that shards will eventually become cold for writes so that existing data will be able to be optimized.  To maintain consistent performance, the number of each type of file processed as well as the size of each file processed is bounded.  
 
+### Memory Footprint
+
+The memory footprint should shoud not grow unbounded due to additional files or series keys of large sizes or numbers.  Some options for addressing this concern is covered in the [Design Options] section.
+
 ## Concurrency
 
 The main concern with concurrency is that reads and writes should not block each other.  Writes add entries to the Cache and append entries to the WAL.  During queries, the contention points will be the Cache and existing TSM files.  Since the Cache and TSM file data is only access through the engine by the cursors, several strategies can be used to improve concurrency.
@@ -279,4 +285,65 @@ The two robustness concerns considered by this design are writes filling the cac
 Writes filling up cache faster than the WAL segments can be processed result in the oldest entries being evicted from the cache.  This is the normal operation for the cache.  Old entries are always evicited to make room for new entries.  In the case where WAL segements are slow to be processed, writes are not blocked or errored so timeouts should not occur due to IO issues.  A side effect of this is that queries for recent data will always be served from memory.  The size of the in-memory cache can also be tuned so that if IO does because a bottleneck the window of time for queries with recent data can be tuned.
 
 Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recored as new changes and processed at compaction and query time. 
-  
+
+# Design Options
+
+## File/Block Indexing
+
+The current block indexing assumes that all block indexes entries will be loaded into memory.  The following are some alternative design options to handle the cases where the index is too large to fit in memory.
+
+### Indirect MMAP Indexing
+
+One option is to MMAP the index into memory and record the pointers to the start of each index entry in a slice.  When searching for a given key, the pointers are used to perform a binary search on the underlying mmap data.  When the matching key is found, the block entries can be loaded and search or a subsequent binary search on the blocks can be performed.
+
+### LRU/Lazy Load
+
+A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
+
+### Key Compression
+
+Another option is compress keys using a key specific dictionary encoding.   For example,
+
+```
+cpu,host=server1 value=1
+cpu,host=server2 value=2
+meory,host=server1 value=3
+```
+
+Could be compressed by expanding the key into its respective parts: mesasurment, tag keys, tag values and tag fields .  For each part a unique number is assigned.  e.g.
+
+Measurements
+```
+cpu = 1
+memory = 2
+```
+
+Tag Keys
+```
+host = 1
+```
+
+Tag Values
+```
+server1 = 1
+server2 = 2
+```
+
+Fields
+```
+value = 1
+```
+
+Using this encoding dictionary, the string keys could be converted to a sequency of integers:
+
+```
+cpu,host=server1 value=1 -->    1,1,1,1
+cpu,host=server2 value=2 -->    1,1,2,1
+memory,host=server1 value=3 --> 3,1,2,1
+```
+
+These sequences of small integers list can then be compressed further using a bit packed format such as Simple9 or Simple8b.  The resulting byte slices would be a multiple of 4 or 8 bytes (using Simple9/Simple8b respectively) which could used as the (string).
+
+### Separate Index
+
+Another option might be to have a separate index file (BoltDB) that serves as the storage for the `FileIndex` and is transient.   This index would be recreated at startup and updated at compaction time.
