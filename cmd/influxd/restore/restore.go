@@ -248,5 +248,12 @@ func (ln *nopListener) Accept() (net.Conn, error) {
 	return nil, errors.New("listener closing")
 }
 
-func (ln *nopListener) Close() error   { close(ln.closing); return nil }
+func (ln *nopListener) Close() error {
+	if ln.closing != nil {
+		close(ln.closing)
+		ln.closing = nil
+	}
+	return nil
+}
+
 func (ln *nopListener) Addr() net.Addr { return nil }
