@@ -4,6 +4,7 @@
 - Field names for the internal stats have been changed to be more inline with Go style.
 
 ### Features
+- [#4098](https://github.com/influxdb/influxdb/pull/4702): Support 'history' command at CLI
 - [#4098](https://github.com/influxdb/influxdb/issues/4098): Enable `golint` on the code base - uuid subpackage
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
 - [#4065](https://github.com/influxdb/influxdb/pull/4065): Added precision support in cmd client. Thanks @sbouchex
