@@ -20,6 +20,7 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/importer/v8"
 	"github.com/peterh/liner"
+	"io/ioutil"
 )
 
 // These variables are populated via the Go linker.
@@ -273,6 +274,8 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		c.SetAuth(cmd)
 	case strings.HasPrefix(lcmd, "help"):
 		c.help()
+	case strings.HasPrefix(lcmd, "history"):
+		c.history()
 	case strings.HasPrefix(lcmd, "format"):
 		c.SetFormat(cmd)
 	case strings.HasPrefix(lcmd, "precision"):
@@ -753,6 +756,17 @@ func (c *CommandLine) help() {
         a full list of influxql commands can be found at:
         https://influxdb.com/docs/v0.9/query_language/spec.html
 `)
+}
+
+func (c *CommandLine) history() {
+	usr, err := user.Current()
+	// Only load history if we can get the user
+	if err == nil {
+		historyFile := filepath.Join(usr.HomeDir, ".influx_history")
+		if history, err := ioutil.ReadFile(historyFile); err == nil {
+			fmt.Print(string(history))
+		}
+	}
 }
 
 func (c *CommandLine) gopher() {

@@ -20,6 +20,7 @@ func TestParseCommand_CommandsExist(t *testing.T) {
 		{cmd: "gopher"},
 		{cmd: "connect"},
 		{cmd: "help"},
+		{cmd: "history"},
 		{cmd: "pretty"},
 		{cmd: "use"},
 		{cmd: ""}, // test that a blank command just returns
@@ -214,6 +215,25 @@ func TestParseCommand_InsertInto(t *testing.T) {
 		}
 		if m.RetentionPolicy != test.rp {
 			t.Fatalf(`Command "insert into" rp parsing failed, expected: %q, actual: %q`, test.rp, m.RetentionPolicy)
+		}
+	}
+}
+
+func TestParseCommand_History(t *testing.T) {
+	t.Parallel()
+	c := main.CommandLine{}
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "history"},
+		{cmd: " history"},
+		{cmd: "history "},
+		{cmd: "History "},
+	}
+
+	for _, test := range tests {
+		if !c.ParseCommand(test.cmd) {
+			t.Fatalf(`Command "history" failed for %q.`, test.cmd)
 		}
 	}
 }
