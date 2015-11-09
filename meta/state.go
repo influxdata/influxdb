@@ -209,11 +209,6 @@ func (r *localRaft) close() error {
 		r.transport = nil
 	}
 
-	if r.raftLayer != nil {
-		r.raftLayer.Close()
-		r.raftLayer = nil
-	}
-
 	// Shutdown raft.
 	if r.raft != nil {
 		if err := r.raft.Shutdown().Error(); err != nil {
