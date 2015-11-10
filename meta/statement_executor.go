@@ -96,6 +96,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeShowStatsStatement(stmt)
 	case *influxql.DropServerStatement:
 		return e.executeDropServerStatement(stmt)
+	case *influxql.DropShardGroupStatement:
+		return e.executeDropShardGroupStatement(stmt)
 	case *influxql.CreateSubscriptionStatement:
 		return e.executeCreateSubscriptionStatement(stmt)
 	case *influxql.DropSubscriptionStatement:
@@ -176,6 +178,10 @@ func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerSta
 
 	err = e.Store.DeleteNode(q.NodeID, q.Force)
 	return &influxql.Result{Err: err}
+}
+
+func (e *StatementExecutor) executeDropShardGroupStatement(q *influxql.DropShardGroupStatement) *influxql.Result {
+	return nil
 }
 
 func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserStatement) *influxql.Result {
