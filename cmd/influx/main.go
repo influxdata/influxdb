@@ -262,43 +262,54 @@ func showVersion() {
 
 func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
-	switch {
-	case strings.HasPrefix(lcmd, "exit"):
-		// signal the program to exit
-		return false
-	case strings.HasPrefix(lcmd, "gopher"):
-		c.gopher()
-	case strings.HasPrefix(lcmd, "connect"):
-		c.connect(cmd)
-	case strings.HasPrefix(lcmd, "auth"):
-		c.SetAuth(cmd)
-	case strings.HasPrefix(lcmd, "help"):
-		c.help()
-	case strings.HasPrefix(lcmd, "history"):
-		c.history()
-	case strings.HasPrefix(lcmd, "format"):
-		c.SetFormat(cmd)
-	case strings.HasPrefix(lcmd, "precision"):
-		c.SetPrecision(cmd)
-	case strings.HasPrefix(lcmd, "consistency"):
-		c.SetWriteConsistency(cmd)
-	case strings.HasPrefix(lcmd, "settings"):
-		c.Settings()
-	case strings.HasPrefix(lcmd, "pretty"):
-		c.Pretty = !c.Pretty
-		if c.Pretty {
-			fmt.Println("Pretty print enabled")
-		} else {
-			fmt.Println("Pretty print disabled")
+
+	split := strings.Split(lcmd, " ")
+	var tokens []string
+	for _, token := range split {
+		if token != "" {
+			tokens = append(tokens, token)
 		}
-	case strings.HasPrefix(lcmd, "use"):
-		c.use(cmd)
-	case strings.HasPrefix(lcmd, "insert"):
-		c.Insert(cmd)
-	case lcmd == "":
-		break
-	default:
-		c.ExecuteQuery(cmd)
+	}
+
+	if len(tokens) > 0 {
+		switch tokens[0] {
+		case "":
+			break
+		case "exit":
+			// signal the program to exit
+			return false
+		case "gopher":
+			c.gopher()
+		case "connect":
+			c.connect(cmd)
+		case "auth":
+			c.SetAuth(cmd)
+		case "help":
+			c.help()
+		case "history":
+			c.history()
+		case "format":
+			c.SetFormat(cmd)
+		case "precision":
+			c.SetPrecision(cmd)
+		case "consistency":
+			c.SetWriteConsistency(cmd)
+		case "settings":
+			c.Settings()
+		case "pretty":
+			c.Pretty = !c.Pretty
+			if c.Pretty {
+				fmt.Println("Pretty print enabled")
+			} else {
+				fmt.Println("Pretty print disabled")
+			}
+		case "use":
+			c.use(cmd)
+		case "insert":
+			c.Insert(cmd)
+		default:
+			c.ExecuteQuery(cmd)
+		}
 	}
 	return true
 }
