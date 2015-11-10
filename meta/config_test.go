@@ -17,6 +17,7 @@ election-timeout = "10s"
 heartbeat-timeout = "20s"
 leader-lease-timeout = "30h"
 commit-timeout = "40m"
+raft-promotion-enabled = false
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -32,5 +33,7 @@ commit-timeout = "40m"
 		t.Fatalf("unexpected leader lease timeout: %v", c.LeaderLeaseTimeout)
 	} else if time.Duration(c.CommitTimeout) != 40*time.Minute {
 		t.Fatalf("unexpected commit timeout: %v", c.CommitTimeout)
+	} else if c.RaftPromotionEnabled {
+		t.Fatalf("unexpected raft promotion enabled: %v", c.RaftPromotionEnabled)
 	}
 }

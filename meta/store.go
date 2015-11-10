@@ -124,6 +124,10 @@ type Store struct {
 	// Returns an error if the password is invalid or a hash cannot be generated.
 	hashPassword HashPasswordFn
 
+	// raftPromotionEnabled determines if non-raft nodes should be automatically
+	// promoted to a raft node to self-heal a raft cluster
+	raftPromotionEnabled bool
+
 	Logger *log.Logger
 }
 
@@ -146,6 +150,7 @@ func NewStore(c *Config) *Store {
 
 		clusterTracingEnabled: c.ClusterTracing,
 		retentionAutoCreate:   c.RetentionAutoCreate,
+		raftPromotionEnabled:  c.RaftPromotionEnabled,
 
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
@@ -260,8 +265,10 @@ func (s *Store) Open() error {
 		return err
 	}
 
-	s.wg.Add(1)
-	go s.monitorPeerHealth()
+	if s.raftPromotionEnabled {
+		s.wg.Add(1)
+		go s.monitorPeerHealth()
+	}
 
 	return nil
 }
@@ -454,10 +461,6 @@ func (s *Store) promoteNodeToPeer() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.raftState == nil {
-		return nil
-	}
-
 	peers, err := s.raftState.peers()
 	if err != nil {
 		return err
@@ -492,6 +495,7 @@ func (s *Store) promoteNodeToPeer() error {
 	if err := s.rpc.enableRaft(n.Host, peers); err != nil {
 		return fmt.Errorf("error notifying raft peer: %s", err)
 	}
+	s.Logger.Printf("promoted nodeID %d, host %s to raft peer", n.ID, n.Host)
 
 	return nil
 }
