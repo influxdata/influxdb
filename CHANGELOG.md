@@ -41,6 +41,7 @@
 - [#4389](https://github.com/influxdb/influxdb/pull/4389): Don't add a new segment file on each hinted-handoff purge cycle.
 - [#4166](https://github.com/influxdb/influxdb/pull/4166): Fix parser error on invalid SHOW
 - [#3457](https://github.com/influxdb/influxdb/issues/3457): [0.9.3] cannot select field names with prefix + "." that match the measurement name
+- [#4704](https://github.com/influxdb/influxdb/pull/4704). Tighten up command parsing within CLI. Thanks @pires
 - [#4225](https://github.com/influxdb/influxdb/pull/4225): Always display diags in name-sorted order
 - [#4111](https://github.com/influxdb/influxdb/pull/4111): Update pre-commit hook for go vet composites
 - [#4136](https://github.com/influxdb/influxdb/pull/4136): Return an error-on-write if target retention policy does not exist. Thanks for the report @ymettier
