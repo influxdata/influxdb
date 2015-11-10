@@ -46,7 +46,6 @@ const ExecMagic = "EXEC"
 const (
 	AutoCreateRetentionPolicyName   = "default"
 	AutoCreateRetentionPolicyPeriod = 0
-	RetentionPolicyMinDuration      = time.Hour
 
 	// MaxAutoCreatedRetentionPolicyReplicaN is the maximum replication factor that will
 	// be set for auto-created retention policies.
@@ -1020,7 +1019,7 @@ func (s *Store) RetentionPolicies(database string) (a []RetentionPolicyInfo, err
 
 // CreateRetentionPolicy creates a new retention policy for a database.
 func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
-	if rpi.Duration < RetentionPolicyMinDuration && rpi.Duration != 0 {
+	if rpi.Duration < MinRetentionPolicyDuration && rpi.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 	if err := s.exec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command,

@@ -67,7 +67,7 @@ var (
 	// ErrRetentionPolicyDurationTooLow is returned when updating a retention
 	// policy that has a duration lower than the allowed minimum.
 	ErrRetentionPolicyDurationTooLow = newError(fmt.Sprintf("retention policy duration must be at least %s",
-		RetentionPolicyMinDuration))
+		MinRetentionPolicyDuration))
 
 	// ErrReplicationFactorTooLow is returned when the replication factor is not in an
 	// acceptable range.
