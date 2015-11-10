@@ -267,6 +267,7 @@ func (s *Store) Open() error {
 
 	if s.raftPromotionEnabled {
 		s.wg.Add(1)
+		s.Logger.Printf("spun up monitoring for %d", s.NodeID())
 		go s.monitorPeerHealth()
 	}
 
@@ -454,6 +455,7 @@ func (s *Store) monitorPeerHealth() {
 
 func (s *Store) promoteNodeToPeer() error {
 	// Only do this if you are the leader
+
 	if !s.IsLeader() {
 		return nil
 	}
@@ -687,6 +689,13 @@ func (s *Store) IsLeader() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.raftState.isLeader()
+}
+
+// IsLocal returns true if the store is currently participating in local raft.
+func (s *Store) IsLocal() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.raftState.isLocal()
 }
 
 // Leader returns what the store thinks is the current leader. An empty

@@ -35,6 +35,7 @@ type raftState interface {
 	lastIndex() uint64
 	apply(b []byte) error
 	snapshot() error
+	isLocal() bool
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation for
@@ -351,6 +352,10 @@ func (r *localRaft) isLeader() bool {
 	return r.raft.State() == raft.Leader
 }
 
+func (r *localRaft) isLocal() bool {
+	return true
+}
+
 // remoteRaft is a consensus strategy that uses a remote raft cluster for
 // consensus operations.
 type remoteRaft struct {
@@ -466,6 +471,10 @@ func (r *remoteRaft) leader() string {
 }
 
 func (r *remoteRaft) isLeader() bool {
+	return false
+}
+
+func (r *remoteRaft) isLocal() bool {
 	return false
 }
 
