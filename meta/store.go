@@ -1200,7 +1200,7 @@ func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Ti
 	return
 }
 
-// ShardOwner look up for a specific shard and return the shard group information
+// ShardOwner looks up for a specific shard and return the shard group information
 // related with the shard.
 func (s *Store) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
 	s.read(func(data *Data) error {
