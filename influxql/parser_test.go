@@ -1253,6 +1253,14 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// DROP SHARD GROUP
+		{
+			s: `DROP SHARD GROUP 1234`,
+			stmt: &influxql.DropShardGroupStatement{
+				ID: 1234,
+			},
+		},
+
 		// DROP USER statement
 		{
 			s:    `DROP USER jdoe`,
@@ -1615,6 +1623,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
 		{s: `DROP RETENTION POLICY "1h.cpu" ON`, err: `found EOF, expected identifier at line 1, char 35`},
+		{s: `DROP SHARD GROUP`, err: `found EOF, expected number at line 1, char 18`},
+		{s: `DROP SHARD GROUP mygroup`, err: `found mygroup, expected number at line 1, char 18`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
 		{s: `DROP SUBSCRIPTION`, err: `found EOF, expected identifier at line 1, char 19`},
 		{s: `DROP SUBSCRIPTION "name"`, err: `found EOF, expected ON at line 1, char 25`},

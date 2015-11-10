@@ -92,6 +92,8 @@ func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
 func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
+func (*DropShardStatement) node()             {}
+func (*DropShardGroupStatement) node()        {}
 func (*DropSeriesStatement) node()            {}
 func (*DropServerStatement) node()            {}
 func (*DropSubscriptionStatement) node()      {}
@@ -202,6 +204,8 @@ func (*DropContinuousQueryStatement) stmt()   {}
 func (*DropDatabaseStatement) stmt()          {}
 func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
+func (*DropShardStatement) stmt()             {}
+func (*DropShardGroupStatement) stmt()        {}
 func (*DropSeriesStatement) stmt()            {}
 func (*DropServerStatement) stmt()            {}
 func (*DropSubscriptionStatement) stmt()      {}
@@ -384,6 +388,44 @@ func (s *DropRetentionPolicyStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a DropRetentionPolicyStatement.
 func (s *DropRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: WritePrivilege}}
+}
+
+// DropShardStatement represents a shard to drop.
+type DropShardStatement struct {
+	// ID of shard to drop
+	ID uint64
+}
+
+// String returns a string representation of the drop shard command.
+func (s *DropShardStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP SHARD ")
+	_, _ = buf.WriteString(strconv.FormatUint(s.ID, 10))
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a DropShardStatement.
+func (s *DropShardStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// DropShardGroupStatement represents a shard group to drop.
+type DropShardGroupStatement struct {
+	// ID of shard group to drop
+	ID uint64
+}
+
+// String returns a string representation of the drop shard group command.
+func (s *DropShardGroupStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP SHARD GROUP ")
+	_, _ = buf.WriteString(strconv.FormatUint(s.ID, 10))
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a DropShardGroupStatement.
+func (s *DropShardGroupStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // CreateUserStatement represents a command for creating a new user.
