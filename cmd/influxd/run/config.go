@@ -101,6 +101,7 @@ func NewDemoConfig() (*Config, error) {
 	c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
 	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 
+	c.HintedHandoff.Enabled = true
 	c.Admin.Enabled = true
 
 	return c, nil
@@ -110,7 +111,7 @@ func NewDemoConfig() (*Config, error) {
 func (c *Config) Validate() error {
 	if c.Meta.Dir == "" {
 		return errors.New("Meta.Dir must be specified")
-	} else if c.HintedHandoff.Dir == "" {
+	} else if c.HintedHandoff.Enabled && c.HintedHandoff.Dir == "" {
 		return errors.New("HintedHandoff.Dir must be specified")
 	}
 
