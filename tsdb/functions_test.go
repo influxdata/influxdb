@@ -128,7 +128,7 @@ func TestMapDistinct(t *testing.T) {
 		},
 	}
 
-	values := MapDistinct(input).(interfaceValues)
+	values := MapDistinct(input).(InterfaceValues)
 
 	if exp, got := 3, len(values); exp != got {
 		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
@@ -136,7 +136,7 @@ func TestMapDistinct(t *testing.T) {
 
 	sort.Sort(values)
 
-	exp := interfaceValues{
+	exp := InterfaceValues{
 		"1",
 		uint64(1),
 		float64(1),
@@ -156,7 +156,7 @@ func TestMapDistinctNil(t *testing.T) {
 }
 
 func TestReduceDistinct(t *testing.T) {
-	v1 := interfaceValues{
+	v1 := InterfaceValues{
 		"2",
 		"1",
 		float64(2.0),
@@ -167,7 +167,7 @@ func TestReduceDistinct(t *testing.T) {
 		false,
 	}
 
-	expect := interfaceValues{
+	expect := InterfaceValues{
 		"1",
 		"2",
 		false,
@@ -204,11 +204,11 @@ func TestReduceDistinctNil(t *testing.T) {
 		},
 		{
 			name:   "empty mappper (len 1)",
-			values: []interface{}{interfaceValues{}},
+			values: []interface{}{InterfaceValues{}},
 		},
 		{
 			name:   "empty mappper (len 2)",
-			values: []interface{}{interfaceValues{}, interfaceValues{}},
+			values: []interface{}{InterfaceValues{}, InterfaceValues{}},
 		},
 	}
 
@@ -222,7 +222,7 @@ func TestReduceDistinctNil(t *testing.T) {
 }
 
 func Test_distinctValues_Sort(t *testing.T) {
-	values := interfaceValues{
+	values := InterfaceValues{
 		"2",
 		"1",
 		float64(2.0),
@@ -233,7 +233,7 @@ func Test_distinctValues_Sort(t *testing.T) {
 		false,
 	}
 
-	expect := interfaceValues{
+	expect := InterfaceValues{
 		"1",
 		"2",
 		false,
