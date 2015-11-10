@@ -17,7 +17,7 @@ import (
 
 // Ensure a node can be created.
 func TestData_CreateNode(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateNode("host0"); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(data.Nodes, []meta.NodeInfo{{ID: 1, Host: "host0"}}) {
@@ -27,7 +27,7 @@ func TestData_CreateNode(t *testing.T) {
 
 // Ensure a node can be removed.
 func TestData_DeleteNode_Basic(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateNode("host0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateNode("host1"); err != nil {
@@ -49,7 +49,7 @@ func TestData_DeleteNode_Basic(t *testing.T) {
 
 // Ensure a node can be removed with shard info in play
 func TestData_DeleteNode_Shards(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateNode("host0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateNode("host1"); err != nil {
@@ -92,7 +92,7 @@ func TestData_DeleteNode_Shards(t *testing.T) {
 
 // Ensure a database can be created.
 func TestData_CreateDatabase(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(data.Databases, []meta.DatabaseInfo{{Name: "db0"}}) {
@@ -102,7 +102,7 @@ func TestData_CreateDatabase(t *testing.T) {
 
 // Ensure that creating a database without a name returns an error.
 func TestData_CreateDatabase_ErrNameRequired(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase(""); err != meta.ErrDatabaseNameRequired {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -110,7 +110,7 @@ func TestData_CreateDatabase_ErrNameRequired(t *testing.T) {
 
 // Ensure that creating an already existing database returns an error.
 func TestData_CreateDatabase_ErrDatabaseExists(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestData_CreateDatabase_ErrDatabaseExists(t *testing.T) {
 
 // Ensure a database can be removed.
 func TestData_DropDatabase(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	for i := 0; i < 3; i++ {
 		if err := data.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
 			t.Fatal(err)
@@ -190,7 +190,7 @@ func TestData_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure that creating an already existing policy returns an error.
 func TestData_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
@@ -203,7 +203,7 @@ func TestData_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 
 // Ensure that a retention policy can be updated.
 func TestData_UpdateRetentionPolicy(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
@@ -232,7 +232,7 @@ func TestData_UpdateRetentionPolicy(t *testing.T) {
 
 // Ensure a retention policy can be removed.
 func TestData_DropRetentionPolicy(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
@@ -248,7 +248,7 @@ func TestData_DropRetentionPolicy(t *testing.T) {
 
 // Ensure an error is returned when deleting a policy from a non-existent database.
 func TestData_DropRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.DropRetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestData_DropRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure an error is returned when deleting a non-existent policy.
 func TestData_DropRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestData_DropRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 
 // Ensure that a retention policy can be retrieved.
 func TestData_RetentionPolicy(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
@@ -289,7 +289,7 @@ func TestData_RetentionPolicy(t *testing.T) {
 
 // Ensure that retrieving a policy from a non-existent database returns an error.
 func TestData_RetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if _, err := data.RetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestData_RetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure that a default retention policy can be set.
 func TestData_SetDefaultRetentionPolicy(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
@@ -322,7 +322,7 @@ func TestData_SetDefaultRetentionPolicy(t *testing.T) {
 
 // Ensure that a shard group can be created on a database for a given timestamp.
 func TestData_CreateShardGroup(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateNode("node0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateNode("node1"); err != nil {
@@ -362,7 +362,7 @@ func TestData_CreateShardGroup(t *testing.T) {
 
 // Ensure that a shard group is correctly detected as expired.
 func TestData_ShardGroupExpiredDeleted(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateNode("node0"); err != nil {
 		t.Fatal(err)
 	} else if err = data.CreateNode("node1"); err != nil {
@@ -460,7 +460,7 @@ func TestShardGroup_Overlaps(t *testing.T) {
 
 // Ensure a shard group can be removed by ID.
 func TestData_DeleteShardGroup(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateNode("node0"); err != nil {
 		t.Fatal(err)
 	} else if err := data.CreateDatabase("db0"); err != nil {
@@ -481,7 +481,7 @@ func TestData_DeleteShardGroup(t *testing.T) {
 
 // Ensure a continuous query can be created.
 func TestData_CreateContinuousQuery(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err := data.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
@@ -495,7 +495,7 @@ func TestData_CreateContinuousQuery(t *testing.T) {
 
 // Ensure a continuous query can be removed.
 func TestData_DropContinuousQuery(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	} else if err := data.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
@@ -515,7 +515,7 @@ func TestData_DropContinuousQuery(t *testing.T) {
 
 // Ensure a subscription can be created.
 func TestData_CreateSubscription(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	rpi := &meta.RetentionPolicyInfo{
 		Name:     "rp0",
 		ReplicaN: 3,
@@ -535,7 +535,7 @@ func TestData_CreateSubscription(t *testing.T) {
 
 // Ensure a subscription can be removed.
 func TestData_DropSubscription(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	rpi := &meta.RetentionPolicyInfo{
 		Name:     "rp0",
 		ReplicaN: 3,
@@ -561,7 +561,7 @@ func TestData_DropSubscription(t *testing.T) {
 
 // Ensure a user can be created.
 func TestData_CreateUser(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateUser("susy", "ABC123", true); err != nil {
 		t.Fatal(err)
 	} else if !reflect.DeepEqual(data.Users, []meta.UserInfo{
@@ -573,7 +573,7 @@ func TestData_CreateUser(t *testing.T) {
 
 // Ensure that creating a user with no username returns an error.
 func TestData_CreateUser_ErrUsernameRequired(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateUser("", "", false); err != meta.ErrUsernameRequired {
 		t.Fatal(err)
 	}
@@ -581,7 +581,7 @@ func TestData_CreateUser_ErrUsernameRequired(t *testing.T) {
 
 // Ensure that creating the same user twice returns an error.
 func TestData_CreateUser_ErrUserExists(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateUser("susy", "", false); err != nil {
 		t.Fatal(err)
 	}
@@ -592,7 +592,7 @@ func TestData_CreateUser_ErrUserExists(t *testing.T) {
 
 // Ensure a user can be removed.
 func TestData_DropUser(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateUser("susy", "", false); err != nil {
 		t.Fatal(err)
 	} else if err := data.CreateUser("bob", "", false); err != nil {
@@ -610,7 +610,7 @@ func TestData_DropUser(t *testing.T) {
 
 // Ensure that removing a non-existent user returns an error.
 func TestData_DropUser_ErrUserNotFound(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.DropUser("bob"); err != meta.ErrUserNotFound {
 		t.Fatal(err)
 	}
@@ -618,7 +618,7 @@ func TestData_DropUser_ErrUserNotFound(t *testing.T) {
 
 // Ensure a user can be updated.
 func TestData_UpdateUser(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.CreateUser("susy", "", false); err != nil {
 		t.Fatal(err)
 	} else if err := data.CreateUser("bob", "", false); err != nil {
@@ -635,7 +635,7 @@ func TestData_UpdateUser(t *testing.T) {
 
 // Ensure that updating a non-existent user returns an error.
 func TestData_UpdateUser_ErrUserNotFound(t *testing.T) {
-	var data meta.Data
+	data := meta.NewData()
 	if err := data.UpdateUser("bob", "ZZZ"); err != meta.ErrUserNotFound {
 		t.Fatal(err)
 	}

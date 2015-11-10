@@ -1,6 +1,8 @@
 package meta
 
 import (
+	"log"
+	"os"
 	"sort"
 	"time"
 
@@ -34,6 +36,18 @@ type Data struct {
 	MaxNodeID       uint64
 	MaxShardGroupID uint64
 	MaxShardID      uint64
+
+	Logger *log.Logger
+}
+
+// Global logger for every Data.
+var dataLogger = log.New(os.Stderr, "[meta] ", log.LstdFlags)
+
+// NewData returns a new instance of Data.
+func NewData() *Data {
+	return &Data{
+		Logger: dataLogger,
+	}
 }
 
 // Node returns a node by id.
@@ -396,6 +410,10 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 	for i := range sgi.Shards {
 		data.MaxShardID++
 		sgi.Shards[i] = ShardInfo{ID: data.MaxShardID}
+
+		//log create shards detail info
+		data.Logger.Printf("new shard ID %d successfully created for shard group ID '%d' database '%s', retention policy '%s'",
+			data.MaxShardID, sgi.ID, database, policy)
 	}
 
 	// Assign data nodes to shards via round robin.
@@ -433,6 +451,12 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].ID == id {
 			rpi.ShardGroups[i].DeletedAt = time.Now().UTC()
+
+			//log delete shards detail info
+			for _, shard := range rpi.ShardGroups[i].Shards {
+				data.Logger.Printf("new shard ID %d successfully deleted for shard group ID '%d' database '%s', retention policy '%s'",
+					shard.ID, rpi.ShardGroups[i].ID, database, policy)
+			}
 			return nil
 		}
 	}
