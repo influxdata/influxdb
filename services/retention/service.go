@@ -106,22 +106,28 @@ func (s *Service) deleteShards() {
 		case <-ticker.C:
 			s.logger.Println("retention policy shard deletion check commencing")
 
-			deletedShardIDs := make(map[uint64]struct{}, 0)
+			type deletionInfo struct {
+				db string
+				rp string
+			}
+			deletedShardIDs := make(map[uint64]deletionInfo, 0)
 			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
 				for _, g := range r.DeletedShardGroups() {
 					for _, sh := range g.Shards {
-						deletedShardIDs[sh.ID] = struct{}{}
+						deletedShardIDs[sh.ID] = deletionInfo{db: d.Name, rp: r.Name}
 					}
 				}
 			})
 
 			for _, id := range s.TSDBStore.ShardIDs() {
-				if _, ok := deletedShardIDs[id]; ok {
+				if di, ok := deletedShardIDs[id]; ok {
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
-						s.logger.Printf("failed to delete shard ID %d: %s", id, err.Error())
+						s.logger.Printf("failed to delete shard ID %d from database %s, retention policy %s: %s",
+							id, di.db, di.rp, err.Error())
 						continue
 					}
-					s.logger.Printf("shard ID %d deleted", id)
+					s.logger.Printf("shard ID %d from database %s, retention policy %s, deleted",
+						id, di.db, di.rp)
 				}
 			}
 		}

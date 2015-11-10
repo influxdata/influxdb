@@ -59,6 +59,7 @@
 - [#4278](https://github.com/influxdb/influxdb/pull/4278): Fix error marshalling across the cluster
 - [#4149](https://github.com/influxdb/influxdb/pull/4149): Fix derivative unnecessarily requires aggregate function.  Thanks @peekeri!
 - [#4674](https://github.com/influxdb/influxdb/pull/4674): Fix panic during restore. Thanks @simcap.
+- [#4725](https://github.com/influxdb/influxdb/pull/4725): Don't list deleted shards during SHOW SHARDS.
 - [#4237](https://github.com/influxdb/influxdb/issues/4237): DERIVATIVE() edge conditions
 - [#4263](https://github.com/influxdb/influxdb/issues/4263): derivative does not work when data is missing
 - [#4293](https://github.com/influxdb/influxdb/pull/4293): Ensure shell is invoked when touching PID file. Thanks @christopherjdickson
