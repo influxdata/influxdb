@@ -14,7 +14,7 @@ func TestConfig_Parse(t *testing.T) {
 enabled = true
 bind-address = ":9000"
 database = "xxx"
-typesdb = "yyy"
+typesdb = [ "/path/to/types.db", "/path/to/custom/types.db" ]
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ typesdb = "yyy"
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
 	} else if c.Database != "xxx" {
 		t.Fatalf("unexpected database: %s", c.Database)
-	} else if c.TypesDB != "yyy" {
-		t.Fatalf("unexpected types db: %s", c.TypesDB)
+	} else if len(c.TypesDB) != 2 {
+		t.Fatalf("unexpected types db size: %d", len(c.TypesDB))
 	}
 }

@@ -101,13 +101,19 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	if s.typesdb == nil {
-		// Open collectd types.
-		typesdb, err := gollectd.TypesDBFile(s.Config.TypesDB)
-		if err != nil {
-			return fmt.Errorf("Open(): %s", err)
+	if s.typesdb == nil && len(s.Config.TypesDB) > 0 {
+		s.typesdb = make(gollectd.Types)
+		// read all available files
+		// in case any fails, fail all
+		for _, file := range s.Config.TypesDB {
+			typesdb, err := gollectd.TypesDBFile(file)
+			if err != nil {
+				return fmt.Errorf("Open(): %s", err)
+			}
+			for k, v := range typesdb {
+				s.typesdb[k] = v
+			}
 		}
-		s.typesdb = typesdb
 	}
 
 	// Resolve our address.
@@ -174,12 +180,6 @@ func (s *Service) Close() error {
 // SetLogger sets the internal logger to the logger passed in.
 func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
-}
-
-// SetTypes sets collectd types db.
-func (s *Service) SetTypes(types string) (err error) {
-	s.typesdb, err = gollectd.TypesDB([]byte(types))
-	return
 }
 
 // Err returns a channel for fatal errors that occur on go routines.
