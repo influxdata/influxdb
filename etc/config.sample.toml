@@ -33,6 +33,14 @@ reporting-disabled = false
   heartbeat-timeout = "1s"
   leader-lease-timeout = "500ms"
   commit-timeout = "50ms"
+  cluster-tracing = false
+
+  # If enabled, when a Raft cluster loses a peer due to a `DROP SERVER` command,
+  # the leader will automatically ask a non-raft peer node to promote to a raft
+  # peer. This only happens if there is a non-raft peer node available to promote.
+  # This setting only affects the local node, so to ensure if operates correctly, be sure to set
+  # it in the config of every node.
+  raft-promotion-enabled = true
 
 ###
 ### [data]

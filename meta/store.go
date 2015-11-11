@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -123,6 +124,10 @@ type Store struct {
 	// Returns an error if the password is invalid or a hash cannot be generated.
 	hashPassword HashPasswordFn
 
+	// raftPromotionEnabled determines if non-raft nodes should be automatically
+	// promoted to a raft node to self-heal a raft cluster
+	raftPromotionEnabled bool
+
 	Logger *log.Logger
 }
 
@@ -145,6 +150,7 @@ func NewStore(c *Config) *Store {
 
 		clusterTracingEnabled: c.ClusterTracing,
 		retentionAutoCreate:   c.RetentionAutoCreate,
+		raftPromotionEnabled:  c.RaftPromotionEnabled,
 
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
@@ -255,7 +261,17 @@ func (s *Store) Open() error {
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
 	<-s.ready
-	return s.WaitForLeader(0)
+	if err := s.WaitForLeader(0); err != nil {
+		return err
+	}
+
+	if s.raftPromotionEnabled {
+		s.wg.Add(1)
+		s.Logger.Printf("spun up monitoring for %d", s.NodeID())
+		go s.monitorPeerHealth()
+	}
+
+	return nil
 }
 
 // syncNodeInfo continuously tries to update the current nodes hostname
@@ -411,6 +427,77 @@ func (s *Store) changeState(state raftState) error {
 	if err := s.raftState.open(); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// monitorPeerHealth periodically checks if we have a node that can be promoted to a
+// raft peer to fill any missing slots.
+// This function runs in a separate goroutine.
+func (s *Store) monitorPeerHealth() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Wait for next tick or timeout.
+		select {
+		case <-ticker.C:
+		case <-s.closing:
+			return
+		}
+		if err := s.promoteNodeToPeer(); err != nil {
+			s.Logger.Printf("error promoting node to raft peer: %s", err)
+		}
+	}
+}
+
+func (s *Store) promoteNodeToPeer() error {
+	// Only do this if you are the leader
+
+	if !s.IsLeader() {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	peers, err := s.raftState.peers()
+	if err != nil {
+		return err
+	}
+
+	nodes := s.data.Nodes
+	var nonraft NodeInfos
+	for _, n := range nodes {
+		if contains(peers, n.Host) {
+			continue
+		}
+		nonraft = append(nonraft, n)
+	}
+
+	// Check to see if any action is required or possible
+	if len(peers) >= 3 || len(nonraft) == 0 {
+		return nil
+	}
+
+	// Sort the nodes
+	sort.Sort(nonraft)
+
+	// Get the lowest node for a deterministic outcome
+	n := nonraft[0]
+	// Set peers on the leader now to the new peers
+	if err := s.AddPeer(n.Host); err != nil {
+		return fmt.Errorf("unable to add raft peer %s on leader: %s", n.Host, err)
+	}
+
+	// add node to peers list
+	peers = append(peers, n.Host)
+	if err := s.rpc.enableRaft(n.Host, peers); err != nil {
+		return fmt.Errorf("error notifying raft peer: %s", err)
+	}
+	s.Logger.Printf("promoted nodeID %d, host %s to raft peer", n.ID, n.Host)
 
 	return nil
 }
@@ -602,6 +689,13 @@ func (s *Store) IsLeader() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.raftState.isLeader()
+}
+
+// IsLocal returns true if the store is currently participating in local raft.
+func (s *Store) IsLocal() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.raftState.isLocal()
 }
 
 // Leader returns what the store thinks is the current leader. An empty

@@ -751,6 +751,13 @@ func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
 	ni.Host = pb.GetHost()
 }
 
+// NodeInfos is a slice of NodeInfo used for sorting
+type NodeInfos []NodeInfo
+
+func (n NodeInfos) Len() int           { return len(n) }
+func (n NodeInfos) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+func (n NodeInfos) Less(i, j int) bool { return n[i].ID < n[j].ID }
+
 // DatabaseInfo represents information about a database in the system.
 type DatabaseInfo struct {
 	Name                   string
