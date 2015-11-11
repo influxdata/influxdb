@@ -62,7 +62,7 @@ The last section is the footer that stores the offset of the start of the index.
 
 The file system is organized a directory per shard where each shard is integer number.  Within the shard dir exists a set of other directories and files:
 
-* `wal` Dir - Contains a set numerically increasing files WAL segment files name ######.wal.
+* wal Dir - Contains a set numerically increasing files WAL segment files name ######.wal.  The wal dir will be a separate location from the TSM data files so that different different types can be used if necessary.
 * TSM files - A set of numerically increasing TSM files containing compressed series data.
 * Tombstone files - Files named after the corresponding TSM file as #####.tombstone.  These contain measurement and series keys that have been deleted.  These are removed during compactions.
 
@@ -101,7 +101,97 @@ When all files are processed and succesfully written, completion checkpoint mark
 
 This process then runs again until there are no more WAL files and the minimum number of TSM files exists that are also under the maximum file size.
 
+# WAL
+
+Currently, there is a WAL per shard.  This means all the writes in a WAL segments are for the given shard.  It also means that writes across a lot of shards append to many files which might results in more disk IO due to seeking to the end of multiple files.
+
+Two options being considered:
+
+## WAL per Shard
+
+This is the current behavior of the WAL.  This option is conceptually easier to reason about.  For example, compactions that read in multiple WAL segments are assured that all the WAL entries pertain to the current shard.  If it completes a compaction, it is saft to remove the WAL segment.  It is also easier to deal with shard deletions as all the WAL segments can be dropped along with the other shard files.
+
+The drawback of this option is the potential for turning sequential write IO into random IO in the presence of multiple shards and writes to many different shards.
+
+## Single WAL
+
+Using a single WAL adds some complexity to compactions and deletions.  Compactions will need to either sort all the WAL entries in a segment by shard first and then run compactiosn on each shard or the compactor needs to be able to compact multiple shards concurrently while ensuring points in existing TSM files in different shards remain separate.
+
+Deletions would not be able to reclaim WAL segments immediately as in the case where there is a WAL per shard.  Similarly, a compaction of a WAL segment that contains writes for a deleted shard would need to be dropped.
+
+Currently, we are moving towards a Single WAL implemention.
+
+# TSM File Index
+
+Each TSM file contains a full index of the blocks contained within the file.  The existing index structure is designed to allow for a binary search across the index to find the starting block for a key.  We would then seek to that start key and sequentially scan each block to find the location of a timestamp.
+
+Some issues with the existing structure is that seeking to a given timestamp for a key has a unknown cost.  This can cause variability in read performance that would very difficult to fix.  Another issue is that startup times for loading a TSM file would grow in proportion to number and size of TSM files on disk since we would need to scan the entire file to find all keys contained in the file.  This could be addressed by using a separate index like file or changing the index structure.
+
+We've chosen to update the block index structure to ensure a TSM file is fully self-contained, supports consistent IO characteristics for sequential and random accesses as well as provides an efficient load time regardless of file size.  The implications of these changes are that the index is slightly larger and we need to be able to search the index despite each entry being variably sized.
+
+The following are some alternative design options to handle the cases where the index is too large to fit in memory.  We are currently planning to use an indirect MMAP indexing approach for loaded TSM files.  
+
+### Indirect MMAP Indexing
+
+One option is to MMAP the index into memory and record the pointers to the start of each index entry in a slice.  When searching for a given key, the pointers are used to perform a binary search on the underlying mmap data.  When the matching key is found, the block entries can be loaded and search or a subsequent binary search on the blocks can be performed.
+
+A variation of this can also be done without MMAPs by seeking and reading in the file.  The underlying file cache will still be utilized in this approach as well.
+
+### LRU/Lazy Load
+
+A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
+
+### Key Compression
+
+Another option is compress keys using a key specific dictionary encoding.   For example,
+
+```
+cpu,host=server1 value=1
+cpu,host=server2 value=2
+meory,host=server1 value=3
+```
+
+Could be compressed by expanding the key into its respective parts: mesasurment, tag keys, tag values and tag fields .  For each part a unique number is assigned.  e.g.
+
+Measurements
+```
+cpu = 1
+memory = 2
+```
+
+Tag Keys
+```
+host = 1
+```
+
+Tag Values
+```
+server1 = 1
+server2 = 2
+```
+
+Fields
+```
+value = 1
+```
+
+Using this encoding dictionary, the string keys could be converted to a sequency of integers:
+
+```
+cpu,host=server1 value=1 -->    1,1,1,1
+cpu,host=server2 value=2 -->    1,1,2,1
+memory,host=server1 value=3 --> 3,1,2,1
+```
+
+These sequences of small integers list can then be compressed further using a bit packed format such as Simple9 or Simple8b.  The resulting byte slices would be a multiple of 4 or 8 bytes (using Simple9/Simple8b respectively) which could used as the (string).
+
+### Separate Index
+
+Another option might be to have a separate index file (BoltDB) that serves as the storage for the `FileIndex` and is transient.   This index would be recreated at startup and updated at compaction time.
+
 # Components
+
+These are some of the high-level components and their responsibilities.  These are ideas preliminary.
 
 ## WAL
 
@@ -109,6 +199,7 @@ This process then runs again until there are no more WAL files and the minimum n
 * Writes are appended to the current segment
 * Roll-over to new segment after filling the the current segment
 * Closed segments are never modified and used for startup and recovery as well as compactions.
+* There is a single WAL for the store as opposed to a WAL per shard.
 
 ## Compactor
 
@@ -155,6 +246,8 @@ type SeriesIterator interace {
 ```
 
 ## Types
+
+_NOTE: the actual func names are to illustrate the type of functionaltiy the type is responsible._
 
 ```
 TSMWriter writes a sets of key and Values to a TSM file.
@@ -286,66 +379,3 @@ Writes filling up cache faster than the WAL segments can be processed result in 
 
 Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recored as new changes and processed at compaction and query time. 
 
-# Design Options
-
-## File/Block Indexing
-
-The current block indexing assumes that all block indexes entries will be loaded into memory.  The following are some alternative design options to handle the cases where the index is too large to fit in memory.
-
-### Indirect MMAP Indexing
-
-One option is to MMAP the index into memory and record the pointers to the start of each index entry in a slice.  When searching for a given key, the pointers are used to perform a binary search on the underlying mmap data.  When the matching key is found, the block entries can be loaded and search or a subsequent binary search on the blocks can be performed.
-
-A variation of this can also be done without MMAPs by seeking and reading in the file.  The underlying file cache will still be utilized in this approach as well.
-
-### LRU/Lazy Load
-
-A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
-
-### Key Compression
-
-Another option is compress keys using a key specific dictionary encoding.   For example,
-
-```
-cpu,host=server1 value=1
-cpu,host=server2 value=2
-meory,host=server1 value=3
-```
-
-Could be compressed by expanding the key into its respective parts: mesasurment, tag keys, tag values and tag fields .  For each part a unique number is assigned.  e.g.
-
-Measurements
-```
-cpu = 1
-memory = 2
-```
-
-Tag Keys
-```
-host = 1
-```
-
-Tag Values
-```
-server1 = 1
-server2 = 2
-```
-
-Fields
-```
-value = 1
-```
-
-Using this encoding dictionary, the string keys could be converted to a sequency of integers:
-
-```
-cpu,host=server1 value=1 -->    1,1,1,1
-cpu,host=server2 value=2 -->    1,1,2,1
-memory,host=server1 value=3 --> 3,1,2,1
-```
-
-These sequences of small integers list can then be compressed further using a bit packed format such as Simple9 or Simple8b.  The resulting byte slices would be a multiple of 4 or 8 bytes (using Simple9/Simple8b respectively) which could used as the (string).
-
-### Separate Index
-
-Another option might be to have a separate index file (BoltDB) that serves as the storage for the `FileIndex` and is transient.   This index would be recreated at startup and updated at compaction time.
