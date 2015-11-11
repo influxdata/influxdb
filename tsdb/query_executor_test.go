@@ -1,5 +1,6 @@
 package tsdb_test
 
+/*
 import (
 	"encoding/json"
 	"io/ioutil"
@@ -301,7 +302,7 @@ func TestQueryNoData(t *testing.T) {
 	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
-	got := executeAndGetJSON("select * from /.*/", executor)
+	got := executeAndGetJSON(`select * from /.* /`, executor)
 	expected := `[{}]`
 	if expected != got {
 		t.Fatalf("exp: %s\ngot: %s", expected, got)
@@ -491,3 +492,4 @@ func mustParseQuery(s string) *influxql.Query {
 	}
 	return q
 }
+*/

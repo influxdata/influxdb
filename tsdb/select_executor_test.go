@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 
 // Ensure a simple SELECT statement can be executed.
 func TestSelectStatementExecutor_Execute(t *testing.T) {
-	e := NewSelectStatementExecutor(mustParseSelectStatement(`SELECT min(value) FROM cpu`))
+	e := NewSelectStatementExecutor(MustParseSelectStatement(`SELECT min(value) FROM cpu`))
 	defer e.Close()
 
 	e.IteratorCreator.CreateIteratorFn = func(name string, start, end time.Time) (tsdb.Iterator, error) {
@@ -53,4 +54,13 @@ type IteratorCreator struct {
 
 func (ic *IteratorCreator) CreateIterator(name string, start, end time.Time) (tsdb.Iterator, error) {
 	return ic.CreateIteratorFn(name, start, end)
+}
+
+// MustParseSelectStatement parses a select statement. Panic on error.
+func MustParseSelectStatement(s string) *influxql.SelectStatement {
+	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
+	if err != nil {
+		panic(err)
+	}
+	return stmt.(*influxql.SelectStatement)
 }

@@ -1,5 +1,6 @@
 package tsdb
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -313,3 +314,4 @@ func (m *ShowTagKeysMapper) Close() {
 		m.remote.Close()
 	}
 }
+*/

@@ -16,9 +16,7 @@ type SelectStatementExecutor struct {
 	startTime time.Time
 	endTime   time.Time
 
-	IteratorCreator interface {
-		CreateIterator(name string, start, end time.Time) (Iterator, error)
-	}
+	IteratorCreator
 }
 
 // NewSelectStatementExecutor returns an executor for stmt.
@@ -85,7 +83,6 @@ loop:
 					break loop
 				}
 				v = fv
-				fmt.Println("?NEXT", v)
 			default:
 				panic(fmt.Sprintf("unsupported iterator: %T", itr))
 			}
