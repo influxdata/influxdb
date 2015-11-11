@@ -14,7 +14,6 @@ import (
 	"math/rand"
 	"reflect"
 	"sort"
-	"strings"
 
 	// "github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
@@ -1288,7 +1287,13 @@ func valueCompare(a, b interface{}) int {
 		d1, ok1 := a.(string)
 		d2, ok2 := b.(string)
 		if ok1 && ok2 {
-			return strings.Compare(d1, d2)
+			if d1 == d2 {
+				return 0
+			}
+			if d1 > d2 {
+				return 1
+			}
+			return -1
 		}
 	}
 	panic(fmt.Sprintf("unreachable code; types were %T, %T", a, b))
