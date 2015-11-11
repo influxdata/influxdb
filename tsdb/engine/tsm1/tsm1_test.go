@@ -71,6 +71,7 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 			}
 		}
 	}
+
 	verify(true)
 
 	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
@@ -125,9 +126,6 @@ func TestEngine_WriteAndReadFloats(t *testing.T) {
 	verify(false)
 }
 
-func TestEngine_WriteIndexWithCollision(t *testing.T) {
-}
-
 func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
@@ -156,38 +154,18 @@ func TestEngine_WriteIndexQueryAcrossDataFiles(t *testing.T) {
 		t.Fatalf("expected 2 data files to exist but got %d", count)
 	}
 
-	fields := []string{"value"}
-
-	verify := func(series string, points []models.Point, seek int64) {
-		tx, _ := e.Begin(false)
-		defer tx.Rollback()
-		c := tx.Cursor(series, fields, nil, true)
-
-		k, v := c.SeekTo(seek)
-		p := points[0]
-		val := p.Fields()["value"]
-		if p.UnixNano() != k || val != v {
-			t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v)
-		}
-		points = points[1:]
-
-		for _, p := range points {
-			k, v := c.Next()
-			val := p.Fields()["value"]
-			if p.UnixNano() != k || val != v {
-				t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v.(float64))
-			}
-		}
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p7, p3, p5}, 0); err != nil {
+		t.Fatal(err.Error())
 	}
-
-	fmt.Println("v1")
-	verify("cpu,host=A", []models.Point{p1, p7, p3, p5}, 0)
-	fmt.Println("v2")
-	verify("cpu,host=B", []models.Point{p2, p8, p4, p6}, 0)
-	fmt.Println("v3")
-	verify("cpu,host=A", []models.Point{p5}, 5000000000)
-	fmt.Println("v4")
-	verify("cpu,host=B", []models.Point{p6}, 5000000000)
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p5}, 5000000000); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p2, p8, p4, p6}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}, 5000000000); err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 func TestEngine_WriteOverwritePreviousPoint(t *testing.T) {
@@ -376,7 +354,7 @@ func TestEngine_WriteCompaction_Concurrent(t *testing.T) {
 	e.RotateFileSize = 1
 
 	done := make(chan struct{})
-	total := 1000
+	total := 100
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -458,6 +436,120 @@ func TestEngine_WriteCompaction_Concurrent(t *testing.T) {
 
 }
 
+// Tests that writing and querying while compactions running concurrently does not
+// fail.  This test causes a deadlock if the locking is broken.
+func TestEngine_WriteCompactQuery_Concurrent(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	e.RotateFileSize = 1
+
+	done := make(chan struct{})
+	total := 100
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		i := 0
+		for {
+			if i > total {
+				return
+			}
+
+			pt := models.MustNewPoint("cpu",
+				map[string]string{"host": "A"},
+				map[string]interface{}{"value": i},
+				time.Unix(int64(i), 0),
+			)
+			if err := e.WritePoints([]models.Point{pt}, nil, nil); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+			i++
+		}
+	}()
+
+	// Force a compactions to happen
+	e.CompactionAge = time.Duration(0)
+
+	// Run compactions concurrently
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			if err := e.Compact(false); err != nil {
+				t.Fatalf("failed to run full compaction: %v", err)
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			tx2, _ := e.Begin(false)
+			c := tx2.Cursor("cpu,host=A", []string{"value"}, nil, true)
+			k, _ := c.SeekTo(0)
+			for {
+				k, _ = c.Next()
+				if k == tsdb.EOF {
+					break
+				}
+			}
+			tx2.Rollback()
+		}
+
+	}()
+
+	// Let the goroutines run for a second
+	select {
+	case <-time.After(1 * time.Second):
+		close(done)
+	}
+
+	// Wait for them to exit
+	wg.Wait()
+
+	tx2, _ := e.Begin(false)
+	defer tx2.Rollback()
+	c := tx2.Cursor("cpu,host=A", []string{"value"}, nil, true)
+	k, v := c.SeekTo(0)
+
+	// Verify we wrote and can read all the points
+	i := 0
+	for {
+		if exp := time.Unix(int64(i), 0).UnixNano(); k != exp {
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", exp, k)
+		}
+
+		if exp := int64(i); v != exp {
+			t.Fatalf("value wrong:\n\texp:%v\n\tgot:%v", exp, v)
+		}
+
+		k, v = c.Next()
+		if k == tsdb.EOF {
+			break
+		}
+		i += 1
+	}
+
+	if i != total {
+		t.Fatalf("point count mismatch: got %v, exp %v", i, total)
+	}
+}
+
 func TestEngine_CursorCombinesWALAndIndex(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
@@ -532,8 +624,6 @@ func TestEngine_Compaction(t *testing.T) {
 		t.Fatalf("expected 3 data files to exist but got %d", count)
 	}
 
-	fields := []string{"value"}
-
 	e.CompactionAge = time.Duration(0)
 
 	if err := e.Compact(true); err != nil {
@@ -544,38 +634,26 @@ func TestEngine_Compaction(t *testing.T) {
 		t.Fatalf("expected compaction to reduce data file count to 1 but got %d", count)
 	}
 
-	verify := func(series string, points []models.Point, seek int64) {
-		tx, _ := e.Begin(false)
-		defer tx.Rollback()
-		c := tx.Cursor(series, fields, nil, true)
-
-		k, v := c.SeekTo(seek)
-		p := points[0]
-		val := p.Fields()["value"]
-		if p.UnixNano() != k || val != v {
-			t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v)
-		}
-		points = points[1:]
-
-		for _, p := range points {
-			k, v := c.Next()
-			val := p.Fields()["value"]
-			if p.UnixNano() != k || val != v {
-				t.Fatalf("expected to seek to first point\n\texp: %d %f\n\tgot: %d %f", p.UnixNano(), val, k, v.(float64))
-			}
-		}
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p3, p5, p7}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p2, p4, p6, p8}, 0); err != nil {
+		t.Fatal(err.Error())
 	}
 
-	verify("cpu,host=A", []models.Point{p1, p3, p5, p7}, 0)
-	verify("cpu,host=B", []models.Point{p2, p4, p6, p8}, 0)
 	if err := e.Engine.Close(); err != nil {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 	if err := e.Open(); err != nil {
 		t.Fatalf("error opening: %s", err.Error())
 	}
-	verify("cpu,host=A", []models.Point{p1, p3, p5, p7}, 0)
-	verify("cpu,host=B", []models.Point{p2, p4, p6, p8}, 0)
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p3, p5, p7}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p2, p4, p6, p8}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
 }
 
 // Ensure that if two keys have the same fnv64-a id, we handle it
@@ -1070,13 +1148,48 @@ func TestEngine_CompactWithSeriesInOneFile(t *testing.T) {
 	}
 }
 
+func TestEngine_CompactionWithCopiedBlocks_MixedSeriesSameTime(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	p2 := parsePoint("cpu,host=B value=2.2 7000000000")
+	if err := e.WritePoints([]models.Point{p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p2}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	// Different series but time matches p2
+	p3 := parsePoint("cpu,host=A value=1.7 7000000000")
+	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p3}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
 // Ensure that compactions that happen where blocks from old data files
 // skip decoding and just get copied over to the new data file works.
 func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
-
-	fields := []string{"value"}
 
 	e.RotateFileSize = 10
 	e.MaxPointsPerBlock = 1
@@ -1092,32 +1205,21 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	verify := func() {
-		tx, _ := e.Begin(false)
-		defer tx.Rollback()
-		c := tx.Cursor("cpu,host=A", fields, nil, true)
-		k, _ := c.SeekTo(0)
-		if k != 1000000000 {
-			t.Fatalf("expected time 1000000000 but got %d", k)
-		}
-		k, _ = c.Next()
-		if k != 2000000000 {
-			t.Fatalf("expected time 2000000000 but got %d", k)
-		}
-		k, _ = c.Next()
-		if k != 3000000000 {
-			t.Fatalf("expected time 3000000000 but got %d", k)
-		}
+	fmt.Println("DATA FILE COUNT ", e.DataFileCount())
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3}, 0); err != nil {
+		t.Fatal(err.Error())
 	}
 
-	verify()
 	if err := e.Compact(true); err != nil {
 		t.Fatalf("error compacting: %s", err.Error())
 	}
-	fmt.Println("verify 2")
-	verify()
 
-	p4 := parsePoint("cpu,host=B value=1.4 4000000000")
+	fmt.Println("DATA FILE COUNT ", e.DataFileCount())
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	p4 := parsePoint("cpu,host=B value=2.1 4000000000")
 	if err := e.WritePoints([]models.Point{p4}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
@@ -1125,27 +1227,52 @@ func TestEngine_CompactionWithCopiedBlocks(t *testing.T) {
 	if err := e.Compact(true); err != nil {
 		t.Fatalf("error compacting: %s", err.Error())
 	}
-	fmt.Println("verify 3")
-	verify()
+
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p4}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
 
 	p5 := parsePoint("cpu,host=A value=1.5 5000000000")
 	p6 := parsePoint("cpu,host=A value=1.6 6000000000")
-	p7 := parsePoint("cpu,host=B value=2.1 7000000000")
+	p7 := parsePoint("cpu,host=B value=2.2 7000000000")
 	if err := e.WritePoints([]models.Point{p5, p6, p7}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
-	p8 := parsePoint("cpu,host=A value=1.5 7000000000")
-	p9 := parsePoint("cpu,host=A value=1.6 8000000000")
-	p10 := parsePoint("cpu,host=B value=2.1 8000000000")
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p5, p6}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p4, p7}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	p8 := parsePoint("cpu,host=A value=1.7 7000000000")
+	p9 := parsePoint("cpu,host=A value=1.8 8000000000")
+	p10 := parsePoint("cpu,host=B value=2.3 8000000000")
 	if err := e.WritePoints([]models.Point{p8, p9, p10}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p5, p6, p8, p9}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p4, p7, p10}, 0); err != nil {
+		t.Fatal(err.Error())
 	}
 
 	if err := e.Compact(true); err != nil {
 		t.Fatalf("error compacting: %s", err.Error())
 	}
-	verify()
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p5, p6, p8, p9}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p4, p7, p10}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
 
 }
 
@@ -1459,7 +1586,7 @@ func TestEngine_Deletes(t *testing.T) {
 		c := tx.Cursor("cpu,host=B", fields, nil, true)
 		k, _ := c.SeekTo(0)
 		if k != p3.UnixNano() {
-			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p1.UnixNano(), k)
+			t.Fatalf("time wrong:\n\texp:%d\n\tgot:%d\n", p3.UnixNano(), k)
 		}
 		c = tx.Cursor("cpu,host=A", fields, nil, true)
 		k, _ = c.SeekTo(0)
@@ -1646,32 +1773,6 @@ func TestEngine_RewriteFileAndCompact(t *testing.T) {
 	}()
 }
 
-func TestEngine_DecodeAndCombine_NoNewValues(t *testing.T) {
-	var newValues tsm1.Values
-	e := OpenDefaultEngine()
-	defer e.Engine.Close()
-
-	values := make(tsm1.Values, 1)
-	values[0] = tsm1.NewValue(time.Unix(0, 0), float64(1))
-
-	block, err := values.Encode(nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	remaining, encoded, err := e.DecodeAndCombine(newValues, block, nil, time.Unix(1, 0).UnixNano(), false)
-	if len(remaining) != 0 {
-		t.Fatalf("unexpected remaining values: exp %v, got %v", 0, len(remaining))
-	}
-
-	if len(encoded) != len(block) {
-		t.Fatalf("unexpected encoded block length: exp %v, got %v", len(block), len(encoded))
-	}
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestEngine_Write_Concurrent(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Engine.Close()
@@ -1738,10 +1839,10 @@ func TestEngine_IndexFileSizeLimitedDuringCompaction(t *testing.T) {
 		t.Fatalf("execpted 3 data file but got %d", count)
 	}
 
-	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}); err != nil {
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}, 0); err != nil {
 		t.Fatal(err.Error())
 	}
-	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}); err != nil {
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}, 0); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -1749,15 +1850,39 @@ func TestEngine_IndexFileSizeLimitedDuringCompaction(t *testing.T) {
 		t.Fatalf("error compacting: %s", err.Error())
 	}
 
-	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}); err != nil {
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}, 0); err != nil {
 		t.Fatal(err.Error())
 	}
-	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}); err != nil {
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6}, 0); err != nil {
 		t.Fatal(err.Error())
 	}
 
 	if count := e.DataFileCount(); count != 2 {
 		t.Fatalf("expected 1 data file but got %d", count)
+	}
+
+	p7 := parsePoint("cpu,host=B value=2.2 2500000000")
+	if err := e.WritePoints([]models.Point{p7}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p2, p3, p4, p5}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6, p7}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	p8 := parsePoint("cpu,host=A value=1.7 1000000000")
+	if err := e.WritePoints([]models.Point{p8}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if err := checkPoints(e, "cpu,host=A", []models.Point{p1, p8, p2, p3, p4, p5}, 0); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := checkPoints(e, "cpu,host=B", []models.Point{p6, p7}, 0); err != nil {
+		t.Fatal(err.Error())
 	}
 }
 
@@ -1769,13 +1894,14 @@ func TestEngine_IndexFilesSplitOnWriteToLargeFile(t *testing.T) {
 
 // checkPoints will ensure that the engine has the points passed in the block
 // along with checking that seeks in the middle work and an EOF is hit at the end
-func checkPoints(e *Engine, key string, points []models.Point) error {
+func checkPoints(e *Engine, key string, points []models.Point, seek int64) error {
 	tx, _ := e.Begin(false)
 	defer tx.Rollback()
 	c := tx.Cursor(key, []string{"value"}, nil, true)
-	k, v := c.SeekTo(0)
-	if k != points[0].UnixNano() {
-		return fmt.Errorf("wrong time:\n\texp: %d\n\tgot: %d", points[0].UnixNano(), k)
+	k, v := c.SeekTo(seek)
+	p1 := points[0]
+	if k != p1.UnixNano() {
+		return fmt.Errorf("wrong time:\n\texp: %d. val: %f\n\tgot: %d. val: %f", p1.UnixNano(), p1.Fields()["value"].(float64), k, v.(float64))
 	}
 	if got := points[0].Fields()["value"]; v != got {
 		return fmt.Errorf("wrong value:\n\texp: %v\n\tgot: %v", v, got)
@@ -1784,7 +1910,7 @@ func checkPoints(e *Engine, key string, points []models.Point) error {
 	for _, p := range points {
 		k, v = c.Next()
 		if k != p.UnixNano() {
-			return fmt.Errorf("wrong time:\n\texp: %d\n\tgot: %d", p.UnixNano(), k)
+			return fmt.Errorf("wrong time:\n\texp: %d. val: %f\n\tgot: %d. val: %f", p.UnixNano(), p.Fields()["value"].(float64), k, v.(float64))
 		}
 		if got := p.Fields()["value"]; v != got {
 			return fmt.Errorf("wrong value:\n\texp: %v\n\tgot: %v", v, got)

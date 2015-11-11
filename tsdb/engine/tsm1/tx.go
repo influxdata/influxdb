@@ -18,14 +18,14 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 
 	// don't add the overhead of the multifield cursor if we only have one field
 	if len(fields) == 1 {
-		id := t.engine.keyAndFieldToID(series, fields[0])
-		_, isDeleted := t.engine.deletes[id]
+		key := SeriesFieldKey(series, fields[0])
+		_, isDeleted := t.engine.deletes[key]
 
 		var indexCursor tsdb.Cursor
 		if isDeleted {
 			indexCursor = &emptyCursor{ascending: ascending}
 		} else {
-			indexCursor = newCursor(id, t.files, ascending)
+			indexCursor = newCursor(t.engine.HashSeriesField, key, t.files, ascending)
 		}
 		wc := t.engine.WAL.Cursor(series, fields, dec, ascending)
 		return NewCombinedEngineCursor(wc, indexCursor, ascending)
@@ -36,14 +36,14 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 	var cursors []tsdb.Cursor
 	var cursorFields []string
 	for _, field := range fields {
-		id := t.engine.keyAndFieldToID(series, field)
-		_, isDeleted := t.engine.deletes[id]
+		key := SeriesFieldKey(series, field)
+		_, isDeleted := t.engine.deletes[key]
 
 		var indexCursor tsdb.Cursor
 		if isDeleted {
 			indexCursor = &emptyCursor{ascending: ascending}
 		} else {
-			indexCursor = newCursor(id, t.files, ascending)
+			indexCursor = newCursor(t.engine.HashSeriesField, key, t.files, ascending)
 		}
 		wc := t.engine.WAL.Cursor(series, []string{field}, dec, ascending)
 		// double up the fields since there's one for the wal and one for the index
@@ -57,7 +57,7 @@ func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascend
 func (t *tx) Rollback() error {
 	t.engine.queryLock.RUnlock()
 	for _, f := range t.files {
-		f.mu.RUnlock()
+		f.Unreference()
 	}
 
 	return nil
