@@ -63,7 +63,7 @@ if [ -z "$FPM" ]; then
     FPM=`which fpm`
 fi
 
-GO_VERSION="go1.5.1"
+GO_VERSION="go1.4.2"
 GOPATH_INSTALL=
 BINS=(
     influxd
@@ -267,7 +267,7 @@ do_build() {
     fi
 
     date=`date -u --iso-8601=seconds`
-    go install $RACE -a -ldflags="-X main.version=$version -X main.branch=$branch -X main.commit=$commit -X main.buildTime=$date" ./...
+    go install $RACE -a -ldflags="-X main.version $version -X main.branch $branch -X main.commit $commit -X main.buildTime $date" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1

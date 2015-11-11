@@ -3,7 +3,7 @@ machine:
         - docker
     pre:
         - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
-        - source $HOME/.gvm/scripts/gvm; gvm install go1.5.1 --binary
+        - source $HOME/.gvm/scripts/gvm; gvm install go1.4.2 --binary
 
 dependencies:
     override:

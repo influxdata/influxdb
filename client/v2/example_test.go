@@ -12,17 +12,16 @@ import (
 )
 
 // Create a new client
-func ExampleClient() client.Client {
+func ExampleClient() {
 	u, _ := url.Parse("http://localhost:8086")
 
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
 	// namely INFLUX_USER/INFLUX_PWD. If not just omit Username/Password below.
-	client := client.NewClient(client.Config{
+	_ = client.NewClient(client.Config{
 		URL:      u,
 		Username: os.Getenv("INFLUX_USER"),
 		Password: os.Getenv("INFLUX_PWD"),
 	})
-	return client
 }
 
 // Write a point using the UDP client
