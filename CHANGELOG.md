@@ -111,6 +111,7 @@
 - [#4602](https://github.com/influxdb/influxdb/issues/4602): Fixes data race between PointsWriter and Subscriber services.
 - [#4691](https://github.com/influxdb/influxdb/issues/4691): Enable toml test `TestConfig_Encode`.
 - [#4684](https://github.com/influxdb/influxdb/pull/4684): Add Graphite and UDP section to default config. Thanks @nkatsaros
+- [#4283](https://github.com/influxdb/influxdb/pull/4283): Disable HintedHandoff if configuration is not set.
 
 ## v0.9.4 [2015-09-14]
 

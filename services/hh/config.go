@@ -47,7 +47,7 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		Enabled:          true,
+		Enabled:          false,
 		MaxSize:          DefaultMaxSize,
 		MaxAge:           toml.Duration(DefaultMaxAge),
 		RetryRateLimit:   DefaultRetryRateLimit,

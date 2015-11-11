@@ -53,3 +53,21 @@ purge-interval = "1h"
 	}
 
 }
+
+func TestDefaultDisabled(t *testing.T) {
+	// Parse empty configuration.
+	var c hh.Config
+	if _, err := toml.Decode(``, &c); err != nil {
+		t.Fatal(err)
+	}
+
+	if exp := false; c.Enabled == true {
+		t.Fatalf("unexpected default Enabled value: got %v, exp %v", c.Enabled, exp)
+	}
+
+	// Default configuration.
+	c = hh.NewConfig()
+	if exp := false; c.Enabled == true {
+		t.Fatalf("unexpected default enabled value: got %v, exp %v", c.Enabled, exp)
+	}
+}
