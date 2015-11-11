@@ -127,6 +127,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// ApplyEnvOverrides apply the environment configuration on top of the config.
 func (c *Config) ApplyEnvOverrides() error {
 	return c.applyEnvOverrides("INFLUXDB", reflect.ValueOf(c))
 }

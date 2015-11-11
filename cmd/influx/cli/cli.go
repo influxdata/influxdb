@@ -260,6 +260,9 @@ func (c *CommandLine) Connect(cmd string) error {
 	} else {
 		c.ServerVersion = v
 	}
+
+	_, c.ServerVersion, _ = c.Client.Ping()
+
 	return nil
 }
 

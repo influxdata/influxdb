@@ -20,7 +20,7 @@ import (
 
 // These variables are populated via the Go linker.
 var (
-	version   string = "0.9"
+	version   = "0.9"
 	commit    string
 	branch    string
 	buildTime string
@@ -169,7 +169,7 @@ func ParseCommandName(args []string) (string, []string) {
 	return "", args
 }
 
-// Command represents the command executed by "influxd version".
+// VersionCommand represents the command executed by "influxd version".
 type VersionCommand struct {
 	Stdout io.Writer
 	Stderr io.Writer
