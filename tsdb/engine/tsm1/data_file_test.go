@@ -356,5 +356,71 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 		}
 
 	}
+}
 
+func TestIndirectIndex_Entries(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+	index.Add("cpu", time.Unix(2, 0), time.Unix(3, 0), 20, 200)
+	index.Add("mem", time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+
+	b, err := index.MarshalBinary()
+	if err != nil {
+		t.Fatalf("unexpected error marshaling index: %v", err)
+	}
+
+	indirect := tsm1.NewIndirectIndex()
+	if err := indirect.UnmarshalBinary(b); err != nil {
+		t.Fatalf("unexpected error unmarshaling index: %v", err)
+	}
+
+	exp := index.Entries("cpu")
+	entries := indirect.Entries("cpu")
+
+	if got, exp := len(entries), len(exp); got != exp {
+		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, exp := range exp {
+		got := entries[i]
+		if exp.MinTime != got.MinTime {
+			t.Fatalf("minTime mismatch: got %v, exp %v", got.MinTime, exp.MinTime)
+		}
+
+		if exp.MaxTime != got.MaxTime {
+			t.Fatalf("minTime mismatch: got %v, exp %v", got.MaxTime, exp.MaxTime)
+		}
+
+		if exp.Size != got.Size {
+			t.Fatalf("size mismatch: got %v, exp %v", got.Size, exp.Size)
+		}
+		if exp.Offset != got.Offset {
+			t.Fatalf("size mismatch: got %v, exp %v", got.Offset, exp.Offset)
+		}
+	}
+}
+
+func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+	index.Add("cpu", time.Unix(2, 0), time.Unix(3, 0), 20, 200)
+
+	b, err := index.MarshalBinary()
+	if err != nil {
+		t.Fatalf("unexpected error marshaling index: %v", err)
+	}
+
+	indirect := tsm1.NewIndirectIndex()
+	if err := indirect.UnmarshalBinary(b); err != nil {
+		t.Fatalf("unexpected error unmarshaling index: %v", err)
+	}
+
+	// mem has not been added to the index so we should get now entries back
+	// for both
+	exp := index.Entries("mem")
+	entries := indirect.Entries("mem")
+
+	if got, exp := len(entries), len(exp); got != exp && exp != 0 {
+		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
+	}
 }

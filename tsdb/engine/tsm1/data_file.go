@@ -143,6 +143,19 @@ func (e *IndexEntry) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// Returns true if this IndexEntry may contain values for the given time.  The min and max
+// times are inclusive.
+func (e *IndexEntry) Contains(t time.Time) bool {
+	return e.MinTime.Equal(t) || e.MinTime.Before(t) &&
+		e.MaxTime.Equal(t) || e.MaxTime.After(t)
+}
+
+func NewDirectIndex() TSMIndex {
+	return &directIndex{
+		blocks: map[string]indexEntries{},
+	}
+}
+
 // directIndex is a simple in-memory index implementation for a TSM file.  The full index
 // must fit in memory.
 type directIndex struct {
@@ -162,11 +175,10 @@ func (d *directIndex) Entries(key string) []*IndexEntry {
 	return d.blocks[key]
 }
 
-func (d *directIndex) Entry(key string, timestamp time.Time) *IndexEntry {
+func (d *directIndex) Entry(key string, t time.Time) *IndexEntry {
 	entries := d.Entries(key)
 	for _, entry := range entries {
-		if entry.MinTime.Equal(timestamp) || entry.MinTime.Before(timestamp) &&
-			entry.MaxTime.Equal(timestamp) || entry.MaxTime.After(timestamp) {
+		if entry.Contains(t) {
 			return entry
 		}
 	}
@@ -256,6 +268,150 @@ func (d *directIndex) readKey(b []byte) (n int, key string, err error) {
 }
 
 func (d *directIndex) readEntries(b []byte) (n int, entries indexEntries, err error) {
+	// 2 byte count of index entries
+	n, count := 2, int(btou16(b[:2]))
+
+	for i := 0; i < count; i++ {
+		ie := &IndexEntry{}
+		if err := ie.UnmarshalBinary(b[i*indexEntrySize+2 : i*indexEntrySize+2+indexEntrySize]); err != nil {
+			return 0, nil, fmt.Errorf("readEntries: unmarshal error: %v", err)
+		}
+		entries = append(entries, ie)
+		n += indexEntrySize
+	}
+	return
+}
+
+// indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
+// implementation can be used for indexes that may be MMAPed into memory.
+type indirectIndex struct {
+	// b is the underlying index byte slice.  This could be a copy on the heap or an MMAP
+	// slice reference
+	b []byte
+
+	// offsets contains the positions in b for each key.  It points to the 2 byte length of
+	// key.
+	offsets []int32
+}
+
+func NewIndirectIndex() TSMIndex {
+	return &indirectIndex{}
+}
+
+// Add records a new block entry for a key in the index.
+func (d *indirectIndex) Add(key string, minTime, maxTime time.Time, offset int64, size uint32) {
+	panic("unsupported operation")
+}
+
+// Entries returns all index entries for a key.
+func (d *indirectIndex) Entries(key string) []*IndexEntry {
+	// We use a binary search across our indirect offsets (pointers to all the keys
+	// in the index slice).
+	i := sort.Search(len(d.offsets), func(i int) bool {
+		// i is the position in offsets we are at so get offset it points to
+		offset := d.offsets[i]
+
+		// It's pointing to the start of the key which is a 2 byte length
+		keyLen := int32(btou16(d.b[offset : offset+2]))
+
+		// Now get the actual key bytes and convert to string
+		k := string(d.b[offset+2 : offset+2+keyLen])
+
+		// See if it matches
+		return key == k || k > key
+	})
+
+	// See if we might have found the right index
+	if i < len(d.offsets) {
+		ofs := d.offsets[i]
+		n, k, err := d.readKey(d.b[ofs:])
+		if err != nil {
+			panic(fmt.Sprintf("error reading key: %v", err))
+		}
+
+		// The search may have returned an i == 0 which could indicated that the value
+		// searched should be inserted at postion 0.  Make sure the key in the index
+		// matches the search value.
+		if k != key {
+			return nil
+		}
+
+		// Read and return all the entries
+		ofs += int32(n)
+		_, entries, err := d.readEntries(d.b[ofs:])
+		if err != nil {
+			panic(fmt.Sprintf("error reading entries: %v", err))
+
+		}
+		return entries
+
+	}
+
+	// The key is not in the index.  i is the index where it would be inserted.
+	return nil
+}
+
+// Entry returns the index entry for the specified key and timestamp.  If no entry
+// matches the key an timestamp, nil is returned.
+func (d *indirectIndex) Entry(key string, timestamp time.Time) *IndexEntry {
+	entries := d.Entries(key)
+	for _, entry := range entries {
+		if entry.Contains(timestamp) {
+			return entry
+		}
+	}
+	return nil
+}
+
+// MarshalBinary returns a byte slice encoded version of the index.
+func (d *indirectIndex) MarshalBinary() ([]byte, error) {
+	return d.b, nil
+}
+
+// UnmarshalBinary populates an index from an encoded byte slice
+// representation of an index.
+func (d *indirectIndex) UnmarshalBinary(b []byte) error {
+	// Keep a reference to the actual index bytes
+	d.b = b
+
+	// To create our "indirect" index, we need to find he location of all the keys in
+	// the raw byte slice.  The keys are listed once each (in sorted order).  Following
+	// each key is a time ordered list of index entry blocks for that key.  The loop below
+	// basically skips across the slice keeping track of the counter when we are at a key
+	// field.
+	var i int32
+	for i < int32(len(b)) {
+		d.offsets = append(d.offsets, i)
+		keyLen := int32(btou16(b[i : i+2]))
+		// Skip to the start of the key
+		i += 2
+
+		// Skip over the key
+		i += keyLen
+
+		// Count of all the index blocks for this key
+		count := int32(btou16(b[i : i+2]))
+
+		// Skip the count bytes
+		i += 2
+
+		// Skip over all the blocks
+		i += count * indexEntrySize
+	}
+	return nil
+}
+
+func (d *indirectIndex) readKey(b []byte) (n int, key string, err error) {
+	// 2 byte size of key
+	n, size := 2, int(btou16(b[:2]))
+
+	// N byte key
+	key = string(b[n : n+size])
+	n += len(key)
+	return
+}
+
+func (d *indirectIndex) readEntries(b []byte) (n int, entries indexEntries, err error) {
 	// 2 byte count of index entries
 	n, count := 2, int(btou16(b[:2]))
 
