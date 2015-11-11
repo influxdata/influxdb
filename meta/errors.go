@@ -30,7 +30,7 @@ var (
 	// ErrNodeIDRequired is returned when using a zero node id.
 	ErrNodeIDRequired = newError("node id must be greater than 0")
 
-	// ErrNodeUnableToDropSingleNode is returned if the node being dropped is the last
+	// ErrNodeUnableToDropFinalNode is returned if the node being dropped is the last
 	// node in the cluster
 	ErrNodeUnableToDropFinalNode = newError("unable to drop the final node in a cluster")
 )

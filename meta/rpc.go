@@ -38,12 +38,14 @@ type rpc struct {
 	}
 }
 
+// JoinResult defines the join result structure.
 type JoinResult struct {
 	RaftEnabled bool
 	RaftNodes   []string
 	NodeID      uint64
 }
 
+// Reply defines the interface for Reply objects.
 type Reply interface {
 	GetHeader() *internal.ResponseHeader
 }

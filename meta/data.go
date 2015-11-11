@@ -299,7 +299,7 @@ func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	return nil
 }
 
-// ShardGroup returns a list of all shard groups on a database and policy.
+// ShardGroups returns a list of all shard groups on a database and policy.
 func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
@@ -885,7 +885,7 @@ func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *Shar
 
 // ExpiredShardGroups returns the Shard Groups which are considered expired, for the given time.
 func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInfo {
-	groups := make([]*ShardGroupInfo, 0)
+	var groups = make([]*ShardGroupInfo, 0)
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].Deleted() {
 			continue
@@ -899,7 +899,7 @@ func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInf
 
 // DeletedShardGroups returns the Shard Groups which are marked as deleted.
 func (rpi *RetentionPolicyInfo) DeletedShardGroups() []*ShardGroupInfo {
-	groups := make([]*ShardGroupInfo, 0)
+	var groups = make([]*ShardGroupInfo, 0)
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].Deleted() {
 			groups = append(groups, &rpi.ShardGroups[i])
@@ -982,6 +982,7 @@ type ShardGroupInfo struct {
 	Shards    []ShardInfo
 }
 
+// ShardGroupInfos is a collection of ShardGroupInfo
 type ShardGroupInfos []ShardGroupInfo
 
 func (a ShardGroupInfos) Len() int           { return len(a) }
@@ -1018,8 +1019,8 @@ func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 }
 
 // ShardFor returns the ShardInfo for a Point hash
-func (s *ShardGroupInfo) ShardFor(hash uint64) ShardInfo {
-	return s.Shards[hash%uint64(len(s.Shards))]
+func (sgi *ShardGroupInfo) ShardFor(hash uint64) ShardInfo {
+	return sgi.Shards[hash%uint64(len(sgi.Shards))]
 }
 
 // marshal serializes to a protobuf representation.
@@ -1128,6 +1129,7 @@ func (si *ShardInfo) unmarshal(pb *internal.ShardInfo) {
 	}
 }
 
+// SubscriptionInfo hold the subscription information
 type SubscriptionInfo struct {
 	Name         string
 	Mode         string
