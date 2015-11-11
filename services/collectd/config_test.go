@@ -31,5 +31,9 @@ typesdb-dirs = [ "/path/to/types.db", "/path/to/custom/types.db" ]
 		t.Fatalf("unexpected types db: %s", c.TypesDB)
 	} else if len(c.TypesDBDirs) != 2 {
 		t.Fatalf("unexpected types db dirs size: %d", len(c.TypesDBDirs))
+	} else if c.TypesDBDirs[0] != "/path/to/types.db" {
+		t.Fatalf("unexpected types db dir [0]: %s", c.TypesDBDirs[0])
+	} else if c.TypesDBDirs[1] != "/path/to/custom/types.db" {
+		t.Fatalf("unexpected types db dir [1]: %s", c.TypesDBDirs[1])
 	}
 }
