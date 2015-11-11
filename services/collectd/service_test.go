@@ -217,10 +217,10 @@ func TestService_LoadSingleTypesDb(t *testing.T) {
 }
 
 // Test that the service loads configured types.db multiple files
-func TestService_LoadMultipleTypesDb(t *testing.T) {
+func TestService_LoadTypesDbDir(t *testing.T) {
 	t.Parallel()
 
-	s := newTestServiceWithTypesDB(1, time.Second, []string{"test_types1.db", "test_types2.db"})
+	s := newTestServiceWithTypesDB(1, time.Second, []string{"types_db_sample_dir"})
 
 	createDatabaseCalled := false
 
@@ -267,7 +267,7 @@ func newTestService(batchSize int, batchDuration time.Duration) *testService {
 			Database:      "collectd_test",
 			BatchSize:     batchSize,
 			BatchDuration: toml.Duration(batchDuration),
-			TypesDB:       []string{"test_types1.db"},
+			TypesDB:       "types_db_sample_dir/test_types1.db",
 		}),
 	}
 	s.Service.PointsWriter = &s.PointsWriter
@@ -280,14 +280,14 @@ func newTestService(batchSize int, batchDuration time.Duration) *testService {
 	return s
 }
 
-func newTestServiceWithTypesDB(batchSize int, batchDuration time.Duration, typesDbFiles []string) *testService {
+func newTestServiceWithTypesDB(batchSize int, batchDuration time.Duration, typesDbDir []string) *testService {
 	s := &testService{
 		Service: NewService(Config{
 			BindAddress:   "127.0.0.1:0",
 			Database:      "collectd_test",
 			BatchSize:     batchSize,
 			BatchDuration: toml.Duration(batchDuration),
-			TypesDB:       typesDbFiles,
+			TypesDBDirs:   typesDbDir,
 		}),
 	}
 	s.Service.PointsWriter = &s.PointsWriter

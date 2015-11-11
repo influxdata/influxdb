@@ -244,7 +244,8 @@ reporting-disabled = false
   enabled = false
   # bind-address = ""
   # database = ""
-  # typesdb = [""]
+  # typesdb = ""
+  # typesdb-dirs = ["dir1", "dir2"]
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Batching

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -101,17 +102,23 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	if s.typesdb == nil && len(s.Config.TypesDB) > 0 {
-		s.typesdb = make(gollectd.Types)
-		// read all available files
-		// in case any fails, fail all
-		for _, file := range s.Config.TypesDB {
-			typesdb, err := gollectd.TypesDBFile(file)
-			if err != nil {
-				return fmt.Errorf("Open(): %s", err)
+	// load configured types.db files
+	if s.typesdb == nil {
+		// load single file, if any configured
+		if s.Config.TypesDB != "" {
+			if err := s.loadTypesDb(s.Config.TypesDB); err != nil {
+				return err
 			}
-			for k, v := range typesdb {
-				s.typesdb[k] = v
+		}
+		// load directories, if any configured
+		if len(s.Config.TypesDBDirs) > 0 {
+			// read all files in configured directories
+			// in case any fails, fail all
+			for _, dir := range s.Config.TypesDBDirs {
+				// process all files in directory
+				if err := filepath.Walk(dir, s.loadTypesDbDir); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -151,6 +158,32 @@ func (s *Service) Open() error {
 	// Start goroutines that process collectd packets.
 	go s.serve()
 	go s.writePoints()
+
+	return nil
+}
+
+func (s *Service) loadTypesDb(path string) error {
+	// make sure s.typesdb is not nil
+	if s.typesdb == nil {
+		s.typesdb = make(gollectd.Types)
+	}
+
+	typesdb, err := gollectd.TypesDBFile(path)
+	if err != nil {
+		return fmt.Errorf("Open(): %s", err)
+	}
+	for k, v := range typesdb {
+		s.typesdb[k] = v
+	}
+
+	return nil
+}
+
+func (s *Service) loadTypesDbDir(path string, f os.FileInfo, err error) error {
+	// process files not dirs
+	if !f.IsDir() {
+		return s.loadTypesDb(path)
+	}
 
 	return nil
 }
