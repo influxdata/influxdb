@@ -12,6 +12,34 @@ var maxTime = time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
 
 type Value interface{}
 
+func valueOf(v Value) interface{} {
+	switch v := v.(type) {
+	case *FloatValue:
+		return v.Value
+	default:
+		panic(fmt.Sprintf("invalid value type: %T", v))
+	}
+}
+
+func valueTime(v Value) time.Time {
+	switch v := v.(type) {
+	case *FloatValue:
+		return v.Time
+	default:
+		panic(fmt.Sprintf("invalid value type: %T", v))
+	}
+}
+
+func valueNameTags(v Value) (name string, tags map[string]string) {
+	fmt.Println("?vNT", v)
+	switch v := v.(type) {
+	case *FloatValue:
+		return v.Name, v.Tags
+	default:
+		panic(fmt.Sprintf("invalid value type: %T", v))
+	}
+}
+
 type Values []Value
 
 func (a Values) Equals(other Values) bool {
@@ -44,12 +72,28 @@ func (a Values) Equals(other Values) bool {
 }
 
 type FloatValue struct {
+	Name  string
 	Time  time.Time
 	Value float64
 	Tags  map[string]string
 }
 
-type Iterator interface{}
+// Iterator represents a generic interface for all Iterators.
+// Most iterator operations are done on the typed sub-interfaces.
+type Iterator interface {
+	Close() error
+}
+
+// Iterators represents a list of iterators.
+type Iterators []Iterator
+
+// Close closes all iterators.
+func (a Iterators) Close() error {
+	for _, itr := range a {
+		itr.Close()
+	}
+	return nil
+}
 
 // FloatIterator represents a stream of float values.
 type FloatIterator interface {
@@ -72,6 +116,14 @@ func NewFloatMinIterator(inputs []FloatIterator) *FloatMinIterator {
 	return &FloatMinIterator{
 		inputs: newBufFloatIterators(inputs),
 	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *FloatMinIterator) Close() error {
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	return nil
 }
 
 // Next returns the minimum value for the next available interval.
@@ -100,6 +152,9 @@ type bufFloatIterator struct {
 	itr FloatIterator
 	buf *FloatValue
 }
+
+// Close closes the underlying iterator.
+func (itr *bufFloatIterator) Close() error { return itr.itr.Close() }
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
 func (itr *bufFloatIterator) Next() *FloatValue {
@@ -163,6 +218,11 @@ func (a bufFloatIterators) nextWindow(interval, offset time.Duration) (startTime
 	return
 }
 
+type nilFloatIterator struct{}
+
+func (*nilFloatIterator) Close() error      { return nil }
+func (*nilFloatIterator) Next() *FloatValue { return nil }
+
 // Join combines inputs based on timestamp and returns new iterators.
 // The output iterators guarantee that one value will be output for every timestamp.
 func Join(inputs []Iterator) (outputs []Iterator) {
@@ -214,7 +274,6 @@ func join(itrs []joinIterator) {
 // joinIterator represents output iterator used by join().
 type joinIterator interface {
 	Iterator
-	Close() error
 	loadBuf() time.Time
 	emitAt(t time.Time)
 }

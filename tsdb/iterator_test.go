@@ -155,6 +155,9 @@ type FloatIterator struct {
 	Values []tsdb.FloatValue
 }
 
+// Close is a no-op.
+func (itr *FloatIterator) Close() error { return nil }
+
 // Next returns the next value and shifts it off the beginning of the Values slice.
 func (itr *FloatIterator) Next() *tsdb.FloatValue {
 	if len(itr.Values) == 0 {
