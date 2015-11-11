@@ -398,6 +398,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	return sh.WritePoints(points)
 }
 
+/*
 func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (Mapper, error) {
 	shard := s.Shard(shardID)
 
@@ -420,6 +421,7 @@ func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize 
 		return nil, fmt.Errorf("can't create mapper for statement type: %T", stmt)
 	}
 }
+*/
 
 func (s *Store) Close() error {
 	s.mu.Lock()

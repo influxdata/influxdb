@@ -769,6 +769,16 @@ func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
 }
 
+// IsNumeric returns whether a given aggregate can only be run on numeric fields.
+func IsNumeric(c *influxql.Call) bool {
+	switch c.Name {
+	case "count", "first", "last", "distinct":
+		return false
+	default:
+		return true
+	}
+}
+
 // mustMarshal encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid marshal will cause corruption and a panic is appropriate.

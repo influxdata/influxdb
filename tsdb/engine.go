@@ -164,7 +164,7 @@ type Tx interface {
 	Commit() error
 	Rollback() error
 
-	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
+	CreateIterator(name string, start, end time.Time, ascending bool) (Iterator, error)
 }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).
