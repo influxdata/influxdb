@@ -1145,12 +1145,59 @@ func (s *Store) DeleteShardGroup(database, policy string, id uint64) error {
 	)
 }
 
-// ShardGroups returns a list of all shard groups for a policy by timestamp.
-func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err error) {
-	err = s.read(func(data *Data) error {
-		a, err = data.ShardGroups(database, policy)
+// ShardGroups returns a list of all shard groups, possibly for a given database, and
+// then possibly for a given retention policy. If the database is not specified then
+// shard groups for all databases are returned. Likewise, if the policy is not specified
+// the shard groups for all policies within the given database are returned.
+func (s *Store) ShardGroups(args ...string) (a []ShardGroupInfo, err error) {
+	databases := make([]string, 0)
+
+	if len(args) >= 1 {
+		// Database specified
+		databases = append(databases, args[0])
+		if len(args) > 1 {
+			// Retention policy specified
+			if args[0] == "" {
+				return nil, ErrDatabaseNameRequired
+			}
+			if args[1] == "" {
+				return nil, ErrRetentionPolicyNameRequired
+			}
+		}
+	} else {
+		// No database specified
+		dis, err := s.Databases()
 		if err != nil {
-			return err
+			return nil, err
+		}
+		for _, d := range dis {
+			databases = append(databases, d.Name)
+		}
+	}
+
+	err = s.read(func(data *Data) error {
+		for _, db := range databases {
+			policies := make([]string, 0)
+			if len(args) == 1 {
+				// Do all policies for this database.
+				ps, err := s.RetentionPolicies(db)
+				if err != nil {
+					return err
+				}
+				for _, p := range ps {
+					policies = append(policies, p.Name)
+				}
+			} else {
+				policies = append(policies, args[1])
+			}
+
+			for _, p := range policies {
+				sg, err := data.ShardGroups(db, p)
+				if err != nil {
+					return err
+				}
+				a = append(a, sg...)
+			}
 		}
 		return nil
 	})
