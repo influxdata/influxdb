@@ -2,9 +2,7 @@ package client_test
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
-	"net/url"
 	"os"
 	"time"
 
@@ -13,15 +11,16 @@ import (
 
 // Create a new client
 func ExampleClient() {
-	u, _ := url.Parse("http://localhost:8086")
-
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
 	// namely INFLUX_USER/INFLUX_PWD. If not just omit Username/Password below.
-	_ = client.NewClient(client.Config{
-		URL:      u,
+	_, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr:     "http://localhost:8086",
 		Username: os.Getenv("INFLUX_USER"),
 		Password: os.Getenv("INFLUX_PWD"),
 	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
 }
 
 // Write a point using the UDP client
@@ -30,7 +29,7 @@ func ExampleClient_uDP() {
 	config := client.UDPConfig{Addr: "localhost:8089"}
 	c, err := client.NewUDPClient(config)
 	if err != nil {
-		panic(err.Error())
+		fmt.Println("Error: ", err.Error())
 	}
 	defer c.Close()
 
@@ -48,7 +47,7 @@ func ExampleClient_uDP() {
 	}
 	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
 	if err != nil {
-		panic(err.Error())
+		fmt.Println("Error: ", err.Error())
 	}
 	bp.AddPoint(pt)
 
@@ -59,10 +58,12 @@ func ExampleClient_uDP() {
 // Write a point using the HTTP client
 func ExampleClient_write() {
 	// Make client
-	u, _ := url.Parse("http://localhost:8086")
-	c := client.NewClient(client.Config{
-		URL: u,
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
 	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
 	defer c.Close()
 
 	// Create a new point batch
@@ -80,7 +81,7 @@ func ExampleClient_write() {
 	}
 	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
 	if err != nil {
-		panic(err.Error())
+		fmt.Println("Error: ", err.Error())
 	}
 	bp.AddPoint(pt)
 
@@ -105,7 +106,7 @@ func ExampleBatchPoints() {
 	}
 	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
 	if err != nil {
-		panic(err.Error())
+		fmt.Println("Error: ", err.Error())
 	}
 	bp.AddPoint(pt)
 }
@@ -126,7 +127,7 @@ func ExampleBatchPoints_setters() {
 	}
 	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
 	if err != nil {
-		panic(err.Error())
+		fmt.Println("Error: ", err.Error())
 	}
 	bp.AddPoint(pt)
 }
@@ -164,11 +165,13 @@ func ExampleClient_write1000() {
 	sampleSize := 1000
 
 	// Make client
-	u, _ := url.Parse("http://localhost:8086")
-	clnt := client.NewClient(client.Config{
-		URL: u,
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
 	})
-	defer clnt.Close()
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
+	defer c.Close()
 
 	rand.Seed(42)
 
@@ -204,44 +207,42 @@ func ExampleClient_write1000() {
 		bp.AddPoint(pt)
 	}
 
-	err := clnt.Write(bp)
+	err = c.Write(bp)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Error: ", err.Error())
 	}
 }
 
 // Make a Query
 func ExampleClient_query() {
 	// Make client
-	u, _ := url.Parse("http://localhost:8086")
-	c := client.NewClient(client.Config{
-		URL: u,
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
 	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
 	defer c.Close()
 
-	q := client.Query{
-		Command:   "SELECT count(value) FROM shapes",
-		Database:  "square_holes",
-		Precision: "ns",
-	}
+	q := client.NewQuery("SELECT count(value) FROM shapes", "square_holes", "ns")
 	if response, err := c.Query(q); err == nil && response.Error() == nil {
-		log.Println(response.Results)
+		fmt.Println(response.Results)
 	}
 }
 
 // Create a Database with a query
 func ExampleClient_createDatabase() {
 	// Make client
-	u, _ := url.Parse("http://localhost:8086")
-	c := client.NewClient(client.Config{
-		URL: u,
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
 	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
 	defer c.Close()
 
-	q := client.Query{
-		Command: "CREATE DATABASE telegraf",
-	}
+	q := client.NewQuery("CREATE DATABASE telegraf", "", "")
 	if response, err := c.Query(q); err == nil && response.Error() == nil {
-		log.Println(response.Results)
+		fmt.Println(response.Results)
 	}
 }

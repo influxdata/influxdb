@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -20,9 +21,10 @@ const (
 	UDPPayloadSize = 512
 )
 
-type Config struct {
-	// URL of the InfluxDB database
-	URL *url.URL
+type HTTPConfig struct {
+	// Addr should be of the form "http://host:port"
+	// or "http://[ipv6-host%zone]:port".
+	Addr string
 
 	// Username is the influxdb username, optional
 	Username string
@@ -42,7 +44,8 @@ type Config struct {
 }
 
 type UDPConfig struct {
-	// Addr should be of the form "host:port" or "[ipv6-host%zone]:port".
+	// Addr should be of the form "udp://host:port"
+	// or "udp://[ipv6-host%zone]:port".
 	Addr string
 
 	// PayloadSize is the maximum size of a UDP client message, optional
@@ -78,17 +81,27 @@ type Client interface {
 }
 
 // NewClient creates a client interface from the given config.
-func NewClient(conf Config) Client {
+func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	if conf.UserAgent == "" {
 		conf.UserAgent = "InfluxDBClient"
 	}
+
+	u, err := url.Parse(conf.Addr)
+	if err != nil {
+		return nil, err
+	} else if u.Scheme != "http" && u.Scheme != "https" {
+		m := fmt.Sprintf("Unsupported protocol scheme: %s, your address"+
+			" must start with http:// or https://", u.Scheme)
+		return nil, errors.New(m)
+	}
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: conf.InsecureSkipVerify,
 		},
 	}
 	return &client{
-		url:       conf.URL,
+		url:       u,
 		username:  conf.Username,
 		password:  conf.Password,
 		useragent: conf.UserAgent,
@@ -96,7 +109,7 @@ func NewClient(conf Config) Client {
 			Timeout:   conf.Timeout,
 			Transport: tr,
 		},
-	}
+	}, nil
 }
 
 // Close releases the client's resources.
@@ -178,18 +191,18 @@ type BatchPoints interface {
 }
 
 // NewBatchPoints returns a BatchPoints interface based on the given config.
-func NewBatchPoints(c BatchPointsConfig) (BatchPoints, error) {
-	if c.Precision == "" {
-		c.Precision = "ns"
+func NewBatchPoints(conf BatchPointsConfig) (BatchPoints, error) {
+	if conf.Precision == "" {
+		conf.Precision = "ns"
 	}
-	if _, err := time.ParseDuration("1" + c.Precision); err != nil {
+	if _, err := time.ParseDuration("1" + conf.Precision); err != nil {
 		return nil, err
 	}
 	bp := &batchpoints{
-		database:         c.Database,
-		precision:        c.Precision,
-		retentionPolicy:  c.RetentionPolicy,
-		writeConsistency: c.WriteConsistency,
+		database:         conf.Database,
+		precision:        conf.Precision,
+		retentionPolicy:  conf.RetentionPolicy,
+		writeConsistency: conf.WriteConsistency,
 	}
 	return bp, nil
 }
@@ -390,6 +403,17 @@ type Query struct {
 	Command   string
 	Database  string
 	Precision string
+}
+
+// NewQuery returns a query object
+// database and precision strings can be empty strings if they are not needed
+// for the query.
+func NewQuery(command, database, precision string) Query {
+	return Query{
+		Command:   command,
+		Database:  database,
+		Precision: precision,
+	}
 }
 
 // Response represents a list of statement results.

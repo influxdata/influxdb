@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -66,9 +65,8 @@ func TestClient_Query(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u, _ := url.Parse(ts.URL)
-	config := Config{URL: u}
-	c := NewClient(config)
+	config := HTTPConfig{Addr: ts.URL}
+	c, _ := NewHTTPClient(config)
 	defer c.Close()
 
 	query := Query{}
@@ -97,10 +95,8 @@ func TestClient_BasicAuth(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u, _ := url.Parse(ts.URL)
-	u.User = url.UserPassword("username", "password")
-	config := Config{URL: u, Username: "username", Password: "password"}
-	c := NewClient(config)
+	config := HTTPConfig{Addr: ts.URL, Username: "username", Password: "password"}
+	c, _ := NewHTTPClient(config)
 	defer c.Close()
 
 	query := Query{}
@@ -118,9 +114,8 @@ func TestClient_Write(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	u, _ := url.Parse(ts.URL)
-	config := Config{URL: u}
-	c := NewClient(config)
+	config := HTTPConfig{Addr: ts.URL}
+	c, _ := NewHTTPClient(config)
 	defer c.Close()
 
 	bp, err := NewBatchPoints(BatchPointsConfig{})
@@ -167,9 +162,9 @@ func TestClient_UserAgent(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		u, _ := url.Parse(ts.URL)
-		config := Config{URL: u, UserAgent: test.userAgent}
-		c := NewClient(config)
+
+		config := HTTPConfig{Addr: ts.URL, UserAgent: test.userAgent}
+		c, _ := NewHTTPClient(config)
 		defer c.Close()
 
 		receivedUserAgent = ""
