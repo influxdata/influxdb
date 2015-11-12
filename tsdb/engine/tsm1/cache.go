@@ -1,9 +1,52 @@
 package tsm1
 
 import (
+	"container/list"
 	"fmt"
 	"sync"
 )
+
+type lru struct {
+	mu       sync.Mutex
+	list     *list.List
+	elements map[string]*list.Element
+}
+
+func newLRU() *lru {
+	return &lru{
+		list:     list.New(),
+		elements: make(map[string]*list.Element),
+	}
+}
+
+func (l *lru) MoveToFront(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e, ok := l.elements[key]
+	if !ok {
+		l.elements[key] = l.list.PushFront(key)
+		return
+	}
+	l.list.MoveToFront(l.elements[key])
+}
+
+func (l *lru) Remove(key string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.list.Remove(l.elements[key])
+}
+
+func (l *lru) Front() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.list.Front().Value.(string)
+}
+
+func (l *lru) Back() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.list.Back().Value.(string)
+}
 
 // entry is the set of all values received for a given key.
 type entry struct {
@@ -53,19 +96,21 @@ func (e *entry) dedupe() {
 // Cache maintains an in-memory store of Values for a set of keys. As data is added to the cache
 // it will evict older data as necessary to make room for the new entries.
 type Cache struct {
-	mu sync.RWMutex
-
-	checkpoint uint64
+	mu         sync.RWMutex
 	store      map[string]*entry
+	checkpoint uint64
 	size       uint64
 	maxSize    uint64
+
+	lru *lru // List of entry keys from most recently accessed to least.
 }
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 func NewCache(maxSize uint64) *Cache {
 	return &Cache{
-		store:   make(map[string]*entry),
 		maxSize: maxSize,
+		store:   make(map[string]*entry),
+		lru:     newLRU(),
 	}
 }
 
@@ -86,12 +131,17 @@ func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 		c.mu.Lock()
 		e, ok = c.store[key]
 		if !ok {
-			e = newEntry()
+			e := newEntry()
 			c.store[key] = e
 		}
 		c.mu.Unlock()
 	}
 	c.incrementSize(e.add(values, checkpoint))
+
+	// Mark entry as most-recently used.
+	// Lock LRU
+	c.lru.MoveToFront(key)
+	// Unlock LRU
 
 	return nil
 
@@ -106,10 +156,22 @@ func (c *Cache) SetCheckpoint(checkpoint uint64) error {
 	return nil
 }
 
-// Evict forces the cache to evict all data with an associated checkpoint before the last
-// checkpoint that was set. It returns the number of point-based bytes freed as a result.
-// Eviction should normally be left to the cache itself.
-func (c *Cache) Evict() (uint64, error) {
+// Evict instructs the cache to evict data until all data with an associated checkpoint
+// before the last checkpoint was set, or the memory footprint of the cache drops below
+// the given size.
+func (c *Cache) Evict(size uint64) (uint64, error) {
+	// lock cache
+	// defer lock of cache
+	// Lock lru
+	// Defer unlock of lru
+	for e := l.Front(); e != nil; e = e.Next() {
+		if c.size <= size {
+			break
+		}
+		least := c.lru.Back()
+		e := c.store[c.lru.Back()]
+		delete(c.store, least)
+	}
 	return 0, nil
 }
 
