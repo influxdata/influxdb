@@ -142,7 +142,8 @@ func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.size > c.maxSize {
-		c.evict(c.maxSize)
+		// XXX should really also adjust by size of incoming data.
+		c.evict(c.size - c.maxSize)
 	}
 
 	// Size OK now?
