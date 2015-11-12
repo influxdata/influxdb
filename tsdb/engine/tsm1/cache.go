@@ -105,6 +105,13 @@ func (e *entry) dedupe() {
 	return
 }
 
+// clone returns a copy of the values for this entry.
+func (e *entry) clone() []Value {
+	a := make([]Value, len(e.values))
+	copy(a, e.values)
+	return a
+}
+
 // Cache maintains an in-memory store of Values for a set of keys. As data is added to the cache
 // it will evict older data as necessary to make room for the new entries.
 type Cache struct {
@@ -197,7 +204,15 @@ func (c *Cache) Evict(size uint64) uint64 {
 }
 
 // Cursor returns a cursor for the given key.
-func (c *Cache) Cursor() tsdb.Cursor {
+func (c *Cache) Cursor(key string) tsdb.Cursor {
+	e, ok := c.store[key]
+	if !ok {
+		return nil
+	}
+
+	e.dedupe()
+	_ = e.clone()
+	// Actually return a cursor
 	return nil
 }
 
