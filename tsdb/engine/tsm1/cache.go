@@ -20,8 +20,6 @@ func newLRU() *lru {
 }
 
 func (l *lru) MoveToFront(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	e, ok := l.elements[key]
 	if !ok {
 		l.elements[key] = l.list.PushFront(key)
@@ -31,21 +29,31 @@ func (l *lru) MoveToFront(key string) {
 }
 
 func (l *lru) Remove(key string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	l.list.Remove(l.elements[key])
 }
 
 func (l *lru) Front() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.list.Front().Value.(string)
+	e := l.list.Front()
+	if e == nil {
+		return ""
+	}
+	return e.Value.(string)
 }
 
 func (l *lru) Back() string {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.list.Back().Value.(string)
+	e := l.list.Back()
+	if e == nil {
+		return ""
+	}
+	return e.Value.(string)
+}
+
+// Do iterates through the LRU, from least-recently used to most-recently used,
+// calling the given function with the key.
+func (l *lru) Do(f func(key string)) {
+	for e := l.list.Front(); e != nil; e = e.Next() {
+		f(e.Value.(string))
+	}
 }
 
 // entry is the set of all values received for a given key.
@@ -102,6 +110,7 @@ type Cache struct {
 	size       uint64
 	maxSize    uint64
 
+	lmu sync.Mutex
 	lru *lru // List of entry keys from most recently accessed to least.
 }
 
@@ -139,9 +148,9 @@ func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 	c.incrementSize(e.add(values, checkpoint))
 
 	// Mark entry as most-recently used.
-	// Lock LRU
+	c.lmu.Lock()
 	c.lru.MoveToFront(key)
-	// Unlock LRU
+	c.lmu.Unlock()
 
 	return nil
 
@@ -158,21 +167,39 @@ func (c *Cache) SetCheckpoint(checkpoint uint64) error {
 
 // Evict instructs the cache to evict data until all data with an associated checkpoint
 // before the last checkpoint was set, or the memory footprint of the cache drops below
-// the given size.
+// the given size. Returns the number of point-calculated bytes that were evicted.
 func (c *Cache) Evict(size uint64) (uint64, error) {
 	// lock cache
 	// defer lock of cache
-	// Lock lru
-	// Defer unlock of lru
-	for e := l.Front(); e != nil; e = e.Next() {
-		if c.size <= size {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+
+	evictions := []string{}
+	c.lru.Do(func(key string) {
+		entry := c.store[key]
+		if entry.checkpoint <= c.checkpoint {
+			evictions = append(evictions, key)
+		}
+	})
+
+	// Lock the store somehow....above and defer
+	var n uint64
+	for _, key := range evictions {
+		entry := c.store[key]
+		if entry.checkpoint > c.checkpoint {
+			// Entry modified after checkpoint, not safe to evict.
+			continue
+		}
+		n += entry.size
+		delete(c.store, key)
+		if n >= size {
+			// Requested amount of data has been evicted.
 			break
 		}
-		least := c.lru.Back()
-		e := c.store[c.lru.Back()]
-		delete(c.store, least)
 	}
-	return 0, nil
+
+	c.size -= n
+	return n, nil
 }
 
 // Size returns the number of bytes the cache currently uses.
