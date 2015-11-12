@@ -82,10 +82,6 @@ const (
 
 	// MAP_POPULATE is for the mmap syscall. For some reason this isn't defined in golang's syscall
 	MAP_POPULATE = 0x8000
-
-	// magicNumber is written as the first 4 bytes of a data file to
-	// identify the file as a tsm1 formatted file
-	magicNumber uint32 = 0x16D116D1
 )
 
 // Ensure Engine implements the interface.
@@ -2302,7 +2298,7 @@ func openFileAndCheckpoint(fileName string) (*os.File, error) {
 	}
 
 	// write the header, which is just the magic number
-	if _, err := f.Write(u32tob(magicNumber)); err != nil {
+	if _, err := f.Write(u32tob(MagicNumber)); err != nil {
 		f.Close()
 		return nil, err
 	}
