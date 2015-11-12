@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/cmd/influx/cli"
+	"github.com/peterh/liner"
 )
 
 func TestParseCommand_CommandsExist(t *testing.T) {
@@ -22,10 +25,24 @@ func TestParseCommand_CommandsExist(t *testing.T) {
 		{cmd: "help"},
 		{cmd: "pretty"},
 		{cmd: "use"},
-		{cmd: ""}, // test that a blank command just returns
 	}
 	for _, test := range tests {
 		if !c.ParseCommand(test.cmd) {
+			t.Fatalf(`Command failed for %q.`, test.cmd)
+		}
+	}
+}
+
+func TestParseCommand_BlankCommand(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{}
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: ""}, // test that a blank command doesn't work
+	}
+	for _, test := range tests {
+		if c.ParseCommand(test.cmd) {
 			t.Fatalf(`Command failed for %q.`, test.cmd)
 		}
 	}
@@ -49,7 +66,6 @@ func TestParseCommand_TogglePretty(t *testing.T) {
 
 func TestParseCommand_Exit(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{}
 	tests := []struct {
 		cmd string
 	}{
@@ -60,7 +76,10 @@ func TestParseCommand_Exit(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if c.ParseCommand(test.cmd) {
+		c := cli.CommandLine{Quit: make(chan struct{}, 1)}
+		c.ParseCommand(test.cmd)
+		// channel should be closed
+		if _, ok := <-c.Quit; ok {
 			t.Fatalf(`Command "exit" failed for %q.`, test.cmd)
 		}
 	}
@@ -220,7 +239,12 @@ func TestParseCommand_InsertInto(t *testing.T) {
 
 func TestParseCommand_History(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{}
+	c := cli.CommandLine{Line: liner.NewLiner()}
+	defer c.Line.Close()
+
+	// append one entry to history
+	c.Line.AppendHistory("abc")
+
 	tests := []struct {
 		cmd string
 	}{
@@ -233,6 +257,48 @@ func TestParseCommand_History(t *testing.T) {
 	for _, test := range tests {
 		if !c.ParseCommand(test.cmd) {
 			t.Fatalf(`Command "history" failed for %q.`, test.cmd)
+		}
+	}
+
+	// buf size should be at least 1
+	var buf bytes.Buffer
+	c.Line.WriteHistory(&buf)
+	if buf.Len() < 1 {
+		t.Fatal("History is borked")
+	}
+}
+
+func TestParseCommand_HistoryWithBlankCommand(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{Line: liner.NewLiner()}
+	defer c.Line.Close()
+
+	// append one entry to history
+	c.Line.AppendHistory("x")
+
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "history"},
+		{cmd: " history"},
+		{cmd: "history "},
+		{cmd: "History "},
+		{cmd: ""},  // shouldn't be persisted in history
+		{cmd: " "}, // shouldn't be persisted in history
+	}
+
+	// don't validate because blank commands are never executed
+	for _, test := range tests {
+		c.ParseCommand(test.cmd)
+	}
+
+	// buf shall not contain empty commands
+	var buf bytes.Buffer
+	c.Line.WriteHistory(&buf)
+	scanner := bufio.NewScanner(&buf)
+	for scanner.Scan() {
+		if scanner.Text() == "" || scanner.Text() == " " {
+			t.Fatal("Empty commands should not be persisted in history.")
 		}
 	}
 }

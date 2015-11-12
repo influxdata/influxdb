@@ -1,11 +1,11 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -26,6 +26,7 @@ const (
 	noTokenMsg = "Visit https://enterprise.influxdata.com to register for updates, InfluxDB server management, and monitoring.\n"
 )
 
+// CommandLine holds CLI configuration and state
 type CommandLine struct {
 	Client           *client.Client
 	Line             *liner.State
@@ -48,12 +49,19 @@ type CommandLine struct {
 	PPS              int // Controls how many points per second the import will allow via throttling
 	Path             string
 	Compressed       bool
+	Quit             chan struct{}
+	historyFile      *os.File
 }
 
+// New returns an instance of CommandLine
 func New(version string) *CommandLine {
-	return &CommandLine{ClientVersion: version}
+	return &CommandLine{
+		ClientVersion: version,
+		Quit:          make(chan struct{}, 1),
+	}
 }
 
+// Run executes the CLI
 func (c *CommandLine) Run() {
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
@@ -139,38 +147,47 @@ func (c *CommandLine) Run() {
 
 	c.Version()
 
-	var historyFile string
+	var historyFilePath string
 	usr, err := user.Current()
-	// Only load history if we can get the user
+	// Only load/write history if we can get the user
 	if err == nil {
-		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
-
-		if f, err := os.Open(historyFile); err == nil {
-			c.Line.ReadHistory(f)
-			f.Close()
+		historyFilePath = filepath.Join(usr.HomeDir, ".influx_history")
+		if c.historyFile, err = os.OpenFile(historyFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640); err == nil {
+			defer c.historyFile.Close()
+			c.Line.ReadHistory(c.historyFile)
 		}
 	}
 
+Loop:
+	// read from prompt until exit is run
 	for {
-		l, e := c.Line.Prompt("> ")
-		if e != nil {
-			break
-		}
-		if c.ParseCommand(l) {
-			// write out the history
-			if len(historyFile) > 0 {
+		select {
+		case <-c.Quit:
+			// write to history file
+			_, err := c.Line.WriteHistory(c.historyFile)
+			if err != nil {
+				fmt.Printf("There was an error writing history file: %s\n", err)
+			}
+			// exit CLI
+			break Loop
+		default:
+			l, e := c.Line.Prompt("> ")
+			if e != nil {
+				break
+			}
+			// write valid commands only to in-memory history
+			if c.ParseCommand(l) {
 				c.Line.AppendHistory(l)
-				if f, err := os.Create(historyFile); err == nil {
-					c.Line.WriteHistory(f)
-					f.Close()
+				_, err := c.Line.WriteHistory(c.historyFile)
+				if err != nil {
+					fmt.Printf("There was an error writing history file: %s\n", err)
 				}
 			}
-		} else {
-			break // exit main loop
 		}
 	}
 }
 
+// ParseCommand parses an instruction and calls related method, if any
 func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 
@@ -184,11 +201,9 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 
 	if len(tokens) > 0 {
 		switch tokens[0] {
-		case "":
-			break
 		case "exit":
 			// signal the program to exit
-			return false
+			close(c.Quit)
 		case "gopher":
 			c.gopher()
 		case "connect":
@@ -221,8 +236,10 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		default:
 			c.ExecuteQuery(cmd)
 		}
+
+		return true
 	}
-	return true
+	return false
 }
 
 // Connect connects client to a server
@@ -255,17 +272,17 @@ func (c *CommandLine) Connect(cmd string) error {
 		return fmt.Errorf("Could not create client %s", err)
 	}
 	c.Client = cl
-	if _, v, e := c.Client.Ping(); e != nil {
-		return fmt.Errorf("Failed to connect to %s\n", c.Client.Addr())
-	} else {
-		c.ServerVersion = v
-	}
 
-	_, c.ServerVersion, _ = c.Client.Ping()
+	var v string
+	if _, v, e = c.Client.Ping(); e != nil {
+		return fmt.Errorf("Failed to connect to %s\n", c.Client.Addr())
+	}
+	c.ServerVersion = v
 
 	return nil
 }
 
+// SetAuth sets client authentication credentials
 func (c *CommandLine) SetAuth(cmd string) {
 	// If they pass in the entire command, we should parse it
 	// auth <username> <password>
@@ -309,6 +326,7 @@ func (c *CommandLine) use(cmd string) {
 	fmt.Printf("Using database %s\n", d)
 }
 
+// SetPrecision sets client precision
 func (c *CommandLine) SetPrecision(cmd string) {
 	// Remove the "precision" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "precision", "", -1))
@@ -327,6 +345,7 @@ func (c *CommandLine) SetPrecision(cmd string) {
 	}
 }
 
+// SetFormat sets output format
 func (c *CommandLine) SetFormat(cmd string) {
 	// Remove the "format" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "format", "", -1))
@@ -341,6 +360,7 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
+// SetWriteConsistency sets cluster consistency level
 func (c *CommandLine) SetWriteConsistency(cmd string) {
 	// Remove the "consistency" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "consistency", "", -1))
@@ -425,6 +445,7 @@ func (c *CommandLine) parseInto(stmt string) string {
 	return stmt
 }
 
+// Insert runs an INSERT statement
 func (c *CommandLine) Insert(stmt string) error {
 	i, point := parseNextIdentifier(stmt)
 	if !strings.EqualFold(i, "insert") {
@@ -455,6 +476,7 @@ func (c *CommandLine) Insert(stmt string) error {
 	return nil
 }
 
+// ExecuteQuery runs any query statement
 func (c *CommandLine) ExecuteQuery(query string) error {
 	response, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
@@ -473,6 +495,7 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 	return nil
 }
 
+// DatabaseToken retrieves database token
 func (c *CommandLine) DatabaseToken() (string, error) {
 	response, err := c.Client.Query(client.Query{Command: "SHOW DIAGNOSTICS for 'registration'"})
 	if err != nil {
@@ -491,6 +514,7 @@ func (c *CommandLine) DatabaseToken() (string, error) {
 	return "", nil
 }
 
+// FormatResponse formats output to previsouly chosen format
 func (c *CommandLine) FormatResponse(response *client.Response, w io.Writer) {
 	switch c.Format {
 	case "json":
@@ -644,6 +668,7 @@ func interfaceToString(v interface{}) string {
 	}
 }
 
+// Settings prints current settings
 func (c *CommandLine) Settings() {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
@@ -686,14 +711,9 @@ func (c *CommandLine) help() {
 }
 
 func (c *CommandLine) history() {
-	usr, err := user.Current()
-	// Only load history if we can get the user
-	if err == nil {
-		historyFile := filepath.Join(usr.HomeDir, ".influx_history")
-		if history, err := ioutil.ReadFile(historyFile); err == nil {
-			fmt.Print(string(history))
-		}
-	}
+	var buf bytes.Buffer
+	c.Line.WriteHistory(&buf)
+	fmt.Print(buf.String())
 }
 
 func (c *CommandLine) gopher() {
@@ -753,6 +773,7 @@ func (c *CommandLine) gopher() {
 `)
 }
 
+// Version prints CLI version
 func (c *CommandLine) Version() {
 	fmt.Println("InfluxDB shell " + c.ClientVersion)
 }
