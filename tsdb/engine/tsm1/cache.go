@@ -101,6 +101,7 @@ func (e *entry) dedupe() {
 		return
 	}
 
+	e.unsorted = false
 	return
 }
 
