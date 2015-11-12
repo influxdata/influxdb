@@ -165,7 +165,7 @@ func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 }
 
 // SetCheckpoint informs the cache that updates received up to and including checkpoint can be
-// safely evicted. Setting a checkpoint does not mean that eviction will actually occur.
+// safely evicted. Setting a checkpoint does not mean that eviction up to that point will actually occur.
 func (c *Cache) SetCheckpoint(checkpoint uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
