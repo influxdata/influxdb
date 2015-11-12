@@ -153,11 +153,8 @@ func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 
 	e, ok := c.store[key]
 	if !ok {
-		e, ok = c.store[key]
-		if !ok {
-			e := newEntry()
-			c.store[key] = e
-		}
+		e := newEntry()
+		c.store[key] = e
 	}
 	c.size += e.add(values, checkpoint)
 
