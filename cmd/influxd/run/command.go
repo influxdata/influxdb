@@ -67,13 +67,13 @@ func (cmd *Command) Run(args ...string) error {
 	// Print sweet InfluxDB logo.
 	fmt.Print(logo)
 
+	// Set parallelism.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	// Mark start-up in log.
 	log.Printf("InfluxDB starting, version %s, branch %s, commit %s, built %s",
 		cmd.Version, cmd.Branch, cmd.Commit, cmd.BuildTime)
 	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
-
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
