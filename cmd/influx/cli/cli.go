@@ -663,23 +663,24 @@ func (c *CommandLine) Settings() {
 
 func (c *CommandLine) help() {
 	fmt.Println(`Usage:
-        connect <host:port>   connect to another node
-        auth                  prompt for username and password
-        pretty                toggle pretty print
-        use <db_name>         set current databases
-        format <format>       set the output format: json, csv, or column
-        precision <format>    set the timestamp format: h,m,s,ms,u,ns
-        consistency <level>   set write consistency level: any, one, quorum, or all
-        settings              output the current settings for the shell
-        exit                  quit the influx shell
+        connect <host:port>   connects to another node specified by host:port
+        auth                  prompts for username and password
+        pretty                toggles pretty print for the json format	 
+        use <db_name>         sets current database
+        format <format>       specifies the format of the server responses: json, csv, or column
+        precision <format>    specifies the format of the timestamp: rfc3339, h, m, s, ms, u or ns
+        consistency <level>   sets write consistency level: any, one, quorum, or all
+        history               displays command history
+        settings              outputs the current settings for the shell
+        exit                  quits the influx shell
 
         show databases        show database names
         show series           show series information
         show measurements     show measurement information
         show tag keys         show tag key information
-        show tag values       show tag value information
+        show field keys       show field key information
 
-        a full list of influxql commands can be found at:
+        A full list of influxql commands can be found at:
         https://influxdb.com/docs/v0.9/query_language/spec.html
 `)
 }
