@@ -36,6 +36,7 @@ func (l *lru) MoveToFront(key string) {
 // Remove removes key from the LRU. If the key does not exist nothing happens.
 func (l *lru) Remove(key string) {
 	l.list.Remove(l.elements[key])
+	delete(l.elements, key)
 }
 
 // Front returns the most-recently used key. If there is no such key, then "" is returned.
