@@ -44,8 +44,8 @@ type HTTPConfig struct {
 }
 
 type UDPConfig struct {
-	// Addr should be of the form "udp://host:port"
-	// or "udp://[ipv6-host%zone]:port".
+	// Addr should be of the form "host:port"
+	// or "[ipv6-host%zone]:port".
 	Addr string
 
 	// PayloadSize is the maximum size of a UDP client message, optional
