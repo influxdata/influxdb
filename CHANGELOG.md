@@ -2,6 +2,7 @@
 
 ### Release Notes
 - Field names for the internal stats have been changed to be more inline with Go style.
+- 0.9.5 is reverting to Go 1.4.2 due to unresolved issues with Go 1.5.1.
 
 ### Features
 - [#4098](https://github.com/influxdb/influxdb/pull/4702): Support 'history' command at CLI
