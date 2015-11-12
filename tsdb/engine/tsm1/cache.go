@@ -201,6 +201,9 @@ func (c *Cache) Evict(size uint64) uint64 {
 
 // Cursor returns a cursor for the given key.
 func (c *Cache) Cursor(key string) tsdb.Cursor {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	e, ok := c.store[key]
 	if !ok {
 		return nil
