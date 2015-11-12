@@ -141,7 +141,7 @@ func NewStore(c *Config) *Store {
 	s := &Store{
 		path:  c.Dir,
 		peers: c.Peers,
-		data:  &Data{},
+		data:  NewData(),
 
 		ready:   make(chan struct{}),
 		err:     make(chan error),
