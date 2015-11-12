@@ -67,7 +67,6 @@ func (l *lru) Do(f func(key string)) {
 // entry is the set of all values received for a given key. It's analogous to a cache-line
 // in the sense that it is the smallest unit that can be evicted from the cache.
 type entry struct {
-	mu         sync.Mutex
 	values     Values // All stored values.
 	checkpoint uint64 // The checkpoint associated with the latest addition to values
 	unsorted   bool   // Whether the data requires sorting and deduping before query.
