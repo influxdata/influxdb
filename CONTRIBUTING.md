@@ -13,7 +13,7 @@ Remember the golden rule of bug reports: **The easier you make it for us to repr
 If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
 
 Test cases should be in the form of `curl` commands. For example:
-```
+```bash
 # create database
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
 
@@ -96,9 +96,11 @@ Getting the source
 ------
 Setup the project structure and fetch the repo like so:
 
+```bash
     mkdir $HOME/gocodez
     export GOPATH=$HOME/gocodez
     go get github.com/influxdb/influxdb
+```
 
 You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
 
@@ -106,10 +108,12 @@ Cloning a fork
 -------------
 If you wish to work with fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Follow the steps below to work with a fork:
 
+```bash
     export GOPATH=$HOME/gocodez
     mkdir -p $GOPATH/src/github.com/influxdb
     cd $GOPATH/src/github.com/influxdb
     git clone git@github.com:<username>/influxdb
+```
 
 Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary so that Go imports work correctly.
 
@@ -117,10 +121,10 @@ Pre-commit checks
 -------------
 
 We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
-
+```bash
     cd $GOPATH/src/github.com/influxdb/influxdb
     cp .hooks/pre-commit .git/hooks/
-
+```
 In case the commit is rejected because it's not formatted you can run
 the following to format the code:
 
