@@ -190,14 +190,7 @@ Loop:
 // ParseCommand parses an instruction and calls related method, if any
 func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
-
-	split := strings.Split(lcmd, " ")
-	var tokens []string
-	for _, token := range split {
-		if token != "" {
-			tokens = append(tokens, token)
-		}
-	}
+	tokens := strings.Fields(lcmd)
 
 	if len(tokens) > 0 {
 		switch tokens[0] {
