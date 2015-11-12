@@ -11,7 +11,6 @@ import (
 // lru orders string keys from least-recently used to most-recently used. It is not
 // goroutine safe.
 type lru struct {
-	mu       sync.Mutex
 	list     *list.List
 	elements map[string]*list.Element
 }
