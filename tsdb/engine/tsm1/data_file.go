@@ -108,7 +108,7 @@ type TSMIndex interface {
 	Entries(key string) []*IndexEntry
 
 	// Entry returns the index entry for the specified key and timestamp.  If no entry
-	// matches the key an timestamp, nil is returned.
+	// matches the key and timestamp, nil is returned.
 	Entry(key string, timestamp time.Time) *IndexEntry
 
 	// MarshalBinary returns a byte slice encoded version of the index.
