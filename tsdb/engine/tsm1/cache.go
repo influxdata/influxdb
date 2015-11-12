@@ -4,6 +4,8 @@ import (
 	"container/list"
 	"fmt"
 	"sync"
+
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 // lru orders string keys from least-recently used to most-recently used. It is not
@@ -194,31 +196,37 @@ func (c *Cache) Evict(size uint64) uint64 {
 	return c.evict(size)
 }
 
+// Cursor returns a cursor for the given key.
+func (c *Cache) Cursor() tsdb.Cursor {
+	return nil
+}
+
 // evict instructs the cache to evict data until all data with an associated checkpoint
 // before the last checkpoint was set, or memory footprint decreases by the given size.
 // Returns the number of point-calculated bytes that were actually evicted.
 func (c *Cache) evict(size uint64) uint64 {
 	// Get the list of keys which can be evicted.
 	evictions := []string{}
+	var n uint64
 	c.lru.Do(func(key string) {
-		entry := c.store[key]
-		if entry.checkpoint <= c.checkpoint {
-			evictions = append(evictions, key)
+		if n >= size {
+			// Requested amount of data already marked for eviction.
+			return
 		}
+
+		entry := c.store[key]
+		if entry.checkpoint > c.checkpoint {
+			// Eviction would mean queries from the cache could be incorrect.
+			return
+		}
+		evictions = append(evictions, key)
+		n += entry.size
 	})
 
 	// Now, perform the actual evictions.
-	var n uint64
 	for _, key := range evictions {
-		entry := c.store[key]
-		n += entry.size
 		delete(c.store, key)
 		c.lru.Remove(key)
-
-		if n >= size {
-			// Requested amount of data has been evicted.
-			break
-		}
 	}
 
 	c.size -= n
