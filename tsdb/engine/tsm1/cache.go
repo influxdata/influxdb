@@ -6,12 +6,15 @@ import (
 	"sync"
 )
 
+// lru orders string keys from least-recently used to most-recently used. It is not
+// goroutine safe.
 type lru struct {
 	mu       sync.Mutex
 	list     *list.List
 	elements map[string]*list.Element
 }
 
+// newLRU returns an initialized LRU.
 func newLRU() *lru {
 	return &lru{
 		list:     list.New(),
@@ -19,6 +22,7 @@ func newLRU() *lru {
 	}
 }
 
+// MoveToFront marks key as the most recently used key.
 func (l *lru) MoveToFront(key string) {
 	e, ok := l.elements[key]
 	if !ok {
@@ -28,10 +32,12 @@ func (l *lru) MoveToFront(key string) {
 	l.list.MoveToFront(e)
 }
 
+// Remove removes key from the LRU. If the key does not exist nothing happens.
 func (l *lru) Remove(key string) {
 	l.list.Remove(l.elements[key])
 }
 
+// Front returns the most-recently used key. If there is no such key, then "" is returned.
 func (l *lru) Front() string {
 	e := l.list.Front()
 	if e == nil {
@@ -40,6 +46,7 @@ func (l *lru) Front() string {
 	return e.Value.(string)
 }
 
+// Back returns the most-recently used key. If there is no such key, then "" is returned.
 func (l *lru) Back() string {
 	e := l.list.Back()
 	if e == nil {
@@ -51,12 +58,13 @@ func (l *lru) Back() string {
 // Do iterates through the LRU, from least-recently used to most-recently used,
 // calling the given function with the key.
 func (l *lru) Do(f func(key string)) {
-	for e := l.list.Front(); e != nil; e = e.Next() {
+	for e := l.list.Back(); e != nil; e = e.Prev() {
 		f(e.Value.(string))
 	}
 }
 
-// entry is the set of all values received for a given key.
+// entry is the set of all values received for a given key. It's analogous to a cache-line
+// in the sense that it is the smallest unit that can be evicted from the cache.
 type entry struct {
 	mu         sync.Mutex
 	values     Values // All stored values.
@@ -71,9 +79,6 @@ func newEntry() *entry {
 
 // add adds the given values to the entry. Returns the increase in storage footprint.
 func (e *entry) add(values []Value, chk uint64) uint64 {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	var inc uint64
 	for _, v := range values {
 		e.values = append(e.values, v)
@@ -90,9 +95,6 @@ func (e *entry) add(values []Value, chk uint64) uint64 {
 
 // dedupe prepares the entry for query.
 func (e *entry) dedupe() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	if !e.unsorted {
 		// Nothing to do.
 		return
@@ -193,8 +195,8 @@ func (c *Cache) Evict(size uint64) uint64 {
 }
 
 // evict instructs the cache to evict data until all data with an associated checkpoint
-// before the last checkpoint was set, or the memory footprint of the cache drops below
-// the given size. Returns the number of point-calculated bytes that were evicted.
+// before the last checkpoint was set, or memory footprint decreases by the given size.
+// Returns the number of point-calculated bytes that were actually evicted.
 func (c *Cache) evict(size uint64) uint64 {
 	// Get the list of keys which can be evicted.
 	evictions := []string{}
@@ -211,6 +213,8 @@ func (c *Cache) evict(size uint64) uint64 {
 		entry := c.store[key]
 		n += entry.size
 		delete(c.store, key)
+		c.lru.Remove(key)
+
 		if n >= size {
 			// Requested amount of data has been evicted.
 			break
