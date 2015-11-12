@@ -94,7 +94,7 @@ type TSMWriter interface {
 	Write(key string, values Values) error
 
 	// Close finishes the TSM write streams and writes the index.
-	Close() error
+	WriteIndex() error
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -106,6 +106,11 @@ type TSMIndex interface {
 
 	// Entries returns all index entries for a key.
 	Entries(key string) []*IndexEntry
+
+	// Contains returns true if key and time might exists in this file.  This function could
+	// return true even though the actual point does not exists.  For example, the key may
+	// exists in this file, but not have point exactly at time t.
+	Contains(key string, timestamp time.Time) bool
 
 	// Entry returns the index entry for the specified key and timestamp.  If no entry
 	// matches the key and timestamp, nil is returned.
@@ -183,6 +188,10 @@ func (d *directIndex) Entry(key string, t time.Time) *IndexEntry {
 		}
 	}
 	return nil
+}
+
+func (d *directIndex) Contains(key string, t time.Time) bool {
+	return d.Entry(key, t) != nil
 }
 
 func (d *directIndex) addEntries(key string, entries indexEntries) {
@@ -324,6 +333,14 @@ type indirectIndex struct {
 	// offsets contains the positions in b for each key.  It points to the 2 byte length of
 	// key.
 	offsets []int32
+
+	// minKey, maxKey are the minium and maximum (lexicographically sorted) contained in the
+	// file
+	minKey, maxKey string
+
+	// minTime, maxTime are the minimum and maximum times contained in the file across all
+	// series.
+	minTime, maxTime time.Time
 }
 
 func NewIndirectIndex() TSMIndex {
@@ -395,6 +412,10 @@ func (d *indirectIndex) Entry(key string, timestamp time.Time) *IndexEntry {
 	return nil
 }
 
+func (d *indirectIndex) Contains(key string, timestamp time.Time) bool {
+	return d.Entry(key, timestamp) != nil
+}
+
 // MarshalBinary returns a byte slice encoded version of the index.
 func (d *indirectIndex) MarshalBinary() ([]byte, error) {
 	return d.b, nil
@@ -430,6 +451,7 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		// Skip over all the blocks
 		i += count * indexEntrySize
 	}
+
 	return nil
 }
 
@@ -499,7 +521,7 @@ func (t *tsmWriter) Write(key string, values Values) error {
 	return nil
 }
 
-func (t *tsmWriter) Close() error {
+func (t *tsmWriter) WriteIndex() error {
 	indexPos := t.n
 
 	// Generate the index bytes
@@ -647,6 +669,20 @@ func (t *tsmReader) ReadAll(key string) ([]Value, error) {
 	}
 
 	return values, nil
+}
+
+func (t *tsmReader) Close() error {
+	if c, ok := t.r.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
+}
+
+// Contains returns true if key and time might exists in this file.  This function could
+// return true even though the actual point does not exists.  For example, the key may
+// exists in this file, but not have point exactly at time t.
+func (t *tsmReader) Contains(key string, ts time.Time) bool {
+	return t.index.Contains(key, ts)
 }
 
 type indexEntries []*IndexEntry

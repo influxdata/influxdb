@@ -16,7 +16,7 @@ func TestTSMWriter_Write_Empty(t *testing.T) {
 		t.Fatalf("unexpected error created writer: %v", err)
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -40,7 +40,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 		t.Fatalf("unexpeted error writing: %v", err)
 
 	}
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -93,7 +93,7 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -313,7 +313,7 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
