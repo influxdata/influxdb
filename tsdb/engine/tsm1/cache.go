@@ -47,7 +47,7 @@ func (l *lru) Front() string {
 	return e.Value.(string)
 }
 
-// Back returns the most-recently used key. If there is no such key, then "" is returned.
+// Back returns the least-recently used key. If there is no such key, then "" is returned.
 func (l *lru) Back() string {
 	e := l.list.Back()
 	if e == nil {
@@ -57,7 +57,7 @@ func (l *lru) Back() string {
 }
 
 // Do iterates through the LRU, from least-recently used to most-recently used,
-// calling the given function with the key.
+// calling the given function with each key.
 func (l *lru) Do(f func(key string)) {
 	for e := l.list.Back(); e != nil; e = e.Prev() {
 		f(e.Value.(string))
