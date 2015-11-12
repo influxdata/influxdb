@@ -137,6 +137,36 @@ One option is to MMAP the index into memory and record the pointers to the start
 
 A variation of this can also be done without MMAPs by seeking and reading in the file.  The underlying file cache will still be utilized in this approach as well.
 
+As an example, if we have an index structure in memory such as:
+
+ ```
+┌────────────────────────────────────────────────────────────────────┐
+│                               Index                                │
+├─┬──────────────────────┬──┬───────────────────────┬───┬────────────┘
+│0│                      │62│                       │145│
+├─┴───────┬─────────┬────┼──┴──────┬─────────┬──────┼───┴─────┬──────┐
+│Key 1 Len│   Key   │... │Key 2 Len│  Key 2  │ ...  │  Key 3  │ ...  │
+│ 2 bytes │ N bytes │    │ 2 bytes │ N bytes │      │ 2 bytes │      │
+└─────────┴─────────┴────┴─────────┴─────────┴──────┴─────────┴──────┘
+```
+
+We would build an `offsets` slices where each element pointers to the byte location for the first key in then index slice.
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│                              Offsets                               │
+├────┬────┬────┬─────────────────────────────────────────────────────┘
+│ 0  │ 62 │145 │
+└────┴────┴────┘
+ ```
+
+
+Using this offset slice we can find `Key 2` by doing a binary search over the offsets slice.  Instead of comparing the value in the offsets (e.g. `62`), we use that as an index into the underlying index to retrieve the key at postion `62` and perform our comparisons with that.
+
+When we have identified the correct position in the index for a given key, we could perform another binary search or a linear scan.  This should be fast as well since each index entry is 28 bytes and all contiguous in memory.
+
+The size of the offsets slice would be proportional to the number of unique series.  If we we limit file sizes to 4GB, we would use 4 bytes for each pointer.
+
 ### LRU/Lazy Load
 
 A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
