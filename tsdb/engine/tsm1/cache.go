@@ -206,6 +206,9 @@ func (c *Cache) Cursor(key string) tsdb.Cursor {
 		return nil
 	}
 
+	// Mark entry as most-recently used.
+	c.lru.MoveToFront(key)
+
 	e.dedupe()
 	_ = e.clone()
 	// Actually return a cursor
