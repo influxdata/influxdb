@@ -36,10 +36,11 @@
 
 AWS_FILE=~/aws.conf
 
-INSTALL_ROOT_DIR=/opt/influxdb
+INSTALL_ROOT_DIR=/usr/bin
 INFLUXDB_LOG_DIR=/var/log/influxdb
-INFLUXDB_DATA_DIR=/var/opt/influxdb
-CONFIG_ROOT_DIR=/etc/opt/influxdb
+INFLUXDB_DATA_DIR=/var/lib/influxdb
+INFLUXDB_SCRIPT_DIR=/usr/lib/influxdb
+CONFIG_ROOT_DIR=/etc/influxdb
 LOGROTATE_DIR=/etc/logrotate.d
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
@@ -213,9 +214,11 @@ check_tag_exists () {
 make_dir_tree() {
     work_dir=$1
     version=$2
-    mkdir -p $work_dir/$INSTALL_ROOT_DIR/versions/$version/scripts
+
+    mkdir -p $work_dir/$INSTALL_ROOT_DIR
+    mkdir -p $work_dir/$INFLUXDB_SCRIPT_DIR/scripts
     if [ $? -ne 0 ]; then
-        echo "Failed to create installation directory -- aborting."
+        echo "Failed to create script directory -- aborting."
         cleanup_exit 1
     fi
     mkdir -p $work_dir/$CONFIG_ROOT_DIR
@@ -281,29 +284,34 @@ generate_postinstall_script() {
     version=$1
     cat  <<EOF >$POST_INSTALL_PATH
 #!/bin/sh
-rm -f $INSTALL_ROOT_DIR/influxd
-rm -f $INSTALL_ROOT_DIR/influx
-rm -f $INSTALL_ROOT_DIR/init.sh
-ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
-ln -s $INSTALL_ROOT_DIR/versions/$version/influx $INSTALL_ROOT_DIR/influx
-ln -s $INSTALL_ROOT_DIR/versions/$version/influx_inspect $INSTALL_ROOT_DIR/influx_inspect
-ln -s $INSTALL_ROOT_DIR/versions/$version/influx_stress $INSTALL_ROOT_DIR/influx_stress
-ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
 if ! id influxdb >/dev/null 2>&1; then
-        useradd --system -U -M influxdb
+        useradd --system -U -M influxdb -s /bin/false -d $INFLUXDB_DATA_DIR
 fi
+chown influxdb:influxdb $INSTALL_ROOT_DIR/influx*
+chmod a+rX $INSTALL_ROOT_DIR/influx*
+
+mkdir -p $INFLUXDB_LOG_DIR
+chown -R -L influxdb:influxdb $INFLUXDB_LOG_DIR
+mkdir -p $INFLUXDB_DATA_DIR
+chown -R -L influxdb:influxdb $INFLUXDB_DATA_DIR
+
+test -f /etc/default/influxdb || touch /etc/default/influxdb
+
+# Remove legacy logrotate file
+test -f $LOGROTATE_DIR/influxd && rm -f $LOGROTATE_DIR/influxd
+
+# Remove legacy symlink
+test -h /etc/init.d/influxdb && rm -f /etc/init.d/influxdb
 
 # Systemd
 if which systemctl > /dev/null 2>&1 ; then
-    cp $INSTALL_ROOT_DIR/versions/$version/scripts/influxdb.service \
-        /lib/systemd/system/influxdb.service
+    cp $INFLUXDB_SCRIPT_DIR/$SYSTEMD_SCRIPT /lib/systemd/system/influxdb.service
     systemctl enable influxdb
 
 # Sysv
 else
-    rm -f /etc/init.d/influxdb
-    ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
+    cp -f $INFLUXDB_SCRIPT_DIR/$INITD_SCRIPT /etc/init.d/influxdb
     chmod +x /etc/init.d/influxdb
     if which update-rc.d > /dev/null 2>&1 ; then
         update-rc.d -f influxdb remove
@@ -312,14 +320,6 @@ else
         chkconfig --add influxdb
     fi
 fi
-
-chown -R -L influxdb:influxdb $INSTALL_ROOT_DIR
-chmod -R a+rX $INSTALL_ROOT_DIR
-
-mkdir -p $INFLUXDB_LOG_DIR
-chown -R -L influxdb:influxdb $INFLUXDB_LOG_DIR
-mkdir -p $INFLUXDB_DATA_DIR
-chown -R -L influxdb:influxdb $INFLUXDB_DATA_DIR
 EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }
@@ -387,7 +387,8 @@ do
            usage 1
         fi
 
-        echo $VERSION | grep -i '[r|c]' 2>&1 >/dev/null
+
+        echo $VERSION | grep -i '[r|rc]' 2>&1 >/dev/null
         if [ $? -ne 1 -a -z "$NIGHTLY_BUILD" ]; then
             echo
             echo "$VERSION contains reference to RC - specify RC separately"
@@ -443,27 +444,27 @@ make_dir_tree $TMP_WORK_DIR `full_version $VERSION $RC`
 # Copy the assets to the installation directories.
 
 for b in ${BINS[*]}; do
-    cp $GOPATH_INSTALL/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`
+    cp $GOPATH_INSTALL/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/
     if [ $? -ne 0 ]; then
-        echo "Failed to copy binaries to packaging directory -- aborting."
+        echo "Failed to copy binaries to packaging directory ($TMP_WORK_DIR/$INSTALL_ROOT_DIR/) -- aborting."
         cleanup_exit 1
     fi
 done
-echo "${BINS[*]} copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`"
+echo "${BINS[*]} copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/"
 
-cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts
+cp $INITD_SCRIPT $TMP_WORK_DIR/$INFLUXDB_SCRIPT_DIR/$INITD_SCRIPT
 if [ $? -ne 0 ]; then
-    echo "Failed to copy init.d script to packaging directory -- aborting."
+    echo "Failed to copy init.d script to packaging directory ($TMP_WORK_DIR/$INFLUXDB_SCRIPT_DIR/) -- aborting."
     cleanup_exit 1
 fi
-echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts"
+echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INFLUXDB_SCRIPT_DIR"
 
-cp $SYSTEMD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts
+cp $SYSTEMD_SCRIPT $TMP_WORK_DIR/$INFLUXDB_SCRIPT_DIR/$SYSTEMD_SCRIPT
 if [ $? -ne 0 ]; then
     echo "Failed to copy systemd script to packaging directory -- aborting."
     cleanup_exit 1
 fi
-echo "$SYSTEMD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/`full_version $VERSION $RC`/scripts"
+echo "$SYSTEMD_SCRIPT copied to $TMP_WORK_DIR/$INFLUXDB_SCRIPT_DIR"
 
 cp $SAMPLE_CONFIGURATION $TMP_WORK_DIR/$CONFIG_ROOT_DIR/influxdb.conf
 if [ $? -ne 0 ]; then
