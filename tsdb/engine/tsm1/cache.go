@@ -25,7 +25,7 @@ func (l *lru) MoveToFront(key string) {
 		l.elements[key] = l.list.PushFront(key)
 		return
 	}
-	l.list.MoveToFront(l.elements[key])
+	l.list.MoveToFront(e)
 }
 
 func (l *lru) Remove(key string) {
@@ -110,7 +110,6 @@ type Cache struct {
 	size       uint64
 	maxSize    uint64
 
-	lmu sync.Mutex
 	lru *lru // List of entry keys from most recently accessed to least.
 }
 
@@ -124,36 +123,38 @@ func NewCache(maxSize uint64) *Cache {
 }
 
 // WriteKey writes the set of values for the key to the cache. It associates the data with
-// the given checkpoint. This function is goroutine-safe and different keys can be updated
-// concurrently.
+// the given checkpoint. This function is goroutine-safe.
+//
+// TODO: This function is a significant potential bottleneck. It is possible that keys could
+// be modified while an eviction process was taking place, so a big cache-level lock is in place.
+// Need to revisit this. It's correct but may not be performant (it is the same as the existing
+// design however)
 func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
-	if c.Size() > c.maxSize {
-		// Try eviction.
-		return fmt.Errorf("maximum memory usage exceeded")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.size > c.maxSize {
+		c.evict(c.maxSize)
 	}
 
-	c.mu.RLock()
+	// Size OK now?
+	if c.size > c.maxSize {
+		return fmt.Errorf("cache maximum memory size exceeded")
+	}
+
 	e, ok := c.store[key]
-	c.mu.RUnlock()
 	if !ok {
-		// Check again under the write lock
-		c.mu.Lock()
 		e, ok = c.store[key]
 		if !ok {
 			e := newEntry()
 			c.store[key] = e
 		}
-		c.mu.Unlock()
 	}
-	c.incrementSize(e.add(values, checkpoint))
+	c.size += e.add(values, checkpoint)
 
 	// Mark entry as most-recently used.
-	c.lmu.Lock()
 	c.lru.MoveToFront(key)
-	c.lmu.Unlock()
 
 	return nil
-
 }
 
 // SetCheckpoint informs the cache that updates received up to and including checkpoint can be
@@ -163,43 +164,6 @@ func (c *Cache) SetCheckpoint(checkpoint uint64) error {
 	defer c.mu.Unlock()
 	c.checkpoint = checkpoint
 	return nil
-}
-
-// Evict instructs the cache to evict data until all data with an associated checkpoint
-// before the last checkpoint was set, or the memory footprint of the cache drops below
-// the given size. Returns the number of point-calculated bytes that were evicted.
-func (c *Cache) Evict(size uint64) (uint64, error) {
-	// lock cache
-	// defer lock of cache
-	c.lmu.Lock()
-	defer c.lmu.Unlock()
-
-	evictions := []string{}
-	c.lru.Do(func(key string) {
-		entry := c.store[key]
-		if entry.checkpoint <= c.checkpoint {
-			evictions = append(evictions, key)
-		}
-	})
-
-	// Lock the store somehow....above and defer
-	var n uint64
-	for _, key := range evictions {
-		entry := c.store[key]
-		if entry.checkpoint > c.checkpoint {
-			// Entry modified after checkpoint, not safe to evict.
-			continue
-		}
-		n += entry.size
-		delete(c.store, key)
-		if n >= size {
-			// Requested amount of data has been evicted.
-			break
-		}
-	}
-
-	c.size -= n
-	return n, nil
 }
 
 // Size returns the number of bytes the cache currently uses.
@@ -221,8 +185,44 @@ func (c *Cache) Checkpoint() uint64 {
 	return c.checkpoint
 }
 
-// incrementSize increments the bookeeping of current memory storage.
-func (c *Cache) incrementSize(n uint64) {
+// Evict instructs the cache to evict.
+func (c *Cache) Evict(size uint64) uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.evict(size)
+}
+
+// evict instructs the cache to evict data until all data with an associated checkpoint
+// before the last checkpoint was set, or the memory footprint of the cache drops below
+// the given size. Returns the number of point-calculated bytes that were evicted.
+func (c *Cache) evict(size uint64) uint64 {
+	// Get the list of keys which can be evicted.
+	evictions := []string{}
+	c.lru.Do(func(key string) {
+		entry := c.store[key]
+		if entry.checkpoint <= c.checkpoint {
+			evictions = append(evictions, key)
+		}
+	})
+
+	// Now, perform the actual evictions.
+	var n uint64
+	for _, key := range evictions {
+		entry := c.store[key]
+		n += entry.size
+		delete(c.store, key)
+		if n >= size {
+			// Requested amount of data has been evicted.
+			break
+		}
+	}
+
+	c.size -= n
+	return n
+}
+
+// IncrementSize increments the bookeeping of current memory storage.
+func (c *Cache) IncrementSize(n uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.size += n
