@@ -9,11 +9,13 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 
 	"github.com/influxdb/influxdb/client"
@@ -50,6 +52,7 @@ type CommandLine struct {
 	Path             string
 	Compressed       bool
 	Quit             chan struct{}
+	osSignals        chan os.Signal
 	historyFile      *os.File
 }
 
@@ -58,11 +61,15 @@ func New(version string) *CommandLine {
 	return &CommandLine{
 		ClientVersion: version,
 		Quit:          make(chan struct{}, 1),
+		osSignals:     make(chan os.Signal, 1),
 	}
 }
 
 // Run executes the CLI
 func (c *CommandLine) Run() {
+	// register OS signals for graceful termination
+	signal.Notify(c.osSignals, os.Kill, os.Interrupt, syscall.SIGTERM)
+
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
 	for _, v := range os.Args {
@@ -158,18 +165,13 @@ func (c *CommandLine) Run() {
 		}
 	}
 
-Loop:
 	// read from prompt until exit is run
 	for {
 		select {
+		case <-c.osSignals:
+			close(c.Quit)
 		case <-c.Quit:
-			// write to history file
-			_, err := c.Line.WriteHistory(c.historyFile)
-			if err != nil {
-				fmt.Printf("There was an error writing history file: %s\n", err)
-			}
-			// exit CLI
-			break Loop
+			c.exit()
 		default:
 			l, e := c.Line.Prompt("> ")
 			if e != nil {
@@ -768,4 +770,17 @@ func (c *CommandLine) gopher() {
 // Version prints CLI version
 func (c *CommandLine) Version() {
 	fmt.Println("InfluxDB shell " + c.ClientVersion)
+}
+
+func (c *CommandLine) exit() {
+	// write to history file
+	_, err := c.Line.WriteHistory(c.historyFile)
+	if err != nil {
+		fmt.Printf("There was an error writing history file: %s\n", err)
+	}
+	// release line resources
+	c.Line.Close()
+	c.Line = nil
+	// exit CLI
+	os.Exit(0)
 }
