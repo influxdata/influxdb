@@ -965,6 +965,62 @@ func TestStatementExecutor_ExecuteStatement_Unsupported(t *testing.T) {
 	}
 }
 
+// Ensure a SHOW SHARD GROUPS statement can be executed.
+func TestStatementExecutor_ExecuteStatement_ShowShardGroups(t *testing.T) {
+	e := NewStatementExecutor()
+	e.Store.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+		return []meta.DatabaseInfo{
+			{
+				Name: "foo",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name:     "rpi_foo",
+						Duration: time.Second,
+						ShardGroups: []meta.ShardGroupInfo{
+							{
+								ID:        66,
+								StartTime: time.Unix(0, 0),
+								EndTime:   time.Unix(1, 0),
+							},
+						},
+					},
+				},
+			},
+			{
+				Name: "foo",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name:     "rpi_foo",
+						Duration: time.Second,
+						ShardGroups: []meta.ShardGroupInfo{
+							{
+								ID:        77,
+								StartTime: time.Unix(2, 0),
+								EndTime:   time.Unix(3, 0),
+							},
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SHARD GROUPS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if !reflect.DeepEqual(res.Series, models.Rows{
+		{
+			Name:    "shard groups",
+			Columns: []string{"id", "database", "retention_policy", "start_time", "end_time", "expiry_time"},
+			Values: [][]interface{}{
+				{uint64(66), "foo", "rpi_foo", "1970-01-01T00:00:00Z", "1970-01-01T00:00:01Z", "1970-01-01T00:00:02Z"},
+				{uint64(77), "foo", "rpi_foo", "1970-01-01T00:00:02Z", "1970-01-01T00:00:03Z", "1970-01-01T00:00:04Z"},
+			},
+		},
+	}) {
+		t.Fatalf("unexpected rows: %s", spew.Sdump(res.Series))
+	}
+}
+
 // Ensure a SHOW SHARDS statement can be executed.
 func TestStatementExecutor_ExecuteStatement_ShowShards(t *testing.T) {
 	e := NewStatementExecutor()

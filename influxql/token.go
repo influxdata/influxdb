@@ -85,6 +85,7 @@ const (
 	GRANT
 	GRANTS
 	GROUP
+	GROUPS
 	IF
 	IN
 	INF
@@ -116,6 +117,7 @@ const (
 	SERVERS
 	SET
 	SHOW
+	SHARD
 	SHARDS
 	SLIMIT
 	SOFFSET
@@ -201,6 +203,7 @@ var tokens = [...]string{
 	GRANT:         "GRANT",
 	GRANTS:        "GRANTS",
 	GROUP:         "GROUP",
+	GROUPS:        "GROUPS",
 	IF:            "IF",
 	IN:            "IN",
 	INF:           "INF",
@@ -232,6 +235,7 @@ var tokens = [...]string{
 	SERVERS:       "SERVERS",
 	SET:           "SET",
 	SHOW:          "SHOW",
+	SHARD:         "SHARD",
 	SHARDS:        "SHARDS",
 	SLIMIT:        "SLIMIT",
 	SOFFSET:       "SOFFSET",

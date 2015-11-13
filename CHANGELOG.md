@@ -2,6 +2,7 @@
 
 ### Features
 - [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
+- [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
 
 ### Bugfixes
 - [#4768](https://github.com/influxdb/influxdb/pull/4768): CLI history skips blank lines. Thanks @pires

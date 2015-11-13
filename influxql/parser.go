@@ -130,6 +130,12 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
 	case SERIES:
 		return p.parseShowSeriesStatement()
+	case SHARD:
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok == GROUPS {
+			return p.parseShowShardGroupsStatement()
+		}
+		return nil, newParseError(tokstr(tok, lit), []string{"GROUPS"}, pos)
 	case SHARDS:
 		return p.parseShowShardsStatement()
 	case STATS:
@@ -163,6 +169,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		"USERS",
 		"STATS",
 		"DIAGNOSTICS",
+		"SHARD",
 		"SHARDS",
 		"SUBSCRIPTIONS",
 	}
@@ -1622,6 +1629,12 @@ func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
 	}
 
 	return
+}
+
+// parseShowShardGroupsStatement parses a string for "SHOW SHARD GROUPS" statement.
+// This function assumes the "SHOW SHARD GROUPS" tokens have already been consumed.
+func (p *Parser) parseShowShardGroupsStatement() (*ShowShardGroupsStatement, error) {
+	return &ShowShardGroupsStatement{}, nil
 }
 
 // parseShowShardsStatement parses a string for "SHOW SHARDS" statement.

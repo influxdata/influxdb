@@ -86,15 +86,15 @@ ALL           ALTER         ANY           AS            ASC           BEGIN
 BY            CREATE        CONTINUOUS    DATABASE      DATABASES     DEFAULT
 DELETE        DESC          DESTINATIONS  DIAGNOSTICS   DISTINCT      DROP
 DURATION      END           EXISTS        EXPLAIN       FIELD         FOR
-FORCE         FROM          GRANT         GRANTS        GROUP         IF
-IN            INF           INNER         INSERT        INTO          KEY
-KEYS          LIMIT         SHOW          MEASUREMENT   MEASUREMENTS  NOT
-OFFSET        ON            ORDER         PASSWORD      POLICY        POLICIES
-PRIVILEGES    QUERIES       QUERY         READ          REPLICATION   RETENTION
-REVOKE        SELECT        SERIES        SERVER        SERVERS       SET
-SHARDS        SLIMIT        SOFFSET       STATS         SUBSCRIPTION  SUBSCRIPTIONS
-TAG           TO            USER          USERS         VALUES        WHERE
-WITH          WRITE
+FORCE         FROM          GRANT         GRANTS        GROUP         GROUPS
+IF            IN            INF           INNER         INSERT        INTO
+KEY           KEYS          LIMIT         SHOW          MEASUREMENT   MEASUREMENTS
+NOT           OFFSET        ON            ORDER         PASSWORD      POLICY
+POLICIES      PRIVILEGES    QUERIES       QUERY         READ          REPLICATION
+RETENTION     REVOKE        SELECT        SERIES        SERVER        SERVERS
+SET           SHARD         SHARDS        SLIMIT        SOFFSET       STATS
+SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER          USERS
+VALUES        WHERE         WITH          WRITE
 ```
 
 ## Literals
@@ -523,6 +523,18 @@ show_series_stmt = "SHOW SERIES" [ from_clause ] [ where_clause ] [ group_by_cla
 
 ```sql
 
+```
+
+### SHOW SHARD GROUPS
+
+```
+show_shard_groups_stmt = "SHOW SHARD GROUPS" .
+```
+
+#### Example:
+
+```sql
+SHOW SHARD GROUPS;
 ```
 
 ### SHOW SHARDS
