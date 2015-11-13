@@ -114,10 +114,16 @@ type TSMIndex interface {
 	// Add records a new block entry for a key in the index.
 	Add(key string, minTime, maxTime time.Time, offset int64, size uint32)
 
-	// Contains returns true if key and time might exists in this file.  This function could
+	// Delete removes the given key from the index.
+	Delete(key string)
+
+	// Contains return true if the given key exists in the index.
+	Contains(key string) bool
+
+	// ContainsValue returns true if key and time might exists in this file.  This function could
 	// return true even though the actual point does not exists.  For example, the key may
 	// exists in this file, but not have point exactly at time t.
-	Contains(key string, timestamp time.Time) bool
+	ContainsValue(key string, timestamp time.Time) bool
 
 	// Entries returns all index entries for a key.
 	Entries(key string) []*IndexEntry
@@ -203,8 +209,16 @@ func (d *directIndex) Entry(key string, t time.Time) *IndexEntry {
 	return nil
 }
 
-func (d *directIndex) Contains(key string, t time.Time) bool {
+func (d *directIndex) Contains(key string) bool {
+	return len(d.Entries(key)) > 0
+}
+
+func (d *directIndex) ContainsValue(key string, t time.Time) bool {
 	return d.Entry(key, t) != nil
+}
+
+func (d *directIndex) Delete(key string) {
+	delete(d.blocks, key)
 }
 
 func (d *directIndex) Keys() []string {
@@ -442,13 +456,29 @@ func (d *indirectIndex) Entry(key string, timestamp time.Time) *IndexEntry {
 func (d *indirectIndex) Keys() []string {
 	var keys []string
 	for offset := range d.offsets {
-		_, key, _ := d.readKey(d.b[:offset])
+		_, key, _ := d.readKey(d.b[offset:])
 		keys = append(keys, key)
 	}
 	return keys
 }
 
-func (d *indirectIndex) Contains(key string, timestamp time.Time) bool {
+func (d *indirectIndex) Delete(key string) {
+	var offsets []int32
+	for offset := range d.offsets {
+		_, indexKey, _ := d.readKey(d.b[offset:])
+		if key == indexKey {
+			continue
+		}
+		offsets = append(offsets, int32(offset))
+	}
+	d.offsets = offsets
+}
+
+func (d *indirectIndex) Contains(key string) bool {
+	return len(d.Entries(key)) > 0
+}
+
+func (d *indirectIndex) ContainsValue(key string, timestamp time.Time) bool {
 	return d.Entry(key, timestamp) != nil
 }
 
@@ -586,10 +616,14 @@ type tsmReader struct {
 	r                    io.ReadSeeker
 	indexStart, indexEnd int64
 	index                TSMIndex
+
+	tombstoner *Tombstoner
 }
 
 func NewTSMReader(r io.ReadSeeker) (*tsmReader, error) {
 	t := &tsmReader{r: r}
+	t.tombstoner = &Tombstoner{Path: t.Path()}
+
 	if err := t.init(); err != nil {
 		return nil, err
 	}
@@ -640,7 +674,28 @@ func (t *tsmReader) init() error {
 		return fmt.Errorf("init: unmarshal error: %v", err)
 	}
 
+	return t.applyTombstones()
+}
+
+func (t *tsmReader) applyTombstones() error {
+	// Read any tombstone entries if the exist
+	tombstones, err := t.tombstoner.ReadAll()
+	if err != nil {
+		return fmt.Errorf("init: read tombstones: %v", err)
+	}
+
+	// Update our our index
+	for _, tombstone := range tombstones {
+		t.index.Delete(tombstone)
+	}
 	return nil
+}
+
+func (t *tsmReader) Path() string {
+	if f, ok := t.r.(*os.File); ok {
+		return f.Name()
+	}
+	return ""
 }
 
 func (t *tsmReader) Keys() []string {
@@ -731,11 +786,24 @@ func (t *tsmReader) Close() error {
 	return nil
 }
 
-// Contains returns true if key and time might exists in this file.  This function could
+func (t *tsmReader) Contains(key string) bool {
+	return t.index.Contains(key)
+}
+
+// ContainsValue returns true if key and time might exists in this file.  This function could
 // return true even though the actual point does not exists.  For example, the key may
 // exists in this file, but not have point exactly at time t.
-func (t *tsmReader) Contains(key string, ts time.Time) bool {
-	return t.index.Contains(key, ts)
+func (t *tsmReader) ContainsValue(key string, ts time.Time) bool {
+	return t.index.ContainsValue(key, ts)
+}
+
+func (t *tsmReader) Delete(key string) error {
+	if err := t.tombstoner.Add(key); err != nil {
+		return err
+	}
+
+	t.index.Delete(key)
+	return nil
 }
 
 type indexEntries []*IndexEntry

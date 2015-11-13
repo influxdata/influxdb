@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,12 +12,26 @@ import (
 )
 
 type TSMFile interface {
+	// Path returns the underlying file path for the TSMFile.  If the file
+	// has not be written or loaded from disk, the zero value is returne.
+	Path() string
+
 	// Read returns all the values in the block where time t resides
 	Read(key string, t time.Time) ([]Value, error)
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time
-	Contains(key string, t time.Time) bool
+	ContainsValue(key string, t time.Time) bool
+
+	// Contains returns true if the file contains any values for the given
+	// key.
+	Contains(key string) bool
+
+	// Keys returns all keys contained in the file.
+	Keys() []string
+
+	// Delete removes the key from the set of keys available in this file.
+	Delete(key string) error
 
 	// Close the underlying file resources
 	Close() error
@@ -57,6 +72,40 @@ func (f *FileStore) Add(files ...TSMFile) {
 	f.files = append(f.files, files...)
 }
 
+func (f *FileStore) Keys() []string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	uniqueKeys := map[string]struct{}{}
+	for _, f := range f.files {
+		for _, key := range f.Keys() {
+			uniqueKeys[key] = struct{}{}
+		}
+	}
+
+	var keys []string
+	for key := range uniqueKeys {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func (f *FileStore) Delete(key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for _, file := range f.files {
+		if file.Contains(key) {
+
+			if err := file.Delete(key); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (f *FileStore) Open() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -90,6 +139,7 @@ func (f *FileStore) Open() error {
 		if err != nil {
 			return fmt.Errorf("error opening memory map for file %s: %v", fn, err)
 		}
+
 		f.files = append(f.files, df)
 	}
 	return nil
@@ -114,7 +164,7 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 	var values []Value
 	for _, f := range f.files {
 		// Can this file possibly contain this key and timestamp?
-		if !f.Contains(key, t) {
+		if !f.ContainsValue(key, t) {
 			continue
 		}
 

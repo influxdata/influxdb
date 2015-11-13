@@ -78,6 +78,79 @@ func TestFileStore_Open(t *testing.T) {
 	}
 }
 
+func TestFileStore_Open_Deleted(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// Create 3 TSM files...
+	data := []keyValues{
+		keyValues{"cpu,host=server2!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
+		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+	}
+
+	_, err := newFileDir(dir, data...)
+	if err != nil {
+		fatal(t, "creating test files", err)
+	}
+
+	fs := tsm1.NewFileStore(dir)
+	if err := fs.Open(); err != nil {
+		fatal(t, "opening file store", err)
+	}
+	defer fs.Close()
+
+	if got, exp := len(fs.Keys()), 3; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+
+	if err := fs.Delete("cpu,host=server2!~#!value"); err != nil {
+		fatal(t, "deleting", err)
+	}
+
+	fs2 := tsm1.NewFileStore(dir)
+	if err := fs2.Open(); err != nil {
+		fatal(t, "opening file store", err)
+	}
+	defer fs2.Close()
+
+	if got, exp := len(fs2.Keys()), 2; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestFileStore_Delete(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu,host=server2!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
+		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	keys := fs.Keys()
+	if got, exp := len(keys), 3; got != exp {
+		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if err := fs.Delete("cpu,host=server2!~#!value"); err != nil {
+		fatal(t, "deleting", err)
+	}
+
+	keys = fs.Keys()
+	if got, exp := len(keys), 2; got != exp {
+		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func newFileDir(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 
