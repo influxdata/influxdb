@@ -93,8 +93,11 @@ type TSMWriter interface {
 	// used as the minimum and maximum values for the index entry.
 	Write(key string, values Values) error
 
-	// Close finishes the TSM write streams and writes the index.
+	// WriteIndex finishes the TSM write streams and writes the index.
 	WriteIndex() error
+
+	// Closes any underlying file resources.
+	Close() error
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -536,6 +539,13 @@ func (t *tsmWriter) WriteIndex() error {
 		return err
 	}
 
+	return nil
+}
+
+func (t *tsmWriter) Close() error {
+	if c, ok := t.w.(io.Closer); ok {
+		return c.Close()
+	}
 	return nil
 }
 
