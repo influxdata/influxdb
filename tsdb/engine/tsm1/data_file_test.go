@@ -424,3 +424,16 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
 	}
 }
+
+func TestIndirectIndex_MaxBlocks(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	for i := 0; i < 1<<16; i++ {
+		index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	}
+
+	if _, err := index.MarshalBinary(); err == nil {
+		t.Fatalf("expected max block count error. got nil")
+	} else {
+		println(err.Error())
+	}
+}
