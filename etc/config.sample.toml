@@ -277,6 +277,7 @@ reporting-disabled = false
   # consistency-level = "one"
   # tls-enabled = false
   # certificate= ""
+  # log-point-errors = true # Log an error for every malformed point.
 
   # These next lines control how batching works. You should have this enabled
   # otherwise you could get dropped metrics or poor performance. Only points

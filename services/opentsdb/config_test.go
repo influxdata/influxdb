@@ -17,6 +17,7 @@ database = "xxx"
 consistency-level ="all"
 tls-enabled = true
 certificate = "/etc/ssl/cert.pem"
+log-point-errors = true
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -34,5 +35,7 @@ certificate = "/etc/ssl/cert.pem"
 		t.Fatalf("unexpected tls-enabled: %v", c.TLSEnabled)
 	} else if c.Certificate != "/etc/ssl/cert.pem" {
 		t.Fatalf("unexpected certificate: %s", c.Certificate)
+	} else if !c.LogPointErrors {
+		t.Fatalf("unexpected log-point-errors: %v", c.LogPointErrors)
 	}
 }

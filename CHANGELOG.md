@@ -1,6 +1,7 @@
 ## v0.9.6 [unreleased]
 
 ### Features
+- [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
 
 ### Bugfixes
 - [#4766](https://github.com/influxdb/influxdb/pull/4766): Update CLI usage output. Thanks @aneshas

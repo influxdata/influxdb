@@ -40,6 +40,7 @@ type Config struct {
 	BatchSize        int           `toml:"batch-size"`
 	BatchPending     int           `toml:"batch-pending"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
+	LogPointErrors   bool          `toml:"log-point-errors"`
 }
 
 func NewConfig() Config {
@@ -53,5 +54,6 @@ func NewConfig() Config {
 		BatchSize:        DefaultBatchSize,
 		BatchPending:     DefaultBatchPending,
 		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
+		LogPointErrors:   true,
 	}
 }

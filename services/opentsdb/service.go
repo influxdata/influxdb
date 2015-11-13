@@ -75,8 +75,9 @@ type Service struct {
 	batchTimeout time.Duration
 	batcher      *tsdb.PointBatcher
 
-	Logger  *log.Logger
-	statMap *expvar.Map
+	LogPointErrors bool
+	Logger         *log.Logger
+	statMap        *expvar.Map
 }
 
 // NewService returns a new instance of Service.
@@ -99,6 +100,7 @@ func NewService(c Config) (*Service, error) {
 		batchPending:     c.BatchPending,
 		batchTimeout:     time.Duration(c.BatchTimeout),
 		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
+		LogPointErrors:   c.LogPointErrors,
 	}
 	return s, nil
 }
@@ -284,7 +286,9 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 
 		if len(inputStrs) < 4 || inputStrs[0] != "put" {
 			s.statMap.Add(statTelnetBadLine, 1)
-			s.Logger.Printf("malformed line '%s' from %s", line, remoteAddr)
+			if s.LogPointErrors {
+				s.Logger.Printf("malformed line '%s' from %s", line, remoteAddr)
+			}
 			continue
 		}
 
@@ -297,7 +301,9 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		ts, err := strconv.ParseInt(tsStr, 10, 64)
 		if err != nil {
 			s.statMap.Add(statTelnetBadTime, 1)
-			s.Logger.Printf("malformed time '%s' from %s", tsStr, remoteAddr)
+			if s.LogPointErrors {
+				s.Logger.Printf("malformed time '%s' from %s", tsStr, remoteAddr)
+			}
 		}
 
 		switch len(tsStr) {
@@ -309,7 +315,9 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			break
 		default:
 			s.statMap.Add(statTelnetBadTime, 1)
-			s.Logger.Printf("bad time '%s' must be 10 or 13 chars, from %s ", tsStr, remoteAddr)
+			if s.LogPointErrors {
+				s.Logger.Printf("bad time '%s' must be 10 or 13 chars, from %s ", tsStr, remoteAddr)
+			}
 			continue
 		}
 
@@ -318,7 +326,9 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 			parts := strings.SplitN(tagStrs[t], "=", 2)
 			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 				s.statMap.Add(statTelnetBadTag, 1)
-				s.Logger.Printf("malformed tag data '%v' from %s", tagStrs[t], remoteAddr)
+				if s.LogPointErrors {
+					s.Logger.Printf("malformed tag data '%v' from %s", tagStrs[t], remoteAddr)
+				}
 				continue
 			}
 			k := parts[0]
@@ -330,7 +340,9 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		fv, err := strconv.ParseFloat(valueStr, 64)
 		if err != nil {
 			s.statMap.Add(statTelnetBadFloat, 1)
-			s.Logger.Printf("bad float '%s' from %s", valueStr, remoteAddr)
+			if s.LogPointErrors {
+				s.Logger.Printf("bad float '%s' from %s", valueStr, remoteAddr)
+			}
 			continue
 		}
 		fields["value"] = fv
@@ -338,7 +350,9 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		pt, err := models.NewPoint(measurement, tags, fields, t)
 		if err != nil {
 			s.statMap.Add(statTelnetBadFloat, 1)
-			s.Logger.Printf("bad float '%s' from %s", valueStr, remoteAddr)
+			if s.LogPointErrors {
+				s.Logger.Printf("bad float '%s' from %s", valueStr, remoteAddr)
+			}
 			continue
 		}
 		s.batcher.In() <- pt
