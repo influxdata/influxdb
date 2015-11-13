@@ -3,6 +3,7 @@
 ### Features
 
 ### Bugfixes
+- [#4766](https://github.com/influxdb/influxdb/pull/4766): Update CLI usage output. Thanks @aneshas
 
 ## v0.9.5 [unreleased]
 
