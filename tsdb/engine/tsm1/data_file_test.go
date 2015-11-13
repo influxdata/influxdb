@@ -437,3 +437,27 @@ func TestIndirectIndex_MaxBlocks(t *testing.T) {
 		println(err.Error())
 	}
 }
+
+func TestIndirectIndex_Keys(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("mem", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("cpu", time.Unix(1, 0), time.Unix(2, 0), 20, 30)
+
+	keys := index.Keys()
+
+	// 2 distinct keys
+	if got, exp := len(keys), 2; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	// Keys should be sorted
+	if got, exp := keys[0], "cpu"; got != exp {
+		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := keys[1], "mem"; got != exp {
+		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+	}
+
+}
