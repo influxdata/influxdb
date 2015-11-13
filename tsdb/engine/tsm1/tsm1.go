@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"hash/fnv"
 	"io"
 	"io/ioutil"
@@ -15,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"golang.org/x/sys/unix"
 	"time"
 
 	"github.com/golang/snappy"
