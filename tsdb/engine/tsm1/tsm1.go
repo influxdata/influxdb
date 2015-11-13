@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"hash/fnv"
 	"io"
 	"io/ioutil"
@@ -1972,7 +1971,7 @@ func NewDataFile(f *os.File) (*dataFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	mmap, err := unix.Mmap(int(f.Fd()), 0, int(fInfo.Size()), syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
+	mmap, err := Mmap(int(f.Fd()), 0, int(fInfo.Size()), syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
 	if err != nil {
 		return nil, err
 	}
@@ -2031,7 +2030,7 @@ func (d *dataFile) close() error {
 	if d.mmap == nil {
 		return nil
 	}
-	err := unix.Munmap(d.mmap)
+	err := Munmap(d.mmap)
 	if err != nil {
 		return err
 	}
