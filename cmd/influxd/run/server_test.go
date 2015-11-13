@@ -1131,7 +1131,12 @@ func TestServer_Query_Count(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
+	writes := []string{
+		`cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10),
+		`ram value1=1.0,value2=2.0 ` + strconv.FormatInt(now.UnixNano(), 10),
+	}
+
+	test.write = strings.Join(writes, "\n")
 
 	hour_ago := now.Add(-time.Hour).UTC()
 
@@ -1150,6 +1155,16 @@ func TestServer_Query_Count(t *testing.T) {
 			name:    "selecting count(value) with filter that excludes all results should return 0",
 			command: fmt.Sprintf(`SELECT count(value) FROM db0.rp0.cpu WHERE value=100 AND time >= '%s'`, hour_ago.Format(time.RFC3339Nano)),
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["%s",0]]}]}]}`, hour_ago.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "selecting count(value1) with matching filter against value2 should return correct result",
+			command: fmt.Sprintf(`SELECT count(value1) FROM db0.rp0.ram WHERE value2=2 AND time >= '%s'`, hour_ago.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"ram","columns":["time","count"],"values":[["%s",1]]}]}]}`, hour_ago.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "selecting count(value1) with non-matching filter against value2 should return correct result",
+			command: fmt.Sprintf(`SELECT count(value1) FROM db0.rp0.ram WHERE value2=3 AND time >= '%s'`, hour_ago.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"ram","columns":["time","count"],"values":[["%s",0]]}]}]}`, hour_ago.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "selecting count(*) should error",
