@@ -250,10 +250,7 @@ func MapCount(input *MapInput) interface{} {
 	for range input.Items {
 		n++
 	}
-	if n > 0 {
-		return n
-	}
-	return nil
+	return n
 }
 
 type InterfaceValues []interface{}
