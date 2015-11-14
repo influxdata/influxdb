@@ -177,7 +177,6 @@ func (c *CommandLine) Run() {
 			if e != nil {
 				break
 			}
-			// write valid commands only to in-memory history
 			if c.ParseCommand(l) {
 				c.Line.AppendHistory(l)
 				_, err := c.Line.WriteHistory(c.historyFile)
