@@ -36,17 +36,16 @@ INIT_SCRIPT = "scripts/init.sh"
 SYSTEMD_SCRIPT = "scripts/influxdb.service"
 PREINST_SCRIPT = "scripts/pre-install.sh"
 POSTINST_SCRIPT = "scripts/post-install.sh"
-PREUNINST_SCRIPT = "scripts/pre-uninstall.sh"
 POSTUNINST_SCRIPT = "scripts/post-uninstall.sh"
 LOGROTATE_SCRIPT = "scripts/logrotate"
 DEFAULT_CONFIG = "etc/config.sample.toml"
 
 # META-PACKAGE VARIABLES
 PACKAGE_LICENSE = "MIT"
-PACKAGE_URL = "github.com/influxdb/influxdb"
-MAINTAINER = "support@influxdb.com"
+PACKAGE_URL = "https://github.com/influxdb/influxdb"
+MAINTAINER = "InfluxData"
 VENDOR = "InfluxData"
-DESCRIPTION = "A distributed time-series database"
+DESCRIPTION = "A distributed time-series database."
 
 # SCRIPT START
 prereqs = [ 'git', 'go' ]
@@ -58,7 +57,6 @@ fpm_common_args = "-f -s dir --log error \
  --after-install {} \
  --before-install {} \
  --after-remove {} \
- --before-remove {} \
  --license {} \
  --maintainer {} \
  --config-files {} \
@@ -69,7 +67,6 @@ fpm_common_args = "-f -s dir --log error \
     POSTINST_SCRIPT,
     PREINST_SCRIPT,
     POSTUNINST_SCRIPT,
-    PREUNINST_SCRIPT,
     PACKAGE_LICENSE,
     MAINTAINER,
     CONFIG_DIR,
@@ -88,9 +85,9 @@ supported_builds = {
     'darwin': [ "amd64", "386" ],
     # Windows is not currently supported in InfluxDB 0.9.5 due to use of mmap
     # 'windows': [ "amd64", "386", "arm" ],
-    'linux': [ "amd64", "386" ]
+    'linux': [ "amd64", "386", "arm" ]
 }
-supported_go = [ '1.5.1' ]
+supported_go = [ '1.5.1', '1.4.2' ]
 supported_packages = {
     "darwin": [ "tar", "zip" ],
     "linux": [ "deb", "rpm", "tar", "zip" ],
@@ -331,19 +328,21 @@ def create_package_fs(build_root):
     print "\t- Creating a filesystem hierarchy from directory: {}".format(build_root)
     # Using [1:] for the path names due to them being absolute
     # (will overwrite previous paths, per 'os.path.join' documentation)
-    create_dir(os.path.join(build_root, INSTALL_ROOT_DIR[1:]))
-    create_dir(os.path.join(build_root, LOG_DIR[1:]))
-    create_dir(os.path.join(build_root, DATA_DIR[1:]))
-    create_dir(os.path.join(build_root, SCRIPT_DIR[1:]))
-    create_dir(os.path.join(build_root, CONFIG_DIR[1:]))
-    create_dir(os.path.join(build_root, LOGROTATE_DIR[1:]))
+    dirs = [ INSTALL_ROOT_DIR[1:], LOG_DIR[1:], DATA_DIR[1:], SCRIPT_DIR[1:], CONFIG_DIR[1:], LOGROTATE_DIR[1:] ]
+    for d in dirs:
+        create_dir(os.path.join(build_root, d))
+        os.chmod(os.path.join(build_root, d), 0755)
 
 def package_scripts(build_root):
     print "\t- Copying scripts and sample configuration to build directory"
     shutil.copyfile(INIT_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]))
+    os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]), 0644)
     shutil.copyfile(SYSTEMD_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]))
+    os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0644)
     shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], LOGROTATE_SCRIPT.split('/')[1]))
+    os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], LOGROTATE_SCRIPT.split('/')[1]), 0644)
     shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
+    os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"), 0644)
 
 def go_get(update=False):        
     get_command = None
@@ -362,7 +361,7 @@ def generate_md5_from_file(path):
             m.update(chunk)
     return m.hexdigest()
     
-def build_packages(build_output, version, nightly=False, rc=None):
+def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
     outfiles = []
     tmp_build_dir = create_temp_dir()
     try:
@@ -401,6 +400,9 @@ def build_packages(build_output, version, nightly=False, rc=None):
                     if package_type == 'tar':
                         # Add `tar.gz` to path to ensure a small package size
                         current_location = os.path.join(current_location, name + '.tar.gz')
+                    if package_type == 'deb' and rc:
+                        # For debs with an RC, just append to version number
+                        version += "-rc{}".format(rc)
                     fpm_command = "fpm {} --name {} -a {} -t {} --version {} -C {} -p {} ".format(
                         fpm_common_args,
                         name,
@@ -411,10 +413,12 @@ def build_packages(build_output, version, nightly=False, rc=None):
                         current_location)
                     if package_type == "rpm":
                         fpm_command += "--depends coreutils "
+                        # For rpms with RC, add to iteration for adherence to Fedora packaging standard:
+                        # http://fedoraproject.org/wiki/Packaging%3aNamingGuidelines#NonNumericRelease
                         if rc:
-                            fpm_command += "--iteration {} ".format(rc)
+                            fpm_command += "--iteration 0.{}.rc{} ".format(iteration, rc)
                         else:
-                            fpm_command += "--iteration 1 "
+                            fpm_command += "--iteration 1 ".format(iteration)
                     out = run(fpm_command, shell=True)
                     matches = re.search(':path=>"(.*)"', out)
                     outfile = None
@@ -476,6 +480,7 @@ def main():
     clean = False
     upload = False
     test = False
+    iteration = 1
     
     for arg in sys.argv[1:]:
         if '--outdir' in arg:
@@ -520,6 +525,8 @@ def main():
         elif '--clean' in arg:
             # Signifies that the outdir should be deleted before building
             clean = True
+        elif '--iteration' in arg:
+            iteration = arg.split("=")[1]
         elif '--help' in arg:
             print_usage()
             return 0
@@ -533,7 +540,7 @@ def main():
             print "!! Cannot be both nightly and a release candidate! Stopping."
             return 1
         # In order to support nightly builds on the repository, we are adding the epoch timestamp
-        # to the version so that seamless upgrades are possible.
+        # to the version so that version numbers are always greater than the previous nightly.
         version = "{}.n{}".format(version, int(time.time()))
 
     # Pre-build checks
@@ -599,7 +606,7 @@ def main():
         if not check_path_for("fpm"):
             print "!! Cannot package without command 'fpm'. Stopping."
             return 1
-        packages = build_packages(build_output, version, nightly=nightly, rc=rc)
+        packages = build_packages(build_output, version, nightly=nightly, rc=rc, iteration=iteration)
         # TODO(rossmcdonald): Add nice output for print_package_summary()
         # print_package_summary(packages)
         # Optionally upload to S3
