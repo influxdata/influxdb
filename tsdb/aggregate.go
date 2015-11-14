@@ -649,7 +649,7 @@ func (m *AggregateMapper) openMeasurement(mm *Measurement) error {
 		}
 
 		for i, key := range t.SeriesKeys {
-			fields := slices.Union(selectFields, m.fieldNames, false)
+			fields := slices.Union(slices.Union(selectFields, m.fieldNames, false), m.whereFields, false)
 			c := m.tx.Cursor(key, fields, m.shard.FieldCodec(mm.Name), true)
 			if c == nil {
 				continue
