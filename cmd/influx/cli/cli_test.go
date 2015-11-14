@@ -1,15 +1,155 @@
 package cli_test
 
 import (
-	"encoding/json"
+	"bufio"
+	"bytes"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"testing"
 
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/cmd/influx/cli"
+	"github.com/peterh/liner"
 )
+
+const (
+	CLIENT_VERSION = "y.y"
+	SERVER_VERSION = "x.x"
+)
+
+func TestNewCLI(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+
+	if c == nil {
+		t.Fatal("CommandLine shouldn't be nil.")
+	}
+
+	if c.ClientVersion != CLIENT_VERSION {
+		t.Fatalf("CommandLine version is %s but should be %s", c.ClientVersion, CLIENT_VERSION)
+	}
+}
+
+func TestRunCLI(t *testing.T) {
+	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	h, p, _ := net.SplitHostPort(u.Host)
+	c := cli.New(CLIENT_VERSION)
+	c.Host = h
+	c.Port, _ = strconv.Atoi(p)
+	c.Run()
+}
+
+func TestConnect(t *testing.T) {
+	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	cmd := "connect " + u.Host
+	c := cli.CommandLine{}
+
+	// assert connection is established
+	if err := c.Connect(cmd); err != nil {
+		t.Fatalf("There was an error while connecting to %s: %s", u.Path, err)
+	}
+
+	// assert server version is populated
+	if c.ServerVersion != SERVER_VERSION {
+		t.Fatalf("Server version is %s but should be %s.", c.ServerVersion, SERVER_VERSION)
+	}
+}
+
+func TestSetAuth(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+	config := client.NewConfig()
+	client, _ := client.NewClient(config)
+	c.Client = client
+	u := "userx"
+	p := "pwdy"
+	c.SetAuth("auth " + u + " " + p)
+
+	// validate CLI configuration
+	if c.Username != u {
+		t.Fatalf("Username is %s but should be %s", c.Username, u)
+	}
+	if c.Password != p {
+		t.Fatalf("Password is %s but should be %s", c.Password, p)
+	}
+}
+
+func TestSetPrecision(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+	config := client.NewConfig()
+	client, _ := client.NewClient(config)
+	c.Client = client
+
+	// validate set non-default precision
+	p := "ns"
+	c.SetPrecision("precision " + p)
+	if c.Precision != p {
+		t.Fatalf("Precision is %s but should be %s", c.Precision, p)
+	}
+
+	// validate set default precision which equals empty string
+	p = "rfc3339"
+	c.SetPrecision("precision " + p)
+	if c.Precision != "" {
+		t.Fatalf("Precision is %s but should be empty", c.Precision)
+	}
+}
+
+func TestSetFormat(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+	config := client.NewConfig()
+	client, _ := client.NewClient(config)
+	c.Client = client
+
+	// validate set non-default format
+	f := "json"
+	c.SetFormat("format " + f)
+	if c.Format != f {
+		t.Fatalf("Format is %s but should be %s", c.Format, f)
+	}
+}
+
+func TestSetWriteConsistency(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+	config := client.NewConfig()
+	client, _ := client.NewClient(config)
+	c.Client = client
+
+	// set valid write consistency
+	consistency := "all"
+	c.SetWriteConsistency("consistency " + consistency)
+	if c.WriteConsistency != consistency {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.WriteConsistency, consistency)
+	}
+
+	// set different valid write consistency and validate change
+	consistency = "quorum"
+	c.SetWriteConsistency("consistency " + consistency)
+	if c.WriteConsistency != consistency {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.WriteConsistency, consistency)
+	}
+
+	// set invalid write consistency and verify there was no change
+	invalidConsistency := "invalid_consistency"
+	c.SetWriteConsistency("consistency " + invalidConsistency)
+	if c.WriteConsistency == invalidConsistency {
+		t.Fatalf("WriteConsistency is %s but should be %s", c.WriteConsistency, consistency)
+	}
+}
 
 func TestParseCommand_CommandsExist(t *testing.T) {
 	t.Parallel()
@@ -22,10 +162,24 @@ func TestParseCommand_CommandsExist(t *testing.T) {
 		{cmd: "help"},
 		{cmd: "pretty"},
 		{cmd: "use"},
-		{cmd: ""}, // test that a blank command just returns
 	}
 	for _, test := range tests {
 		if !c.ParseCommand(test.cmd) {
+			t.Fatalf(`Command failed for %q.`, test.cmd)
+		}
+	}
+}
+
+func TestParseCommand_BlankCommand(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{}
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: ""}, // test that a blank command doesn't work
+	}
+	for _, test := range tests {
+		if c.ParseCommand(test.cmd) {
 			t.Fatalf(`Command failed for %q.`, test.cmd)
 		}
 	}
@@ -49,7 +203,6 @@ func TestParseCommand_TogglePretty(t *testing.T) {
 
 func TestParseCommand_Exit(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{}
 	tests := []struct {
 		cmd string
 	}{
@@ -60,7 +213,10 @@ func TestParseCommand_Exit(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if c.ParseCommand(test.cmd) {
+		c := cli.CommandLine{Quit: make(chan struct{}, 1)}
+		c.ParseCommand(test.cmd)
+		// channel should be closed
+		if _, ok := <-c.Quit; ok {
 			t.Fatalf(`Command "exit" failed for %q.`, test.cmd)
 		}
 	}
@@ -118,11 +274,7 @@ func TestParseCommand_Consistency(t *testing.T) {
 
 func TestParseCommand_Insert(t *testing.T) {
 	t.Parallel()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data client.Response
-		w.WriteHeader(http.StatusNoContent)
-		_ = json.NewEncoder(w).Encode(data)
-	}))
+	ts := emptyTestServer()
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
@@ -155,11 +307,7 @@ func TestParseCommand_Insert(t *testing.T) {
 
 func TestParseCommand_InsertInto(t *testing.T) {
 	t.Parallel()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data client.Response
-		w.WriteHeader(http.StatusNoContent)
-		_ = json.NewEncoder(w).Encode(data)
-	}))
+	ts := emptyTestServer()
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
@@ -220,7 +368,12 @@ func TestParseCommand_InsertInto(t *testing.T) {
 
 func TestParseCommand_History(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{}
+	c := cli.CommandLine{Line: liner.NewLiner()}
+	defer c.Line.Close()
+
+	// append one entry to history
+	c.Line.AppendHistory("abc")
+
 	tests := []struct {
 		cmd string
 	}{
@@ -235,4 +388,55 @@ func TestParseCommand_History(t *testing.T) {
 			t.Fatalf(`Command "history" failed for %q.`, test.cmd)
 		}
 	}
+
+	// buf size should be at least 1
+	var buf bytes.Buffer
+	c.Line.WriteHistory(&buf)
+	if buf.Len() < 1 {
+		t.Fatal("History is borked")
+	}
+}
+
+func TestParseCommand_HistoryWithBlankCommand(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{Line: liner.NewLiner()}
+	defer c.Line.Close()
+
+	// append one entry to history
+	c.Line.AppendHistory("x")
+
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "history"},
+		{cmd: " history"},
+		{cmd: "history "},
+		{cmd: "History "},
+		{cmd: ""},  // shouldn't be persisted in history
+		{cmd: " "}, // shouldn't be persisted in history
+	}
+
+	// don't validate because blank commands are never executed
+	for _, test := range tests {
+		c.ParseCommand(test.cmd)
+	}
+
+	// buf shall not contain empty commands
+	var buf bytes.Buffer
+	c.Line.WriteHistory(&buf)
+	scanner := bufio.NewScanner(&buf)
+	for scanner.Scan() {
+		if scanner.Text() == "" || scanner.Text() == " " {
+			t.Fatal("Empty commands should not be persisted in history.")
+		}
+	}
+}
+
+// helper methods
+
+func emptyTestServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Influxdb-Version", SERVER_VERSION)
+		return
+	}))
 }
