@@ -962,6 +962,10 @@ func unescapeStringField(in string) string {
 // NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
 // an unsupported field value (NaN) is passed, this function returns an error.
 func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, error) {
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("Point without field is unsupported")
+	}
+
 	for key, value := range fields {
 		if fv, ok := value.(float64); ok {
 			// Ensure the caller validates and handles invalid field values

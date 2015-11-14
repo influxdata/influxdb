@@ -202,7 +202,7 @@ func TestParsePointNoFields(t *testing.T) {
 }
 
 func TestParsePointNoTimestamp(t *testing.T) {
-	test(t, "cpu value=1", models.MustNewPoint("cpu", nil, nil, time.Unix(0, 0)))
+	test(t, "cpu value=1", models.MustNewPoint("cpu", nil, models.Fields{"value": 1.0}, time.Unix(0, 0)))
 }
 
 func TestParsePointMissingQuote(t *testing.T) {
@@ -520,7 +520,6 @@ func TestParsePointScientificIntInvalid(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=9e10i`)
 	}
-
 }
 
 func TestParsePointUnescape(t *testing.T) {
@@ -1399,6 +1398,13 @@ func TestNewPointEscaped(t *testing.T) {
 	pt = models.MustNewPoint("cpu=main", models.Tags{"tag=bar": "value=foo"}, models.Fields{"name=bar": 1.0}, time.Unix(0, 0))
 	if exp := `cpu=main,tag\=bar=value\=foo name\=bar=1 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+}
+
+func TestNewPointWithoutField(t *testing.T) {
+	_, err := models.NewPoint("cpu", models.Tags{"tag": "bar"}, models.Fields{}, time.Unix(0, 0))
+	if err == nil {
+		t.Fatalf(`NewPoint() expected error. got nil`)
 	}
 }
 
