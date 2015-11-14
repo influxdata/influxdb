@@ -56,7 +56,7 @@ There are breaking changes in this release:
 
 ### Bugfixes
 - [#4789](https://github.com/influxdb/influxdb/pull/4789): Decode WHERE fields during aggregates. Fix [issue #4701](https://github.com/influxdb/influxdb/issues/4701).
-- [#4778](https://github.com/influxdb/influxdb/pull/4778): If there are no points to count, count is 0. Fixes [#4701](https://github.com/influxdb/influxdb/issues/4701)
+- [#4778](https://github.com/influxdb/influxdb/pull/4778): If there are no points to count, count is 0.
 - [#4715](https://github.com/influxdb/influxdb/pull/4715): Fix panic during Raft-close. Fix [issue #4707](https://github.com/influxdb/influxdb/issues/4707). Thanks @oiooj
 - [#4643](https://github.com/influxdb/influxdb/pull/4643): Fix panic during backup restoration. Thanks @oiooj
 - [#4632](https://github.com/influxdb/influxdb/pull/4632): Fix parsing of IPv6 hosts in client package. Thanks @miguelxpn
