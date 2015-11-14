@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// Maximum UDP packet size
+	// UDPBufferSize is the maximum UDP packet size
 	// see https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
 	UDPBufferSize = 65536
 
@@ -64,6 +64,7 @@ type Service struct {
 	statMap *expvar.Map
 }
 
+// NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	d := *c.WithDefaults()
 	return &Service{
@@ -75,6 +76,7 @@ func NewService(c Config) *Service {
 	}
 }
 
+// Open starts the service
 func (s *Service) Open() (err error) {
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
 	// should be done before any data could arrive for the service.
@@ -197,6 +199,7 @@ func (s *Service) parser() {
 	}
 }
 
+// Close closes the underlying listener.
 func (s *Service) Close() error {
 	if s.conn == nil {
 		return errors.New("Service already closed")
@@ -221,6 +224,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
+// Addr returns the listener's address
 func (s *Service) Addr() net.Addr {
 	return s.addr
 }

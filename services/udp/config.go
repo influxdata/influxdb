@@ -33,6 +33,7 @@ const (
 	DefaultReadBuffer = 0
 )
 
+// Config holds various configuration settings for the UDP listener.
 type Config struct {
 	Enabled     bool   `toml:"enabled"`
 	BindAddress string `toml:"bind-address"`
