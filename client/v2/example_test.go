@@ -3,6 +3,8 @@ package client_test
 import (
 	"fmt"
 	"math/rand"
+	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"time"
 
@@ -11,9 +13,21 @@ import (
 
 // Create a new client
 func ExampleClient() {
+	// Make client
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
+	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
+	defer c.Close()
+}
+
+// Create a new HTTP client
+func ExampleClient_hTTP() {
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
 	// namely INFLUX_USER/INFLUX_PWD. If not just omit Username/Password below.
-	_, err := client.NewHTTPClient(client.HTTPConfig{
+	c, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:     "http://localhost:8086",
 		Username: os.Getenv("INFLUX_USER"),
 		Password: os.Getenv("INFLUX_PWD"),
@@ -21,6 +35,27 @@ func ExampleClient() {
 	if err != nil {
 		fmt.Println("Error creating InfluxDB Client: ", err.Error())
 	}
+	defer c.Close()
+}
+
+// Create a new client with a user provided *http.Client
+func ExampleClient_hTTPCustom() {
+	cj, _ := cookiejar.New(nil)
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
+		// Pass in a *http.Client
+		HTTPClient: &http.Client{
+			Jar: cj,
+			Transport: &http.Transport{
+				DisableKeepAlives:  true,
+				DisableCompression: true,
+			},
+		},
+	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client with customer HTTP client: ", err.Error())
+	}
+	defer c.Close()
 }
 
 // Write a point using the UDP client
