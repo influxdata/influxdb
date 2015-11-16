@@ -22,7 +22,7 @@ const (
 	// DefaultBatchPending is the default number of pending write batches.
 	DefaultBatchPending = 10
 
-	// DefaultBatchTimeout is the default batch timeout.
+	// DefaultBatchDuration is the default batch timeout duration.
 	DefaultBatchDuration = toml.Duration(10 * time.Second)
 
 	DefaultTypesDB = "/usr/share/collectd/types.db"
