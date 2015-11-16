@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Service struct to manage the precreator sharding service.
 type Service struct {
 	checkInterval time.Duration
 	advancePeriod time.Duration
