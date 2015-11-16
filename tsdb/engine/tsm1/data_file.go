@@ -758,7 +758,7 @@ func (t *tsmReader) Read(key string, timestamp time.Time) ([]Value, error) {
 
 	//TODO: Validate checksum
 	var values []Value
-	err = DecodeBlock(b[4:n], &values)
+	values, err = DecodeBlock(b[4:n], values)
 	if err != nil {
 		return nil, err
 	}
@@ -804,7 +804,7 @@ func (t *tsmReader) ReadAll(key string) ([]Value, error) {
 
 		//TODO: Validate checksum
 		temp = temp[:0]
-		err = DecodeBlock(b[4:n], &temp)
+		temp, err = DecodeBlock(b[4:n], temp)
 		if err != nil {
 			return nil, err
 		}

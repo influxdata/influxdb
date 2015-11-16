@@ -474,7 +474,7 @@ func (c *cursor) decodeBlock(position uint32) {
 	length := c.blockLength(position)
 	block := c.f.mmap[position+blockHeaderSize : position+blockHeaderSize+length]
 	c.vals = c.vals[:0]
-	_ = DecodeBlock(block, &c.vals)
+	c.vals, _ = DecodeBlock(block, c.vals)
 
 	// only adavance the position if we're asceending.
 	// Descending queries use the blockPositions
