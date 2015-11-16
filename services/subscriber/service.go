@@ -224,8 +224,11 @@ func (s *Service) writePoints() {
 	}
 }
 
+// BalanceMode sets what balance mode to use on a subscription.
+// valid options are currently ALL or ANY
 type BalanceMode int
 
+//ALL is a Balance mode option
 const (
 	ALL BalanceMode = iota
 	ANY
