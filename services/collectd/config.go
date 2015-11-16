@@ -25,6 +25,7 @@ const (
 	// DefaultBatchDuration is the default batch timeout duration.
 	DefaultBatchDuration = toml.Duration(10 * time.Second)
 
+	// DefaultTypesDB is the default location of the collectd types db file.
 	DefaultTypesDB = "/usr/share/collectd/types.db"
 
 	// DefaultReadBuffer is the default buffer size for the UDP listener.
