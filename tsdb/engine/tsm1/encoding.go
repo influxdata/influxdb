@@ -123,13 +123,13 @@ func DecodeBlock(block []byte, vals *[]Value) error {
 	}
 	switch blockType {
 	case BlockFloat64:
-		return decodeFloatBlock(block, vals)
+		return DecodeFloatBlock(block, vals)
 	case BlockInt64:
-		return decodeInt64Block(block, vals)
+		return DecodeInt64Block(block, vals)
 	case BlockBool:
-		return decodeBoolBlock(block, vals)
+		return DecodeBoolBlock(block, vals)
 	case BlockString:
-		return decodeStringBlock(block, vals)
+		return DecodeStringBlock(block, vals)
 	default:
 		panic(fmt.Sprintf("unknown block type: %d", blockType))
 	}
@@ -218,7 +218,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func decodeFloatBlock(block []byte, a *[]Value) error {
+func DecodeFloatBlock(block []byte, a *[]Value) error {
 	// The first 8 bytes is the minimum timestamp of the block
 	block = block[8:]
 
@@ -315,7 +315,7 @@ func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func decodeBoolBlock(block []byte, a *[]Value) error {
+func DecodeBoolBlock(block []byte, a *[]Value) error {
 	// The first 8 bytes is the minimum timestamp of the block
 	block = block[8:]
 
@@ -398,7 +398,7 @@ func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func decodeInt64Block(block []byte, a *[]Value) error {
+func DecodeInt64Block(block []byte, a *[]Value) error {
 	// slice off the first 8 bytes (min timestmap for the block)
 	block = block[8:]
 
@@ -482,7 +482,7 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func decodeStringBlock(block []byte, a *[]Value) error {
+func DecodeStringBlock(block []byte, a *[]Value) error {
 	// slice off the first 8 bytes (min timestmap for the block)
 	block = block[8:]
 
