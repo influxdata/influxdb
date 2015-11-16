@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	DefaultURL           = "https://enterprise.influxdata.com"
-	DefaultStatsInterval = time.Minute
+	defaultURL           = "https://enterprise.influxdata.com"
+	defaultStatsInterval = time.Minute
 )
 
+// Config represents the configuration for the registration service.
 type Config struct {
 	Enabled       bool          `toml:"enabled"`
 	URL           string        `toml:"url"`
@@ -18,10 +19,11 @@ type Config struct {
 	StatsInterval toml.Duration `toml:"stats-interval"`
 }
 
+// NewConfig returns an instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
 		Enabled:       true,
-		URL:           DefaultURL,
-		StatsInterval: toml.Duration(DefaultStatsInterval),
+		URL:           defaultURL,
+		StatsInterval: toml.Duration(defaultStatsInterval),
 	}
 }

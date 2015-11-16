@@ -85,6 +85,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// Diagnostics returns diagnostics information.
 func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
 	diagnostics := map[string]interface{}{
 		"URL":          s.url.String(),
