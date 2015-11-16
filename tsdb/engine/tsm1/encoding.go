@@ -11,16 +11,16 @@ import (
 
 const (
 	// BlockFloat64 designates a block encodes float64 values
-	BlockFloat64 = 0
+	BlockFloat64 = byte(0)
 
 	// BlockInt64 designates a block encodes int64 values
-	BlockInt64 = 1
+	BlockInt64 = byte(1)
 
 	// BlockBool designates a block encodes bool values
-	BlockBool = 2
+	BlockBool = byte(2)
 
 	// BlockString designates a block encodes string values
-	BlockString = 3
+	BlockString = byte(3)
 
 	// encodedBlockHeaderSize is the size of the header for an encoded block.  The first 8 bytes
 	// are the minimum timestamp of the block.  The next byte is a block encoding type indicator.
