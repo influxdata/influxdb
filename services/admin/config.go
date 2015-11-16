@@ -5,6 +5,7 @@ const (
 	DefaultBindAddress = ":8083"
 )
 
+// Config represents the admin service.
 type Config struct {
 	Enabled          bool   `toml:"enabled"`
 	BindAddress      string `toml:"bind-address"`
@@ -12,6 +13,7 @@ type Config struct {
 	HTTPSCertificate string `toml:"https-certificate"`
 }
 
+// NewConfig returns a new instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
 		BindAddress:      DefaultBindAddress,
