@@ -98,6 +98,18 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 	return nil, fmt.Errorf("unsupported value type %T", a[0])
 }
 
+// BlockType returns the type of value encoded in a block or an error
+// if the block type is unknown.
+func BlockType(block []byte) (byte, error) {
+	blockType := block[8]
+	switch blockType {
+	case BlockFloat64, BlockInt64, BlockBool, BlockString:
+		return blockType, nil
+	default:
+		return 0, fmt.Errorf("unknown block type: %d", blockType)
+	}
+}
+
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
 // based on the block
 func DecodeBlock(block []byte, vals *[]Value) error {
@@ -105,7 +117,10 @@ func DecodeBlock(block []byte, vals *[]Value) error {
 		panic(fmt.Sprintf("decode of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
 	}
 
-	blockType := block[8]
+	blockType, err := BlockType(block)
+	if err != nil {
+		return err
+	}
 	switch blockType {
 	case BlockFloat64:
 		return decodeFloatBlock(block, vals)

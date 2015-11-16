@@ -188,6 +188,42 @@ func TestEncoding_StringBlock_Basic(t *testing.T) {
 	}
 }
 
+func TestEncoding_BlockType(t *testing.T) {
+	tests := []struct {
+		value     interface{}
+		blockType byte
+	}{
+		{value: float64(1.0), blockType: tsm1.BlockFloat64},
+		{value: int64(1), blockType: tsm1.BlockInt64},
+		{value: true, blockType: tsm1.BlockBool},
+		{value: "string", blockType: tsm1.BlockString},
+	}
+
+	for _, test := range tests {
+		var values []tsm1.Value
+		values = append(values, tsm1.NewValue(time.Unix(0, 0), test.value))
+
+		b, err := tsm1.Values(values).Encode(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		bt, err := tsm1.BlockType(b)
+		if err != nil {
+			t.Fatalf("unexpected error decoding block type: %v", err)
+		}
+
+		if got, exp := bt, test.blockType; got != exp {
+			t.Fatalf("block type mismatch: got %v, exp %v", got, exp)
+		}
+	}
+
+	_, err := tsm1.BlockType([]byte{0, 0, 0, 0, 0, 0, 0, 0, 10})
+	if err == nil {
+		t.Fatalf("expected error decoding block type, got nil")
+	}
+}
+
 func getTimes(n, step int, precision time.Duration) []time.Time {
 	t := time.Now().Round(precision)
 	a := make([]time.Time, n)
