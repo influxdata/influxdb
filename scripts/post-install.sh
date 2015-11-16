@@ -8,7 +8,6 @@ LOGROTATE_DIR=/etc/logrotate.d
 if ! id influxdb >/dev/null 2>&1; then
         useradd --system -U -M influxdb -s /bin/false -d $DATA_DIR
 fi
-chown influxdb:influxdb $BIN_DIR/influx*
 chmod a+rX $BIN_DIR/influx*
 
 mkdir -p $LOG_DIR
