@@ -122,7 +122,7 @@ func (s *Service) waitForMetaUpdates() {
 
 }
 
-// start new and stop deleted subscriptions.
+// Update will start new and stop deleted subscriptions.
 func (s *Service) Update() error {
 	dbis, err := s.MetaStore.Databases()
 	if err != nil {
