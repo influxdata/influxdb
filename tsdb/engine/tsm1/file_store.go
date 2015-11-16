@@ -72,6 +72,28 @@ func (f *FileStore) Add(files ...TSMFile) {
 	f.files = append(f.files, files...)
 }
 
+// Remove removes the files with matching paths from the set of active files.  It does
+// not remove the paths from disk.
+func (f *FileStore) Remove(paths ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var active []TSMFile
+	for _, file := range f.files {
+		keep := true
+		for _, remove := range paths {
+			if remove == file.Path() {
+				keep = false
+				break
+			}
+		}
+
+		if keep {
+			active = append(active, file)
+		}
+	}
+	f.files = active
+}
+
 func (f *FileStore) Keys() []string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

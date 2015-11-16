@@ -78,6 +78,47 @@ func TestFileStore_Open(t *testing.T) {
 	}
 }
 
+func TestFileStore_Remove(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// Create 3 TSM files...
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+	}
+
+	files, err := newFileDir(dir, data...)
+	if err != nil {
+		fatal(t, "creating test files", err)
+	}
+
+	fs := tsm1.NewFileStore(dir)
+	if err := fs.Open(); err != nil {
+		fatal(t, "opening file store", err)
+	}
+	defer fs.Close()
+
+	if got, exp := fs.Count(), 3; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := fs.CurrentID(), 4; got != exp {
+		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
+	}
+
+	fs.Remove(files[2])
+
+	if got, exp := fs.Count(), 2; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := fs.CurrentID(), 4; got != exp {
+		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestFileStore_Open_Deleted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
