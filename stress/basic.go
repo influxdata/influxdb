@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -371,13 +370,13 @@ type BasicQueryClient struct {
 
 // Init initializes the InfluxDB client
 func (b *BasicQueryClient) Init() error {
-	u, err := url.Parse(fmt.Sprintf("http://%v", b.Address))
+	cl, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: fmt.Sprintf("http://%v", b.Address),
+	})
+
 	if err != nil {
 		return err
 	}
-	cl := client.NewClient(client.Config{
-		URL: u,
-	})
 
 	b.client = cl
 
@@ -477,13 +476,13 @@ func (b *BasicProvisioner) Provision() error {
 		return nil
 	}
 
-	u, err := url.Parse(fmt.Sprintf("http://%v", b.Address))
+	cl, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: fmt.Sprintf("http://%v", b.Address),
+	})
+
 	if err != nil {
 		return err
 	}
-	cl := client.NewClient(client.Config{
-		URL: u,
-	})
 
 	if b.ResetDatabase {
 		resetDB(cl, b.Database)
