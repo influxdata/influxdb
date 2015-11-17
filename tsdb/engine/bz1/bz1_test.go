@@ -99,11 +99,11 @@ func TestEngine_WritePoints_PointsWriter(t *testing.T) {
 
 	// Points to be inserted.
 	points := []models.Point{
-		models.MustNewPoint("cpu", models.Tags{}, models.Fields{}, time.Unix(0, 1)),
-		models.MustNewPoint("cpu", models.Tags{}, models.Fields{}, time.Unix(0, 0)),
-		models.MustNewPoint("cpu", models.Tags{}, models.Fields{}, time.Unix(1, 0)),
+		models.MustNewPoint("cpu", models.Tags{}, models.Fields{"foo": "bar"}, time.Unix(0, 1)),
+		models.MustNewPoint("cpu", models.Tags{}, models.Fields{"foo": "bar"}, time.Unix(0, 0)),
+		models.MustNewPoint("cpu", models.Tags{}, models.Fields{"foo": "bar"}, time.Unix(1, 0)),
 
-		models.MustNewPoint("cpu", models.Tags{"host": "serverA"}, models.Fields{}, time.Unix(0, 0)),
+		models.MustNewPoint("cpu", models.Tags{"host": "serverA"}, models.Fields{"foo": "bar"}, time.Unix(0, 0)),
 	}
 
 	// Mock points writer to ensure points are passed through.
