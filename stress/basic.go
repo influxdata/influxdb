@@ -68,7 +68,6 @@ func (f AbstractFields) Template() (string, []string) {
 
 // BasicPointGenerator implements the PointGenerator interface
 type BasicPointGenerator struct {
-	Enabled     bool           `toml:"enabled"`
 	PointCount  int            `toml:"point_count"`
 	Tick        string         `toml:"tick"`
 	Jitter      bool           `toml:"jitter"`
@@ -173,6 +172,7 @@ func (p Pnt) OpenTelnet() []byte {
 func (b *BasicPointGenerator) Generate() (<-chan Point, error) {
 	// TODO: should be 1.5x batch size
 	c := make(chan Point, 15000)
+
 	tmplt := b.Template()
 
 	go func(c chan Point) {
@@ -236,6 +236,10 @@ type BasicClient struct {
 
 // Batch groups together points
 func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
+	if !c.Enabled {
+		return nil
+	}
+
 	var buf bytes.Buffer
 	var wg sync.WaitGroup
 	counter := NewConcurrencyLimiter(c.Concurrency)
@@ -357,6 +361,7 @@ func (q *BasicQuery) SetTime(t time.Time) {
 
 // BasicQueryClient implements the QueryClient interface
 type BasicQueryClient struct {
+	Enabled       bool   `toml:"enabled"`
 	Address       string `toml:"address"`
 	Database      string `toml:"database"`
 	QueryInterval string `toml:"query_interval"`
@@ -406,6 +411,9 @@ func (b *BasicQueryClient) Query(cmd Query) (response, error) {
 
 // Exec listens to the query channel an executes queries as they come in
 func (b *BasicQueryClient) Exec(qs <-chan Query, r chan<- response) error {
+	if !b.Enabled {
+		return nil
+	}
 	var wg sync.WaitGroup
 	counter := NewConcurrencyLimiter(b.Concurrency)
 
@@ -465,6 +473,10 @@ type BasicProvisioner struct {
 
 // Provision runs the resetDB function.
 func (b *BasicProvisioner) Provision() error {
+	if !b.Enabled {
+		return nil
+	}
+
 	u, err := url.Parse(fmt.Sprintf("http://%v", b.Address))
 	if err != nil {
 		return err
@@ -502,6 +514,10 @@ func BasicWriteHandler(rs <-chan response, wt *Timer) {
 
 	}
 
+	if n == 0 {
+		return
+	}
+
 	fmt.Printf("Total Requests: %v\n", n)
 	fmt.Printf("	Success: %v\n", success)
 	fmt.Printf("	Fail: %v\n", fail)
@@ -516,6 +532,10 @@ func BasicReadHandler(r <-chan response, rt *Timer) {
 	for t := range r {
 		n++
 		s += t.Timer.Elapsed()
+	}
+
+	if n == 0 {
+		return
 	}
 
 	fmt.Printf("Total Queries: %v\n", n)
