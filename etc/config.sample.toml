@@ -69,7 +69,7 @@ reporting-disabled = false
 
   # These are the WAL settings for the storage engine >= 0.9.3
   wal-dir = "/var/lib/influxdb/wal"
-  wal-enable-logging = true
+  wal-logging-enabled = true
 
   # When a series in the WAL in-memory cache reaches this size in bytes it is marked as ready to
   # flush to the index
