@@ -119,7 +119,6 @@ func (f *FileStore) Delete(key string) error {
 
 	for _, file := range f.files {
 		if file.Contains(key) {
-
 			if err := file.Delete(key); err != nil {
 				return err
 			}
@@ -142,7 +141,6 @@ func (f *FileStore) Open() error {
 		return err
 	}
 	for _, fn := range files {
-
 		// Keep track of the latest ID
 		id, err := f.idFromFileName(fn)
 		if err != nil {
@@ -183,7 +181,6 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	var values []Value
 	for _, f := range f.files {
 		// Can this file possibly contain this key and timestamp?
 		if !f.ContainsValue(key, t) {
@@ -200,7 +197,7 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 			return v, nil
 		}
 	}
-	return values, nil
+	return nil, nil
 }
 
 // idFromFileName parses the segment file ID from its name
