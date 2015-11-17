@@ -16,7 +16,7 @@ func TestTSMWriter_Write_Empty(t *testing.T) {
 		t.Fatalf("unexpected error created writer: %v", err)
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -40,7 +40,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 		t.Fatalf("unexpeted error writing: %v", err)
 
 	}
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -93,7 +93,7 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -313,7 +313,7 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 		}
 	}
 
-	if err := w.Close(); err != nil {
+	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error closing: %v", err)
 	}
 
@@ -423,4 +423,41 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 	if got, exp := len(entries), len(exp); got != exp && exp != 0 {
 		t.Fatalf("entries length mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+func TestIndirectIndex_MaxBlocks(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	for i := 0; i < 1<<16; i++ {
+		index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	}
+
+	if _, err := index.MarshalBinary(); err == nil {
+		t.Fatalf("expected max block count error. got nil")
+	} else {
+		println(err.Error())
+	}
+}
+
+func TestIndirectIndex_Keys(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("mem", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("cpu", time.Unix(1, 0), time.Unix(2, 0), 20, 30)
+
+	keys := index.Keys()
+
+	// 2 distinct keys
+	if got, exp := len(keys), 2; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	// Keys should be sorted
+	if got, exp := keys[0], "cpu"; got != exp {
+		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := keys[1], "mem"; got != exp {
+		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+	}
+
 }

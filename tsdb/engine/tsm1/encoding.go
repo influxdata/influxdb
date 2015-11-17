@@ -76,14 +76,14 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 		panic("unable to encode block type")
 	}
 
-	switch a[0].(type) {
-	case *FloatValue:
+	switch a[0].Value().(type) {
+	case float64:
 		return encodeFloatBlock(buf, a)
-	case *Int64Value:
+	case int64:
 		return encodeInt64Block(buf, a)
-	case *BoolValue:
+	case bool:
 		return encodeBoolBlock(buf, a)
-	case *StringValue:
+	case string:
 		return encodeStringBlock(buf, a)
 	}
 
@@ -173,7 +173,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 
 	for _, v := range values {
 		tsenc.Write(v.Time())
-		venc.Push(v.(*FloatValue).value)
+		venc.Push(v.Value().(float64))
 	}
 	venc.Finish()
 
@@ -271,7 +271,7 @@ func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 
 	for _, v := range values {
 		tsenc.Write(v.Time())
-		venc.Write(v.(*BoolValue).value)
+		venc.Write(v.Value().(bool))
 	}
 
 	// Encoded timestamp values
@@ -356,7 +356,7 @@ func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	vEnc := NewInt64Encoder()
 	for _, v := range values {
 		tsEnc.Write(v.Time())
-		vEnc.Write(v.(*Int64Value).value)
+		vEnc.Write(v.Value().(int64))
 	}
 
 	// Encoded timestamp values
@@ -440,7 +440,7 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	vEnc := NewStringEncoder()
 	for _, v := range values {
 		tsEnc.Write(v.Time())
-		vEnc.Write(v.(*StringValue).value)
+		vEnc.Write(v.Value().(string))
 	}
 
 	// Encoded timestamp values
