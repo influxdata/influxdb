@@ -57,6 +57,7 @@ There are breaking changes in this release:
 - [#4685](https://github.com/influxdb/influxdb/pull/4685): Automatically promote node to raft peer if drop server results in removing a raft peer.
 
 ### Bugfixes
+- [#4193](https://github.com/influxdb/influxdb/issues/4193): Less than or equal to inequality is not inclusive for time in where clause
 - [#4235](https://github.com/influxdb/influxdb/issues/4235): "ORDER BY DESC" doesn't properly order
 - [#4789](https://github.com/influxdb/influxdb/pull/4789): Decode WHERE fields during aggregates. Fix [issue #4701](https://github.com/influxdb/influxdb/issues/4701).
 - [#4778](https://github.com/influxdb/influxdb/pull/4778): If there are no points to count, count is 0.

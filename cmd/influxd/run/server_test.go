@@ -5350,3 +5350,111 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	close(done)
 	// Race occurs on s.Close()
 }
+
+// Ensure time in where clause is inclusive
+func TestServer_WhereTimeInclusive(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
+		fmt.Sprintf(`cpu value=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "all GTE/LTE",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time >= '2000-01-01T00:00:01Z' and time <= '2000-01-01T00:00:03Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "all GTE",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time >= '2000-01-01T00:00:01Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "all LTE",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time <= '2000-01-01T00:00:03Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "first GTE/LTE",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time >= '2000-01-01T00:00:01Z' and time <= '2000-01-01T00:00:01Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "last GTE/LTE",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time >= '2000-01-01T00:00:03Z' and time <= '2000-01-01T00:00:03Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "before GTE/LTE",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time <= '2000-01-01T00:00:00Z'`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "all GT/LT",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time > '2000-01-01T00:00:00Z' and time < '2000-01-01T00:00:04Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "first GT/LT",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time > '2000-01-01T00:00:00Z' and time < '2000-01-01T00:00:02Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "last GT/LT",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time > '2000-01-01T00:00:02Z' and time < '2000-01-01T00:00:04Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "all GT",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time > '2000-01-01T00:00:00Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "all LT",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * from cpu where time < '2000-01-01T00:00:04Z'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",1],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:03Z",3]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
