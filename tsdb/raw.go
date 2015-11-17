@@ -873,7 +873,7 @@ func (m *RawMapper) openMeasurement(mm *Measurement) error {
 			cursors = append(cursors, cm)
 		}
 
-		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors)
+		tsc := NewTagSetCursor(mm.Name, t.Tags, cursors, ascending)
 		tsc.SelectFields = m.selectFields
 		if ascending {
 			tsc.Init(m.qmin)

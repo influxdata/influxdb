@@ -46,6 +46,9 @@ LOGROTATE_DIR=/etc/logrotate.d
 SAMPLE_CONFIGURATION=etc/config.sample.toml
 INITD_SCRIPT=scripts/init.sh
 SYSTEMD_SCRIPT=scripts/influxdb.service
+POSTINSTALL_SCRIPT=scripts/post-install.sh
+PREINSTALL_SCRIPT=scripts/pre-install.sh
+POSTUNINSTALL_SCRIPT=scripts/post-uninstall.sh
 LOGROTATE=scripts/logrotate
 
 TMP_WORK_DIR=`mktemp -d`
@@ -278,52 +281,6 @@ do_build() {
     echo "Build completed successfully."
 }
 
-# generate_postinstall_script creates the post-install script for the
-# package. It must be passed the version.
-generate_postinstall_script() {
-    version=$1
-    cat  <<EOF >$POST_INSTALL_PATH
-#!/bin/sh
-
-if ! id influxdb >/dev/null 2>&1; then
-        useradd --system -U -M influxdb -s /bin/false -d $INFLUXDB_DATA_DIR
-fi
-chown influxdb:influxdb $INSTALL_ROOT_DIR/influx*
-chmod a+rX $INSTALL_ROOT_DIR/influx*
-
-mkdir -p $INFLUXDB_LOG_DIR
-chown -R -L influxdb:influxdb $INFLUXDB_LOG_DIR
-mkdir -p $INFLUXDB_DATA_DIR
-chown -R -L influxdb:influxdb $INFLUXDB_DATA_DIR
-
-test -f /etc/default/influxdb || touch /etc/default/influxdb
-
-# Remove legacy logrotate file
-test -f $LOGROTATE_DIR/influxd && rm -f $LOGROTATE_DIR/influxd
-
-# Remove legacy symlink
-test -h /etc/init.d/influxdb && rm -f /etc/init.d/influxdb
-
-# Systemd
-if which systemctl > /dev/null 2>&1 ; then
-    cp $INFLUXDB_SCRIPT_DIR/$SYSTEMD_SCRIPT /lib/systemd/system/influxdb.service
-    systemctl enable influxdb
-
-# Sysv
-else
-    cp -f $INFLUXDB_SCRIPT_DIR/$INITD_SCRIPT /etc/init.d/influxdb
-    chmod +x /etc/init.d/influxdb
-    if which update-rc.d > /dev/null 2>&1 ; then
-        update-rc.d -f influxdb remove
-        update-rc.d influxdb defaults
-    else
-        chkconfig --add influxdb
-    fi
-fi
-EOF
-    echo "Post-install script created successfully at $POST_INSTALL_PATH"
-}
-
 ###########################################################################
 # Process options
 while :
@@ -478,8 +435,6 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 
-generate_postinstall_script `full_version $VERSION $RC`
-
 ###########################################################################
 # Create the actual packages.
 
@@ -500,8 +455,9 @@ COMMON_FPM_ARGS="\
 --url $URL \
 --license $LICENSE \
 --maintainer $MAINTAINER \
---after-install $POST_INSTALL_PATH \
---after-remove $POST_UNINSTALL_PATH \
+--after-install $POSTINSTALL_SCRIPT \
+--before-install $PREINSTALL_SCRIPT \
+--after-remove $POSTUNINSTALL_SCRIPT \
 --name influxdb${RACE} \
 --config-files $CONFIG_ROOT_DIR \
 --config-files $LOGROTATE_DIR"
