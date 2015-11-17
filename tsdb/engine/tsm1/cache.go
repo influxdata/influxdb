@@ -12,6 +12,12 @@ import (
 var ErrCacheMemoryExceeded = fmt.Errorf("cache maximum memory size exceeded")
 var ErrCacheInvalidCheckpoint = fmt.Errorf("invalid checkpoint")
 
+type checkpoints []uint64
+
+func (a checkpoints) Len() int           { return len(a) }
+func (a checkpoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a checkpoints) Less(i, j int) bool { return a[i] < a[j] }
+
 // lru orders string keys from least-recently used to most-recently used. It is not
 // goroutine safe.
 type lru struct {
@@ -154,8 +160,15 @@ func (a entries) size() uint64 {
 
 // clone returns the values for all entries under management, deduped and ordered by time.
 func (a entries) clone() Values {
+	var keys []uint64
 	var values Values
-	for _, v := range a.ee {
+	for k, _ := range a.ee {
+		keys = append(keys, k)
+	}
+	sort.Sort(checkpoints(keys))
+
+	for _, k := range keys {
+		v := a.ee[k]
 		v.dedupe()
 		values = append(values, v.values...)
 	}
