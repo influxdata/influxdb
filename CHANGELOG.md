@@ -8,6 +8,7 @@
 - [#4766](https://github.com/influxdb/influxdb/pull/4766): Update CLI usage output. Thanks @aneshas
 - [#4804](https://github.com/influxdb/influxdb/pull/4804): Complete lint for services/admin. Thanks @nii236
 - [#4796](https://github.com/influxdb/influxdb/pull/4796): Check point without fields. Thanks @CrazyJvm
+- [#4815](https://github.com/influxdb/influxdb/pull/4815): Added `Time` field into aggregate output across the cluster. Thanks @li-ang
 
 ## v0.9.5 [unreleased]
 
