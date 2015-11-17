@@ -69,6 +69,14 @@ func (a Values) MaxTime() int64 {
 	return a[len(a)-1].Time().UnixNano()
 }
 
+func (a Values) Size() int {
+	sz := 0
+	for _, v := range a {
+		sz += v.Size()
+	}
+	return sz
+}
+
 // Encode converts the values to a byte slice.  If there are no values,
 // this function panics.
 func (a Values) Encode(buf []byte) ([]byte, error) {

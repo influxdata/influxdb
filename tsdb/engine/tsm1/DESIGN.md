@@ -32,7 +32,7 @@ Blocks are sequences of block CRC32 and data.  The block data is opaque to the f
 └─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
 ```
 
-Following the blocks is the index for the blocks in the file.  The index is composed of a sequence of index entries ordered lexicographically by key and then by time.  Each index entry starts with a key length and key followed by a count of the number of blocks in the file.  Each block entry is composed of the min and max time for the block, the offset into the file where the block is located and the the size of the block.
+Following the blocks is the index for the blocks in the file.  The index is composed of a sequence of index entries ordered lexicographically by key and then by time.  Each index entry starts with a key length and key followed by a count of the number of blocks in the file.  Each block entry is composed of the min and max time for the block, the offset into the file where the block is located and the size of the block.
 
 The index structure can provide efficient access to all blocks as well as the ability to determine the cost associated with acessing given key.  Given a key and timestamp, we know exactly which file contains the block for that timestamp as well as where that block resides and how much data to read to retrieve the block.  If we know we need to read all or multiple blocks in a file, we can use the size to determine how much to read in a given IO.
 
@@ -97,7 +97,7 @@ The compaction is used to generate a set of SeriesIterators that return a sequen
 
 Deletions can occur while a new file is being written.  Since the new TSM file is not complete a tombstone would not be written for it. This could result in deleted values getting written into a new file.  To prevent this, if a compaction is running and a delete occurs, the current compaction is aborted and new compaction is started.
 
-When all files are processed and succesfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the last written timestamp which is used for by the Cache to know what entries can be evicted in the future.
+When all files are processed and succesfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the checkpoint of the compacted which is used for by the Cache to know what entries can be evicted in the future.
 
 This process then runs again until there are no more WAL files and the minimum number of TSM files exists that are also under the maximum file size.
 
@@ -121,6 +121,14 @@ Deletions would not be able to reclaim WAL segments immediately as in the case w
 
 Currently, we are moving towards a Single WAL implemention.
 
+# Cache
+
+The primary purpose of the cache is so that data in the WAL is queryable. The client code writes values to the cache, associating a key and checkpoint with each write. The checkpoint must be a monotonically increasing value, but does not have to increase with every write operation. The cache in turn organises all writes first by key (the cache places no constraints on the key as long as it is non-empty) and then by checkpoint. At a time of its choosing, the client also notifies the cache when previously added data has been drained from the WAL. This allows the cache to evict entries associated with all checkpoints up to and including that checkpoint. Specifically when the cache needs to evict data it first chooses the least-recently-used key ("used" is defined as a write or query of that key) and then all data up-to the checkpoint associated with that key is deleted from memory.
+
+The purpose of checkpointing is to allow the cache to keep recently written data in memory, even if the client code has indicated that it has been drained from the WAL. If a query can be satified entirely by accessing the cache, the engine can return data for the query much quicker than if it accessed the disk. This is the secondary purpose of the cache.
+
+The cache tracks it size on a "point-calculated" basis. "Point-calculated" means that the RAM storage footprint for a point in the determined by calling its `Size()` method. While this does not correspond directly to the actual RAM footprint in the cache, the two values are sufficiently correlated for the purpose of controlling RAM.
+
 # TSM File Index
 
 Each TSM file contains a full index of the blocks contained within the file.  The existing index structure is designed to allow for a binary search across the index to find the starting block for a key.  We would then seek to that start key and sequentially scan each block to find the location of a timestamp.
@@ -129,7 +137,7 @@ Some issues with the existing structure is that seeking to a given timestamp for
 
 We've chosen to update the block index structure to ensure a TSM file is fully self-contained, supports consistent IO characteristics for sequential and random accesses as well as provides an efficient load time regardless of file size.  The implications of these changes are that the index is slightly larger and we need to be able to search the index despite each entry being variably sized.
 
-The following are some alternative design options to handle the cases where the index is too large to fit in memory.  We are currently planning to use an indirect MMAP indexing approach for loaded TSM files.  
+The following are some alternative design options to handle the cases where the index is too large to fit in memory.  We are currently planning to use an indirect MMAP indexing approach for loaded TSM files.
 
 ### Indirect MMAP Indexing
 
@@ -169,7 +177,7 @@ The size of the offsets slice would be proportional to the number of unique seri
 
 ### LRU/Lazy Load
 
-A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
+A second option could be to have the index work as a memory bounded, lazy-load style cache.  When a cache miss occurs, the index structure is scanned to find the key and the entries are load and added to the cache which causes the least-recently used entries to be evicted.
 
 ### Key Compression
 
@@ -227,7 +235,7 @@ These are some of the high-level components and their responsibilities.  These a
 
 * Append-only log composed of a fixed size segment files.
 * Writes are appended to the current segment
-* Roll-over to new segment after filling the the current segment
+* Roll-over to new segment after filling the current segment
 * Closed segments are never modified and used for startup and recovery as well as compactions.
 * There is a single WAL for the store as opposed to a WAL per shard.
 
@@ -263,7 +271,7 @@ These are some of the high-level components and their responsibilities.  These a
 * A TSM file that is opened entails reading in and adding the index section to the `FileIndex`.  The block data is then MMAPed up to the index offset to avoid having the index in memory twice.
 
 ## FileIndex
-* Provides location information to a file and block for a given key and timestamp.  
+* Provides location information to a file and block for a given key and timestamp.
 
 ## Interfaces
 
@@ -288,7 +296,7 @@ func (t *TSMWriter) Close() error
 
 
 ```
-// WALIterator returns the key and []Values for a set of WAL segment files. 
+// WALIterator returns the key and []Values for a set of WAL segment files.
 type WALIterator struct{
     Files *os.File
 }
@@ -343,7 +351,9 @@ func (f *FileIndex) Location(key, timestamp) (*os.File, uint64, error)
 
 ```
 type Cache struct {}
-func (c *Cache) Write(key string, values []Value) error
+func (c *Cache) Write(key string, values []Value, checkpoint uint64) error
+func (c *Cache) SetCheckpoint(checkpoint uint64) error
+func (c *Cache) Cursor(key string) tsdb.Cursor
 ```
 
 ```
@@ -375,7 +385,7 @@ Write latency is minimal for the WAL write since there are no seeks.  The latenc
 
 Query throughput is directly related to how many blocks can be read in a period of time.  The index structure contains enough information to determine if one or multiple blocks can be read in a single IO.
 
-Query latency is determine by how long it takes to find and read the relevant blocks.  The in-memory index structure contains the offsets and sizes of all blocks for a key.  This allows every block to be read in 2 IOPS (seek + read) regardless of position, structure or size of file.  
+Query latency is determine by how long it takes to find and read the relevant blocks.  The in-memory index structure contains the offsets and sizes of all blocks for a key.  This allows every block to be read in 2 IOPS (seek + read) regardless of position, structure or size of file.
 
 ### Startup
 
@@ -383,11 +393,11 @@ Startup time is proportional to the number of WAL files, TSM files and tombstone
 
 ### Compactions
 
-Compactions are IO intensive in that they may need to read multiple, large TSM files to rewrite them.  The throughput of a compactions (MB/s) as well as the latency for each compaction is important to keep consistent even as data sizes grow.  
+Compactions are IO intensive in that they may need to read multiple, large TSM files to rewrite them.  The throughput of a compactions (MB/s) as well as the latency for each compaction is important to keep consistent even as data sizes grow.
 
 The performance of compactions also has an effect on what data is visible during queries.  If the Cache fills up and evicts old entries faster than the compactions can process old WAL files, queries could return return gaps until compactions catch up.
 
-To address these concerns, compactions prioritize old WAL files over optimizing storage/compression to avoid data being hidden overload situations.  This also accounts for the fact that shards will eventually become cold for writes so that existing data will be able to be optimized.  To maintain consistent performance, the number of each type of file processed as well as the size of each file processed is bounded.  
+To address these concerns, compactions prioritize old WAL files over optimizing storage/compression to avoid data being hidden overload situations.  This also accounts for the fact that shards will eventually become cold for writes so that existing data will be able to be optimized.  To maintain consistent performance, the number of each type of file processed as well as the size of each file processed is bounded.
 
 ### Memory Footprint
 
@@ -399,7 +409,7 @@ The main concern with concurrency is that reads and writes should not block each
 
 1. Cache series data can be returned to cursors as a copy.  Since cache entries are evicted on writes, cursors iteration and writes to the same series could block each other.  Iterating over copies of the values can relieve some of this contention.
 2. TSM data values returned by the engine are new references to Values and not access to the actual TSM files.  This means that the `Engine`, through the `FileStore` can limit contention.
-3. Compactions are the only place where new TSM files are added and removed.  Since this is a serial, continously running process, file contention is minimized. 
+3. Compactions are the only place where new TSM files are added and removed.  Since this is a serial, continously running process, file contention is minimized.
 
 ## Robustness
 
@@ -407,5 +417,5 @@ The two robustness concerns considered by this design are writes filling the cac
 
 Writes filling up cache faster than the WAL segments can be processed result in the oldest entries being evicted from the cache.  This is the normal operation for the cache.  Old entries are always evicited to make room for new entries.  In the case where WAL segements are slow to be processed, writes are not blocked or errored so timeouts should not occur due to IO issues.  A side effect of this is that queries for recent data will always be served from memory.  The size of the in-memory cache can also be tuned so that if IO does because a bottleneck the window of time for queries with recent data can be tuned.
 
-Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recored as new changes and processed at compaction and query time. 
+Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recored as new changes and processed at compaction and query time.
 
