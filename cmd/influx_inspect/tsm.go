@@ -354,7 +354,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		encoded := buf[9:]
 
 		var v []tsm1.Value
-		err := tsm1.DecodeBlock(buf, &v)
+		v, err := tsm1.DecodeBlock(buf, v)
 		if err != nil {
 			fmt.Printf("error: %v\n", err.Error())
 			os.Exit(1)
