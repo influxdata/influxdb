@@ -153,7 +153,6 @@ type TagSetCursor struct {
 	tags          map[string]string // Tag key-value pairs
 	cursors       []*TagsCursor     // Underlying tags cursors.
 	currentTags   map[string]string // the current tags for the underlying series cursor in play
-	ascending     bool
 
 	SelectFields []string // fields to be selected
 
@@ -170,8 +169,7 @@ func NewTagSetCursor(m string, t map[string]string, c []*TagsCursor, ascending b
 		measurement: m,
 		tags:        t,
 		cursors:     c,
-		ascending:   ascending,
-		heap:        newPointHeap(),
+		heap:        newPointHeap(ascending),
 	}
 }
 
@@ -187,12 +185,6 @@ func (tsc *TagSetCursor) key() string {
 }
 
 func (tsc *TagSetCursor) Init(seek int64) {
-	if tsc.ascending {
-		tsc.heap = newPointHeap()
-	} else {
-		tsc.heap = newPointHeapReverse()
-	}
-
 	// Prime the buffers.
 	for i := 0; i < len(tsc.cursors); i++ {
 		k, v := tsc.cursors[i].SeekTo(seek)
@@ -307,17 +299,14 @@ type pointHeapReverse struct {
 	pointHeap
 }
 
-func newPointHeap() heap.Interface {
+func newPointHeap(ascending bool) heap.Interface {
 	q := make(pointHeap, 0)
 	heap.Init(&q)
-	return &q
-}
-
-func newPointHeapReverse() heap.Interface {
-	q := make(pointHeap, 0)
-	heap.Init(&q)
-
-	return &pointHeapReverse{q}
+	if ascending {
+		return &q
+	} else {
+		return &pointHeapReverse{q}
+	}
 }
 
 func (pq *pointHeapReverse) Less(i, j int) bool {
