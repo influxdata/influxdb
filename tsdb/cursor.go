@@ -224,7 +224,7 @@ func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
 		p := heap.Pop(tsc.heap).(*pointHeapItem)
 
 		// We're done if the point is outside the query's time range [tmin:tmax).
-		if p.timestamp != tmin && (p.timestamp < tmin || p.timestamp >= tmax) {
+		if p.timestamp != tmin && (p.timestamp < tmin || p.timestamp > tmax) {
 			return -1, nil
 		}
 
