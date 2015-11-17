@@ -6,15 +6,17 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 )
 
-// Writes points over UDP using the line protocol
+// UDP writes points over UDP using the line protocol.
 type UDP struct {
 	addr string
 }
 
+// NewUDP returns a new UDP listener with default options.
 func NewUDP(addr string) *UDP {
 	return &UDP{addr: addr}
 }
 
+// WritePoints writes points over udp connection
 func (u *UDP) WritePoints(p *cluster.WritePointsRequest) (err error) {
 	var addr *net.UDPAddr
 	var con *net.UDPConn
