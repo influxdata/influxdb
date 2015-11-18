@@ -20,6 +20,8 @@ const (
 	statWriteFailures = "writeFailures"
 )
 
+// PointsWriter is an interface for writing points to a subscription destination.
+// Only WritePoints() needs to be satisfied.
 type PointsWriter interface {
 	WritePoints(p *cluster.WritePointsRequest) error
 }
@@ -31,7 +33,7 @@ type subEntry struct {
 	name string
 }
 
-// The Subscriber service manages forking the incoming data from InfluxDB
+// Service manages forking the incoming data from InfluxDB
 // to defined third party destinations.
 // Subscriptions are defined per database and retention policy.
 type Service struct {
@@ -49,6 +51,7 @@ type Service struct {
 	mu              sync.Mutex
 }
 
+// NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	return &Service{
 		subs:            make(map[subEntry]PointsWriter),
@@ -60,6 +63,7 @@ func NewService(c Config) *Service {
 	}
 }
 
+// Open starts the subscription service.
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,6 +86,7 @@ func (s *Service) Open() error {
 	return nil
 }
 
+// Close terminates the subscription service
 func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,22 +108,21 @@ func (s *Service) waitForMetaUpdates() {
 		if err != nil {
 			s.Logger.Printf("error while waiting for meta data changes, err: %v\n", err)
 			return
-		} else {
-			//Check that we haven't been closed before performing update.
-			s.mu.Lock()
-			if s.closed {
-				s.mu.Unlock()
-				s.Logger.Println("service closed not updating")
-				return
-			}
-			s.mu.Unlock()
-			s.Update()
 		}
+		//Check that we haven't been closed before performing update.
+		s.mu.Lock()
+		if s.closed {
+			s.mu.Unlock()
+			s.Logger.Println("service closed not updating")
+			return
+		}
+		s.mu.Unlock()
+		s.Update()
 	}
 
 }
 
-// start new and stop deleted subscriptions.
+// Update will start new and stop deleted subscriptions.
 func (s *Service) Update() error {
 	dbis, err := s.MetaStore.Databases()
 	if err != nil {
@@ -198,7 +202,7 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 	}, nil
 }
 
-// Return channel into which write point requests can be sent.
+// Points returns a channel into which write point requests can be sent.
 func (s *Service) Points() chan<- *cluster.WritePointsRequest {
 	return s.points
 }
@@ -220,8 +224,11 @@ func (s *Service) writePoints() {
 	}
 }
 
+// BalanceMode sets what balance mode to use on a subscription.
+// valid options are currently ALL or ANY
 type BalanceMode int
 
+//ALL is a Balance mode option
 const (
 	ALL BalanceMode = iota
 	ANY
