@@ -39,12 +39,12 @@ The index structure can provide efficient access to all blocks as well as the ab
 _TBD: The block length stored in the block data could probably be dropped since we store it in the index._
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                                  Index                                   │
-├─────────┬─────────┬───────┬─────────┬─────────┬─────────┬─────────┬──────┤
-│ Key Len │   Key   │ Count │Min Time │Max Time │ Offset  │  Size   │ ...  │
-│ 2 bytes │ N bytes │2 bytes│ 8 bytes │ 8 bytes │ 8 bytes │ 4 bytes │      │
-└─────────┴─────────┴───────┴─────────┴─────────┴─────────┴─────────┴──────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                   Index                                    │
+├─────────┬─────────┬──────┬───────┬─────────┬─────────┬────────┬────────┬───┤
+│ Key Len │   Key   │ Type │ Count │Min Time │Max Time │ Offset │  Size  │...│
+│ 2 bytes │ N bytes │1 byte│2 bytes│ 8 bytes │ 8 bytes │8 bytes │4 bytes │   │
+└─────────┴─────────┴──────┴───────┴─────────┴─────────┴────────┴────────┴───┘
 ```
 
 The last section is the footer that stores the offset of the start of the index.

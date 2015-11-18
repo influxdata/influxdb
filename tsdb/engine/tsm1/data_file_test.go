@@ -360,9 +360,9 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 
 func TestIndirectIndex_Entries(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 100)
-	index.Add("cpu", time.Unix(2, 0), time.Unix(3, 0), 20, 200)
-	index.Add("mem", time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+	index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+	index.Add("cpu", tsm1.BlockFloat64, time.Unix(2, 0), time.Unix(3, 0), 20, 200)
+	index.Add("mem", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 100)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
@@ -402,8 +402,8 @@ func TestIndirectIndex_Entries(t *testing.T) {
 
 func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 100)
-	index.Add("cpu", time.Unix(2, 0), time.Unix(3, 0), 20, 200)
+	index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+	index.Add("cpu", tsm1.BlockFloat64, time.Unix(2, 0), time.Unix(3, 0), 20, 200)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
@@ -428,7 +428,7 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 func TestIndirectIndex_MaxBlocks(t *testing.T) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 1<<16; i++ {
-		index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+		index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
 	}
 
 	if _, err := index.MarshalBinary(); err == nil {
@@ -438,11 +438,32 @@ func TestIndirectIndex_MaxBlocks(t *testing.T) {
 	}
 }
 
+func TestIndirectIndex_Type(t *testing.T) {
+	index := tsm1.NewDirectIndex()
+	index.Add("cpu", tsm1.BlockInt64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+
+	b, err := index.MarshalBinary()
+
+	ind := tsm1.NewIndirectIndex()
+	if err := ind.UnmarshalBinary(b); err != nil {
+		fatal(t, "unmarshal binary", err)
+	}
+
+	typ, err := ind.Type("cpu")
+	if err != nil {
+		fatal(t, "reading type", err)
+	}
+
+	if got, exp := typ, tsm1.BlockInt64; got != exp {
+		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestIndirectIndex_Keys(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
-	index.Add("mem", time.Unix(0, 0), time.Unix(1, 0), 10, 20)
-	index.Add("cpu", time.Unix(1, 0), time.Unix(2, 0), 20, 30)
+	index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("mem", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("cpu", tsm1.BlockFloat64, time.Unix(1, 0), time.Unix(2, 0), 20, 30)
 
 	keys := index.Keys()
 
@@ -459,5 +480,35 @@ func TestIndirectIndex_Keys(t *testing.T) {
 	if got, exp := keys[1], "mem"; got != exp {
 		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 	}
+}
 
+func TestTSMWriter_Type(t *testing.T) {
+	var b bytes.Buffer
+	w, err := tsm1.NewTSMWriter(&b)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), int64(1))}
+	if err := w.Write("cpu", values); err != nil {
+		t.Fatalf("unexpeted error writing: %v", err)
+
+	}
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpeted error closing: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	typ, err := r.Type("cpu")
+	if err != nil {
+		fatal(t, "reading type", err)
+	}
+
+	if got, exp := typ, tsm1.BlockInt64; got != exp {
+		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
+	}
 }

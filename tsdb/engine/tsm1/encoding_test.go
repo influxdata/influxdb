@@ -24,7 +24,8 @@ func TestEncoding_FloatBlock(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
@@ -45,7 +46,8 @@ func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
@@ -68,7 +70,8 @@ func TestEncoding_FloatBlock_SimilarFloats(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
@@ -91,7 +94,8 @@ func TestEncoding_IntBlock_Basic(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
@@ -129,7 +133,8 @@ func TestEncoding_IntBlock_Negatives(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
@@ -156,7 +161,8 @@ func TestEncoding_BoolBlock_Basic(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
@@ -179,12 +185,49 @@ func TestEncoding_StringBlock_Basic(t *testing.T) {
 	}
 
 	var decodedValues []tsm1.Value
-	if err := tsm1.DecodeBlock(b, &decodedValues); err != nil {
+	decodedValues, err = tsm1.DecodeBlock(b, decodedValues)
+	if err != nil {
 		t.Fatalf("unexpected error decoding block: %v", err)
 	}
 
 	if !reflect.DeepEqual(decodedValues, values) {
 		t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues, values)
+	}
+}
+
+func TestEncoding_BlockType(t *testing.T) {
+	tests := []struct {
+		value     interface{}
+		blockType byte
+	}{
+		{value: float64(1.0), blockType: tsm1.BlockFloat64},
+		{value: int64(1), blockType: tsm1.BlockInt64},
+		{value: true, blockType: tsm1.BlockBool},
+		{value: "string", blockType: tsm1.BlockString},
+	}
+
+	for _, test := range tests {
+		var values []tsm1.Value
+		values = append(values, tsm1.NewValue(time.Unix(0, 0), test.value))
+
+		b, err := tsm1.Values(values).Encode(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		bt, err := tsm1.BlockType(b)
+		if err != nil {
+			t.Fatalf("unexpected error decoding block type: %v", err)
+		}
+
+		if got, exp := bt, test.blockType; got != exp {
+			t.Fatalf("block type mismatch: got %v, exp %v", got, exp)
+		}
+	}
+
+	_, err := tsm1.BlockType([]byte{0, 0, 0, 0, 0, 0, 0, 0, 10})
+	if err == nil {
+		t.Fatalf("expected error decoding block type, got nil")
 	}
 }
 
@@ -195,4 +238,292 @@ func getTimes(n, step int, precision time.Duration) []time.Time {
 		a[i] = t.Add(time.Duration(i*60) * precision)
 	}
 	return a
+}
+
+func BenchmarkDecodeBlock_Float_Empty(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	var decodedValues []tsm1.Value
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Float_EqualSize(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]tsm1.Value, len(values))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Float_TypeSpecific(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, float64(i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]*tsm1.FloatValue, len(values))
+	for i := 0; i < len(decodedValues); i++ {
+		decodedValues[i] = &tsm1.FloatValue{}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeFloatBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Int64_Empty(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, int64(i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	var decodedValues []tsm1.Value
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Int64_EqualSize(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, int64(i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]tsm1.Value, len(values))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Int64_TypeSpecific(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, int64(i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]*tsm1.Int64Value, len(values))
+	for i := 0; i < len(decodedValues); i++ {
+		decodedValues[i] = &tsm1.Int64Value{}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeInt64Block(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Bool_Empty(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, true)
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	var decodedValues []tsm1.Value
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Bool_EqualSize(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, true)
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]tsm1.Value, len(values))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_Bool_TypeSpecific(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, true)
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]*tsm1.BoolValue, len(values))
+	for i := 0; i < len(decodedValues); i++ {
+		decodedValues[i] = &tsm1.BoolValue{}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBoolBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_String_Empty(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	var decodedValues []tsm1.Value
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_String_EqualSize(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]tsm1.Value, len(values))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
+}
+
+func BenchmarkDecodeBlock_String_TypeSpecific(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
+	}
+
+	bytes, err := tsm1.Values(values).Encode(nil)
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	decodedValues := make([]*tsm1.StringValue, len(values))
+	for i := 0; i < len(decodedValues); i++ {
+		decodedValues[i] = &tsm1.StringValue{}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = tsm1.DecodeStringBlock(bytes, decodedValues)
+		if err != nil {
+			b.Fatalf("unexpected error decoding block: %v", err)
+		}
+	}
 }
