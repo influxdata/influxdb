@@ -67,7 +67,7 @@ const (
 func main() {
 	// Make client
 	u, _ := url.Parse("http://localhost:8086")
-	c := client.NewClient(client.Config{
+	c := client.NewHTTPClient(client.Config{
 		URL: u,
 		Username: username,
 		Password: password,
