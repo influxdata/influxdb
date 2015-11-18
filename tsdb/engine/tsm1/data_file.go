@@ -428,6 +428,8 @@ func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Ti
 	panic("unsupported operation")
 }
 
+// search returns the index of i in offsets for where key is located.  If key is not
+// in the index, len(offsets) is returned.
 func (d *indirectIndex) search(key string) int {
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
@@ -464,7 +466,7 @@ func (d *indirectIndex) search(key string) int {
 	}
 
 	// The key is not in the index.  i is the index where it would be inserted so return
-	// a value outside our offet range.
+	// a value outside our offset range.
 	return len(d.offsets)
 }
 
