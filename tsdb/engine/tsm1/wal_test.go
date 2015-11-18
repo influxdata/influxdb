@@ -236,6 +236,92 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 	}
 }
 
+func TestWAL_ClosedSegments(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	w := tsm1.NewWAL(dir)
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+
+	files, err := w.ClosedSegments()
+	if err != nil {
+		t.Fatalf("error getting closed segments: %v", err)
+	}
+
+	if got, exp := len(files), 0; got != exp {
+		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if err := w.WritePoints([]models.Point{
+		parsePoint("cpu,host=A value=1.1 1000000000"),
+	}); err != nil {
+		t.Fatalf("error writing points: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("error closing wal: %v", err)
+	}
+
+	// Re-open the WAL
+	w = tsm1.NewWAL(dir)
+	defer w.Close()
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+
+	files, err = w.ClosedSegments()
+	if err != nil {
+		t.Fatalf("error getting closed segments: %v", err)
+	}
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestWAL_Delete(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	w := tsm1.NewWAL(dir)
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+
+	files, err := w.ClosedSegments()
+	if err != nil {
+		t.Fatalf("error getting closed segments: %v", err)
+	}
+
+	if got, exp := len(files), 0; got != exp {
+		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if err := w.Delete([]string{"cpu"}); err != nil {
+		t.Fatalf("error writing points: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("error closing wal: %v", err)
+	}
+
+	// Re-open the WAL
+	w = tsm1.NewWAL(dir)
+	defer w.Close()
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+
+	files, err = w.ClosedSegments()
+	if err != nil {
+		t.Fatalf("error getting closed segments: %v", err)
+	}
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func BenchmarkWALSegmentWriter(b *testing.B) {
 	points := make([]models.Point, 5000)
 	for i := range points {
