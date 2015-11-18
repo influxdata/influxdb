@@ -22,7 +22,7 @@ const (
 	statPingRequest                  = "pingReq"           // Number of ping requests served
 	statWriteRequestBytesReceived    = "writeReqBytes"     // Sum of all bytes in write requests
 	statQueryRequestBytesTransmitted = "queryRespBytes"    // Sum of all bytes returned in query reponses
-	statPointsWrittenOK              = "pointsWritteOk"    // Number of points written OK
+	statPointsWrittenOK              = "pointsWrittenOK"   // Number of points written OK
 	statPointsWrittenFail            = "pointsWrittenFail" // Number of points that failed to be written
 	statAuthFail                     = "authFail"          // Number of authentication failures
 )
