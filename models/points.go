@@ -2,6 +2,7 @@ package models
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -48,17 +49,20 @@ type Point interface {
 	Data() []byte
 	SetData(buf []byte)
 
-	// String returns a string representation of the point object, if there is a
+	// String returns a string representation of the point, if there is a
 	// timestamp associated with the point then it will be specified with the default
 	// precision of nanoseconds
 	String() string
 
-	// PrecisionString returns a string representation of the point object, if there
+	// Bytes returns a []byte representation of the point similar to string.
+	MarshalBinary() ([]byte, error)
+
+	// PrecisionString returns a string representation of the point, if there
 	// is a timestamp associated with the point then it will be specified in the
 	// given unit
 	PrecisionString(precision string) string
 
-	// RoundedString returns a string representation of the point object, if there
+	// RoundedString returns a string representation of the point, if there
 	// is a timestamp associated with the point, then it will be rounded to the
 	// given duration
 	RoundedString(d time.Duration) string
@@ -1040,6 +1044,14 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 	}, nil
 }
 
+func NewPointFromBytes(b []byte) (Point, error) {
+	p := &point{}
+	if err := p.UnmarshalBinary(b); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
 // MustNewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
 // an unsupported field value (NaN) is passed, this function panics.
 func MustNewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
@@ -1198,9 +1210,43 @@ func (p *point) GetPrecisionMultiplier(precision string) int64 {
 
 func (p *point) String() string {
 	if p.Time().IsZero() {
-		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
+		return string(p.Key()) + " " + string(p.fields)
 	}
-	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields), p.UnixNano())
+	return string(p.Key()) + " " + string(p.fields) + " " + strconv.FormatInt(p.UnixNano(), 10)
+}
+
+func (p *point) MarshalBinary() ([]byte, error) {
+	b := u32tob(uint32(len(p.Key())))
+	b = append(b, p.Key()...)
+
+	b = append(b, u32tob(uint32(len(p.fields)))...)
+	b = append(b, p.fields...)
+
+	tb, err := p.time.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	b = append(b, tb...)
+	return b, nil
+}
+
+func (p *point) UnmarshalBinary(b []byte) error {
+	var i int
+	keyLen := int(btou32(b[:4]))
+	i += int(4)
+
+	p.key = b[i : i+keyLen]
+	i += keyLen
+
+	fieldLen := int(btou32(b[i : i+4]))
+	i += int(4)
+
+	p.fields = b[i : i+fieldLen]
+	i += fieldLen
+
+	p.time = time.Now()
+	p.time.UnmarshalBinary(b[i:])
+	return nil
 }
 
 func (p *point) PrecisionString(precision string) string {
@@ -1450,4 +1496,14 @@ func (s *indexedSlice) Swap(i, j int) {
 
 func (s *indexedSlice) Len() int {
 	return len(s.indices)
+}
+
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+func btou32(b []byte) uint32 {
+	return uint32(binary.BigEndian.Uint32(b))
 }

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,18 +16,6 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 
 	"github.com/golang/snappy"
-)
-
-const (
-	// DefaultSegmentSize of 2MB is the size at which segment files will be rolled over
-	DefaultSegmentSize = 2 * 1024 * 1024
-
-	// FileExtension is the file extension we expect for wal segments
-	WALFileExtension = "wal"
-
-	WALFilePrefix = "_"
-
-	writeBufLen = 32 << 10 // 32kb
 )
 
 // flushType indiciates why a flush and compaction are being run so the partition can
@@ -48,17 +35,12 @@ const (
 	startupFlush
 )
 
-// walEntry is a byte written to a wal segment file that indicates what the following compressed block contains
-type walEntryType byte
-
 const (
 	pointsEntry walEntryType = 0x01
 	fieldsEntry walEntryType = 0x02
 	seriesEntry walEntryType = 0x03
 	deleteEntry walEntryType = 0x04
 )
-
-var ErrWALClosed = fmt.Errorf("WAL closed")
 
 type Log struct {
 	path string
@@ -801,16 +783,4 @@ type deleteData struct {
 	// MeasurementName will be empty for deletes that are only against series
 	MeasurementName string
 	Keys            []string
-}
-
-// idFromFileName parses the segment file ID from its name
-func idFromFileName(name string) (int, error) {
-	parts := strings.Split(filepath.Base(name), ".")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("file %s has wrong name format to have an id", name)
-	}
-
-	id, err := strconv.ParseUint(parts[0][1:], 10, 32)
-
-	return int(id), err
 }
