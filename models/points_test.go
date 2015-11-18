@@ -231,10 +231,29 @@ func TestParsePointMissingTagKey(t *testing.T) {
 func TestParsePointMissingTagValue(t *testing.T) {
 	expectedSuffix := "missing tag value"
 	examples := []string{
+		`cpu,host`,
+		`cpu,host,`,
 		`cpu,host value=1i`,
 		`cpu,host=serverA,region value=1i`,
 		`cpu,host=serverA,region= value=1i`,
 		`cpu,host=serverA,region=,zone=us-west value=1i`,
+	}
+
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
+	}
+}
+
+func TestParsePointInvalidTagFormat(t *testing.T) {
+	expectedSuffix := "invalid tag format"
+	examples := []string{
+		`cpu,host==`,
+		`cpu,host=f=o,`,
 	}
 
 	for i, example := range examples {
@@ -1141,7 +1160,7 @@ func TestNewPointLargeNumberOfTags(t *testing.T) {
 	}
 
 	if len(pt[0].Tags()) != 255 {
-		t.Fatalf("ParsePoints() with max tags failed: %v", err)
+		t.Fatalf("expected %d tags, got %d", 255, len(pt[0].Tags()))
 	}
 }
 
@@ -1181,7 +1200,7 @@ func TestParsePointKeyUnsorted(t *testing.T) {
 	pt := pts[0]
 
 	if exp := "cpu,first=2,last=1"; string(pt.Key()) != exp {
-		t.Errorf("ParsePoint key not sorted. got %v, exp %v", pt.Key(), exp)
+		t.Errorf("ParsePoint key not sorted. got %v, exp %v", string(pt.Key()), exp)
 	}
 }
 
