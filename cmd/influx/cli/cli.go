@@ -83,6 +83,8 @@ func (c *CommandLine) Run() {
 	c.Line = liner.NewLiner()
 	defer c.Line.Close()
 
+	c.Line.SetMultiLineMode(true)
+
 	if promptForPassword {
 		p, e := c.Line.PasswordPrompt("password: ")
 		if e != nil {
