@@ -140,13 +140,32 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 
 func (l *WAL) writeToLog(entry WALEntry) error {
 	l.mu.RLock()
-	defer l.mu.RUnlock()
 	// Make sure the log has not been closed
 	select {
 	case <-l.closing:
+		l.mu.RUnlock()
 		return ErrWALClosed
 	default:
 	}
+	l.mu.RUnlock()
+
+	if err := l.rollSegment(); err != nil {
+		return fmt.Errorf("error rolling WAL segment: %v", err)
+	}
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	if err := l.currentSegmentWriter.Write(entry); err != nil {
+		return fmt.Errorf("error writing WAL entry: %v", err)
+	}
+
+	return l.currentSegmentWriter.Sync()
+}
+
+func (l *WAL) rollSegment() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	if l.currentSegmentWriter == nil || l.currentSegmentWriter.Size() > DefaultSegmentSize {
 		if err := l.newSegmentFile(); err != nil {
@@ -155,12 +174,7 @@ func (l *WAL) writeToLog(entry WALEntry) error {
 			return fmt.Errorf("error opening new segment file for wal: %v", err)
 		}
 	}
-
-	if err := l.currentSegmentWriter.Write(entry); err != nil {
-		return fmt.Errorf("error writing WAL entry: %v", err)
-	}
-
-	return l.currentSegmentWriter.Sync()
+	return nil
 }
 
 func (l *WAL) Delete(keys []string) error {
@@ -319,6 +333,8 @@ func (w *DeleteWALEntry) Type() walEntryType {
 
 // WALSegmentWriter writes WAL segments.
 type WALSegmentWriter struct {
+	mu sync.RWMutex
+
 	w    io.WriteCloser
 	size int
 }
@@ -330,6 +346,9 @@ func NewWALSegmentWriter(w io.WriteCloser) *WALSegmentWriter {
 }
 
 func (w *WALSegmentWriter) Path() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
 	if f, ok := w.w.(*os.File); ok {
 		return f.Name()
 	}
@@ -337,6 +356,9 @@ func (w *WALSegmentWriter) Path() string {
 }
 
 func (w *WALSegmentWriter) Write(e WALEntry) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	bytes := getBuf(defaultBufLen)
 	defer putBuf(bytes)
 
@@ -364,6 +386,9 @@ func (w *WALSegmentWriter) Write(e WALEntry) error {
 
 // Sync flushes the file systems in-memory copy of recently written data to disk.
 func (w *WALSegmentWriter) Sync() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	if f, ok := w.w.(*os.File); ok {
 		return f.Sync()
 	}
@@ -371,10 +396,16 @@ func (w *WALSegmentWriter) Sync() error {
 }
 
 func (w *WALSegmentWriter) Size() int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
 	return w.size
 }
 
 func (w *WALSegmentWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	return w.w.Close()
 }
 
