@@ -92,6 +92,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeShowContinuousQueriesStatement(stmt)
 	case *influxql.ShowShardsStatement:
 		return e.executeShowShardsStatement(stmt)
+	case *influxql.ShowShardGroupsStatement:
+		return e.executeShowShardGroupsStatement(stmt)
 	case *influxql.ShowStatsStatement:
 		return e.executeShowStatsStatement(stmt)
 	case *influxql.DropServerStatement:
@@ -350,6 +352,37 @@ func (e *StatementExecutor) executeShowSubscriptionsStatement(stmt *influxql.Sho
 		}
 	}
 	return &influxql.Result{Series: rows}
+}
+
+func (e *StatementExecutor) executeShowShardGroupsStatement(stmt *influxql.ShowShardGroupsStatement) *influxql.Result {
+	dis, err := e.Store.Databases()
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	row := &models.Row{Columns: []string{"id", "database", "retention_policy", "start_time", "end_time", "expiry_time"}, Name: "shard groups"}
+	for _, di := range dis {
+		for _, rpi := range di.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				// Shards associated with deleted shard groups are effectively deleted.
+				// Don't list them.
+				if sgi.Deleted() {
+					continue
+				}
+
+				row.Values = append(row.Values, []interface{}{
+					sgi.ID,
+					di.Name,
+					rpi.Name,
+					sgi.StartTime.UTC().Format(time.RFC3339),
+					sgi.EndTime.UTC().Format(time.RFC3339),
+					sgi.EndTime.Add(rpi.Duration).UTC().Format(time.RFC3339),
+				})
+			}
+		}
+	}
+
+	return &influxql.Result{Series: []*models.Row{row}}
 }
 
 func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShardsStatement) *influxql.Result {
