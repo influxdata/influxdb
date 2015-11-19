@@ -530,7 +530,7 @@ func (c *Cluster) QueryAll(q *Query) error {
 			}
 			if q.pattern {
 				if !expectPattern(q.exp, r.Val) {
-					return fmt.Errorf("unexpected pattern: %s\n\texp: %s\n\tgot: %s\n", q.pattern, q.exp, r.Val)
+					return fmt.Errorf("unexpected pattern: \n\texp: %s\n\tgot: %s\n", q.exp, r.Val)
 				}
 			} else {
 				if r.Val != q.exp {
@@ -560,6 +560,4 @@ func (c *Cluster) QueryAll(q *Query) error {
 			return fmt.Errorf("timed out waiting for response")
 		}
 	}
-
-	return nil
 }
