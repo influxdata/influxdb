@@ -33,6 +33,8 @@ const (
 	idleFlush
 	// startupFlush indicates that we're flushing because the database is starting up
 	startupFlush
+
+	writeBufLen = 32 << 10
 )
 
 const (
