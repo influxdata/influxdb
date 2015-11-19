@@ -363,6 +363,7 @@ func (s *Server) Open() error {
 		// The port 0 is used, we need to retrieve the port assigned by the kernel
 		if strings.HasSuffix(s.BindAddress, ":0") {
 			s.MetaStore.Addr = ln.Addr()
+			s.MetaStore.RemoteAddr = ln.Addr()
 		}
 
 		// Multiplex listener.

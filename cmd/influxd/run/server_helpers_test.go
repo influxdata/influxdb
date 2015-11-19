@@ -14,14 +14,18 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/client/v2"
 	"github.com/influxdb/influxdb/cmd/influxd/run"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/toml"
 )
+
+const emptyResults = `{"results":[{}]}`
 
 // Server represents a test wrapper for run.Server.
 type Server struct {
@@ -48,6 +52,9 @@ func NewServer(c *run.Config) *Server {
 
 // OpenServer opens a test server.
 func OpenServer(c *run.Config, joinURLs string) *Server {
+	if len(joinURLs) > 0 {
+		c.Meta.Peers = strings.Split(joinURLs, ",")
+	}
 	s := NewServer(c)
 	configureLogging(s)
 	if err := s.Open(); err != nil {
@@ -294,6 +301,7 @@ type Query struct {
 	pattern  bool
 	skip     bool
 	repeat   int
+	once     bool
 }
 
 // Execute runs the command and returns an err if it fails
@@ -374,4 +382,184 @@ func configureLogging(s *Server) {
 			}
 		}
 	}
+}
+
+type Cluster struct {
+	Servers []*Server
+}
+
+func NewCluster(size int) (*Cluster, error) {
+	c := Cluster{}
+	c.Servers = append(c.Servers, OpenServer(NewConfig(), ""))
+	raftURL := c.Servers[0].MetaStore.Addr.String()
+
+	for i := 1; i < size; i++ {
+		c.Servers = append(c.Servers, OpenServer(NewConfig(), raftURL))
+	}
+
+	for _, s := range c.Servers {
+		configureLogging(s)
+	}
+
+	r, err := c.Servers[0].Query("SHOW SERVERS")
+	if err != nil {
+		return nil, err
+	}
+	var cl client.Response
+	if e := json.Unmarshal([]byte(r), &cl); e != nil {
+		return nil, e
+	}
+
+	var leaderCount int
+	var raftCount int
+
+	for _, result := range cl.Results {
+		for _, series := range result.Series {
+			for i, value := range series.Values {
+				addr := c.Servers[i].MetaStore.Addr.String()
+				if value[0].(float64) != float64(i+1) {
+					return nil, fmt.Errorf("expected nodeID %d, got %v", i, value[0])
+				}
+				if value[1].(string) != addr {
+					return nil, fmt.Errorf("expected addr %s, got %v", addr, value[1])
+				}
+				if value[2].(bool) {
+					raftCount++
+				}
+				if value[3].(bool) {
+					leaderCount++
+				}
+			}
+		}
+	}
+	if leaderCount != 1 {
+		return nil, fmt.Errorf("expected 1 leader, got %d", leaderCount)
+	}
+	if size < 3 && raftCount != size {
+		return nil, fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
+	}
+	if size >= 3 && raftCount != 3 {
+		return nil, fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
+	}
+	return &c, nil
+}
+
+func NewClusterWithDefaults(size int) (*Cluster, error) {
+	c, err := NewCluster(size)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := c.Query(&Query{command: "CREATE DATABASE db"})
+	if err != nil {
+		return nil, err
+	}
+	if r != emptyResults {
+		return nil, fmt.Errorf("%s", r)
+	}
+
+	for i, s := range c.Servers {
+		got, err := s.Query("SHOW DATABASES")
+		if err != nil {
+			return nil, fmt.Errorf("failed to query databases on node %d for show databases", i+1)
+		}
+		if exp := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db"]]}]}]}`; got != exp {
+			return nil, fmt.Errorf("unexpected result node %d\nexp: %s\ngot: %s\n", i+1, exp, got)
+		}
+	}
+
+	return c, nil
+}
+
+// Close shuts down all servers.
+func (c *Cluster) Close() {
+	var wg sync.WaitGroup
+	wg.Add(len(c.Servers))
+
+	for _, s := range c.Servers {
+		go func(s *Server) {
+			defer wg.Done()
+			s.Close()
+		}(s)
+	}
+	wg.Wait()
+}
+
+func (c *Cluster) Query(q *Query) (string, error) {
+	r, e := c.Servers[0].Query(q.command)
+	q.act = r
+	return r, e
+}
+
+func (c *Cluster) QueryIndex(index int, q string) (string, error) {
+	return c.Servers[index].Query(q)
+}
+
+func (c *Cluster) QueryAll(q *Query) error {
+	type Response struct {
+		Val string
+		Err error
+	}
+
+	timeoutErr := fmt.Errorf("timed out waiting for response")
+	timeout := time.After(20 * time.Second)
+
+	queryAll := func() error {
+		ch := make(chan Response, 0)
+
+		for _, s := range c.Servers {
+			go func(s *Server) {
+				r, err := s.QueryWithParams(q.command, q.params)
+				ch <- Response{Val: r, Err: err}
+			}(s)
+		}
+
+		resps := []Response{}
+		for i := 0; i < len(c.Servers); i++ {
+			select {
+			case r := <-ch:
+				resps = append(resps, r)
+			case <-timeout:
+				return timeoutErr
+			}
+		}
+
+		for _, r := range resps {
+			if r.Err != nil {
+				return r.Err
+			}
+			if q.pattern {
+				if !expectPattern(q.exp, r.Val) {
+					return fmt.Errorf("unexpected pattern: %s\n\texp: %s\n\tgot: %s\n", q.pattern, q.exp, r.Val)
+				}
+			} else {
+				if r.Val != q.exp {
+					return fmt.Errorf("unexpected value:\n\texp: %s\n\tgot: %s\n", q.exp, r.Val)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	tick := time.Tick(100 * time.Millisecond)
+	if err := queryAll(); err == nil {
+		return nil
+	} else if err != timeoutErr {
+		return err
+	}
+	for {
+		select {
+		case <-tick:
+			if err := queryAll(); err == nil {
+				return nil
+			} else if err != timeoutErr {
+				return err
+			}
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for response")
+		}
+	}
+
+	return nil
 }
