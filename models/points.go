@@ -247,110 +247,136 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	// we need to know how many values in the buffer are in use.
 	commas := 0
 
-	// tracks whether we've see an '='
-	equals := 0
+	// Determines if the current byte is escaped or not.
+	escaped := func(i int) bool {
+		return i-1 >= 0 && buf[i-1] == '\\'
+	}
 
-	// loop over each byte in buf
-	for {
-		// reached the end of buf?
+	// Possible states available during iteration of buf.
+	const (
+		MEASUREMENT = iota
+		KEY
+		VALUE
+		FIELDS
+	)
+
+	// Initial state.
+	var state = MEASUREMENT
+
+	measurement := func() error {
 		if i >= len(buf) {
-			if equals == 0 && commas > 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-
-			break
+			// cpu
+			return fmt.Errorf("missing fields")
 		}
 
-		// equals is special in the tags section.  It must be escaped if part of a tag key or value.
-		// It does not need to be escaped if part of the measurement.
-		if buf[i] == '=' && commas > 0 {
-			if i-1 < 0 || i-2 < 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-
-			// Check for "cpu,=value" but allow "cpu,a\,=value"
-			if buf[i-1] == ',' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-
-			// Check for "cpu,\ =value"
-			if buf[i-1] == ' ' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-
-			i += 1
-			equals += 1
-
-			// Check for "cpu,a=1,b= value=1" or "cpu,a=1,b=,c=foo value=1"
-			if i < len(buf) && (buf[i] == ' ' || buf[i] == ',') {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-			continue
+		if buf[i] == ',' && !escaped(i) {
+			i++
+			state = KEY
+			return nil
+		} else if buf[i] == ' ' && !escaped(i) {
+			// cpu value=1.0
+			state = FIELDS
+			return nil
 		}
 
-		// escaped character
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
+		// Examine next character in measurement.
+		i++
+		return nil
+	}
 
-		// At a tag separator (comma), track it's location
-		if buf[i] == ',' {
-			if equals == 0 && commas > 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
+	key := func() error {
+		// First character of the key.
+		if buf[i-1] == ',' && !escaped(i-1) {
+			if i >= len(buf) || (!escaped(i) && (buf[i] == ' ' || buf[i] == ',' || buf[i] == '=')) {
+				// cpu,{'', ' ', ',', '='}
+				return fmt.Errorf("missing tag key")
 			}
-			i += 1
 
-			// grow our indices slice if we have too many tags
+			// Grow our indices slice if we have too many tags.
 			if commas >= len(indices) {
 				newIndics := make([]int, cap(indices)*2)
 				copy(newIndics, indices)
 				indices = newIndics
 			}
 			indices[commas] = i
-			commas += 1
-
-			// Check for "cpu, value=1"
-			if i < len(buf) && buf[i] == ' ' {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-			continue
+			commas++
 		}
 
-		// reached end of the block? (next block would be fields)
-		if buf[i] == ' ' {
-			// check for "cpu,tag value=1"
-			if equals == 0 && commas > 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
+		if i >= len(buf) || (!escaped(i) && (buf[i] == ' ' || buf[i] == ',')) {
+			// cpu,tag{'', ' ', ','}
+			return fmt.Errorf("missing tag value")
+		} else if buf[i] == '=' && !escaped(i) {
+			// cpu,tag=
+			state = VALUE
+		}
+
+		// Examine next character in key.
+		i++
+		return nil
+	}
+
+	value := func() error {
+		if i >= len(buf) {
+			// cpu,tag=value
+			return fmt.Errorf("missing fields")
+		}
+
+		// An unescaped equals sign is an invalid tag value.
+		if buf[i] == '=' && !escaped(i) {
+			// cpu,tag={'=', 'fo=o'}
+			return fmt.Errorf("invalid tag format")
+		}
+
+		// An unescaped comma is an indication to move to the next key.
+		if buf[i] == ',' && !escaped(i) {
+			// Unless the comma is the first character of the tag value.
+			if buf[i-1] == '=' && !escaped(i-1) {
+				// cpu,tag=,foo=bar
+				return fmt.Errorf("missing tag value")
 			}
-			if equals > 0 && commas-1 != equals-1 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
+			i++
+			state = KEY
+			return nil
+		}
+
+		// An unescaped space is either a missing tag value or an
+		// inidication to move onto fields.
+		if buf[i] == ' ' && !escaped(i) {
+			if buf[i-1] == '=' && !escaped(i-1) {
+				// cpu,tag={' '}
+				return fmt.Errorf("missing tag value")
 			}
 
-			// grow our indices slice if we have too many tags
-			if commas >= len(indices) {
-				newIndics := make([]int, cap(indices)*2)
-				copy(newIndics, indices)
-				indices = newIndics
-			}
-
+			// cpu,tag=foo value=1.0
+			// cpu, tag=foo\= value=1.0
+			state = FIELDS
 			indices[commas] = i + 1
+			return nil
+		}
+		// Examine next character in value.
+		i++
+		return nil
+	}
+
+	// loop over each byte in buf
+	for {
+		var err error
+		switch state {
+		case MEASUREMENT:
+			err = measurement()
+		case KEY:
+			err = key()
+		case VALUE:
+			err = value()
+		}
+
+		if err != nil {
+			return i, buf[start:i], err
+		}
+
+		if state == FIELDS {
 			break
 		}
-
-		i += 1
-	}
-
-	// check that all field sections had key and values (e.g. prevent "a=1,b"
-	// We're using commas -1 because there should always be a comma after measurement
-	if equals > 0 && commas-1 != equals-1 {
-		return i, buf[start:i], fmt.Errorf("invalid tag format")
-	}
-
-	// This check makes sure we actually received fields from the user. #3379
-	// This will catch invalid syntax such as: `cpu,host=serverA,region=us-west`
-	if i >= len(buf) {
-		return i, buf[start:i], fmt.Errorf("missing fields")
 	}
 
 	// Now we know where the key region is within buf, and the locations of tags, we
