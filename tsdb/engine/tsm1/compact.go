@@ -6,6 +6,69 @@ import (
 	"strings"
 )
 
+// MergeIterator merges multiple KeyIterators while chunking each read call
+// into a fixed size.  Each iteration, the lowest lexicographically ordered
+// key is returned with the next set of values for that key ordered by time.  Values
+// with identical times are overwitten by the WAL KeyIterator.
+//
+// Moving through the full iteration cycle will result in sorted, unique, chunks of values
+// up to a max size. Each key returned will be greater than or equal to the prior
+// key returned.
+type MergeIterator struct {
+	// wal is the iterator for multiple WAL segments combined
+	wal KeyIterator
+
+	// size is the maximum value of a chunk to return
+	size int
+
+	// key is the current iteration series key
+	key string
+
+	// walBuf is the remaining values from the last wal Read call
+	walBuf []Value
+
+	// chunk is the curren set of values that will be returned by Read
+	chunk []Value
+
+	// err is any error returned by an underlying iterator to be returned
+	// by Read
+	err error
+}
+
+func (m *MergeIterator) Next() bool {
+	// Prime the wal buffer if possible
+	if len(m.walBuf) == 0 && m.wal.Next() {
+		k, v, err := m.wal.Read()
+		m.key = k
+		m.err = err
+		m.walBuf = v
+	}
+
+	// Move size elements into the current chunk and slice the same
+	// amount off of the wal buffer.
+	if m.size < len(m.walBuf) {
+		m.chunk = m.walBuf[:m.size]
+		m.walBuf = m.walBuf[m.size:]
+	} else {
+		m.chunk = m.walBuf
+		m.walBuf = m.walBuf[:0]
+	}
+
+	return len(m.chunk) > 0
+}
+
+func (m *MergeIterator) Read() (string, []Value, error) {
+	return m.key, m.chunk, m.err
+}
+
+func NewMergeIterator(WAL KeyIterator, size int) *MergeIterator {
+	m := &MergeIterator{
+		wal:  WAL,
+		size: size,
+	}
+	return m
+}
+
 // KeyIterator allows iteration over set of keys and values in sorted order.
 type KeyIterator interface {
 	Next() bool
@@ -15,21 +78,21 @@ type KeyIterator interface {
 // walKeyIterator allows WAL segments to be iterated over in sorted order.
 type walKeyIterator struct {
 	k      string
-	order  []string
-	series map[string]Values
+	Order  []string
+	Series map[string]Values
 }
 
 func (k *walKeyIterator) Next() bool {
-	if len(k.order) == 0 {
+	if len(k.Order) == 0 {
 		return false
 	}
-	k.k = k.order[0]
-	k.order = k.order[1:]
+	k.k = k.Order[0]
+	k.Order = k.Order[1:]
 	return true
 }
 
 func (k *walKeyIterator) Read() (string, []Value, error) {
-	return k.k, k.series[k.k], nil
+	return k.k, k.Series[k.k], nil
 }
 
 func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
@@ -83,7 +146,7 @@ func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
 	sort.Strings(order)
 
 	return &walKeyIterator{
-		series: series,
-		order:  order,
+		Series: series,
+		Order:  order,
 	}, nil
 }
