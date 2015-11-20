@@ -231,6 +231,7 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 			aggValues = append(aggValues, v)
 		}
 		mo.Values = []*tsdb.MapperValue{&tsdb.MapperValue{
+			Time:  mvj[0].Time,
 			Value: aggValues,
 			Tags:  mvj[0].Tags,
 		}}
