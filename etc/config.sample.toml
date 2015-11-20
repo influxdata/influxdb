@@ -131,8 +131,8 @@ reporting-disabled = false
 ###
 
 [cluster]
-  shard-writer-timeout = "10s" # The time within which a shard must respond to write.
-  write-timeout = "5s" # The time within which a write operation must complete on the cluster.
+  shard-writer-timeout = "5s" # The time within which a remote shard must respond to a write request. 
+  write-timeout = "10s" # The time within which a write request must complete on the cluster.
 
 ###
 ### [retention]
