@@ -26,7 +26,7 @@ There are breaking changes in this release:
   - Scripts are now located in `/usr/lib/influxdb/scripts` (previously `/opt/influxdb`)
 
 ### Features
-- [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve parsing of measurements and tags
+- [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge.
 - [#4098](https://github.com/influxdb/influxdb/pull/4702): Support 'history' command at CLI
 - [#4098](https://github.com/influxdb/influxdb/issues/4098): Enable `golint` on the code base - uuid subpackage
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
