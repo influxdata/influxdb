@@ -168,6 +168,7 @@ func TestParsePointNoFields(t *testing.T) {
 	examples := []string{
 		"cpu_load_short,host=server01,region=us-west",
 		"cpu",
+		"cpu,host==",
 		"=",
 	}
 
@@ -252,7 +253,6 @@ func TestParsePointMissingTagValue(t *testing.T) {
 func TestParsePointInvalidTagFormat(t *testing.T) {
 	expectedSuffix := "invalid tag format"
 	examples := []string{
-		`cpu,host==`,
 		`cpu,host=f=o,`,
 	}
 

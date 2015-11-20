@@ -247,135 +247,17 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	// we need to know how many values in the buffer are in use.
 	commas := 0
 
-	// Determines if the current byte is escaped or not.
-	escaped := func(i int) bool {
-		return i-1 >= 0 && buf[i-1] == '\\'
+	// First scan the Point's measurement.
+	state, i, err := scanMeasurement(buf, i)
+	if err != nil {
+		return i, buf[start:i], err
 	}
 
-	// Possible states available during iteration of buf.
-	const (
-		MEASUREMENT = iota
-		KEY
-		VALUE
-		FIELDS
-	)
-
-	// Initial state.
-	var state = MEASUREMENT
-
-	measurement := func() error {
-		if i >= len(buf) {
-			// cpu
-			return fmt.Errorf("missing fields")
-		}
-
-		if buf[i] == ',' && !escaped(i) {
-			i++
-			state = KEY
-			return nil
-		} else if buf[i] == ' ' && !escaped(i) {
-			// cpu value=1.0
-			state = FIELDS
-			return nil
-		}
-
-		// Examine next character in measurement.
-		i++
-		return nil
-	}
-
-	key := func() error {
-		// First character of the key.
-		if buf[i-1] == ',' && !escaped(i-1) {
-			if i >= len(buf) || (!escaped(i) && (buf[i] == ' ' || buf[i] == ',' || buf[i] == '=')) {
-				// cpu,{'', ' ', ',', '='}
-				return fmt.Errorf("missing tag key")
-			}
-
-			// Grow our indices slice if we have too many tags.
-			if commas >= len(indices) {
-				newIndics := make([]int, cap(indices)*2)
-				copy(newIndics, indices)
-				indices = newIndics
-			}
-			indices[commas] = i
-			commas++
-		}
-
-		if i >= len(buf) || (!escaped(i) && (buf[i] == ' ' || buf[i] == ',')) {
-			// cpu,tag{'', ' ', ','}
-			return fmt.Errorf("missing tag value")
-		} else if buf[i] == '=' && !escaped(i) {
-			// cpu,tag=
-			state = VALUE
-		}
-
-		// Examine next character in key.
-		i++
-		return nil
-	}
-
-	value := func() error {
-		if i >= len(buf) {
-			// cpu,tag=value
-			return fmt.Errorf("missing fields")
-		}
-
-		// An unescaped equals sign is an invalid tag value.
-		if buf[i] == '=' && !escaped(i) {
-			// cpu,tag={'=', 'fo=o'}
-			return fmt.Errorf("invalid tag format")
-		}
-
-		// An unescaped comma is an indication to move to the next key.
-		if buf[i] == ',' && !escaped(i) {
-			// Unless the comma is the first character of the tag value.
-			if buf[i-1] == '=' && !escaped(i-1) {
-				// cpu,tag=,foo=bar
-				return fmt.Errorf("missing tag value")
-			}
-			i++
-			state = KEY
-			return nil
-		}
-
-		// An unescaped space is either a missing tag value or an
-		// inidication to move onto fields.
-		if buf[i] == ' ' && !escaped(i) {
-			if buf[i-1] == '=' && !escaped(i-1) {
-				// cpu,tag={' '}
-				return fmt.Errorf("missing tag value")
-			}
-
-			// cpu,tag=foo value=1.0
-			// cpu, tag=foo\= value=1.0
-			state = FIELDS
-			indices[commas] = i + 1
-			return nil
-		}
-		// Examine next character in value.
-		i++
-		return nil
-	}
-
-	// loop over each byte in buf
-	for {
-		var err error
-		switch state {
-		case MEASUREMENT:
-			err = measurement()
-		case KEY:
-			err = key()
-		case VALUE:
-			err = value()
-		}
-
+	// Optionally scan tags if needed.
+	if state == tagKeyState {
+		i, commas, indices, err = scanTags(buf, i, indices)
 		if err != nil {
 			return i, buf[start:i], err
-		}
-
-		if state == FIELDS {
-			break
 		}
 	}
 
@@ -426,6 +308,152 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	}
 
 	return i, buf[start:i], nil
+}
+
+// The following constants allow us to specify which state to move to
+// next, when scanning sections of a Point.
+const (
+	tagKeyState = iota
+	tagValueState
+	fieldsState
+)
+
+// scanMeasurement examines the measurement part of a Point, returning
+// the next state to move to, and the current location in the buffer.
+func scanMeasurement(buf []byte, i int) (int, int, error) {
+	// Check first byte of measurement, anything except a comma is fine.
+	// It can't be a space, since whitespace is stripped prior to this
+	// function call.
+	if buf[i] == ',' {
+		return -1, i, fmt.Errorf("missing measurement")
+	}
+
+	for {
+		i++
+		if i >= len(buf) {
+			// cpu
+			return -1, i, fmt.Errorf("missing fields")
+		}
+
+		if buf[i-1] == '\\' {
+			// Skip character (it's escaped).
+			continue
+		}
+
+		// Unescaped comma; move onto scanning the tags.
+		if buf[i] == ',' {
+			return tagKeyState, i + 1, nil
+		}
+
+		// Unescaped space; move onto scanning the fields.
+		if buf[i] == ' ' {
+			// cpu value=1.0
+			return fieldsState, i, nil
+		}
+	}
+}
+
+// scanTags examines all the tags in a Point, keeping track of and
+// returning the updated indices slice, number of commas and location
+// in buf where to start examining the Point fields.
+func scanTags(buf []byte, i int, indices []int) (int, int, []int, error) {
+	var (
+		err    error
+		commas int
+		state  = tagKeyState
+	)
+
+	for {
+		switch state {
+		case tagKeyState:
+			// Grow our indices slice if we have too many tags.
+			if commas >= len(indices) {
+				newIndics := make([]int, cap(indices)*2)
+				copy(newIndics, indices)
+				indices = newIndics
+			}
+			indices[commas] = i
+			commas++
+
+			i, err = scanTagsKey(buf, i)
+			state = tagValueState // tag value always follows a tag key
+		case tagValueState:
+			state, i, err = scanTagsValue(buf, i)
+		case fieldsState:
+			indices[commas] = i + 1
+			return i, commas, indices, nil
+		}
+
+		if err != nil {
+			return i, commas, indices, err
+		}
+	}
+}
+
+// scanTagsKey scans each character in a tag key.
+func scanTagsKey(buf []byte, i int) (int, error) {
+	// First character of the key.
+	if i >= len(buf) || buf[i] == ' ' || buf[i] == ',' || buf[i] == '=' {
+		// cpu,{'', ' ', ',', '='}
+		return i, fmt.Errorf("missing tag key")
+	}
+
+	// Examine each character in the tag key until we hit an unescaped
+	// equals (the tag value), or we hit an error (i.e., unescaped
+	// space or comma).
+	for {
+		i++
+
+		// Either we reached the end of the buffer or we hit an
+		// unescaped comma or space.
+		if i >= len(buf) ||
+			((buf[i] == ' ' || buf[i] == ',') && buf[i-1] != '\\') {
+			// cpu,tag{'', ' ', ','}
+			return i, fmt.Errorf("missing tag value")
+		}
+
+		if buf[i] == '=' && buf[i-1] != '\\' {
+			// cpu,tag=
+			return i + 1, nil
+		}
+	}
+}
+
+// scanTagsValue scans each character in a tag value.
+func scanTagsValue(buf []byte, i int) (int, int, error) {
+	// Tag value cannot be empty.
+	if buf[i] == ',' || buf[i] == ' ' {
+		// cpu,tag={',', ' '}
+		return -1, i, fmt.Errorf("missing tag value")
+	}
+
+	// Examine each character in the tag value until we hit an unescaped
+	// comma (move onto next tag key), an unescaped space (move onto
+	// fields), or we error out.
+	for {
+		i++
+		if i >= len(buf) {
+			// cpu,tag=value
+			return -1, i, fmt.Errorf("missing fields")
+		}
+
+		// An unescaped equals sign is an invalid tag value.
+		if buf[i] == '=' && buf[i-1] != '\\' {
+			// cpu,tag={'=', 'fo=o'}
+			return -1, i, fmt.Errorf("invalid tag format")
+		}
+
+		if buf[i] == ',' && buf[i-1] != '\\' {
+			// cpu,tag=foo,
+			return tagKeyState, i + 1, nil
+		}
+
+		// cpu,tag=foo value=1.0
+		// cpu, tag=foo\= value=1.0
+		if buf[i] == ' ' && buf[i-1] != '\\' {
+			return fieldsState, i, nil
+		}
+	}
 }
 
 func insertionSort(l, r int, buf []byte, indices []int) {
@@ -830,24 +858,26 @@ func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 // spaces, they are skipped.
 func scanToSpaceOr(buf []byte, i int, stop byte) (int, []byte) {
 	start := i
-	for {
-		// reached the end of buf?
-		if i >= len(buf) {
-			break
-		}
-
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
-		// reached end of block?
-		if buf[i] == stop || buf[i] == ' ' {
-			break
-		}
-		i += 1
+	if buf[i] == stop || buf[i] == ' ' {
+		return i, buf[start:i]
 	}
 
-	return i, buf[start:i]
+	for {
+		i++
+		if buf[i-1] == '\\' {
+			continue
+		}
+
+		// reached the end of buf?
+		if i >= len(buf) {
+			return i, buf[start:i]
+		}
+
+		// reached end of block?
+		if buf[i] == stop || buf[i] == ' ' {
+			return i, buf[start:i]
+		}
+	}
 }
 
 func scanTagValue(buf []byte, i int) (int, []byte) {
