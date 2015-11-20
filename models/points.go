@@ -112,12 +112,6 @@ const (
 	minFloat64Digits = 27
 )
 
-var ()
-
-func ParsePointsString(buf string) ([]Point, error) {
-	return ParsePoints([]byte(buf))
-}
-
 // ParsePoints returns a slice of Points from a text representation of a point
 // with each point separated by newlines.  If any points fail to parse, a non-nil error
 // will be returned in addition to the points that parsed successfully.
@@ -125,6 +119,14 @@ func ParsePoints(buf []byte) ([]Point, error) {
 	return ParsePointsWithPrecision(buf, time.Now().UTC(), "n")
 }
 
+// ParsePointsString is identical to ParsePoints but accepts a string
+// buffer.
+func ParsePointsString(buf string) ([]Point, error) {
+	return ParsePoints([]byte(buf))
+}
+
+// ParsePointsWithPrecision is similar to ParsePoints, but allows the
+// caller to provide a precision for time.
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
 	points := []Point{}
 	var (
@@ -134,7 +136,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 	)
 	for {
 		pos, block = scanLine(buf, pos)
-		pos += 1
+		pos++
 
 		if len(block) == 0 {
 			break
@@ -299,7 +301,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		pos := copy(b, measurement)
 		for _, i := range indices {
 			b[pos] = ','
-			pos += 1
+			pos++
 			_, v := scanToSpaceOr(buf, i, ',')
 			pos += copy(b[pos:], v)
 		}
@@ -516,13 +518,13 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		// If the value is quoted, scan until we get to the end quote
 		if buf[i] == '"' {
 			quoted = !quoted
-			i += 1
+			i++
 			continue
 		}
 
 		// If we see an =, ensure that there is at least on char before and after it
 		if buf[i] == '=' && !quoted {
-			equals += 1
+			equals++
 
 			// check for "... =123" but allow "a\ =123"
 			if buf[i-1] == ' ' && buf[i-2] != '\\' {
@@ -564,14 +566,14 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		}
 
 		if buf[i] == ',' && !quoted {
-			commas += 1
+			commas++
 		}
 
 		// reached end of block?
 		if buf[i] == ' ' && !quoted {
 			break
 		}
-		i += 1
+		i++
 	}
 
 	if quoted {
@@ -603,7 +605,7 @@ func scanTime(buf []byte, i int) (int, []byte, error) {
 		if buf[i] < '0' || buf[i] > '9' {
 			// Handle negative timestamps
 			if i == start && buf[i] == '-' {
-				i += 1
+				i++
 				continue
 			}
 			return i, buf[start:i], fmt.Errorf("bad timestamp")
@@ -613,7 +615,7 @@ func scanTime(buf []byte, i int) (int, []byte, error) {
 		if buf[i] == '\n' {
 			break
 		}
-		i += 1
+		i++
 	}
 	return i, buf[start:i], nil
 }
@@ -631,7 +633,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 
 	// Is negative number?
 	if i < len(buf) && buf[i] == '-' {
-		i += 1
+		i++
 		// There must be more characters now, as just '-' is illegal.
 		if i == len(buf) {
 			return i, fmt.Errorf("invalid number")
@@ -655,12 +657,12 @@ func scanNumber(buf []byte, i int) (int, error) {
 
 		if buf[i] == 'i' && i > start && !isInt {
 			isInt = true
-			i += 1
+			i++
 			continue
 		}
 
 		if buf[i] == '.' {
-			decimals += 1
+			decimals++
 		}
 
 		// Can't have more than 1 decimal (e.g. 1.1.1 should fail)
@@ -671,13 +673,13 @@ func scanNumber(buf []byte, i int) (int, error) {
 		// `e` is valid for floats but not as the first char
 		if i > start && (buf[i] == 'e' || buf[i] == 'E') {
 			scientific = true
-			i += 1
+			i++
 			continue
 		}
 
 		// + and - are only valid at this point if they follow an e (scientific notation)
 		if (buf[i] == '+' || buf[i] == '-') && (buf[i-1] == 'e' || buf[i-1] == 'E') {
-			i += 1
+			i++
 			continue
 		}
 
@@ -689,7 +691,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 		if !isNumeric(buf[i]) {
 			return i, fmt.Errorf("invalid number")
 		}
-		i += 1
+		i++
 	}
 	if isInt && (decimals > 0 || scientific) {
 		return i, fmt.Errorf("invalid number")
@@ -734,7 +736,7 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 		return i, buf[start:i], fmt.Errorf("invalid boolean")
 	}
 
-	i += 1
+	i++
 	for {
 		if i >= len(buf) {
 			break
@@ -743,7 +745,7 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 		if buf[i] == ',' || buf[i] == ' ' {
 			break
 		}
-		i += 1
+		i++
 	}
 
 	// Single char bool (t, T, f, F) is ok
@@ -812,7 +814,7 @@ func scanLine(buf []byte, i int) (int, []byte) {
 
 		// If we see a double quote, makes sure it is not escaped
 		if fields && buf[i] == '"' && (i-1 > 0 && buf[i-1] != '\\') {
-			i += 1
+			i++
 			quoted = !quoted
 			continue
 		}
@@ -821,7 +823,7 @@ func scanLine(buf []byte, i int) (int, []byte) {
 			break
 		}
 
-		i += 1
+		i++
 	}
 
 	return i, buf[start:i]
@@ -847,7 +849,7 @@ func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 		if buf[i] == stop {
 			break
 		}
-		i += 1
+		i++
 	}
 
 	return i, buf[start:i]
@@ -895,7 +897,7 @@ func scanTagValue(buf []byte, i int) (int, []byte) {
 		if buf[i] == ',' {
 			break
 		}
-		i += 1
+		i++
 	}
 	return i, buf[start:i]
 }
@@ -916,7 +918,7 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 
 		// Quoted value? (e.g. string)
 		if buf[i] == '"' {
-			i += 1
+			i++
 			quoted = !quoted
 			continue
 		}
@@ -924,7 +926,7 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 		if buf[i] == ',' && !quoted {
 			break
 		}
-		i += 1
+		i++
 	}
 	return i, buf[start:i]
 }
@@ -970,18 +972,18 @@ func escapeStringField(in string) string {
 		if in[i] == '\\' {
 			out = append(out, '\\')
 			out = append(out, '\\')
-			i += 1
+			i++
 			continue
 		}
 		// escape double-quotes
 		if in[i] == '"' {
 			out = append(out, '\\')
 			out = append(out, '"')
-			i += 1
+			i++
 			continue
 		}
 		out = append(out, in[i])
-		i += 1
+		i++
 
 	}
 	return string(out)
@@ -1009,7 +1011,7 @@ func unescapeStringField(in string) string {
 			continue
 		}
 		out = append(out, in[i])
-		i += 1
+		i++
 
 	}
 	return string(out)
@@ -1038,7 +1040,7 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 	}, nil
 }
 
-// NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
+// MustNewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
 // an unsupported field value (NaN) is passed, this function panics.
 func MustNewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
 	pt, err := NewPoint(name, tags, fields, time)
@@ -1117,12 +1119,13 @@ func (p *point) Tags() Tags {
 
 			tags[string(unescapeTag(key))] = string(unescapeTag(value))
 
-			i += 1
+			i++
 		}
 	}
 	return tags
 }
 
+// MakeKey creates a key for a set of tags.
 func MakeKey(name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
@@ -1231,8 +1234,11 @@ func (p *point) UnixNano() int64 {
 	return p.Time().UnixNano()
 }
 
+// Tags represents a mapping between a Point's tag names and their
+// values.
 type Tags map[string]string
 
+// HashKey hashes all of a tag's keys.
 func (t Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.
 	if len(t) == 0 {
@@ -1255,7 +1261,7 @@ func (t Tags) HashKey() []byte {
 	i := 0
 	for k, v := range escaped {
 		keys[i] = k
-		i += 1
+		i++
 		sz += len(k) + len(v)
 	}
 	keys = keys[:i]
@@ -1266,11 +1272,11 @@ func (t Tags) HashKey() []byte {
 	idx := 0
 	for _, k := range keys {
 		buf[idx] = ','
-		idx += 1
+		idx++
 		copy(buf[idx:idx+len(k)], k)
 		idx += len(k)
 		buf[idx] = '='
-		idx += 1
+		idx++
 		v := escaped[k]
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
@@ -1278,6 +1284,8 @@ func (t Tags) HashKey() []byte {
 	return b[:idx]
 }
 
+// Fields represents a mapping between a Point's field names and their
+// values.
 type Fields map[string]interface{}
 
 func parseNumber(val []byte) (interface{}, error) {
@@ -1343,7 +1351,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 			}
 		}
 		fields[string(name)] = value
-		i += 1
+		i++
 	}
 	return fields
 }
@@ -1356,9 +1364,9 @@ func (p Fields) MarshalBinary() []byte {
 	b := []byte{}
 	keys := make([]string, len(p))
 	i := 0
-	for k, _ := range p {
+	for k := range p {
 		keys[i] = k
-		i += 1
+		i++
 	}
 	sort.Strings(keys)
 
