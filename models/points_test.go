@@ -208,6 +208,7 @@ func TestParsePointMissingTagKey(t *testing.T) {
 	examples := []string{
 		`cpu, value=1`,
 		`cpu,`,
+		`cpu,,,`,
 		`cpu,host=serverA,=us-east value=1i`,
 		`cpu,host=serverAa\,,=us-east value=1i`,
 		`cpu,host=serverA\,,=us-east value=1i`,
@@ -254,6 +255,7 @@ func TestParsePointInvalidTagFormat(t *testing.T) {
 	expectedSuffix := "invalid tag format"
 	examples := []string{
 		`cpu,host=f=o,`,
+		`cpu,host=f\==o,`,
 	}
 
 	for i, example := range examples {
@@ -555,10 +557,35 @@ func TestParsePointUnescape(t *testing.T) {
 				"value": 1.0,
 			},
 			time.Unix(0, 0)))
+
 	// spaces in measurement name
 	test(t, `cpu\ load,region=east value=1.0`,
 		models.MustNewPoint(
 			"cpu load", // space in the name
+			models.Tags{
+				"region": "east",
+			},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// equals in measurement name
+	test(t, `cpu\=load,region=east value=1.0`,
+		models.MustNewPoint(
+			`cpu\=load`, // backslash is literal
+			models.Tags{
+				"region": "east",
+			},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// equals in measurement name
+	test(t, `cpu=load,region=east value=1.0`,
+		models.MustNewPoint(
+			`cpu=load`, // literal equals is fine in measurement name
 			models.Tags{
 				"region": "east",
 			},
@@ -578,11 +605,11 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// spaces in tag names
+	// spaces in tag name
 	test(t, `cpu,region\ zone=east value=1.0`,
 		models.MustNewPoint("cpu",
 			models.Tags{
-				"region zone": "east", // comma in the tag key
+				"region zone": "east", // space in the tag name
 			},
 			models.Fields{
 				"value": 1.0,
@@ -593,7 +620,7 @@ func TestParsePointUnescape(t *testing.T) {
 	test(t, `cpu,\ =east value=1.0`,
 		models.MustNewPoint("cpu",
 			models.Tags{
-				" ": "east", // tag key is single space
+				" ": "east", // tag name is single space
 			},
 			models.Fields{
 				"value": 1.0,
@@ -679,12 +706,12 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// backslash literal followed by escaped character
-	test(t, `cpu,regions=\\,east value=1.0`,
+	// backslash literal followed by escaped characters
+	test(t, `cpu,regions=\\,\,\=east value=1.0`,
 		models.MustNewPoint(
 			"cpu",
 			models.Tags{
-				"regions": `\,east`,
+				"regions": `\,,=east`,
 			},
 			models.Fields{
 				"value": 1.0,
