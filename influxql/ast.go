@@ -1137,6 +1137,45 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 	return nil
 }
 
+// validTopBottomAggr determines if TOP or BOTTOM aggregates have valid arguments.
+func (s *SelectStatement) validTopBottomAggr(expr *Call) error {
+	if exp, got := 2, len(expr.Args); got < exp {
+		return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", expr.Name, exp, got)
+	}
+	if len(expr.Args) > 1 {
+		callLimit, ok := expr.Args[len(expr.Args)-1].(*NumberLiteral)
+		if !ok {
+			return fmt.Errorf("expected integer as last argument in %s(), found %s", expr.Name, expr.Args[len(expr.Args)-1])
+		}
+		// Check if they asked for a limit smaller than what they passed into the call
+		if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
+			return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), expr.Name, int64(s.Limit))
+		}
+
+		for _, v := range expr.Args[:len(expr.Args)-1] {
+			if _, ok := v.(*VarRef); !ok {
+				return fmt.Errorf("only fields or tags are allowed in %s(), found %s", expr.Name, v)
+			}
+		}
+	}
+	return nil
+}
+
+// validPercentileAggr determines if PERCENTILE have valid arguments.
+func (s *SelectStatement) validPercentileAggr(expr *Call) error {
+	if err := s.validSelectWithAggregate(); err != nil {
+		return err
+	}
+	if exp, got := 2, len(expr.Args); got != exp {
+		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+	}
+	_, ok := expr.Args[1].(*NumberLiteral)
+	if !ok {
+		return fmt.Errorf("expected float argument in percentile()")
+	}
+	return nil
+}
+
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
@@ -1149,43 +1188,37 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
 				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
-				groupByInterval, _ := s.GroupByInterval()
+				groupByInterval, err := s.GroupByInterval()
+				if err != nil {
+					return fmt.Errorf("invalid group interval: %v", err)
+				}
 				if groupByInterval > 0 {
-					if _, ok := expr.Args[0].(*Call); !ok {
+					c, ok := expr.Args[0].(*Call)
+					if !ok {
 						return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
 					}
-				}
-
-			case "percentile":
-				if err := s.validSelectWithAggregate(); err != nil {
-					return err
-				}
-				if exp, got := 2, len(expr.Args); got != exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
-				}
-				_, ok := expr.Args[1].(*NumberLiteral)
-				if !ok {
-					return fmt.Errorf("expected float argument in percentile()")
-				}
-			case "top", "bottom":
-				if exp, got := 2, len(expr.Args); got < exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", expr.Name, exp, got)
-				}
-				if len(expr.Args) > 1 {
-					callLimit, ok := expr.Args[len(expr.Args)-1].(*NumberLiteral)
-					if !ok {
-						return fmt.Errorf("expected integer as last argument in %s(), found %s", expr.Name, expr.Args[len(expr.Args)-1])
-					}
-					// Check if they asked for a limit smaller than what they passed into the call
-					if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
-						return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), expr.Name, int64(s.Limit))
-					}
-
-					for _, v := range expr.Args[:len(expr.Args)-1] {
-						if _, ok := v.(*VarRef); !ok {
-							return fmt.Errorf("only fields or tags are allowed in %s(), found %s", expr.Name, v)
+					switch c.Name {
+					case "top", "bottom":
+						if err := s.validTopBottomAggr(c); err != nil {
+							return err
+						}
+					case "percentile":
+						if err := s.validPercentileAggr(c); err != nil {
+							return err
+						}
+					default:
+						if exp, got := 1, len(c.Args); got != exp {
+							return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
 						}
 					}
+				}
+			case "top", "bottom":
+				if err := s.validTopBottomAggr(expr); err != nil {
+					return err
+				}
+			case "percentile":
+				if err := s.validPercentileAggr(expr); err != nil {
+					return err
 				}
 			default:
 				if err := s.validSelectWithAggregate(); err != nil {
