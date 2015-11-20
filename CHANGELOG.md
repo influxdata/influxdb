@@ -12,7 +12,7 @@
 - [#4796](https://github.com/influxdb/influxdb/pull/4796): Check point without fields. Thanks @CrazyJvm
 - [#4815](https://github.com/influxdb/influxdb/pull/4815): Added `Time` field into aggregate output across the cluster. Thanks @li-ang
 
-## v0.9.5 [unreleased]
+## v0.9.5 [2015-11-20]
 
 ### Release Notes
 
