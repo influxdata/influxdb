@@ -10,7 +10,7 @@ func proxy(dst, src *net.TCPConn) error {
 	// channels to wait on the close event for each connection
 	serverClosed := make(chan struct{}, 1)
 	clientClosed := make(chan struct{}, 1)
-	errors := make(chan error, 1)
+	errors := make(chan error, 2)
 
 	go broker(dst, src, clientClosed, errors)
 	go broker(src, dst, serverClosed, errors)
@@ -26,15 +26,15 @@ func proxy(dst, src *net.TCPConn) error {
 		// useful, so we can optionally SetLinger(0) here to recycle the port
 		// faster.
 		dst.SetLinger(0)
-		dst.CloseRead()
+		dst.Close()
 		waitFor = serverClosed
 	case <-serverClosed:
-		src.CloseRead()
+		src.Close()
 		waitFor = clientClosed
 	case err := <-errors:
-		src.CloseRead()
+		src.Close()
 		dst.SetLinger(0)
-		dst.CloseRead()
+		dst.Close()
 		return err
 	}
 
