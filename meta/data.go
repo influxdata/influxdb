@@ -307,7 +307,7 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
-		return nil, influxdb.ErrRetentionPolicyNotFound(database)
+		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
@@ -327,7 +327,7 @@ func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax tim
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
-		return nil, influxdb.ErrRetentionPolicyNotFound(database)
+		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
@@ -346,7 +346,7 @@ func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
-		return nil, influxdb.ErrRetentionPolicyNotFound(database)
+		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 
 	return rpi.ShardGroupByTimestamp(timestamp), nil
@@ -364,7 +364,7 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 	if err != nil {
 		return err
 	} else if rpi == nil {
-		return influxdb.ErrRetentionPolicyNotFound(database)
+		return influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 
 	// Verify that shard group doesn't already exist for this timestamp.

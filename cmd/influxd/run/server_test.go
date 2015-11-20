@@ -510,7 +510,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 			&Query{
 				name:    "Check error when deleting retention policy on non-existent database",
 				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
-				exp:     `{"results":[{"error":"database not found"}]}`,
+				exp:     `{"results":[{"error":"database not found: mydatabase"}]}`,
 			},
 		},
 	}
@@ -1595,7 +1595,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a from a non-existent retention policy should error",
 			command: `SELECT value FROM db0.rp1.cpu`,
-			exp:     `{"results":[{"error":"retention policy not found"}]}`,
+			exp:     `{"results":[{"error":"retention policy not found: rp1"}]}`,
 		},
 		&Query{
 			name:    "selecting a valid  measurement and field should succeed",
