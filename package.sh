@@ -556,7 +556,8 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
             echo "Upload failed ($filename) -- aborting".
             cleanup_exit 1
         fi
-        echo "$filename uploaded"
+        sum=`md5sum $filename | cut -d ' ' -f 1`
+        echo "$filename uploaded, MD5 checksum is $sum"
     done
 else
     echo "Not publishing packages to S3."
