@@ -5,6 +5,7 @@ import (
 	"expvar"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"os"
 	"strings"
@@ -28,6 +29,7 @@ const (
 	statPointsReceived      = "pointsRx"
 	statBytesReceived       = "bytesRx"
 	statPointsParseFail     = "pointsParseFail"
+	statPointsNaNFail       = "pointsNaNFail"
 	statPointsUnsupported   = "pointsUnsupportedFail"
 	statBatchesTransmitted  = "batchesTx"
 	statPointsTransmitted   = "pointsTx"
@@ -334,6 +336,14 @@ func (s *Service) handleLine(line string) {
 	// Parse it.
 	point, err := s.parser.Parse(line)
 	if err != nil {
+		switch err := err.(type) {
+		case *ErrUnsupportedValue:
+			// Graphite ignores NaN values with no error.
+			if math.IsNaN(err.Value) {
+				s.statMap.Add(statPointsNaNFail, 1)
+				return
+			}
+		}
 		s.logger.Printf("unable to parse line: %s: %s", line, err)
 		s.statMap.Add(statPointsParseFail, 1)
 		return

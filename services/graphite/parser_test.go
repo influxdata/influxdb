@@ -1,6 +1,7 @@
 package graphite_test
 
 import (
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -226,6 +227,10 @@ func TestParseNaN(t *testing.T) {
 	_, err = p.Parse("servers.localhost.cpu_load NaN 1435077219")
 	if err == nil {
 		t.Fatalf("expected error. got nil")
+	}
+
+	if _, ok := err.(*graphite.ErrUnsupportedValue); !ok {
+		t.Fatalf("expected *graphite.ErrUnsupportedValue, got %v", reflect.TypeOf(err))
 	}
 }
 

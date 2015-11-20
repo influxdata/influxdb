@@ -117,7 +117,7 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	}
 
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return nil, fmt.Errorf(`field "%s" value: '%v" is unsupported`, fields[0], v)
+		return nil, &ErrUnsupportedValue{Field: fields[0], Value: v}
 	}
 
 	fieldValues := map[string]interface{}{}

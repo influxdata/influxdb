@@ -48,7 +48,10 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 				t.Fatalf("unexpected database: %s", req.Database)
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
+			} else if len(req.Points) != 1 {
+				t.Fatalf("expected 1 point, got %d", len(req.Points))
 			} else if req.Points[0].String() != pt.String() {
+				t.Fatalf("expected point %v, got %v", pt.String(), req.Points[0].String())
 			}
 			return nil
 		},
@@ -72,6 +75,9 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	data := []byte(`cpu 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, '\n')
+	data = append(data, []byte(`memory NaN `)...)
 	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)

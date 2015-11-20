@@ -60,6 +60,7 @@ There are breaking changes in this release:
 - [#4681](https://github.com/influxdb/influxdb/pull/4681): Increase default buffer size for collectd and graphite listeners
 - [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE
 - [#4685](https://github.com/influxdb/influxdb/pull/4685): Automatically promote node to raft peer if drop server results in removing a raft peer.
+- [#4846](https://github.com/influxdb/influxdb/pull/4846): Allow NaN as a valid value on the graphite service; discard these points silently (graphite compatibility). Thanks @jsternberg!
 
 ### Bugfixes
 - [#4193](https://github.com/influxdb/influxdb/issues/4193): Less than or equal to inequality is not inclusive for time in where clause
