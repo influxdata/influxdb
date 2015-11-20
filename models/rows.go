@@ -40,6 +40,7 @@ func (r *Row) tagsKeys() []string {
 	return a
 }
 
+// Rows represents a collection of rows. Rows implements sort.Interface.
 type Rows []*Row
 
 func (p Rows) Len() int { return len(p) }

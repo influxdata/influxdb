@@ -112,12 +112,6 @@ const (
 	minFloat64Digits = 27
 )
 
-var ()
-
-func ParsePointsString(buf string) ([]Point, error) {
-	return ParsePoints([]byte(buf))
-}
-
 // ParsePoints returns a slice of Points from a text representation of a point
 // with each point separated by newlines.  If any points fail to parse, a non-nil error
 // will be returned in addition to the points that parsed successfully.
@@ -125,6 +119,14 @@ func ParsePoints(buf []byte) ([]Point, error) {
 	return ParsePointsWithPrecision(buf, time.Now().UTC(), "n")
 }
 
+// ParsePointsString is identical to ParsePoints but accepts a string
+// buffer.
+func ParsePointsString(buf string) ([]Point, error) {
+	return ParsePoints([]byte(buf))
+}
+
+// ParsePointsWithPrecision is similar to ParsePoints, but allows the
+// caller to provide a precision for time.
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
 	points := []Point{}
 	var (
@@ -134,7 +136,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 	)
 	for {
 		pos, block = scanLine(buf, pos)
-		pos += 1
+		pos++
 
 		if len(block) == 0 {
 			break
@@ -247,110 +249,18 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	// we need to know how many values in the buffer are in use.
 	commas := 0
 
-	// tracks whether we've see an '='
-	equals := 0
-
-	// loop over each byte in buf
-	for {
-		// reached the end of buf?
-		if i >= len(buf) {
-			if equals == 0 && commas > 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-
-			break
-		}
-
-		// equals is special in the tags section.  It must be escaped if part of a tag key or value.
-		// It does not need to be escaped if part of the measurement.
-		if buf[i] == '=' && commas > 0 {
-			if i-1 < 0 || i-2 < 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-
-			// Check for "cpu,=value" but allow "cpu,a\,=value"
-			if buf[i-1] == ',' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-
-			// Check for "cpu,\ =value"
-			if buf[i-1] == ' ' && buf[i-2] != '\\' {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-
-			i += 1
-			equals += 1
-
-			// Check for "cpu,a=1,b= value=1" or "cpu,a=1,b=,c=foo value=1"
-			if i < len(buf) && (buf[i] == ' ' || buf[i] == ',') {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-			continue
-		}
-
-		// escaped character
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
-
-		// At a tag separator (comma), track it's location
-		if buf[i] == ',' {
-			if equals == 0 && commas > 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-			i += 1
-
-			// grow our indices slice if we have too many tags
-			if commas >= len(indices) {
-				newIndics := make([]int, cap(indices)*2)
-				copy(newIndics, indices)
-				indices = newIndics
-			}
-			indices[commas] = i
-			commas += 1
-
-			// Check for "cpu, value=1"
-			if i < len(buf) && buf[i] == ' ' {
-				return i, buf[start:i], fmt.Errorf("missing tag key")
-			}
-			continue
-		}
-
-		// reached end of the block? (next block would be fields)
-		if buf[i] == ' ' {
-			// check for "cpu,tag value=1"
-			if equals == 0 && commas > 0 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-			if equals > 0 && commas-1 != equals-1 {
-				return i, buf[start:i], fmt.Errorf("missing tag value")
-			}
-
-			// grow our indices slice if we have too many tags
-			if commas >= len(indices) {
-				newIndics := make([]int, cap(indices)*2)
-				copy(newIndics, indices)
-				indices = newIndics
-			}
-
-			indices[commas] = i + 1
-			break
-		}
-
-		i += 1
+	// First scan the Point's measurement.
+	state, i, err := scanMeasurement(buf, i)
+	if err != nil {
+		return i, buf[start:i], err
 	}
 
-	// check that all field sections had key and values (e.g. prevent "a=1,b"
-	// We're using commas -1 because there should always be a comma after measurement
-	if equals > 0 && commas-1 != equals-1 {
-		return i, buf[start:i], fmt.Errorf("invalid tag format")
-	}
-
-	// This check makes sure we actually received fields from the user. #3379
-	// This will catch invalid syntax such as: `cpu,host=serverA,region=us-west`
-	if i >= len(buf) {
-		return i, buf[start:i], fmt.Errorf("missing fields")
+	// Optionally scan tags if needed.
+	if state == tagKeyState {
+		i, commas, indices, err = scanTags(buf, i, indices)
+		if err != nil {
+			return i, buf[start:i], err
+		}
 	}
 
 	// Now we know where the key region is within buf, and the locations of tags, we
@@ -391,7 +301,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		pos := copy(b, measurement)
 		for _, i := range indices {
 			b[pos] = ','
-			pos += 1
+			pos++
 			_, v := scanToSpaceOr(buf, i, ',')
 			pos += copy(b[pos:], v)
 		}
@@ -400,6 +310,152 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	}
 
 	return i, buf[start:i], nil
+}
+
+// The following constants allow us to specify which state to move to
+// next, when scanning sections of a Point.
+const (
+	tagKeyState = iota
+	tagValueState
+	fieldsState
+)
+
+// scanMeasurement examines the measurement part of a Point, returning
+// the next state to move to, and the current location in the buffer.
+func scanMeasurement(buf []byte, i int) (int, int, error) {
+	// Check first byte of measurement, anything except a comma is fine.
+	// It can't be a space, since whitespace is stripped prior to this
+	// function call.
+	if buf[i] == ',' {
+		return -1, i, fmt.Errorf("missing measurement")
+	}
+
+	for {
+		i++
+		if i >= len(buf) {
+			// cpu
+			return -1, i, fmt.Errorf("missing fields")
+		}
+
+		if buf[i-1] == '\\' {
+			// Skip character (it's escaped).
+			continue
+		}
+
+		// Unescaped comma; move onto scanning the tags.
+		if buf[i] == ',' {
+			return tagKeyState, i + 1, nil
+		}
+
+		// Unescaped space; move onto scanning the fields.
+		if buf[i] == ' ' {
+			// cpu value=1.0
+			return fieldsState, i, nil
+		}
+	}
+}
+
+// scanTags examines all the tags in a Point, keeping track of and
+// returning the updated indices slice, number of commas and location
+// in buf where to start examining the Point fields.
+func scanTags(buf []byte, i int, indices []int) (int, int, []int, error) {
+	var (
+		err    error
+		commas int
+		state  = tagKeyState
+	)
+
+	for {
+		switch state {
+		case tagKeyState:
+			// Grow our indices slice if we have too many tags.
+			if commas >= len(indices) {
+				newIndics := make([]int, cap(indices)*2)
+				copy(newIndics, indices)
+				indices = newIndics
+			}
+			indices[commas] = i
+			commas++
+
+			i, err = scanTagsKey(buf, i)
+			state = tagValueState // tag value always follows a tag key
+		case tagValueState:
+			state, i, err = scanTagsValue(buf, i)
+		case fieldsState:
+			indices[commas] = i + 1
+			return i, commas, indices, nil
+		}
+
+		if err != nil {
+			return i, commas, indices, err
+		}
+	}
+}
+
+// scanTagsKey scans each character in a tag key.
+func scanTagsKey(buf []byte, i int) (int, error) {
+	// First character of the key.
+	if i >= len(buf) || buf[i] == ' ' || buf[i] == ',' || buf[i] == '=' {
+		// cpu,{'', ' ', ',', '='}
+		return i, fmt.Errorf("missing tag key")
+	}
+
+	// Examine each character in the tag key until we hit an unescaped
+	// equals (the tag value), or we hit an error (i.e., unescaped
+	// space or comma).
+	for {
+		i++
+
+		// Either we reached the end of the buffer or we hit an
+		// unescaped comma or space.
+		if i >= len(buf) ||
+			((buf[i] == ' ' || buf[i] == ',') && buf[i-1] != '\\') {
+			// cpu,tag{'', ' ', ','}
+			return i, fmt.Errorf("missing tag value")
+		}
+
+		if buf[i] == '=' && buf[i-1] != '\\' {
+			// cpu,tag=
+			return i + 1, nil
+		}
+	}
+}
+
+// scanTagsValue scans each character in a tag value.
+func scanTagsValue(buf []byte, i int) (int, int, error) {
+	// Tag value cannot be empty.
+	if buf[i] == ',' || buf[i] == ' ' {
+		// cpu,tag={',', ' '}
+		return -1, i, fmt.Errorf("missing tag value")
+	}
+
+	// Examine each character in the tag value until we hit an unescaped
+	// comma (move onto next tag key), an unescaped space (move onto
+	// fields), or we error out.
+	for {
+		i++
+		if i >= len(buf) {
+			// cpu,tag=value
+			return -1, i, fmt.Errorf("missing fields")
+		}
+
+		// An unescaped equals sign is an invalid tag value.
+		if buf[i] == '=' && buf[i-1] != '\\' {
+			// cpu,tag={'=', 'fo=o'}
+			return -1, i, fmt.Errorf("invalid tag format")
+		}
+
+		if buf[i] == ',' && buf[i-1] != '\\' {
+			// cpu,tag=foo,
+			return tagKeyState, i + 1, nil
+		}
+
+		// cpu,tag=foo value=1.0
+		// cpu, tag=foo\= value=1.0
+		if buf[i] == ' ' && buf[i-1] != '\\' {
+			return fieldsState, i, nil
+		}
+	}
 }
 
 func insertionSort(l, r int, buf []byte, indices []int) {
@@ -462,13 +518,13 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		// If the value is quoted, scan until we get to the end quote
 		if buf[i] == '"' {
 			quoted = !quoted
-			i += 1
+			i++
 			continue
 		}
 
 		// If we see an =, ensure that there is at least on char before and after it
 		if buf[i] == '=' && !quoted {
-			equals += 1
+			equals++
 
 			// check for "... =123" but allow "a\ =123"
 			if buf[i-1] == ' ' && buf[i-2] != '\\' {
@@ -510,14 +566,14 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		}
 
 		if buf[i] == ',' && !quoted {
-			commas += 1
+			commas++
 		}
 
 		// reached end of block?
 		if buf[i] == ' ' && !quoted {
 			break
 		}
-		i += 1
+		i++
 	}
 
 	if quoted {
@@ -549,7 +605,7 @@ func scanTime(buf []byte, i int) (int, []byte, error) {
 		if buf[i] < '0' || buf[i] > '9' {
 			// Handle negative timestamps
 			if i == start && buf[i] == '-' {
-				i += 1
+				i++
 				continue
 			}
 			return i, buf[start:i], fmt.Errorf("bad timestamp")
@@ -559,7 +615,7 @@ func scanTime(buf []byte, i int) (int, []byte, error) {
 		if buf[i] == '\n' {
 			break
 		}
-		i += 1
+		i++
 	}
 	return i, buf[start:i], nil
 }
@@ -577,7 +633,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 
 	// Is negative number?
 	if i < len(buf) && buf[i] == '-' {
-		i += 1
+		i++
 		// There must be more characters now, as just '-' is illegal.
 		if i == len(buf) {
 			return i, fmt.Errorf("invalid number")
@@ -601,12 +657,12 @@ func scanNumber(buf []byte, i int) (int, error) {
 
 		if buf[i] == 'i' && i > start && !isInt {
 			isInt = true
-			i += 1
+			i++
 			continue
 		}
 
 		if buf[i] == '.' {
-			decimals += 1
+			decimals++
 		}
 
 		// Can't have more than 1 decimal (e.g. 1.1.1 should fail)
@@ -617,13 +673,13 @@ func scanNumber(buf []byte, i int) (int, error) {
 		// `e` is valid for floats but not as the first char
 		if i > start && (buf[i] == 'e' || buf[i] == 'E') {
 			scientific = true
-			i += 1
+			i++
 			continue
 		}
 
 		// + and - are only valid at this point if they follow an e (scientific notation)
 		if (buf[i] == '+' || buf[i] == '-') && (buf[i-1] == 'e' || buf[i-1] == 'E') {
-			i += 1
+			i++
 			continue
 		}
 
@@ -635,7 +691,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 		if !isNumeric(buf[i]) {
 			return i, fmt.Errorf("invalid number")
 		}
-		i += 1
+		i++
 	}
 	if isInt && (decimals > 0 || scientific) {
 		return i, fmt.Errorf("invalid number")
@@ -680,7 +736,7 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 		return i, buf[start:i], fmt.Errorf("invalid boolean")
 	}
 
-	i += 1
+	i++
 	for {
 		if i >= len(buf) {
 			break
@@ -689,7 +745,7 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 		if buf[i] == ',' || buf[i] == ' ' {
 			break
 		}
-		i += 1
+		i++
 	}
 
 	// Single char bool (t, T, f, F) is ok
@@ -758,7 +814,7 @@ func scanLine(buf []byte, i int) (int, []byte) {
 
 		// If we see a double quote, makes sure it is not escaped
 		if fields && buf[i] == '"' && (i-1 > 0 && buf[i-1] != '\\') {
-			i += 1
+			i++
 			quoted = !quoted
 			continue
 		}
@@ -767,7 +823,7 @@ func scanLine(buf []byte, i int) (int, []byte) {
 			break
 		}
 
-		i += 1
+		i++
 	}
 
 	return i, buf[start:i]
@@ -793,7 +849,7 @@ func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 		if buf[i] == stop {
 			break
 		}
-		i += 1
+		i++
 	}
 
 	return i, buf[start:i]
@@ -804,24 +860,26 @@ func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 // spaces, they are skipped.
 func scanToSpaceOr(buf []byte, i int, stop byte) (int, []byte) {
 	start := i
-	for {
-		// reached the end of buf?
-		if i >= len(buf) {
-			break
-		}
-
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
-		// reached end of block?
-		if buf[i] == stop || buf[i] == ' ' {
-			break
-		}
-		i += 1
+	if buf[i] == stop || buf[i] == ' ' {
+		return i, buf[start:i]
 	}
 
-	return i, buf[start:i]
+	for {
+		i++
+		if buf[i-1] == '\\' {
+			continue
+		}
+
+		// reached the end of buf?
+		if i >= len(buf) {
+			return i, buf[start:i]
+		}
+
+		// reached end of block?
+		if buf[i] == stop || buf[i] == ' ' {
+			return i, buf[start:i]
+		}
+	}
 }
 
 func scanTagValue(buf []byte, i int) (int, []byte) {
@@ -839,7 +897,7 @@ func scanTagValue(buf []byte, i int) (int, []byte) {
 		if buf[i] == ',' {
 			break
 		}
-		i += 1
+		i++
 	}
 	return i, buf[start:i]
 }
@@ -860,7 +918,7 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 
 		// Quoted value? (e.g. string)
 		if buf[i] == '"' {
-			i += 1
+			i++
 			quoted = !quoted
 			continue
 		}
@@ -868,7 +926,7 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 		if buf[i] == ',' && !quoted {
 			break
 		}
-		i += 1
+		i++
 	}
 	return i, buf[start:i]
 }
@@ -914,18 +972,18 @@ func escapeStringField(in string) string {
 		if in[i] == '\\' {
 			out = append(out, '\\')
 			out = append(out, '\\')
-			i += 1
+			i++
 			continue
 		}
 		// escape double-quotes
 		if in[i] == '"' {
 			out = append(out, '\\')
 			out = append(out, '"')
-			i += 1
+			i++
 			continue
 		}
 		out = append(out, in[i])
-		i += 1
+		i++
 
 	}
 	return string(out)
@@ -953,7 +1011,7 @@ func unescapeStringField(in string) string {
 			continue
 		}
 		out = append(out, in[i])
-		i += 1
+		i++
 
 	}
 	return string(out)
@@ -982,7 +1040,7 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 	}, nil
 }
 
-// NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
+// MustNewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
 // an unsupported field value (NaN) is passed, this function panics.
 func MustNewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
 	pt, err := NewPoint(name, tags, fields, time)
@@ -1061,12 +1119,13 @@ func (p *point) Tags() Tags {
 
 			tags[string(unescapeTag(key))] = string(unescapeTag(value))
 
-			i += 1
+			i++
 		}
 	}
 	return tags
 }
 
+// MakeKey creates a key for a set of tags.
 func MakeKey(name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
@@ -1175,8 +1234,11 @@ func (p *point) UnixNano() int64 {
 	return p.Time().UnixNano()
 }
 
+// Tags represents a mapping between a Point's tag names and their
+// values.
 type Tags map[string]string
 
+// HashKey hashes all of a tag's keys.
 func (t Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.
 	if len(t) == 0 {
@@ -1199,7 +1261,7 @@ func (t Tags) HashKey() []byte {
 	i := 0
 	for k, v := range escaped {
 		keys[i] = k
-		i += 1
+		i++
 		sz += len(k) + len(v)
 	}
 	keys = keys[:i]
@@ -1210,11 +1272,11 @@ func (t Tags) HashKey() []byte {
 	idx := 0
 	for _, k := range keys {
 		buf[idx] = ','
-		idx += 1
+		idx++
 		copy(buf[idx:idx+len(k)], k)
 		idx += len(k)
 		buf[idx] = '='
-		idx += 1
+		idx++
 		v := escaped[k]
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
@@ -1222,6 +1284,8 @@ func (t Tags) HashKey() []byte {
 	return b[:idx]
 }
 
+// Fields represents a mapping between a Point's field names and their
+// values.
 type Fields map[string]interface{}
 
 func parseNumber(val []byte) (interface{}, error) {
@@ -1287,7 +1351,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 			}
 		}
 		fields[string(name)] = value
-		i += 1
+		i++
 	}
 	return fields
 }
@@ -1300,9 +1364,9 @@ func (p Fields) MarshalBinary() []byte {
 	b := []byte{}
 	keys := make([]string, len(p))
 	i := 0
-	for k, _ := range p {
+	for k := range p {
 		keys[i] = k
-		i += 1
+		i++
 	}
 	sort.Strings(keys)
 

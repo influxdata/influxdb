@@ -163,41 +163,22 @@ func TestParsePointWhitespaceValue(t *testing.T) {
 	}
 }
 
-func TestParsePointSingleEquals(t *testing.T) {
-	pts, err := models.ParsePointsString("=")
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. expected error`, "=")
-	}
-
-	if exp := 0; len(pts) != exp {
-		t.Errorf(`ParsePoints("%s") len mismatch. got %v, exp %v`, "", len(pts), exp)
-	}
-}
-
 func TestParsePointNoFields(t *testing.T) {
-	_, err := models.ParsePointsString("cpu_load_short,host=server01,region=us-west")
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu_load_short,host=server01,region=us-west")
+	expectedSuffix := "missing fields"
+	examples := []string{
+		"cpu_load_short,host=server01,region=us-west",
+		"cpu",
+		"cpu,host==",
+		"=",
 	}
 
-	_, err = models.ParsePointsString("cpu")
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
-	}
-
-	_, err = models.ParsePointsString("cpu,")
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu,")
-	}
-
-	_, err = models.ParsePointsString("cpu, value=1")
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu, value=1")
-	}
-
-	_, err = models.ParsePointsString("cpu,,, value=1")
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu,,, value=1")
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
 	}
 }
 
@@ -206,51 +187,84 @@ func TestParsePointNoTimestamp(t *testing.T) {
 }
 
 func TestParsePointMissingQuote(t *testing.T) {
-	_, err := models.ParsePointsString(`cpu,host=serverA value="test`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	expectedSuffix := "unbalanced quotes"
+	examples := []string{
+		`cpu,host=serverA value="test`,
+		`cpu,host=serverA value="test""`,
+	}
+
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
 	}
 }
 
 func TestParsePointMissingTagKey(t *testing.T) {
-	_, err := models.ParsePointsString(`cpu,host=serverA,=us-east value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,=us-east value=1i`)
+	expectedSuffix := "missing tag key"
+	examples := []string{
+		`cpu, value=1`,
+		`cpu,`,
+		`cpu,,,`,
+		`cpu,host=serverA,=us-east value=1i`,
+		`cpu,host=serverAa\,,=us-east value=1i`,
+		`cpu,host=serverA\,,=us-east value=1i`,
+		`cpu, =serverA value=1i`,
 	}
 
-	_, err = models.ParsePointsString(`cpu,host=serverAa\,,=us-east value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverAa\,,=us-east value=1i`)
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
 	}
 
-	_, err = models.ParsePointsString(`cpu,host=serverA\,,=us-east value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA\,,=us-east value=1i`)
-	}
-
-	_, err = models.ParsePointsString(`cpu,host=serverA,\ =us-east value=1i`)
+	_, err := models.ParsePointsString(`cpu,host=serverA,\ =us-east value=1i`)
 	if err != nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,\ =us-east value=1i`, err)
 	}
 }
 
 func TestParsePointMissingTagValue(t *testing.T) {
-	_, err := models.ParsePointsString(`cpu,host value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host value=1i`)
+	expectedSuffix := "missing tag value"
+	examples := []string{
+		`cpu,host`,
+		`cpu,host,`,
+		`cpu,host value=1i`,
+		`cpu,host=serverA,region value=1i`,
+		`cpu,host=serverA,region= value=1i`,
+		`cpu,host=serverA,region=,zone=us-west value=1i`,
 	}
 
-	_, err = models.ParsePointsString(`cpu,host=serverA,region value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region value=1i`)
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
 	}
-	_, err = models.ParsePointsString(`cpu,host=serverA,region= value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region= value=1i`)
+}
+
+func TestParsePointInvalidTagFormat(t *testing.T) {
+	expectedSuffix := "invalid tag format"
+	examples := []string{
+		`cpu,host=f=o,`,
+		`cpu,host=f\==o,`,
 	}
-	_, err = models.ParsePointsString(`cpu,host=serverA,region=,zone=us-west value=1i`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=,zone=us-west value=1i`)
+
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got nil, exp error`, i, example)
+		} else if !strings.HasSuffix(err.Error(), expectedSuffix) {
+			t.Errorf(`[Example %d] ParsePoints("%s") mismatch. got %q, exp suffix %q`, i, example, err, expectedSuffix)
+		}
 	}
 }
 
@@ -556,6 +570,30 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
+	// equals in measurement name
+	test(t, `cpu\=load,region=east value=1.0`,
+		models.MustNewPoint(
+			`cpu\=load`, // backslash is literal
+			models.Tags{
+				"region": "east",
+			},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// equals in measurement name
+	test(t, `cpu=load,region=east value=1.0`,
+		models.MustNewPoint(
+			`cpu=load`, // literal equals is fine in measurement name
+			models.Tags{
+				"region": "east",
+			},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
 	// commas in tag names
 	test(t, `cpu,region\,zone=east value=1.0`,
 		models.MustNewPoint("cpu",
@@ -567,11 +605,22 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// spaces in tag names
+	// spaces in tag name
 	test(t, `cpu,region\ zone=east value=1.0`,
 		models.MustNewPoint("cpu",
 			models.Tags{
-				"region zone": "east", // comma in the tag key
+				"region zone": "east", // space in the tag name
+			},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// space is tag name
+	test(t, `cpu,\ =east value=1.0`,
+		models.MustNewPoint("cpu",
+			models.Tags{
+				" ": "east", // tag name is single space
 			},
 			models.Fields{
 				"value": 1.0,
@@ -651,6 +700,18 @@ func TestParsePointUnescape(t *testing.T) {
 			"cpu",
 			models.Tags{
 				"regions": "eas\\t",
+			},
+			models.Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// backslash literal followed by escaped characters
+	test(t, `cpu,regions=\\,\,\=east value=1.0`,
+		models.MustNewPoint(
+			"cpu",
+			models.Tags{
+				"regions": `\,,=east`,
 			},
 			models.Fields{
 				"value": 1.0,
@@ -1126,7 +1187,7 @@ func TestNewPointLargeNumberOfTags(t *testing.T) {
 	}
 
 	if len(pt[0].Tags()) != 255 {
-		t.Fatalf("ParsePoints() with max tags failed: %v", err)
+		t.Fatalf("expected %d tags, got %d", 255, len(pt[0].Tags()))
 	}
 }
 
@@ -1166,7 +1227,7 @@ func TestParsePointKeyUnsorted(t *testing.T) {
 	pt := pts[0]
 
 	if exp := "cpu,first=2,last=1"; string(pt.Key()) != exp {
-		t.Errorf("ParsePoint key not sorted. got %v, exp %v", pt.Key(), exp)
+		t.Errorf("ParsePoint key not sorted. got %v, exp %v", string(pt.Key()), exp)
 	}
 }
 
