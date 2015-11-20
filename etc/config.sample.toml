@@ -147,8 +147,10 @@ reporting-disabled = false
 ###
 ### [shard-precreation]
 ###
-### Controls the precreation of shards, so they are created before data arrives.
-### Only shards that will exist in the future, at time of creation, are precreated.
+### Controls the precreation of shards, so they are available before data arrives.
+### Only shards that, after creation, will have both a start- and end-time in the
+### future, will ever be created. Shards are never precreated that would be wholly
+### or partially in the past.
 
 [shard-precreation]
   enabled = true
