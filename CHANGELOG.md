@@ -3,6 +3,7 @@
 ### Features
 - [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
 - [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
+- [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
 
 ### Bugfixes
 - [#4411](https://github.com/influxdb/influxdb/pull/4411): Add Access-Control-Expose-Headers to HTTP responses
@@ -27,7 +28,6 @@ There are breaking changes in this release:
   - Scripts are now located in `/usr/lib/influxdb/scripts` (previously `/opt/influxdb`)
 
 ### Features
-- [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge.
 - [#4098](https://github.com/influxdb/influxdb/pull/4702): Support 'history' command at CLI
 - [#4098](https://github.com/influxdb/influxdb/issues/4098): Enable `golint` on the code base - uuid subpackage
 - [#4141](https://github.com/influxdb/influxdb/pull/4141): Control whether each query should be logged
