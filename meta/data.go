@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
 )
@@ -174,14 +175,14 @@ func (data *Data) DropDatabase(name string) error {
 			return nil
 		}
 	}
-	return ErrDatabaseNotFound
+	return influxdb.ErrDatabaseNotFound(name)
 }
 
 // RetentionPolicy returns a retention policy for a database by name.
 func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, error) {
 	di := data.Database(database)
 	if di == nil {
-		return nil, ErrDatabaseNotFound
+		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
 
 	for i := range di.RetentionPolicies {
@@ -205,7 +206,7 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
-		return ErrDatabaseNotFound
+		return influxdb.ErrDatabaseNotFound(database)
 	} else if di.RetentionPolicy(rpi.Name) != nil {
 		return ErrRetentionPolicyExists
 	}
@@ -226,7 +227,7 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
-		return ErrDatabaseNotFound
+		return influxdb.ErrDatabaseNotFound(database)
 	}
 
 	// Prohibit dropping the default retention policy.
@@ -241,7 +242,7 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 			return nil
 		}
 	}
-	return ErrRetentionPolicyNotFound
+	return influxdb.ErrRetentionPolicyNotFound(name)
 }
 
 // UpdateRetentionPolicy updates an existing retention policy.
@@ -249,13 +250,13 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
-		return ErrDatabaseNotFound
+		return influxdb.ErrDatabaseNotFound(database)
 	}
 
 	// Find policy.
 	rpi := di.RetentionPolicy(name)
 	if rpi == nil {
-		return ErrRetentionPolicyNotFound
+		return influxdb.ErrRetentionPolicyNotFound(name)
 	}
 
 	// Ensure new policy doesn't match an existing policy.
@@ -288,9 +289,9 @@ func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	// Find database and verify policy exists.
 	di := data.Database(database)
 	if di == nil {
-		return ErrDatabaseNotFound
+		return influxdb.ErrDatabaseNotFound(database)
 	} else if di.RetentionPolicy(name) == nil {
-		return ErrRetentionPolicyNotFound
+		return influxdb.ErrRetentionPolicyNotFound(name)
 	}
 
 	// Set default policy.
@@ -306,7 +307,7 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
-		return nil, ErrRetentionPolicyNotFound
+		return nil, influxdb.ErrRetentionPolicyNotFound(database)
 	}
 	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
@@ -326,7 +327,7 @@ func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax tim
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
-		return nil, ErrRetentionPolicyNotFound
+		return nil, influxdb.ErrRetentionPolicyNotFound(database)
 	}
 	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
@@ -345,7 +346,7 @@ func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
-		return nil, ErrRetentionPolicyNotFound
+		return nil, influxdb.ErrRetentionPolicyNotFound(database)
 	}
 
 	return rpi.ShardGroupByTimestamp(timestamp), nil
@@ -363,7 +364,7 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 	if err != nil {
 		return err
 	} else if rpi == nil {
-		return ErrRetentionPolicyNotFound
+		return influxdb.ErrRetentionPolicyNotFound(database)
 	}
 
 	// Verify that shard group doesn't already exist for this timestamp.
@@ -426,7 +427,7 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 	if err != nil {
 		return err
 	} else if rpi == nil {
-		return ErrRetentionPolicyNotFound
+		return influxdb.ErrRetentionPolicyNotFound(policy)
 	}
 
 	// Find shard group by ID and set its deletion timestamp.
@@ -444,7 +445,7 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 func (data *Data) CreateContinuousQuery(database, name, query string) error {
 	di := data.Database(database)
 	if di == nil {
-		return ErrDatabaseNotFound
+		return influxdb.ErrDatabaseNotFound(database)
 	}
 
 	// Ensure the name doesn't already exist.
@@ -467,7 +468,7 @@ func (data *Data) CreateContinuousQuery(database, name, query string) error {
 func (data *Data) DropContinuousQuery(database, name string) error {
 	di := data.Database(database)
 	if di == nil {
-		return ErrDatabaseNotFound
+		return influxdb.ErrDatabaseNotFound(database)
 	}
 
 	for i := range di.ContinuousQueries {
@@ -486,7 +487,7 @@ func (data *Data) CreateSubscription(database, rp, name, mode string, destinatio
 		return err
 	}
 	if rpi == nil {
-		return ErrRetentionPolicyNotFound
+		return influxdb.ErrRetentionPolicyNotFound(rp)
 	}
 
 	// Ensure the name doesn't already exist.

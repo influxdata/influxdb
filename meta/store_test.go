@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/toml"
@@ -240,7 +241,8 @@ func TestStore_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	if err := s.DropDatabase("no_such_database"); err != meta.ErrDatabaseNotFound {
+	expErr := influxdb.ErrDatabaseNotFound("no_such_database")
+	if err := s.DropDatabase("no_such_database"); err.Error() != expErr.Error() {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

@@ -21,6 +21,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
 	"golang.org/x/crypto/bcrypt"
@@ -1082,7 +1083,7 @@ func (s *Store) DefaultRetentionPolicy(database string) (rpi *RetentionPolicyInf
 	err = s.read(func(data *Data) error {
 		di := data.Database(database)
 		if di == nil {
-			return ErrDatabaseNotFound
+			return influxdb.ErrDatabaseNotFound(database)
 		}
 
 		for i := range di.RetentionPolicies {
@@ -1101,7 +1102,7 @@ func (s *Store) RetentionPolicies(database string) (a []RetentionPolicyInfo, err
 	err = s.read(func(data *Data) error {
 		di := data.Database(database)
 		if di != nil {
-			return ErrDatabaseNotFound
+			return influxdb.ErrDatabaseNotFound(database)
 		}
 		a = di.RetentionPolicies
 		return nil

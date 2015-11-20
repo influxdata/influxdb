@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
@@ -659,7 +660,8 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies_ErrDatabaseNot
 		return nil, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES ON db0`)); res.Err != meta.ErrDatabaseNotFound {
+	expErr := influxdb.ErrDatabaseNotFound("db0")
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES ON db0`)); res.Err.Error() != expErr.Error() {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
