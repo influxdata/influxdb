@@ -29,7 +29,7 @@ const (
 	statBytesReceived       = "bytesRx"
 	statPointsParseFail     = "pointsParseFail"
 	statPointsUnsupported   = "pointsUnsupportedFail"
-	statBatchesTrasmitted   = "batchesTx"
+	statBatchesTransmitted  = "batchesTx"
 	statPointsTransmitted   = "pointsTx"
 	statBatchesTransmitFail = "batchesTxFail"
 	statConnectionsActive   = "connsActive"
@@ -354,7 +354,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				ConsistencyLevel: s.consistencyLevel,
 				Points:           batch,
 			}); err == nil {
-				s.statMap.Add(statBatchesTrasmitted, 1)
+				s.statMap.Add(statBatchesTransmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
 			} else {
 				s.logger.Printf("failed to write point batch to database %q: %s", s.database, err)
