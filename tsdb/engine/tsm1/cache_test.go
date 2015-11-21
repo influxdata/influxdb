@@ -222,6 +222,41 @@ func Test_CacheWriteMemoryExceeded(t *testing.T) {
 	}
 }
 
+func Benchmark_CacheWriteSameKeySameCheckpoint(b *testing.B) {
+	key := "foo"
+	checkpoint := uint64(100)
+	values := make(Values, 5000)
+	for i := range values {
+		values[i] = NewValue(time.Unix(int64(i), 0).UTC(), 1.0)
+	}
+
+	c := MustNewCache(uint64(10000 * values.Size()))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := c.Write(key, values, checkpoint); err != nil {
+			b.Fatalf("unexpected error writing to cache: %v", err)
+		}
+	}
+}
+
+func Benchmark_CacheWriteSameKeyDifferentCheckpoint(b *testing.B) {
+	key := "foo"
+	values := make(Values, 5000)
+	for i := range values {
+		values[i] = NewValue(time.Unix(int64(i), 0).UTC(), 1.0)
+	}
+
+	c := MustNewCache(uint64(10000 * values.Size()))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := c.Write(key, values, uint64(i)); err != nil {
+			b.Fatalf("unexpected error writing to cache: %v", err)
+		}
+	}
+}
+
 func MustNewCache(size uint64) *Cache {
 	c := NewCache(size)
 	if c == nil {
