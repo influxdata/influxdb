@@ -199,6 +199,21 @@ func InitializeUnmarshaller(c *influxql.Call) (UnmarshalFunc, error) {
 			err := json.Unmarshal(b, &o)
 			return &o, err
 		}, nil
+	case "min", "max":
+		return func(b []byte) (interface{}, error) {
+			if string(b) == "null" {
+				return nil, nil
+			}
+			var o minMaxMapOut
+			err := json.Unmarshal(b, &o)
+			return &o, err
+		}, nil
+	case "top", "bottom":
+		return func(b []byte) (interface{}, error) {
+			var o PositionPoints
+			err := json.Unmarshal(b, &o)
+			return o, err
+		}, nil
 	case "spread":
 		return func(b []byte) (interface{}, error) {
 			var o spreadMapOutput
