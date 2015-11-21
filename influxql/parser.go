@@ -1196,7 +1196,7 @@ func (p *Parser) parseTagKeys() ([]string, error) {
 
 		// Parse required ) token.
 		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != RPAREN {
-			return nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
+			return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
 		}
 	} else if tok == EQ {
 		// Parse required tag key.
