@@ -6,151 +6,34 @@ import (
 	"time"
 )
 
-func Test_LRU(t *testing.T) {
-	lru := newLRU()
-	if lru == nil {
-		t.Fatalf("failed to create LRU")
-	}
-
-	// Test adding various elements to the LRU.
-
-	lru.MoveToFront("A")
-	if f := lru.Front(); f != "A" {
-		t.Fatalf("first inserted key not at front, got: %s", f)
-	}
-	if f := lru.Back(); f != "A" {
-		t.Fatalf("first inserted key not at back, got: %s", f)
-	}
-
-	lru.MoveToFront("B")
-	if f := lru.Front(); f != "B" {
-		t.Fatalf("second inserted key not at front, got: %s", f)
-	}
-	if f := lru.Back(); f != "A" {
-		t.Fatalf("second inserted key not at back, got: %s", f)
-	}
-
-	lru.MoveToFront("C")
-	if f := lru.Front(); f != "C" {
-		t.Fatalf("second inserted key not at front, got: %s", f)
-	}
-	if f := lru.Back(); f != "A" {
-		t.Fatalf("second inserted key not at back, got: %s", f)
-	}
-
-	lru.MoveToFront("A")
-	if f := lru.Front(); f != "A" {
-		t.Fatalf("second inserted key not at front, got: %s", f)
-	}
-	if f := lru.Back(); f != "B" {
-		t.Fatalf("second inserted key not at back, got: %s", f)
-	}
-
-	// Ensure that LRU ordering is correct.
-	expectedOrder, gotOrder := []string{"B", "C", "A"}, []string{}
-	lru.DoFromLeast(func(key string) {
-		gotOrder = append(gotOrder, key)
-	})
-	if !reflect.DeepEqual(expectedOrder, gotOrder) {
-		t.Fatalf("expected LRU order not correct, got %v, exp %v", gotOrder, expectedOrder)
-	}
-
-	// Ensure ordering is still correct after various remove operations.
-	lru.Remove("A")
-	lru.Remove("X")
-	expectedOrder, gotOrder = []string{"B", "C"}, []string{}
-	lru.DoFromLeast(func(key string) {
-		gotOrder = append(gotOrder, key)
-	})
-	if !reflect.DeepEqual(expectedOrder, gotOrder) {
-		t.Fatalf("expected LRU order not correct post remove, got %v, exp %v", gotOrder, expectedOrder)
-	}
-}
-
-func Test_EntryAdd(t *testing.T) {
-	e := newEntry()
-	v1 := NewValue(time.Unix(2, 0).UTC(), 1.0)
-	v2 := NewValue(time.Unix(3, 0).UTC(), 2.0)
-	v3 := NewValue(time.Unix(1, 0).UTC(), 2.0)
-
-	e.add([]Value{v1, v2})
-	if e.size != uint64(v1.Size()+v2.Size()) {
-		t.Fatal("adding points to entry, wrong size")
-	}
-	if e.unsorted {
-		t.Fatal("adding ordered points resulted in unordered entry")
-	}
-	e.add([]Value{v3})
-	if e.size != uint64(v1.Size()+v2.Size()+v3.Size()) {
-		t.Fatal("adding point to entry, wrong size")
-	}
-	if !e.unsorted {
-		t.Fatal("adding unordered point resulted in ordered entry")
-	}
-}
-
-func Test_EntryDedupe(t *testing.T) {
-	e := newEntry()
-	v1 := NewValue(time.Unix(1, 0).UTC(), 1.0)
-	v2 := NewValue(time.Unix(2, 0).UTC(), 2.0)
-	v3 := NewValue(time.Unix(1, 0).UTC(), 2.0)
-
-	e.add([]Value{v1, v2})
-	if e.size != uint64(v1.Size()+v2.Size()) {
-		t.Fatal("adding points to entry, wrong size")
-	}
-	if !reflect.DeepEqual(e.values, Values{v1, v2}) {
-		t.Fatal("entry values not as expected")
-	}
-	e.dedupe()
-	if !reflect.DeepEqual(e.values, Values{v1, v2}) {
-		t.Fatal("entry values not as expected after dedupe")
-	}
-
-	e.add([]Value{v3})
-	if !reflect.DeepEqual(e.values, Values{v1, v2, v3}) {
-		t.Fatal("entry values not as expected after v3")
-	}
-	if e.size != uint64(v1.Size()+v2.Size()+v3.Size()) {
-		t.Fatal("adding points to entry, wrong size")
-	}
-	e.dedupe()
-	if e.size != uint64(v3.Size()+v2.Size()) {
-		t.Fatal("adding points to entry, wrong size")
-	}
-	if !reflect.DeepEqual(e.values, Values{v3, v2}) {
-		t.Fatal("entry values not as expected dedupe of v3")
-	}
-}
-
 func Test_EntriesAdd(t *testing.T) {
 	e := newEntries()
 	v1 := NewValue(time.Unix(2, 0).UTC(), 1.0)
 	v2 := NewValue(time.Unix(3, 0).UTC(), 2.0)
 	v3 := NewValue(time.Unix(1, 0).UTC(), 2.0)
 
-	e.add([]Value{v1, v2}, uint64(100))
-	if e.size() != uint64(v1.Size()+v2.Size()) {
+	e.add(uint64(100), []Value{v1, v2})
+	if e.size != uint64(v1.Size()+v2.Size()) {
 		t.Fatal("adding points to entry, wrong size")
 	}
-	e.add([]Value{v3}, uint64(100))
-	if e.size() != uint64(v1.Size()+v2.Size()+v3.Size()) {
+	e.add(uint64(100), []Value{v3})
+	if e.size != uint64(v1.Size()+v2.Size()+v3.Size()) {
 		t.Fatal("adding point to entry, wrong size")
 	}
 }
 
-func Test_EntriesClone(t *testing.T) {
+func Test_EntriesDedupe(t *testing.T) {
 	e := newEntries()
 	v0 := NewValue(time.Unix(4, 0).UTC(), 1.0)
 	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
 	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
 	v3 := NewValue(time.Unix(3, 0).UTC(), 4.0)
 
-	e.add([]Value{v0, v1}, uint64(100))
-	e.add([]Value{v2}, uint64(200))
-	e.add([]Value{v3}, uint64(400))
+	e.add(uint64(100), []Value{v0, v1})
+	e.add(uint64(200), []Value{v2})
+	e.add(uint64(400), []Value{v3})
 
-	values := e.clone()
+	values := e.dedupe()
 	if len(values) != 3 {
 		t.Fatalf("cloned values is wrong length, got %d", len(values))
 	}
@@ -163,22 +46,21 @@ func Test_EntriesClone(t *testing.T) {
 	if !reflect.DeepEqual(values[2], v0) {
 		t.Fatal("2nd point does not equal v0:", values[0], v0)
 	}
-
-	if n := e.purge(100); n != uint64(v0.Size()+v1.Size()) {
-		t.Fatal("wrong size of points purged:", n)
-	}
 }
 
-func Test_EntriesPurge(t *testing.T) {
+func Test_EntriesEvict(t *testing.T) {
 	e := newEntries()
 	v0 := NewValue(time.Unix(1, 0).UTC(), 1.0)
 	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
 	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
 
-	e.add([]Value{v0, v1}, uint64(100))
-	e.add([]Value{v2}, uint64(200))
+	e.add(uint64(100), []Value{v0, v1})
+	e.add(uint64(200), []Value{v2})
+	if e.size != uint64(v0.Size()+v1.Size()+v2.Size()) {
+		t.Fatal("wrong size post eviction:", e.size)
+	}
 
-	values := e.clone()
+	values := e.dedupe()
 	if len(values) != 3 {
 		t.Fatalf("cloned values is wrong length, got %d", len(values))
 	}
@@ -192,11 +74,12 @@ func Test_EntriesPurge(t *testing.T) {
 		t.Fatal("2nd point does not equal v2:", values[0], v2)
 	}
 
-	if n := e.purge(100); n != uint64(v0.Size()+v1.Size()) {
-		t.Fatal("wrong size of points purged:", n)
+	e.evict(100)
+	if e.size != uint64(v2.Size()) {
+		t.Fatalf("wrong size post eviction, exp: %d, got %d:", v2.Size(), e.size)
 	}
 
-	values = e.clone()
+	values = e.dedupe()
 	if len(values) != 1 {
 		t.Fatalf("purged cloned values is wrong length, got %d", len(values))
 	}
@@ -204,10 +87,12 @@ func Test_EntriesPurge(t *testing.T) {
 		t.Fatal("0th point does not equal v1:", values[0], v2)
 	}
 
-	if n := e.purge(200); n != uint64(v2.Size()) {
-		t.Fatal("wrong size of points purged:", n)
+	e.evict(200)
+	if e.size != 0 {
+		t.Fatal("wrong size post eviction of last point:", e.size)
 	}
-	values = e.clone()
+
+	values = e.dedupe()
 	if len(values) != 0 {
 		t.Fatalf("purged cloned values is wrong length, got %d", len(values))
 	}
@@ -254,6 +139,31 @@ func Test_CacheWrite(t *testing.T) {
 
 	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+}
+
+func Test_CacheValues(t *testing.T) {
+	v0 := NewValue(time.Unix(1, 0).UTC(), 0.0)
+	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
+	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
+	v3 := NewValue(time.Unix(1, 0).UTC(), 1.0)
+	v4 := NewValue(time.Unix(4, 0).UTC(), 4.0)
+
+	c := MustNewCache(512)
+	if deduped := c.Values("no such key"); deduped != nil {
+		t.Fatalf("Values returned for no such key")
+	}
+
+	if err := c.Write("foo", Values{v0, v1, v2, v3}, 100); err != nil {
+		t.Fatalf("failed to write 3 values, key foo to cache: %s", err.Error())
+	}
+	if err := c.Write("foo", Values{v4}, 200); err != nil {
+		t.Fatalf("failed to write 1 value, key foo to cache: %s", err.Error())
+	}
+
+	expValues := Values{v3, v1, v2, v4}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("deduped values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 }
 

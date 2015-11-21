@@ -123,11 +123,9 @@ Currently, we are moving towards a Single WAL implemention.
 
 # Cache
 
-The primary purpose of the cache is so that data in the WAL is queryable. The client code writes values to the cache, associating a key and checkpoint with each write. The checkpoint must be a monotonically increasing value, but does not have to increase with every write operation. The cache in turn organises all writes first by key (the cache places no constraints on the key as long as it is non-empty) and then by checkpoint. At a time of its choosing, the client also notifies the cache when previously added data has been drained from the WAL. This allows the cache to evict entries associated with all checkpoints up to and including that checkpoint. Specifically when the cache needs to evict data it first chooses the least-recently-used key ("used" is defined as a write or query of that key) and then all data up-to the checkpoint associated with that key is deleted from memory.
+The purpose of the cache is so that data in the WAL is queryable. The client code writes values to the cache, associating a key and checkpoint with each write. The checkpoint must be a monotonically increasing value, but does not have to increase with every write operation. The cache in turn organises all writes first by key (the cache places no constraints on the key as long as it is non-empty) and then by checkpoint. At a time of its choosing, the client also notifies the cache when previously added data has been drained from the WAL. This allows the cache to evict entries associated with all checkpoints up to and including that checkpoint.
 
-The purpose of checkpointing is to allow the cache to keep recently written data in memory, even if the client code has indicated that it has been drained from the WAL. If a query can be satified entirely by accessing the cache, the engine can return data for the query much quicker than if it accessed the disk. This is the secondary purpose of the cache.
-
-The cache tracks it size on a "point-calculated" basis. "Point-calculated" means that the RAM storage footprint for a point in the determined by calling its `Size()` method. While this does not correspond directly to the actual RAM footprint in the cache, the two values are sufficiently correlated for the purpose of controlling RAM.
+The cache tracks its size on a "point-calculated" basis. "Point-calculated" means that the RAM storage footprint for a point in the determined by calling its `Size()` method. While this does not correspond directly to the actual RAM footprint in the cache, the two values are sufficiently correlated for the purpose of controlling RAM.
 
 # TSM File Index
 
