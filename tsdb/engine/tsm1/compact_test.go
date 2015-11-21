@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
@@ -14,12 +15,14 @@ func TestKeyIterator_WALSegment_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
-	points := []models.Point{p1}
+	v1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points,
+			Values: writes,
 		},
 	}
 	r := MustWALSegment(dir, entries)
@@ -40,13 +43,13 @@ func TestKeyIterator_WALSegment_Single(t *testing.T) {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := len(values), len(points); got != exp {
+		if got, exp := len(values), len(writes); got != exp {
 			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
 		}
 
-		for i, v := range values {
+		for _, v := range values {
 			readValues = true
-			assertEqual(t, v, points[i], "value")
+			assertValueEqual(t, v, v1)
 		}
 	}
 
@@ -55,21 +58,23 @@ func TestKeyIterator_WALSegment_Single(t *testing.T) {
 	}
 }
 
-// Tests that duplicate point values are merged
+// // Tests that duplicate point values are merged
 func TestKeyIterator_WALSegment_Duplicate(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	p2 := parsePoint("cpu,host=A value=2 1000000000")
-
-	points := []models.Point{p1, p2}
+	v1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v2},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points,
+			Values: writes,
 		},
 	}
+
 	r := MustWALSegment(dir, entries)
 
 	iter, err := tsm1.NewWALKeyIterator(r)
@@ -93,7 +98,7 @@ func TestKeyIterator_WALSegment_Duplicate(t *testing.T) {
 		}
 
 		readValues = true
-		assertEqual(t, values[0], p2, "value")
+		assertValueEqual(t, values[0], v2)
 	}
 
 	if !readValues {
@@ -101,29 +106,35 @@ func TestKeyIterator_WALSegment_Duplicate(t *testing.T) {
 	}
 }
 
-// Tests that a multiple WAL segment can be read and iterated over
+// // Tests that a multiple WAL segment can be read and iterated over
 func TestKeyIterator_WALSegment_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	points1 := []models.Point{p1}
+	v1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points1,
+			Values: points1,
 		},
 	}
+
 	r1 := MustWALSegment(dir, entries)
 
-	p2 := parsePoint("cpu,host=A value=2 2000000000")
-	points2 := []models.Point{p2}
+	v2 := tsm1.NewValue(time.Unix(2, 0), int64(2))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
 
 	entries = []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points2,
+			Values: points2,
 		},
 	}
+
 	r2 := MustWALSegment(dir, entries)
 
 	iter, err := tsm1.NewWALKeyIterator(r1, r2)
@@ -147,8 +158,8 @@ func TestKeyIterator_WALSegment_Multiple(t *testing.T) {
 		}
 		readValues = true
 
-		assertEqual(t, values[0], p1, "value")
-		assertEqual(t, values[1], p2, "value")
+		assertValueEqual(t, values[0], v1)
+		assertValueEqual(t, values[1], v2)
 	}
 
 	if !readValues {
@@ -156,28 +167,32 @@ func TestKeyIterator_WALSegment_Multiple(t *testing.T) {
 	}
 }
 
-// Tests that a multiple WAL segments with out of order points are
-// sorted while iterating
+// // Tests that a multiple WAL segments with out of order points are
+// // sorted while iterating
 func TestKeyIterator_WALSegment_MultiplePointsSorted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=2 2000000000")
-	points1 := []models.Point{p1}
+	v1 := tsm1.NewValue(time.Unix(2, 0), int64(2))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points1,
+			Values: points1,
 		},
 	}
 	r1 := MustWALSegment(dir, entries)
 
-	p2 := parsePoint("cpu,host=A value=1 1000000000")
-	points2 := []models.Point{p2}
+	v2 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
 
 	entries = []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points2,
+			Values: points2,
 		},
 	}
 	r2 := MustWALSegment(dir, entries)
@@ -203,8 +218,8 @@ func TestKeyIterator_WALSegment_MultiplePointsSorted(t *testing.T) {
 		}
 		readValues = true
 
-		assertEqual(t, values[0], p2, "value")
-		assertEqual(t, values[1], p1, "value")
+		assertValueEqual(t, values[0], v2)
+		assertValueEqual(t, values[1], v1)
 	}
 
 	if !readValues {
@@ -212,29 +227,34 @@ func TestKeyIterator_WALSegment_MultiplePointsSorted(t *testing.T) {
 	}
 }
 
-// Tests that multipel keys are iterated over in sorted order
+// // Tests that multiple keys are iterated over in sorted order
 func TestKeyIterator_WALSegment_MultipleKeysSorted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=B value=1 1000000000")
-	points1 := []models.Point{p1}
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=B#!~#value": []tsm1.Value{v1},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points1,
+			Values: points1,
 		},
 	}
 	r1 := MustWALSegment(dir, entries)
 
-	p2 := parsePoint("cpu,host=A value=1 1000000000")
-	points2 := []models.Point{p2}
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
 
 	entries = []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points2,
+			Values: points2,
 		},
 	}
+
 	r2 := MustWALSegment(dir, entries)
 
 	iter, err := tsm1.NewWALKeyIterator(r1, r2)
@@ -245,10 +265,10 @@ func TestKeyIterator_WALSegment_MultipleKeysSorted(t *testing.T) {
 	var readValues bool
 	var data = []struct {
 		key   string
-		point models.Point
+		value tsm1.Value
 	}{
-		{"cpu,host=A#!~#value", p2},
-		{"cpu,host=B#!~#value", p1},
+		{"cpu,host=A#!~#value", v2},
+		{"cpu,host=B#!~#value", v1},
 	}
 
 	for iter.Next() {
@@ -266,7 +286,7 @@ func TestKeyIterator_WALSegment_MultipleKeysSorted(t *testing.T) {
 		}
 		readValues = true
 
-		assertEqual(t, values[0], data[0].point, "value")
+		assertValueEqual(t, values[0], data[0].value)
 		data = data[1:]
 	}
 
@@ -275,32 +295,40 @@ func TestKeyIterator_WALSegment_MultipleKeysSorted(t *testing.T) {
 	}
 }
 
-// Tests that deletes after writes removes the previous written values
+// // Tests that deletes after writes removes the previous written values
 func TestKeyIterator_WALSegment_MultipleKeysDeleted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	points1 := []models.Point{p1}
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points1,
+			Values: points1,
 		},
 	}
+
 	r1 := MustWALSegment(dir, entries)
 
-	p2 := parsePoint("cpu,host=A count=1 1000000000")
-	p3 := parsePoint("cpu,host=B value=1 1000000000")
-	points2 := []models.Point{p2, p3}
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#count": []tsm1.Value{v2},
+		"cpu,host=B#!~#value": []tsm1.Value{v3},
+	}
 
 	entries = []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points2,
+			Values: points2,
 		},
 		&tsm1.DeleteWALEntry{
 			Keys: []string{
-				"cpu,host=A",
+				"cpu,host=A#!~#count",
+				"cpu,host=A#!~#value",
 			},
 		},
 	}
@@ -314,9 +342,9 @@ func TestKeyIterator_WALSegment_MultipleKeysDeleted(t *testing.T) {
 	var readValues bool
 	var data = []struct {
 		key   string
-		point models.Point
+		value tsm1.Value
 	}{
-		{"cpu,host=B#!~#value", p3},
+		{"cpu,host=B#!~#value", v3},
 	}
 
 	for iter.Next() {
@@ -334,7 +362,7 @@ func TestKeyIterator_WALSegment_MultipleKeysDeleted(t *testing.T) {
 		}
 		readValues = true
 
-		assertEqual(t, values[0], data[0].point, "value")
+		assertValueEqual(t, values[0], data[0].value)
 		data = data[1:]
 	}
 
@@ -343,35 +371,42 @@ func TestKeyIterator_WALSegment_MultipleKeysDeleted(t *testing.T) {
 	}
 }
 
-// Tests that writes, deletes followed by more writes returns the the
-// correct values.
+// // Tests that writes, deletes followed by more writes returns the the
+// // correct values.
 func TestKeyIterator_WALSegment_WriteAfterDelete(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	points1 := []models.Point{p1}
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points1,
+			Values: points1,
 		},
 	}
+
 	r1 := MustWALSegment(dir, entries)
 
-	p2 := parsePoint("cpu,host=A count=1 1000000000")
-	p3 := parsePoint("cpu,host=B value=1 1000000000")
-	points2 := []models.Point{p2, p3}
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#count": []tsm1.Value{v2},
+		"cpu,host=B#!~#value": []tsm1.Value{v3},
+	}
 
 	entries = []tsm1.WALEntry{
-		// Delete would remove p1
 		&tsm1.DeleteWALEntry{
 			Keys: []string{
-				"cpu,host=A",
+				"cpu,host=A#!~#count",
+				"cpu,host=A#!~#value",
 			},
 		},
 		&tsm1.WriteWALEntry{
-			Points: points2,
+			Values: points2,
 		},
 	}
 	r2 := MustWALSegment(dir, entries)
@@ -384,11 +419,10 @@ func TestKeyIterator_WALSegment_WriteAfterDelete(t *testing.T) {
 	var readValues bool
 	var data = []struct {
 		key   string
-		point models.Point
-		field string
+		value tsm1.Value
 	}{
-		{"cpu,host=A#!~#count", p2, "count"},
-		{"cpu,host=B#!~#value", p3, "value"},
+		{"cpu,host=A#!~#count", v2},
+		{"cpu,host=B#!~#value", v3},
 	}
 
 	for iter.Next() {
@@ -406,7 +440,7 @@ func TestKeyIterator_WALSegment_WriteAfterDelete(t *testing.T) {
 		}
 		readValues = true
 
-		assertEqual(t, values[0], data[0].point, data[0].field)
+		assertValueEqual(t, values[0], data[0].value)
 		data = data[1:]
 	}
 
@@ -415,19 +449,21 @@ func TestKeyIterator_WALSegment_WriteAfterDelete(t *testing.T) {
 	}
 }
 
-// Tests that merge iterator over a wal returns points order correctly.
+// // Tests that merge iterator over a wal returns points order correctly.
 func TestMergeIteragor_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	p2 := parsePoint("cpu,host=A value=2 2000000000")
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(2, 0), float64(2))
 
-	points := []models.Point{p1, p2}
+	points := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v2},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points,
+			Values: points,
 		},
 	}
 	r := MustWALSegment(dir, entries)
@@ -437,8 +473,9 @@ func TestMergeIteragor_Single(t *testing.T) {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
+	// Read should return a chunk of 1 value
 	m := tsm1.NewMergeIterator(iter, 1)
-
+	var readValues bool
 	for _, p := range points {
 		if !m.Next() {
 			t.Fatalf("expected next, got false")
@@ -456,30 +493,42 @@ func TestMergeIteragor_Single(t *testing.T) {
 		if got, exp := len(values), 1; got != exp {
 			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
 		}
+		readValues = true
 
-		assertEqual(t, values[0], p, "value")
+		assertValueEqual(t, values[0], p[0])
+	}
+	if !readValues {
+		t.Fatalf("failed to read any values")
 	}
 }
 
-// Tests that merge iterator over a wal returns points order by key and time.
+// // Tests that merge iterator over a wal returns points order by key and time.
 func TestMergeIteragor_MultipleKeys(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	p2 := parsePoint("cpu,host=B value=1 1000000000")
-	p3 := parsePoint("cpu,host=A value=2 2000000000")
-	p4 := parsePoint("cpu,host=B value=2 2000000000")
-	p5 := parsePoint("cpu,host=A value=3 1000000000") // overwrites p1
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v4 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v5 := tsm1.NewValue(time.Unix(1, 0), float64(3)) // overwrites p1
 
-	points := []models.Point{p1, p2, p3, p4, p5}
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v3},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v5},
+		"cpu,host=B#!~#value": []tsm1.Value{v4},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points[:2],
+			Values: points1,
 		},
 		&tsm1.WriteWALEntry{
-			Points: points[2:],
+			Values: points2,
 		},
 	}
 	r := MustWALSegment(dir, entries)
@@ -493,11 +542,10 @@ func TestMergeIteragor_MultipleKeys(t *testing.T) {
 
 	var data = []struct {
 		key    string
-		points []models.Point
-		field  string
+		points []tsm1.Value
 	}{
-		{"cpu,host=A#!~#value", []models.Point{p5, p3}, "value"},
-		{"cpu,host=B#!~#value", []models.Point{p2, p4}, "value"},
+		{"cpu,host=A#!~#value", []tsm1.Value{v5, v3}},
+		{"cpu,host=B#!~#value", []tsm1.Value{v2, v4}},
 	}
 
 	for _, p := range data {
@@ -519,35 +567,44 @@ func TestMergeIteragor_MultipleKeys(t *testing.T) {
 		}
 
 		for i, point := range p.points {
-			assertEqual(t, values[i], point, p.field)
+			assertValueEqual(t, values[i], point)
 		}
 	}
 }
 
-// Tests that the merge iterator does not pull in deleted WAL entries.
+// // Tests that the merge iterator does not pull in deleted WAL entries.
 func TestMergeIteragor_DeletedKeys(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	p1 := parsePoint("cpu,host=A value=1 1000000000")
-	p2 := parsePoint("cpu,host=B value=1 1000000000")
-	p3 := parsePoint("cpu,host=A value=2 2000000000")
-	p4 := parsePoint("cpu,host=B value=2 2000000000")
-	p5 := parsePoint("cpu,host=A value=3 1000000000") // overwrites p1
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v4 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v5 := tsm1.NewValue(time.Unix(1, 0), float64(3)) // overwrites p1
 
-	points := []models.Point{p1, p2, p3, p4, p5}
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v3},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v5},
+		"cpu,host=B#!~#value": []tsm1.Value{v4},
+	}
 
 	entries := []tsm1.WALEntry{
 		&tsm1.WriteWALEntry{
-			Points: points[:2],
+			Values: points1,
 		},
 		&tsm1.WriteWALEntry{
-			Points: points[2:],
+			Values: points2,
 		},
 		&tsm1.DeleteWALEntry{
-			Keys: []string{"cpu,host=A"},
+			Keys: []string{"cpu,host=A#!~#value"},
 		},
 	}
+
 	r := MustWALSegment(dir, entries)
 
 	iter, err := tsm1.NewWALKeyIterator(r)
@@ -559,10 +616,9 @@ func TestMergeIteragor_DeletedKeys(t *testing.T) {
 
 	var data = []struct {
 		key    string
-		points []models.Point
-		field  string
+		points []tsm1.Value
 	}{
-		{"cpu,host=B#!~#value", []models.Point{p2, p4}, "value"},
+		{"cpu,host=B#!~#value", []tsm1.Value{v2, v4}},
 	}
 
 	for _, p := range data {
@@ -584,10 +640,217 @@ func TestMergeIteragor_DeletedKeys(t *testing.T) {
 		}
 
 		for i, point := range p.points {
-			assertEqual(t, values[i], point, p.field)
+			assertValueEqual(t, values[i], point)
 		}
 	}
 }
+
+// // Tests compacting a single wal segment into one tsm file
+func TestCompactor_SingleWALSegment(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+		"cpu,host=B#!~#value": []tsm1.Value{v2, v3},
+	}
+
+	entries := []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points1,
+		},
+	}
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w := tsm1.NewWALSegmentWriter(f)
+	for _, e := range entries {
+		if err := w.Write(e); err != nil {
+			t.Fatalf("unexpected error writing entry: %v", err)
+		}
+	}
+
+	compactor := &tsm1.Compactor{
+		Dir: dir,
+	}
+
+	files, err := compactor.Compact([]string{f.Name()})
+	if err != nil {
+		t.Fatalf("unexpected error compacting: %v", err)
+	}
+
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	f, err = os.Open(files[0])
+	if err != nil {
+		t.Fatalf("unexpected error openting tsm: %v", err)
+	}
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating tsm reader: %v", err)
+	}
+
+	keys := r.Keys()
+	if got, exp := len(keys), 2; got != exp {
+		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{v1}},
+		{"cpu,host=B#!~#value", []tsm1.Value{v2, v3}},
+	}
+
+	for _, p := range data {
+		values, err := r.ReadAll(p.key)
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
+// // Tests compacting a multiple wal segment into one tsm file
+func TestCompactor_MultipleWALSegment(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// First WAL segment
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v3},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	entries := []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points1,
+		},
+	}
+
+	f1 := MustTempFile(dir)
+	defer f1.Close()
+
+	w := tsm1.NewWALSegmentWriter(f1)
+	for _, e := range entries {
+		if err := w.Write(e); err != nil {
+			t.Fatalf("unexpected error writing entry: %v", err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing writer: %v", err)
+	}
+
+	// Second WAL segment
+	v4 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v5 := tsm1.NewValue(time.Unix(3, 0), float64(1))
+	v6 := tsm1.NewValue(time.Unix(4, 0), float64(1))
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v5, v6},
+		"cpu,host=B#!~#value": []tsm1.Value{v4},
+	}
+
+	entries = []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points2,
+		},
+	}
+
+	f2 := MustTempFile(dir)
+	defer f2.Close()
+
+	w = tsm1.NewWALSegmentWriter(f2)
+	for _, e := range entries {
+		if err := w.Write(e); err != nil {
+			t.Fatalf("unexpected error writing entry: %v", err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing writer: %v", err)
+	}
+
+	compactor := &tsm1.Compactor{
+		Dir: dir,
+	}
+
+	files, err := compactor.Compact([]string{f1.Name(), f2.Name()})
+	if err != nil {
+		t.Fatalf("unexpected error compacting: %v", err)
+	}
+
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	f, err := os.Open(files[0])
+	if err != nil {
+		t.Fatalf("unexpected error openting tsm: %v", err)
+	}
+	defer f.Close()
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating tsm reader: %v", err)
+	}
+	defer r.Close()
+
+	keys := r.Keys()
+	if got, exp := len(keys), 2; got != exp {
+		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{v1, v3, v5, v6}},
+		{"cpu,host=B#!~#value", []tsm1.Value{v2, v4}},
+	}
+
+	for _, p := range data {
+		values, err := r.ReadAll(p.key)
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
+func assertValueEqual(t *testing.T, a, b tsm1.Value) {
+	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
+		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
+	}
+	if got, exp := a.Value(), b.Value(); got != exp {
+		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func assertEqual(t *testing.T, a tsm1.Value, b models.Point, field string) {
 	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)

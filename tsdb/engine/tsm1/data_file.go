@@ -109,6 +109,9 @@ type TSMWriter interface {
 
 	// Closes any underlying file resources.
 	Close() error
+
+	// Size returns the current size in bytes of the file
+	Size() int
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -138,6 +141,9 @@ type TSMIndex interface {
 
 	// Keys returns the unique set of keys in the index.
 	Keys() []string
+
+	// Size returns the size of a the current index in bytes
+	Size() int
 
 	// Type returns the block type of the values stored for the key.  Returns one of
 	// BlockFloat64, BlockInt64, BlockBool, BlockString.  If key does not exist,
@@ -365,6 +371,10 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 		d.addEntries(key, entries)
 	}
 	return nil
+}
+
+func (d *directIndex) Size() int {
+	return 0
 }
 
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
@@ -597,6 +607,10 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+func (d *indirectIndex) Size() int {
+	return 0
+}
+
 // tsmWriter writes keys and values in the TSM format
 type tsmWriter struct {
 	w     io.Writer
@@ -665,6 +679,10 @@ func (t *tsmWriter) Close() error {
 		return c.Close()
 	}
 	return nil
+}
+
+func (t *tsmWriter) Size() int {
+	return int(t.n) + t.index.Size()
 }
 
 type tsmReader struct {

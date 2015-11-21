@@ -4,21 +4,21 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/influxdb/influxdb/models"
+	"time"
 
 	"github.com/golang/snappy"
 )
 
 const (
 	// DefaultSegmentSize of 2MB is the size at which segment files will be rolled over
-	DefaultSegmentSize = 2 * 1024 * 1024
+	DefaultSegmentSize = 10 * 1024 * 1024
 
 	// FileExtension is the file extension we expect for wal segments
 	WALFileExtension = "wal"
@@ -26,6 +26,11 @@ const (
 	WALFilePrefix = "_"
 
 	defaultBufLen = 1024 << 10 // 1MB (sized for batches of 5000 points)
+
+	float64EntryType = 1
+	int64EntryType   = 2
+	boolEntryType    = 3
+	stringEntryType  = 4
 )
 
 // walEntry is a byte written to a wal segment file that indicates what the following compressed block contains
@@ -38,7 +43,13 @@ const (
 
 var ErrWALClosed = fmt.Errorf("WAL closed")
 
-var bufPool sync.Pool
+var (
+	bufPool          sync.Pool
+	float64ValuePool sync.Pool
+	int64ValuePool   sync.Pool
+	boolValuePool    sync.Pool
+	stringValuePool  sync.Pool
+)
 
 type WAL struct {
 	mu sync.RWMutex
@@ -100,10 +111,18 @@ func (l *WAL) Open() error {
 	return nil
 }
 
-func (l *WAL) WritePoints(points []models.Point) error {
+func (l *WAL) WritePoints(values map[string][]Value) error {
 	entry := &WriteWALEntry{
-		Points: points,
+		Values: values,
 	}
+
+	// This sleep is intentional to allow the go scheduler to switch this goroutine
+	// out of execution to allow other goroutines to run.  The goroutine we want to
+	// give a chance to run is the compaction goroutine.  Under very high write load,
+	// the compaction goroutine can be starved CPU cycles which causes the number of
+	// WAL segments to grow faster than they can be compacted.  100ms seems to sufficient
+	// enough time to allow the scheduling and not adversely affect write latency.
+	time.Sleep(100 * time.Millisecond)
 
 	if err := l.writeToLog(entry); err != nil {
 		return err
@@ -114,12 +133,17 @@ func (l *WAL) WritePoints(points []models.Point) error {
 
 func (l *WAL) ClosedSegments() ([]string, error) {
 	l.mu.RLock()
-	defer l.mu.RUnlock()
+	var activePath string
+	if l.currentSegmentWriter != nil {
+		activePath = l.currentSegmentWriter.Path()
+	}
 
 	// Not loading files from disk so nothing to do
 	if l.path == "" {
+		l.mu.RUnlock()
 		return nil, nil
 	}
+	l.mu.RUnlock()
 
 	files, err := l.segmentFileNames()
 	if err != nil {
@@ -129,7 +153,7 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 	var names []string
 	for _, fn := range files {
 		// Skip the active segment
-		if l.currentSegmentWriter != nil && fn == l.currentSegmentWriter.Path() {
+		if fn == activePath {
 			continue
 		}
 
@@ -164,16 +188,20 @@ func (l *WAL) writeToLog(entry WALEntry) error {
 }
 
 func (l *WAL) rollSegment() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
 
 	if l.currentSegmentWriter == nil || l.currentSegmentWriter.Size() > DefaultSegmentSize {
+		l.mu.RUnlock()
+		l.mu.Lock()
+		defer l.mu.Unlock()
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
 			return fmt.Errorf("error opening new segment file for wal: %v", err)
 		}
+		return nil
 	}
+	l.mu.RUnlock()
 	return nil
 }
 
@@ -243,26 +271,58 @@ type WALEntry interface {
 
 // WriteWALEntry represents a write of points.
 type WriteWALEntry struct {
-	Points []models.Point
+	Values map[string][]Value
 }
 
 func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	var n int
-	for _, p := range w.Points {
-		// Marshaling points to bytes is relatively expensive, only do it once
-		bytes, err := p.MarshalBinary()
-		if err != nil {
-			return nil, err
+
+	for k, v := range w.Values {
+
+		switch v[0].Value().(type) {
+		case float64:
+			dst[n] = float64EntryType
+		case int64:
+			dst[n] = int64EntryType
+		case bool:
+			dst[n] = boolEntryType
+		case string:
+			dst[n] = stringEntryType
+		default:
+			return nil, fmt.Errorf("unsupported value type: %#v", v[0].Value())
 		}
+		n++
 
 		// Make sure we have enough space in our buf before copying.  If not,
 		// grow the buf.
-		if len(bytes)+4 > len(dst)-n {
-			grow := make([]byte, len(bytes)*2)
+		if len(k)+2+len(v)*8+4 > len(dst)-n {
+			grow := make([]byte, len(dst)*2)
 			dst = append(dst, grow...)
 		}
-		n += copy(dst[n:], u32tob(uint32(len(bytes))))
-		n += copy(dst[n:], bytes)
+
+		n += copy(dst[n:], u16tob(uint16(len(k))))
+		n += copy(dst[n:], []byte(k))
+
+		n += copy(dst[n:], u32tob(uint32(len(v))))
+
+		for _, vv := range v {
+			n += copy(dst[n:], u64tob(uint64(vv.Time().UnixNano())))
+			switch t := vv.Value().(type) {
+			case float64:
+				n += copy(dst[n:], u64tob(uint64(math.Float64bits(t))))
+			case int64:
+				n += copy(dst[n:], u64tob(uint64(t)))
+			case bool:
+				if t {
+					n += copy(dst[n:], []byte{1})
+				} else {
+					n += copy(dst[n:], []byte{0})
+				}
+			case string:
+				n += copy(dst[n:], u32tob(uint32(len(t))))
+				n += copy(dst[n:], []byte(t))
+			}
+		}
 	}
 
 	return dst[:n], nil
@@ -276,17 +336,76 @@ func (w *WriteWALEntry) MarshalBinary() ([]byte, error) {
 
 func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 	var i int
-
 	for i < len(b) {
-		length := int(btou32(b[i : i+4]))
+		typ := b[i]
+		i++
+
+		length := int(btou16(b[i : i+2]))
+		i += 2
+		k := string(b[i : i+length])
+		i += length
+
+		nvals := int(btou32(b[i : i+4]))
 		i += 4
 
-		point, err := models.NewPointFromBytes(b[i : i+length])
-		if err != nil {
-			return err
+		var values []Value
+		switch typ {
+		case float64EntryType:
+			values = getFloat64Values(nvals)
+		case int64EntryType:
+			values = getInt64Values(nvals)
+		case boolEntryType:
+			values = getBoolValues(nvals)
+		case stringEntryType:
+			values = getStringValues(nvals)
+		default:
+			return fmt.Errorf("unsupported value type: %#v", typ)
 		}
-		i += length
-		w.Points = append(w.Points, point)
+
+		for j := 0; j < nvals; j++ {
+			t := time.Unix(0, int64(btou64(b[i:i+8])))
+			i += 8
+
+			switch typ {
+			case float64EntryType:
+				v := math.Float64frombits((btou64(b[i : i+8])))
+				i += 8
+				if fv, ok := values[j].(*FloatValue); ok {
+					fv.time = t
+					fv.value = v
+				}
+			case int64EntryType:
+				v := int64(btou64(b[i : i+8]))
+				i += 8
+				if fv, ok := values[j].(*Int64Value); ok {
+					fv.time = t
+					fv.value = v
+				}
+			case boolEntryType:
+				v := b[i]
+				i += 1
+				if fv, ok := values[j].(*BoolValue); ok {
+					fv.time = t
+					if v == 1 {
+						fv.value = true
+					} else {
+						fv.value = false
+					}
+				}
+			case stringEntryType:
+				length := int(btou32(b[i : i+4]))
+				i += 4
+				v := string(b[i : i+length])
+				i += length
+				if fv, ok := values[j].(*StringValue); ok {
+					fv.time = t
+					fv.value = v
+				}
+			default:
+				return fmt.Errorf("unsupported value type: %#v", typ)
+			}
+		}
+		w.Values[k] = values
 	}
 	return nil
 }
@@ -333,8 +452,7 @@ func (w *DeleteWALEntry) Type() walEntryType {
 
 // WALSegmentWriter writes WAL segments.
 type WALSegmentWriter struct {
-	mu sync.RWMutex
-
+	mu   sync.RWMutex
 	w    io.WriteCloser
 	size int
 }
@@ -371,10 +489,12 @@ func (w *WALSegmentWriter) Write(e WALEntry) error {
 	if _, err := w.w.Write([]byte{byte(e.Type())}); err != nil {
 		return err
 	}
-	if _, err := w.w.Write(u32tob(uint32(len(compressed)))); err != nil {
+
+	if _, err = w.w.Write(u32tob(uint32(len(compressed)))); err != nil {
 		return err
 	}
-	if _, err := w.w.Write(compressed); err != nil {
+
+	if _, err = w.w.Write(compressed); err != nil {
 		return err
 	}
 
@@ -459,10 +579,7 @@ func (r *WALSegmentReader) Next() bool {
 		return true
 	}
 
-	buf := getBuf(defaultBufLen)
-	defer putBuf(buf)
-
-	data, err := snappy.Decode(buf, b[:length])
+	data, err := snappy.Decode(nil, b[:length])
 	if err != nil {
 		r.err = err
 		return true
@@ -471,7 +588,9 @@ func (r *WALSegmentReader) Next() bool {
 	// and marshal it and send it to the cache
 	switch walEntryType(entryType) {
 	case WriteWALEntryType:
-		r.entry = &WriteWALEntry{}
+		r.entry = &WriteWALEntry{
+			Values: map[string][]Value{},
+		}
 	case DeleteWALEntryType:
 		r.entry = &DeleteWALEntry{}
 	default:
@@ -492,6 +611,10 @@ func (r *WALSegmentReader) Read() (WALEntry, error) {
 
 func (r *WALSegmentReader) Error() error {
 	return r.err
+}
+
+func (r *WALSegmentReader) Close() error {
+	return r.r.Close()
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -522,4 +645,122 @@ func getBuf(size int) []byte {
 // putBuf returns a buffer to the pool.
 func putBuf(buf []byte) {
 	bufPool.Put(buf)
+}
+
+// getBuf returns a buffer with length size from the buffer pool.
+func getFloat64Values(size int) []Value {
+	var buf []Value
+	x := float64ValuePool.Get()
+	if x == nil {
+		buf = make([]Value, size)
+	} else {
+		buf = x.([]Value)
+	}
+	if cap(buf) < size {
+		return make([]Value, size)
+	}
+
+	for i, v := range buf {
+		if v == nil {
+			buf[i] = &FloatValue{}
+		}
+	}
+	return buf[:size]
+}
+
+// putBuf returns a buffer to the pool.
+func putFloat64Values(buf []Value) {
+	float64ValuePool.Put(buf)
+}
+
+// getBuf returns a buffer with length size from the buffer pool.
+func getInt64Values(size int) []Value {
+	var buf []Value
+	x := int64ValuePool.Get()
+	if x == nil {
+		buf = make([]Value, size)
+	} else {
+		buf = x.([]Value)
+	}
+	if cap(buf) < size {
+		return make([]Value, size)
+	}
+
+	for i, v := range buf {
+		if v == nil {
+			buf[i] = &Int64Value{}
+		}
+	}
+	return buf[:size]
+}
+
+// putBuf returns a buffer to the pool.
+func putInt64Values(buf []Value) {
+	int64ValuePool.Put(buf)
+}
+
+// getBuf returns a buffer with length size from the buffer pool.
+func getBoolValues(size int) []Value {
+	var buf []Value
+	x := boolValuePool.Get()
+	if x == nil {
+		buf = make([]Value, size)
+	} else {
+		buf = x.([]Value)
+	}
+	if cap(buf) < size {
+		return make([]Value, size)
+	}
+
+	for i, v := range buf {
+		if v == nil {
+			buf[i] = &BoolValue{}
+		}
+	}
+	return buf[:size]
+}
+
+// putBuf returns a buffer to the pool.
+func putStringValues(buf []Value) {
+	stringValuePool.Put(buf)
+}
+
+// getBuf returns a buffer with length size from the buffer pool.
+func getStringValues(size int) []Value {
+	var buf []Value
+	x := stringValuePool.Get()
+	if x == nil {
+		buf = make([]Value, size)
+	} else {
+		buf = x.([]Value)
+	}
+	if cap(buf) < size {
+		return make([]Value, size)
+	}
+
+	for i, v := range buf {
+		if v == nil {
+			buf[i] = &StringValue{}
+		}
+	}
+	return buf[:size]
+}
+
+// putBuf returns a buffer to the pool.
+func putBoolValues(buf []Value) {
+	boolValuePool.Put(buf)
+}
+func putValue(buf []Value) {
+	if len(buf) > 0 {
+		switch buf[0].(type) {
+		case *FloatValue:
+			putFloat64Values(buf)
+		case *Int64Value:
+			putInt64Values(buf)
+		case *BoolValue:
+			putBoolValues(buf)
+		case *StringValue:
+			putBoolValues(buf)
+		}
+	}
 }

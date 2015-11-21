@@ -32,6 +32,7 @@ type Value interface {
 	UnixNano() int64
 	Value() interface{}
 	Size() int
+	String() string
 }
 
 func NewValue(t time.Time, value interface{}) Value {
@@ -55,6 +56,7 @@ func (e *EmptyValue) UnixNano() int64    { return tsdb.EOF }
 func (e *EmptyValue) Time() time.Time    { return time.Unix(0, tsdb.EOF) }
 func (e *EmptyValue) Value() interface{} { return nil }
 func (e *EmptyValue) Size() int          { return 0 }
+func (e *EmptyValue) String() string     { return "" }
 
 // Values represented a time ascending sorted collection of Value types.
 // the underlying type should be the same across all values, but the interface
@@ -210,6 +212,10 @@ func (f *FloatValue) Size() int {
 	return 16
 }
 
+func (f *FloatValue) String() string {
+	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+}
+
 func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -316,6 +322,10 @@ func (b *BoolValue) Value() interface{} {
 	return b.value
 }
 
+func (f *BoolValue) String() string {
+	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+}
+
 func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
@@ -417,7 +427,9 @@ func (v *Int64Value) Size() int {
 	return 16
 }
 
-func (v *Int64Value) String() string { return fmt.Sprintf("%v", v.value) }
+func (f *Int64Value) String() string {
+	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+}
 
 func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
@@ -508,7 +520,9 @@ func (v *StringValue) Size() int {
 	return 8 + len(v.value)
 }
 
-func (v *StringValue) String() string { return v.value }
+func (f *StringValue) String() string {
+	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+}
 
 func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()

@@ -1,11 +1,10 @@
 package tsm1_test
 
 import (
-	"fmt"
 	"os"
 	"testing"
+	"time"
 
-	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
@@ -15,14 +14,20 @@ func TestWALWriter_WritePoints_Single(t *testing.T) {
 	f := MustTempFile(dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
-	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	p2 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	p3 := tsm1.NewValue(time.Unix(1, 0), true)
+	p4 := tsm1.NewValue(time.Unix(1, 0), "string")
 
-	points := []models.Point{
-		p1,
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#float":  []tsm1.Value{p1},
+		"cpu,host=A#!~#int":    []tsm1.Value{p2},
+		"cpu,host=A#!~#bool":   []tsm1.Value{p3},
+		"cpu,host=A#!~#string": []tsm1.Value{p4},
 	}
 
 	entry := &tsm1.WriteWALEntry{
-		Points: points,
+		Values: values,
 	}
 
 	if err := w.Write(entry); err != nil {
@@ -49,9 +54,11 @@ func TestWALWriter_WritePoints_Single(t *testing.T) {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
 
-	for i, p := range e.Points {
-		if exp, got := points[i].String(), p.String(); exp != got {
-			t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+	for k, v := range e.Values {
+		for i, vv := range v {
+			if got, exp := vv.String(), values[k][i].String(); got != exp {
+				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+			}
 		}
 	}
 }
@@ -62,21 +69,20 @@ func TestWALWriter_WritePoints_Multiple(t *testing.T) {
 	f := MustTempFile(dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
-	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
-	p2 := parsePoint("cpu,host=B value=1.1 1000000000")
+	p1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	p2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
 
-	exp := [][]models.Point{
-		[]models.Point{
-			p1,
-		},
-		[]models.Point{
-			p2,
-		},
+	exp := []struct {
+		key    string
+		values []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{p1}},
+		{"cpu,host=B#!~#value", []tsm1.Value{p2}},
 	}
 
-	for _, e := range exp {
+	for _, v := range exp {
 		entry := &tsm1.WriteWALEntry{
-			Points: e,
+			Values: map[string][]tsm1.Value{v.key: v.values},
 		}
 
 		if err := w.Write(entry); err != nil {
@@ -106,10 +112,19 @@ func TestWALWriter_WritePoints_Multiple(t *testing.T) {
 			t.Fatalf("expected WriteWALEntry: got %#v", e)
 		}
 
-		points := e.Points
-		for i, p := range ep {
-			if exp, got := points[i].String(), p.String(); exp != got {
-				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+		for k, v := range e.Values {
+			if got, exp := k, ep.key; got != exp {
+				t.Fatalf("key mismatch. got %v, exp %v", got, exp)
+			}
+
+			if got, exp := len(v), len(ep.values); got != exp {
+				t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+			}
+
+			for i, vv := range v {
+				if got, exp := vv.String(), ep.values[i].String(); got != exp {
+					t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+				}
 			}
 		}
 	}
@@ -164,19 +179,22 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 	f := MustTempFile(dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
-	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
-
-	write := &tsm1.WriteWALEntry{
-		Points: []models.Point{p1},
+	p1 := tsm1.NewValue(time.Unix(1, 0), true)
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{p1},
 	}
 
-	if err := w.Write(write); err != nil {
+	writeEntry := &tsm1.WriteWALEntry{
+		Values: values,
+	}
+
+	if err := w.Write(writeEntry); err != nil {
 		fatal(t, "write points", err)
 	}
 
 	// Write the delete entry
 	deleteEntry := &tsm1.DeleteWALEntry{
-		Keys: []string{"cpu"},
+		Keys: []string{"cpu,host=A#!~value"},
 	}
 
 	if err := w.Write(deleteEntry); err != nil {
@@ -205,10 +223,15 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 		t.Fatalf("expected WriteWALEntry: got %#v", e)
 	}
 
-	points := e.Points
-	for i, p := range write.Points {
-		if exp, got := points[i].String(), p.String(); exp != got {
-			t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+	for k, v := range e.Values {
+		if got, exp := len(v), len(values[k]); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, vv := range v {
+			if got, exp := vv.String(), values[k][i].String(); got != exp {
+				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+			}
 		}
 	}
 
@@ -254,8 +277,10 @@ func TestWAL_ClosedSegments(t *testing.T) {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if err := w.WritePoints([]models.Point{
-		parsePoint("cpu,host=A value=1.1 1000000000"),
+	if err := w.WritePoints(map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), 1.1),
+		},
 	}); err != nil {
 		t.Fatalf("error writing points: %v", err)
 	}
@@ -323,9 +348,10 @@ func TestWAL_Delete(t *testing.T) {
 }
 
 func BenchmarkWALSegmentWriter(b *testing.B) {
-	points := make([]models.Point, 5000)
-	for i := range points {
-		points[i] = parsePoint(fmt.Sprintf("cpu,host=host-%d value=1.1 1000000000", i))
+	points := map[string][]tsm1.Value{}
+	for i := 0; i < 5000; i++ {
+		k := "cpu,host=A#!~#value"
+		points[k] = append(points[k], tsm1.NewValue(time.Unix(int64(i), 0), 1.1))
 	}
 
 	dir := MustTempDir()
@@ -335,7 +361,7 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 	w := tsm1.NewWALSegmentWriter(f)
 
 	write := &tsm1.WriteWALEntry{
-		Points: points,
+		Values: points,
 	}
 
 	b.ResetTimer()
@@ -347,9 +373,10 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 }
 
 func BenchmarkWALSegmentReader(b *testing.B) {
-	points := make([]models.Point, 5000)
-	for i := range points {
-		points[i] = parsePoint(fmt.Sprintf("cpu,host=host-%d value=1.1 1000000000", i))
+	points := map[string][]tsm1.Value{}
+	for i := 0; i < 5000; i++ {
+		k := "cpu,host=A#!~#value"
+		points[k] = append(points[k], tsm1.NewValue(time.Unix(int64(i), 0), 1.1))
 	}
 
 	dir := MustTempDir()
@@ -359,7 +386,7 @@ func BenchmarkWALSegmentReader(b *testing.B) {
 	w := tsm1.NewWALSegmentWriter(f)
 
 	write := &tsm1.WriteWALEntry{
-		Points: points,
+		Values: points,
 	}
 
 	for i := 0; i < 100; i++ {

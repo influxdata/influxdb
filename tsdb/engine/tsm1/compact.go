@@ -2,9 +2,114 @@ package tsm1
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
-	"strings"
 )
+
+var errMaxFileExceeded = fmt.Errorf("max file exceeded")
+
+type Compactor struct {
+	Dir         string
+	MaxFileSize int
+	currentID   int
+
+	merge *MergeIterator
+}
+
+func (c *Compactor) Compact(walSegments []string) ([]string, error) {
+	var walReaders []*WALSegmentReader
+
+	for _, path := range walSegments {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		r := NewWALSegmentReader(f)
+		defer r.Close()
+
+		walReaders = append(walReaders, r)
+	}
+
+	walKeyIterator, err := NewWALKeyIterator(walReaders...)
+	if err != nil {
+		return nil, err
+	}
+
+	c.merge = NewMergeIterator(walKeyIterator, 1000)
+	defer c.merge.Close()
+
+	var files []string
+
+	for {
+		c.currentID++
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", c.currentID, Format))
+
+		err := c.write(fileName)
+		if err == errMaxFileExceeded {
+			files = append(files, fileName)
+			continue
+		}
+
+		if err != nil {
+			os.RemoveAll(fileName)
+			return nil, err
+		}
+
+		files = append(files, fileName)
+		break
+	}
+	c.merge = nil
+	return files, nil
+}
+
+func (c *Compactor) write(path string) error {
+	ff, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+
+	w, err := NewTSMWriter(ff)
+	if err != nil {
+		return err
+	}
+
+	for c.merge.Next() {
+		key, values, err := c.merge.Read()
+		if err != nil {
+			return err
+		}
+
+		if err := w.Write(key, values); err != nil {
+			return err
+		}
+		// We're all done with the Values, release them back to pool to reduce
+		// excess garbage.
+		putValue(values)
+
+		if c.MaxFileSize != 0 && w.Size() > c.MaxFileSize {
+			if err := w.WriteIndex(); err != nil {
+				return err
+			}
+
+			if err := w.Close(); err != nil {
+				return err
+			}
+
+			return errMaxFileExceeded
+		}
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		return err
+	}
+
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // MergeIterator merges multiple KeyIterators while chunking each read call
 // into a fixed size.  Each iteration, the lowest lexicographically ordered
@@ -61,6 +166,12 @@ func (m *MergeIterator) Read() (string, []Value, error) {
 	return m.key, m.chunk, m.err
 }
 
+func (m *MergeIterator) Close() error {
+	m.walBuf = nil
+	m.chunk = nil
+	return m.wal.Close()
+}
+
 func NewMergeIterator(WAL KeyIterator, size int) *MergeIterator {
 	m := &MergeIterator{
 		wal:  WAL,
@@ -73,6 +184,7 @@ func NewMergeIterator(WAL KeyIterator, size int) *MergeIterator {
 type KeyIterator interface {
 	Next() bool
 	Read() (string, []Value, error)
+	Close() error
 }
 
 // walKeyIterator allows WAL segments to be iterated over in sorted order.
@@ -95,6 +207,12 @@ func (k *walKeyIterator) Read() (string, []Value, error) {
 	return k.k, k.Series[k.k], nil
 }
 
+func (k *walKeyIterator) Close() error {
+	k.Order = nil
+	k.Series = nil
+	return nil
+}
+
 func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
 	series := map[string]Values{}
 	order := []string{}
@@ -111,14 +229,9 @@ func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
 			switch t := entry.(type) {
 			case *WriteWALEntry:
 				// Each point needs to be decomposed from a time with multiple fields, to a time, value tuple
-				for _, p := range t.Points {
-					// Create a series key for each field
-					for k, v := range p.Fields() {
-						key := fmt.Sprintf("%s%s%s", p.Key(), keyFieldSeparator, k)
-
-						// Just append each point as we see it.  Dedup and sorting happens later.
-						series[key] = append(series[key], NewValue(p.Time(), v))
-					}
+				for k, v := range t.Values {
+					// Just append each point as we see it.  Dedup and sorting happens later.
+					series[k] = append(series[k], v...)
 				}
 
 			case *DeleteWALEntry:
@@ -126,9 +239,8 @@ func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
 				for _, k := range t.Keys {
 					// seriesKey is specific to a field, measurment + tagset string + sep + field name
 					for seriesKey := range series {
-						key := seriesKey[:strings.Index(seriesKey, keyFieldSeparator)]
 						//  If the delete series key matches the portion before the separator, we delete what we have
-						if key == k {
+						if k == seriesKey {
 							delete(series, seriesKey)
 						}
 					}
