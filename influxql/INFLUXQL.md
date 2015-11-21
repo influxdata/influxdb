@@ -120,7 +120,7 @@ float_lit           = int_lit "." int_lit .
 String literals must be surrounded by single quotes. Strings may contain `'` characters as long as they are escaped (i.e., `\'`).
 
 ```
-string_lit          = `'` { unicode_char } `'`' .
+string_lit          = `'` { unicode_char } `'` .
 ```
 
 ### Durations
@@ -150,7 +150,7 @@ The date and time literal format is not specified in EBNF like the rest of this 
 InfluxQL reference date time: January 2nd, 2006 at 3:04:05 PM
 
 ```
-time_lit            = "2006-01-02 15:04:05.999999" | "2006-01-02"
+time_lit            = "2006-01-02 15:04:05.999999" | "2006-01-02" .
 ```
 
 ### Booleans
@@ -170,14 +170,14 @@ regex_lit           = "/" { unicode_char } "/" .
 A query is composed of one or more statements separated by a semicolon.
 
 ```
-query               = statement { ; statement } .
+query               = statement { ";" statement } .
 
 statement           = alter_retention_policy_stmt |
                       create_continuous_query_stmt |
                       create_database_stmt |
                       create_retention_policy_stmt |
-                      create_user_stmt |
                       create_subscription_stmt |
+                      create_user_stmt |
                       delete_stmt |
                       drop_continuous_query_stmt |
                       drop_database_stmt |
@@ -193,6 +193,7 @@ statement           = alter_retention_policy_stmt |
                       show_measurements_stmt |
                       show_retention_policies |
                       show_series_stmt |
+                      show_shard_groups_stmt |
                       show_shards_stmt |
                       show_subscriptions_stmt|
                       show_tag_keys_stmt |
@@ -211,17 +212,6 @@ alter_retention_policy_stmt  = "ALTER RETENTION POLICY" policy_name "ON"
                                db_name retention_policy_option
                                [ retention_policy_option ]
                                [ retention_policy_option ] .
-
-db_name                      = identifier .
-
-policy_name                  = identifier .
-
-retention_policy_option      = retention_policy_duration |
-                               retention_policy_replication |
-                               "DEFAULT" .
-
-retention_policy_duration    = "DURATION" duration_lit .
-retention_policy_replication = "REPLICATION" int_lit
 ```
 
 #### Examples:
@@ -270,7 +260,7 @@ END;
 ### CREATE DATABASE
 
 ```
-create_database_stmt = "CREATE DATABASE" db_name
+create_database_stmt = "CREATE DATABASE" db_name .
 ```
 
 #### Example:
@@ -348,7 +338,9 @@ DELETE FROM cpu WHERE region = 'uswest';
 
 ### DROP CONTINUOUS QUERY
 
-drop_continuous_query_stmt = "DROP CONTINUOUS QUERY" query_name .
+```
+drop_continuous_query_stmt = "DROP CONTINUOUS QUERY" query_name "ON" db_name .
+```
 
 #### Example:
 
@@ -358,7 +350,9 @@ DROP CONTINUOUS QUERY myquery;
 
 ### DROP DATABASE
 
+```
 drop_database_stmt = "DROP DATABASE" db_name .
+```
 
 #### Example:
 
@@ -395,7 +389,7 @@ DROP RETENTION POLICY "1h.cpu" ON mydb;
 ### DROP SERIES
 
 ```
-drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ]
+drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ] .
 ```
 
 #### Example:
@@ -435,7 +429,7 @@ DROP USER jdoe;
 NOTE: Users can be granted privileges on databases that do not exist.
 
 ```
-grant_stmt = "GRANT" privilege [ on_clause ] to_clause
+grant_stmt = "GRANT" privilege [ on_clause ] to_clause .
 ```
 
 #### Examples:
@@ -450,7 +444,9 @@ GRANT READ ON mydb TO jdoe;
 
 ### SHOW CONTINUOUS QUERIES
 
-show_continuous_queries_stmt = "SHOW CONTINUOUS QUERIES"
+```
+show_continuous_queries_stmt = "SHOW CONTINUOUS QUERIES" .
+```
 
 #### Example:
 
@@ -472,9 +468,11 @@ show_databases_stmt = "SHOW DATABASES" .
 SHOW DATABASES;
 ```
 
-### SHOW FIELD
+### SHOW FIELD KEYS
 
+```
 show_field_keys_stmt = "SHOW FIELD KEYS" [ from_clause ] .
+```
 
 #### Examples:
 
@@ -488,8 +486,10 @@ SHOW FIELD KEYS FROM cpu;
 
 ### SHOW MEASUREMENTS
 
+```
 show_measurements_stmt = "SHOW MEASUREMENTS" [ where_clause ] [ group_by_clause ] [ limit_clause ]
                          [ offset_clause ] .
+```
 
 ```sql
 -- show all measurements
@@ -598,10 +598,10 @@ show_tag_values_stmt = "SHOW TAG VALUES" [ from_clause ] with_tag_clause [ where
 SHOW TAG VALUES WITH TAG = 'region';
 
 -- show tag values from the cpu measurement for the region tag
-SHOW TAG VALUES FROM cpu WITH TAG = 'region';
+SHOW TAG VALUES FROM cpu WITH KEY = 'region';
 
 -- show tag values from the cpu measurement for region & host tag keys where service = 'redis'
-SHOW TAG VALUES FROM cpu WITH TAG IN (region, host) WHERE service = 'redis';
+SHOW TAG VALUES FROM cpu WITH KEY IN (region, host) WHERE service = 'redis';
 ```
 
 ### SHOW USERS
@@ -620,7 +620,7 @@ SHOW USERS;
 ### REVOKE
 
 ```
-revoke_stmt = "REVOKE" privilege [ "ON" db_name ] "FROM" user_name
+revoke_stmt = "REVOKE" privilege [ "ON" db_name ] "FROM" user_name .
 ```
 
 #### Examples:
@@ -638,7 +638,7 @@ REVOKE READ ON mydb FROM jdoe;
 ```
 select_stmt = "SELECT" fields from_clause [ into_clause ] [ where_clause ]
               [ group_by_clause ] [ order_by_clause ] [ limit_clause ]
-              [ offset_clause ] [ slimit_clause ] [ soffset_clause ].
+              [ offset_clause ] [ slimit_clause ] [ soffset_clause ] .
 ```
 
 #### Examples:
@@ -653,15 +653,17 @@ SELECT mean(value) FROM cpu WHERE region = 'uswest' GROUP BY time(10m) fill(0);
 ```
 from_clause     = "FROM" measurements .
 
-group_by_clause = "GROUP BY" dimensions fill(<option>).
+group_by_clause = "GROUP BY" dimensions fill(fill_option).
+
+into_clause     = "INTO" measurement .
 
 limit_clause    = "LIMIT" int_lit .
 
 offset_clause   = "OFFSET" int_lit .
 
-slimit_clause    = "SLIMIT" int_lit .
+slimit_clause   = "SLIMIT" int_lit .
 
-soffset_clause   = "SOFFSET" int_lit .
+soffset_clause  = "SOFFSET" int_lit .
 
 on_clause       = db_name .
 
@@ -670,6 +672,8 @@ order_by_clause = "ORDER BY" sort_fields .
 to_clause       = user_name .
 
 where_clause    = "WHERE" expr .
+
+with_tag_clause = "WITH KEY" ( "=" tag_key | "IN (" tag_keys ")" ) .
 ```
 
 ## Expressions
@@ -687,13 +691,23 @@ unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit | int_lit |
 ## Other
 
 ```
-dimension         = expr .
+alias            = "AS" identifier .
 
-dimensions        = dimension { "," dimension } .
+db_name          = identifier .
+
+dimension        = expr .
+
+dimensions       = dimension { "," dimension } .
+
+field_key        = identifier .
 
 field            = expr [ alias ] .
 
 fields           = field { "," field } .
+
+fill_option      = "null" | "none" | "previous" | int_lit | float_lit .
+
+host             = string_lit .
 
 measurement      = measurement_name |
                    ( policy_name "." measurement_name ) |
@@ -709,11 +723,30 @@ policy_name      = identifier .
 
 privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
 
+query_name       = identifier .
+
+retention_policy = identifier .
+
+retention_policy_option      = retention_policy_duration |
+                               retention_policy_replication |
+                               "DEFAULT" .
+
+retention_policy_duration    = "DURATION" duration_lit .
+retention_policy_replication = "REPLICATION" int_lit
+
 series_id        = int_lit .
 
 sort_field       = field_key [ ASC | DESC ] .
 
 sort_fields      = sort_field { "," sort_field } .
 
+subscription_name = identifier .
+
+tag_key          = identifier .
+
+tag_keys         = tag_key { "," tag_key } .
+
 user_name        = identifier .
+
+var_ref          = measurement .
 ```
