@@ -120,21 +120,19 @@ Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary
 Build and Test
 -----
 
-Make sure you have Go installed and the project structure as shown above. To then build the project, execute the following commands:
+Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
 
 ```bash
 cd $GOPATH/src/github.com/influxdb
-go get -u -f -t ./...
-go build ./...
 ```
 
-To then install the binaries, run the following command. They can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+To then bulid and install the binaries, run the following command. They can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
 
 ```bash
 go install ./...
 ```
 
-To set the version and commit flags during the build pass the following to the build command:
+To set the version and commit flags during the build pass the following to the **install** command:
 
 ```bash
 -ldflags="-X main.version $VERSION -X main.branch $BRANCH -X main.commit $COMMIT -X main.buildTime $TIME"
