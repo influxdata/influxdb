@@ -345,7 +345,7 @@ drop_continuous_query_stmt = "DROP CONTINUOUS QUERY" query_name on_clause .
 #### Example:
 
 ```sql
-DROP CONTINUOUS QUERY myquery;
+DROP CONTINUOUS QUERY myquery ON mydb;
 ```
 
 ### DROP DATABASE
@@ -363,7 +363,7 @@ DROP DATABASE mydb;
 ### DROP MEASUREMENT
 
 ```
-drop_measurement_stmt = "DROP MEASUREMENT" measurement .
+drop_measurement_stmt = "DROP MEASUREMENT" measurement_name .
 ```
 
 #### Examples:
@@ -646,6 +646,9 @@ select_stmt = "SELECT" fields from_clause [ into_clause ] [ where_clause ]
 ```sql
 -- select mean value from the cpu measurement where region = 'uswest' grouped by 10 minute intervals
 SELECT mean(value) FROM cpu WHERE region = 'uswest' GROUP BY time(10m) fill(0);
+
+-- select from all measurements beginning with cpu into the same measurement name in the cpu_1h retention policy
+SELECT mean(value) INTO cpu_1h.:MEASUREMENT FROM /cpu.*/
 ```
 
 ## Clauses
@@ -655,7 +658,7 @@ from_clause     = "FROM" measurements .
 
 group_by_clause = "GROUP BY" dimensions fill(fill_option).
 
-into_clause     = "INTO" measurement .
+into_clause     = "INTO" ( measurement | back_ref ).
 
 limit_clause    = "LIMIT" int_lit .
 
@@ -692,6 +695,9 @@ unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit | int_lit |
 
 ```
 alias            = "AS" identifier .
+
+back_ref         = ( policy_name ".:MEASUREMENT" ) |
+                   ( db_name "." [ policy_name ] ".:MEASUREMENT" ) .
 
 db_name          = identifier .
 
