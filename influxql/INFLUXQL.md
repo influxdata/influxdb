@@ -208,8 +208,8 @@ statement           = alter_retention_policy_stmt |
 ### ALTER RETENTION POLICY
 
 ```
-alter_retention_policy_stmt  = "ALTER RETENTION POLICY" policy_name "ON"
-                               db_name retention_policy_option
+alter_retention_policy_stmt  = "ALTER RETENTION POLICY" policy_name on_clause
+                               retention_policy_option
                                [ retention_policy_option ]
                                [ retention_policy_option ] .
 ```
@@ -227,7 +227,7 @@ ALTER RETENTION POLICY policy1 ON somedb DURATION 1h REPLICATION 4
 ### CREATE CONTINUOUS QUERY
 
 ```
-create_continuous_query_stmt = "CREATE CONTINUOUS QUERY" query_name "ON" db_name
+create_continuous_query_stmt = "CREATE CONTINUOUS QUERY" query_name on_clause
                                "BEGIN" select_stmt "END" .
 
 query_name                   = identifier .
@@ -272,8 +272,8 @@ CREATE DATABASE foo
 ### CREATE RETENTION POLICY
 
 ```
-create_retention_policy_stmt = "CREATE RETENTION POLICY" policy_name "ON"
-                               db_name retention_policy_duration
+create_retention_policy_stmt = "CREATE RETENTION POLICY" policy_name on_clause
+                               retention_policy_duration
                                retention_policy_replication
                                [ "DEFAULT" ] .
 ```
@@ -339,7 +339,7 @@ DELETE FROM cpu WHERE region = 'uswest';
 ### DROP CONTINUOUS QUERY
 
 ```
-drop_continuous_query_stmt = "DROP CONTINUOUS QUERY" query_name "ON" db_name .
+drop_continuous_query_stmt = "DROP CONTINUOUS QUERY" query_name on_clause .
 ```
 
 #### Example:
@@ -376,7 +376,7 @@ DROP MEASUREMENT cpu;
 ### DROP RETENTION POLICY
 
 ```
-drop_retention_policy_stmt = "DROP RETENTION POLICY" policy_name "ON" db_name .
+drop_retention_policy_stmt = "DROP RETENTION POLICY" policy_name on_clause .
 ```
 
 #### Example:
@@ -502,7 +502,7 @@ SHOW MEASUREMENTS WHERE region = 'uswest' AND host = 'serverA';
 ### SHOW RETENTION POLICIES
 
 ```
-show_retention_policies = "SHOW RETENTION POLICIES ON" db_name .
+show_retention_policies = "SHOW RETENTION POLICIES" on_clause .
 ```
 
 #### Example:
@@ -620,7 +620,7 @@ SHOW USERS;
 ### REVOKE
 
 ```
-revoke_stmt = "REVOKE" privilege [ "ON" db_name ] "FROM" user_name .
+revoke_stmt = "REVOKE" privilege [ on_clause ] "FROM" user_name .
 ```
 
 #### Examples:
@@ -665,11 +665,11 @@ slimit_clause   = "SLIMIT" int_lit .
 
 soffset_clause  = "SOFFSET" int_lit .
 
-on_clause       = db_name .
+on_clause       = "ON" db_name .
 
 order_by_clause = "ORDER BY" sort_fields .
 
-to_clause       = user_name .
+to_clause       = "TO" user_name .
 
 where_clause    = "WHERE" expr .
 
@@ -717,7 +717,7 @@ measurements     = measurement { "," measurement } .
 
 measurement_name = identifier .
 
-password         = identifier .
+password         = string_lit .
 
 policy_name      = identifier .
 
