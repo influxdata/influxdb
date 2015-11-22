@@ -528,8 +528,7 @@ SHOW RETENTION POLICIES ON mydb;
 ### SHOW SERIES
 
 ```
-show_series_stmt = "SHOW SERIES" [ from_clause ] [ where_clause ] [ group_by_clause ]
-                   [ limit_clause ] [ offset_clause ] .
+show_series_stmt = "SHOW SERIES" [ from_clause ] [ where_clause ] [ limit_clause ] [ offset_clause ] .
 ```
 
 #### Example:
