@@ -127,7 +127,7 @@ cd $GOPATH/src/github.com/influxdb
 go get -u -f -t ./...
 ```
 
-To then bulid and install the binaries, run the following command. They can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+To then build and install the binaries, run the following command. They can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
 
 ```bash
 go install ./...
