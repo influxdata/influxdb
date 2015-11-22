@@ -601,6 +601,9 @@ func TestParseString(t *testing.T) {
 			stmt: `SELECT "cpu load" FROM "my\"series"`,
 		},
 		{
+			stmt: `SELECT "field with spaces" FROM "\"ugly\" db"."\"ugly\" rp"."\"ugly\" measurement"`,
+		},
+		{
 			stmt: `SELECT * FROM myseries`,
 		},
 		{
@@ -638,6 +641,27 @@ func TestParseString(t *testing.T) {
 		},
 		{
 			stmt: `SHOW MEASUREMENTS WITH MEASUREMENT = "and/or"`,
+		},
+		{
+			stmt: `DROP USER "user with spaces"`,
+		},
+		{
+			stmt: `GRANT ALL PRIVILEGES ON "db with spaces" TO "user with spaces"`,
+		},
+		{
+			stmt: `GRANT ALL PRIVILEGES TO "user with spaces"`,
+		},
+		{
+			stmt: `SHOW GRANTS FOR "user with spaces"`,
+		},
+		{
+			stmt: `REVOKE ALL PRIVILEGES ON "db with spaces" FROM "user with spaces"`,
+		},
+		{
+			stmt: `REVOKE ALL PRIVILEGES FROM "user with spaces"`,
+		},
+		{
+			stmt: `CREATE DATABASE "db with spaces"`,
 		},
 	}
 

@@ -329,7 +329,7 @@ func (s *CreateDatabaseStatement) String() string {
 	if s.IfNotExists {
 		_, _ = buf.WriteString("IF NOT EXISTS ")
 	}
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -428,7 +428,7 @@ type DropUserStatement struct {
 func (s *DropUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP USER ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -487,9 +487,9 @@ func (s *GrantStatement) String() string {
 	_, _ = buf.WriteString("GRANT ")
 	_, _ = buf.WriteString(s.Privilege.String())
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.On)
+	_, _ = buf.WriteString(QuoteIdent(s.On))
 	_, _ = buf.WriteString(" TO ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -508,7 +508,7 @@ type GrantAdminStatement struct {
 func (s *GrantAdminStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("GRANT ALL PRIVILEGES TO ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -530,7 +530,7 @@ type SetPasswordUserStatement struct {
 func (s *SetPasswordUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SET PASSWORD FOR ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" = ")
 	_, _ = buf.WriteString("[REDACTED]")
 	return buf.String()
@@ -559,9 +559,9 @@ func (s *RevokeStatement) String() string {
 	_, _ = buf.WriteString("REVOKE ")
 	_, _ = buf.WriteString(s.Privilege.String())
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.On)
+	_, _ = buf.WriteString(QuoteIdent(s.On))
 	_, _ = buf.WriteString(" FROM ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -580,7 +580,7 @@ type RevokeAdminStatement struct {
 func (s *RevokeAdminStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("REVOKE ALL PRIVILEGES FROM ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -1843,7 +1843,7 @@ type ShowGrantsForUserStatement struct {
 func (s *ShowGrantsForUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW GRANTS FOR ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 
 	return buf.String()
 }
@@ -2491,15 +2491,12 @@ type Measurement struct {
 func (m *Measurement) String() string {
 	var buf bytes.Buffer
 	if m.Database != "" {
-		_, _ = buf.WriteString(`"`)
-		_, _ = buf.WriteString(m.Database)
-		_, _ = buf.WriteString(`".`)
+		_, _ = buf.WriteString(QuoteIdent(m.Database))
+		_, _ = buf.WriteString(".")
 	}
 
 	if m.RetentionPolicy != "" {
-		_, _ = buf.WriteString(`"`)
-		_, _ = buf.WriteString(m.RetentionPolicy)
-		_, _ = buf.WriteString(`"`)
+		_, _ = buf.WriteString(QuoteIdent(m.RetentionPolicy))
 	}
 
 	if m.Database != "" || m.RetentionPolicy != "" {
