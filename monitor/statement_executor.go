@@ -33,8 +33,8 @@ func (s *StatementExecutor) executeShowStatistics(module string) *influxql.Resul
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
-	rows := make([]*models.Row, 0)
 
+	var rows []*models.Row
 	for _, stat := range stats {
 		if module != "" && stat.Name != module {
 			continue
@@ -61,7 +61,7 @@ func (s *StatementExecutor) executeShowDiagnostics(module string) *influxql.Resu
 
 	// Get a sorted list of diagnostics keys.
 	sortedKeys := make([]string, 0, len(diags))
-	for k, _ := range diags {
+	for k := range diags {
 		sortedKeys = append(sortedKeys, k)
 	}
 	sort.Strings(sortedKeys)
