@@ -389,7 +389,7 @@ DROP RETENTION POLICY "1h.cpu" ON mydb;
 ### DROP SERIES
 
 ```
-drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ] .
+drop_series_stmt = "DROP SERIES" ( from_clause | where_clause | from_clause where_clause ) .
 ```
 
 #### Example:
@@ -487,8 +487,7 @@ SHOW FIELD KEYS FROM cpu;
 ### SHOW MEASUREMENTS
 
 ```
-show_measurements_stmt = "SHOW MEASUREMENTS" [ where_clause ] [ group_by_clause ] [ limit_clause ]
-                         [ offset_clause ] .
+show_measurements_stmt = "SHOW MEASUREMENTS" [ with_measurement_clause ] [ where_clause ] [ limit_clause ] [ offset_clause ] .
 ```
 
 ```sql
@@ -675,6 +674,8 @@ order_by_clause = "ORDER BY" sort_fields .
 to_clause       = "TO" user_name .
 
 where_clause    = "WHERE" expr .
+
+with_measurement_clause = "WITH MEASUREMENT" ( "=" measurement | "=~" regex_lit ) .
 
 with_tag_clause = "WITH KEY" ( "=" tag_key | "IN (" tag_keys ")" ) .
 ```
