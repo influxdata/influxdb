@@ -1958,6 +1958,15 @@ func (s *ShowMeasurementsStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW MEASUREMENTS")
 
+	if s.Source != nil {
+		_, _ = buf.WriteString(" WITH MEASUREMENT ")
+		if m, ok := s.Source.(*Measurement); ok && m.Regex != nil {
+			_, _ = buf.WriteString("=~ ")
+		} else {
+			_, _ = buf.WriteString("= ")
+		}
+		_, _ = buf.WriteString(s.Source.String())
+	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())

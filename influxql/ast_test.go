@@ -633,6 +633,12 @@ func TestParseString(t *testing.T) {
 		{
 			stmt: `CREATE SUBSCRIPTION "ugly \"subscription\" name" ON "\"my\" db"."\"my\" rp" DESTINATIONS ALL 'my host', 'my other host'`,
 		},
+		{
+			stmt: `SHOW MEASUREMENTS WITH MEASUREMENT =~ /foo/`,
+		},
+		{
+			stmt: `SHOW MEASUREMENTS WITH MEASUREMENT = "and/or"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -642,9 +648,13 @@ func TestParseString(t *testing.T) {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		_, err = influxql.NewParser(strings.NewReader(stmt.String())).ParseStatement()
+		stmtCopy, err := influxql.NewParser(strings.NewReader(stmt.String())).ParseStatement()
 		if err != nil {
 			t.Fatalf("failed to parse string: %v\norig: %v\ngot: %v", err, tt.stmt, stmt.String())
+		}
+
+		if !reflect.DeepEqual(stmt, stmtCopy) {
+			t.Fatalf("statement changed after stringifying and re-parsing:\noriginal : %v\nre-parsed: %v\n", tt.stmt, stmtCopy.String())
 		}
 	}
 }
