@@ -29,8 +29,11 @@ import (
 )
 
 const (
-	// With raw data queries, mappers will read up to this amount before sending results back to the engine.
-	// This is the default size in the number of values returned in a raw query. Could be many more bytes depending on fields returned.
+	// DefaultChunkSize specified the amount of data mappers will read
+	// up to, before sending results back to the engine. This is the
+	// default size in the number of values returned in a raw query.
+	//
+	// Could be many more bytes depending on fields returned.
 	DefaultChunkSize = 10000
 )
 
@@ -123,6 +126,7 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 	return h
 }
 
+// SetRoutes sets the provided routes on the handler.
 func (h *Handler) SetRoutes(routes []route) {
 	for _, r := range routes {
 		var handler http.Handler
@@ -465,7 +469,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 			if body[i] > 32 || i >= len(body)-1 {
 				break
 			}
-			i += 1
+			i++
 		}
 	}
 
@@ -617,6 +621,7 @@ func MarshalJSON(v interface{}, pretty bool) []byte {
 	return b
 }
 
+// Point represents an influx point.
 type Point struct {
 	Name   string                 `json:"name"`
 	Time   time.Time              `json:"time"`
@@ -624,6 +629,8 @@ type Point struct {
 	Fields map[string]interface{} `json:"fields"`
 }
 
+// Batch is a collection of points belonging to a database, with a
+// certain retention policy.
 type Batch struct {
 	Database        string  `json:"database"`
 	RetentionPolicy string  `json:"retentionPolicy"`

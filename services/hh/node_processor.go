@@ -247,6 +247,7 @@ func (n *NodeProcessor) SendWrite() (int, error) {
 	return len(buf), nil
 }
 
+// Head returns the head of the processor's queue.
 func (n *NodeProcessor) Head() string {
 	qp, err := n.queue.Position()
 	if err != nil {
@@ -255,6 +256,7 @@ func (n *NodeProcessor) Head() string {
 	return qp.head
 }
 
+// Tail returns the tail of the processor's queue.
 func (n *NodeProcessor) Tail() string {
 	qp, err := n.queue.Position()
 	if err != nil {

@@ -18,6 +18,8 @@ import (
 	"github.com/influxdb/influxdb/monitor"
 )
 
+// ErrHintedHandoffDisabled is returned when attempted to write to a
+// shard with hinted handoff disabled.
 var ErrHintedHandoffDisabled = fmt.Errorf("hinted handoff disabled")
 
 const (
@@ -28,6 +30,7 @@ const (
 	writeNodeReqPoints  = "writeNodeReqPoints"
 )
 
+// Service represents a hinted handoff service.
 type Service struct {
 	mu      sync.RWMutex
 	wg      sync.WaitGroup
@@ -72,6 +75,7 @@ func NewService(c Config, w shardWriter, m metaStore) *Service {
 	}
 }
 
+// Open attempts to start the hinted handoff service.
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -119,6 +123,7 @@ func (s *Service) Open() error {
 	return nil
 }
 
+// Close attempts to gracefully shutdown the hinted handoff service.
 func (s *Service) Close() error {
 	s.Logger.Println("shutting down hh service")
 	s.mu.Lock()

@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// Possible errors returned by a hinted handoff queue.
 var (
 	ErrNotOpen     = fmt.Errorf("queue not open")
 	ErrQueueFull   = fmt.Errorf("queue is full")

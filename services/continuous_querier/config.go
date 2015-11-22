@@ -6,14 +6,12 @@ import (
 	"github.com/influxdb/influxdb/toml"
 )
 
+// Default values for aspects of interval computation.
 const (
-	DefaultRecomputePreviousN = 2
-
-	DefaultRecomputeNoOlderThan = 10 * time.Minute
-
+	DefaultRecomputePreviousN     = 2
+	DefaultRecomputeNoOlderThan   = 10 * time.Minute
 	DefaultComputeRunsPerInterval = 10
-
-	DefaultComputeNoMoreThan = 2 * time.Minute
+	DefaultComputeNoMoreThan      = 2 * time.Minute
 )
 
 // Config represents a configuration for the continuous query service.
