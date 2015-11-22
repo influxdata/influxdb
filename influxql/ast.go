@@ -2097,16 +2097,24 @@ type CreateSubscriptionStatement struct {
 
 // String returns a string representation of the CreateSubscriptionStatement.
 func (s *CreateSubscriptionStatement) String() string {
-	var destinations bytes.Buffer
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE SUBSCRIPTION ")
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
+	_, _ = buf.WriteString(".")
+	_, _ = buf.WriteString(QuoteIdent(s.RetentionPolicy))
+	_, _ = buf.WriteString(" DESTINATIONS ")
+	_, _ = buf.WriteString(s.Mode)
+	_, _ = buf.WriteString(" ")
 	for i, dest := range s.Destinations {
 		if i != 0 {
-			destinations.Write([]byte(`, `))
+			_, _ = buf.WriteString(", ")
 		}
-		destinations.Write([]byte(`'`))
-		destinations.Write([]byte(dest))
-		destinations.Write([]byte(`'`))
+		_, _ = buf.WriteString(QuoteString(dest))
 	}
-	return fmt.Sprintf(`CREATE SUBSCRIPTION "%s" ON "%s"."%s" DESTINATIONS %s %s `, s.Name, s.Database, s.RetentionPolicy, s.Mode, string(destinations.Bytes()))
+
+	return buf.String()
 }
 
 // RequiredPrivileges returns the privilege required to execute a CreateSubscriptionStatement
@@ -2123,7 +2131,7 @@ type DropSubscriptionStatement struct {
 
 // String returns a string representation of the DropSubscriptionStatement.
 func (s *DropSubscriptionStatement) String() string {
-	return fmt.Sprintf(`DROP SUBSCRIPTION "%s" ON "%s"."%s"`, s.Name, s.Database, s.RetentionPolicy)
+	return fmt.Sprintf(`DROP SUBSCRIPTION %s ON %s.%s`, QuoteIdent(s.Name), QuoteIdent(s.Database), QuoteIdent(s.RetentionPolicy))
 }
 
 // RequiredPrivileges returns the privilege required to execute a DropSubscriptionStatement

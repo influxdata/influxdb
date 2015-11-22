@@ -627,6 +627,12 @@ func TestParseString(t *testing.T) {
 		{
 			stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
 		},
+		{
+			stmt: `DROP SUBSCRIPTION "ugly \"subscription\" name" ON "\"my\" db"."\"my\" rp"`,
+		},
+		{
+			stmt: `CREATE SUBSCRIPTION "ugly \"subscription\" name" ON "\"my\" db"."\"my\" rp" DESTINATIONS ALL 'my host', 'my other host'`,
+		},
 	}
 
 	for _, tt := range tests {
