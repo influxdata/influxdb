@@ -124,6 +124,7 @@ Make sure you have Go installed and the project structure as shown above. To the
 
 ```bash
 cd $GOPATH/src/github.com/influxdb
+
 ```
 
 To then bulid and install the binaries, run the following command. They can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
