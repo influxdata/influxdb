@@ -190,6 +190,7 @@ statement           = alter_retention_policy_stmt |
                       show_continuous_queries_stmt |
                       show_databases_stmt |
                       show_field_keys_stmt |
+                      show_grants_stmt |
                       show_measurements_stmt |
                       show_retention_policies |
                       show_series_stmt |
@@ -325,7 +326,7 @@ CREATE USER jdoe WITH PASSWORD '1337password' WITH ALL PRIVILEGES;
 ### DELETE
 
 ```
-delete_stmt  = "DELETE" from_clause where_clause .
+delete_stmt  = "DELETE FROM" measurement where_clause .
 ```
 
 #### Example:
@@ -482,6 +483,19 @@ SHOW FIELD KEYS;
 
 -- show field keys from specified measurement
 SHOW FIELD KEYS FROM cpu;
+```
+
+### SHOW GRANTS
+
+```
+show_grants_stmt = "SHOW GRANTS FOR" user_name .
+```
+
+#### Example:
+
+```sql
+-- show grants for jdoe
+SHOW GRANTS FOR jdoe;
 ```
 
 ### SHOW MEASUREMENTS
