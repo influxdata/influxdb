@@ -117,31 +117,6 @@ If you wish to work with fork of InfluxDB, your own fork for example, you must s
 
 Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary so that Go imports work correctly.
 
-Pre-commit checks
--------------
-
-We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
-```bash
-    cd $GOPATH/src/github.com/influxdb/influxdb
-    cp .hooks/pre-commit .git/hooks/
-```
-In case the commit is rejected because it's not formatted you can run
-the following to format the code:
-
-```
-go fmt ./...
-go vet ./...
-```
-
-To install go vet, run the following command:
-```
-go get golang.org/x/tools/cmd/vet
-```
-
-NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
-
-For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/x/tools/cmd/vet).
-
 Build and Test
 -----
 
@@ -215,6 +190,31 @@ go generate ./...
 If generating the protobuf code is failing for you, check each of the following:
  * Ensure the protobuf library can be found. Make sure that `LD_LIBRRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
  * Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
+ * 
+ Pre-commit checks
+-------------
+
+We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
+```bash
+    cd $GOPATH/src/github.com/influxdb/influxdb
+    cp .hooks/pre-commit .git/hooks/
+```
+In case the commit is rejected because it's not formatted you can run
+the following to format the code:
+
+```
+go fmt ./...
+go vet ./...
+```
+
+To install go vet, run the following command:
+```
+go get golang.org/x/tools/cmd/vet
+```
+
+NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
+
+For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/x/tools/cmd/vet).
 
 Profiling
 -----
