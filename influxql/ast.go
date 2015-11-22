@@ -355,7 +355,7 @@ func (s *DropDatabaseStatement) String() string {
 	if s.IfExists {
 		_, _ = buf.WriteString("IF EXISTS ")
 	}
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -377,9 +377,9 @@ type DropRetentionPolicyStatement struct {
 func (s *DropRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP RETENTION POLICY ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 	return buf.String()
 }
 
@@ -404,7 +404,7 @@ type CreateUserStatement struct {
 func (s *CreateUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE USER ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString("[REDACTED]")
 	if s.Admin {
@@ -611,9 +611,9 @@ type CreateRetentionPolicyStatement struct {
 func (s *CreateRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 	_, _ = buf.WriteString(" DURATION ")
 	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
@@ -651,9 +651,9 @@ type AlterRetentionPolicyStatement struct {
 func (s *AlterRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("ALTER RETENTION POLICY ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 
 	if s.Duration != nil {
 		_, _ = buf.WriteString(" DURATION ")
@@ -1700,7 +1700,7 @@ type DeleteStatement struct {
 // String returns a string representation of the delete statement.
 func (s *DeleteStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("DELETE ")
+	_, _ = buf.WriteString("DELETE FROM ")
 	_, _ = buf.WriteString(s.Source.String())
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -1926,7 +1926,7 @@ type DropContinuousQueryStatement struct {
 
 // String returns a string representation of the statement.
 func (s *DropContinuousQueryStatement) String() string {
-	return fmt.Sprintf("DROP CONTINUOUS QUERY %s", s.Name)
+	return fmt.Sprintf("DROP CONTINUOUS QUERY %s ON %s", QuoteIdent(s.Name), QuoteIdent(s.Database))
 }
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropContinuousQueryStatement
@@ -1992,7 +1992,7 @@ type DropMeasurementStatement struct {
 func (s *DropMeasurementStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP MEASUREMENT ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -2010,8 +2010,8 @@ type ShowRetentionPoliciesStatement struct {
 // String returns a string representation of a ShowRetentionPoliciesStatement.
 func (s *ShowRetentionPoliciesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW RETENTION POLICIES ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString("SHOW RETENTION POLICIES ON ")
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 	return buf.String()
 }
 
@@ -2241,6 +2241,14 @@ func (s *ShowTagValuesStatement) String() string {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
 	}
+	_, _ = buf.WriteString(" WITH KEY IN (")
+	for idx, tagKey := range s.TagKeys {
+		if idx != 0 {
+			_, _ = buf.WriteString(", ")
+		}
+		_, _ = buf.WriteString(QuoteIdent(tagKey))
+	}
+	_, _ = buf.WriteString(")")
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())

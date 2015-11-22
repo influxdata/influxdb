@@ -603,6 +603,30 @@ func TestParseString(t *testing.T) {
 		{
 			stmt: `SELECT * FROM myseries`,
 		},
+		{
+			stmt: `DROP DATABASE "!"`,
+		},
+		{
+			stmt: `DROP RETENTION POLICY "my rp" ON "a database"`,
+		},
+		{
+			stmt: `CREATE RETENTION POLICY "my rp" ON "a database" DURATION 1d REPLICATION 1`,
+		},
+		{
+			stmt: `ALTER RETENTION POLICY "my rp" ON "a database" DEFAULT`,
+		},
+		{
+			stmt: `SHOW RETENTION POLICIES ON "a database"`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY IN ("a long name", short)`,
+		},
+		{
+			stmt: `DROP CONTINUOUS QUERY "my query" ON "my database"`,
+		},
+		{
+			stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
+		},
 	}
 
 	for _, tt := range tests {
