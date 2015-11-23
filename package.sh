@@ -537,6 +537,7 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
 
     for filepath in `ls *.{$DEB_WANTED,$RPM_WANTED,$TAR_WANTED} 2> /dev/null`; do
         filename=`basename $filepath`
+        sum=`md5sum $filename | cut -d ' ' -f 1`
 
         if [ -n "$NIGHTLY_BUILD" ]; then
             # Replace the version string in the filename with "nightly".
@@ -556,7 +557,6 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
             echo "Upload failed ($filename) -- aborting".
             cleanup_exit 1
         fi
-        sum=`md5sum $filename | cut -d ' ' -f 1`
         echo "$filename uploaded, MD5 checksum is $sum"
     done
 else
