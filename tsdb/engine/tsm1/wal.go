@@ -223,11 +223,11 @@ func (l *WAL) newSegmentFile() error {
 	}
 
 	fileName := filepath.Join(l.path, fmt.Sprintf("%s%05d.%s", WALFilePrefix, l.currentSegmentID, WALFileExtension))
-	ff, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
+	fd, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
-	l.currentSegmentWriter = NewWALSegmentWriter(ff)
+	l.currentSegmentWriter = NewWALSegmentWriter(fd)
 
 	return nil
 }
@@ -356,11 +356,7 @@ func (w *WALSegmentWriter) Path() string {
 }
 
 func (w *WALSegmentWriter) Write(e WALEntry) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	bytes := getBuf(defaultBufLen)
-	defer putBuf(bytes)
+	bytes := make([]byte, defaultBufLen)
 
 	b, err := e.Encode(bytes)
 	if err != nil {
@@ -368,6 +364,9 @@ func (w *WALSegmentWriter) Write(e WALEntry) error {
 	}
 
 	compressed := snappy.Encode(b, b)
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	if _, err := w.w.Write([]byte{byte(e.Type())}); err != nil {
 		return err
@@ -379,6 +378,7 @@ func (w *WALSegmentWriter) Write(e WALEntry) error {
 		return err
 	}
 
+	// 5 is the 1 byte type + 4 byte uint32 length
 	w.size += len(compressed) + 5
 
 	return nil
