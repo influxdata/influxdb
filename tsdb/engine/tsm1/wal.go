@@ -70,7 +70,7 @@ func NewWAL(path string) *WAL {
 		// these options should be overriden by any options in the config
 		LogOutput:   os.Stderr,
 		SegmentSize: DefaultSegmentSize,
-		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
+		logger:      log.New(os.Stderr, "[tsm1devwal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 	}
 }

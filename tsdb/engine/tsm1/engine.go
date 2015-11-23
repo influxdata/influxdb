@@ -38,7 +38,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 
 	e := &DevEngine{
 		path:   path,
-		logger: log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
+		logger: log.New(os.Stderr, "[tsm1dev] ", log.LstdFlags),
 
 		WAL:               w,
 		RotateFileSize:    DefaultRotateFileSize,
