@@ -314,6 +314,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			resp.Results = append(resp.Results, r)
 		} else if resp.Results[l-1].StatementID == r.StatementID {
 			cr := resp.Results[l-1]
+			if len(cr.Series) == 0 {
+				continue
+			}
 			lastSeries := cr.Series[len(cr.Series)-1]
 			rowsMerged := 0
 
