@@ -23,7 +23,7 @@ Please note that UDP packages larger than the standard size of 1452 are dropped 
 
 ```
 [collectd]
-  enabled = false
+  enabled = true
   bind-address = ":25826" # the bind address
   database = "collectd" # Name of the database that will be written to
   retention-policy = ""
