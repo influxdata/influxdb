@@ -36,7 +36,7 @@ type ContinuousQuerier interface {
 
 // queryExecutor is an internal interface to make testing easier.
 type queryExecutor interface {
-	ExecuteQuery(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error)
+	ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
 }
 
 // metaStore is an internal interface to make testing easier.
@@ -317,8 +317,11 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 		Statements: influxql.Statements([]influxql.Statement{cq.q}),
 	}
 
+	closing := make(chan struct{})
+	defer close(closing)
+
 	// Execute the SELECT.
-	ch, err := s.QueryExecutor.ExecuteQuery(q, cq.Database, NoChunkingSize)
+	ch, err := s.QueryExecutor.ExecuteQuery(q, cq.Database, NoChunkingSize, closing)
 	if err != nil {
 		return err
 	}
