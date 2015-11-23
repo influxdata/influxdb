@@ -6,6 +6,7 @@
 - [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
 
 ### Bugfixes
+- [#4855](https://github.com/influxdb/influxdb/pull/4855): Fix race in TCP proxy shutdown. Thanks @runner-mei!
 - [#4411](https://github.com/influxdb/influxdb/pull/4411): Add Access-Control-Expose-Headers to HTTP responses
 - [#4768](https://github.com/influxdb/influxdb/pull/4768): CLI history skips blank lines. Thanks @pires
 - [#4766](https://github.com/influxdb/influxdb/pull/4766): Update CLI usage output. Thanks @aneshas
