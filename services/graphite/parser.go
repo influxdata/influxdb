@@ -159,7 +159,7 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	return models.NewPoint(measurement, tags, fieldValues, timestamp)
 }
 
-// ApplyTemplate extracts the template fields form the given line and
+// ApplyTemplate extracts the template fields from the given line and
 // returns the measurement name and tags.
 func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string, error) {
 	// Break line into fields (name, value, timestamp), only name is used
@@ -210,7 +210,7 @@ func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*te
 	return template, nil
 }
 
-// Apply extracts the template fields form the given line and returns the measurement
+// Apply extracts the template fields from the given line and returns the measurement
 // name and tags
 func (t *template) Apply(line string) (string, map[string]string, string, error) {
 	fields := strings.Split(line, ".")

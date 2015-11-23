@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	// DefaultChunkSize specified the amount of data mappers will read
+	// DefaultChunkSize specifies the amount of data mappers will read
 	// up to, before sending results back to the engine. This is the
 	// default size in the number of values returned in a raw query.
 	//
@@ -621,7 +621,7 @@ func MarshalJSON(v interface{}, pretty bool) []byte {
 	return b
 }
 
-// Point represents an influx point.
+// Point represents an InfluxDB point.
 type Point struct {
 	Name   string                 `json:"name"`
 	Time   time.Time              `json:"time"`
@@ -629,7 +629,7 @@ type Point struct {
 	Fields map[string]interface{} `json:"fields"`
 }
 
-// Batch is a collection of points belonging to a database, with a
+// Batch is a collection of points associated with a database, having a
 // certain retention policy.
 type Batch struct {
 	Database        string  `json:"database"`

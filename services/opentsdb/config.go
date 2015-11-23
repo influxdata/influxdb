@@ -29,7 +29,7 @@ const (
 	DefaultBatchPending = 5
 )
 
-// Config represents the configuration of the opentstb service.
+// Config represents the configuration of the OpenTSDB service.
 type Config struct {
 	Enabled          bool          `toml:"enabled"`
 	BindAddress      string        `toml:"bind-address"`

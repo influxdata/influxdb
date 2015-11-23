@@ -379,7 +379,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	}
 }
 
-// Diagnostics returns diagnositics of the graphite service.
+// Diagnostics returns diagnostics of the graphite service.
 func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
 	s.tcpConnectionsMu.Lock()
 	defer s.tcpConnectionsMu.Unlock()
