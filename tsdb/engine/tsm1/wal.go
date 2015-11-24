@@ -43,14 +43,6 @@ const (
 
 var ErrWALClosed = fmt.Errorf("WAL closed")
 
-var (
-	bufPool          sync.Pool
-	float64ValuePool sync.Pool
-	int64ValuePool   sync.Pool
-	boolValuePool    sync.Pool
-	stringValuePool  sync.Pool
-)
-
 type WAL struct {
 	mu sync.RWMutex
 
@@ -274,7 +266,26 @@ type WriteWALEntry struct {
 	Values map[string][]Value
 }
 
+// Encode converts the WriteWALEntry into a byte stream using dst if it
+// is large enough.  If dst is too small, the slice will be grown to fit the
+// encoded entry.
 func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
+	// The entries values are encode as follows:
+	//
+	// For each key and slice of values, first a 1 byte type for the []Values
+	// slice is written.  Following the type, the length and key bytes are written.
+	// Following the key, a 4 byte count followed by each value as a 8 byte time
+	// and N byte value.  The value is dependent on the type being encoded.  float64,
+	// int64, use 8 bytes, bool uses 1 byte, and string is similar to the key encoding.
+	//
+	// This structure is then repeated for each key an value slices.
+	//
+	// ┌────────────────────────────────────────────────────────────────────┐
+	// │                           WriteWALEntry                            │
+	// ├──────┬─────────┬────────┬───────┬─────────┬─────────┬───┬──────┬───┤
+	// │ Type │ Key Len │   Key  │ Count │  Time   │  Value  │...│ Type │...│
+	// │1 byte│ 4 bytes │ N bytes│4 bytes│ 8 bytes │ N bytes │   │1 byte│   │
+	// └──────┴─────────┴────────┴───────┴─────────┴─────────┴───┴──────┴───┘
 	var n int
 
 	for k, v := range w.Values {
@@ -627,140 +638,4 @@ func idFromFileName(name string) (int, error) {
 	id, err := strconv.ParseUint(parts[0][1:], 10, 32)
 
 	return int(id), err
-}
-
-// getBuf returns a buffer with length size from the buffer pool.
-func getBuf(size int) []byte {
-	x := bufPool.Get()
-	if x == nil {
-		return make([]byte, size)
-	}
-	buf := x.([]byte)
-	if cap(buf) < size {
-		return make([]byte, size)
-	}
-	return buf[:size]
-}
-
-// putBuf returns a buffer to the pool.
-func putBuf(buf []byte) {
-	bufPool.Put(buf)
-}
-
-// getBuf returns a buffer with length size from the buffer pool.
-func getFloat64Values(size int) []Value {
-	var buf []Value
-	x := float64ValuePool.Get()
-	if x == nil {
-		buf = make([]Value, size)
-	} else {
-		buf = x.([]Value)
-	}
-	if cap(buf) < size {
-		return make([]Value, size)
-	}
-
-	for i, v := range buf {
-		if v == nil {
-			buf[i] = &FloatValue{}
-		}
-	}
-	return buf[:size]
-}
-
-// putBuf returns a buffer to the pool.
-func putFloat64Values(buf []Value) {
-	float64ValuePool.Put(buf)
-}
-
-// getBuf returns a buffer with length size from the buffer pool.
-func getInt64Values(size int) []Value {
-	var buf []Value
-	x := int64ValuePool.Get()
-	if x == nil {
-		buf = make([]Value, size)
-	} else {
-		buf = x.([]Value)
-	}
-	if cap(buf) < size {
-		return make([]Value, size)
-	}
-
-	for i, v := range buf {
-		if v == nil {
-			buf[i] = &Int64Value{}
-		}
-	}
-	return buf[:size]
-}
-
-// putBuf returns a buffer to the pool.
-func putInt64Values(buf []Value) {
-	int64ValuePool.Put(buf)
-}
-
-// getBuf returns a buffer with length size from the buffer pool.
-func getBoolValues(size int) []Value {
-	var buf []Value
-	x := boolValuePool.Get()
-	if x == nil {
-		buf = make([]Value, size)
-	} else {
-		buf = x.([]Value)
-	}
-	if cap(buf) < size {
-		return make([]Value, size)
-	}
-
-	for i, v := range buf {
-		if v == nil {
-			buf[i] = &BoolValue{}
-		}
-	}
-	return buf[:size]
-}
-
-// putBuf returns a buffer to the pool.
-func putStringValues(buf []Value) {
-	stringValuePool.Put(buf)
-}
-
-// getBuf returns a buffer with length size from the buffer pool.
-func getStringValues(size int) []Value {
-	var buf []Value
-	x := stringValuePool.Get()
-	if x == nil {
-		buf = make([]Value, size)
-	} else {
-		buf = x.([]Value)
-	}
-	if cap(buf) < size {
-		return make([]Value, size)
-	}
-
-	for i, v := range buf {
-		if v == nil {
-			buf[i] = &StringValue{}
-		}
-	}
-	return buf[:size]
-}
-
-// putBuf returns a buffer to the pool.
-func putBoolValues(buf []Value) {
-	boolValuePool.Put(buf)
-}
-func putValue(buf []Value) {
-	if len(buf) > 0 {
-		switch buf[0].(type) {
-		case *FloatValue:
-			putFloat64Values(buf)
-		case *Int64Value:
-			putInt64Values(buf)
-		case *BoolValue:
-			putBoolValues(buf)
-		case *StringValue:
-			putBoolValues(buf)
-		}
-	}
 }
