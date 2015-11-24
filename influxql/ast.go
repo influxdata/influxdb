@@ -329,7 +329,7 @@ func (s *CreateDatabaseStatement) String() string {
 	if s.IfNotExists {
 		_, _ = buf.WriteString("IF NOT EXISTS ")
 	}
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -355,7 +355,7 @@ func (s *DropDatabaseStatement) String() string {
 	if s.IfExists {
 		_, _ = buf.WriteString("IF EXISTS ")
 	}
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -377,9 +377,9 @@ type DropRetentionPolicyStatement struct {
 func (s *DropRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP RETENTION POLICY ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 	return buf.String()
 }
 
@@ -404,7 +404,7 @@ type CreateUserStatement struct {
 func (s *CreateUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE USER ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString("[REDACTED]")
 	if s.Admin {
@@ -428,7 +428,7 @@ type DropUserStatement struct {
 func (s *DropUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP USER ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -487,9 +487,9 @@ func (s *GrantStatement) String() string {
 	_, _ = buf.WriteString("GRANT ")
 	_, _ = buf.WriteString(s.Privilege.String())
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.On)
+	_, _ = buf.WriteString(QuoteIdent(s.On))
 	_, _ = buf.WriteString(" TO ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -508,7 +508,7 @@ type GrantAdminStatement struct {
 func (s *GrantAdminStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("GRANT ALL PRIVILEGES TO ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -530,7 +530,7 @@ type SetPasswordUserStatement struct {
 func (s *SetPasswordUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SET PASSWORD FOR ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" = ")
 	_, _ = buf.WriteString("[REDACTED]")
 	return buf.String()
@@ -559,9 +559,9 @@ func (s *RevokeStatement) String() string {
 	_, _ = buf.WriteString("REVOKE ")
 	_, _ = buf.WriteString(s.Privilege.String())
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.On)
+	_, _ = buf.WriteString(QuoteIdent(s.On))
 	_, _ = buf.WriteString(" FROM ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -580,7 +580,7 @@ type RevokeAdminStatement struct {
 func (s *RevokeAdminStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("REVOKE ALL PRIVILEGES FROM ")
-	_, _ = buf.WriteString(s.User)
+	_, _ = buf.WriteString(QuoteIdent(s.User))
 	return buf.String()
 }
 
@@ -611,9 +611,9 @@ type CreateRetentionPolicyStatement struct {
 func (s *CreateRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE RETENTION POLICY ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 	_, _ = buf.WriteString(" DURATION ")
 	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
@@ -651,9 +651,9 @@ type AlterRetentionPolicyStatement struct {
 func (s *AlterRetentionPolicyStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("ALTER RETENTION POLICY ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" ON ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 
 	if s.Duration != nil {
 		_, _ = buf.WriteString(" DURATION ")
@@ -1700,7 +1700,7 @@ type DeleteStatement struct {
 // String returns a string representation of the delete statement.
 func (s *DeleteStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("DELETE ")
+	_, _ = buf.WriteString("DELETE FROM ")
 	_, _ = buf.WriteString(s.Source.String())
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -1843,7 +1843,7 @@ type ShowGrantsForUserStatement struct {
 func (s *ShowGrantsForUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW GRANTS FOR ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 
 	return buf.String()
 }
@@ -1926,7 +1926,7 @@ type DropContinuousQueryStatement struct {
 
 // String returns a string representation of the statement.
 func (s *DropContinuousQueryStatement) String() string {
-	return fmt.Sprintf("DROP CONTINUOUS QUERY %s", s.Name)
+	return fmt.Sprintf("DROP CONTINUOUS QUERY %s ON %s", QuoteIdent(s.Name), QuoteIdent(s.Database))
 }
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropContinuousQueryStatement
@@ -1958,6 +1958,15 @@ func (s *ShowMeasurementsStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW MEASUREMENTS")
 
+	if s.Source != nil {
+		_, _ = buf.WriteString(" WITH MEASUREMENT ")
+		if m, ok := s.Source.(*Measurement); ok && m.Regex != nil {
+			_, _ = buf.WriteString("=~ ")
+		} else {
+			_, _ = buf.WriteString("= ")
+		}
+		_, _ = buf.WriteString(s.Source.String())
+	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())
@@ -1992,7 +2001,7 @@ type DropMeasurementStatement struct {
 func (s *DropMeasurementStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP MEASUREMENT ")
-	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
 
@@ -2010,8 +2019,8 @@ type ShowRetentionPoliciesStatement struct {
 // String returns a string representation of a ShowRetentionPoliciesStatement.
 func (s *ShowRetentionPoliciesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW RETENTION POLICIES ")
-	_, _ = buf.WriteString(s.Database)
+	_, _ = buf.WriteString("SHOW RETENTION POLICIES ON ")
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
 	return buf.String()
 }
 
@@ -2097,16 +2106,24 @@ type CreateSubscriptionStatement struct {
 
 // String returns a string representation of the CreateSubscriptionStatement.
 func (s *CreateSubscriptionStatement) String() string {
-	var destinations bytes.Buffer
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("CREATE SUBSCRIPTION ")
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(QuoteIdent(s.Database))
+	_, _ = buf.WriteString(".")
+	_, _ = buf.WriteString(QuoteIdent(s.RetentionPolicy))
+	_, _ = buf.WriteString(" DESTINATIONS ")
+	_, _ = buf.WriteString(s.Mode)
+	_, _ = buf.WriteString(" ")
 	for i, dest := range s.Destinations {
 		if i != 0 {
-			destinations.Write([]byte(`, `))
+			_, _ = buf.WriteString(", ")
 		}
-		destinations.Write([]byte(`'`))
-		destinations.Write([]byte(dest))
-		destinations.Write([]byte(`'`))
+		_, _ = buf.WriteString(QuoteString(dest))
 	}
-	return fmt.Sprintf(`CREATE SUBSCRIPTION "%s" ON "%s"."%s" DESTINATIONS %s %s `, s.Name, s.Database, s.RetentionPolicy, s.Mode, string(destinations.Bytes()))
+
+	return buf.String()
 }
 
 // RequiredPrivileges returns the privilege required to execute a CreateSubscriptionStatement
@@ -2123,7 +2140,7 @@ type DropSubscriptionStatement struct {
 
 // String returns a string representation of the DropSubscriptionStatement.
 func (s *DropSubscriptionStatement) String() string {
-	return fmt.Sprintf(`DROP SUBSCRIPTION "%s" ON "%s"."%s"`, s.Name, s.Database, s.RetentionPolicy)
+	return fmt.Sprintf(`DROP SUBSCRIPTION %s ON %s.%s`, QuoteIdent(s.Name), QuoteIdent(s.Database), QuoteIdent(s.RetentionPolicy))
 }
 
 // RequiredPrivileges returns the privilege required to execute a DropSubscriptionStatement
@@ -2241,6 +2258,14 @@ func (s *ShowTagValuesStatement) String() string {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
 	}
+	_, _ = buf.WriteString(" WITH KEY IN (")
+	for idx, tagKey := range s.TagKeys {
+		if idx != 0 {
+			_, _ = buf.WriteString(", ")
+		}
+		_, _ = buf.WriteString(QuoteIdent(tagKey))
+	}
+	_, _ = buf.WriteString(")")
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())
@@ -2466,15 +2491,12 @@ type Measurement struct {
 func (m *Measurement) String() string {
 	var buf bytes.Buffer
 	if m.Database != "" {
-		_, _ = buf.WriteString(`"`)
-		_, _ = buf.WriteString(m.Database)
-		_, _ = buf.WriteString(`".`)
+		_, _ = buf.WriteString(QuoteIdent(m.Database))
+		_, _ = buf.WriteString(".")
 	}
 
 	if m.RetentionPolicy != "" {
-		_, _ = buf.WriteString(`"`)
-		_, _ = buf.WriteString(m.RetentionPolicy)
-		_, _ = buf.WriteString(`"`)
+		_, _ = buf.WriteString(QuoteIdent(m.RetentionPolicy))
 	}
 
 	if m.Database != "" || m.RetentionPolicy != "" {
