@@ -2057,8 +2057,6 @@ func TestParseDuration(t *testing.T) {
 		d   time.Duration
 		err string
 	}{
-		{s: `3`, d: 3 * time.Microsecond},
-		{s: `1000`, d: 1000 * time.Microsecond},
 		{s: `10u`, d: 10 * time.Microsecond},
 		{s: `10µ`, d: 10 * time.Microsecond},
 		{s: `15ms`, d: 15 * time.Millisecond},
@@ -2069,7 +2067,10 @@ func TestParseDuration(t *testing.T) {
 		{s: `2w`, d: 2 * 7 * 24 * time.Hour},
 
 		{s: ``, err: "invalid duration"},
+		{s: `3`, err: "invalid duration"},
+		{s: `1000`, err: "invalid duration"},
 		{s: `w`, err: "invalid duration"},
+		{s: `ms`, err: "invalid duration"},
 		{s: `1.2w`, err: "invalid duration"},
 		{s: `10x`, err: "invalid duration"},
 	}
@@ -2090,8 +2091,8 @@ func TestFormatDuration(t *testing.T) {
 		d time.Duration
 		s string
 	}{
-		{d: 3 * time.Microsecond, s: `3`},
-		{d: 1001 * time.Microsecond, s: `1001`},
+		{d: 3 * time.Microsecond, s: `3u`},
+		{d: 1001 * time.Microsecond, s: `1001u`},
 		{d: 15 * time.Millisecond, s: `15ms`},
 		{d: 100 * time.Second, s: `100s`},
 		{d: 2 * time.Minute, s: `2m`},
