@@ -67,6 +67,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -895,6 +896,30 @@ func (t *tsmReader) Delete(key string) error {
 
 	t.index.Delete(key)
 	return nil
+}
+
+// TimeRange returns the min and max time across all keys in the file.
+func (t *tsmReader) TimeRange() (time.Time, time.Time) {
+	min, max := time.Unix(0, math.MaxInt64), time.Unix(0, math.MinInt64)
+	for _, k := range t.index.Keys() {
+		for _, e := range t.index.Entries(k) {
+			if e.MinTime.Before(min) {
+				min = e.MinTime
+			}
+			if e.MaxTime.After(max) {
+				max = e.MaxTime
+			}
+		}
+	}
+	return min, max
+}
+
+func (t *tsmReader) Entries(key string) []*IndexEntry {
+	return t.index.Entries(key)
+}
+
+func (t *tsmReader) IndexSize() int {
+	return t.index.Size()
 }
 
 type indexEntries struct {

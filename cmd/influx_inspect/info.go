@@ -101,6 +101,17 @@ func u64tob(v uint64) []byte {
 	return b
 }
 
+func btou32(b []byte) uint32 {
+	return binary.BigEndian.Uint32(b)
+}
+
+// u32tob converts a uint32 into an 4-byte slice.
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
 // ShardIDs is a collection of UINT 64 that represent shard ids.
 type ShardIDs []uint64
 
