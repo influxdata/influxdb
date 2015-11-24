@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"io"
+	"sort"
 
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -67,3 +68,43 @@ func (t *tx) Rollback() error {
 func (t *tx) Size() int64                              { panic("not implemented") }
 func (t *tx) Commit() error                            { panic("not implemented") }
 func (t *tx) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
+
+type devTx struct {
+	engine *DevEngine
+}
+
+func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
+	return &devCursor{
+		cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
+		ascending: ascending,
+	}
+}
+
+type devCursor struct {
+	cache     Values
+	position  int
+	ascending bool
+}
+
+func (c *devCursor) SeekTo(seek int64) (key int64, value interface{}) {
+	// Seek position in cache index.
+	c.position = sort.Search(len(c.cache), func(i int) bool {
+		return c.cache[i].Time().UnixNano() >= seek
+	})
+
+	// Get the fitst block from tsm files for the given 'seek'
+
+	return 0, nil
+}
+
+func (c *devCursor) Next() (key int64, value interface{}) {
+	if c.position >= len(c.cache) {
+		// No more values in cache.
+	}
+
+	// Check tsm files too.
+
+	return 0, nil
+}
+
+func (c *devCursor) Ascending() bool { return c.ascending }

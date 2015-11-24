@@ -24,7 +24,8 @@ type DevEngine struct {
 	path   string
 	logger *log.Logger
 
-	WAL *WAL
+	WAL   *WAL
+	Cache *Cache
 
 	RotateFileSize    uint32
 	MaxFileSize       uint32
@@ -41,6 +42,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		logger: log.New(os.Stderr, "[tsm1dev] ", log.LstdFlags),
 
 		WAL:               w,
+		Cache:             NewCache(uint64(opt.Config.WALMaxMemorySizeThreshold)),
 		RotateFileSize:    DefaultRotateFileSize,
 		MaxFileSize:       MaxDataFileSize,
 		MaxPointsPerBlock: DefaultMaxPointsPerBlock,
