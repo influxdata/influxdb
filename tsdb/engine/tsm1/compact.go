@@ -1,5 +1,17 @@
 package tsm1
 
+// Compactions are the process of creating read-optimized TSM files.
+// The files are created by converting write-optimized WAL entries
+// to read-optimized TSM format.  They can also be created from existing
+// TSM files when there are tombstone records that neeed to be removed, points
+// that were overwritten by later writes and need to updated, or multiple
+// smaller TSM files need to be merged to reduce file counts and improve
+// compression ratios.
+//
+// The the compaction process is stream-oriented using multiple readers and
+// iterators.  The resulting stream is written sorted and chunk to allow for
+// one-pass writing of a new TSM file.
+
 import (
 	"fmt"
 	"os"
@@ -9,6 +21,8 @@ import (
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
 
+// Compactor merges multiple WAL segments and TSM files into one or more
+// new TSM files.
 type Compactor struct {
 	Dir         string
 	MaxFileSize int
@@ -20,6 +34,7 @@ type Compactor struct {
 func (c *Compactor) Compact(walSegments []string) ([]string, error) {
 	var walReaders []*WALSegmentReader
 
+	// For each segment, create a reader to iterate over each WAL entry
 	for _, path := range walSegments {
 		f, err := os.Open(path)
 		if err != nil {
@@ -31,26 +46,39 @@ func (c *Compactor) Compact(walSegments []string) ([]string, error) {
 		walReaders = append(walReaders, r)
 	}
 
+	// WALKeyIterator allows all the segments to be ordered by key and
+	// sorted values during compaction.
 	walKeyIterator, err := NewWALKeyIterator(walReaders...)
 	if err != nil {
 		return nil, err
 	}
 
+	// Merge iterator combines the WAL and TSM iterators (note: TSM iteration is
+	// not in place yet).  It will also chunk the values into 1000 element blocks.
 	c.merge = NewMergeIterator(walKeyIterator, 1000)
 	defer c.merge.Close()
 
+	// These are the new TSM files written
 	var files []string
 
 	for {
+		// TODO: this needs to be intialized based on the existing files on disk
 		c.currentID++
+
+		// New TSM files are written to a temp file and renamed when fully completed.
 		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", c.currentID, Format))
 
+		// Write as much as possible to this file
 		err := c.write(fileName)
+
+		// We've hit the max file limit and there is more to write.  Create a new file
+		// and continue.
 		if err == errMaxFileExceeded {
 			files = append(files, fileName)
 			continue
 		}
 
+		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
 		if err != nil {
 			os.RemoveAll(fileName)
 			return nil, err
@@ -64,29 +92,34 @@ func (c *Compactor) Compact(walSegments []string) ([]string, error) {
 }
 
 func (c *Compactor) write(path string) error {
-	ff, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
 
-	w, err := NewTSMWriter(ff)
+	// Create the write for the new TSM file.
+	w, err := NewTSMWriter(fd)
 	if err != nil {
 		return err
 	}
 
 	for c.merge.Next() {
+
+		// Each call to read returns the next sorted key (or the prior one if there are
+		// more values to write).  The size of values will be less than or equal to our
+		// chunk size (1000)
 		key, values, err := c.merge.Read()
 		if err != nil {
 			return err
 		}
 
+		// Write the key and value
 		if err := w.Write(key, values); err != nil {
 			return err
 		}
-		// We're all done with the Values, release them back to pool to reduce
-		// excess garbage.
-		putValue(values)
 
+		// If we have a max file size configured and we're over it, close out the file
+		// and return the error.
 		if c.MaxFileSize != 0 && w.Size() > c.MaxFileSize {
 			if err := w.WriteIndex(); err != nil {
 				return err
@@ -100,6 +133,7 @@ func (c *Compactor) write(path string) error {
 		}
 	}
 
+	// We're all done.  Close out the file.
 	if err := w.WriteIndex(); err != nil {
 		return err
 	}
