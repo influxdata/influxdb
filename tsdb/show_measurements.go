@@ -57,15 +57,20 @@ func (e *ShowMeasurementsExecutor) Execute(closing <-chan struct{}) <-chan *mode
 				continue
 			}
 
-			// Convert the mapper chunk to a string array of measurement names.
-			mms, ok := c.([]string)
+			// Convert the mapper chunk to MapperOutput type.
+			mop, ok := c.(*MapperOutput)
 			if !ok {
 				out <- &models.Row{Err: fmt.Errorf("show measurements mapper returned invalid type: %T", c)}
 				return
 			}
 
 			// Add the measurement names to the set.
-			for _, mm := range mms {
+			for _, mv := range mop.Values {
+				mm, ok := mv.Value.(string)
+				if !ok {
+					out <- &models.Row{Err: fmt.Errorf("show measurements mapper returned invalid type: %T", mop)}
+					return
+				}
 				set[mm] = struct{}{}
 			}
 		}
@@ -215,21 +220,25 @@ func (m *ShowMeasurementsMapper) NextChunk() (interface{}, error) {
 			return nil, nil
 		}
 
-		names := []string{}
-		if err := json.Unmarshal(b.([]byte), &names); err != nil {
-			return nil, err
-		} else if len(names) == 0 {
-			// Mapper on other node sent 0 values so it's done.
-			return nil, nil
+		mop := &MapperOutput{
+			Name:   "measurements",
+			Fields: []string{"name"},
+			Values: make([]*MapperValue, 0),
 		}
-		return names, nil
+
+		if err := json.Unmarshal(b.([]byte), &mop); err != nil {
+			return nil, err
+		}
+
+		return mop, nil
 	}
 	return m.nextChunk()
 }
 
 // nextChunk implements next chunk logic for a local shard.
 func (m *ShowMeasurementsMapper) nextChunk() (interface{}, error) {
-	// Allocate array to hold measurement names.
+	var output *MapperOutput
+
 	names := make([]string, 0, m.ChunkSize)
 
 	// Get the channel of measurement names from the state.
@@ -242,12 +251,20 @@ func (m *ShowMeasurementsMapper) nextChunk() (interface{}, error) {
 			break
 		}
 	}
-	// See if we've read all the names.
-	if len(names) == 0 {
-		return nil, nil
+
+	output = &MapperOutput{
+		Name:   "measurements",
+		Fields: []string{"name"},
+		Values: make([]*MapperValue, 0, len(names)),
 	}
 
-	return names, nil
+	for _, v := range names {
+		output.Values = append(output.Values, &MapperValue{
+			Value: v,
+		})
+	}
+
+	return output, nil
 }
 
 // Close closes the mapper.
