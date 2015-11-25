@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"bytes"
 	"encoding/binary"
+	"os"
 	"testing"
 	"time"
 
@@ -510,5 +511,113 @@ func TestTSMWriter_Type(t *testing.T) {
 
 	if got, exp := typ, tsm1.BlockInt64; got != exp {
 		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTSMReader_MMAP_ReadAll(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	if err := w.Write("cpu", values); err != nil {
+		t.Fatalf("unexpeted error writing: %v", err)
+
+	}
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpeted error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpeted error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpeted error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	readValues, err := r.ReadAll("cpu")
+	if err != nil {
+		t.Fatalf("unexpeted error readin: %v", err)
+	}
+
+	if len(readValues) != len(values) {
+		t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), len(values))
+	}
+
+	for i, v := range values {
+		if v.Value() != readValues[i].Value() {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
+		}
+	}
+}
+
+func TestTSMReader_MMAP_Read(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	if err := w.Write("cpu", values); err != nil {
+		t.Fatalf("unexpeted error writing: %v", err)
+
+	}
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpeted error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpeted error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpeted error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	readValues, err := r.Read("cpu", time.Unix(0, 0))
+	if err != nil {
+		t.Fatalf("unexpeted error readin: %v", err)
+	}
+
+	if len(readValues) != len(values) {
+		t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), len(values))
+	}
+
+	for i, v := range values {
+		if v.Value() != readValues[i].Value() {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
+		}
 	}
 }
