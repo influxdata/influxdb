@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
@@ -110,15 +109,12 @@ func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Ro
 				row.Values = append(row.Values, v)
 			}
 
+			out <- row
 			select {
-			case out <- row:
 			case <-closing:
 				out <- &models.Row{Err: fmt.Errorf("execute was closed by caller")}
 				break
-			case <-time.After(30 * time.Second):
-				// This should never happen, so if it does, it is a problem
-				out <- &models.Row{Err: fmt.Errorf("execute was closed by read timeout")}
-				break
+			default:
 			}
 		}
 	}()
