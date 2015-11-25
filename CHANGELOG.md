@@ -1,6 +1,31 @@
-## v0.9.5 [unreleased]
+## v0.9.6 [unreleased]
+
+### Features
+- [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
+- [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
+- [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
+- [#4889](https://github.com/influxdb/influxdb/pull/4889): Implement close notifier and timeout on executors
+
+### Bugfixes
+- [#4833](https://github.com/influxdb/influxdb/pull/4833): Fix SHOW MEASURMENTS for clusters. Thanks @li-ang!
+- [#4855](https://github.com/influxdb/influxdb/pull/4855): Fix race in TCP proxy shutdown. Thanks @runner-mei!
+- [#4411](https://github.com/influxdb/influxdb/pull/4411): Add Access-Control-Expose-Headers to HTTP responses
+- [#4768](https://github.com/influxdb/influxdb/pull/4768): CLI history skips blank lines. Thanks @pires
+- [#4766](https://github.com/influxdb/influxdb/pull/4766): Update CLI usage output. Thanks @aneshas
+- [#4804](https://github.com/influxdb/influxdb/pull/4804): Complete lint for services/admin. Thanks @nii236
+- [#4796](https://github.com/influxdb/influxdb/pull/4796): Check point without fields. Thanks @CrazyJvm
+- [#4815](https://github.com/influxdb/influxdb/pull/4815): Added `Time` field into aggregate output across the cluster. Thanks @li-ang
+- [#4817](https://github.com/influxdb/influxdb/pull/4817): Fix Min,Max,Top,Bottom function when query distributed node. Thanks @mengjinglei
+- [#4878](https://github.com/influxdb/influxdb/pull/4878): Fix String() function for several InfluxQL statement types
+
+## v0.9.5.1 [2015-11-25]
 
 ### Release Notes
+
+Everything other than this fix below was in 0.9.5, cut on 2015-11-20. This one is in 0.9.5.1:
+- [#4913](https://github.com/influxdb/influxdb/pull/4913): Fix b1 flush deadlock
+
+Now for all the 0.9.5 updates
 
 - Field names for the internal stats have been changed to be more inline with Go style.
 - 0.9.5 is reverting to Go 1.4.2 due to unresolved issues with Go 1.5.1.
