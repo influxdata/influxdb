@@ -81,18 +81,31 @@ func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, asc
 }
 
 type devCursor struct {
-	cache     Values
-	position  int
+	cache    Values
+	position int
+
 	ascending bool
 }
 
+// SeekTo positions the cursor at the timestamp specified by seek and returns the
+// timestamp and value. If the timestamp does not exist, it is positioned at the
+// next timestamp. If there is no next timestamp, -1 is returned for the key.
 func (c *devCursor) SeekTo(seek int64) (key int64, value interface{}) {
 	// Seek position in cache index.
 	c.position = sort.Search(len(c.cache), func(i int) bool {
 		return c.cache[i].Time().UnixNano() >= seek
 	})
 
-	// Get the fitst block from tsm files for the given 'seek'
+	// Seek to position to tsm block.
+
+	// Have we a value in the cache? If so use it.
+	if c.position < len(Values) {
+		key = c.cache[c.position].Time().UnixNano()
+		value = c.cache[c.position].Value()
+		return
+	}
+
+	// Get the first block from tsm files for the given 'seek'
 
 	return 0, nil
 }
