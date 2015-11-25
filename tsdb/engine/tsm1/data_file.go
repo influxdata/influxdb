@@ -67,6 +67,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -109,6 +110,9 @@ type TSMWriter interface {
 
 	// Closes any underlying file resources.
 	Close() error
+
+	// Size returns the current size in bytes of the file
+	Size() int
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -138,6 +142,9 @@ type TSMIndex interface {
 
 	// Keys returns the unique set of keys in the index.
 	Keys() []string
+
+	// Size returns the size of a the current index in bytes
+	Size() int
 
 	// Type returns the block type of the values stored for the key.  Returns one of
 	// BlockFloat64, BlockInt64, BlockBool, BlockString.  If key does not exist,
@@ -365,6 +372,10 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 		d.addEntries(key, entries)
 	}
 	return nil
+}
+
+func (d *directIndex) Size() int {
+	return 0
 }
 
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
@@ -597,6 +608,10 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+func (d *indirectIndex) Size() int {
+	return 0
+}
+
 // tsmWriter writes keys and values in the TSM format
 type tsmWriter struct {
 	w     io.Writer
@@ -665,6 +680,10 @@ func (t *tsmWriter) Close() error {
 		return c.Close()
 	}
 	return nil
+}
+
+func (t *tsmWriter) Size() int {
+	return int(t.n) + t.index.Size()
 }
 
 type tsmReader struct {
@@ -877,6 +896,30 @@ func (t *tsmReader) Delete(key string) error {
 
 	t.index.Delete(key)
 	return nil
+}
+
+// TimeRange returns the min and max time across all keys in the file.
+func (t *tsmReader) TimeRange() (time.Time, time.Time) {
+	min, max := time.Unix(0, math.MaxInt64), time.Unix(0, math.MinInt64)
+	for _, k := range t.index.Keys() {
+		for _, e := range t.index.Entries(k) {
+			if e.MinTime.Before(min) {
+				min = e.MinTime
+			}
+			if e.MaxTime.After(max) {
+				max = e.MaxTime
+			}
+		}
+	}
+	return min, max
+}
+
+func (t *tsmReader) Entries(key string) []*IndexEntry {
+	return t.index.Entries(key)
+}
+
+func (t *tsmReader) IndexSize() int {
+	return t.index.Size()
 }
 
 type indexEntries struct {
