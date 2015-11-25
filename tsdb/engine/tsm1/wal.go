@@ -33,6 +33,36 @@ const (
 	stringEntryType  = 4
 )
 
+// SegmentInfo represents metadata about a segment.
+type SegmentInfo struct {
+	name string
+	id   int
+}
+
+type SegmentInfos []SegmentInfo
+
+func (sis SegmentInfos) Names() []string {
+	var names []string
+	for _, s := range sis {
+		names = append(names, s.name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (sis SegmentInfos) IDs() []int {
+	var ids []int
+	for _, s := range sis {
+		id, err := idFromFileName(s.name)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	return ids
+}
+
 // walEntry is a byte written to a wal segment file that indicates what the following compressed block contains
 type walEntryType byte
 
@@ -119,7 +149,7 @@ func (l *WAL) WritePoints(values map[string][]Value) (int, error) {
 	return id, nil
 }
 
-func (l *WAL) ClosedSegments() ([]string, error) {
+func (l *WAL) ClosedSegments() (SegmentInfos, error) {
 	l.mu.RLock()
 	var activePath string
 	if l.currentSegmentWriter != nil {
@@ -138,16 +168,21 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 		return nil, err
 	}
 
-	var names []string
+	var sis SegmentInfos
 	for _, fn := range files {
 		// Skip the active segment
 		if fn == activePath {
 			continue
 		}
 
-		names = append(names, fn)
+		id, err := idFromFileName(fn)
+		if err != nil {
+			return nil, err
+		}
+		si := SegmentInfo{name: fn, id: id}
+		sis = append(sis, si)
 	}
-	return names, nil
+	return sis, nil
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
