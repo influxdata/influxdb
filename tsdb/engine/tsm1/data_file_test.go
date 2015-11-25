@@ -416,7 +416,7 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 		t.Fatalf("unexpected error unmarshaling index: %v", err)
 	}
 
-	// mem has not been added to the index so we should get now entries back
+	// mem has not been added to the index so we should get no entries back
 	// for both
 	exp := index.Entries("mem")
 	entries := indirect.Entries("mem")

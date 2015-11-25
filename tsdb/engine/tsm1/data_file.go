@@ -143,6 +143,12 @@ type TSMIndex interface {
 	// Keys returns the unique set of keys in the index.
 	Keys() []string
 
+	// Key returns the key in the index at the given postion.
+	Key(index int) string
+
+	// KeyCount returns the count of unique keys in the index.
+	KeyCount() int
+
 	// Size returns the size of a the current index in bytes
 	Size() int
 
@@ -282,6 +288,17 @@ func (d *directIndex) Keys() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func (d *directIndex) Key(idx int) string {
+	if idx < 0 || idx >= len(d.blocks) {
+		return ""
+	}
+	return d.Keys()[idx]
+}
+
+func (d *directIndex) KeyCount() int {
+	return len(d.Keys())
 }
 
 func (d *directIndex) addEntries(key string, entries *indexEntries) {
@@ -440,7 +457,7 @@ func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Ti
 }
 
 // search returns the index of i in offsets for where key is located.  If key is not
-// in the index, len(offsets) is returned.
+// in the index, len(index) is returned.
 func (d *indirectIndex) search(key string) int {
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
@@ -470,7 +487,7 @@ func (d *indirectIndex) search(key string) int {
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
 		if k != key {
-			return len(d.offsets)
+			return len(d.b)
 		}
 
 		return int(ofs)
@@ -478,7 +495,7 @@ func (d *indirectIndex) search(key string) int {
 
 	// The key is not in the index.  i is the index where it would be inserted so return
 	// a value outside our offset range.
-	return len(d.offsets)
+	return len(d.b)
 }
 
 // Entries returns all index entries for a key.
@@ -532,9 +549,21 @@ func (d *indirectIndex) Keys() []string {
 	return keys
 }
 
+func (d *indirectIndex) Key(idx int) string {
+	if idx < 0 || idx >= len(d.offsets) {
+		return ""
+	}
+	_, key, _ := readKey(d.b[d.offsets[idx]:])
+	return key
+}
+
+func (d *indirectIndex) KeyCount() int {
+	return len(d.offsets)
+}
+
 func (d *indirectIndex) Delete(key string) {
 	var offsets []int32
-	for offset := range d.offsets {
+	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
 		if key == indexKey {
 			continue
@@ -686,7 +715,7 @@ func (t *tsmWriter) Size() int {
 	return int(t.n) + t.index.Size()
 }
 
-type tsmReader struct {
+type TSMReader struct {
 	mu sync.Mutex
 
 	// accessor provides access and decoding of blocks for the reader
@@ -717,15 +746,15 @@ type TSMReaderOptions struct {
 	MMAPFile *os.File
 }
 
-func NewTSMReader(r io.ReadSeeker) (*tsmReader, error) {
+func NewTSMReader(r io.ReadSeeker) (*TSMReader, error) {
 	return NewTSMReaderWithOptions(
 		TSMReaderOptions{
 			Reader: r,
 		})
 }
 
-func NewTSMReaderWithOptions(opt TSMReaderOptions) (*tsmReader, error) {
-	t := &tsmReader{}
+func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
+	t := &TSMReader{}
 	if opt.Reader != nil {
 		t.accessor = &fileAccessor{r: opt.Reader}
 	} else if opt.MMAPFile != nil {
@@ -749,7 +778,7 @@ func NewTSMReaderWithOptions(opt TSMReaderOptions) (*tsmReader, error) {
 	return t, nil
 }
 
-func (t *tsmReader) applyTombstones() error {
+func (t *TSMReader) applyTombstones() error {
 	// Read any tombstone entries if the exist
 	tombstones, err := t.tombstoner.ReadAll()
 	if err != nil {
@@ -763,18 +792,22 @@ func (t *tsmReader) applyTombstones() error {
 	return nil
 }
 
-func (t *tsmReader) Path() string {
+func (t *TSMReader) Path() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	return t.accessor.path()
 }
 
-func (t *tsmReader) Keys() []string {
+func (t *TSMReader) Keys() []string {
 	return t.index.Keys()
 }
 
-func (t *tsmReader) Read(key string, timestamp time.Time) ([]Value, error) {
+func (t *TSMReader) Key(index int) string {
+	return t.index.Key(index)
+}
+
+func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -782,36 +815,36 @@ func (t *tsmReader) Read(key string, timestamp time.Time) ([]Value, error) {
 }
 
 // ReadAll returns all values for a key in all blocks.
-func (t *tsmReader) ReadAll(key string) ([]Value, error) {
+func (t *TSMReader) ReadAll(key string) ([]Value, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	return t.accessor.readAll(key)
 }
 
-func (t *tsmReader) Type(key string) (byte, error) {
+func (t *TSMReader) Type(key string) (byte, error) {
 	return t.index.Type(key)
 }
 
-func (t *tsmReader) Close() error {
+func (t *TSMReader) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	return t.accessor.close()
 }
 
-func (t *tsmReader) Contains(key string) bool {
+func (t *TSMReader) Contains(key string) bool {
 	return t.index.Contains(key)
 }
 
 // ContainsValue returns true if key and time might exists in this file.  This function could
 // return true even though the actual point does not exists.  For example, the key may
 // exists in this file, but not have point exactly at time t.
-func (t *tsmReader) ContainsValue(key string, ts time.Time) bool {
+func (t *TSMReader) ContainsValue(key string, ts time.Time) bool {
 	return t.index.ContainsValue(key, ts)
 }
 
-func (t *tsmReader) Delete(key string) error {
+func (t *TSMReader) Delete(key string) error {
 	if err := t.tombstoner.Add(key); err != nil {
 		return err
 	}
@@ -821,7 +854,7 @@ func (t *tsmReader) Delete(key string) error {
 }
 
 // TimeRange returns the min and max time across all keys in the file.
-func (t *tsmReader) TimeRange() (time.Time, time.Time) {
+func (t *TSMReader) TimeRange() (time.Time, time.Time) {
 	min, max := time.Unix(0, math.MaxInt64), time.Unix(0, math.MinInt64)
 	for _, k := range t.index.Keys() {
 		for _, e := range t.index.Entries(k) {
@@ -836,11 +869,11 @@ func (t *tsmReader) TimeRange() (time.Time, time.Time) {
 	return min, max
 }
 
-func (t *tsmReader) Entries(key string) []*IndexEntry {
+func (t *TSMReader) Entries(key string) []*IndexEntry {
 	return t.index.Entries(key)
 }
 
-func (t *tsmReader) IndexSize() int {
+func (t *TSMReader) IndexSize() int {
 	return t.index.Size()
 }
 

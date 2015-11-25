@@ -58,7 +58,7 @@ func TestKeyIterator_WALSegment_Single(t *testing.T) {
 	}
 }
 
-// // Tests that duplicate point values are merged
+// Tests that duplicate point values are merged
 func TestKeyIterator_WALSegment_Duplicate(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -106,7 +106,7 @@ func TestKeyIterator_WALSegment_Duplicate(t *testing.T) {
 	}
 }
 
-// // Tests that a multiple WAL segment can be read and iterated over
+// Tests that a multiple WAL segment can be read and iterated over
 func TestKeyIterator_WALSegment_Multiple(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -167,8 +167,8 @@ func TestKeyIterator_WALSegment_Multiple(t *testing.T) {
 	}
 }
 
-// // Tests that a multiple WAL segments with out of order points are
-// // sorted while iterating
+// Tests that a multiple WAL segments with out of order points are
+// sorted while iterating
 func TestKeyIterator_WALSegment_MultiplePointsSorted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -842,6 +842,208 @@ func TestCompactor_MultipleWALSegment(t *testing.T) {
 	}
 }
 
+// Tests that a single TSM file can be read and iterated over
+func TestKeyIterator_TSM_Single(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	r := MustTSMReader(dir, writes)
+
+	iter, err := tsm1.NewTSMKeyIterator(r)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var readValues bool
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), len(writes); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for _, v := range values {
+			readValues = true
+			assertValueEqual(t, v, v1)
+		}
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that duplicate point values are merged.  There is only one case
+// where this could happen and that is when a compaction completed and we replace
+// the old TSM file with a new one and we crash just before deleting the old file.
+// No data is lost but the same point time/value would exist in two files until
+// compaction corrects it.
+func TestKeyIterator_TSM_Duplicate(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	r := MustTSMReader(dir, writes)
+
+	iter, err := tsm1.NewTSMKeyIterator(r)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var readValues bool
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		readValues = true
+		assertValueEqual(t, values[0], v2)
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that a multiple WAL TSM can be read and iterated over and that
+// points are sorted across them.
+func TestKeyIterator_TSM_Multiple(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(2, 0), int64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	r1 := MustTSMReader(dir, points1)
+
+	v2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
+
+	r2 := MustTSMReader(dir, points2)
+
+	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var readValues bool
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], v2)
+		assertValueEqual(t, values[1], v1)
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that deleted keys are not seen during iteration with
+// TSM files.
+func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(2, 0), int64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	r1 := MustTSMReader(dir, points1)
+	r1.Delete("cpu,host=A#!~#value")
+
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#count": []tsm1.Value{v2},
+		"cpu,host=B#!~#value": []tsm1.Value{v3},
+	}
+
+	r2 := MustTSMReader(dir, points2)
+	r2.Delete("cpu,host=A#!~#count")
+
+	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var readValues bool
+	var data = []struct {
+		key   string
+		value tsm1.Value
+	}{
+		{"cpu,host=B#!~#value", v3},
+	}
+
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, data[0].key; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], data[0].value)
+		data = data[1:]
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
@@ -875,4 +1077,41 @@ func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader 
 	}
 
 	return tsm1.NewWALSegmentReader(f)
+}
+
+func MustTSMReader(dir string, values map[string][]tsm1.Value) *tsm1.TSMReader {
+	f := MustTempFile(dir)
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		panic(fmt.Sprintf("create TSM writer: %v", err))
+	}
+
+	for k, v := range values {
+		if err := w.Write(k, v); err != nil {
+			panic(fmt.Sprintf("write TSM value: %v", err))
+		}
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		panic(fmt.Sprintf("write TSM index: %v", err))
+	}
+
+	if err := w.Close(); err != nil {
+		panic(fmt.Sprintf("write TSM close: %v", err))
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		panic(fmt.Sprintf("open file: %v", err))
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err != nil {
+		panic(fmt.Sprintf("new reader: %v", err))
+	}
+	return r
+
 }

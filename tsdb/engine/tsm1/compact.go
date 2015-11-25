@@ -296,3 +296,103 @@ func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
 		Order:  order,
 	}, nil
 }
+
+// tsmKeyIterator implements the KeyIterator for set of TSMReaders.  Iteration produces
+// keys in sorted order and the values between the keys sorted and deduped.  If any of
+// the readers have associated tombstone entries, they are returned as part of iteration.
+type tsmKeyIterator struct {
+	// readers is the set of readers it produce a sorted key run with
+	readers []*TSMReader
+
+	// values is the temporary buffers for each key that is returned by a reader
+	values map[string][]Value
+
+	// pos is the current key postion within the corresponding readers slice.  A value of
+	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
+	pos []int
+
+	// err is any error we received while iterating values.
+	err error
+
+	// key is the current key lowest key across all readers that has not be fully exhausted
+	// of values.
+	key string
+}
+
+func NewTSMKeyIterator(readers ...*TSMReader) (KeyIterator, error) {
+	return &tsmKeyIterator{
+		readers: readers,
+		values:  map[string][]Value{},
+		pos:     make([]int, len(readers)),
+	}, nil
+}
+
+func (k *tsmKeyIterator) Next() bool {
+	// If we have a key from the prior iteration, purge it and it's values from the
+	// values map.  We're done with it.
+	if k.key != "" {
+		delete(k.values, k.key)
+	}
+
+	// For each iterator, group up all the values for their current key.
+	for i, r := range k.readers {
+		// Grab the key for this reader
+		key := r.Key(k.pos[i])
+
+		// Bump it to the next key
+		k.pos[i]++
+
+		// If it return a key, grab all the values for it.
+		if key != "" {
+			// Note: this could be made more efficient to just grab chunks of values instead of
+			// all for the key.
+			values, err := r.ReadAll(key)
+			if err != nil {
+				k.err = err
+			}
+			k.values[key] = append(k.values[key], values...)
+		}
+	}
+	// Determine our current key which is the smallest key in the values map
+	k.key = k.currentKey()
+
+	// We have a key, so sort and de-dup the value. This could also be made more efficient
+	// in the common case since values across files should not overlap.  We could append or
+	// prepend in the loop above based on the min/max time in each readers slice.
+	if k.key != "" {
+		k.values[k.key] = Values(k.values[k.key]).Deduplicate()
+	}
+	return len(k.values) > 0
+}
+
+func (k *tsmKeyIterator) currentKey() string {
+	var keys []string
+	for k := range k.values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	if len(keys) > 0 {
+		return keys[0]
+	}
+	return ""
+}
+
+func (k *tsmKeyIterator) Read() (string, []Value, error) {
+	if k.key == "" {
+		return "", nil, k.err
+	}
+
+	return k.key, k.values[k.key], k.err
+}
+
+func (k *tsmKeyIterator) Close() error {
+	k.values = nil
+	k.pos = nil
+	for _, r := range k.readers {
+		if err := r.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
