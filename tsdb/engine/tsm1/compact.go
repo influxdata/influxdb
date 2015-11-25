@@ -9,7 +9,7 @@ package tsm1
 // compression ratios.
 //
 // The the compaction process is stream-oriented using multiple readers and
-// iterators.  The resulting stream is written sorted and chunk to allow for
+// iterators.  The resulting stream is written sorted and chunked to allow for
 // one-pass writing of a new TSM file.
 
 import (
@@ -31,6 +31,7 @@ type Compactor struct {
 	merge *MergeIterator
 }
 
+// Compact converts WAL segements and TSM files into new TSM files.
 func (c *Compactor) Compact(walSegments []string) ([]string, error) {
 	var walReaders []*WALSegmentReader
 
@@ -166,11 +167,10 @@ type MergeIterator struct {
 	// walBuf is the remaining values from the last wal Read call
 	walBuf []Value
 
-	// chunk is the curren set of values that will be returned by Read
+	// chunk is the current set of values that will be returned by Read
 	chunk []Value
 
-	// err is any error returned by an underlying iterator to be returned
-	// by Read
+	// err is any error returned by an underlying iterator to be returned by Read
 	err error
 }
 

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	// DefaultSegmentSize of 2MB is the size at which segment files will be rolled over
+	// DefaultSegmentSize of 10MB is the size at which segment files will be rolled over
 	DefaultSegmentSize = 10 * 1024 * 1024
 
 	// FileExtension is the file extension we expect for wal segments
@@ -107,14 +107,6 @@ func (l *WAL) WritePoints(values map[string][]Value) error {
 	entry := &WriteWALEntry{
 		Values: values,
 	}
-
-	// This sleep is intentional to allow the go scheduler to switch this goroutine
-	// out of execution to allow other goroutines to run.  The goroutine we want to
-	// give a chance to run is the compaction goroutine.  Under very high write load,
-	// the compaction goroutine can be starved CPU cycles which causes the number of
-	// WAL segments to grow faster than they can be compacted.  100ms seems to sufficient
-	// enough time to allow the scheduling and not adversely affect write latency.
-	time.Sleep(100 * time.Millisecond)
 
 	if err := l.writeToLog(entry); err != nil {
 		return err

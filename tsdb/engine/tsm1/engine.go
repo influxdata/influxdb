@@ -147,7 +147,7 @@ func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not imple
 
 func (e *DevEngine) compact() {
 	for {
-		// Grab the closed segments that a no longer being written to
+		// Grab the closed segments that are no longer being written to
 		segments, err := e.WAL.ClosedSegments()
 		if err != nil {
 			e.logger.Printf("error retrieving closed WAL segments: %v", err)
@@ -164,12 +164,7 @@ func (e *DevEngine) compact() {
 		}
 
 		// If we have more than 10, just compact 10 to keep compactions times bounded.
-		var compact []string
-		if len(segments) >= n {
-			compact = segments[:n]
-		} else {
-			compact = segments
-		}
+		compact := segments[:n]
 
 		start := time.Now()
 		files, err := e.Compactor.Compact(compact)
