@@ -62,7 +62,6 @@ There are breaking changes in this release:
 - [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE. Thanks @ch33hau
 - [#4721](https://github.com/influxdb/influxdb/pull/4721): Export tsdb.InterfaceValues
 - [#4681](https://github.com/influxdb/influxdb/pull/4681): Increase default buffer size for collectd and graphite listeners
-- [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE
 - [#4685](https://github.com/influxdb/influxdb/pull/4685): Automatically promote node to raft peer if drop server results in removing a raft peer.
 - [#4846](https://github.com/influxdb/influxdb/pull/4846): Allow NaN as a valid value on the graphite service; discard these points silently (graphite compatibility). Thanks @jsternberg!
 
