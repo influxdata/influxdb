@@ -7,6 +7,7 @@
 - [#4889](https://github.com/influxdb/influxdb/pull/4889): Implement close notifier and timeout on executors
 
 ### Bugfixes
+- [#4833](https://github.com/influxdb/influxdb/pull/4833): Fix SHOW MEASURMENTS for clusters. Thanks @li-ang!
 - [#4855](https://github.com/influxdb/influxdb/pull/4855): Fix race in TCP proxy shutdown. Thanks @runner-mei!
 - [#4411](https://github.com/influxdb/influxdb/pull/4411): Add Access-Control-Expose-Headers to HTTP responses
 - [#4768](https://github.com/influxdb/influxdb/pull/4768): CLI history skips blank lines. Thanks @pires
