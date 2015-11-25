@@ -120,7 +120,8 @@ func (e *DevEngine) WritePoints(points []models.Point, measurementFieldsToSave m
 		}
 	}
 
-	return e.WAL.WritePoints(values)
+	_, err := e.WAL.WritePoints(values)
+	return err
 }
 
 // DeleteSeries deletes the series from the engine.
