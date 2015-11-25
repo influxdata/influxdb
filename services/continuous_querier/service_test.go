@@ -53,7 +53,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 	// Set a callback for ExecuteQuery.
 	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 		callCnt++
 		if callCnt >= expectCallCnt {
 			done <- struct{}{}
@@ -102,7 +102,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	done := make(chan struct{})
 	qe := s.QueryExecutor.(*QueryExecutor)
 	// Set a callback for ExecuteQuery. Shouldn't get called because we're not the leader.
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 		done <- struct{}{}
 		return nil, unexpectedErr
 	}
@@ -127,7 +127,7 @@ func TestContinuousQueryService_MetaStoreFailsToGetDatabases(t *testing.T) {
 	done := make(chan struct{})
 	qe := s.QueryExecutor.(*QueryExecutor)
 	// Set ExecuteQuery callback, which shouldn't get called because of meta store failure.
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 		done <- struct{}{}
 		return nil, unexpectedErr
 	}
@@ -317,7 +317,7 @@ func (ms *MetaStore) CreateContinuousQuery(database, name, query string) error {
 
 // QueryExecutor is a mock query executor.
 type QueryExecutor struct {
-	ExecuteQueryFn func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error)
+	ExecuteQueryFn func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
 	Results        []*influxql.Result
 	ResultInterval time.Duration
 	Err            error
@@ -334,11 +334,11 @@ func NewQueryExecutor(t *testing.T) *QueryExecutor {
 }
 
 // ExecuteQuery returns a channel that the caller can read query results from.
-func (qe *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
+func (qe *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 
 	// If the test set a callback, call it.
 	if qe.ExecuteQueryFn != nil {
-		if _, err := qe.ExecuteQueryFn(query, database, chunkSize); err != nil {
+		if _, err := qe.ExecuteQueryFn(query, database, chunkSize, make(chan struct{})); err != nil {
 			return nil, err
 		}
 	}

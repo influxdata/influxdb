@@ -372,7 +372,7 @@ func testStoreAndExecutor(storePath string) (*tsdb.Store, *tsdb.QueryExecutor) {
 }
 
 func executeAndGetJSON(query string, executor *tsdb.QueryExecutor) string {
-	ch, err := executor.ExecuteQuery(mustParseQuery(query), "foo", 20)
+	ch, err := executor.ExecuteQuery(mustParseQuery(query), "foo", 20, make(chan struct{}))
 	if err != nil {
 		panic(err.Error())
 	}

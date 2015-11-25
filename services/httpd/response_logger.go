@@ -23,6 +23,14 @@ type responseLogger struct {
 	size   int
 }
 
+func (l *responseLogger) CloseNotify() <-chan bool {
+	if notifier, ok := l.w.(http.CloseNotifier); ok {
+		return notifier.CloseNotify()
+	}
+	// needed for response recorder for testing
+	return make(<-chan bool)
+}
+
 func (l *responseLogger) Header() http.Header {
 	return l.w.Header()
 }

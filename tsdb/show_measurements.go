@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
@@ -26,7 +27,10 @@ func NewShowMeasurementsExecutor(stmt *influxql.ShowMeasurementsStatement, mappe
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *ShowMeasurementsExecutor) Execute() <-chan *models.Row {
+func (e *ShowMeasurementsExecutor) Execute(closing <-chan struct{}) <-chan *models.Row {
+	// It's important that all resources are released when execution completes.
+	e.close()
+
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *models.Row, 0)
 
@@ -98,12 +102,19 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *models.Row {
 		}
 
 		if len(row.Values) > 0 {
-			out <- row
+			select {
+			case out <- row:
+			case <-closing:
+				out <- &models.Row{Err: fmt.Errorf("execute was closed by caller")}
+				break
+			case <-time.After(30 * time.Second):
+				// This should never happen, so if it does, it is a problem
+				out <- &models.Row{Err: fmt.Errorf("execute was closed by read timeout")}
+				break
+			}
 		}
 
 		close(out)
-		// It's important that all resources are released when execution completes.
-		e.close()
 	}()
 	return out
 }

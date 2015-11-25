@@ -43,13 +43,13 @@ func (e *AggregateExecutor) close() {
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *AggregateExecutor) Execute() <-chan *models.Row {
+func (e *AggregateExecutor) Execute(closing <-chan struct{}) <-chan *models.Row {
 	out := make(chan *models.Row, 0)
-	go e.execute(out)
+	go e.execute(out, closing)
 	return out
 }
 
-func (e *AggregateExecutor) execute(out chan *models.Row) {
+func (e *AggregateExecutor) execute(out chan *models.Row, closing <-chan struct{}) {
 	// It's important to close all resources when execution completes.
 	defer e.close()
 
@@ -167,7 +167,19 @@ func (e *AggregateExecutor) execute(out chan *models.Row) {
 		}
 
 		row.Values = values
-		out <- row
+
+		// Check to see if our client disconnected, or it has been to long since
+		// we were asked for data...
+		select {
+		case out <- row:
+		case <-closing:
+			out <- &models.Row{Err: fmt.Errorf("execute was closed by caller")}
+			break
+		case <-time.After(30 * time.Second):
+			// This should never happen, so if it does, it is a problem
+			out <- &models.Row{Err: fmt.Errorf("execute was closed by read timeout")}
+			break
+		}
 	}
 
 	close(out)
