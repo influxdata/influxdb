@@ -449,8 +449,8 @@ func TestKeyIterator_WALSegment_WriteAfterDelete(t *testing.T) {
 	}
 }
 
-// // Tests that merge iterator over a wal returns points order correctly.
-func TestMergeIteragor_Single(t *testing.T) {
+// Tests that merge iterator over a wal returns points order correctly.
+func TestMergeIterator_WAL_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -474,7 +474,7 @@ func TestMergeIteragor_Single(t *testing.T) {
 	}
 
 	// Read should return a chunk of 1 value
-	m := tsm1.NewMergeIterator(iter, 1)
+	m := tsm1.NewMergeIterator(nil, iter, 1)
 	var readValues bool
 	for _, p := range points {
 		if !m.Next() {
@@ -502,8 +502,259 @@ func TestMergeIteragor_Single(t *testing.T) {
 	}
 }
 
-// // Tests that merge iterator over a wal returns points order by key and time.
-func TestMergeIteragor_MultipleKeys(t *testing.T) {
+// Tests that merge iterator over a wal returns points order correctly.
+func TestMergeIterator_TSM_Single(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1.1))
+	v2 := tsm1.NewValue(time.Unix(2, 0), float64(2.2))
+
+	points := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v2},
+	}
+
+	r := MustTSMReader(dir, points)
+
+	iter, err := tsm1.NewTSMKeyIterator(r)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	// Read should return a chunk of 1 value
+	m := tsm1.NewMergeIterator(iter, nil, 1)
+	var readValues bool
+	for _, p := range points {
+		if !m.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], p[0])
+	}
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that merge iterator over a wal and tsm returns points order correctly.
+func TestMergeIterator_WALTSM_Single(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	entries := []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points1,
+		},
+	}
+	r1 := MustWALSegment(dir, entries)
+
+	v2 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
+	r2 := MustTSMReader(dir, points2)
+
+	wal, err := tsm1.NewWALKeyIterator(r1)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	tsm, err := tsm1.NewTSMKeyIterator(r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating TSMKeyIterator: %v", err)
+	}
+
+	expected := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v2},
+	}
+
+	// Read should return a chunk of 1 value
+	m := tsm1.NewMergeIterator(tsm, wal, 1)
+	var readValues bool
+	for _, p := range expected {
+		if !m.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], p[0])
+	}
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that merge iterator over a wal and tsm returns wal points
+// with matching timestamps in tsm overwritten
+func TestMergeIterator_WALTSM_Overwrite(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(2))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	entries := []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points1,
+		},
+	}
+	r1 := MustWALSegment(dir, entries)
+
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
+	r2 := MustTSMReader(dir, points2)
+
+	wal, err := tsm1.NewWALKeyIterator(r1)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	tsm, err := tsm1.NewTSMKeyIterator(r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating TSMKeyIterator: %v", err)
+	}
+
+	expected := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+	}
+
+	// Read should return a chunk of 1 value
+	m := tsm1.NewMergeIterator(tsm, wal, 1)
+	var readValues bool
+	for _, p := range expected {
+		if !m.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], p[0])
+	}
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that merge iterator over a wal and tsm returns wal points
+// sorted by key and time with tsm points
+func TestMergeIterator_WALTSM_MultipleKeys(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(0, 0), float64(2))
+	v2 := tsm1.NewValue(time.Unix(0, 0), float64(2))
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	entries := []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points1,
+		},
+	}
+	r1 := MustWALSegment(dir, entries)
+
+	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v3},
+	}
+	r2 := MustTSMReader(dir, points2)
+
+	wal, err := tsm1.NewWALKeyIterator(r1)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	tsm, err := tsm1.NewTSMKeyIterator(r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating TSMKeyIterator: %v", err)
+	}
+
+	expected := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v3},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	// Read should return a chunk of 1 value
+	m := tsm1.NewMergeIterator(tsm, wal, 1)
+	var readValues bool
+	for _, p := range expected {
+		if !m.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], p[0])
+	}
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that merge iterator over a wal returns points order by key and time.
+func TestMergeIterator_WAL_MultipleKeys(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -538,7 +789,7 @@ func TestMergeIteragor_MultipleKeys(t *testing.T) {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
-	m := tsm1.NewMergeIterator(iter, 2)
+	m := tsm1.NewMergeIterator(nil, iter, 2)
 
 	var data = []struct {
 		key    string
@@ -548,9 +799,9 @@ func TestMergeIteragor_MultipleKeys(t *testing.T) {
 		{"cpu,host=B#!~#value", []tsm1.Value{v2, v4}},
 	}
 
-	for _, p := range data {
+	for i, p := range data {
 		if !m.Next() {
-			t.Fatalf("expected next, got false")
+			t.Fatalf("expected next(%d), got false", i)
 		}
 
 		key, values, err := m.Read()
@@ -572,8 +823,71 @@ func TestMergeIteragor_MultipleKeys(t *testing.T) {
 	}
 }
 
-// // Tests that the merge iterator does not pull in deleted WAL entries.
-func TestMergeIteragor_DeletedKeys(t *testing.T) {
+// Tests that merge iterator over a wal returns points order by key and time.
+func TestMergeIterator_TSM_MultipleKeys(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v4 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v5 := tsm1.NewValue(time.Unix(1, 0), float64(3)) // overwrites p1
+
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v3},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v5},
+		"cpu,host=B#!~#value": []tsm1.Value{v4},
+	}
+
+	r1 := MustTSMReader(dir, points1)
+	r2 := MustTSMReader(dir, points2)
+
+	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	m := tsm1.NewMergeIterator(iter, nil, 2)
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{v5, v3}},
+		{"cpu,host=B#!~#value", []tsm1.Value{v2, v4}},
+	}
+
+	for i, p := range data {
+		if !m.Next() {
+			t.Fatalf("expected next(%d), got false", i)
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, p.key; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
+// Tests that the merge iterator does not pull in deleted WAL entries.
+func TestMergeIterator_WAL_DeletedKeys(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -612,7 +926,71 @@ func TestMergeIteragor_DeletedKeys(t *testing.T) {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
-	m := tsm1.NewMergeIterator(iter, 2)
+	m := tsm1.NewMergeIterator(nil, iter, 2)
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=B#!~#value", []tsm1.Value{v2, v4}},
+	}
+
+	for _, p := range data {
+		if !m.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, p.key; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
+// Tests that the merge iterator does not pull in deleted WAL entries.
+func TestMergeIterator_TSM_DeletedKeys(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v4 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v5 := tsm1.NewValue(time.Unix(1, 0), float64(3)) // overwrites p1
+
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v3},
+		"cpu,host=B#!~#value": []tsm1.Value{v2},
+	}
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v5},
+		"cpu,host=B#!~#value": []tsm1.Value{v4},
+	}
+
+	r1 := MustTSMReader(dir, points1)
+	r2 := MustTSMReader(dir, points2)
+	r1.Delete("cpu,host=A#!~#value")
+	r2.Delete("cpu,host=A#!~#value")
+
+	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating TSMKeyIterator: %v", err)
+	}
+
+	m := tsm1.NewMergeIterator(iter, nil, 2)
 
 	var data = []struct {
 		key    string

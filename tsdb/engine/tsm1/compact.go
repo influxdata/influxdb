@@ -56,7 +56,7 @@ func (c *Compactor) Compact(walSegments []string) ([]string, error) {
 
 	// Merge iterator combines the WAL and TSM iterators (note: TSM iteration is
 	// not in place yet).  It will also chunk the values into 1000 element blocks.
-	c.merge = NewMergeIterator(walKeyIterator, 1000)
+	c.merge = NewMergeIterator(nil, walKeyIterator, 1000)
 	defer c.merge.Close()
 
 	// These are the new TSM files written
@@ -105,7 +105,6 @@ func (c *Compactor) write(path string) error {
 	}
 
 	for c.merge.Next() {
-
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)
@@ -158,6 +157,9 @@ type MergeIterator struct {
 	// wal is the iterator for multiple WAL segments combined
 	wal KeyIterator
 
+	// tsm is the iterator for multiple TSM files combined
+	tsm KeyIterator
+
 	// size is the maximum value of a chunk to return
 	size int
 
@@ -165,53 +167,107 @@ type MergeIterator struct {
 	key string
 
 	// walBuf is the remaining values from the last wal Read call
-	walBuf []Value
+	walBuf map[string][]Value
 
-	// chunk is the current set of values that will be returned by Read
-	chunk []Value
+	// tsmBuf is the remaining values from the last tsm Read call
+	tsmBuf map[string][]Value
+
+	// values is the current set of values that will be returned by Read.
+	values []Value
 
 	// err is any error returned by an underlying iterator to be returned by Read
 	err error
 }
 
+func NewMergeIterator(TSM KeyIterator, WAL KeyIterator, size int) *MergeIterator {
+	m := &MergeIterator{
+		wal:    WAL,
+		tsm:    TSM,
+		walBuf: map[string][]Value{},
+		tsmBuf: map[string][]Value{},
+		size:   size,
+	}
+	return m
+}
 func (m *MergeIterator) Next() bool {
-	// Prime the wal buffer if possible
-	if len(m.walBuf) == 0 && m.wal.Next() {
-		k, v, err := m.wal.Read()
-		m.key = k
-		m.err = err
-		m.walBuf = v
-	}
-
-	// Move size elements into the current chunk and slice the same
-	// amount off of the wal buffer.
-	if m.size < len(m.walBuf) {
-		m.chunk = m.walBuf[:m.size]
-		m.walBuf = m.walBuf[m.size:]
+	// If we still have values in the current chunk, slice off up to size of them
+	if m.size < len(m.values) {
+		m.values = m.values[:m.size]
 	} else {
-		m.chunk = m.walBuf
-		m.walBuf = m.walBuf[:0]
+		m.values = m.values[:0]
 	}
 
-	return len(m.chunk) > 0
+	// We still have values.
+	if len(m.values) > 0 {
+		return true
+	}
+
+	// Prime the tsm buffers if possible
+	if len(m.tsmBuf) == 0 && m.tsm != nil && m.tsm.Next() {
+		k, v, err := m.tsm.Read()
+		m.err = err
+		if len(v) > 0 {
+			// Prepend these values to the buffer since we may have cache entries
+			// that should take precedenc
+			m.tsmBuf[k] = v
+		}
+	}
+
+	// Prime the wal buffer if possible
+	if len(m.walBuf) == 0 && m.wal != nil && m.wal.Next() {
+		k, v, err := m.wal.Read()
+		m.err = err
+		if len(v) > 0 {
+			m.walBuf[k] = v
+		}
+	}
+
+	// This is the smallest key across the wal and tsm maps
+	m.key = m.currentKey()
+
+	// No more keys, we're done.
+	if m.key == "" {
+		return false
+	}
+
+	// Otherwise, append the wal values to the tsm values and sort, dedup.  We want
+	// the wal values to overwrite any tsm values so they are append second.
+	m.values = Values(append(m.tsmBuf[m.key], m.walBuf[m.key]...)).Deduplicate()
+
+	// Remove the values from our buffer since they are all moved into the current chunk
+	delete(m.tsmBuf, m.key)
+	delete(m.walBuf, m.key)
+
+	return len(m.values) > 0
 }
 
 func (m *MergeIterator) Read() (string, []Value, error) {
-	return m.key, m.chunk, m.err
+	if len(m.values) >= m.size {
+		return m.key, m.values[:m.size], m.err
+	}
+	return m.key, m.values, m.err
 }
 
 func (m *MergeIterator) Close() error {
 	m.walBuf = nil
-	m.chunk = nil
+	m.values = nil
 	return m.wal.Close()
 }
 
-func NewMergeIterator(WAL KeyIterator, size int) *MergeIterator {
-	m := &MergeIterator{
-		wal:  WAL,
-		size: size,
+func (m *MergeIterator) currentKey() string {
+	var keys []string
+	for k := range m.walBuf {
+		keys = append(keys, k)
 	}
-	return m
+	for k := range m.tsmBuf {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	if len(keys) > 0 {
+		return keys[0]
+	}
+	return ""
 }
 
 // KeyIterator allows iteration over set of keys and values in sorted order.
