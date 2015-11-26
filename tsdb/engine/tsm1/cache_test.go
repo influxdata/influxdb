@@ -142,6 +142,27 @@ func Test_CacheWrite(t *testing.T) {
 	}
 }
 
+func Test_CacheWriteMulti(t *testing.T) {
+	v0 := NewValue(time.Unix(1, 0).UTC(), 1.0)
+	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
+	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
+	values := Values{v0, v1, v2}
+	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
+
+	c := MustNewCache(3 * valuesSize)
+
+	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}, 100); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+	if n := c.Size(); n != 2*valuesSize {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
+	}
+
+	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+}
+
 func Test_CacheValues(t *testing.T) {
 	v0 := NewValue(time.Unix(1, 0).UTC(), 0.0)
 	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
