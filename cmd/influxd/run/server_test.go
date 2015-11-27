@@ -39,18 +39,43 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
+				name:    "create database with retention duration should succeed",
+				command: `CREATE DATABASE db0_r WITH DURATION 24h REPLICATION 2 NAME db0_r_policy`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
 				name:    "create database should error with bad name",
 				command: `CREATE DATABASE 0xdb0`,
 				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 17"}`,
 			},
 			&Query{
+				name:    "create database with retention duration should error with bad retention duration",
+				command: `CREATE DATABASE db0 WITH DURATION xyz`,
+				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 35"}`,
+			},
+			&Query{
+				name:    "create database with retention replication should error with bad retention replication number",
+				command: `CREATE DATABASE db0 WITH REPLICATION xyz`,
+				exp:     `{"error":"error parsing query: found xyz, expected number at line 1, char 38"}`,
+			},
+			&Query{
+				name:    "create database with retention name should error with missing retention name",
+				command: `CREATE DATABASE db0 WITH NAME`,
+				exp:     `{"error":"error parsing query: found EOF, expected identifier at line 1, char 31"}`,
+			},
+			&Query{
 				name:    "show database should succeed",
 				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"]]}]}]}`,
 			},
 			&Query{
 				name:    "create database should error if it already exists",
 				command: `CREATE DATABASE db0`,
+				exp:     `{"results":[{"error":"database already exists"}]}`,
+			},
+			&Query{
+				name:    "create database should error if it already exists",
+				command: `CREATE DATABASE db0_r`,
 				exp:     `{"results":[{"error":"database already exists"}]}`,
 			},
 			&Query{
@@ -64,13 +89,28 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
+				name:    "create database with retention duration should not error with existing database with IF NOT EXISTS",
+				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION 24h`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "create database should error IF NOT EXISTS with bad retention duration",
+				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION xyz`,
+				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 49"}`,
+			},
+			&Query{
 				name:    "show database should succeed",
 				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db1"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"],["db1"]]}]}]}`,
 			},
 			&Query{
 				name:    "drop database db0 should succeed",
 				command: `DROP DATABASE db0`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "drop database db0_r should succeed",
+				command: `DROP DATABASE db0_r`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{

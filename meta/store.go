@@ -1039,6 +1039,29 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	return s.Database(name)
 }
 
+// CreateDatabaseWithRetentionPolicy creates a new database with an explicit retention policy in the store.
+func (s *Store) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error) {
+	if err := s.exec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command,
+		&internal.CreateDatabaseCommand{
+			Name: proto.String(name),
+		},
+	); err != nil {
+		return nil, err
+	}
+	s.Logger.Printf("database '%s' created", name)
+
+	if _, err := s.CreateRetentionPolicy(name, rpi); err != nil {
+		return nil, err
+	}
+
+	// Set it as the default retention policy.
+	if err := s.SetDefaultRetentionPolicy(name, rpi.Name); err != nil {
+		return nil, err
+	}
+
+	return s.Database(name)
+}
+
 // CreateDatabaseIfNotExists creates a new database in the store if it doesn't already exist.
 func (s *Store) CreateDatabaseIfNotExists(name string) (*DatabaseInfo, error) {
 	// Try to find database locally first.

@@ -1457,6 +1457,56 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 	}
 	stmt.Name = lit
 
+	// Look for "WITH"
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == WITH {
+		// validate that at least one of DURATION, REPLICATION or NAME is provided
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok != DURATION && tok != REPLICATION && tok != NAME {
+			return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "REPLICATION", "NAME"}, pos)
+		}
+		// rewind
+		p.unscan()
+
+		// mark statement as having a RetentionPolicyInfo define
+		stmt.RetentionPolicyExists = true
+
+		// Look for "DURATION"
+		var rpDuration time.Duration // default is forever
+		if err := p.parseTokens([]Token{DURATION}); err != nil {
+			p.unscan()
+		} else {
+			rpDuration, err = p.parseDuration()
+			if err != nil {
+				return nil, err
+			}
+		}
+		stmt.RetentionPolicyDuration = rpDuration
+
+		// Look for "REPLICATION"
+		var rpReplication int = 1 // default is 1
+		if err := p.parseTokens([]Token{REPLICATION}); err != nil {
+			p.unscan()
+		} else {
+			rpReplication, err = p.parseInt(1, math.MaxInt32)
+			if err != nil {
+				return nil, err
+			}
+		}
+		stmt.RetentionPolicyReplication = rpReplication
+
+		// Look for "NAME"
+		var rpName string = "default" // default is default
+		if err := p.parseTokens([]Token{NAME}); err == nil {
+			rpName, err = p.parseIdent()
+			if err != nil {
+				return nil, err
+			}
+		}
+		stmt.RetentionPolicyName = rpName
+	} else {
+		p.unscan()
+	}
+
 	return stmt, nil
 }
 
