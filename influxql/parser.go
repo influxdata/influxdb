@@ -1467,8 +1467,8 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		// rewind
 		p.unscan()
 
-		// mark statement as having a RetentionPolicyInfo define
-		stmt.RetentionPolicyExists = true
+		// mark statement as having a RetentionPolicyInfo defined
+		stmt.RetentionPolicyCreate = true
 
 		// Look for "DURATION"
 		var rpDuration time.Duration // default is forever

@@ -1178,7 +1178,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                  "testdb",
 				IfNotExists:           false,
-				RetentionPolicyExists: false,
+				RetentionPolicyCreate: false,
 			},
 		},
 		{
@@ -1186,7 +1186,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                  "testdb",
 				IfNotExists:           true,
-				RetentionPolicyExists: false,
+				RetentionPolicyCreate: false,
 			},
 		},
 		{
@@ -1194,7 +1194,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                false,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 1,
 				RetentionPolicyName:        "default",
@@ -1205,7 +1205,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                true,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 1,
 				RetentionPolicyName:        "default",
@@ -1216,7 +1216,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                false,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 2,
 				RetentionPolicyName:        "default",
@@ -1227,7 +1227,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                true,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 2,
 				RetentionPolicyName:        "default",
@@ -1238,7 +1238,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                false,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 1,
 				RetentionPolicyName:        "test_name",
@@ -1249,7 +1249,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                true,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 1,
 				RetentionPolicyName:        "test_name",
@@ -1260,7 +1260,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                false,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 2,
 				RetentionPolicyName:        "test_name",
@@ -1271,7 +1271,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.CreateDatabaseStatement{
 				Name:                       "testdb",
 				IfNotExists:                true,
-				RetentionPolicyExists:      true,
+				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 2,
 				RetentionPolicyName:        "test_name",

@@ -112,7 +112,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement) *influxql.Result {
 	var err error
-	if q.RetentionPolicyExists {
+	if q.RetentionPolicyCreate {
 		rpi := NewRetentionPolicyInfo(q.RetentionPolicyName)
 		rpi.Duration = q.RetentionPolicyDuration
 		rpi.ReplicaN = q.RetentionPolicyReplication

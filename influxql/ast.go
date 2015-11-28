@@ -321,8 +321,8 @@ type CreateDatabaseStatement struct {
 	// already exists.
 	IfNotExists bool
 
-	// RetentionPolicyExists indicates whether the user explicitly wants to create a retention policy
-	RetentionPolicyExists bool
+	// RetentionPolicyCreate indicates whether the user explicitly wants to create a retention policy
+	RetentionPolicyCreate bool
 
 	// RetentionPolicyDuration indicates retention duration for the new database
 	RetentionPolicyDuration time.Duration
@@ -342,7 +342,7 @@ func (s *CreateDatabaseStatement) String() string {
 		_, _ = buf.WriteString("IF NOT EXISTS ")
 	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
-	if s.RetentionPolicyExists {
+	if s.RetentionPolicyCreate {
 		_, _ = buf.WriteString("WITH DURATION ")
 		_, _ = buf.WriteString(s.RetentionPolicyDuration.String())
 		_, _ = buf.WriteString("REPLICATION ")
