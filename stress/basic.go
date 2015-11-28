@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -522,6 +523,54 @@ func BasicWriteHandler(rs <-chan response, wt *Timer) {
 	fmt.Printf("	Fail: %v\n", fail)
 	fmt.Printf("Average Response Time: %v\n", s/time.Duration(n))
 	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(10000)/float64(wt.Elapsed().Seconds()))
+}
+
+func (b *BasicClient) HTTPWriteHandler(rs <-chan response, wt *Timer) {
+	n := 0
+	success := 0
+	fail := 0
+
+	s := time.Duration(0)
+
+	for t := range rs {
+
+		// Send off data to influx coordination server
+
+		n++
+
+		if t.Success() {
+			success++
+		} else {
+			fail++
+		}
+
+		s += t.Timer.Elapsed()
+
+	}
+
+	if n == 0 {
+		return
+	}
+
+	pps := float64(n) * float64(b.BatchSize) / float64(wt.Elapsed().Seconds())
+
+	vals := url.Values{
+		"PerfConfig":   {"some config file"},
+		"InfluxConfig": {"some config file"},
+		"TestId":       {"1"},
+		"Name":         {"some name"},
+		//"PointCount":      {fmt.Sprintf("%v", int(b.PointCount))},
+		"BatchSize": {fmt.Sprintf("%v", int(b.BatchSize))},
+		//"SeriesCount":     {fmt.Sprintf("%v", int(b.SeriesCount))},
+		"BatchInterval":   {fmt.Sprintf("%v", b.BatchInterval)},
+		"Concurrency":     {fmt.Sprintf("%v", int(b.Concurrency))},
+		"PointsPerSecond": {fmt.Sprintf("%v", int(pps))},
+		"FailRequests":    {fmt.Sprintf("%v", int(fail))},
+		"SuccessRequests": {fmt.Sprintf("%v", int(success))},
+	}
+
+	http.PostForm(fmt.Sprintf("http://%s/results", post), vals)
+
 }
 
 // BasicReadHandler handles read responses.
