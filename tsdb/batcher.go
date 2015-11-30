@@ -109,6 +109,7 @@ func (b *PointBatcher) Start() {
 	}()
 }
 
+// Stop stops the batching process.
 func (b *PointBatcher) Stop() {
 	// If not running, nothing to stop.
 	if b.wg == nil {

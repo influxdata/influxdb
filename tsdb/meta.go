@@ -31,6 +31,7 @@ type DatabaseIndex struct {
 	lastID       uint64                  // last used series ID. They're in memory only for this shard
 }
 
+// NewDatabaseIndex makes a new DataBaseIndex.
 func NewDatabaseIndex() *DatabaseIndex {
 	return &DatabaseIndex{
 		measurements: make(map[string]*Measurement),
@@ -83,22 +84,22 @@ func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries in
 }
 
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
-func (s *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
+func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
 	// if there is a measurement for this id, it's already been added
-	ss := s.series[series.Key]
+	ss := d.series[series.Key]
 	if ss != nil {
 		return ss
 	}
 
 	// get or create the measurement index
-	m := s.CreateMeasurementIndexIfNotExists(measurementName)
+	m := d.CreateMeasurementIndexIfNotExists(measurementName)
 
 	// set the in memory ID for query processing on this shard
-	series.id = s.lastID + 1
-	s.lastID += 1
+	series.id = d.lastID + 1
+	d.lastID++
 
 	series.measurement = m
-	s.series[series.Key] = series
+	d.series[series.Key] = series
 
 	m.AddSeries(series)
 
@@ -106,21 +107,21 @@ func (s *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 }
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
-func (s *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
+func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
 	name = escape.UnescapeString(name)
-	m := s.measurements[name]
+	m := d.measurements[name]
 	if m == nil {
-		m = NewMeasurement(name, s)
-		s.measurements[name] = m
+		m = NewMeasurement(name, d)
+		d.measurements[name] = m
 	}
 	return m
 }
 
 // TagsForSeries returns the tag map for the passed in series
-func (s *DatabaseIndex) TagsForSeries(key string) map[string]string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	ss := s.series[key]
+func (d *DatabaseIndex) TagsForSeries(key string) map[string]string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	ss := d.series[key]
 	if ss == nil {
 		return nil
 	}
@@ -129,7 +130,7 @@ func (s *DatabaseIndex) TagsForSeries(key string) map[string]string {
 
 // measurementsByExpr takes and expression containing only tags and returns
 // a list of matching *Measurement.
-func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, error) {
+func (d *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, error) {
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
@@ -158,14 +159,14 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 				tf.Value = s.Val
 			}
 
-			return db.measurementsByTagFilters([]*TagFilter{tf}), nil
+			return d.measurementsByTagFilters([]*TagFilter{tf}), nil
 		case influxql.OR, influxql.AND:
-			lhsIDs, err := db.measurementsByExpr(e.LHS)
+			lhsIDs, err := d.measurementsByExpr(e.LHS)
 			if err != nil {
 				return nil, err
 			}
 
-			rhsIDs, err := db.measurementsByExpr(e.RHS)
+			rhsIDs, err := d.measurementsByExpr(e.RHS)
 			if err != nil {
 				return nil, err
 			}
@@ -179,17 +180,17 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 			return nil, fmt.Errorf("invalid operator")
 		}
 	case *influxql.ParenExpr:
-		return db.measurementsByExpr(e.Expr)
+		return d.measurementsByExpr(e.Expr)
 	}
 	return nil, fmt.Errorf("%#v", expr)
 }
 
 // measurementsByTagFilters returns the sorted measurements matching the filters on tag values.
-func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurements {
+func (d *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurements {
 	// If no filters, then return all measurements.
 	if len(filters) == 0 {
-		measurements := make(Measurements, 0, len(db.measurements))
-		for _, m := range db.measurements {
+		measurements := make(Measurements, 0, len(d.measurements))
+		for _, m := range d.measurements {
 			measurements = append(measurements, m)
 		}
 		return measurements
@@ -200,7 +201,7 @@ func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurem
 	var tagMatch bool
 
 	// Iterate through all measurements in the database.
-	for _, m := range db.measurements {
+	for _, m := range d.measurements {
 		// Iterate filters seeing if the measurement has a matching tag.
 		for _, f := range filters {
 			tagVals, ok := m.seriesByTagKeyValue[f.Key]
@@ -247,9 +248,9 @@ func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurem
 }
 
 // measurementsByRegex returns the measurements that match the regex.
-func (db *DatabaseIndex) measurementsByRegex(re *regexp.Regexp) Measurements {
+func (d *DatabaseIndex) measurementsByRegex(re *regexp.Regexp) Measurements {
 	var matches Measurements
-	for _, m := range db.measurements {
+	for _, m := range d.measurements {
 		if re.MatchString(m.Name) {
 			matches = append(matches, m)
 		}
@@ -258,55 +259,55 @@ func (db *DatabaseIndex) measurementsByRegex(re *regexp.Regexp) Measurements {
 }
 
 // Measurements returns a list of all measurements.
-func (db *DatabaseIndex) Measurements() Measurements {
-	measurements := make(Measurements, 0, len(db.measurements))
-	for _, m := range db.measurements {
+func (d *DatabaseIndex) Measurements() Measurements {
+	measurements := make(Measurements, 0, len(d.measurements))
+	for _, m := range d.measurements {
 		measurements = append(measurements, m)
 	}
 	return measurements
 }
 
 // DropMeasurement removes the measurement and all of its underlying series from the database index
-func (db *DatabaseIndex) DropMeasurement(name string) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+func (d *DatabaseIndex) DropMeasurement(name string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
-	m := db.measurements[name]
+	m := d.measurements[name]
 	if m == nil {
 		return
 	}
 
-	delete(db.measurements, name)
+	delete(d.measurements, name)
 	for _, s := range m.seriesByID {
-		delete(db.series, s.Key)
+		delete(d.series, s.Key)
 	}
 }
 
 // DropSeries removes the series keys and their tags from the index
-func (db *DatabaseIndex) DropSeries(keys []string) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+func (d *DatabaseIndex) DropSeries(keys []string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	for _, k := range keys {
-		series := db.series[k]
+		series := d.series[k]
 		if series == nil {
 			continue
 		}
 		series.measurement.DropSeries(series.id)
-		delete(db.series, k)
+		delete(d.series, k)
 	}
 }
 
 // RewriteSelectStatement performs any necessary query re-writing.
-func (db *DatabaseIndex) RewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+func (d *DatabaseIndex) RewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// Expand regex expressions in the FROM clause.
-	sources, err := db.ExpandSources(stmt.Sources)
+	sources, err := d.ExpandSources(stmt.Sources)
 	if err != nil {
 		return nil, err
 	}
 	stmt.Sources = sources
 
 	// Expand wildcards in the fields or GROUP BY.
-	stmt, err = db.ExpandWildcards(stmt)
+	stmt, err = d.ExpandWildcards(stmt)
 	if err != nil {
 		return nil, err
 	}
@@ -316,11 +317,11 @@ func (db *DatabaseIndex) RewriteSelectStatement(stmt *influxql.SelectStatement) 
 	return stmt, nil
 }
 
-// expandWildcards returns a new SelectStatement with wildcards expanded
+// ExpandWildcards returns a new SelectStatement with wildcards expanded.
 // If only a `SELECT *` is present, without a `GROUP BY *`, both tags and fields expand in the SELECT
 // If a `SELECT *` and a `GROUP BY *` are both present, then only fiels are expanded in the `SELECT` and only
 // tags are expanded in the `GROUP BY`
-func (db *DatabaseIndex) ExpandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+func (d *DatabaseIndex) ExpandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
 		return stmt, nil
@@ -339,7 +340,7 @@ func (db *DatabaseIndex) ExpandWildcards(stmt *influxql.SelectStatement) (*influ
 	for _, src := range stmt.Sources {
 		if m, ok := src.(*influxql.Measurement); ok {
 			// Lookup the measurement in the database.
-			mm := db.Measurement(m.Name)
+			mm := d.Measurement(m.Name)
 			if mm == nil {
 				// This shard have never received data for the measurement. No Mapper
 				// required.
@@ -383,9 +384,9 @@ func (db *DatabaseIndex) ExpandWildcards(stmt *influxql.SelectStatement) (*influ
 	return stmt.RewriteWildcards(fields, dimensions), nil
 }
 
-// expandSources expands regex sources and removes duplicates.
+// ExpandSources expands regex sources and removes duplicates.
 // NOTE: sources must be normalized (db and rp set) before calling this function.
-func (di *DatabaseIndex) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+func (d *DatabaseIndex) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
 	// Use a map as a set to prevent duplicates. Two regexes might produce
 	// duplicates when expanded.
 	set := map[string]influxql.Source{}
@@ -402,7 +403,7 @@ func (di *DatabaseIndex) ExpandSources(sources influxql.Sources) (influxql.Sourc
 				continue
 			}
 			// Get measurements from the database that match the regex.
-			measurements := di.measurementsByRegex(src.Regex.Val)
+			measurements := d.measurementsByRegex(src.Regex.Val)
 			// Add those measurements to the set.
 			for _, m := range measurements {
 				m2 := &influxql.Measurement{
@@ -627,7 +628,7 @@ func (m *Measurement) filters(stmt *influxql.SelectStatement) (map[uint64]influx
 	return seriesIdsToExpr, nil
 }
 
-// tagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
+// TagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
 // what composite series will be created by a group by. i.e. "group by region" should return:
 // {"region":"uswest"}, {"region":"useast"}
 // or region, service returns
@@ -685,7 +686,7 @@ func (m *Measurement) TagSets(stmt *influxql.SelectStatement, dimensions []strin
 	// The TagSets have been created, as a map of TagSets. Just send
 	// the values back as a slice, sorting for consistency.
 	sortedTagSetKeys := make([]string, 0, len(tagSets))
-	for k, _ := range tagSets {
+	for k := range tagSets {
 		sortedTagSetKeys = append(sortedTagSetKeys, k)
 	}
 	sort.Strings(sortedTagSetKeys)
@@ -1125,6 +1126,7 @@ func (m *Measurement) DimensionTagSets(stmt *influxql.SelectStatement) ([]*influ
 	return tagSets, nil
 }
 
+// SelectInfo represents fields and tags in a select statement.
 type SelectInfo struct {
 	SelectFields []string
 	SelectTags   []string
@@ -1279,6 +1281,7 @@ func (s *Series) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
+// InitializeShards initializes the shardIDs in a Series.
 func (s *Series) InitializeShards() {
 	s.shardIDs = make(map[uint64]bool)
 }
@@ -1413,7 +1416,7 @@ type TagFilter struct {
 	Regex *regexp.Regexp
 }
 
-// used to convert the tag set to bytes for use as a lookup key
+// MarshalTags is used to convert the tag set to bytes for use as a lookup key.
 func MarshalTags(tags map[string]string) []byte {
 	// Empty maps marshal to empty bytes.
 	if len(tags) == 0 {
@@ -1488,7 +1491,7 @@ func (m *Measurement) FieldNames() (a []string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for n, _ := range m.fieldNames {
+	for n := range m.fieldNames {
 		a = append(a, n)
 	}
 	return
@@ -1586,6 +1589,8 @@ func (s stringSet) intersect(o stringSet) stringSet {
 	return ns
 }
 
+// MeasurementFromSeriesKey returns the measurement part of a
+// series key string (everything in the string up to ',', if any).
 func MeasurementFromSeriesKey(key string) string {
 	idx := strings.Index(key, ",")
 	if idx == -1 {

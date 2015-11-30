@@ -125,7 +125,7 @@ func (e *AggregateExecutor) execute(out chan *models.Row, closing <-chan struct{
 
 		// Work each bucket of time, in time ascending order.
 		tMins := make(int64Slice, 0, len(buckets))
-		for k, _ := range buckets {
+		for k := range buckets {
 			tMins = append(tMins, k)
 		}
 
@@ -695,7 +695,7 @@ func (m *AggregateMapper) initializeMapFunctions() error {
 		m.mapFuncs[i] = mfn
 
 		// Check for calls like `derivative(lmean(value), 1d)`
-		var nested *influxql.Call = c
+		var nested = c
 		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			nested = fn
 		}
@@ -874,6 +874,7 @@ func (m *AggregateMapper) nextInterval() (start, end int64) {
 	return
 }
 
+// CursorSet is a group of cursors.
 type CursorSet struct {
 	Measurement string
 	Tags        map[string]string
@@ -888,6 +889,7 @@ func (a CursorSets) Len() int           { return len(a) }
 func (a CursorSets) Less(i, j int) bool { return a[i].Key < a[j].Key }
 func (a CursorSets) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+// Keys are the sorted keys of a slice of CursorSet.
 func (a CursorSets) Keys() []string {
 	keys := make([]string, len(a))
 	for i := range a {

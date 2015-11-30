@@ -41,8 +41,10 @@ type Engine interface {
 	io.WriterTo
 }
 
+// EngineFormat is an int representing the format for an engine.
 type EngineFormat int
 
+// B1Format, BZ1Format and TSM1Format are the available engine formats.
 const (
 	B1Format EngineFormat = iota
 	BZ1Format
@@ -188,6 +190,7 @@ func DedupeEntries(a [][]byte) [][]byte {
 	return other
 }
 
+// ByteSlices is a slice of byte slices.
 type ByteSlices [][]byte
 
 func (a ByteSlices) Len() int           { return len(a) }

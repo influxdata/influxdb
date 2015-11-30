@@ -87,12 +87,15 @@ func (mv *MapperValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(o)
 }
 
+// MapperValues are a slice of pointers to a MapperValue.
 type MapperValues []*MapperValue
 
 func (a MapperValues) Len() int           { return len(a) }
 func (a MapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a MapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+// MapperOutput encapsulates the data returned from a mapper.
+// The tags hold json field names.
 type MapperOutput struct {
 	Name      string            `json:"name,omitempty"`
 	Tags      map[string]string `json:"tags,omitempty"`

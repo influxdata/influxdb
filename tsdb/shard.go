@@ -95,7 +95,7 @@ func (s *Shard) PerformMaintenance() {
 	s.engine.PerformMaintenance()
 }
 
-// open initializes and opens the shard's store.
+// Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
 	if err := func() error {
 		s.mu.Lock()
@@ -171,6 +171,7 @@ func (s *Shard) ReadOnlyTx() (Tx, error) {
 	return s.engine.Begin(false)
 }
 
+// FieldCodec returns a FieldCodec for a measurement.
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
@@ -183,13 +184,13 @@ func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
 	return m.Codec
 }
 
-// struct to hold information for a field to create on a measurement
+// FieldCreate is a struct to hold information for a field to create on a measurement.
 type FieldCreate struct {
 	Measurement string
 	Field       *Field
 }
 
-// struct to hold information for a series to create
+// SeriesCreate is a struct to hold information for a series to create.
 type SeriesCreate struct {
 	Measurement string
 	Series      *Series
@@ -269,6 +270,9 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return nil
 }
 
+// ValidateAggregateFieldsInStatement validates that the fields used
+// by an aggregate in a select statement are present, and are numeric
+// if the aggregate requires numerics.
 func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt *influxql.SelectStatement) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -290,7 +294,7 @@ func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt 
 	// nested aggregate on numeric data.
 	for _, a := range stmt.FunctionCalls() {
 		// Check for fields like `derivative(mean(value), 1d)`
-		var nested *influxql.Call = a
+		var nested = a
 		if fn, ok := nested.Args[0].(*influxql.Call); ok {
 			nested = fn
 		}
@@ -444,6 +448,7 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 	return n, err
 }
 
+// MeasurementFields is a struct to hold measurement fields and codec.
 type MeasurementFields struct {
 	Fields map[string]*Field `json:"fields"`
 	Codec  *FieldCodec
@@ -607,6 +612,7 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 	return b, nil
 }
 
+// FieldIDByName returns FieldID given name.
 // TODO: this shouldn't be exported. remove when tx.go and engine.go get refactored into tsdb
 func (f *FieldCodec) FieldIDByName(s string) (uint8, error) {
 	fi := f.fieldsByName[s]
@@ -673,7 +679,7 @@ func (f *FieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
 	return values, nil
 }
 
-// DecodeFieldsWithNames decodes a byte slice into a set of field names and values
+// DecodeFieldsWithNames decodes a byte slice into a set of field names and values.
 // TODO: shouldn't be exported. refactor engine
 func (f *FieldCodec) DecodeFieldsWithNames(b []byte) (map[string]interface{}, error) {
 	fields, err := f.DecodeFields(b)
@@ -757,6 +763,7 @@ func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
 	return f.DecodeByID(fi.ID, b)
 }
 
+// Fields returns a slice pointing to the Fields in a FieldCodec.
 func (f *FieldCodec) Fields() (a []*Field) {
 	for _, f := range f.fieldsByID {
 		a = append(a, f)
@@ -764,7 +771,7 @@ func (f *FieldCodec) Fields() (a []*Field) {
 	return
 }
 
-// FieldByName returns the field by its name. It will return a nil if not found
+// FieldByName returns the field by its name. It will return a nil if not found.
 func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
 }
