@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -735,12 +734,12 @@ func (s *Store) serveExecListener() {
 		// Accept next TCP connection.
 		var err error
 		conn, err := s.ExecListener.Accept()
-		if err != nil {
-			if strings.Contains(err.Error(), "connection closed") {
-				return
-			}
-			s.Logger.Printf("temporary accept error: %s", err)
+		if opErr, ok := err.(*net.OpError); ok && opErr.Temporary() {
+			s.Logger.Printf("exec listener temporary accept error: %s", err)
 			continue
+		} else if err != nil {
+			s.Logger.Printf("exec listener accept error and closed: %s", err)
+			return
 		}
 
 		// Handle connection in a separate goroutine.
@@ -845,13 +844,12 @@ func (s *Store) serveRPCListener() {
 	for {
 		// Accept next TCP connection.
 		conn, err := s.RPCListener.Accept()
-		if err != nil {
-			if strings.Contains(err.Error(), "connection closed") {
-				return
-			}
-
-			s.Logger.Printf("temporary accept error: %s", err)
+		if opErr, ok := err.(*net.OpError); ok && opErr.Temporary() {
+			s.Logger.Printf("RPC listener temporary accept error: %s", err)
 			continue
+		} else if err != nil {
+			s.Logger.Printf("RPC listener accept error and closed: %s", err)
+			return
 		}
 
 		// Handle connection in a separate goroutine.
