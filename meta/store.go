@@ -172,6 +172,14 @@ func NewStore(c *Config) *Store {
 	return s
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Store) SetLogger(l *log.Logger) {
+	s.Logger = l
+	if s.rpc != nil {
+		s.rpc.logger = l
+	}
+}
+
 // Path returns the root path when open.
 // Returns an empty string when the store is closed.
 func (s *Store) Path() string { return s.path }
