@@ -223,15 +223,16 @@ func (b *BasicPointGenerator) Time() time.Time {
 // BasicClient implements the InfluxClient
 // interface.
 type BasicClient struct {
-	Enabled       bool   `toml:"enabled"`
-	Address       string `toml:"address"`
-	Database      string `toml:"database"`
-	Precision     string `toml:"precision"`
-	BatchSize     int    `toml:"batch_size"`
-	BatchInterval string `toml:"batch_interval"`
-	Concurrency   int    `toml:"concurrency"`
-	SSL           bool   `toml:"ssl"`
-	Format        string `toml:"format"`
+	Enabled       bool     `toml:"enabled"`
+	Addresses     []string `toml:"addresses"`
+	Database      string   `toml:"database"`
+	Precision     string   `toml:"precision"`
+	BatchSize     int      `toml:"batch_size"`
+	BatchInterval string   `toml:"batch_interval"`
+	Concurrency   int      `toml:"concurrency"`
+	SSL           bool     `toml:"ssl"`
+	Format        string   `toml:"format"`
+	addrId        int
 }
 
 // Batch groups together points
@@ -239,6 +240,12 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 	if !c.Enabled {
 		return nil
 	}
+	instanceURLs := make([]string, len(c.Addresses))
+	for i := 0; i < len(c.Addresses); i++ {
+		instanceURLs[i] = fmt.Sprintf("http://%v/write?db=%v&precision=%v", c.Addresses[i], c.Database, c.Precision)
+	}
+
+	c.Addresses = instanceURLs
 
 	var buf bytes.Buffer
 	var wg sync.WaitGroup
@@ -253,6 +260,7 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 
 	for p := range ps {
 		b := p.Line()
+		c.addrId = ctr % len(c.Addresses)
 		ctr++
 
 		buf.Write(b)
@@ -312,10 +320,9 @@ func post(url string, datatype string, data io.Reader) (*http.Response, error) {
 
 // Send calls post and returns a response
 func (c *BasicClient) send(b []byte) (response, error) {
-	instanceURL := fmt.Sprintf("http://%v/write?db=%v&precision=%v", c.Address, c.Database, c.Precision)
 
 	t := NewTimer()
-	resp, err := post(instanceURL, "application/x-www-form-urlencoded", bytes.NewBuffer(b))
+	resp, err := post(c.Addresses[c.addrId], "application/x-www-form-urlencoded", bytes.NewBuffer(b))
 	t.StopTimer()
 	if err != nil {
 		return response{Timer: t}, err

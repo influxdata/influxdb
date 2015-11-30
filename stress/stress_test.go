@@ -287,7 +287,7 @@ func Test_post(t *testing.T) {
 }
 
 var basicIC = &BasicClient{
-	Address:       "localhost:8086",
+	Addresses:     []string{"localhost:8086"},
 	Database:      "stress",
 	Precision:     "n",
 	BatchSize:     1000,
@@ -307,7 +307,7 @@ func TestBasicClient_send(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	basicIC.Address = ts.URL[7:]
+	basicIC.Addresses[0] = ts.URL[7:]
 	b := []byte(
 		`cpu,host=server-1,location=us-west value=100 12932
 		cpu,host=server-2,location=us-west value=10 12932
@@ -334,7 +334,7 @@ func TestBasicClient_Batch(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	basicIC.Address = ts.URL[7:]
+	basicIC.Addresses[0] = ts.URL[7:]
 
 	go func(c chan Point) {
 		defer close(c)
@@ -458,8 +458,8 @@ func Test_NewConfigWithFile(t *testing.T) {
 	// TODO: Check fields
 
 	wc := w.InfluxClients.Basic
-	if wc.Address != "localhost:8086" {
-		t.Errorf("Expected `localhost:8086` got %s", wc.Address)
+	if wc.Addresses[0] != "localhost:8086" {
+		t.Errorf("Expected `localhost:8086` got %s", wc.Addresses[0])
 	}
 	if wc.Database != "stress" {
 		t.Errorf("Expected stress got %s", wc.Database)
@@ -545,8 +545,8 @@ func Test_NewConfigWithoutFile(t *testing.T) {
 	// TODO: Check fields
 
 	wc := w.InfluxClients.Basic
-	if wc.Address != "localhost:8086" {
-		t.Errorf("Expected `localhost:8086` got %s", wc.Address)
+	if wc.Addresses[0] != "localhost:8086" {
+		t.Errorf("Expected `localhost:8086` got %s", wc.Addresses[0])
 	}
 	if wc.Database != "stress" {
 		t.Errorf("Expected stress got %s", wc.Database)

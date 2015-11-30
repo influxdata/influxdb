@@ -51,8 +51,8 @@
     [write.influx_client.basic]
       # If enabled the writer will actually write
       enabled = true
-      # Address of the Influxdb instance
-      address = "localhost:8086" # stress_test_server runs on port 1234
+      # Addresses is an array of the Influxdb instances
+      addresses = ["localhost:8086"] # stress_test_server runs on port 1234
       # Database that is being written to
       database = "stress"
       # Precision of points that are being written
