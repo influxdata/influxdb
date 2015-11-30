@@ -13,13 +13,6 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-// minCompactionSegments is the number of WAL segements that must be
-// closed in order for a compaction to run.  A lower value would shorten
-// compaction times and memory requirements, but produce more TSM files
-// with lower compression ratios.  A higher value increases compaction times
-// and memory usage but produces more dense TSM files.
-const minCompactionSegments = 10
-
 func init() {
 	tsdb.RegisterEngine("tsm1dev", NewDevEngine)
 }
@@ -34,9 +27,11 @@ type DevEngine struct {
 	path   string
 	logger *log.Logger
 
-	WAL       *WAL
-	Cache     *Cache
-	Compactor *Compactor
+	WAL            *WAL
+	Cache          *Cache
+	Compactor      *Compactor
+	CompactionPlan CompactionPlanner
+	FileStore      *FileStore
 
 	RotateFileSize    uint32
 	MaxFileSize       uint32
@@ -48,6 +43,8 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 	w := NewWAL(walPath)
 	w.LoggingEnabled = opt.Config.WALLoggingEnabled
 
+	fs := NewFileStore(path)
+
 	c := &Compactor{
 		Dir: path,
 	}
@@ -56,9 +53,15 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		path:   path,
 		logger: log.New(os.Stderr, "[tsm1dev] ", log.LstdFlags),
 
-		WAL:               w,
-		Cache:             NewCache(uint64(opt.Config.WALMaxMemorySizeThreshold)),
-		Compactor:         c,
+		WAL:   w,
+		Cache: NewCache(uint64(opt.Config.WALMaxMemorySizeThreshold)),
+
+		FileStore: fs,
+		Compactor: c,
+		CompactionPlan: &DefaultPlanner{
+			WAL:       w,
+			FileStore: fs,
+		},
 		RotateFileSize:    DefaultRotateFileSize,
 		MaxFileSize:       MaxDataFileSize,
 		MaxPointsPerBlock: DefaultMaxPointsPerBlock,
@@ -86,6 +89,10 @@ func (e *DevEngine) Open() error {
 	}
 
 	if err := e.WAL.Open(); err != nil {
+		return err
+	}
+
+	if err := e.FileStore.Open(); err != nil {
 		return err
 	}
 
@@ -156,54 +163,28 @@ func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not imple
 
 func (e *DevEngine) compact() {
 	for {
-		// Grab the closed segments that are no longer being written to
-		segments, err := e.WAL.ClosedSegments()
+		tsmFiles, segments, err := e.CompactionPlan.Plan()
 		if err != nil {
-			e.logger.Printf("error retrieving closed WAL segments: %v", err)
+			e.logger.Printf("error calculating compaction plan: %v", err)
 			time.Sleep(time.Second)
 			continue
 		}
-
-		// NOTE: This logic is temporary.  Only compact the closed segments if we
-		// have at least 10 of them.
-		n := minCompactionSegments
-		if len(segments) == 0 || len(segments) < n {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		// If we have more than 10, just compact 10 to keep compactions times bounded.
-		compact := segments[:n]
 
 		start := time.Now()
-		files, err := e.Compactor.Compact(compact.Names())
+		files, err := e.Compactor.Compact(tsmFiles, segments)
 		if err != nil {
 			e.logger.Printf("error compacting WAL segments: %v", err)
 		}
 
-		// TODO: this is stubbed out but would be the place to replace files in the
-		// file store with the new compacted versions.
-		e.replaceFiles(files, compact.Names())
+		if err := e.FileStore.Replace(segments, files); err != nil {
+			e.logger.Printf("error replacing new TSM files: %v", err)
+		}
 
 		// Inform cache data may be evicted.
-		ids := compact.IDs()
+		ids := SegmentPaths(segments).IDs()
 		e.Cache.SetCheckpoint(uint64(ids[len(ids)-1]))
 
-		e.logger.Printf("compacted %d segments into %d files in %s", len(compact), len(files), time.Since(start))
-	}
-}
-
-func (e *DevEngine) replaceFiles(tsm, segments []string) {
-	// TODO: this is temporary, this func should replace the files in the file store
-
-	// The new TSM files are have a tmp extension.  First rename them.
-	for _, f := range tsm {
-		os.Rename(f, f[:len(f)-4])
-	}
-
-	// The segments are fully compacted, delete them.
-	for _, f := range segments {
-		os.RemoveAll(f)
+		e.logger.Printf("compacted %d segments into %d files in %s", len(segments), len(files), time.Since(start))
 	}
 }
 

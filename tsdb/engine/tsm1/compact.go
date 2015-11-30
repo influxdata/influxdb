@@ -19,7 +19,102 @@ import (
 	"sort"
 )
 
+// maxCompactionSegments is the maximum number of segments that can be
+// compaction at one time.  A lower value would shorten
+// compaction times and memory requirements, but produce more TSM files
+// with lower compression ratios.  A higher value increases compaction times
+// and memory usage but produces more dense TSM files.
+const maxCompactionSegments = 10
+
+const maxTSMFileSize = 50 * 1024 * 1024
+
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
+
+// CompactionPlanner determines what TSM files and WAL segments to include in a
+// given compaction run.
+type CompactionPlanner interface {
+	Plan() ([]string, []string, error)
+}
+
+// DefaultPlanner implements CompactionPlanner using a strategy to minimize
+// the number of closed WAL segments as well as rewriting existing files for
+// improve compression ratios.  It prefers compacting WAL segments over TSM
+// files to allow cached points to be evicted more quickly.  When looking at
+// TSM files, it will pull in TSM files that need to be rewritten to ensure
+// points exist in only one file.  Reclaiming space is lower priority while
+// there are multiple WAL segments still on disk (e.g. deleting tombstones,
+// combining smaller TSM files, etc..)
+//
+// It prioritizes WAL segments and TSM files as follows:
+//
+// 1) If there are more than 10 closed WAL segments, it will use the 10 oldest
+// 2) If there are any TSM files that contain points that would be overwritten
+//    by a WAL segment, those TSM files are included
+// 3) If there are fewer than 10 WAL segments and no TSM files are required to be
+//    re-written, any TSM files containing tombstones are included.
+// 4) If thare are still fewer than 10 WAL segments and no TSM files included, any
+//    TSM files less than the max file size are included.
+type DefaultPlanner struct {
+	WAL interface {
+		ClosedSegments() ([]SegmentStat, error)
+	}
+
+	FileStore interface {
+		Stats() []FileStat
+	}
+}
+
+// Plan returns a set of TSM files to rewrite, and WAL segments to compact
+func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
+	wal, err := c.WAL.ClosedSegments()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Limit the number of WAL segments we compact in one keep compaction times
+	// more consistent.
+	if len(wal) > maxCompactionSegments {
+		wal = wal[:maxCompactionSegments]
+	}
+
+	tsmStats := c.FileStore.Stats()
+
+	var walPaths []string
+	var tsmPaths []string
+
+	// We need to rewrite any TSM files that could contain points for any keys in the
+	// WAL segments.
+	for _, w := range wal {
+		for _, t := range tsmStats {
+			if t.OverlapsTimeRange(w.MinTime, w.MinTime) && t.OverlapsKeyRange(w.MinKey, w.MaxKey) {
+				tsmPaths = append(tsmPaths, t.Path)
+			}
+		}
+
+		walPaths = append(walPaths, w.Path)
+	}
+
+	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 {
+		for _, tsm := range c.FileStore.Stats() {
+			if tsm.HasTombstone {
+				tsmPaths = append(tsmPaths, tsm.Path)
+			}
+		}
+	}
+
+	// Only look to rollup TSM files if we don't have any already identified to be
+	// re-written and we have less than the max WAL segments.
+	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 {
+		for _, tsm := range c.FileStore.Stats() {
+			if tsm.Size > maxTSMFileSize {
+				continue
+			}
+
+			tsmPaths = append(tsmPaths, tsm.Path)
+		}
+	}
+	return tsmPaths, walPaths, nil
+}
 
 // Compactor merges multiple WAL segments and TSM files into one or more
 // new TSM files.
@@ -32,7 +127,7 @@ type Compactor struct {
 }
 
 // Compact converts WAL segements and TSM files into new TSM files.
-func (c *Compactor) Compact(walSegments []string) ([]string, error) {
+func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 	var walReaders []*WALSegmentReader
 
 	// For each segment, create a reader to iterate over each WAL entry
@@ -47,16 +142,46 @@ func (c *Compactor) Compact(walSegments []string) ([]string, error) {
 		walReaders = append(walReaders, r)
 	}
 
-	// WALKeyIterator allows all the segments to be ordered by key and
-	// sorted values during compaction.
-	walKeyIterator, err := NewWALKeyIterator(walReaders...)
-	if err != nil {
-		return nil, err
+	var wal KeyIterator
+	var err error
+	if len(walReaders) > 0 {
+		// WALKeyIterator allows all the segments to be ordered by key and
+		// sorted values during compaction.
+		wal, err = NewWALKeyIterator(walReaders...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// For each TSM file, create a TSM reader
+	var trs []*TSMReader
+	for _, file := range tsmFiles {
+		f, err := os.Open(file)
+		if err != nil {
+			return nil, err
+		}
+
+		tr, err := NewTSMReaderWithOptions(
+			TSMReaderOptions{
+				MMAPFile: f,
+			})
+		if err != nil {
+			return nil, err
+		}
+		trs = append(trs, tr)
+	}
+
+	var tsm KeyIterator
+	if len(trs) > 0 {
+		tsm, err = NewTSMKeyIterator(trs...)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Merge iterator combines the WAL and TSM iterators (note: TSM iteration is
 	// not in place yet).  It will also chunk the values into 1000 element blocks.
-	c.merge = NewMergeIterator(nil, walKeyIterator, 1000)
+	c.merge = NewMergeIterator(tsm, wal, 1000)
 	defer c.merge.Close()
 
 	// These are the new TSM files written

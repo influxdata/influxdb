@@ -1056,7 +1056,7 @@ func TestCompactor_SingleWALSegment(t *testing.T) {
 		Dir: dir,
 	}
 
-	files, err := compactor.Compact([]string{f.Name()})
+	files, err := compactor.Compact(nil, []string{f.Name()})
 	if err != nil {
 		t.Fatalf("unexpected error compacting: %v", err)
 	}
@@ -1170,7 +1170,7 @@ func TestCompactor_MultipleWALSegment(t *testing.T) {
 		Dir: dir,
 	}
 
-	files, err := compactor.Compact([]string{f1.Name(), f2.Name()})
+	files, err := compactor.Compact(nil, []string{f1.Name(), f2.Name()})
 	if err != nil {
 		t.Fatalf("unexpected error compacting: %v", err)
 	}
@@ -1422,6 +1422,349 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	}
 }
 
+func TestDefaultCompactionPlanner_OnlyWAL(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return []tsm1.SegmentStat{
+					tsm1.SegmentStat{Path: "000001.wal"},
+				}, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return nil
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 0, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 1, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_Max10WAL(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return []tsm1.SegmentStat{
+					tsm1.SegmentStat{Path: "00001.tsm1"},
+					tsm1.SegmentStat{Path: "00002.tsm1"},
+					tsm1.SegmentStat{Path: "00003.tsm1"},
+					tsm1.SegmentStat{Path: "00004.tsm1"},
+					tsm1.SegmentStat{Path: "00005.tsm1"},
+					tsm1.SegmentStat{Path: "00006.tsm1"},
+					tsm1.SegmentStat{Path: "00007.tsm1"},
+					tsm1.SegmentStat{Path: "00008.tsm1"},
+					tsm1.SegmentStat{Path: "00009.tsm1"},
+					tsm1.SegmentStat{Path: "00010.tsm1"},
+					tsm1.SegmentStat{Path: "00011.tsm1"},
+				}, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						Path: "000001.tsm",
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 0, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 10, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return nil, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 51 * 1024 * 1024,
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 2, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 0, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_TSM_Rewrite(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return nil, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 51 * 1024 * 1024,
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 2, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 0, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_NoRewrite_MaxWAL(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return []tsm1.SegmentStat{
+					tsm1.SegmentStat{Path: "00001.tsm1"},
+					tsm1.SegmentStat{Path: "00002.tsm1"},
+					tsm1.SegmentStat{Path: "00003.tsm1"},
+					tsm1.SegmentStat{Path: "00004.tsm1"},
+					tsm1.SegmentStat{Path: "00005.tsm1"},
+					tsm1.SegmentStat{Path: "00006.tsm1"},
+					tsm1.SegmentStat{Path: "00007.tsm1"},
+					tsm1.SegmentStat{Path: "00008.tsm1"},
+					tsm1.SegmentStat{Path: "00009.tsm1"},
+					tsm1.SegmentStat{Path: "00010.tsm1"},
+					tsm1.SegmentStat{Path: "00011.tsm1"},
+				}, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 51 * 1024 * 1024,
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 0, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 10, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_Rewrite_MixWAL(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return []tsm1.SegmentStat{
+					tsm1.SegmentStat{Path: "00001.tsm1"},
+					tsm1.SegmentStat{Path: "00002.tsm1"},
+					tsm1.SegmentStat{Path: "00003.tsm1"},
+					tsm1.SegmentStat{Path: "00004.tsm1"},
+					tsm1.SegmentStat{Path: "00005.tsm1"},
+				}, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 51 * 1024 * 1024,
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 2, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 5, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_Rewrite_WALOverlap(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return []tsm1.SegmentStat{
+					tsm1.SegmentStat{Path: "00001.tsm1",
+						MinTime: time.Unix(1, 0),
+						MaxTime: time.Unix(10, 0),
+						MinKey:  "cpu",
+						MaxKey:  "cpu"},
+					tsm1.SegmentStat{Path: "00002.tsm1"},
+					tsm1.SegmentStat{Path: "00003.tsm1"},
+					tsm1.SegmentStat{Path: "00004.tsm1"},
+					tsm1.SegmentStat{Path: "00005.tsm1"},
+				}, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{
+						MinKey:  "cpu",
+						MaxKey:  "mem",
+						MinTime: time.Unix(0, 0),
+						MaxTime: time.Unix(5, 0),
+						Size:    1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 1 * 1024 * 1024,
+					},
+					tsm1.FileStat{
+						Size: 51 * 1024 * 1024,
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 5, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultCompactionPlanner_Rewrite_Deletes(t *testing.T) {
+	cp := &tsm1.DefaultPlanner{
+		WAL: &fakeWAL{
+			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
+				return []tsm1.SegmentStat{
+					tsm1.SegmentStat{Path: "00001.tsm1"},
+					tsm1.SegmentStat{Path: "00002.tsm1"},
+					tsm1.SegmentStat{Path: "00003.tsm1"},
+					tsm1.SegmentStat{Path: "00004.tsm1"},
+					tsm1.SegmentStat{Path: "00005.tsm1"},
+				}, nil
+			},
+		},
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return []tsm1.FileStat{
+					tsm1.FileStat{Path: "000001.tsm1"},
+					tsm1.FileStat{Path: "000002.tsm1"},
+					tsm1.FileStat{Path: "000003.tsm1"},
+					tsm1.FileStat{Path: "000004.tsm1"},
+					tsm1.FileStat{Path: "000005.tsm1"},
+					tsm1.FileStat{Path: "000006.tsm1"},
+					tsm1.FileStat{
+						Path:         "000007.tsm1",
+						HasTombstone: true,
+					},
+					tsm1.FileStat{
+						Size: 51 * 1024 * 1024,
+					},
+				}
+			},
+		},
+	}
+
+	tsm, wal, err := cp.Plan()
+	if err != nil {
+		t.Fatalf("unexpected error running plan: %v", err)
+	}
+
+	if exp, got := 1, len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := 5, len(wal); got != exp {
+		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
+	}
+}
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
@@ -1491,5 +1834,20 @@ func MustTSMReader(dir string, values map[string][]tsm1.Value) *tsm1.TSMReader {
 		panic(fmt.Sprintf("new reader: %v", err))
 	}
 	return r
+}
 
+type fakeWAL struct {
+	ClosedSegmentsFn func() ([]tsm1.SegmentStat, error)
+}
+
+func (w *fakeWAL) ClosedSegments() ([]tsm1.SegmentStat, error) {
+	return w.ClosedSegmentsFn()
+}
+
+type fakeFileStore struct {
+	PathsFn func() []tsm1.FileStat
+}
+
+func (w *fakeFileStore) Stats() []tsm1.FileStat {
+	return w.PathsFn()
 }

@@ -39,30 +39,6 @@ type SegmentInfo struct {
 	id   int
 }
 
-type SegmentInfos []SegmentInfo
-
-func (sis SegmentInfos) Names() []string {
-	var names []string
-	for _, s := range sis {
-		names = append(names, s.name)
-	}
-	sort.Strings(names)
-	return names
-}
-
-func (sis SegmentInfos) IDs() []int {
-	var ids []int
-	for _, s := range sis {
-		id, err := idFromFileName(s.name)
-		if err != nil {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	sort.Ints(ids)
-	return ids
-}
-
 // walEntry is a byte written to a wal segment file that indicates what the following compressed block contains
 type walEntryType byte
 
@@ -95,6 +71,27 @@ type WAL struct {
 	// LoggingEnabled specifies if detailed logs should be output
 	LoggingEnabled bool
 }
+
+type SegmentStat struct {
+	Path             string
+	MinTime, MaxTime time.Time
+	MinKey, MaxKey   string
+}
+
+func (s SegmentPaths) IDs() []int {
+	var ids []int
+	for _, s := range s {
+		id, err := idFromFileName(s)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+type SegmentPaths []string
 
 func NewWAL(path string) *WAL {
 	return &WAL{
@@ -149,7 +146,7 @@ func (l *WAL) WritePoints(values map[string][]Value) (int, error) {
 	return id, nil
 }
 
-func (l *WAL) ClosedSegments() (SegmentInfos, error) {
+func (l *WAL) ClosedSegments() ([]SegmentStat, error) {
 	l.mu.RLock()
 	var activePath string
 	if l.currentSegmentWriter != nil {
@@ -168,21 +165,19 @@ func (l *WAL) ClosedSegments() (SegmentInfos, error) {
 		return nil, err
 	}
 
-	var sis SegmentInfos
+	var stats []SegmentStat
 	for _, fn := range files {
 		// Skip the active segment
 		if fn == activePath {
 			continue
 		}
 
-		id, err := idFromFileName(fn)
-		if err != nil {
-			return nil, err
-		}
-		si := SegmentInfo{name: fn, id: id}
-		sis = append(sis, si)
+		// FIXME: Add time and key range
+		stats = append(stats, SegmentStat{
+			Path: fn,
+		})
 	}
-	return sis, nil
+	return stats, nil
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {

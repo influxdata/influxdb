@@ -869,12 +869,27 @@ func (t *TSMReader) TimeRange() (time.Time, time.Time) {
 	return min, max
 }
 
+// KeyRange returns the min and max key across all keys in the file.
+func (t *TSMReader) KeyRange() (string, string) {
+	min, max := "", ""
+	if t.index.KeyCount() > 0 {
+		min = t.index.Key(0)
+		max = t.index.Key(t.index.KeyCount() - 1)
+	}
+	return min, max
+}
+
 func (t *TSMReader) Entries(key string) []*IndexEntry {
 	return t.index.Entries(key)
 }
 
 func (t *TSMReader) IndexSize() int {
 	return t.index.Size()
+}
+
+func (t *TSMReader) Size() int {
+	// FIXME: Implement this
+	return 0
 }
 
 // fileAccessor is file IO based block accessor.  It provides access to blocks
