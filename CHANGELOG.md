@@ -4,8 +4,10 @@
 - [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
 - [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
 - [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
+- [#4889](https://github.com/influxdb/influxdb/pull/4889): Implement close notifier and timeout on executors
 
 ### Bugfixes
+- [#4833](https://github.com/influxdb/influxdb/pull/4833): Fix SHOW MEASURMENTS for clusters. Thanks @li-ang!
 - [#4855](https://github.com/influxdb/influxdb/pull/4855): Fix race in TCP proxy shutdown. Thanks @runner-mei!
 - [#4411](https://github.com/influxdb/influxdb/pull/4411): Add Access-Control-Expose-Headers to HTTP responses
 - [#4768](https://github.com/influxdb/influxdb/pull/4768): CLI history skips blank lines. Thanks @pires
@@ -14,6 +16,8 @@
 - [#4796](https://github.com/influxdb/influxdb/pull/4796): Check point without fields. Thanks @CrazyJvm
 - [#4815](https://github.com/influxdb/influxdb/pull/4815): Added `Time` field into aggregate output across the cluster. Thanks @li-ang
 - [#4817](https://github.com/influxdb/influxdb/pull/4817): Fix Min,Max,Top,Bottom function when query distributed node. Thanks @mengjinglei
+- [#4878](https://github.com/influxdb/influxdb/pull/4878): Fix String() function for several InfluxQL statement types
+- [#4913](https://github.com/influxdb/influxdb/pull/4913): Fix b1 flush deadlock
 
 ## v0.9.5 [2015-11-20]
 
@@ -60,7 +64,6 @@ There are breaking changes in this release:
 - [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE. Thanks @ch33hau
 - [#4721](https://github.com/influxdb/influxdb/pull/4721): Export tsdb.InterfaceValues
 - [#4681](https://github.com/influxdb/influxdb/pull/4681): Increase default buffer size for collectd and graphite listeners
-- [#4659](https://github.com/influxdb/influxdb/pull/4659): Support IF EXISTS for DROP DATABASE
 - [#4685](https://github.com/influxdb/influxdb/pull/4685): Automatically promote node to raft peer if drop server results in removing a raft peer.
 - [#4846](https://github.com/influxdb/influxdb/pull/4846): Allow NaN as a valid value on the graphite service; discard these points silently (graphite compatibility). Thanks @jsternberg!
 

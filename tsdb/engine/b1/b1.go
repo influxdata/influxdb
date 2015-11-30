@@ -416,13 +416,13 @@ func (e *Engine) Flush(partitionFlushDelay time.Duration) error {
 
 // FlushPartition flushes a single WAL partition.
 func (e *Engine) FlushPartition(partitionID uint8) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	startTime := time.Now()
 
 	var pointN int
 	if err := e.db.Update(func(tx *bolt.Tx) error {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+
 		// Retrieve partition bucket. Exit if it doesn't exist.
 		pb := tx.Bucket([]byte("wal")).Bucket([]byte{byte(partitionID)})
 		if pb == nil {
@@ -459,7 +459,9 @@ func (e *Engine) FlushPartition(partitionID uint8) error {
 	}
 
 	// Reset cache.
+	e.mu.Lock()
 	e.cache[partitionID] = make(map[string][][]byte)
+	e.mu.Unlock()
 
 	if pointN > 0 {
 		e.logger.Printf("flush %d points in %.3fs", pointN, time.Since(startTime).Seconds())

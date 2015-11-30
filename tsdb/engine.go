@@ -47,6 +47,7 @@ const (
 	B1Format EngineFormat = iota
 	BZ1Format
 	TSM1Format
+	TSM1DevFormat
 )
 
 // NewEngineFunc creates a new engine.

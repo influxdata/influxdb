@@ -1196,7 +1196,7 @@ func (p *Parser) parseTagKeys() ([]string, error) {
 
 		// Parse required ) token.
 		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != RPAREN {
-			return nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
+			return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
 		}
 	} else if tok == EQ {
 		// Parse required tag key.
@@ -1781,7 +1781,7 @@ func (c *validateField) Visit(n Node) Visitor {
 	return c
 }
 
-// parseAlias parses the "AS (IDENT|STRING)" alias for fields and dimensions.
+// parseAlias parses the "AS IDENT" alias for fields and dimensions.
 func (p *Parser) parseAlias() (string, error) {
 	// Check if the next token is "AS". If not, then unscan and exit.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok != AS {

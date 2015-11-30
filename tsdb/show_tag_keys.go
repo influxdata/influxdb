@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
@@ -26,12 +27,12 @@ func NewShowTagKeysExecutor(stmt *influxql.ShowTagKeysStatement, mappers []Mappe
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *ShowTagKeysExecutor) Execute() <-chan *models.Row {
-	// Create output channel and stream data in a separate goroutine.
-	out := make(chan *models.Row, 0)
-
+func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Row {
 	// It's important that all resources are released when execution completes.
 	defer e.close()
+
+	// Create output channel and stream data in a separate goroutine.
+	out := make(chan *models.Row, 0)
 
 	go func() {
 		defer close(out)
@@ -109,7 +110,16 @@ func (e *ShowTagKeysExecutor) Execute() <-chan *models.Row {
 				row.Values = append(row.Values, v)
 			}
 
-			out <- row
+			select {
+			case out <- row:
+			case <-closing:
+				out <- &models.Row{Err: fmt.Errorf("execute was closed by caller")}
+				break
+			case <-time.After(30 * time.Second):
+				// This should never happen, so if it does, it is a problem
+				out <- &models.Row{Err: fmt.Errorf("execute was closed by read timeout")}
+				break
+			}
 		}
 	}()
 	return out

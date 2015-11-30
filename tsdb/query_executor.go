@@ -138,7 +138,7 @@ func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, datab
 // ExecuteQuery executes an InfluxQL query against the server.
 // It sends results down the passed in chan and closes it when done. It will close the chan
 // on the first statement that throws an error.
-func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
+func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 	// Execute each statement. Keep the iterator external so we can
 	// track how many of the statements were executed
 	results := make(chan *influxql.Result)
@@ -170,7 +170,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
 			case *influxql.SelectStatement:
-				if err := q.executeStatement(i, stmt, database, results, chunkSize); err != nil {
+				if err := q.executeStatement(i, stmt, database, results, chunkSize, closing); err != nil {
 					results <- &influxql.Result{Err: err}
 					break
 				}
@@ -183,12 +183,12 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				// TODO: handle this in a cluster
 				res = q.executeDropMeasurementStatement(stmt, database)
 			case *influxql.ShowMeasurementsStatement:
-				if err := q.executeStatement(i, stmt, database, results, chunkSize); err != nil {
+				if err := q.executeStatement(i, stmt, database, results, chunkSize, closing); err != nil {
 					results <- &influxql.Result{Err: err}
 					break
 				}
 			case *influxql.ShowTagKeysStatement:
-				if err := q.executeStatement(i, stmt, database, results, chunkSize); err != nil {
+				if err := q.executeStatement(i, stmt, database, results, chunkSize, closing); err != nil {
 					results <- &influxql.Result{Err: err}
 					break
 				}
@@ -696,7 +696,7 @@ func (q *QueryExecutor) PlanShowTagKeys(stmt *influxql.ShowTagKeysStatement, dat
 	return executor, nil
 }
 
-func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statement, database string, results chan *influxql.Result, chunkSize int) error {
+func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statement, database string, results chan *influxql.Result, chunkSize int, closing chan struct{}) error {
 	// Plan statement execution.
 	e, err := q.planStatement(stmt, database, chunkSize)
 	if err != nil {
@@ -704,7 +704,7 @@ func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statemen
 	}
 
 	// Execute plan.
-	ch := e.Execute()
+	ch := e.Execute(closing)
 	var writeerr error
 	var intoNum int64
 	var isinto bool
