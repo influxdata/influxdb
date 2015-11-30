@@ -716,7 +716,7 @@ func (t *tsmWriter) Size() int {
 }
 
 type TSMReader struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// accessor provides access and decoding of blocks for the reader
 	accessor blockAccessor
@@ -726,6 +726,8 @@ type TSMReader struct {
 
 	// tombstoner ensures tombstoned keys are not available by the index.
 	tombstoner *Tombstoner
+
+	size int64
 }
 
 // blockAccessor abstracts a method of accessing blocks from a
@@ -756,9 +758,26 @@ func NewTSMReader(r io.ReadSeeker) (*TSMReader, error) {
 func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
 	t := &TSMReader{}
 	if opt.Reader != nil {
-		t.accessor = &fileAccessor{r: opt.Reader}
+		// Seek to the end of the file to determine the size
+		size, err := opt.Reader.Seek(2, 0)
+		if err != nil {
+			return nil, err
+		}
+		t.size = size
+
+		t.accessor = &fileAccessor{
+			r: opt.Reader,
+		}
+
 	} else if opt.MMAPFile != nil {
-		t.accessor = &mmapAccessor{f: opt.MMAPFile}
+		stat, err := opt.MMAPFile.Stat()
+		if err != nil {
+			return nil, err
+		}
+		t.size = stat.Size()
+		t.accessor = &mmapAccessor{
+			f: opt.MMAPFile,
+		}
 	} else {
 		panic("invalid options: need Reader or MMAPFile")
 	}
@@ -888,8 +907,9 @@ func (t *TSMReader) IndexSize() int {
 }
 
 func (t *TSMReader) Size() int {
-	// FIXME: Implement this
-	return 0
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return int(t.size)
 }
 
 // fileAccessor is file IO based block accessor.  It provides access to blocks
