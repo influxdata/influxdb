@@ -154,10 +154,10 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		WAL:                        w,
 		RotateFileSize:             DefaultRotateFileSize,
 		MaxFileSize:                MaxDataFileSize,
-		CompactionAge:              opt.Config.IndexCompactionAge,
+		CompactionAge:              time.Duration(opt.Config.IndexCompactionAge),
 		MinCompactionFileCount:     opt.Config.IndexMinCompactionFileCount,
-		IndexCompactionFullAge:     opt.Config.IndexCompactionFullAge,
-		IndexMinCompactionInterval: opt.Config.IndexMinCompactionInterval,
+		IndexCompactionFullAge:     time.Duration(opt.Config.IndexCompactionFullAge),
+		IndexMinCompactionInterval: time.Duration(opt.Config.IndexMinCompactionInterval),
 		MaxPointsPerBlock:          DefaultMaxPointsPerBlock,
 	}
 	e.WAL.IndexWriter = e
