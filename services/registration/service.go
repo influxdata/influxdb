@@ -85,6 +85,11 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.logger = l
+}
+
 // Diagnostics returns diagnostics information.
 func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
 	diagnostics := map[string]interface{}{
