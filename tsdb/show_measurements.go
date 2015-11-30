@@ -28,13 +28,13 @@ func NewShowMeasurementsExecutor(stmt *influxql.ShowMeasurementsStatement, mappe
 
 // Execute begins execution of the query and returns a channel to receive rows.
 func (e *ShowMeasurementsExecutor) Execute(closing <-chan struct{}) <-chan *models.Row {
-	// It's important that all resources are released when execution completes.
-	e.close()
-
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *models.Row, 0)
 
 	go func() {
+		// It's important that all resources are released when execution completes.
+		defer e.close()
+
 		// Open the mappers.
 		for _, m := range e.mappers {
 			if err := m.Open(); err != nil {
