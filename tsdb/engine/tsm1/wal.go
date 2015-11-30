@@ -58,6 +58,9 @@ type WAL struct {
 	currentSegmentID     int
 	currentSegmentWriter *WALSegmentWriter
 
+	// walStats provides summary statistics on wal segment files
+	walStats *WALStats
+
 	// cache and flush variables
 	closing chan struct{}
 
@@ -74,6 +77,7 @@ type WAL struct {
 
 type SegmentStat struct {
 	Path             string
+	ID               int
 	MinTime, MaxTime time.Time
 	MinKey, MaxKey   string
 }
@@ -102,6 +106,8 @@ func NewWAL(path string) *WAL {
 		SegmentSize: DefaultSegmentSize,
 		logger:      log.New(os.Stderr, "[tsm1devwal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
+		walStats: &WALStats{Dir: path,
+			segmentStats: map[int]SegmentStat{}},
 	}
 }
 
@@ -127,6 +133,10 @@ func (l *WAL) Open() error {
 
 	l.closing = make(chan struct{})
 
+	if err := l.walStats.Open(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -148,36 +158,13 @@ func (l *WAL) WritePoints(values map[string][]Value) (int, error) {
 
 func (l *WAL) ClosedSegments() ([]SegmentStat, error) {
 	l.mu.RLock()
-	var activePath string
-	if l.currentSegmentWriter != nil {
-		activePath = l.currentSegmentWriter.Path()
-	}
-
+	defer l.mu.RUnlock()
 	// Not loading files from disk so nothing to do
 	if l.path == "" {
-		l.mu.RUnlock()
 		return nil, nil
 	}
-	l.mu.RUnlock()
 
-	files, err := l.segmentFileNames()
-	if err != nil {
-		return nil, err
-	}
-
-	var stats []SegmentStat
-	for _, fn := range files {
-		// Skip the active segment
-		if fn == activePath {
-			continue
-		}
-
-		// FIXME: Add time and key range
-		stats = append(stats, SegmentStat{
-			Path: fn,
-		})
-	}
-	return stats, nil
+	return l.walStats.Stats()
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
@@ -188,6 +175,11 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 		l.mu.RUnlock()
 		return -1, ErrWALClosed
 	default:
+	}
+
+	// Update segment stats
+	if l.currentSegmentWriter != nil {
+		l.walStats.Update(l.currentSegmentWriter.Path(), entry)
 	}
 	l.mu.RUnlock()
 
@@ -212,6 +204,7 @@ func (l *WAL) rollSegment() error {
 		l.mu.RUnlock()
 		l.mu.Lock()
 		defer l.mu.Unlock()
+
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
@@ -252,8 +245,8 @@ func (l *WAL) Close() error {
 }
 
 // segmentFileNames will return all files that are WAL segment files in sorted order by ascending ID
-func (l *WAL) segmentFileNames() ([]string, error) {
-	names, err := filepath.Glob(filepath.Join(l.path, fmt.Sprintf("%s*.%s", WALFilePrefix, WALFileExtension)))
+func segmentFileNames(dir string) ([]string, error) {
+	names, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("%s*.%s", WALFilePrefix, WALFileExtension)))
 	if err != nil {
 		return nil, err
 	}
@@ -278,6 +271,205 @@ func (l *WAL) newSegmentFile() error {
 	l.currentSegmentWriter = NewWALSegmentWriter(fd)
 
 	return nil
+}
+
+type WALStats struct {
+	mu sync.RWMutex
+
+	Dir string
+
+	currentPath      string
+	minKey, maxKey   string
+	minTime, maxTime time.Time
+	segmentStats     map[int]SegmentStat
+}
+
+// Open loads summary statistics from each WAL segment.
+func (w *WALStats) Open() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	files, err := segmentFileNames(w.Dir)
+	if err != nil {
+		return err
+	}
+
+	// Channel for loaded stats
+	statsCh := make(chan SegmentStat)
+
+	// Channel for loaded stats
+	errorsCh := make(chan error)
+	for _, fn := range files {
+		// Calculate each segments stats in a separate goroutine
+		go func() {
+			id, err := idFromFileName(fn)
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+
+			f, err := os.Open(fn)
+			if err != nil {
+				f.Close()
+				errorsCh <- err
+				return
+			}
+
+			r := NewWALSegmentReader(f)
+			defer r.Close()
+
+			var minKey, maxKey string
+			var minTime, maxTime time.Time
+			for r.Next() {
+				entry, err := r.Read()
+				if err != nil {
+					errorsCh <- err
+					return
+				}
+
+				// If we have a WriteWALEntry, scan each value to keep track of the key and
+				// time range.
+				if we, ok := entry.(*WriteWALEntry); ok {
+					eMinKey, eMaxKey, eMinTime, eMaxTime := w.ranges(we)
+					if minKey == "" || eMinKey < minKey {
+						minKey = eMinKey
+					}
+					if maxKey == "" || eMaxKey > minKey {
+						maxKey = eMaxKey
+					}
+					if minTime.IsZero() || eMinTime.Before(minTime) {
+						minTime = eMinTime
+					}
+					if maxTime.IsZero() || eMaxTime.After(maxTime) {
+						maxTime = eMaxTime
+					}
+				}
+			}
+
+			statsCh <- SegmentStat{
+				Path:    fn,
+				ID:      id,
+				MinTime: minTime,
+				MaxTime: maxTime,
+				MinKey:  minKey,
+				MaxKey:  maxKey,
+			}
+		}()
+
+		for i := 0; i < len(files); i++ {
+			select {
+			case err := <-errorsCh:
+				return err
+			case stat := <-statsCh:
+				w.segmentStats[stat.ID] = stat
+			}
+		}
+	}
+	return nil
+}
+
+func (w *WALStats) Update(path string, entry WALEntry) {
+	if w.currentPath != path {
+		w.reset(path)
+	}
+
+	var minKey, maxKey string
+	var minTime, maxTime time.Time
+
+	if we, ok := entry.(*WriteWALEntry); ok {
+		minKey, maxKey, minTime, maxTime = w.ranges(we)
+		w.mu.Lock()
+		w.updateSegmentStats(minKey, maxKey, minTime, maxTime)
+		w.mu.Unlock()
+	}
+}
+
+func (w *WALStats) Stats() ([]SegmentStat, error) {
+	files, err := segmentFileNames(w.Dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var stats []SegmentStat
+	for _, fn := range files {
+		// Skip the current segment
+		if fn == w.currentPath {
+			continue
+		}
+
+		id, err := idFromFileName(fn)
+		if err != nil {
+			return nil, err
+		}
+
+		stats = append(stats, w.segmentStats[id])
+	}
+
+	return stats, nil
+}
+
+func (w *WALStats) reset(path string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.currentPath == "" {
+		w.currentPath = path
+		return
+	}
+
+	id, err := idFromFileName(w.currentPath)
+	if err != nil {
+		return
+	}
+
+	w.segmentStats[id] = SegmentStat{
+		Path:    w.currentPath,
+		ID:      id,
+		MinKey:  w.minKey,
+		MaxKey:  w.maxKey,
+		MinTime: w.minTime,
+		MaxTime: w.maxTime,
+	}
+	w.minKey, w.maxKey = "", ""
+	w.minTime, w.maxTime = time.Unix(0, 0), time.Unix(0, 0)
+	w.currentPath = path
+}
+
+func (w *WALStats) ranges(we *WriteWALEntry) (minKey, maxKey string, minTime, maxTime time.Time) {
+	for k, v := range we.Values {
+		if k < minKey || minKey == "" {
+			minKey = k
+		}
+		if k > maxKey || maxKey == "" {
+			maxKey = k
+		}
+
+		for _, vv := range v {
+			if minTime.IsZero() || vv.Time().Before(minTime) {
+				minTime = vv.Time()
+			}
+			if maxTime.IsZero() || vv.Time().After(maxTime) {
+				maxTime = vv.Time()
+			}
+		}
+	}
+	return
+}
+
+func (w *WALStats) updateSegmentStats(minKey, maxKey string, minTime, maxTime time.Time) {
+	// Update our current segment stats
+	if w.minKey == "" || minKey < w.minKey {
+		w.minKey = minKey
+	}
+	if w.maxKey == "" || maxKey > w.maxKey {
+		w.maxKey = maxKey
+	}
+	if w.minTime.IsZero() || minTime.Before(w.minTime) {
+		w.minTime = minTime
+	}
+	if w.maxTime.IsZero() || maxTime.After(w.maxTime) {
+		w.minTime = minTime
+	}
 }
 
 // WALEntry is record stored in each WAL segment.  Each entry has a type
