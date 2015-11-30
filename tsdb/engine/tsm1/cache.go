@@ -107,7 +107,7 @@ func NewCache(maxSize uint64) *Cache {
 	}
 }
 
-// WriteKey writes the set of values for the key to the cache. It associates the data with
+// Write writes the set of values for the key to the cache. It associates the data with
 // the given checkpoint. This function is goroutine-safe.
 //
 // TODO: This function is a significant potential bottleneck. It is possible that keys could
@@ -117,24 +117,35 @@ func NewCache(maxSize uint64) *Cache {
 func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if checkpoint < c.checkpoint {
-		return ErrCacheInvalidCheckpoint
-	}
 
 	// Enough room in the cache?
 	if c.size+uint64(Values(values).Size()) > c.maxSize {
 		return ErrCacheMemoryExceeded
 	}
+	return c.write(key, values, checkpoint)
+}
 
-	e, ok := c.store[key]
-	if !ok {
-		e = newEntries()
-		c.store[key] = e
+// WriteMulti writes the map of keys and associated values to the cache. It associates the
+// data with the given checkpoint. This function is goroutine-safe.
+func (c *Cache) WriteMulti(values map[string][]Value, checkpoint uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	totalSz := 0
+	for _, v := range values {
+		totalSz += Values(v).Size()
 	}
-	oldSize := e.size
-	e.add(checkpoint, values)
-	c.size += e.size - oldSize
 
+	// Enough room in the cache?
+	if c.size+uint64(totalSz) > c.maxSize {
+		return ErrCacheMemoryExceeded
+	}
+
+	for k, v := range values {
+		if err := c.write(k, v, checkpoint); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -218,4 +229,24 @@ func (c *Cache) evict() {
 			delete(c.store, key)
 		}
 	}
+}
+
+// write writes the set of values for the key to the cache. It associates the data with
+// the given checkpoint. This function assumes the lock has been taken and does not
+// enforce the cache size limits.
+func (c *Cache) write(key string, values []Value, checkpoint uint64) error {
+	if checkpoint < c.checkpoint {
+		return ErrCacheInvalidCheckpoint
+	}
+
+	e, ok := c.store[key]
+	if !ok {
+		e = newEntries()
+		c.store[key] = e
+	}
+	oldSize := e.size
+	e.add(checkpoint, values)
+	c.size += e.size - oldSize
+
+	return nil
 }
