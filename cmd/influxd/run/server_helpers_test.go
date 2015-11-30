@@ -329,6 +329,8 @@ func (q *Query) failureMessage() string {
 	return fmt.Sprintf("%s: unexpected results\nquery:  %s\nexp:    %s\nactual: %s\n", q.name, q.command, q.exp, q.act)
 }
 
+type Tests map[string]Test
+
 type Test struct {
 	initialized bool
 	write       string
@@ -346,8 +348,43 @@ func NewTest(db, rp string) Test {
 	}
 }
 
+func (t Test) duplicate() Test {
+	test := Test{
+		initialized: t.initialized,
+		write:       t.write,
+		params:      t.params,
+		db:          t.db,
+		rp:          t.rp,
+		exp:         t.exp,
+		queries:     make([]*Query, len(t.queries)),
+	}
+	copy(test.queries, t.queries)
+	return test
+}
+
+func (t *Test) addWrite(s ...string) {
+	if len(t.write) > 0 {
+		t.write += "\n"
+	}
+	t.write = strings.Join(s, "\n")
+}
+
 func (t *Test) addQueries(q ...*Query) {
 	t.queries = append(t.queries, q...)
+}
+
+func (t *Test) database() string {
+	if t.db != "" {
+		return t.db
+	}
+	return "db0"
+}
+
+func (t *Test) retentionPolicy() string {
+	if t.rp != "" {
+		return t.rp
+	}
+	return "default"
 }
 
 func (t *Test) init(s *Server) error {
@@ -355,6 +392,13 @@ func (t *Test) init(s *Server) error {
 		return nil
 	}
 	t.initialized = true
+	if t.db == "" {
+		t.db = "db0"
+	}
+	if t.rp == "" {
+		t.rp = "rp0"
+	}
+
 	if res, err := s.Write(t.db, t.rp, t.write, t.params); err != nil {
 		return err
 	} else if t.exp != res {
@@ -370,7 +414,7 @@ func configureLogging(s *Server) {
 			SetLogger(*log.Logger)
 		}
 		nullLogger := log.New(ioutil.Discard, "", 0)
-		s.MetaStore.Logger = nullLogger
+		s.MetaStore.SetLogger(nullLogger)
 		s.TSDBStore.Logger = nullLogger
 		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
@@ -450,7 +494,7 @@ func NewClusterWithDefaults(size int) (*Cluster, error) {
 		return nil, err
 	}
 
-	r, err := c.Query(&Query{command: "CREATE DATABASE db"})
+	r, err := c.Query(&Query{command: "CREATE DATABASE db0"})
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +507,7 @@ func NewClusterWithDefaults(size int) (*Cluster, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to query databases on node %d for show databases", i+1)
 		}
-		if exp := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db"]]}]}]}`; got != exp {
+		if exp := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"]]}]}]}`; got != exp {
 			return nil, fmt.Errorf("unexpected result node %d\nexp: %s\ngot: %s\n", i+1, exp, got)
 		}
 	}
