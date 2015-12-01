@@ -448,13 +448,21 @@ func NewCluster(size int) (*Cluster, error) {
 		configureLogging(s)
 	}
 
+	if err := verifyCluster(&c, size); err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
+func verifyCluster(c *Cluster, size int) error {
 	r, err := c.Servers[0].Query("SHOW SERVERS")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var cl client.Response
 	if e := json.Unmarshal([]byte(r), &cl); e != nil {
-		return nil, e
+		return e
 	}
 
 	var leaderCount int
@@ -465,10 +473,10 @@ func NewCluster(size int) (*Cluster, error) {
 			for i, value := range series.Values {
 				addr := c.Servers[i].MetaStore.Addr.String()
 				if value[0].(float64) != float64(i+1) {
-					return nil, fmt.Errorf("expected nodeID %d, got %v", i, value[0])
+					return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
 				}
 				if value[1].(string) != addr {
-					return nil, fmt.Errorf("expected addr %s, got %v", addr, value[1])
+					return fmt.Errorf("expected addr %s, got %v", addr, value[1])
 				}
 				if value[2].(bool) {
 					raftCount++
@@ -480,15 +488,16 @@ func NewCluster(size int) (*Cluster, error) {
 		}
 	}
 	if leaderCount != 1 {
-		return nil, fmt.Errorf("expected 1 leader, got %d", leaderCount)
+		return fmt.Errorf("expected 1 leader, got %d", leaderCount)
 	}
 	if size < 3 && raftCount != size {
-		return nil, fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
+		return fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
 	}
 	if size >= 3 && raftCount != 3 {
-		return nil, fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
+		return fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
 	}
-	return &c, nil
+
+	return nil
 }
 
 func NewClusterWithDefaults(size int) (*Cluster, error) {
@@ -516,6 +525,32 @@ func NewClusterWithDefaults(size int) (*Cluster, error) {
 	}
 
 	return c, nil
+}
+
+func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluster, error) {
+	c := Cluster{}
+
+	config := NewConfig()
+	cb(0, config)
+
+	c.Servers = append(c.Servers, OpenServer(config, ""))
+	raftURL := c.Servers[0].MetaStore.Addr.String()
+
+	for i := 1; i < size; i++ {
+		config := NewConfig()
+		cb(i, config)
+		c.Servers = append(c.Servers, OpenServer(config, raftURL))
+	}
+
+	for _, s := range c.Servers {
+		configureLogging(s)
+	}
+
+	if err := verifyCluster(&c, size); err != nil {
+		return nil, err
+	}
+
+	return &c, nil
 }
 
 // Close shuts down all servers.
