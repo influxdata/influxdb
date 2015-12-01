@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdb/influxdb/cmd/influxd/run"
 )
 
 func TestCluster_CreateDatabase(t *testing.T) {
@@ -257,6 +259,47 @@ func TestCluster_Query_DropSeriesFromRegex(t *testing.T) {
 
 	_, err = s.Write(test.database(), test.retentionPolicy(), test.write, nil)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		t.Logf("Running %s", query.name)
+		if query.once {
+			if _, err := c.Query(query); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+			continue
+		}
+		if err := c.QueryAll(query); err != nil {
+			t.Error(query.Error(err))
+		}
+	}
+}
+
+func TestCluster_RetentionPolicyCommands(t *testing.T) {
+	t.Parallel()
+
+	configFunc := func(index int, config *run.Config) {
+		config.Meta.RetentionAutoCreate = false
+	}
+
+	c, err := NewClusterCustom(5, configFunc)
+
+	if err != nil {
+		t.Fatalf("error creating cluster: %s", err)
+	}
+	defer c.Close()
+
+	test := tests.load(t, "retention_policy_commands")
+
+	s := c.Servers[0]
+	if _, err := s.MetaStore.CreateDatabase(test.database()); err != nil {
 		t.Fatal(err)
 	}
 

@@ -205,79 +205,11 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	s := OpenServer(c, "")
 	defer s.Close()
 
-	// Create a database.
-	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
-		t.Fatal(err)
-	}
+	test := tests.load(t, "retention_policy_commands")
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create retention policy should succeed",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create retention policy should error if it already exists",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy already exists"}]}`,
-			},
-			&Query{
-				name:    "show retention policy should succeed",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}`,
-			},
-			&Query{
-				name:    "alter retention policy should succeed",
-				command: `ALTER RETENTION POLICY rp0 ON db0 DURATION 2h REPLICATION 3 DEFAULT`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should have new altered information",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "dropping default retention policy should not succeed",
-				command: `DROP RETENTION POLICY rp0 ON db0`,
-				exp:     `{"results":[{"error":"retention policy is default"}]}`,
-			},
-			&Query{
-				name:    "show retention policy should still show policy",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "create a second non-default retention policy",
-				command: `CREATE RETENTION POLICY rp2 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should show both",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true],["rp2","1h0m0s",1,false]]}]}]}`,
-			},
-			&Query{
-				name:    "dropping non-default retention policy succeed",
-				command: `DROP RETENTION POLICY rp2 ON db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should show just default",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "Ensure retention policy with unacceptable retention cannot be created",
-				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy duration must be at least 1h0m0s"}]}`,
-			},
-			&Query{
-				name:    "Check error when deleting retention policy on non-existent database",
-				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
-				exp:     `{"results":[{"error":"database not found: mydatabase"}]}`,
-			},
-		},
+	// Create a database.
+	if _, err := s.MetaStore.CreateDatabase(test.database()); err != nil {
+		t.Fatal(err)
 	}
 
 	for _, query := range test.queries {
