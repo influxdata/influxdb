@@ -237,22 +237,21 @@ type devCursor struct {
 func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
 	// Seek to position in cache index.
 	c.position = sort.Search(len(c.cache), func(i int) bool {
-		return c.cache[i].Time().UnixNano() >= seek
+		if c.ascending {
+			return c.cache[i].Time().UnixNano() >= seek
+		}
+		return c.cache[i].Time().UnixNano() <= seek
 	})
 
 	if len(c.cache) == 0 {
 		c.cacheKeyBuf = tsdb.EOF
 	}
 
-	if c.ascending {
-		if c.position < len(c.cache) {
-			c.cacheKeyBuf = c.cache[c.position].Time().UnixNano()
-			c.cacheValueBuf = c.cache[c.position].Value()
-		} else {
-			c.cacheKeyBuf = tsdb.EOF
-		}
+	if c.position < len(c.cache) {
+		c.cacheKeyBuf = c.cache[c.position].Time().UnixNano()
+		c.cacheValueBuf = c.cache[c.position].Value()
 	} else {
-
+		c.cacheKeyBuf = tsdb.EOF
 	}
 
 	// TODO: Get the first block from tsm files for the given 'seek'
@@ -308,16 +307,9 @@ func (c *devCursor) read() (int64, interface{}) {
 
 // nextCache returns the next value from the cache.
 func (c *devCursor) nextCache() (int64, interface{}) {
-	if c.ascending {
-		c.position++
-		if c.position >= len(c.cache) {
-			return tsdb.EOF, nil
-		}
-	} else {
-		c.position--
-		if c.position < 0 {
-			return tsdb.EOF, nil
-		}
+	c.position++
+	if c.position >= len(c.cache) {
+		return tsdb.EOF, nil
 	}
 	return c.cache[c.position].UnixNano(), c.cache[c.position].Value()
 }
