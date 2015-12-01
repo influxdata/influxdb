@@ -231,20 +231,7 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create database should succeed",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policies should return auto-created policy",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
-			},
-		},
-	}
+	test := tests.load(t, "retention_policy_auto_create")
 
 	for _, query := range test.queries {
 		if query.skip {

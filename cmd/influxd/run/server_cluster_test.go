@@ -322,3 +322,34 @@ func TestCluster_RetentionPolicyCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestCluster_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
+	t.Parallel()
+	t.Skip()
+	c, err := NewCluster(5)
+	if err != nil {
+		t.Fatalf("error creating cluster: %s", err)
+	}
+	defer c.Close()
+
+	test := tests.load(t, "retention_policy_auto_create")
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		t.Logf("Running %s", query.name)
+		if query.once {
+			if _, err := c.Query(query); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+			continue
+		}
+		if err := c.QueryAll(query); err != nil {
+			t.Error(query.Error(err))
+		}
+	}
+}
