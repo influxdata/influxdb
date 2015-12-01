@@ -770,93 +770,99 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		qmax = m.qmax + 1
 	}
 
-	for _, c := range cursorSet.Cursors {
-		mapperValue := &MapperValue{
-			Time:  tmin,
-			Value: make([]interface{}, len(m.mapFuncs)),
-		}
-
-		for i := range m.mapFuncs {
-			// Build a map input from the cursor.
-			input := &MapInput{
-				TMin:  -1,
-				Items: readMapItems(c, m.fieldNames[i], qmin, qmin, qmax),
-			}
-			if len(m.stmt.Dimensions) > 0 && !m.stmt.HasTimeFieldSpecified() {
-				input.TMin = tmin
-			}
-
-			// Execute the map function which walks the entire interval, and aggregates the result.
-			value := m.mapFuncs[i](input)
-			if value == nil {
-				continue
-			}
-			mapperValue.Value.([]interface{})[i] = value
-		}
-		output.Values = append(output.Values, mapperValue)
+	mapperValue := &MapperValue{
+		Time:  tmin,
+		Value: make([]interface{}, len(m.mapFuncs)),
 	}
+
+	for i := range m.mapFuncs {
+		// Build a map input from the cursor.
+		input := &MapInput{
+			TMin:  -1,
+			Items: readMapItems(cursorSet.Cursors, m.fieldNames[i], qmin, qmin, qmax),
+		}
+
+		if len(m.stmt.Dimensions) > 0 && !m.stmt.HasTimeFieldSpecified() {
+			input.TMin = tmin
+		}
+
+		// Execute the map function which walks the entire interval, and aggregates the result.
+		value := m.mapFuncs[i](input)
+		if value == nil {
+			continue
+		}
+		mapperValue.Value.([]interface{})[i] = value
+	}
+	output.Values = append(output.Values, mapperValue)
 
 	return output, nil
 }
 
-func readMapItems(c *TagsCursor, field string, seek, tmin, tmax int64) []MapItem {
+func readMapItems(cursors []*TagsCursor, field string, seek, tmin, tmax int64) []MapItem {
 	var items []MapItem
-	var seeked bool
-	for {
-		var timestamp int64
-		var value interface{}
-		if !seeked {
-			timestamp, value = c.SeekTo(seek)
-			seeked = true
-		} else {
-			timestamp, value = c.Next()
-		}
 
-		// We're done if the point is outside the query's time range [tmin:tmax).
-		if timestamp != tmin && (timestamp < tmin || timestamp >= tmax) {
-			return items
-		}
+	for _, c := range cursors {
+		seeked := false
 
-		// Convert values to fields map.
-		fields, ok := value.(map[string]interface{})
-		if !ok {
-			fields = map[string]interface{}{"": value}
-		}
+		for {
+			var timestamp int64
+			var value interface{}
 
-		// Value didn't match, look for the next one.
-		if value == nil {
-			continue
-		}
-
-		// Filter value.
-		if c.filter != nil {
-			// Convert value to a map for filter evaluation.
-			m, ok := value.(map[string]interface{})
-			if !ok {
-				m = map[string]interface{}{field: value}
+			if !seeked {
+				timestamp, value = c.SeekTo(seek)
+				seeked = true
+			} else {
+				timestamp, value = c.Next()
 			}
 
-			// If filter fails then skip to the next value.
-			if !influxql.EvalBool(c.filter, m) {
+			// We're done if the point is outside the query's time range [tmin:tmax).
+			if timestamp != tmin && (timestamp < tmin || timestamp >= tmax) {
+				break
+			}
+
+			// Convert values to fields map.
+			fields, ok := value.(map[string]interface{})
+			if !ok {
+				fields = map[string]interface{}{"": value}
+			}
+
+			// Value didn't match, look for the next one.
+			if value == nil {
 				continue
 			}
-		}
 
-		// Filter out single field, if specified.
-		if m, ok := value.(map[string]interface{}); ok {
-			value = m[field]
-		}
-		if value == nil {
-			continue
-		}
+			// Filter value.
+			if c.filter != nil {
+				// Convert value to a map for filter evaluation.
+				m, ok := value.(map[string]interface{})
+				if !ok {
+					m = map[string]interface{}{field: value}
+				}
 
-		items = append(items, MapItem{
-			Timestamp: timestamp,
-			Value:     value,
-			Fields:    fields,
-			Tags:      c.tags,
-		})
+				// If filter fails then skip to the next value.
+				if !influxql.EvalBool(c.filter, m) {
+					continue
+				}
+			}
+
+			// Filter out single field, if specified.
+			if m, ok := value.(map[string]interface{}); ok {
+				value = m[field]
+			}
+			if value == nil {
+				continue
+			}
+
+			items = append(items, MapItem{
+				Timestamp: timestamp,
+				Value:     value,
+				Fields:    fields,
+				Tags:      c.tags,
+			})
+		}
+		seeked = false
 	}
+	return items
 }
 
 // nextInterval returns the next interval for which to return data.
