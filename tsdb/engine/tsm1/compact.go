@@ -131,34 +131,22 @@ type Compactor struct {
 		NextID() int
 	}
 
+	Cache *Cache
+
 	merge *MergeIterator
 }
 
 // Compact converts WAL segements and TSM files into new TSM files.
 func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
-	var walReaders []*WALSegmentReader
-
-	// For each segment, create a reader to iterate over each WAL entry
-	for _, path := range walSegments {
-		f, err := os.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		r := NewWALSegmentReader(f)
-		defer r.Close()
-
-		walReaders = append(walReaders, r)
-	}
-
 	var wal KeyIterator
 	var err error
-	if len(walReaders) > 0 {
+	if len(walSegments) > 0 {
+		ids := SegmentPaths(walSegments).IDs()
+		min, max := uint64(ids[0]), uint64(ids[len(ids)-1])
+
 		// WALKeyIterator allows all the segments to be ordered by key and
 		// sorted values during compaction.
-		wal, err = NewWALKeyIterator(walReaders...)
-		if err != nil {
-			return nil, err
-		}
+		wal = NewCacheKeyIterator(c.Cache, min, max)
 	}
 
 	// For each TSM file, create a TSM reader
@@ -364,7 +352,21 @@ func (m *MergeIterator) Next() bool {
 
 	// Otherwise, append the wal values to the tsm values and sort, dedup.  We want
 	// the wal values to overwrite any tsm values so they are append second.
-	m.values = Values(append(m.tsmBuf[m.key], m.walBuf[m.key]...)).Deduplicate()
+	var dedup bool
+	if len(m.walBuf[m.key]) > 0 && len(m.tsmBuf[m.key]) > 0 {
+		tsmVals := m.tsmBuf[m.key]
+		walPoint := m.walBuf[m.key][0].Time()
+		tsmPoint := tsmVals[len(tsmVals)-1].Time()
+		if walPoint.Before(tsmPoint) || walPoint.Equal(tsmPoint) {
+			dedup = true
+		}
+	}
+
+	m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
+
+	if dedup {
+		m.values = Values(m.values).Deduplicate()
+	}
 
 	// Remove the values from our buffer since they are all moved into the current chunk
 	delete(m.tsmBuf, m.key)
@@ -586,12 +588,6 @@ func (k *tsmKeyIterator) Next() bool {
 		k.key = k.currentKey()
 	}
 
-	// We have a key, so sort and de-dup the value. This could also be made more efficient
-	// in the common case since values across files should not overlap.  We could append or
-	// prepend in the loop above based on the min/max time in each readers slice.
-	// if k.key != "" && dedup {
-	// 	k.values[k.key] = Values(k.values[k.key]).Deduplicate()
-	// }
 	return len(k.values) > 0
 }
 
@@ -622,5 +618,41 @@ func (k *tsmKeyIterator) Close() error {
 			return err
 		}
 	}
+	return nil
+}
+
+type cacheKeyIterator struct {
+	cache    *Cache
+	min, max uint64
+
+	k     string
+	order []string
+}
+
+func NewCacheKeyIterator(cache *Cache, min, max uint64) KeyIterator {
+	keys := cache.KeyRange(min, max)
+
+	return &cacheKeyIterator{
+		cache: cache,
+		order: keys,
+		min:   min,
+		max:   max,
+	}
+}
+
+func (c *cacheKeyIterator) Next() bool {
+	if len(c.order) == 0 {
+		return false
+	}
+	c.k = c.order[0]
+	c.order = c.order[1:]
+	return true
+}
+
+func (c *cacheKeyIterator) Read() (string, []Value, error) {
+	return c.k, c.cache.ValuesRange(c.k, c.min, c.max), nil
+}
+
+func (c *cacheKeyIterator) Close() error {
 	return nil
 }

@@ -227,7 +227,7 @@ func TestKeyIterator_WALSegment_MultiplePointsSorted(t *testing.T) {
 	}
 }
 
-// // Tests that multiple keys are iterated over in sorted order
+// Tests that multiple keys are iterated over in sorted order
 func TestKeyIterator_WALSegment_MultipleKeysSorted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -371,8 +371,8 @@ func TestKeyIterator_WALSegment_MultipleKeysDeleted(t *testing.T) {
 	}
 }
 
-// // Tests that writes, deletes followed by more writes returns the the
-// // correct values.
+// Tests that writes, deletes followed by more writes returns the the
+// correct values.
 func TestKeyIterator_WALSegment_WriteAfterDelete(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -1023,7 +1023,7 @@ func TestMergeIterator_TSM_DeletedKeys(t *testing.T) {
 	}
 }
 
-// // Tests compacting a single wal segment into one tsm file
+//  Tests compacting a single wal segment into one tsm file
 func TestCompactor_SingleWALSegment(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -1037,27 +1037,20 @@ func TestCompactor_SingleWALSegment(t *testing.T) {
 		"cpu,host=B#!~#value": []tsm1.Value{v2, v3},
 	}
 
-	entries := []tsm1.WALEntry{
-		&tsm1.WriteWALEntry{
-			Values: points1,
-		},
-	}
-	f := MustTempFile(dir)
-	defer f.Close()
-
-	w := tsm1.NewWALSegmentWriter(f)
-	for _, e := range entries {
-		if err := w.Write(e); err != nil {
-			t.Fatalf("unexpected error writing entry: %v", err)
+	c := tsm1.NewCache(0)
+	for k, v := range points1 {
+		if err := c.Write(k, v, 1); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
 	}
 
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
 		FileStore: &fakeFileStore{},
+		Cache:     c,
 	}
 
-	files, err := compactor.Compact(nil, []string{f.Name()})
+	files, err := compactor.Compact(nil, []string{"_00001.wal"})
 	if err != nil {
 		t.Fatalf("unexpected error compacting: %v", err)
 	}
@@ -1066,7 +1059,7 @@ func TestCompactor_SingleWALSegment(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	f, err = os.Open(files[0])
+	f, err := os.Open(files[0])
 	if err != nil {
 		t.Fatalf("unexpected error openting tsm: %v", err)
 	}
@@ -1119,23 +1112,11 @@ func TestCompactor_MultipleWALSegment(t *testing.T) {
 		"cpu,host=B#!~#value": []tsm1.Value{v2},
 	}
 
-	entries := []tsm1.WALEntry{
-		&tsm1.WriteWALEntry{
-			Values: points1,
-		},
-	}
-
-	f1 := MustTempFile(dir)
-	defer f1.Close()
-
-	w := tsm1.NewWALSegmentWriter(f1)
-	for _, e := range entries {
-		if err := w.Write(e); err != nil {
-			t.Fatalf("unexpected error writing entry: %v", err)
+	c := tsm1.NewCache(0)
+	for k, v := range points1 {
+		if err := c.Write(k, v, 1); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
-	}
-	if err := w.Close(); err != nil {
-		t.Fatalf("unexpected error closing writer: %v", err)
 	}
 
 	// Second WAL segment
@@ -1148,31 +1129,19 @@ func TestCompactor_MultipleWALSegment(t *testing.T) {
 		"cpu,host=B#!~#value": []tsm1.Value{v4},
 	}
 
-	entries = []tsm1.WALEntry{
-		&tsm1.WriteWALEntry{
-			Values: points2,
-		},
-	}
-
-	f2 := MustTempFile(dir)
-	defer f2.Close()
-
-	w = tsm1.NewWALSegmentWriter(f2)
-	for _, e := range entries {
-		if err := w.Write(e); err != nil {
-			t.Fatalf("unexpected error writing entry: %v", err)
+	for k, v := range points2 {
+		if err := c.Write(k, v, 2); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
 		}
-	}
-	if err := w.Close(); err != nil {
-		t.Fatalf("unexpected error closing writer: %v", err)
 	}
 
 	compactor := &tsm1.Compactor{
 		Dir:       dir,
 		FileStore: &fakeFileStore{},
+		Cache:     c,
 	}
 
-	files, err := compactor.Compact(nil, []string{f1.Name(), f2.Name()})
+	files, err := compactor.Compact(nil, []string{"_00001.wal", "_00002.wal"})
 	if err != nil {
 		t.Fatalf("unexpected error compacting: %v", err)
 	}
@@ -1417,6 +1386,125 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 
 		assertValueEqual(t, values[0], data[0].value)
 		data = data[1:]
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+func TestKeyIterator_Cache_Single(t *testing.T) {
+	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0},
+	}
+
+	c := tsm1.NewCache(0)
+
+	for k, v := range writes {
+		if err := c.Write(k, v, 1); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
+		}
+	}
+
+	iter := tsm1.NewCacheKeyIterator(c, 0, 10)
+	var readValues bool
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), len(writes); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for _, v := range values {
+			readValues = true
+			assertValueEqual(t, v, v0)
+		}
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+func TestKeyIterator_Cache_CheckpoinMiss(t *testing.T) {
+	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0},
+	}
+
+	c := tsm1.NewCache(0)
+
+	for k, v := range writes {
+		if err := c.Write(k, v, 1); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
+		}
+	}
+
+	iter := tsm1.NewCacheKeyIterator(c, 2, 10)
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, ""; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 0; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+	}
+}
+
+// Tests that duplicate point values are merged
+func TestKeyIterator_Cache_Duplicate(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v2},
+	}
+
+	c := tsm1.NewCache(0)
+
+	for k, v := range writes {
+		if err := c.Write(k, v, 1); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
+		}
+	}
+
+	iter := tsm1.NewCacheKeyIterator(c, 0, 10)
+
+	var readValues bool
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		readValues = true
+		assertValueEqual(t, values[0], v2)
 	}
 
 	if !readValues {

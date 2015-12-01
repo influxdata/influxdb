@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -45,10 +44,13 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 
 	fs := NewFileStore(path)
 
+	cache := NewCache(uint64(opt.Config.WALMaxMemorySizeThreshold))
+
 	c := &Compactor{
 		Dir:         path,
 		MaxFileSize: maxTSMFileSize,
 		FileStore:   fs,
+		Cache:       cache,
 	}
 
 	e := &DevEngine{
@@ -56,7 +58,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		logger: log.New(os.Stderr, "[tsm1dev] ", log.LstdFlags),
 
 		WAL:   w,
-		Cache: NewCache(uint64(opt.Config.WALMaxMemorySizeThreshold)),
+		Cache: cache,
 
 		FileStore: fs,
 		Compactor: c,
@@ -127,7 +129,7 @@ func (e *DevEngine) WritePoints(points []models.Point, measurementFieldsToSave m
 	values := map[string][]Value{}
 	for _, p := range points {
 		for k, v := range p.Fields() {
-			key := fmt.Sprintf("%s%s%s", p.Key(), keyFieldSeparator, k)
+			key := string(p.Key()) + keyFieldSeparator + k
 			values[key] = append(values[key], NewValue(p.Time(), v))
 		}
 	}
@@ -200,8 +202,10 @@ func (e *DevEngine) compact() {
 		}
 
 		// Inform cache data may be evicted.
-		ids := SegmentPaths(segments).IDs()
-		e.Cache.SetCheckpoint(uint64(ids[len(ids)-1]))
+		if len(segments) > 0 {
+			ids := SegmentPaths(segments).IDs()
+			e.Cache.SetCheckpoint(uint64(ids[len(ids)-1]))
+		}
 
 		e.logger.Printf("compacted %d segments, %d tsm into %d files in %s",
 			len(segments), len(tsmFiles), len(files), time.Since(start))
