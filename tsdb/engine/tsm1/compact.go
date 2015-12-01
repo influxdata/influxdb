@@ -287,7 +287,7 @@ func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
 	// sort and dedup all the points for each key.
 	for k, v := range series {
 		order = append(order, k)
-		series[k] = v.Deduplicate()
+		series[k] = v.Deduplicate(true)
 	}
 	sort.Strings(order)
 

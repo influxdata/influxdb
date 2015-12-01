@@ -1656,12 +1656,12 @@ func (e *Engine) DecodeAndCombine(newValues Values, block, buf []byte, nextTime 
 		})
 		values = append(values, newValues[:pos]...)
 		remainingValues = newValues[pos:]
-		values = Values(values).Deduplicate()
+		values = Values(values).Deduplicate(true)
 	} else {
 		requireSort := Values(values).MaxTime() >= newValues.MinTime()
 		values = append(values, newValues...)
 		if requireSort {
-			values = Values(values).Deduplicate()
+			values = Values(values).Deduplicate(true)
 		}
 	}
 
