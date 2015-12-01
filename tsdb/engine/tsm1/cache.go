@@ -198,8 +198,8 @@ func (c *Cache) Evict() {
 	c.evict()
 }
 
-// Values returns a copy of all values, deduped and sorted, for the given key.
-func (c *Cache) Values(key string) Values {
+// Values returns a copy of all values, deduped and sorted as requested, for the given key.
+func (c *Cache) Values(key string, ascending bool) Values {
 	values := func() Values {
 		c.mu.RLock()
 		defer c.mu.RUnlock()
@@ -215,7 +215,7 @@ func (c *Cache) Values(key string) Values {
 	if values == nil {
 		return nil
 	}
-	return values.Deduplicate(true)
+	return values.Deduplicate(ascending)
 }
 
 // evict instructs the cache to evict data up to and including the current checkpoint.

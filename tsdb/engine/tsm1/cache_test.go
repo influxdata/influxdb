@@ -171,7 +171,7 @@ func Test_CacheValues(t *testing.T) {
 	v4 := NewValue(time.Unix(4, 0).UTC(), 4.0)
 
 	c := MustNewCache(512)
-	if deduped := c.Values("no such key"); deduped != nil {
+	if deduped := c.Values("no such key", true); deduped != nil {
 		t.Fatalf("Values returned for no such key")
 	}
 
@@ -182,9 +182,14 @@ func Test_CacheValues(t *testing.T) {
 		t.Fatalf("failed to write 1 value, key foo to cache: %s", err.Error())
 	}
 
-	expValues := Values{v3, v1, v2, v4}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
-		t.Fatalf("deduped values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	expAscValues := Values{v3, v1, v2, v4}
+	if deduped := c.Values("foo", true); !reflect.DeepEqual(expAscValues, deduped) {
+		t.Fatalf("deduped ascending values for foo incorrect, exp: %v, got %v", expAscValues, deduped)
+	}
+
+	expDescValues := Values{v4, v2, v1, v3}
+	if deduped := c.Values("foo", false); !reflect.DeepEqual(expDescValues, deduped) {
+		t.Fatalf("deduped descending values for foo incorrect, exp: %v, got %v", expDescValues, deduped)
 	}
 }
 
