@@ -546,9 +546,10 @@ func (c *Cluster) QueryAll(q *Query) error {
 	}
 
 	timeoutErr := fmt.Errorf("timed out waiting for response")
-	timeout := time.After(20 * time.Second)
 
 	queryAll := func() error {
+		// if a server doesn't return in 5 seconds, fail the response
+		timeout := time.After(5 * time.Second)
 		ch := make(chan Response, 0)
 
 		for _, s := range c.Servers {
@@ -587,18 +588,17 @@ func (c *Cluster) QueryAll(q *Query) error {
 	}
 
 	tick := time.Tick(100 * time.Millisecond)
+	// if we don't reach consensus in 20 seconds, fail the query
+	timeout := time.After(20 * time.Second)
+
 	if err := queryAll(); err == nil {
 		return nil
-	} else if err != timeoutErr {
-		return err
 	}
 	for {
 		select {
 		case <-tick:
 			if err := queryAll(); err == nil {
 				return nil
-			} else if err != timeoutErr {
-				return err
 			}
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for response")
