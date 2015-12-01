@@ -71,12 +71,6 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 		return nil, nil, err
 	}
 
-	// Limit the number of WAL segments we compact in one keep compaction times
-	// more consistent.
-	if len(wal) > maxCompactionSegments {
-		wal = wal[:maxCompactionSegments]
-	}
-
 	tsmStats := c.FileStore.Stats()
 
 	var walPaths []string
@@ -284,7 +278,7 @@ type MergeIterator struct {
 	size int
 
 	// key is the current iteration series key
-	key string
+	key, walKey, tsmKey string
 
 	// walBuf is the remaining values from the last wal Read call
 	walBuf map[string][]Value
@@ -326,9 +320,8 @@ func (m *MergeIterator) Next() bool {
 	if len(m.tsmBuf) == 0 && m.tsm != nil && m.tsm.Next() {
 		k, v, err := m.tsm.Read()
 		m.err = err
+		m.tsmKey = k
 		if len(v) > 0 {
-			// Prepend these values to the buffer since we may have cache entries
-			// that should take precedence
 			m.tsmBuf[k] = v
 		}
 	}
@@ -337,12 +330,12 @@ func (m *MergeIterator) Next() bool {
 	if len(m.walBuf) == 0 && m.wal != nil && m.wal.Next() {
 		k, v, err := m.wal.Read()
 		m.err = err
+		m.walKey = k
 		if len(v) > 0 {
 			m.walBuf[k] = v
 		}
 	}
 
-	// This is the smallest key across the wal and tsm maps
 	m.key = m.currentKey()
 
 	// No more keys, we're done.
@@ -362,7 +355,15 @@ func (m *MergeIterator) Next() bool {
 		}
 	}
 
-	m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
+	// Only have wal values? Use the wal buf
+	if len(m.tsmBuf) == 0 && len(m.walBuf[m.key]) > 0 {
+		m.values = m.walBuf[m.key]
+		// Only have tsm values? Use the wal buf
+	} else if len(m.walBuf[m.key]) == 0 && len(m.tsmBuf[m.key]) > 0 {
+		m.values = m.tsmBuf[m.key]
+	} else {
+		m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
+	}
 
 	if dedup {
 		m.values = Values(m.values).Deduplicate()
@@ -396,19 +397,20 @@ func (m *MergeIterator) Close() error {
 }
 
 func (m *MergeIterator) currentKey() string {
-	var keys []string
-	for k := range m.walBuf {
-		keys = append(keys, k)
+	var key string
+	// This is the smallest key across the wal and tsm maps
+	if m.tsmKey == "" && m.walKey == "" {
+		key = ""
+	} else if m.tsmKey != "" && m.walKey == "" {
+		key = m.tsmKey
+	} else if m.walKey != "" && m.tsmKey == "" {
+		key = m.walKey
+	} else if m.walKey < m.tsmKey {
+		key = m.walKey
+	} else {
+		key = m.tsmKey
 	}
-	for k := range m.tsmBuf {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	if len(keys) > 0 {
-		return keys[0]
-	}
-	return ""
+	return key
 }
 
 // KeyIterator allows iteration over set of keys and values in sorted order.

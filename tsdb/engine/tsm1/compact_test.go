@@ -1542,50 +1542,6 @@ func TestDefaultCompactionPlanner_OnlyWAL(t *testing.T) {
 	}
 }
 
-func TestDefaultCompactionPlanner_Max10WAL(t *testing.T) {
-	cp := &tsm1.DefaultPlanner{
-		WAL: &fakeWAL{
-			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
-				return []tsm1.SegmentStat{
-					tsm1.SegmentStat{Path: "00001.tsm1"},
-					tsm1.SegmentStat{Path: "00002.tsm1"},
-					tsm1.SegmentStat{Path: "00003.tsm1"},
-					tsm1.SegmentStat{Path: "00004.tsm1"},
-					tsm1.SegmentStat{Path: "00005.tsm1"},
-					tsm1.SegmentStat{Path: "00006.tsm1"},
-					tsm1.SegmentStat{Path: "00007.tsm1"},
-					tsm1.SegmentStat{Path: "00008.tsm1"},
-					tsm1.SegmentStat{Path: "00009.tsm1"},
-					tsm1.SegmentStat{Path: "00010.tsm1"},
-					tsm1.SegmentStat{Path: "00011.tsm1"},
-				}, nil
-			},
-		},
-		FileStore: &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					tsm1.FileStat{
-						Path: "000001.tsm",
-					},
-				}
-			},
-		},
-	}
-
-	tsm, wal, err := cp.Plan()
-	if err != nil {
-		t.Fatalf("unexpected error running plan: %v", err)
-	}
-
-	if exp, got := 0, len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if exp, got := 10, len(wal); got != exp {
-		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
-	}
-}
-
 func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
@@ -1707,7 +1663,7 @@ func TestDefaultCompactionPlanner_NoRewrite_MaxWAL(t *testing.T) {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if exp, got := 10, len(wal); got != exp {
+	if exp, got := 11, len(wal); got != exp {
 		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
 	}
 }
