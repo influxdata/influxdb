@@ -96,11 +96,21 @@ func Test_DevEngineCacheQueryDescending(t *testing.T) {
 
 	// Start a query transactions and get a cursor.
 	tx := devTx{engine: e.(*DevEngine)}
-	ascCursor := tx.Cursor("cpu,host=A", []string{"value"}, nil, false)
+	descCursor := tx.Cursor("cpu,host=A", []string{"value"}, nil, false)
 
-	k, v := ascCursor.SeekTo(4000000000)
+	k, v := descCursor.SeekTo(4000000000)
 	if k != 3000000000 {
 		t.Fatalf("failed to seek to before last key: %v %v", k, v)
+	}
+
+	k, v = descCursor.Next()
+	if k != 2000000000 {
+		t.Fatalf("failed to get next key: %v %v", k, v)
+	}
+
+	k, v = descCursor.SeekTo(1)
+	if k != -1 {
+		t.Fatalf("failed to seek to after first key: %v %v", k, v)
 	}
 }
 

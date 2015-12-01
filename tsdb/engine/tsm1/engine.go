@@ -214,7 +214,7 @@ type devTx struct {
 // Cursor returns a cursor for all cached and TSM-based data.
 func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	return &devCursor{
-		cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
+		cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0]), ascending),
 		ascending: ascending,
 	}
 }
