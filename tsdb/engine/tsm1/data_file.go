@@ -398,6 +398,8 @@ func (d *directIndex) Size() int {
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
 // implementation can be used for indexes that may be MMAPed into memory.
 type indirectIndex struct {
+	mu sync.RWMutex
+
 	// indirectIndex works a follows.  Assuming we have an index structure in memory as
 	// the diagram below:
 	//
@@ -500,6 +502,9 @@ func (d *indirectIndex) search(key string) int {
 
 // Entries returns all index entries for a key.
 func (d *indirectIndex) Entries(key string) []*IndexEntry {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	ofs := d.search(key)
 	if ofs < len(d.b) {
 		n, k, err := readKey(d.b[ofs:])
@@ -541,8 +546,11 @@ func (d *indirectIndex) Entry(key string, timestamp time.Time) *IndexEntry {
 }
 
 func (d *indirectIndex) Keys() []string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	var keys []string
-	for offset := range d.offsets {
+	for _, offset := range d.offsets {
 		_, key, _ := readKey(d.b[offset:])
 		keys = append(keys, key)
 	}
@@ -550,6 +558,9 @@ func (d *indirectIndex) Keys() []string {
 }
 
 func (d *indirectIndex) Key(idx int) string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	if idx < 0 || idx >= len(d.offsets) {
 		return ""
 	}
@@ -558,10 +569,16 @@ func (d *indirectIndex) Key(idx int) string {
 }
 
 func (d *indirectIndex) KeyCount() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	return len(d.offsets)
 }
 
 func (d *indirectIndex) Delete(key string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	var offsets []int32
 	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
@@ -582,6 +599,9 @@ func (d *indirectIndex) ContainsValue(key string, timestamp time.Time) bool {
 }
 
 func (d *indirectIndex) Type(key string) (byte, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	ofs := d.search(key)
 	if ofs < len(d.offsets) {
 		n, _, err := readKey(d.b[ofs:])
@@ -597,12 +617,18 @@ func (d *indirectIndex) Type(key string) (byte, error) {
 
 // MarshalBinary returns a byte slice encoded version of the index.
 func (d *indirectIndex) MarshalBinary() ([]byte, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	return d.b, nil
 }
 
 // UnmarshalBinary populates an index from an encoded byte slice
 // representation of an index.
 func (d *indirectIndex) UnmarshalBinary(b []byte) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	// Keep a reference to the actual index bytes
 	d.b = b
 
@@ -638,7 +664,10 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 }
 
 func (d *indirectIndex) Size() int {
-	return 0
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return len(d.b)
 }
 
 // tsmWriter writes keys and values in the TSM format
@@ -1182,6 +1211,7 @@ func readKey(b []byte) (n int, key string, err error) {
 
 	// N byte key
 	key = string(b[n : n+size])
+
 	n += len(key)
 	return
 }

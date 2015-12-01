@@ -53,6 +53,8 @@ type FileStore struct {
 	dir           string
 
 	files []TSMFile
+
+	stats []FileStat
 }
 
 type FileStat struct {
@@ -93,6 +95,14 @@ func (f *FileStore) Count() int {
 func (f *FileStore) CurrentID() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+	return f.currentFileID
+}
+
+// NextID returns the max file ID + 1
+func (f *FileStore) NextID() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.currentFileID++
 	return f.currentFileID
 }
 
@@ -166,16 +176,18 @@ func (f *FileStore) Open() error {
 		return nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", Format)))
+	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm1dev")))
 	if err != nil {
 		return err
 	}
+
 	for _, fn := range files {
 		// Keep track of the latest ID
 		id, err := f.idFromFileName(fn)
 		if err != nil {
 			return err
 		}
+
 		if id >= f.currentFileID {
 			f.currentFileID = id + 1
 		}
@@ -185,7 +197,9 @@ func (f *FileStore) Open() error {
 			return fmt.Errorf("error opening file %s: %v", fn, err)
 		}
 
-		df, err := NewTSMReader(file)
+		df, err := NewTSMReaderWithOptions(TSMReaderOptions{
+			MMAPFile: file,
+		})
 		if err != nil {
 			return fmt.Errorf("error opening memory map for file %s: %v", fn, err)
 		}
@@ -232,42 +246,50 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 
 func (f *FileStore) Stats() []FileStat {
 	f.mu.RLock()
+	if f.stats == nil {
+		f.mu.RUnlock()
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		var paths []FileStat
+		for _, fd := range f.files {
+			minTime, maxTime := fd.TimeRange()
+			minKey, maxKey := fd.KeyRange()
+
+			paths = append(paths, FileStat{
+				Path:    fd.Path(),
+				Size:    fd.Size(),
+				MinTime: minTime,
+				MaxTime: maxTime,
+				MinKey:  minKey,
+				MaxKey:  maxKey,
+			})
+		}
+		f.stats = paths
+		return f.stats
+	}
 	defer f.mu.RUnlock()
 
-	var paths []FileStat
-	for _, fd := range f.files {
-		minTime, maxTime := fd.TimeRange()
-		minKey, maxKey := fd.KeyRange()
-
-		paths = append(paths, FileStat{
-			Path:    fd.Path(),
-			Size:    fd.Size(),
-			MinTime: minTime,
-			MaxTime: maxTime,
-			MinKey:  minKey,
-			MaxKey:  maxKey,
-		})
-	}
-	return paths
+	return f.stats
 }
 
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	// Copy the current set of active files while we rename
 	// and load the new files.  We copy the pointers here to minimize
 	// the time that locks are held as well as to ensure that the replacement
 	// is atomic.©
-	f.mu.RLock()
 	var updated []TSMFile
 	for _, t := range f.files {
 		updated = append(updated, t)
 	}
-	f.mu.RUnlock()
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {
 		var newName = file
 		if strings.HasSuffix(file, ".tmp") {
-			// The new TSM files are have a tmp extension.  First rename them.
+			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
 			os.Rename(file, newName)
 		}
@@ -277,7 +299,9 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 			return err
 		}
 
-		tsm, err := NewTSMReader(fd)
+		tsm, err := NewTSMReaderWithOptions(TSMReaderOptions{
+			MMAPFile: fd,
+		})
 		if err != nil {
 			return err
 		}
@@ -291,6 +315,10 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		for _, remove := range oldFiles {
 			if remove == file.Path() {
 				keep = false
+				if err := file.Close(); err != nil {
+					return err
+				}
+
 				break
 			}
 		}
@@ -300,14 +328,14 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		}
 	}
 
+	f.stats = nil
+	f.files = active
+
 	// The old files should be removed since they have been replace by new files
 	for _, f := range oldFiles {
 		os.RemoveAll(f)
 	}
 
-	f.mu.Lock()
-	f.files = active
-	f.mu.Unlock()
 	return nil
 }
 

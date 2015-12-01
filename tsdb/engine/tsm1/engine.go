@@ -46,7 +46,9 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 	fs := NewFileStore(path)
 
 	c := &Compactor{
-		Dir: path,
+		Dir:         path,
+		MaxFileSize: maxTSMFileSize,
+		FileStore:   fs,
 	}
 
 	e := &DevEngine{
@@ -163,6 +165,12 @@ func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not imple
 
 func (e *DevEngine) compact() {
 	for {
+		if err := e.WAL.CloseSegment(); err != nil {
+			e.logger.Printf("error rolling current WAL segment: %v", err)
+			time.Sleep(time.Second)
+			continue
+		}
+
 		tsmFiles, segments, err := e.CompactionPlan.Plan()
 		if err != nil {
 			e.logger.Printf("error calculating compaction plan: %v", err)
@@ -170,21 +178,33 @@ func (e *DevEngine) compact() {
 			continue
 		}
 
+		if len(tsmFiles) == 0 && len(segments) == 0 {
+			time.Sleep(time.Second)
+			continue
+		}
+
 		start := time.Now()
+		e.logger.Printf("compacting %d WAL segments, %d TSM files", len(segments), len(tsmFiles))
+
 		files, err := e.Compactor.Compact(tsmFiles, segments)
 		if err != nil {
 			e.logger.Printf("error compacting WAL segments: %v", err)
+			time.Sleep(time.Second)
+			continue
 		}
 
-		if err := e.FileStore.Replace(segments, files); err != nil {
+		if err := e.FileStore.Replace(append(tsmFiles, segments...), files); err != nil {
 			e.logger.Printf("error replacing new TSM files: %v", err)
+			time.Sleep(time.Second)
+			continue
 		}
 
 		// Inform cache data may be evicted.
 		ids := SegmentPaths(segments).IDs()
 		e.Cache.SetCheckpoint(uint64(ids[len(ids)-1]))
 
-		e.logger.Printf("compacted %d segments into %d files in %s", len(segments), len(files), time.Since(start))
+		e.logger.Printf("compacted %d segments, %d tsm into %d files in %s",
+			len(segments), len(tsmFiles), len(files), time.Since(start))
 	}
 }
 

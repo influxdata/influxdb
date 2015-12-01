@@ -86,7 +86,7 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 	// WAL segments.
 	for _, w := range wal {
 		for _, t := range tsmStats {
-			if t.OverlapsTimeRange(w.MinTime, w.MinTime) && t.OverlapsKeyRange(w.MinKey, w.MaxKey) {
+			if t.OverlapsTimeRange(w.MinTime, w.MaxTime) && t.OverlapsKeyRange(w.MinKey, w.MaxKey) {
 				tsmPaths = append(tsmPaths, t.Path)
 			}
 		}
@@ -95,7 +95,7 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 	}
 
 	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 {
-		for _, tsm := range c.FileStore.Stats() {
+		for _, tsm := range tsmStats {
 			if tsm.HasTombstone {
 				tsmPaths = append(tsmPaths, tsm.Path)
 			}
@@ -104,14 +104,18 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 
 	// Only look to rollup TSM files if we don't have any already identified to be
 	// re-written and we have less than the max WAL segments.
-	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 {
-		for _, tsm := range c.FileStore.Stats() {
+	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 && len(tsmStats) > 1 {
+		for _, tsm := range tsmStats {
 			if tsm.Size > maxTSMFileSize {
 				continue
 			}
 
 			tsmPaths = append(tsmPaths, tsm.Path)
 		}
+	}
+
+	if len(tsmPaths) == 1 && len(walPaths) == 0 {
+		return nil, nil, nil
 	}
 	return tsmPaths, walPaths, nil
 }
@@ -122,6 +126,10 @@ type Compactor struct {
 	Dir         string
 	MaxFileSize int
 	currentID   int
+
+	FileStore interface {
+		NextID() int
+	}
 
 	merge *MergeIterator
 }
@@ -188,11 +196,10 @@ func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 	var files []string
 
 	for {
-		// TODO: this needs to be intialized based on the existing files on disk
-		c.currentID++
+		c.currentID = c.FileStore.NextID()
 
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", c.currentID, Format))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", c.currentID, "tsm1dev"))
 
 		// Write as much as possible to this file
 		err := c.write(fileName)
@@ -333,7 +340,7 @@ func (m *MergeIterator) Next() bool {
 		m.err = err
 		if len(v) > 0 {
 			// Prepend these values to the buffer since we may have cache entries
-			// that should take precedenc
+			// that should take precedence
 			m.tsmBuf[k] = v
 		}
 	}
@@ -376,7 +383,14 @@ func (m *MergeIterator) Read() (string, []Value, error) {
 func (m *MergeIterator) Close() error {
 	m.walBuf = nil
 	m.values = nil
-	return m.wal.Close()
+	if m.wal != nil {
+		m.wal.Close()
+	}
+
+	if m.tsm != nil {
+		m.tsm.Close()
+	}
+	return nil
 }
 
 func (m *MergeIterator) currentKey() string {
@@ -492,6 +506,8 @@ type tsmKeyIterator struct {
 	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
 	pos []int
 
+	keys []string
+
 	// err is any error we received while iterating values.
 	err error
 
@@ -505,6 +521,7 @@ func NewTSMKeyIterator(readers ...*TSMReader) (KeyIterator, error) {
 		readers: readers,
 		values:  map[string][]Value{},
 		pos:     make([]int, len(readers)),
+		keys:    make([]string, len(readers)),
 	}, nil
 }
 
@@ -513,12 +530,28 @@ func (k *tsmKeyIterator) Next() bool {
 	// values map.  We're done with it.
 	if k.key != "" {
 		delete(k.values, k.key)
+		for i, readerKey := range k.keys {
+			if readerKey == k.key {
+				k.keys[i] = ""
+			}
+		}
 	}
 
+	var skipSearch bool
 	// For each iterator, group up all the values for their current key.
 	for i, r := range k.readers {
+		if k.keys[i] != "" {
+			continue
+		}
+
 		// Grab the key for this reader
 		key := r.Key(k.pos[i])
+		k.keys[i] = key
+
+		if key != "" && key < k.key {
+			k.key = key
+			skipSearch = true
+		}
 
 		// Bump it to the next key
 		k.pos[i]++
@@ -531,32 +564,46 @@ func (k *tsmKeyIterator) Next() bool {
 			if err != nil {
 				k.err = err
 			}
-			k.values[key] = append(k.values[key], values...)
+
+			if len(values) > 0 {
+				existing := k.values[key]
+
+				if len(existing) == 0 {
+					k.values[key] = values
+				} else if values[0].Time().After(existing[len(existing)-1].Time()) {
+					k.values[key] = append(existing, values...)
+				} else if values[len(values)-1].Time().Before(existing[0].Time()) {
+					k.values[key] = append(values, existing...)
+				} else {
+					k.values[key] = Values(append(existing, values...)).Deduplicate()
+				}
+			}
 		}
 	}
-	// Determine our current key which is the smallest key in the values map
-	k.key = k.currentKey()
+
+	if !skipSearch {
+		// Determine our current key which is the smallest key in the values map
+		k.key = k.currentKey()
+	}
 
 	// We have a key, so sort and de-dup the value. This could also be made more efficient
 	// in the common case since values across files should not overlap.  We could append or
 	// prepend in the loop above based on the min/max time in each readers slice.
-	if k.key != "" {
-		k.values[k.key] = Values(k.values[k.key]).Deduplicate()
-	}
+	// if k.key != "" && dedup {
+	// 	k.values[k.key] = Values(k.values[k.key]).Deduplicate()
+	// }
 	return len(k.values) > 0
 }
 
 func (k *tsmKeyIterator) currentKey() string {
-	var keys []string
-	for k := range k.values {
-		keys = append(keys, k)
+	var key string
+	for searchKey := range k.values {
+		if key == "" || searchKey < key {
+			key = searchKey
+		}
 	}
-	sort.Strings(keys)
 
-	if len(keys) > 0 {
-		return keys[0]
-	}
-	return ""
+	return key
 }
 
 func (k *tsmKeyIterator) Read() (string, []Value, error) {

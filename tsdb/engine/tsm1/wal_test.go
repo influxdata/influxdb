@@ -365,7 +365,7 @@ func TestWAL_ClosedSegments_Stats(t *testing.T) {
 		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if err := w.WritePoints(map[string][]tsm1.Value{
+	if _, err := w.WritePoints(map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{
 			tsm1.NewValue(time.Unix(1, 0), 1.1),
 		},
@@ -376,7 +376,7 @@ func TestWAL_ClosedSegments_Stats(t *testing.T) {
 		t.Fatalf("error writing points: %v", err)
 	}
 
-	if err := w.WritePoints(map[string][]tsm1.Value{
+	if _, err := w.WritePoints(map[string][]tsm1.Value{
 		"mem,host=A#!~#value": []tsm1.Value{
 			tsm1.NewValue(time.Unix(2, 0), 1.1),
 		},

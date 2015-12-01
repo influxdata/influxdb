@@ -106,8 +106,11 @@ func NewWAL(path string) *WAL {
 		SegmentSize: DefaultSegmentSize,
 		logger:      log.New(os.Stderr, "[tsm1devwal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
-		walStats: &WALStats{Dir: path,
-			segmentStats: map[int]SegmentStat{}},
+		walStats: &WALStats{
+			Dir:          path,
+			segmentStats: map[int]*SegmentStat{},
+			Ready:        make(chan struct{}),
+		},
 	}
 }
 
@@ -124,19 +127,48 @@ func (l *WAL) Open() error {
 	defer l.mu.Unlock()
 
 	if l.LoggingEnabled {
-		l.logger.Printf("tsm1 WAL starting with %d segment size\n", l.SegmentSize)
-		l.logger.Printf("tsm1 WAL writing to %s\n", l.path)
+		l.logger.Printf("tsm1dev WAL starting with %d segment size\n", l.SegmentSize)
+		l.logger.Printf("tsm1dev WAL writing to %s\n", l.path)
 	}
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
 	}
 
-	l.closing = make(chan struct{})
-
-	if err := l.walStats.Open(); err != nil {
+	segments, err := segmentFileNames(l.path)
+	if err != nil {
 		return err
 	}
 
+	if len(segments) > 0 {
+		lastSegment := segments[len(segments)-1]
+		id, err := idFromFileName(lastSegment)
+		if err != nil {
+			return err
+		}
+
+		l.currentSegmentID = id
+		stat, err := os.Stat(lastSegment)
+		if err != nil {
+			return err
+		}
+
+		if stat.Size() == 0 {
+			os.Remove(lastSegment)
+		}
+		if err := l.newSegmentFile(); err != nil {
+			return err
+		}
+	}
+
+	l.closing = make(chan struct{})
+
+	go func() {
+		if err := l.walStats.Open(); err != nil {
+			l.logger.Printf("error loading WAL stats: %v", err)
+		}
+	}()
+
+	<-l.walStats.Ready
 	return nil
 }
 
@@ -164,7 +196,12 @@ func (l *WAL) ClosedSegments() ([]SegmentStat, error) {
 		return nil, nil
 	}
 
-	return l.walStats.Stats()
+	var currentPath string
+	if l.currentSegmentWriter != nil {
+		currentPath = l.currentSegmentWriter.Path()
+	}
+
+	return l.walStats.Stats(currentPath)
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
@@ -177,10 +214,6 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	default:
 	}
 
-	// Update segment stats
-	if l.currentSegmentWriter != nil {
-		l.walStats.Update(l.currentSegmentWriter.Path(), entry)
-	}
 	l.mu.RUnlock()
 
 	if err := l.rollSegment(); err != nil {
@@ -188,6 +221,10 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	}
 
 	l.mu.RLock()
+	// Update segment stats
+	if l.currentSegmentWriter != nil {
+		l.walStats.Update(l.currentSegmentWriter.Path(), entry)
+	}
 	defer l.mu.RUnlock()
 
 	if err := l.currentSegmentWriter.Write(entry); err != nil {
@@ -197,6 +234,8 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	return l.currentSegmentID, l.currentSegmentWriter.Sync()
 }
 
+// rollSegment closes the current segment and opens a new one if the current segment is over
+// the max segment size.
 func (l *WAL) rollSegment() error {
 	l.mu.RLock()
 
@@ -213,6 +252,21 @@ func (l *WAL) rollSegment() error {
 		return nil
 	}
 	l.mu.RUnlock()
+	return nil
+}
+
+// CloseSegment closes the current segment if it is non-empty and opens a new one.
+func (l *WAL) CloseSegment() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.currentSegmentWriter == nil || l.currentSegmentWriter.Size() > 0 {
+		if err := l.newSegmentFile(); err != nil {
+			// A drop database or RP call could trigger this error if writes were in-flight
+			// when the drop statement executes.
+			return fmt.Errorf("error opening new segment file for wal: %v", err)
+		}
+		return nil
+	}
 	return nil
 }
 
@@ -278,10 +332,11 @@ type WALStats struct {
 
 	Dir string
 
-	currentPath      string
 	minKey, maxKey   string
 	minTime, maxTime time.Time
-	segmentStats     map[int]SegmentStat
+	segmentStats     map[int]*SegmentStat
+
+	Ready chan struct{}
 }
 
 // Open loads summary statistics from each WAL segment.
@@ -289,19 +344,21 @@ func (w *WALStats) Open() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	close(w.Ready)
+
 	files, err := segmentFileNames(w.Dir)
 	if err != nil {
 		return err
 	}
 
 	// Channel for loaded stats
-	statsCh := make(chan SegmentStat)
+	statsCh := make(chan *SegmentStat)
 
 	// Channel for loaded stats
 	errorsCh := make(chan error)
 	for _, fn := range files {
 		// Calculate each segments stats in a separate goroutine
-		go func() {
+		go func(fn string) {
 			id, err := idFromFileName(fn)
 			if err != nil {
 				errorsCh <- err
@@ -346,7 +403,7 @@ func (w *WALStats) Open() error {
 				}
 			}
 
-			statsCh <- SegmentStat{
+			statsCh <- &SegmentStat{
 				Path:    fn,
 				ID:      id,
 				MinTime: minTime,
@@ -354,37 +411,32 @@ func (w *WALStats) Open() error {
 				MinKey:  minKey,
 				MaxKey:  maxKey,
 			}
-		}()
+		}(fn)
+	}
 
-		for i := 0; i < len(files); i++ {
-			select {
-			case err := <-errorsCh:
-				return err
-			case stat := <-statsCh:
-				w.segmentStats[stat.ID] = stat
-			}
+	for i := 0; i < len(files); i++ {
+		select {
+		case err := <-errorsCh:
+			return err
+		case stat := <-statsCh:
+			w.segmentStats[stat.ID] = stat
 		}
 	}
+
 	return nil
 }
 
 func (w *WALStats) Update(path string, entry WALEntry) {
-	if w.currentPath != path {
-		w.reset(path)
-	}
-
-	var minKey, maxKey string
-	var minTime, maxTime time.Time
-
 	if we, ok := entry.(*WriteWALEntry); ok {
-		minKey, maxKey, minTime, maxTime = w.ranges(we)
-		w.mu.Lock()
-		w.updateSegmentStats(minKey, maxKey, minTime, maxTime)
-		w.mu.Unlock()
+		minKey, maxKey, minTime, maxTime := w.ranges(we)
+		w.updateSegmentStats(path, minKey, maxKey, minTime, maxTime)
 	}
 }
 
-func (w *WALStats) Stats() ([]SegmentStat, error) {
+func (w *WALStats) Stats(currentPath string) ([]SegmentStat, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
 	files, err := segmentFileNames(w.Dir)
 	if err != nil {
 		return nil, err
@@ -392,8 +444,8 @@ func (w *WALStats) Stats() ([]SegmentStat, error) {
 
 	var stats []SegmentStat
 	for _, fn := range files {
-		// Skip the current segment
-		if fn == w.currentPath {
+		// Skip the current path
+		if fn == currentPath {
 			continue
 		}
 
@@ -402,37 +454,12 @@ func (w *WALStats) Stats() ([]SegmentStat, error) {
 			return nil, err
 		}
 
-		stats = append(stats, w.segmentStats[id])
+		if stat, ok := w.segmentStats[id]; ok {
+			stats = append(stats, *stat)
+		}
 	}
 
 	return stats, nil
-}
-
-func (w *WALStats) reset(path string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if w.currentPath == "" {
-		w.currentPath = path
-		return
-	}
-
-	id, err := idFromFileName(w.currentPath)
-	if err != nil {
-		return
-	}
-
-	w.segmentStats[id] = SegmentStat{
-		Path:    w.currentPath,
-		ID:      id,
-		MinKey:  w.minKey,
-		MaxKey:  w.maxKey,
-		MinTime: w.minTime,
-		MaxTime: w.maxTime,
-	}
-	w.minKey, w.maxKey = "", ""
-	w.minTime, w.maxTime = time.Unix(0, 0), time.Unix(0, 0)
-	w.currentPath = path
 }
 
 func (w *WALStats) ranges(we *WriteWALEntry) (minKey, maxKey string, minTime, maxTime time.Time) {
@@ -456,19 +483,36 @@ func (w *WALStats) ranges(we *WriteWALEntry) (minKey, maxKey string, minTime, ma
 	return
 }
 
-func (w *WALStats) updateSegmentStats(minKey, maxKey string, minTime, maxTime time.Time) {
+func (w *WALStats) updateSegmentStats(path, minKey, maxKey string, minTime, maxTime time.Time) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	id, err := idFromFileName(path)
+	if err != nil {
+		return
+	}
+
+	stat := w.segmentStats[id]
+	if stat == nil {
+		stat = &SegmentStat{
+			Path: path,
+			ID:   id,
+		}
+		w.segmentStats[id] = stat
+	}
+
 	// Update our current segment stats
-	if w.minKey == "" || minKey < w.minKey {
-		w.minKey = minKey
+	if stat.MinKey == "" || minKey < stat.MinKey {
+		stat.MinKey = minKey
 	}
-	if w.maxKey == "" || maxKey > w.maxKey {
-		w.maxKey = maxKey
+	if stat.MaxKey == "" || maxKey > stat.MaxKey {
+		stat.MaxKey = maxKey
 	}
-	if w.minTime.IsZero() || minTime.Before(w.minTime) {
-		w.minTime = minTime
+	if stat.MinTime.IsZero() || minTime.Before(stat.MinTime) {
+		stat.MinTime = minTime
 	}
-	if w.maxTime.IsZero() || maxTime.After(w.maxTime) {
-		w.minTime = minTime
+	if stat.MaxTime.IsZero() || maxTime.After(stat.MaxTime) {
+		stat.MaxTime = maxTime
 	}
 }
 

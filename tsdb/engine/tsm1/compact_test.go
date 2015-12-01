@@ -1053,7 +1053,8 @@ func TestCompactor_SingleWALSegment(t *testing.T) {
 	}
 
 	compactor := &tsm1.Compactor{
-		Dir: dir,
+		Dir:       dir,
+		FileStore: &fakeFileStore{},
 	}
 
 	files, err := compactor.Compact(nil, []string{f.Name()})
@@ -1167,7 +1168,8 @@ func TestCompactor_MultipleWALSegment(t *testing.T) {
 	}
 
 	compactor := &tsm1.Compactor{
-		Dir: dir,
+		Dir:       dir,
+		FileStore: &fakeFileStore{},
 	}
 
 	files, err := compactor.Compact(nil, []string{f1.Name(), f2.Name()})
@@ -1850,4 +1852,8 @@ type fakeFileStore struct {
 
 func (w *fakeFileStore) Stats() []tsm1.FileStat {
 	return w.PathsFn()
+}
+
+func (w *fakeFileStore) NextID() int {
+	return 1
 }

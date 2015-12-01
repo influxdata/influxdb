@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
@@ -582,8 +583,12 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
 	if err := w.Write("cpu", values); err != nil {
 		t.Fatalf("unexpeted error writing: %v", err)
-
 	}
+
+	if err := w.Write("mem", values); err != nil {
+		t.Fatalf("unexpeted error writing: %v", err)
+	}
+
 	if err := w.WriteIndex(); err != nil {
 		t.Fatalf("unexpeted error writing index: %v", err)
 	}
@@ -606,6 +611,7 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 	}
 	defer r.Close()
 
+	spew.Dump(r.Keys())
 	readValues, err := r.Read("cpu", time.Unix(0, 0))
 	if err != nil {
 		t.Fatalf("unexpeted error readin: %v", err)
@@ -619,5 +625,52 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		if v.Value() != readValues[i].Value() {
 			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 		}
+	}
+}
+
+func TestTSMReader_MMAP_Keys(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	if err := w.Write("cpu", values); err != nil {
+		t.Fatalf("unexpeted error writing: %v", err)
+	}
+
+	if err := w.Write("mem", values); err != nil {
+		t.Fatalf("unexpeted error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpeted error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpeted error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpeted error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	if got, exp := len(r.Keys()), 2; got != exp {
+		t.Fatalf("key lenght mismatch: got %v, exp %v", got, exp)
 	}
 }
