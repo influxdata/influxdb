@@ -3,6 +3,7 @@ package run_test
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -129,6 +130,8 @@ func init() {
 	}
 
 	tests["drop_and_recreate_database"] = Test{
+		db:    "db0",
+		rp:    "rp0",
 		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 		queries: []*Query{
 			&Query{
@@ -197,6 +200,109 @@ func init() {
 				name:    "Query data from 1st database and ensure it's still there with GROUP BY *",
 				command: `SELECT * FROM cpu GROUP BY *`,
 				exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+		},
+	}
+
+	tests["drop_and_recreate_series"] = Test{
+		db:    "db0",
+		rp:    "rp0",
+		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		queries: []*Query{
+			&Query{
+				name:    "Show series is present",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Drop series after data write",
+				command: `DROP SERIES FROM cpu`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+				once:    true,
+			},
+			&Query{
+				name:    "Show series is gone",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+		},
+	}
+	tests["drop_and_recreate_series_retest"] = Test{
+		db:    "db0",
+		rp:    "rp0",
+		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		queries: []*Query{
+			&Query{
+				name:    "Show series is present again after re-write",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+		},
+	}
+
+	tests["drop_series_from_regex"] = Test{
+		db: "db0",
+		rp: "rp0",
+		write: strings.Join([]string{
+			fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`aa,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`b,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`c,host=serverA,region=uswest val=30.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n"),
+		queries: []*Query{
+			&Query{
+				name:    "Show series is present",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"name":"a","columns":["_key","host","region"],"values":[["a,host=serverA,region=uswest","serverA","uswest"]]},{"name":"aa","columns":["_key","host","region"],"values":[["aa,host=serverA,region=uswest","serverA","uswest"]]},{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Drop series after data write",
+				command: `DROP SERIES FROM /a.*/`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+				once:    true,
+			},
+			&Query{
+				name:    "Show series is gone",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Drop series from regex that matches no measurements",
+				command: `DROP SERIES FROM /a.*/`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+				once:    true,
+			},
+			&Query{
+				name:    "make sure DROP SERIES doesn't delete anything when regex doesn't match",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Drop series with WHERE field should error",
+				command: `DROP SERIES FROM c WHERE val > 50.0`,
+				exp:     `{"results":[{"error":"DROP SERIES doesn't support fields in WHERE clause"}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "make sure DROP SERIES with field in WHERE didn't delete data",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Drop series with WHERE time should error",
+				command: `DROP SERIES FROM c WHERE time > now() - 1d`,
+				exp:     `{"results":[{"error":"DROP SERIES doesn't support time in WHERE clause"}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 		},

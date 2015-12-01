@@ -592,7 +592,7 @@ func (c *Cluster) QueryAll(q *Query) error {
 
 	tick := time.Tick(100 * time.Millisecond)
 	// if we don't reach consensus in 20 seconds, fail the query
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(20 * time.Second)
 
 	if err := queryAll(); err == nil {
 		return nil

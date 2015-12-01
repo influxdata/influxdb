@@ -79,13 +79,21 @@ func TestCluster_DatabaseCommands(t *testing.T) {
 
 func TestCluster_Query_DropAndRecreateDatabase(t *testing.T) {
 	t.Parallel()
-	c, err := NewClusterWithDefaults(5)
+	c, err := NewCluster(5)
 	if err != nil {
 		t.Fatalf("error creating cluster: %s", err)
 	}
 	defer c.Close()
 
 	test := tests.load(t, "drop_and_recreate_database")
+
+	s := c.Servers[0]
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = c.Servers[0].Write(test.database(), test.retentionPolicy(), test.write, nil)
 	if err != nil {
@@ -130,6 +138,120 @@ func TestCluster_Query_DropDatabaseIsolated(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp1", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.Write(test.database(), test.retentionPolicy(), test.write, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		t.Logf("Running %s", query.name)
+		if query.once {
+			if _, err := c.Query(query); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+			continue
+		}
+		if err := c.QueryAll(query); err != nil {
+			t.Error(query.Error(err))
+		}
+	}
+}
+
+func TestCluster_Query_DropAndRecreateSeries(t *testing.T) {
+	t.Parallel()
+	t.Skip()
+	c, err := NewCluster(5)
+	if err != nil {
+		t.Fatalf("error creating cluster: %s", err)
+	}
+	defer c.Close()
+
+	test := tests.load(t, "drop_and_recreate_series")
+
+	s := c.Servers[0]
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = s.Write(test.database(), test.retentionPolicy(), test.write, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		t.Logf("Running %s", query.name)
+		if query.once {
+			if _, err := c.Query(query); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+			continue
+		}
+		if err := c.QueryAll(query); err != nil {
+			t.Fatal(query.Error(err))
+		}
+	}
+
+	// Re-write data and test again.
+	retest := tests.load(t, "drop_and_recreate_series_retest")
+
+	_, err = s.Write(retest.database(), retest.retentionPolicy(), retest.write, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range retest.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		t.Logf("Running %s", query.name)
+		if query.once {
+			if _, err := c.Query(query); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+			continue
+		}
+		if err := c.QueryAll(query); err != nil {
+			t.Error(query.Error(err))
+		}
+	}
+}
+
+func TestCluster_Query_DropSeriesFromRegex(t *testing.T) {
+	t.Parallel()
+	t.Skip()
+	c, err := NewCluster(5)
+	if err != nil {
+		t.Fatalf("error creating cluster: %s", err)
+	}
+	defer c.Close()
+
+	test := tests.load(t, "drop_series_from_regex")
+
+	s := c.Servers[0]
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
 

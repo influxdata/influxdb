@@ -51,14 +51,14 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
-		t.Fatal(err)
-	}
-
 	test := tests.load(t, "drop_and_recreate_database")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+		t.Fatal(err)
+	}
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -83,17 +83,17 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_database_isolated")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp1", 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-
-	test := tests.load(t, "drop_database_isolated")
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -118,40 +118,14 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_and_recreate_series")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series after data write",
-			command: `DROP SERIES FROM cpu`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Show series is gone",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -171,21 +145,11 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	}
 
 	// Re-write data and test again.
-	reTest := NewTest("db0", "rp0")
-	reTest.write = strings.Join(writes, "\n")
+	retest := tests.load(t, "drop_and_recreate_series_retest")
 
-	reTest.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present again after re-write",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
-
-	for i, query := range reTest.queries {
+	for i, query := range retest.queries {
 		if i == 0 {
-			if err := reTest.init(s); err != nil {
+			if err := retest.init(s); err != nil {
 				t.Fatalf("test init failed: %s", err)
 			}
 		}
@@ -206,73 +170,14 @@ func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_series_from_regex")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`aa,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`b,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`c,host=serverA,region=uswest val=30.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"a","columns":["_key","host","region"],"values":[["a,host=serverA,region=uswest","serverA","uswest"]]},{"name":"aa","columns":["_key","host","region"],"values":[["aa,host=serverA,region=uswest","serverA","uswest"]]},{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series after data write",
-			command: `DROP SERIES FROM /a.*/`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Show series is gone",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series from regex that matches no measurements",
-			command: `DROP SERIES FROM /a.*/`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "make sure DROP SERIES doesn't delete anything when regex doesn't match",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series with WHERE field should error",
-			command: `DROP SERIES FROM c WHERE val > 50.0`,
-			exp:     `{"results":[{"error":"DROP SERIES doesn't support fields in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "make sure DROP SERIES with field in WHERE didn't delete data",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series with WHERE time should error",
-			command: `DROP SERIES FROM c WHERE time > now() - 1d`,
-			exp:     `{"results":[{"error":"DROP SERIES doesn't support time in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
