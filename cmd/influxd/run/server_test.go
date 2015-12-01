@@ -31,75 +31,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create database should succeed",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should error with bad name",
-				command: `CREATE DATABASE 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 17"}`,
-			},
-			&Query{
-				name:    "show database should succeed",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"]]}]}]}`,
-			},
-			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
-				name:    "create database should not error with existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should create non-existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show database should succeed",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db1"]]}]}]}`,
-			},
-			&Query{
-				name:    "drop database db0 should succeed",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database db1 should succeed",
-				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it does not exists",
-				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{"error":"database not found: db1"}]}`,
-			},
-			&Query{
-				name:    "drop database should not error with non-existing database db1 WITH IF EXISTS",
-				command: `DROP DATABASE IF EXISTS db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show database should have no results",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it doesn't exist",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{"error":"database not found: db0"}]}`,
-			},
-		},
-	}
+	test := tests.load(t, "database_commands")
 
 	for _, query := range test.queries {
 		if query.skip {
@@ -126,42 +58,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Drop database after data write",
-			command: `DROP DATABASE db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Recreate database",
-			command: `CREATE DATABASE db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Recreate retention policy",
-			command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 365d REPLICATION 1 DEFAULT`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Show measurements after recreate",
-			command: `SHOW MEASUREMENTS`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data after recreate",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
+	test := tests.load(t, "drop_and_recreate_database")
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -196,44 +93,7 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Query data from 1st database",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from 1st database with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop other database",
-			command: `DROP DATABASE db1`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Query data from 1st database and ensure it's still there",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from 1st database and ensure it's still there with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
+	test := tests.load(t, "drop_database_isolated")
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -510,7 +370,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 			&Query{
 				name:    "Check error when deleting retention policy on non-existent database",
 				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
-				exp:     `{"results":[{"error":"database not found"}]}`,
+				exp:     `{"results":[{"error":"database not found: mydatabase"}]}`,
 			},
 		},
 	}
@@ -1595,7 +1455,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a from a non-existent retention policy should error",
 			command: `SELECT value FROM db0.rp1.cpu`,
-			exp:     `{"results":[{"error":"retention policy not found"}]}`,
+			exp:     `{"results":[{"error":"retention policy not found: rp1"}]}`,
 		},
 		&Query{
 			name:    "selecting a valid  measurement and field should succeed",
@@ -3273,10 +3133,6 @@ func TestServer_Query_TopInt(t *testing.T) {
 			continue
 		}
 
-		println(">>>>", query.name)
-		if query.name != `top - memory - host tag with limit 2` { // FIXME: temporary
-			continue
-		}
 		if err := query.Execute(s); err != nil {
 			t.Error(query.Error(err))
 		} else if !query.success() {

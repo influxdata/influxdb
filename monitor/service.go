@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
@@ -323,7 +324,7 @@ func (m *Monitor) createInternalStorage() {
 		return
 	}
 
-	if err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default"); err != nil && err != meta.ErrRetentionPolicyNotFound {
+	if err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default"); err != nil && err != influxdb.ErrRetentionPolicyNotFound("default") {
 		m.Logger.Printf("failed to delete retention policy 'default', failed to created internal storage: %s", err.Error())
 		return
 	}

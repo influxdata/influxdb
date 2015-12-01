@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 )
@@ -282,7 +283,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 	if err != nil {
 		return &influxql.Result{Err: err}
 	} else if di == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound}
+		return &influxql.Result{Err: influxdb.ErrDatabaseNotFound(q.Database)}
 	}
 
 	row := &models.Row{Columns: []string{"name", "duration", "replicaN", "default"}}

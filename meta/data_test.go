@@ -10,6 +10,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/meta/internal"
@@ -183,7 +184,8 @@ func TestData_CreateRetentionPolicy_ErrReplicationFactorTooLow(t *testing.T) {
 // Ensure that creating a retention policy on a non-existent database returns an error.
 func TestData_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	data := meta.Data{Nodes: []meta.NodeInfo{{ID: 1}}}
-	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != meta.ErrDatabaseNotFound {
+	expErr := influxdb.ErrDatabaseNotFound("db0")
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err.Error() != expErr.Error() {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -249,7 +251,8 @@ func TestData_DropRetentionPolicy(t *testing.T) {
 // Ensure an error is returned when deleting a policy from a non-existent database.
 func TestData_DropRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	var data meta.Data
-	if err := data.DropRetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {
+	expErr := influxdb.ErrDatabaseNotFound("db0")
+	if err := data.DropRetentionPolicy("db0", "rp0"); err.Error() != expErr.Error() {
 		t.Fatal(err)
 	}
 }
@@ -260,7 +263,8 @@ func TestData_DropRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
-	if err := data.DropRetentionPolicy("db0", "rp0"); err != meta.ErrRetentionPolicyNotFound {
+	expErr := influxdb.ErrRetentionPolicyNotFound("rp0")
+	if err := data.DropRetentionPolicy("db0", "rp0"); err.Error() != expErr.Error() {
 		t.Fatal(err)
 	}
 }
@@ -290,7 +294,8 @@ func TestData_RetentionPolicy(t *testing.T) {
 // Ensure that retrieving a policy from a non-existent database returns an error.
 func TestData_RetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	var data meta.Data
-	if _, err := data.RetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {
+	expErr := influxdb.ErrDatabaseNotFound("db0")
+	if _, err := data.RetentionPolicy("db0", "rp0"); err.Error() != expErr.Error() {
 		t.Fatal(err)
 	}
 }

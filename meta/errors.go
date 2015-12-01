@@ -39,9 +39,6 @@ var (
 	// ErrDatabaseExists is returned when creating an already existing database.
 	ErrDatabaseExists = newError("database already exists")
 
-	// ErrDatabaseNotFound is returned when mutating a database that doesn't exist.
-	ErrDatabaseNotFound = newError("database not found")
-
 	// ErrDatabaseNameRequired is returned when creating a database without a name.
 	ErrDatabaseNameRequired = newError("database name required")
 )
@@ -53,9 +50,6 @@ var (
 	// ErrRetentionPolicyDefault is returned when attempting a prohibited operation
 	// on a default retention policy.
 	ErrRetentionPolicyDefault = newError("retention policy is default")
-
-	// ErrRetentionPolicyNotFound is returned when mutating a policy that doesn't exist.
-	ErrRetentionPolicyNotFound = newError("retention policy not found")
 
 	// ErrRetentionPolicyNameRequired is returned when creating a policy without a name.
 	ErrRetentionPolicyNameRequired = newError("retention policy name required")
