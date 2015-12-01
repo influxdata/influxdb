@@ -86,7 +86,7 @@ func (a *entries) clone() Values {
 
 // dedupe returns a copy of all underlying Values. Values are deduped and sorted.
 func (a *entries) dedupe() Values {
-	return a.clone().Deduplicate()
+	return a.clone().Deduplicate(true)
 }
 
 // Cache maintains an in-memory store of Values for a set of keys. As data is added to the cache
@@ -204,7 +204,7 @@ func (c *Cache) Values(key string) Values {
 	if values == nil {
 		return nil
 	}
-	return values.Deduplicate()
+	return values.Deduplicate(true)
 }
 
 // evict instructs the cache to evict data up to and including the current checkpoint.

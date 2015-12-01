@@ -168,10 +168,10 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	}
 }
 
-// Deduplicate returns a new Values slice with any values
-// that have the same  timestamp removed. The Value that appears
-// last in the slice is the one that is kept. The returned slice is in ascending order
-func (a Values) Deduplicate() Values {
+// Deduplicate returns a new Values slice with any values that have the same timestamp removed.
+// The Value that appears last in the slice is the one that is kept. The returned slice is then
+// sorted in the requested order.
+func (a Values) Deduplicate(ascending bool) Values {
 	m := make(map[int64]Value)
 	for _, val := range a {
 		m[val.UnixNano()] = val
@@ -181,8 +181,12 @@ func (a Values) Deduplicate() Values {
 	for _, val := range m {
 		other = append(other, val)
 	}
-	sort.Sort(Values(other))
 
+	if ascending {
+		sort.Sort(Values(other))
+	} else {
+		sort.Sort(sort.Reverse(Values(other)))
+	}
 	return other
 }
 
