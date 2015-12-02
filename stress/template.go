@@ -18,6 +18,7 @@ var s = `
       jitter = true
       measurement = "cpu"
       start_date = "2006-Jan-02"
+      precision = "n"
       [[write.point_generator.basic.tag]]
         key = "host"
         value = "server"
@@ -49,7 +50,8 @@ var s = `
 
   [read.query_client]
     [read.query_client.basic]
-      address = "localhost:8086"
+      enabled = true
+      addresses = ["localhost:8086"]
       database = "stress"
       query_interval = "100ms"
       concurrency = 1

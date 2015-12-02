@@ -46,7 +46,8 @@
 
   [read.query_client]
     [read.query_client.basic]
-      address = "localhost:8086"
+      enabled = true
+      addresses = ["localhost:8086"]
       database = "stress"
       query_interval = "100ms"
       concurrency = 1

@@ -307,7 +307,7 @@ func TestBasicClient_send(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	basicIC.Addresses[0] = ts.URL[7:]
+	basicIC.Addresses[0] = ts.URL
 	b := []byte(
 		`cpu,host=server-1,location=us-west value=100 12932
 		cpu,host=server-2,location=us-west value=10 12932
@@ -379,7 +379,7 @@ func TestBasicQuery_QueryGenerate(t *testing.T) {
 }
 
 var basicQC = &BasicQueryClient{
-	Address:       "localhost:8086",
+	Addresses:     []string{"localhost:8086"},
 	Database:      "stress",
 	QueryInterval: "10s",
 	Concurrency:   1,
@@ -396,7 +396,7 @@ func TestBasicQueryClient_Query(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	basicQC.Address = ts.URL[7:]
+	basicQC.Addresses[0] = ts.URL[7:]
 	basicQC.Init()
 
 	q := "SELECT count(value) FROM cpu"
@@ -492,8 +492,8 @@ func Test_NewConfigWithFile(t *testing.T) {
 	}
 
 	qc := r.QueryClients.Basic
-	if qc.Address != "localhost:8086" {
-		t.Errorf("Expected `localhost:8086` got %s", qc.Address)
+	if qc.Addresses[0] != "localhost:8086" {
+		t.Errorf("Expected `localhost:8086` got %s", qc.Addresses[0])
 	}
 	if qc.Database != "stress" {
 		t.Errorf("Expected stress got %s", qc.Database)
@@ -579,8 +579,8 @@ func Test_NewConfigWithoutFile(t *testing.T) {
 	}
 
 	qc := r.QueryClients.Basic
-	if qc.Address != "localhost:8086" {
-		t.Errorf("Expected `localhost:8086` got %s", qc.Address)
+	if qc.Addresses[0] != "localhost:8086" {
+		t.Errorf("Expected `localhost:8086` got %s", qc.Addresses[0])
 	}
 	if qc.Database != "stress" {
 		t.Errorf("Expected stress got %s", qc.Database)

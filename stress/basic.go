@@ -76,6 +76,7 @@ type BasicPointGenerator struct {
 	Tags        AbstractTags   `toml:"tag"`
 	Fields      AbstractFields `toml:"field"`
 	StartDate   string         `toml:"start_date"`
+	Precision   string         `toml:"precision"`
 	time        time.Time
 	mu          sync.Mutex
 }
@@ -105,6 +106,18 @@ func typeArr(a []string) []interface{} {
 	return i
 }
 
+func (b *BasicPointGenerator) timestamp(t time.Time) int64 {
+	var n int64
+
+	if b.Precision == "s" {
+		n = t.Unix()
+	} else {
+		n = t.UnixNano()
+	}
+
+	return n
+}
+
 // Template returns a function that returns a pointer to a Pnt.
 func (b *BasicPointGenerator) Template() func(i int, t time.Time) *Pnt {
 	ts := b.Tags.Template()
@@ -115,7 +128,7 @@ func (b *BasicPointGenerator) Template() func(i int, t time.Time) *Pnt {
 		p := &Pnt{}
 		arr := []interface{}{i}
 		arr = append(arr, typeArr(fa)...)
-		arr = append(arr, t.UnixNano())
+		arr = append(arr, b.timestamp(t))
 
 		str := fmt.Sprintf(tmplt, arr...)
 		p.Set([]byte(str))
@@ -368,25 +381,29 @@ func (q *BasicQuery) SetTime(t time.Time) {
 
 // BasicQueryClient implements the QueryClient interface
 type BasicQueryClient struct {
-	Enabled       bool   `toml:"enabled"`
-	Address       string `toml:"address"`
-	Database      string `toml:"database"`
-	QueryInterval string `toml:"query_interval"`
-	Concurrency   int    `toml:"concurrency"`
-	client        client.Client
+	Enabled       bool     `toml:"enabled"`
+	Addresses     []string `toml:"addresses"`
+	Database      string   `toml:"database"`
+	QueryInterval string   `toml:"query_interval"`
+	Concurrency   int      `toml:"concurrency"`
+	clients       []client.Client
+	addrId        int
 }
 
 // Init initializes the InfluxDB client
 func (b *BasicQueryClient) Init() error {
-	cl, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr: fmt.Sprintf("http://%v", b.Address),
-	})
 
-	if err != nil {
-		return err
+	for _, a := range b.Addresses {
+		cl, err := client.NewHTTPClient(client.HTTPConfig{
+			Addr: fmt.Sprintf("http://%v", a),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		b.clients = append(b.clients, cl)
 	}
-
-	b.client = cl
 
 	return nil
 }
@@ -399,7 +416,7 @@ func (b *BasicQueryClient) Query(cmd Query) (response, error) {
 	}
 
 	t := NewTimer()
-	_, err := b.client.Query(q)
+	_, err := b.clients[b.addrId].Query(q)
 	t.StopTimer()
 
 	if err != nil {
@@ -431,7 +448,12 @@ func (b *BasicQueryClient) Exec(qs <-chan Query, r chan<- response) error {
 		return err
 	}
 
+	ctr := 0
+
 	for q := range qs {
+		b.addrId = ctr % len(b.Addresses)
+		ctr++
+
 		wg.Add(1)
 		counter.Increment()
 		func(q Query) {
@@ -562,13 +584,11 @@ func (b *BasicClient) HTTPWriteHandler(rs <-chan response, wt *Timer) {
 	pps := float64(n) * float64(b.BatchSize) / float64(wt.Elapsed().Seconds())
 
 	vals := url.Values{
-		"PerfConfig":   {"some config file"},
-		"InfluxConfig": {"some config file"},
-		"TestId":       {"1"},
-		"Name":         {"some name"},
-		//"PointCount":      {fmt.Sprintf("%v", int(b.PointCount))},
-		"BatchSize": {fmt.Sprintf("%v", int(b.BatchSize))},
-		//"SeriesCount":     {fmt.Sprintf("%v", int(b.SeriesCount))},
+		"PerfConfig":      {"some config file"},
+		"InfluxConfig":    {"some config file"},
+		"TestId":          {"1"},
+		"Name":            {"some name"},
+		"BatchSize":       {fmt.Sprintf("%v", int(b.BatchSize))},
 		"BatchInterval":   {fmt.Sprintf("%v", b.BatchInterval)},
 		"Concurrency":     {fmt.Sprintf("%v", int(b.Concurrency))},
 		"PointsPerSecond": {fmt.Sprintf("%v", int(pps))},
@@ -576,7 +596,7 @@ func (b *BasicClient) HTTPWriteHandler(rs <-chan response, wt *Timer) {
 		"SuccessRequests": {fmt.Sprintf("%v", int(success))},
 	}
 
-	http.PostForm(fmt.Sprintf("http://%s/results", post), vals)
+	http.PostForm(fmt.Sprintf("http://%s/results", "localhost:8080"), vals)
 
 }
 
