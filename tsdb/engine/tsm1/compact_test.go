@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
@@ -474,7 +475,7 @@ func TestMergeIterator_WAL_Single(t *testing.T) {
 	}
 
 	// Read should return a chunk of 1 value
-	m := tsm1.NewMergeIterator(nil, iter, 1)
+	m := tsm1.NewMergeIterator(nil, iter, 1, tsm1.MinTime, tsm1.MaxTime)
 	var readValues bool
 	for _, p := range points {
 		if !m.Next() {
@@ -522,7 +523,7 @@ func TestMergeIterator_TSM_Single(t *testing.T) {
 	}
 
 	// Read should return a chunk of 1 value
-	m := tsm1.NewMergeIterator(iter, nil, 1)
+	m := tsm1.NewMergeIterator(iter, nil, 1, tsm1.MinTime, tsm1.MaxTime)
 	var readValues bool
 	for _, p := range points {
 		if !m.Next() {
@@ -588,7 +589,7 @@ func TestMergeIterator_WALTSM_Single(t *testing.T) {
 	}
 
 	// Read should return a chunk of 1 value
-	m := tsm1.NewMergeIterator(tsm, wal, 1)
+	m := tsm1.NewMergeIterator(tsm, wal, 1, tsm1.MinTime, tsm1.MaxTime)
 	var readValues bool
 	for _, p := range expected {
 		if !m.Next() {
@@ -605,6 +606,78 @@ func TestMergeIterator_WALTSM_Single(t *testing.T) {
 		}
 
 		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+		readValues = true
+
+		assertValueEqual(t, values[0], p[0])
+	}
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+// Tests that merge iterator over a wal and tsm returns points order correctly
+// and filtered between [minTime, maxTime)
+func TestMergeIterator_WALTSM_TimeFilter(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+
+	points1 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v1, v2},
+	}
+
+	entries := []tsm1.WALEntry{
+		&tsm1.WriteWALEntry{
+			Values: points1,
+		},
+	}
+	r1 := MustWALSegment(dir, entries)
+
+	v3 := tsm1.NewValue(time.Unix(3, 0), float64(2))
+	v4 := tsm1.NewValue(time.Unix(4, 0), float64(2))
+
+	points2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v3, v4},
+	}
+	r2 := MustTSMReader(dir, points2)
+
+	wal, err := tsm1.NewWALKeyIterator(r1)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	tsm, err := tsm1.NewTSMKeyIterator(r2)
+	if err != nil {
+		t.Fatalf("unexpected error creating TSMKeyIterator: %v", err)
+	}
+
+	expected := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2, v4},
+	}
+
+	// Read should return a chunk of 1 value
+	m := tsm1.NewMergeIterator(tsm, wal, 2, time.Unix(2, 0), time.Unix(3, 1))
+	var readValues bool
+	for _, p := range expected {
+		if !m.Next() {
+			t.Fatalf("expected next, got false")
+		}
+
+		key, values, err := m.Read()
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		spew.Dump(values)
+		if got, exp := len(values), len(expected["cpu,host=A#!~#value"]); got != exp {
 			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
 		}
 		readValues = true
@@ -655,7 +728,7 @@ func TestMergeIterator_WALTSM_Overwrite(t *testing.T) {
 	}
 
 	// Read should return a chunk of 1 value
-	m := tsm1.NewMergeIterator(tsm, wal, 1)
+	m := tsm1.NewMergeIterator(tsm, wal, 1, tsm1.MinTime, tsm1.MaxTime)
 	var readValues bool
 	for _, p := range expected {
 		if !m.Next() {
@@ -725,7 +798,7 @@ func TestMergeIterator_WALTSM_MultipleKeys(t *testing.T) {
 	}
 
 	// Read should return a chunk of 1 value
-	m := tsm1.NewMergeIterator(tsm, wal, 1)
+	m := tsm1.NewMergeIterator(tsm, wal, 1, tsm1.MinTime, tsm1.MaxTime)
 	var readValues bool
 	for _, p := range expected {
 		if !m.Next() {
@@ -789,7 +862,7 @@ func TestMergeIterator_WAL_MultipleKeys(t *testing.T) {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
-	m := tsm1.NewMergeIterator(nil, iter, 2)
+	m := tsm1.NewMergeIterator(nil, iter, 2, tsm1.MinTime, tsm1.MaxTime)
 
 	var data = []struct {
 		key    string
@@ -852,7 +925,7 @@ func TestMergeIterator_TSM_MultipleKeys(t *testing.T) {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
-	m := tsm1.NewMergeIterator(iter, nil, 2)
+	m := tsm1.NewMergeIterator(iter, nil, 2, tsm1.MinTime, tsm1.MaxTime)
 
 	var data = []struct {
 		key    string
@@ -926,7 +999,7 @@ func TestMergeIterator_WAL_DeletedKeys(t *testing.T) {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
-	m := tsm1.NewMergeIterator(nil, iter, 2)
+	m := tsm1.NewMergeIterator(nil, iter, 2, tsm1.MinTime, tsm1.MaxTime)
 
 	var data = []struct {
 		key    string
@@ -990,7 +1063,7 @@ func TestMergeIterator_TSM_DeletedKeys(t *testing.T) {
 		t.Fatalf("unexpected error creating TSMKeyIterator: %v", err)
 	}
 
-	m := tsm1.NewMergeIterator(iter, nil, 2)
+	m := tsm1.NewMergeIterator(iter, nil, 2, tsm1.MinTime, tsm1.MaxTime)
 
 	var data = []struct {
 		key    string

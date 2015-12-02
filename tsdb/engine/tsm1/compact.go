@@ -14,9 +14,11 @@ package tsm1
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 )
 
 // maxCompactionSegments is the maximum number of segments that can be
@@ -30,6 +32,11 @@ const maxTSMFileSize = 250 * 1024 * 1024
 const rolloverTSMFileSize = 5 * 1025 * 1024
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
+
+var (
+	MaxTime = time.Unix(0, math.MaxInt64)
+	MinTime = time.Unix(0, 0)
+)
 
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
@@ -199,7 +206,7 @@ func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 
 	// Merge iterator combines the WAL and TSM iterators (note: TSM iteration is
 	// not in place yet).  It will also chunk the values into 1000 element blocks.
-	c.merge = NewMergeIterator(tsm, wal, 1000)
+	c.merge = NewMergeIterator(tsm, wal, 1000, MinTime, MaxTime)
 	defer c.merge.Close()
 
 	// These are the new TSM files written
@@ -326,94 +333,125 @@ type MergeIterator struct {
 
 	// err is any error returned by an underlying iterator to be returned by Read
 	err error
+
+	minTime, maxTime time.Time
 }
 
-func NewMergeIterator(TSM KeyIterator, WAL KeyIterator, size int) *MergeIterator {
+func NewMergeIterator(TSM KeyIterator, WAL KeyIterator, size int, minTime, maxTime time.Time) *MergeIterator {
 	m := &MergeIterator{
-		wal:    WAL,
-		tsm:    TSM,
-		walBuf: map[string][]Value{},
-		tsmBuf: map[string][]Value{},
-		size:   size,
+		wal:     WAL,
+		tsm:     TSM,
+		walBuf:  map[string][]Value{},
+		tsmBuf:  map[string][]Value{},
+		size:    size,
+		minTime: minTime,
+		maxTime: maxTime,
 	}
 	return m
 }
 func (m *MergeIterator) Next() bool {
-	// If we still have values in the current chunk, slice off up to size of them
-	if m.size < len(m.values) {
-		m.values = m.values[:m.size]
-	} else {
-		m.values = m.values[:0]
-	}
+	for {
+		// If we still have values in the current chunk, slice off up to size of them
+		if m.size < len(m.values) {
+			m.values = m.values[:m.size]
+		} else {
+			m.values = m.values[:0]
+		}
 
-	// We still have values.
-	if len(m.values) > 0 {
-		return true
-	}
+		// We still have values.
+		if len(m.values) > 0 {
+			return true
+		}
 
-	// Prime the tsm buffers if possible
-	if len(m.tsmBuf) == 0 && m.tsm != nil && m.tsm.Next() {
-		k, v, err := m.tsm.Read()
-		m.err = err
-		m.tsmKey = k
-		if len(v) > 0 {
-			m.tsmBuf[k] = v
+		// Prime the tsm buffers if possible
+		if len(m.tsmBuf) == 0 && m.tsm != nil && m.tsm.Next() {
+			k, v, err := m.tsm.Read()
+			m.err = err
+			m.tsmKey = k
+			if len(v) > 0 {
+				m.tsmBuf[k] = v
+			}
+		}
+
+		// Prime the wal buffer if possible
+		if len(m.walBuf) == 0 && m.wal != nil && m.wal.Next() {
+			k, v, err := m.wal.Read()
+			m.err = err
+			m.walKey = k
+			if len(v) > 0 {
+				m.walBuf[k] = v
+			}
+		}
+
+		m.key = m.currentKey()
+
+		// No more keys, we're done.
+		if m.key == "" {
+			return false
+		}
+
+		// Otherwise, append the wal values to the tsm values and sort, dedup.  We want
+		// the wal values to overwrite any tsm values so they are append second.
+		var dedup bool
+		if len(m.walBuf[m.key]) > 0 && len(m.tsmBuf[m.key]) > 0 {
+			tsmVals := m.tsmBuf[m.key]
+			walPoint := m.walBuf[m.key][0].Time()
+			tsmPoint := tsmVals[len(tsmVals)-1].Time()
+
+			if walPoint.Before(tsmPoint) || walPoint.Equal(tsmPoint) {
+				dedup = true
+			}
+		}
+
+		// Only have wal values? Use the wal buf
+		if len(m.tsmBuf[m.key]) == 0 && len(m.walBuf[m.key]) > 0 {
+			m.values = m.walBuf[m.key]
+			m.walKey = ""
+			// Only have tsm values? Use the wal buf
+		} else if len(m.walBuf[m.key]) == 0 && len(m.tsmBuf[m.key]) > 0 {
+			m.values = m.tsmBuf[m.key]
+			m.tsmKey = ""
+		} else {
+			m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
+			m.walKey = ""
+			m.tsmKey = ""
+		}
+
+		if dedup {
+			m.values = Values(m.values).Deduplicate()
+		}
+
+		// We need to find the index of the min and max values that are within
+		// the minTime/maxTime filters.
+		minIndex, maxIndex := 0, len(m.values)
+		for i, v := range m.values {
+			if v.Time().Before(m.minTime) {
+				minIndex = i
+			}
+			if v.Time().Equal(m.minTime) {
+				minIndex = i
+			}
+
+			if m.maxTime.Before(v.Time()) {
+				maxIndex = i + 1
+			}
+
+			if m.maxTime.Equal(v.Time()) {
+				maxIndex = i
+			}
+		}
+		m.values = m.values[minIndex:maxIndex]
+
+		// Remove the values from our buffer since they are all moved into the current chunk
+		delete(m.tsmBuf, m.key)
+		delete(m.walBuf, m.key)
+
+		// If we have any values, return true.  Otherwise, continue looping until we exhaust
+		// all the keys or finds some values.
+		if len(m.values) > 0 {
+			return true
 		}
 	}
-
-	// Prime the wal buffer if possible
-	if len(m.walBuf) == 0 && m.wal != nil && m.wal.Next() {
-		k, v, err := m.wal.Read()
-		m.err = err
-		m.walKey = k
-		if len(v) > 0 {
-			m.walBuf[k] = v
-		}
-	}
-
-	m.key = m.currentKey()
-
-	// No more keys, we're done.
-	if m.key == "" {
-		return false
-	}
-
-	// Otherwise, append the wal values to the tsm values and sort, dedup.  We want
-	// the wal values to overwrite any tsm values so they are append second.
-	var dedup bool
-	if len(m.walBuf[m.key]) > 0 && len(m.tsmBuf[m.key]) > 0 {
-		tsmVals := m.tsmBuf[m.key]
-		walPoint := m.walBuf[m.key][0].Time()
-		tsmPoint := tsmVals[len(tsmVals)-1].Time()
-
-		if walPoint.Before(tsmPoint) || walPoint.Equal(tsmPoint) {
-			dedup = true
-		}
-	}
-
-	// Only have wal values? Use the wal buf
-	if len(m.tsmBuf[m.key]) == 0 && len(m.walBuf[m.key]) > 0 {
-		m.values = m.walBuf[m.key]
-		m.walKey = ""
-		// Only have tsm values? Use the wal buf
-	} else if len(m.walBuf[m.key]) == 0 && len(m.tsmBuf[m.key]) > 0 {
-		m.values = m.tsmBuf[m.key]
-		m.tsmKey = ""
-	} else {
-		m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
-		m.walKey = ""
-		m.tsmKey = ""
-	}
-
-	if dedup {
-		m.values = Values(m.values).Deduplicate()
-	}
-
-	// Remove the values from our buffer since they are all moved into the current chunk
-	delete(m.tsmBuf, m.key)
-	delete(m.walBuf, m.key)
-
-	return len(m.values) > 0
 }
 
 func (m *MergeIterator) Read() (string, []Value, error) {
