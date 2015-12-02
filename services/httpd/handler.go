@@ -364,7 +364,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	if r.Header.Get("Content-encoding") == "gzip" {
 		b, err := gzip.NewReader(r.Body)
 		if err != nil {
-			h.writeError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 			return
 		}
 		body = b
@@ -376,7 +376,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		if h.WriteTrace {
 			h.Logger.Print("write handler unable to read bytes from request body")
 		}
-		h.writeError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
 	h.statMap.Add(statWriteRequestBytesReceived, int64(len(b)))
@@ -445,21 +445,15 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 	}); err != nil {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		if influxdb.IsClientError(err) {
-			h.writeError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		} else {
-			h.writeError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
+			resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		}
 		return
 	}
 	h.statMap.Add(statPointsWrittenOK, int64(len(points)))
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) writeError(w http.ResponseWriter, result influxql.Result, statusCode int) {
-	w.WriteHeader(statusCode)
-	w.Write([]byte(result.Err.Error()))
-	w.Write([]byte("\n"))
 }
 
 // serveWriteLine receives incoming series data in line protocol format and writes it to the database.
@@ -495,31 +489,31 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		h.writeError(w, influxql.Result{Err: parseError}, http.StatusBadRequest)
+		resultError(w, influxql.Result{Err: parseError}, http.StatusBadRequest)
 		return
 	}
 
 	database := r.FormValue("db")
 	if database == "" {
-		h.writeError(w, influxql.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
+		resultError(w, influxql.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
 		return
 	}
 
 	if di, err := h.MetaStore.Database(database); err != nil {
-		h.writeError(w, influxql.Result{Err: fmt.Errorf("metastore database error: %s", err)}, http.StatusInternalServerError)
+		resultError(w, influxql.Result{Err: fmt.Errorf("metastore database error: %s", err)}, http.StatusInternalServerError)
 		return
 	} else if di == nil {
-		h.writeError(w, influxql.Result{Err: fmt.Errorf("database not found: %q", database)}, http.StatusNotFound)
+		resultError(w, influxql.Result{Err: fmt.Errorf("database not found: %q", database)}, http.StatusNotFound)
 		return
 	}
 
 	if h.requireAuthentication && user == nil {
-		h.writeError(w, influxql.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
+		resultError(w, influxql.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
 		return
 	}
 
 	if h.requireAuthentication && !user.Authorize(influxql.WritePrivilege, database) {
-		h.writeError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
+		resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
 		return
 	}
 
@@ -544,18 +538,18 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		Points:           points,
 	}); influxdb.IsClientError(err) {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
-		h.writeError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	} else if err != nil {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
-		h.writeError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
+		resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		return
 	} else if parseError != nil {
 		// We wrote some of the points
 		h.statMap.Add(statPointsWrittenOK, int64(len(points)))
 		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
 		// response code as well as the lines that failed to parse.
-		h.writeError(w, influxql.Result{Err: fmt.Errorf("partial write:\n%v", parseError)}, http.StatusBadRequest)
+		resultError(w, influxql.Result{Err: fmt.Errorf("partial write:\n%v", parseError)}, http.StatusBadRequest)
 		return
 	}
 
