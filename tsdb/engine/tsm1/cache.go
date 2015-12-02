@@ -288,7 +288,7 @@ func (c *Cache) ValuesRange(key string, min, max uint64) Values {
 	if values == nil {
 		return nil
 	}
-	return values.Deduplicate()
+	return values.Deduplicate(true)
 }
 
 // evict instructs the cache to evict data up to and including the current checkpoint.

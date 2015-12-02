@@ -403,7 +403,7 @@ func (m *MergeIterator) Next() bool {
 		}
 
 		if dedup {
-			m.values = Values(m.values).Deduplicate()
+			m.values = Values(m.values).Deduplicate(true)
 		}
 
 		// We need to find the index of the min and max values that are within
@@ -643,7 +643,7 @@ func (k *tsmKeyIterator) Next() bool {
 				} else if values[len(values)-1].Time().Before(existing[0].Time()) {
 					k.values[key] = append(values, existing...)
 				} else {
-					k.values[key] = Values(append(existing, values...)).Deduplicate()
+					k.values[key] = Values(append(existing, values...)).Deduplicate(true)
 				}
 			}
 		}
