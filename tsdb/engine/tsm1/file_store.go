@@ -36,6 +36,11 @@ type TSMFile interface {
 	// Keys returns all keys contained in the file.
 	Keys() []string
 
+	// Type returns the block type of the values stored for the key.  Returns one of
+	// BlockFloat64, BlockInt64, BlockBool, BlockString.  If key does not exist,
+	// an error is returned.
+	Type(key string) (byte, error)
+
 	// Delete removes the key from the set of keys available in this file.
 	Delete(key string) error
 
@@ -151,6 +156,18 @@ func (f *FileStore) Keys() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func (f *FileStore) Type(key string) (byte, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	for _, f := range f.files {
+		if f.Contains(key) {
+			return f.Type(key)
+		}
+	}
+	return 0, fmt.Errorf("unknown type for %v", key)
 }
 
 func (f *FileStore) Delete(key string) error {

@@ -129,6 +129,12 @@ func ParsePointsString(buf string) ([]Point, error) {
 	return ParsePoints([]byte(buf))
 }
 
+func ParseKey(buf string) (string, Tags, error) {
+	_, keyBuf, err := scanKey([]byte(buf), 0)
+	tags := parseTags([]byte(buf))
+	return string(keyBuf), tags, err
+}
+
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
 // caller to provide a precision for time.
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
@@ -1106,10 +1112,14 @@ func (p *point) SetTime(t time.Time) {
 
 // Tags returns the tag set for the point
 func (p *point) Tags() Tags {
+	return parseTags(p.key)
+}
+
+func parseTags(buf []byte) Tags {
 	tags := map[string]string{}
 
-	if len(p.key) != 0 {
-		pos, name := scanTo(p.key, 0, ',')
+	if len(buf) != 0 {
+		pos, name := scanTo(buf, 0, ',')
 
 		// it's an empyt key, so there are no tags
 		if len(name) == 0 {
@@ -1119,11 +1129,11 @@ func (p *point) Tags() Tags {
 		i := pos + 1
 		var key, value []byte
 		for {
-			if i >= len(p.key) {
+			if i >= len(buf) {
 				break
 			}
-			i, key = scanTo(p.key, i, '=')
-			i, value = scanTagValue(p.key, i+1)
+			i, key = scanTo(buf, i, '=')
+			i, value = scanTagValue(buf, i+1)
 
 			if len(value) == 0 {
 				continue

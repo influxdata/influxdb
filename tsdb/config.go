@@ -55,6 +55,9 @@ const (
 	DefaultIndexMinCompactionInterval  = time.Minute
 	DefaultIndexMinCompactionFileCount = 5
 	DefaultIndexCompactionFullAge      = 5 * time.Minute
+
+	DefaultCacheMaxMemorySize = 0 // No max memory limit
+
 )
 
 type Config struct {
@@ -99,6 +102,10 @@ type Config struct {
 
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
+
+	// compaction options for tsm1dev
+
+	CacheMaxMemorySize uint64 `toml:"cache-max-memory-size"`
 }
 
 func NewConfig() Config {
@@ -128,6 +135,8 @@ func NewConfig() Config {
 		IndexMinCompactionInterval:  DefaultIndexMinCompactionInterval,
 
 		QueryLogEnabled: true,
+
+		CacheMaxMemorySize: DefaultCacheMaxMemorySize,
 	}
 }
 
