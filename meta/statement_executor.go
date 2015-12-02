@@ -22,6 +22,7 @@ type StatementExecutor struct {
 		Database(name string) (*DatabaseInfo, error)
 		Databases() ([]DatabaseInfo, error)
 		CreateDatabase(name string) (*DatabaseInfo, error)
+		CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error)
 		DropDatabase(name string) error
 
 		DefaultRetentionPolicy(database string) (*RetentionPolicyInfo, error)
@@ -110,10 +111,19 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 }
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement) *influxql.Result {
-	_, err := e.Store.CreateDatabase(q.Name)
+	var err error
+	if q.RetentionPolicyCreate {
+		rpi := NewRetentionPolicyInfo(q.RetentionPolicyName)
+		rpi.Duration = q.RetentionPolicyDuration
+		rpi.ReplicaN = q.RetentionPolicyReplication
+		_, err = e.Store.CreateDatabaseWithRetentionPolicy(q.Name, rpi)
+	} else {
+		_, err = e.Store.CreateDatabase(q.Name)
+	}
 	if err == ErrDatabaseExists && q.IfNotExists {
 		err = nil
 	}
+
 	return &influxql.Result{Err: err}
 }
 

@@ -320,6 +320,18 @@ type CreateDatabaseStatement struct {
 	// IfNotExists indicates whether to return without error if the database
 	// already exists.
 	IfNotExists bool
+
+	// RetentionPolicyCreate indicates whether the user explicitly wants to create a retention policy
+	RetentionPolicyCreate bool
+
+	// RetentionPolicyDuration indicates retention duration for the new database
+	RetentionPolicyDuration time.Duration
+
+	// RetentionPolicyReplication indicates retention replication for the new database
+	RetentionPolicyReplication int
+
+	// RetentionPolicyName indicates retention name for the new database
+	RetentionPolicyName string
 }
 
 // String returns a string representation of the create database statement.
@@ -330,6 +342,15 @@ func (s *CreateDatabaseStatement) String() string {
 		_, _ = buf.WriteString("IF NOT EXISTS ")
 	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
+	if s.RetentionPolicyCreate {
+		_, _ = buf.WriteString("WITH DURATION ")
+		_, _ = buf.WriteString(s.RetentionPolicyDuration.String())
+		_, _ = buf.WriteString("REPLICATION ")
+		_, _ = buf.WriteString(strconv.Itoa(s.RetentionPolicyReplication))
+		_, _ = buf.WriteString("NAME ")
+		_, _ = buf.WriteString(QuoteIdent(s.RetentionPolicyName))
+	}
+
 	return buf.String()
 }
 

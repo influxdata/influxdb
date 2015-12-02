@@ -1089,33 +1089,34 @@ func NewStatementExecutor() *StatementExecutor {
 
 // StatementExecutorStore represents a mock implementation of StatementExecutor.Store.
 type StatementExecutorStore struct {
-	NodeFn                      func(id uint64) (*meta.NodeInfo, error)
-	NodesFn                     func() ([]meta.NodeInfo, error)
-	PeersFn                     func() ([]string, error)
-	LeaderFn                    func() string
-	DatabaseFn                  func(name string) (*meta.DatabaseInfo, error)
-	DatabasesFn                 func() ([]meta.DatabaseInfo, error)
-	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
-	DropDatabaseFn              func(name string) error
-	DeleteNodeFn                func(nodeID uint64, force bool) error
-	DefaultRetentionPolicyFn    func(database string) (*meta.RetentionPolicyInfo, error)
-	CreateRetentionPolicyFn     func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
-	UpdateRetentionPolicyFn     func(database, name string, rpu *meta.RetentionPolicyUpdate) error
-	SetDefaultRetentionPolicyFn func(database, name string) error
-	DropRetentionPolicyFn       func(database, name string) error
-	UsersFn                     func() ([]meta.UserInfo, error)
-	CreateUserFn                func(name, password string, admin bool) (*meta.UserInfo, error)
-	UpdateUserFn                func(name, password string) error
-	DropUserFn                  func(name string) error
-	SetPrivilegeFn              func(username, database string, p influxql.Privilege) error
-	SetAdminPrivilegeFn         func(username string, admin bool) error
-	UserPrivilegesFn            func(username string) (map[string]influxql.Privilege, error)
-	UserPrivilegeFn             func(username, database string) (*influxql.Privilege, error)
-	ContinuousQueriesFn         func() ([]meta.ContinuousQueryInfo, error)
-	CreateContinuousQueryFn     func(database, name, query string) error
-	DropContinuousQueryFn       func(database, name string) error
-	CreateSubscriptionFn        func(database, rp, name, typ string, hosts []string) error
-	DropSubscriptionFn          func(database, rp, name string) error
+	NodeFn                              func(id uint64) (*meta.NodeInfo, error)
+	NodesFn                             func() ([]meta.NodeInfo, error)
+	PeersFn                             func() ([]string, error)
+	LeaderFn                            func() string
+	DatabaseFn                          func(name string) (*meta.DatabaseInfo, error)
+	DatabasesFn                         func() ([]meta.DatabaseInfo, error)
+	CreateDatabaseFn                    func(name string) (*meta.DatabaseInfo, error)
+	CreateDatabaseWithRetentionPolicyFn func(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
+	DropDatabaseFn                      func(name string) error
+	DeleteNodeFn                        func(nodeID uint64, force bool) error
+	DefaultRetentionPolicyFn            func(database string) (*meta.RetentionPolicyInfo, error)
+	CreateRetentionPolicyFn             func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+	UpdateRetentionPolicyFn             func(database, name string, rpu *meta.RetentionPolicyUpdate) error
+	SetDefaultRetentionPolicyFn         func(database, name string) error
+	DropRetentionPolicyFn               func(database, name string) error
+	UsersFn                             func() ([]meta.UserInfo, error)
+	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
+	UpdateUserFn                        func(name, password string) error
+	DropUserFn                          func(name string) error
+	SetPrivilegeFn                      func(username, database string, p influxql.Privilege) error
+	SetAdminPrivilegeFn                 func(username string, admin bool) error
+	UserPrivilegesFn                    func(username string) (map[string]influxql.Privilege, error)
+	UserPrivilegeFn                     func(username, database string) (*influxql.Privilege, error)
+	ContinuousQueriesFn                 func() ([]meta.ContinuousQueryInfo, error)
+	CreateContinuousQueryFn             func(database, name, query string) error
+	DropContinuousQueryFn               func(database, name string) error
+	CreateSubscriptionFn                func(database, rp, name, typ string, hosts []string) error
+	DropSubscriptionFn                  func(database, rp, name string) error
 }
 
 func (s *StatementExecutorStore) Node(id uint64) (*meta.NodeInfo, error) {
@@ -1151,6 +1152,10 @@ func (s *StatementExecutorStore) Databases() ([]meta.DatabaseInfo, error) {
 
 func (s *StatementExecutorStore) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	return s.CreateDatabaseFn(name)
+}
+
+func (s *StatementExecutorStore) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error) {
+	return s.CreateDatabaseWithRetentionPolicy(name, rpi)
 }
 
 func (s *StatementExecutorStore) DropDatabase(name string) error {
