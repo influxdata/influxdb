@@ -279,5 +279,5 @@ func fatal(t *testing.T, msg string, err error) {
 }
 
 func tsmFileName(id int) string {
-	return fmt.Sprintf("%07d.tsm1", id)
+	return fmt.Sprintf("%07d.tsm1dev", id)
 }

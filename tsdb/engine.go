@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 
@@ -96,6 +97,16 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 			return err
 		}
 		if fi.Mode().IsDir() {
+			files, err := filepath.Glob(filepath.Join(path, fmt.Sprintf("*.%s", "tsm1dev")))
+			if err != nil {
+				return err
+			}
+
+			if len(files) > 0 {
+				format = "tsm1dev"
+				return nil
+			}
+
 			format = "tsm1"
 			return nil
 		}

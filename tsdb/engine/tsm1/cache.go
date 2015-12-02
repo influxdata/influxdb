@@ -69,11 +69,36 @@ func (a *entries) evict(checkpoint uint64) {
 	}
 }
 
+func (a *entries) contains(min, max uint64) bool {
+	for k, _ := range a.m {
+		if k >= min && k <= max {
+			return true
+		}
+	}
+	return false
+}
+
 // clone returns a copy of all underlying Values. Values are not sorted, nor deduped.
 func (a *entries) clone() Values {
 	var checkpoints checkpoints
 	for k, _ := range a.m {
 		checkpoints = append(checkpoints, k)
+	}
+	sort.Sort(checkpoints)
+
+	var values Values
+	for _, k := range checkpoints {
+		values = append(values, a.m[k].values...)
+	}
+	return values
+}
+
+func (a *entries) cloneRange(min, max uint64) Values {
+	var checkpoints checkpoints
+	for k, _ := range a.m {
+		if k >= min && k <= max {
+			checkpoints = append(checkpoints, k)
+		}
 	}
 	sort.Sort(checkpoints)
 
@@ -119,7 +144,7 @@ func (c *Cache) Write(key string, values []Value, checkpoint uint64) error {
 	defer c.mu.Unlock()
 
 	// Enough room in the cache?
-	if c.size+uint64(Values(values).Size()) > c.maxSize {
+	if c.maxSize > 0 && c.size+uint64(Values(values).Size()) > c.maxSize {
 		return ErrCacheMemoryExceeded
 	}
 	return c.write(key, values, checkpoint)
@@ -137,7 +162,7 @@ func (c *Cache) WriteMulti(values map[string][]Value, checkpoint uint64) error {
 	}
 
 	// Enough room in the cache?
-	if c.size+uint64(totalSz) > c.maxSize {
+	if c.maxSize > 0 && c.size+uint64(totalSz) > c.maxSize {
 		return ErrCacheMemoryExceeded
 	}
 
@@ -184,11 +209,40 @@ func (c *Cache) Keys() []string {
 	return a
 }
 
+func (c *Cache) KeyRange(min, max uint64) []string {
+	var a []string
+	for k, v := range c.store {
+		if v.contains(min, max) {
+			a = append(a, k)
+		}
+	}
+	sort.Strings(a)
+	return a
+}
+
 // Checkpoint returns the current checkpoint for the cache.
 func (c *Cache) Checkpoint() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.checkpoint
+}
+
+func (c *Cache) CheckpointRange() (uint64, uint64) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var min, max uint64
+	for _, v := range c.store {
+		for checkpoint := range v.m {
+			if min == 0 || checkpoint < min {
+				min = checkpoint
+			}
+			if max == 0 || checkpoint > max {
+				max = checkpoint
+			}
+		}
+	}
+	return min, max
 }
 
 // Evict forces the cache to evict.
@@ -216,6 +270,25 @@ func (c *Cache) Values(key string, ascending bool) Values {
 		return nil
 	}
 	return values.Deduplicate(ascending)
+}
+
+func (c *Cache) ValuesRange(key string, min, max uint64) Values {
+	values := func() Values {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
+		e, ok := c.store[key]
+		if !ok {
+			return nil
+		}
+		return e.cloneRange(min, max)
+	}()
+	// Now have copy, so perform dedupe and sort outside of lock, unblocking
+	// writes.
+
+	if values == nil {
+		return nil
+	}
+	return values.Deduplicate(true)
 }
 
 // evict instructs the cache to evict data up to and including the current checkpoint.

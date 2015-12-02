@@ -27,6 +27,12 @@ type TSMFile interface {
 	// key.
 	Contains(key string) bool
 
+	// TimeRange returns the min and max time across all keys in the file.
+	TimeRange() (time.Time, time.Time)
+
+	// KeyRange returns the min and max keys in the file.
+	KeyRange() (string, string)
+
 	// Keys returns all keys contained in the file.
 	Keys() []string
 
@@ -35,6 +41,9 @@ type TSMFile interface {
 
 	// Close the underlying file resources
 	Close() error
+
+	// Size returns the size of the file on disk in bytes.
+	Size() int
 }
 
 type FileStore struct {
@@ -44,6 +53,29 @@ type FileStore struct {
 	dir           string
 
 	files []TSMFile
+
+	stats []FileStat
+}
+
+type FileStat struct {
+	Path             string
+	HasTombstone     bool
+	Size             int
+	MinTime, MaxTime time.Time
+	MinKey, MaxKey   string
+}
+
+func (f FileStat) OverlapsTimeRange(min, max time.Time) bool {
+	return (f.MinTime.Equal(max) || f.MinTime.Before(max)) &&
+		(f.MaxTime.Equal(min) || f.MaxTime.After(min))
+}
+
+func (f FileStat) OverlapsKeyRange(min, max string) bool {
+	return min != "" && max != "" && f.MinKey <= max && f.MaxKey >= min
+}
+
+func (f FileStat) ContainsKey(key string) bool {
+	return f.MinKey >= key || key <= f.MaxKey
 }
 
 func NewFileStore(dir string) *FileStore {
@@ -63,6 +95,14 @@ func (f *FileStore) Count() int {
 func (f *FileStore) CurrentID() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+	return f.currentFileID
+}
+
+// NextID returns the max file ID + 1
+func (f *FileStore) NextID() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.currentFileID++
 	return f.currentFileID
 }
 
@@ -136,16 +176,18 @@ func (f *FileStore) Open() error {
 		return nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", Format)))
+	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm1dev")))
 	if err != nil {
 		return err
 	}
+
 	for _, fn := range files {
 		// Keep track of the latest ID
 		id, err := f.idFromFileName(fn)
 		if err != nil {
 			return err
 		}
+
 		if id >= f.currentFileID {
 			f.currentFileID = id + 1
 		}
@@ -155,7 +197,9 @@ func (f *FileStore) Open() error {
 			return fmt.Errorf("error opening file %s: %v", fn, err)
 		}
 
-		df, err := NewTSMReader(file)
+		df, err := NewTSMReaderWithOptions(TSMReaderOptions{
+			MMAPFile: file,
+		})
 		if err != nil {
 			return fmt.Errorf("error opening memory map for file %s: %v", fn, err)
 		}
@@ -198,6 +242,101 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 		}
 	}
 	return nil, nil
+}
+
+func (f *FileStore) Stats() []FileStat {
+	f.mu.RLock()
+	if f.stats == nil {
+		f.mu.RUnlock()
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
+		var paths []FileStat
+		for _, fd := range f.files {
+			minTime, maxTime := fd.TimeRange()
+			minKey, maxKey := fd.KeyRange()
+
+			paths = append(paths, FileStat{
+				Path:    fd.Path(),
+				Size:    fd.Size(),
+				MinTime: minTime,
+				MaxTime: maxTime,
+				MinKey:  minKey,
+				MaxKey:  maxKey,
+			})
+		}
+		f.stats = paths
+		return f.stats
+	}
+	defer f.mu.RUnlock()
+
+	return f.stats
+}
+
+func (f *FileStore) Replace(oldFiles, newFiles []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	// Copy the current set of active files while we rename
+	// and load the new files.  We copy the pointers here to minimize
+	// the time that locks are held as well as to ensure that the replacement
+	// is atomic.©
+	var updated []TSMFile
+	for _, t := range f.files {
+		updated = append(updated, t)
+	}
+
+	// Rename all the new files to make them live on restart
+	for _, file := range newFiles {
+		var newName = file
+		if strings.HasSuffix(file, ".tmp") {
+			// The new TSM files have a tmp extension.  First rename them.
+			newName = file[:len(file)-4]
+			os.Rename(file, newName)
+		}
+
+		fd, err := os.Open(newName)
+		if err != nil {
+			return err
+		}
+
+		tsm, err := NewTSMReaderWithOptions(TSMReaderOptions{
+			MMAPFile: fd,
+		})
+		if err != nil {
+			return err
+		}
+		updated = append(updated, tsm)
+	}
+
+	// We need to prune our set of active files now
+	var active []TSMFile
+	for _, file := range updated {
+		keep := true
+		for _, remove := range oldFiles {
+			if remove == file.Path() {
+				keep = false
+				if err := file.Close(); err != nil {
+					return err
+				}
+
+				break
+			}
+		}
+
+		if keep {
+			active = append(active, file)
+		}
+	}
+
+	f.stats = nil
+	f.files = active
+
+	// The old files should be removed since they have been replace by new files
+	for _, f := range oldFiles {
+		os.RemoveAll(f)
+	}
+
+	return nil
 }
 
 // idFromFileName parses the segment file ID from its name
