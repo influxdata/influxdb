@@ -7,6 +7,7 @@
 - [#4889](https://github.com/influxdb/influxdb/pull/4889): Implement close notifier and timeout on executors
 
 ### Bugfixes
+- [#4876](https://github.com/influxdb/influxdb/pull/4876): Complete lint for monitor and services packages. Thanks @e-dard!
 - [#4833](https://github.com/influxdb/influxdb/pull/4833), [#4927](https://github.com/influxdb/influxdb/pull/4927): Fix SHOW MEASURMENTS for clusters. Thanks @li-ang!
 - [#4918](https://github.com/influxdb/influxdb/pull/4918): Restore can hang,  Fix [issue #4806](https://github.com/influxdb/influxdb/issues/4806). Thanks @oiooj
 - [#4855](https://github.com/influxdb/influxdb/pull/4855): Fix race in TCP proxy shutdown. Thanks @runner-mei!
