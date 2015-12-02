@@ -5,7 +5,7 @@
 - [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
 - [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
 - [#4889](https://github.com/influxdb/influxdb/pull/4889): Implement close notifier and timeout on executors
-- [#2676](https://github.com/influxdb/influxdb/issues/2676), [#4866](https://github.com/influxdb/influxdb/pull/4866): Add support for specifying default retention policy in database create. Thanks @piers!
+- [#2676](https://github.com/influxdb/influxdb/issues/2676), [#4866](https://github.com/influxdb/influxdb/pull/4866): Add support for specifying default retention policy in database create. Thanks @pires!
 
 ### Bugfixes
 - [#4876](https://github.com/influxdb/influxdb/pull/4876): Complete lint for monitor and services packages. Thanks @e-dard!
@@ -21,6 +21,7 @@
 - [#4817](https://github.com/influxdb/influxdb/pull/4817): Fix Min,Max,Top,Bottom function when query distributed node. Thanks @mengjinglei
 - [#4878](https://github.com/influxdb/influxdb/pull/4878): Fix String() function for several InfluxQL statement types
 - [#4913](https://github.com/influxdb/influxdb/pull/4913): Fix b1 flush deadlock
+- [#3170](https://github.com/influxdb/influxdb/issues/3170), [#4921](https://github.com/influxdb/influxdb/pull/4921): Database does not exist error is now JSON. Thanks @pires!
 
 ## v0.9.5 [2015-11-20]
 
