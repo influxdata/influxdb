@@ -26,7 +26,8 @@ import (
 // and memory usage but produces more dense TSM files.
 const maxCompactionSegments = 10
 
-const maxTSMFileSize = 50 * 1024 * 1024
+const maxTSMFileSize = 250 * 1024 * 1024
+const rolloverTSMFileSize = 5 * 1025 * 1024
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
 
@@ -59,6 +60,10 @@ type DefaultPlanner struct {
 		ClosedSegments() ([]SegmentStat, error)
 	}
 
+	Cache interface {
+		CheckpointRange() (uint64, uint64)
+	}
+
 	FileStore interface {
 		Stats() []FileStat
 	}
@@ -71,17 +76,36 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 		return nil, nil, err
 	}
 
+	if len(wal) > maxCompactionSegments {
+		wal = wal[:maxCompactionSegments]
+	}
+	// Check the cache to see what segments are currently cached.  If they are
+	// not in the cache, we can't compact them and we don't want to include them
+	// in walSegments because they will be deleted after the compaction runs.
+	minCheck, maxCheck := c.Cache.CheckpointRange()
+	var cachedWal []SegmentStat
+	for _, w := range wal {
+		if uint64(w.ID) >= minCheck && uint64(w.ID) <= maxCheck {
+			cachedWal = append(cachedWal, w)
+		}
+	}
+	wal = cachedWal
+
 	tsmStats := c.FileStore.Stats()
 
 	var walPaths []string
 	var tsmPaths []string
+
+	// Since TSM files can be added from different conditions, this is used to ensure
+	// they are added only once.
+	uniqueTsmPaths := map[string]struct{}{}
 
 	// We need to rewrite any TSM files that could contain points for any keys in the
 	// WAL segments.
 	for _, w := range wal {
 		for _, t := range tsmStats {
 			if t.OverlapsTimeRange(w.MinTime, w.MaxTime) && t.OverlapsKeyRange(w.MinKey, w.MaxKey) {
-				tsmPaths = append(tsmPaths, t.Path)
+				uniqueTsmPaths[t.Path] = struct{}{}
 			}
 		}
 
@@ -91,7 +115,7 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 {
 		for _, tsm := range tsmStats {
 			if tsm.HasTombstone {
-				tsmPaths = append(tsmPaths, tsm.Path)
+				uniqueTsmPaths[tsm.Path] = struct{}{}
 			}
 		}
 	}
@@ -103,10 +127,14 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 			if tsm.Size > maxTSMFileSize {
 				continue
 			}
-
-			tsmPaths = append(tsmPaths, tsm.Path)
+			uniqueTsmPaths[tsm.Path] = struct{}{}
 		}
 	}
+
+	for k := range uniqueTsmPaths {
+		tsmPaths = append(tsmPaths, k)
+	}
+	sort.Strings(tsmPaths)
 
 	if len(tsmPaths) == 1 && len(walPaths) == 0 {
 		return nil, nil, nil
@@ -183,8 +211,12 @@ func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 		// New TSM files are written to a temp file and renamed when fully completed.
 		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", c.currentID, "tsm1dev"))
 
+		rollover := rolloverTSMFileSize
+		if len(walSegments) == 0 {
+			rollover = maxTSMFileSize
+		}
 		// Write as much as possible to this file
-		err := c.write(fileName)
+		err := c.write(fileName, rollover)
 
 		// We've hit the max file limit and there is more to write.  Create a new file
 		// and continue.
@@ -195,7 +227,6 @@ func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 
 		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
 		if err != nil {
-			os.RemoveAll(fileName)
 			return nil, err
 		}
 
@@ -206,7 +237,11 @@ func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 	return files, nil
 }
 
-func (c *Compactor) write(path string) error {
+func (c *Compactor) write(path string, rollover int) error {
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return fmt.Errorf("%v already file exists. aborting", path)
+	}
+
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
@@ -234,7 +269,7 @@ func (c *Compactor) write(path string) error {
 
 		// If we have a max file size configured and we're over it, close out the file
 		// and return the error.
-		if c.MaxFileSize != 0 && w.Size() > c.MaxFileSize {
+		if rollover != 0 && w.Size() > rollover {
 			if err := w.WriteIndex(); err != nil {
 				return err
 			}
@@ -350,19 +385,24 @@ func (m *MergeIterator) Next() bool {
 		tsmVals := m.tsmBuf[m.key]
 		walPoint := m.walBuf[m.key][0].Time()
 		tsmPoint := tsmVals[len(tsmVals)-1].Time()
+
 		if walPoint.Before(tsmPoint) || walPoint.Equal(tsmPoint) {
 			dedup = true
 		}
 	}
 
 	// Only have wal values? Use the wal buf
-	if len(m.tsmBuf) == 0 && len(m.walBuf[m.key]) > 0 {
+	if len(m.tsmBuf[m.key]) == 0 && len(m.walBuf[m.key]) > 0 {
 		m.values = m.walBuf[m.key]
+		m.walKey = ""
 		// Only have tsm values? Use the wal buf
 	} else if len(m.walBuf[m.key]) == 0 && len(m.tsmBuf[m.key]) > 0 {
 		m.values = m.tsmBuf[m.key]
+		m.tsmKey = ""
 	} else {
 		m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
+		m.walKey = ""
+		m.tsmKey = ""
 	}
 
 	if dedup {
@@ -405,11 +445,12 @@ func (m *MergeIterator) currentKey() string {
 		key = m.tsmKey
 	} else if m.walKey != "" && m.tsmKey == "" {
 		key = m.walKey
-	} else if m.walKey < m.tsmKey {
+	} else if m.walKey <= m.tsmKey {
 		key = m.walKey
 	} else {
 		key = m.tsmKey
 	}
+
 	return key
 }
 
@@ -552,7 +593,7 @@ func (k *tsmKeyIterator) Next() bool {
 		key := r.Key(k.pos[i])
 		k.keys[i] = key
 
-		if key != "" && key < k.key {
+		if key != "" && key <= k.key {
 			k.key = key
 			skipSearch = true
 		}
@@ -596,7 +637,7 @@ func (k *tsmKeyIterator) Next() bool {
 func (k *tsmKeyIterator) currentKey() string {
 	var key string
 	for searchKey := range k.values {
-		if key == "" || searchKey < key {
+		if key == "" || searchKey <= key {
 			key = searchKey
 		}
 	}

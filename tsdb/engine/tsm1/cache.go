@@ -227,6 +227,24 @@ func (c *Cache) Checkpoint() uint64 {
 	return c.checkpoint
 }
 
+func (c *Cache) CheckpointRange() (uint64, uint64) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var min, max uint64
+	for _, v := range c.store {
+		for checkpoint := range v.m {
+			if min == 0 || checkpoint < min {
+				min = checkpoint
+			}
+			if max == 0 || checkpoint > max {
+				max = checkpoint
+			}
+		}
+	}
+	return min, max
+}
+
 // Evict forces the cache to evict.
 func (c *Cache) Evict() {
 	c.mu.Lock()

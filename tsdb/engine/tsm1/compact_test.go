@@ -1513,6 +1513,8 @@ func TestKeyIterator_Cache_Duplicate(t *testing.T) {
 }
 
 func TestDefaultCompactionPlanner_OnlyWAL(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
@@ -1526,6 +1528,7 @@ func TestDefaultCompactionPlanner_OnlyWAL(t *testing.T) {
 				return nil
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()
@@ -1543,6 +1546,8 @@ func TestDefaultCompactionPlanner_OnlyWAL(t *testing.T) {
 }
 
 func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
@@ -1553,17 +1558,21 @@ func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
 			PathsFn: func() []tsm1.FileStat {
 				return []tsm1.FileStat{
 					tsm1.FileStat{
+						Path: "1.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
+						Path: "2.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
-						Size: 51 * 1024 * 1024,
+						Path: "3.tsm",
+						Size: 251 * 1024 * 1024,
 					},
 				}
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()
@@ -1581,6 +1590,8 @@ func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
 }
 
 func TestDefaultCompactionPlanner_TSM_Rewrite(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
@@ -1591,17 +1602,20 @@ func TestDefaultCompactionPlanner_TSM_Rewrite(t *testing.T) {
 			PathsFn: func() []tsm1.FileStat {
 				return []tsm1.FileStat{
 					tsm1.FileStat{
+						Path: "0001.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
+						Path: "0002.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
-						Size: 51 * 1024 * 1024,
+						Size: 251 * 1024 * 1024,
 					},
 				}
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()
@@ -1619,6 +1633,8 @@ func TestDefaultCompactionPlanner_TSM_Rewrite(t *testing.T) {
 }
 
 func TestDefaultCompactionPlanner_NoRewrite_MaxWAL(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
@@ -1641,17 +1657,20 @@ func TestDefaultCompactionPlanner_NoRewrite_MaxWAL(t *testing.T) {
 			PathsFn: func() []tsm1.FileStat {
 				return []tsm1.FileStat{
 					tsm1.FileStat{
+						Path: "0001.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
+						Path: "0002.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
-						Size: 51 * 1024 * 1024,
+						Size: 251 * 1024 * 1024,
 					},
 				}
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()
@@ -1663,21 +1682,23 @@ func TestDefaultCompactionPlanner_NoRewrite_MaxWAL(t *testing.T) {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if exp, got := 11, len(wal); got != exp {
+	if exp, got := 10, len(wal); got != exp {
 		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
 	}
 }
 
 func TestDefaultCompactionPlanner_Rewrite_MixWAL(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
 				return []tsm1.SegmentStat{
-					tsm1.SegmentStat{Path: "00001.tsm1"},
-					tsm1.SegmentStat{Path: "00002.tsm1"},
-					tsm1.SegmentStat{Path: "00003.tsm1"},
-					tsm1.SegmentStat{Path: "00004.tsm1"},
-					tsm1.SegmentStat{Path: "00005.tsm1"},
+					tsm1.SegmentStat{Path: "00001.wal"},
+					tsm1.SegmentStat{Path: "00002.wal"},
+					tsm1.SegmentStat{Path: "00003.wal"},
+					tsm1.SegmentStat{Path: "00004.wal"},
+					tsm1.SegmentStat{Path: "00005.wal"},
 				}, nil
 			},
 		},
@@ -1685,17 +1706,20 @@ func TestDefaultCompactionPlanner_Rewrite_MixWAL(t *testing.T) {
 			PathsFn: func() []tsm1.FileStat {
 				return []tsm1.FileStat{
 					tsm1.FileStat{
+						Path: "0001.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
+						Path: "0002.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
-						Size: 51 * 1024 * 1024,
+						Size: 251 * 1024 * 1024,
 					},
 				}
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()
@@ -1713,6 +1737,8 @@ func TestDefaultCompactionPlanner_Rewrite_MixWAL(t *testing.T) {
 }
 
 func TestDefaultCompactionPlanner_Rewrite_WALOverlap(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
@@ -1748,6 +1774,7 @@ func TestDefaultCompactionPlanner_Rewrite_WALOverlap(t *testing.T) {
 				}
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()
@@ -1765,37 +1792,34 @@ func TestDefaultCompactionPlanner_Rewrite_WALOverlap(t *testing.T) {
 }
 
 func TestDefaultCompactionPlanner_Rewrite_Deletes(t *testing.T) {
+	c := tsm1.NewCache(0)
+
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
 				return []tsm1.SegmentStat{
-					tsm1.SegmentStat{Path: "00001.tsm1"},
-					tsm1.SegmentStat{Path: "00002.tsm1"},
-					tsm1.SegmentStat{Path: "00003.tsm1"},
-					tsm1.SegmentStat{Path: "00004.tsm1"},
-					tsm1.SegmentStat{Path: "00005.tsm1"},
+					tsm1.SegmentStat{Path: "00001.wal"},
+					tsm1.SegmentStat{Path: "00002.wal"},
+					tsm1.SegmentStat{Path: "00003.wal"},
+					tsm1.SegmentStat{Path: "00004.wal"},
+					tsm1.SegmentStat{Path: "00005.wal"},
 				}, nil
 			},
 		},
 		FileStore: &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
 				return []tsm1.FileStat{
-					tsm1.FileStat{Path: "000001.tsm1"},
-					tsm1.FileStat{Path: "000002.tsm1"},
-					tsm1.FileStat{Path: "000003.tsm1"},
-					tsm1.FileStat{Path: "000004.tsm1"},
-					tsm1.FileStat{Path: "000005.tsm1"},
-					tsm1.FileStat{Path: "000006.tsm1"},
 					tsm1.FileStat{
 						Path:         "000007.tsm1",
 						HasTombstone: true,
 					},
 					tsm1.FileStat{
-						Size: 51 * 1024 * 1024,
+						Size: 251 * 1024 * 1024,
 					},
 				}
 			},
 		},
+		Cache: c,
 	}
 
 	tsm, wal, err := cp.Plan()

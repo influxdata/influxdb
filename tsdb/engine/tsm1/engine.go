@@ -65,6 +65,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		CompactionPlan: &DefaultPlanner{
 			WAL:       w,
 			FileStore: fs,
+			Cache:     cache,
 		},
 		RotateFileSize:    DefaultRotateFileSize,
 		MaxFileSize:       MaxDataFileSize,
