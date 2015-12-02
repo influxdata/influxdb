@@ -860,8 +860,9 @@ func readMapItems(cursors []*TagsCursor, field string, seek, tmin, tmax int64) [
 				Tags:      c.tags,
 			})
 		}
-		seeked = false
 	}
+	sort.Sort(MapItems(items))
+
 	return items
 }
 
