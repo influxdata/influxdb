@@ -44,7 +44,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 
 	fs := NewFileStore(path)
 
-	cache := NewCache(uint64(opt.Config.WALMaxMemorySizeThreshold))
+	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
 
 	c := &Compactor{
 		Dir:         path,
