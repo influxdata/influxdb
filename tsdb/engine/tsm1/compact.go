@@ -103,47 +103,32 @@ func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
 	var walPaths []string
 	var tsmPaths []string
 
-	// Since TSM files can be added from different conditions, this is used to ensure
-	// they are added only once.
-	uniqueTsmPaths := map[string]struct{}{}
-
 	// We need to rewrite any TSM files that could contain points for any keys in the
 	// WAL segments.
 	for _, w := range wal {
-		for _, t := range tsmStats {
-			if t.OverlapsTimeRange(w.MinTime, w.MaxTime) && t.OverlapsKeyRange(w.MinKey, w.MaxKey) {
-				uniqueTsmPaths[t.Path] = struct{}{}
-			}
-		}
-
 		walPaths = append(walPaths, w.Path)
 	}
 
-	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 {
+	var hasDeletes bool
+	// Only look to rollup TSM files we don't have any WAL files to compact
+	if len(wal) == 0 && len(tsmStats) > 1 {
 		for _, tsm := range tsmStats {
 			if tsm.HasTombstone {
-				uniqueTsmPaths[tsm.Path] = struct{}{}
+				tsmPaths = append(tsmPaths, tsm.Path)
+				hasDeletes = true
+				continue
 			}
-		}
-	}
 
-	// Only look to rollup TSM files if we don't have any already identified to be
-	// re-written and we have less than the max WAL segments.
-	if len(wal) < maxCompactionSegments && len(tsmPaths) == 0 && len(tsmStats) > 1 {
-		for _, tsm := range tsmStats {
 			if tsm.Size > maxTSMFileSize {
 				continue
 			}
-			uniqueTsmPaths[tsm.Path] = struct{}{}
+			tsmPaths = append(tsmPaths, tsm.Path)
 		}
 	}
 
-	for k := range uniqueTsmPaths {
-		tsmPaths = append(tsmPaths, k)
-	}
 	sort.Strings(tsmPaths)
 
-	if len(tsmPaths) == 1 && len(walPaths) == 0 {
+	if !hasDeletes && len(tsmPaths) == 1 && len(walPaths) == 0 {
 		return nil, nil, nil
 	}
 	return tsmPaths, walPaths, nil

@@ -1760,123 +1760,13 @@ func TestDefaultCompactionPlanner_NoRewrite_MaxWAL(t *testing.T) {
 	}
 }
 
-func TestDefaultCompactionPlanner_Rewrite_MixWAL(t *testing.T) {
-	c := tsm1.NewCache(0)
-
-	cp := &tsm1.DefaultPlanner{
-		WAL: &fakeWAL{
-			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
-				return []tsm1.SegmentStat{
-					tsm1.SegmentStat{Path: "00001.wal"},
-					tsm1.SegmentStat{Path: "00002.wal"},
-					tsm1.SegmentStat{Path: "00003.wal"},
-					tsm1.SegmentStat{Path: "00004.wal"},
-					tsm1.SegmentStat{Path: "00005.wal"},
-				}, nil
-			},
-		},
-		FileStore: &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					tsm1.FileStat{
-						Path: "0001.tsm1",
-						Size: 1 * 1024 * 1024,
-					},
-					tsm1.FileStat{
-						Path: "0002.tsm1",
-						Size: 1 * 1024 * 1024,
-					},
-					tsm1.FileStat{
-						Size: 251 * 1024 * 1024,
-					},
-				}
-			},
-		},
-		Cache: c,
-	}
-
-	tsm, wal, err := cp.Plan()
-	if err != nil {
-		t.Fatalf("unexpected error running plan: %v", err)
-	}
-
-	if exp, got := 2, len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if exp, got := 5, len(wal); got != exp {
-		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestDefaultCompactionPlanner_Rewrite_WALOverlap(t *testing.T) {
-	c := tsm1.NewCache(0)
-
-	cp := &tsm1.DefaultPlanner{
-		WAL: &fakeWAL{
-			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
-				return []tsm1.SegmentStat{
-					tsm1.SegmentStat{Path: "00001.tsm1",
-						MinTime: time.Unix(1, 0),
-						MaxTime: time.Unix(10, 0),
-						MinKey:  "cpu",
-						MaxKey:  "cpu"},
-					tsm1.SegmentStat{Path: "00002.tsm1"},
-					tsm1.SegmentStat{Path: "00003.tsm1"},
-					tsm1.SegmentStat{Path: "00004.tsm1"},
-					tsm1.SegmentStat{Path: "00005.tsm1"},
-				}, nil
-			},
-		},
-		FileStore: &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					tsm1.FileStat{
-						MinKey:  "cpu",
-						MaxKey:  "mem",
-						MinTime: time.Unix(0, 0),
-						MaxTime: time.Unix(5, 0),
-						Size:    1 * 1024 * 1024,
-					},
-					tsm1.FileStat{
-						Size: 1 * 1024 * 1024,
-					},
-					tsm1.FileStat{
-						Size: 51 * 1024 * 1024,
-					},
-				}
-			},
-		},
-		Cache: c,
-	}
-
-	tsm, wal, err := cp.Plan()
-	if err != nil {
-		t.Fatalf("unexpected error running plan: %v", err)
-	}
-
-	if exp, got := 1, len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if exp, got := 5, len(wal); got != exp {
-		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
-	}
-}
-
 func TestDefaultCompactionPlanner_Rewrite_Deletes(t *testing.T) {
 	c := tsm1.NewCache(0)
 
 	cp := &tsm1.DefaultPlanner{
 		WAL: &fakeWAL{
 			ClosedSegmentsFn: func() ([]tsm1.SegmentStat, error) {
-				return []tsm1.SegmentStat{
-					tsm1.SegmentStat{Path: "00001.wal"},
-					tsm1.SegmentStat{Path: "00002.wal"},
-					tsm1.SegmentStat{Path: "00003.wal"},
-					tsm1.SegmentStat{Path: "00004.wal"},
-					tsm1.SegmentStat{Path: "00005.wal"},
-				}, nil
+				return []tsm1.SegmentStat{}, nil
 			},
 		},
 		FileStore: &fakeFileStore{
@@ -1904,10 +1794,11 @@ func TestDefaultCompactionPlanner_Rewrite_Deletes(t *testing.T) {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if exp, got := 5, len(wal); got != exp {
+	if exp, got := 0, len(wal); got != exp {
 		t.Fatalf("wal file length mismatch: got %v, exp %v", got, exp)
 	}
 }
+
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
