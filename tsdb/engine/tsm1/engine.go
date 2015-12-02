@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -146,12 +147,12 @@ func (e *DevEngine) WritePoints(points []models.Point, measurementFieldsToSave m
 
 // DeleteSeries deletes the series from the engine.
 func (e *DevEngine) DeleteSeries(seriesKeys []string) error {
-	panic("not implemented")
+	return fmt.Errorf("delete series not implemented")
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *DevEngine) DeleteMeasurement(name string, seriesKeys []string) error {
-	panic("not implemented")
+	return fmt.Errorf("delete measurement not implemented")
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -161,7 +162,7 @@ func (e *DevEngine) SeriesCount() (n int, err error) {
 
 // Begin starts a new transaction on the engine.
 func (e *DevEngine) Begin(writable bool) (tsdb.Tx, error) {
-	panic("not implemented")
+	return nil, fmt.Errorf("begin transaction not implemented")
 }
 
 func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
