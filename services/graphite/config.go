@@ -99,6 +99,7 @@ func (c *Config) WithDefaults() *Config {
 	return &d
 }
 
+// DefaultTags returns the config's tags.
 func (c *Config) DefaultTags() models.Tags {
 	tags := models.Tags{}
 	for _, t := range c.Tags {
@@ -108,6 +109,7 @@ func (c *Config) DefaultTags() models.Tags {
 	return tags
 }
 
+// Validate validates the config's templates and tags.
 func (c *Config) Validate() error {
 	if err := c.validateTemplates(); err != nil {
 		return err

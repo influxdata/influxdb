@@ -16,6 +16,7 @@ import (
 	"github.com/influxdb/influxdb/models"
 )
 
+// Handler is an http.Handler for the service.
 type Handler struct {
 	Database         string
 	RetentionPolicy  string

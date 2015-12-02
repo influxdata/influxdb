@@ -47,6 +47,7 @@ func (c *tcpConnection) Close() {
 	c.conn.Close()
 }
 
+// Service represents a Graphite service.
 type Service struct {
 	mu sync.Mutex
 
@@ -211,6 +212,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.logger = l
 }
 
+// Addr returns the address the Service binds to.
 func (s *Service) Addr() net.Addr {
 	return s.addr
 }
@@ -337,7 +339,7 @@ func (s *Service) handleLine(line string) {
 	point, err := s.parser.Parse(line)
 	if err != nil {
 		switch err := err.(type) {
-		case *ErrUnsupportedValue:
+		case *UnsupposedValueError:
 			// Graphite ignores NaN values with no error.
 			if math.IsNaN(err.Value) {
 				s.statMap.Add(statPointsNaNFail, 1)
@@ -377,6 +379,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	}
 }
 
+// Diagnostics returns diagnostics of the graphite service.
 func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
 	s.tcpConnectionsMu.Lock()
 	defer s.tcpConnectionsMu.Unlock()

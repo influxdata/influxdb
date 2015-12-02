@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	// When planning a select statement, passing zero tells it not to chunk results. Only applies to raw queries
+	// NoChunkingSize specifies when not to chunk results. When planning
+	// a select statement, passing zero tells it not to chunk results.
+	// Only applies to raw queries.
 	NoChunkingSize = 0
 )
 

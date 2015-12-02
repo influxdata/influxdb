@@ -11,11 +11,13 @@ import (
 	"github.com/influxdb/influxdb/models"
 )
 
+// Minimum and maximum supported dates for timestamps.
 var (
-	defaultTemplate *template
-	MinDate         = time.Date(1901, 12, 13, 0, 0, 0, 0, time.UTC)
-	MaxDate         = time.Date(2038, 1, 19, 0, 0, 0, 0, time.UTC)
+	MinDate = time.Date(1901, 12, 13, 0, 0, 0, 0, time.UTC)
+	MaxDate = time.Date(2038, 1, 19, 0, 0, 0, 0, time.UTC)
 )
+
+var defaultTemplate *template
 
 func init() {
 	var err error
@@ -117,7 +119,7 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	}
 
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return nil, &ErrUnsupportedValue{Field: fields[0], Value: v}
+		return nil, &UnsupposedValueError{Field: fields[0], Value: v}
 	}
 
 	fieldValues := map[string]interface{}{}
@@ -157,8 +159,8 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	return models.NewPoint(measurement, tags, fieldValues, timestamp)
 }
 
-// Apply extracts the template fields form the given line and returns the
-// measurement name and tags
+// ApplyTemplate extracts the template fields from the given line and
+// returns the measurement name and tags.
 func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string, error) {
 	// Break line into fields (name, value, timestamp), only name is used
 	fields := strings.Fields(line)
@@ -185,6 +187,8 @@ type template struct {
 	separator         string
 }
 
+// NewTemplate returns a new template ensuring it has a measurement
+// specified.
 func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*template, error) {
 	tags := strings.Split(pattern, ".")
 	hasMeasurement := false
@@ -206,7 +210,7 @@ func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*te
 	return template, nil
 }
 
-// Apply extracts the template fields form the given line and returns the measurement
+// Apply extracts the template fields from the given line and returns the measurement
 // name and tags
 func (t *template) Apply(line string) (string, map[string]string, string, error) {
 	fields := strings.Split(line, ".")
@@ -231,9 +235,8 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 		} else if tag == "field" {
 			if len(field) != 0 {
 				return "", nil, "", fmt.Errorf("'field' can only be used once in each template: %q", line)
-			} else {
-				field = fields[i]
 			}
+			field = fields[i]
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
 			break
@@ -331,7 +334,7 @@ func (n *node) search(lineParts []string) *template {
 	// the slice is sorted.
 	length := len(n.children)
 	if n.children[length-1].value == "*" {
-		length -= 1
+		length--
 	}
 
 	// Find the index of child with an exact match

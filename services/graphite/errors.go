@@ -2,11 +2,13 @@ package graphite
 
 import "fmt"
 
-type ErrUnsupportedValue struct {
+// An UnsupposedValueError is returned when a parsed value is not
+// supposed.
+type UnsupposedValueError struct {
 	Field string
 	Value float64
 }
 
-func (err *ErrUnsupportedValue) Error() string {
+func (err *UnsupposedValueError) Error() string {
 	return fmt.Sprintf(`field "%s" value: "%v" is unsupported`, err.Field, err.Value)
 }

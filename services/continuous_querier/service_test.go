@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	expectedErr   = errors.New("expected error")
-	unexpectedErr = errors.New("unexpected error")
+	errExpected   = errors.New("expected error")
+	errUnexpected = errors.New("unexpected error")
 )
 
 // Test closing never opened, open, open already open, close, and close already closed.
@@ -104,7 +104,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	// Set a callback for ExecuteQuery. Shouldn't get called because we're not the leader.
 	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 		done <- struct{}{}
-		return nil, unexpectedErr
+		return nil, errUnexpected
 	}
 
 	s.Open()
@@ -122,14 +122,14 @@ func TestContinuousQueryService_MetaStoreFailsToGetDatabases(t *testing.T) {
 	s := NewTestService(t)
 	// Set RunInterval high so we can test triggering with the RunCh below.
 	s.RunInterval = 10 * time.Second
-	s.MetaStore.(*MetaStore).Err = expectedErr
+	s.MetaStore.(*MetaStore).Err = errExpected
 
 	done := make(chan struct{})
 	qe := s.QueryExecutor.(*QueryExecutor)
 	// Set ExecuteQuery callback, which shouldn't get called because of meta store failure.
 	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 		done <- struct{}{}
-		return nil, unexpectedErr
+		return nil, errUnexpected
 	}
 
 	s.Open()
@@ -174,15 +174,15 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
 	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.Err = expectedErr
+	qe.Err = errExpected
 
 	dbis, _ := s.MetaStore.Databases()
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
 	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err != expectedErr {
-		t.Errorf("exp = %s, got = %v", expectedErr, err)
+	if err != errExpected {
+		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}
 }
 

@@ -39,7 +39,7 @@ func TestNodeProcessorSendBlock(t *testing.T) {
 
 	sh := &fakeShardWriter{
 		ShardWriteFn: func(shardID, nodeID uint64, points []models.Point) error {
-			count += 1
+			count++
 			if shardID != expShardID {
 				t.Errorf("SendWrite() shardID mismatch: got %v, exp %v", shardID, expShardID)
 			}
