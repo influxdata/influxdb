@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -122,6 +123,56 @@ func (e *DevEngine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *DevEngine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+	keys := e.FileStore.Keys()
+	for _, k := range keys {
+		seriesKey, field := seriesAndFieldFromCompositeKey(k)
+		measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
+
+		m := index.CreateMeasurementIndexIfNotExists(measurement)
+		m.SetFieldName(field)
+
+		typ, err := e.FileStore.Type(k)
+		if err != nil {
+			return err
+		}
+
+		mf := measurementFields[measurement]
+		if mf == nil {
+			mf = &tsdb.MeasurementFields{
+				Fields: map[string]*tsdb.Field{},
+			}
+			measurementFields[measurement] = mf
+		}
+
+		switch typ {
+		case BlockFloat64:
+			if err := mf.CreateFieldIfNotExists(field, influxql.Float, false); err != nil {
+				return err
+			}
+		case BlockInt64:
+			if err := mf.CreateFieldIfNotExists(field, influxql.Integer, false); err != nil {
+				return err
+			}
+		case BlockBool:
+			if err := mf.CreateFieldIfNotExists(field, influxql.Boolean, false); err != nil {
+				return err
+			}
+		case BlockString:
+			if err := mf.CreateFieldIfNotExists(field, influxql.String, false); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unkown block type for: %v. got %v", k, typ)
+		}
+
+		_, tags, err := models.ParseKey(seriesKey)
+		if err == nil {
+			return err
+		}
+		s := tsdb.NewSeries(seriesKey, tags)
+		s.InitializeShards()
+		index.CreateSeriesIndexIfNotExists(measurement, s)
+	}
 	return nil
 }
 

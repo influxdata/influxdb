@@ -603,7 +603,7 @@ func (d *indirectIndex) Type(key string) (byte, error) {
 	defer d.mu.RUnlock()
 
 	ofs := d.search(key)
-	if ofs < len(d.offsets) {
+	if ofs < len(d.b) {
 		n, _, err := readKey(d.b[ofs:])
 		if err != nil {
 			panic(fmt.Sprintf("error reading key: %v", err))
