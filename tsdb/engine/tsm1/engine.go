@@ -169,6 +169,7 @@ func (e *DevEngine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseInd
 		if err == nil {
 			return err
 		}
+
 		s := tsdb.NewSeries(seriesKey, tags)
 		s.InitializeShards()
 		index.CreateSeriesIndexIfNotExists(measurement, s)
@@ -213,7 +214,7 @@ func (e *DevEngine) SeriesCount() (n int, err error) {
 
 // Begin starts a new transaction on the engine.
 func (e *DevEngine) Begin(writable bool) (tsdb.Tx, error) {
-	return nil, fmt.Errorf("begin transaction not implemented")
+	return &devTx{engine: e}, nil
 }
 
 func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
@@ -276,6 +277,10 @@ func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, asc
 		ascending: ascending,
 	}
 }
+func (t *devTx) Rollback() error                          { return nil }
+func (t *devTx) Size() int64                              { panic("not implemented") }
+func (t *devTx) Commit() error                            { panic("not implemented") }
+func (t *devTx) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 // devCursor is a cursor that combines both TSM and cached data.
 type devCursor struct {
