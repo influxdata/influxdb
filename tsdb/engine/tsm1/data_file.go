@@ -640,6 +640,7 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	var i int32
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
+
 		keyLen := int32(btou16(b[i : i+2]))
 		// Skip to the start of the key
 		i += 2

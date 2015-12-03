@@ -280,11 +280,6 @@ func (f *FileStore) next(key string, t time.Time) ([]Value, error) {
 	defer f.mu.RUnlock()
 
 	for _, fd := range f.files {
-		// Can this file possibly contain this key and timestamp?
-		if !fd.Contains(key) {
-			continue
-		}
-
 		// May have the key and time we are looking for so try to find
 		v, err := fd.Next(key, t)
 		if err != nil {
@@ -304,10 +299,6 @@ func (f *FileStore) prev(key string, t time.Time) ([]Value, error) {
 
 	for i := len(f.files) - 1; i >= 0; i-- {
 		fd := f.files[i]
-		// Can this file possibly contain this key and timestamp?
-		if !fd.Contains(key) {
-			continue
-		}
 
 		// May have the key and time we are looking for so try to find
 		v, err := fd.Prev(key, t)

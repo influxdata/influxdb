@@ -272,8 +272,9 @@ func (e *DevEngine) writeSnapshot() error {
 
 		// clear the snapshot from the in-memory cache, then the old WAL files
 		e.Cache.ClearSnapshot(snapshot)
-		for _, fn := range closedFiles {
-			os.RemoveAll(fn)
+
+		if err := e.WAL.Remove(closedFiles); err != nil {
+			e.logger.Printf("error removing closed wal segments: %v", err)
 		}
 	}()
 
