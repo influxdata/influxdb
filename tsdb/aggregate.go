@@ -167,18 +167,15 @@ func (e *AggregateExecutor) execute(out chan *models.Row, closing <-chan struct{
 		}
 
 		row.Values = values
+		out <- row
 
 		// Check to see if our client disconnected, or it has been to long since
 		// we were asked for data...
 		select {
-		case out <- row:
 		case <-closing:
 			out <- &models.Row{Err: fmt.Errorf("execute was closed by caller")}
 			break
-		case <-time.After(30 * time.Second):
-			// This should never happen, so if it does, it is a problem
-			out <- &models.Row{Err: fmt.Errorf("execute was closed by read timeout")}
-			break
+		default:
 		}
 	}
 
