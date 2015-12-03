@@ -558,6 +558,9 @@ func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluste
 
 // Close shuts down all servers.
 func (c *Cluster) Close() {
+	if c == nil {
+		return
+	}
 	var wg sync.WaitGroup
 	wg.Add(len(c.Servers))
 
