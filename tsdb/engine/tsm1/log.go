@@ -166,12 +166,12 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 			copy(c, fc)
 			c = append(c, values...)
 
-			return newWALCursor(Values(c).Deduplicate(true), ascending)
+			return newWALCursor(Values(c).Deduplicate(), ascending)
 		}
 	}
 
 	if l.cacheDirtySort[ck] {
-		values = Values(values).Deduplicate(true)
+		values = Values(values).Deduplicate()
 	}
 
 	// build a copy so writes afterwards don't change the result set
@@ -586,7 +586,7 @@ func (l *Log) flush(flush flushType) error {
 	}
 	l.cache = make(map[string]Values)
 	for k := range l.cacheDirtySort {
-		l.flushCache[k] = l.flushCache[k].Deduplicate(true)
+		l.flushCache[k] = l.flushCache[k].Deduplicate()
 	}
 	l.cacheDirtySort = make(map[string]bool)
 
