@@ -174,6 +174,48 @@ func TestDevEngine_QueryCache_Descending(t *testing.T) {
 	}
 }
 
+// Ensure an engine containing cached values responds correctly to queries.
+func TestDevEngine_QueryTSM_Descending(t *testing.T) {
+	fs := NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu,host=A#!~#value", []Value{NewValue(time.Unix(1, 0), 1.0)}},
+		keyValues{"cpu,host=A#!~#value", []Value{NewValue(time.Unix(2, 0), 2.0)}},
+		keyValues{"cpu,host=A#!~#value", []Value{NewValue(time.Unix(3, 0), 3.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Start a query transactions and get a cursor.
+	descCursor := devCursor{
+		tsm:       fs,
+		series:    "cpu,host=A",
+		fields:    []string{"value"},
+		ascending: false,
+	}
+
+	k, v := descCursor.SeekTo(4000000000)
+	if k != 3000000000 {
+		t.Fatalf("failed to seek to before last key: %v %v", k, v)
+	}
+
+	k, v = descCursor.Next()
+	if k != 2000000000 {
+		t.Fatalf("failed to get next key: %v %v", k, v)
+	}
+
+	k, v = descCursor.SeekTo(1)
+	if k != -1 {
+		t.Fatalf("failed to seek to after first key: %v %v", k, v)
+	}
+}
+
 func parsePoints(buf string) []models.Point {
 	points, err := models.ParsePointsString(buf)
 	if err != nil {

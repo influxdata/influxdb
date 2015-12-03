@@ -463,15 +463,21 @@ func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
 
 	// TODO: Get the first block from tsm files for the given 'seek'
 	// Seek to position to tsm block.
-	c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek-1))
+	if c.ascending {
+		c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek-1))
+	} else {
+		c.tsmValues, _ = c.tsm.Prev(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek+1))
+	}
+
 	c.tsmPos = sort.Search(len(c.tsmValues), func(i int) bool {
-		if c.ascending {
-			return c.tsmValues[i].Time().UnixNano() >= seek
-		}
-		return c.tsmValues[i].Time().UnixNano() <= seek
+		return c.tsmValues[i].Time().UnixNano() >= seek
 	})
 
-	if c.tsmPos < len(c.tsmValues) {
+	if !c.ascending {
+		c.tsmPos--
+	}
+
+	if c.tsmPos >= 0 && c.tsmPos < len(c.tsmValues) {
 		c.tsmKeyBuf = c.tsmValues[c.tsmPos].Time().UnixNano()
 		c.tsmValueBuf = c.tsmValues[c.tsmPos].Value()
 	} else {
@@ -536,13 +542,26 @@ func (c *devCursor) nextCache() (int64, interface{}) {
 
 // nextTSM returns the next value from the TSM files.
 func (c *devCursor) nextTSM() (int64, interface{}) {
-	c.tsmPos++
-	if c.tsmPos >= len(c.tsmValues) {
-		c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time())
-		if len(c.tsmValues) == 0 {
-			return tsdb.EOF, nil
+	if c.ascending {
+
+		c.tsmPos++
+		if c.tsmPos >= len(c.tsmValues) {
+			c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time())
+			if len(c.tsmValues) == 0 {
+				return tsdb.EOF, nil
+			}
+			c.tsmPos = 0
 		}
-		c.tsmPos = 0
+		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
+	} else {
+		c.tsmPos--
+		if c.tsmPos < 0 {
+			c.tsmValues, _ = c.tsm.Prev(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[0].Time())
+			if len(c.tsmValues) == 0 {
+				return tsdb.EOF, nil
+			}
+			c.tsmPos = len(c.tsmValues) - 1
+		}
+		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
 	}
-	return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
 }
