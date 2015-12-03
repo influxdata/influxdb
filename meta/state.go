@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb"
 )
@@ -469,7 +470,14 @@ func (r *remoteRaft) leader() string {
 		return ""
 	}
 
-	return r.store.peers[rand.Intn(len(r.store.peers))]
+	leader := r.store.peers[rand.Intn(len(r.store.peers))]
+	if leader == "" {
+		// TODO remove debug code
+		leaders := spew.Sdump(r.store.peers)
+		fmt.Printf("########## impossible!: %s", leaders)
+		// end debug code
+	}
+	return leader
 }
 
 func (r *remoteRaft) isLeader() bool {
