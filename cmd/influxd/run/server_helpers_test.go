@@ -14,14 +14,18 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb/client/v2"
 	"github.com/influxdb/influxdb/cmd/influxd/run"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/toml"
 )
+
+const emptyResults = `{"results":[{}]}`
 
 // Server represents a test wrapper for run.Server.
 type Server struct {
@@ -48,6 +52,9 @@ func NewServer(c *run.Config) *Server {
 
 // OpenServer opens a test server.
 func OpenServer(c *run.Config, joinURLs string) *Server {
+	if len(joinURLs) > 0 {
+		c.Meta.Peers = strings.Split(joinURLs, ",")
+	}
 	s := NewServer(c)
 	configureLogging(s)
 	if err := s.Open(); err != nil {
@@ -123,11 +130,14 @@ func (s *Server) Query(query string) (results string, err error) {
 
 // Query executes a query against the server and returns the results.
 func (s *Server) QueryWithParams(query string, values url.Values) (results string, err error) {
+	var v url.Values
 	if values == nil {
-		values = url.Values{}
+		v = url.Values{}
+	} else {
+		v, _ = url.ParseQuery(values.Encode())
 	}
-	values.Set("q", query)
-	return s.HTTPGet(s.URL() + "/query?" + values.Encode())
+	v.Set("q", query)
+	return s.HTTPGet(s.URL() + "/query?" + v.Encode())
 }
 
 // HTTPGet makes an HTTP GET request to the server and returns the response.
@@ -294,6 +304,7 @@ type Query struct {
 	pattern  bool
 	skip     bool
 	repeat   int
+	once     bool
 }
 
 // Execute runs the command and returns an err if it fails
@@ -321,6 +332,8 @@ func (q *Query) failureMessage() string {
 	return fmt.Sprintf("%s: unexpected results\nquery:  %s\nexp:    %s\nactual: %s\n", q.name, q.command, q.exp, q.act)
 }
 
+type Tests map[string]Test
+
 type Test struct {
 	initialized bool
 	write       string
@@ -338,8 +351,43 @@ func NewTest(db, rp string) Test {
 	}
 }
 
+func (t Test) duplicate() Test {
+	test := Test{
+		initialized: t.initialized,
+		write:       t.write,
+		params:      t.params,
+		db:          t.db,
+		rp:          t.rp,
+		exp:         t.exp,
+		queries:     make([]*Query, len(t.queries)),
+	}
+	copy(test.queries, t.queries)
+	return test
+}
+
+func (t *Test) addWrite(s ...string) {
+	if len(t.write) > 0 {
+		t.write += "\n"
+	}
+	t.write = strings.Join(s, "\n")
+}
+
 func (t *Test) addQueries(q ...*Query) {
 	t.queries = append(t.queries, q...)
+}
+
+func (t *Test) database() string {
+	if t.db != "" {
+		return t.db
+	}
+	return "db0"
+}
+
+func (t *Test) retentionPolicy() string {
+	if t.rp != "" {
+		return t.rp
+	}
+	return "default"
 }
 
 func (t *Test) init(s *Server) error {
@@ -347,6 +395,13 @@ func (t *Test) init(s *Server) error {
 		return nil
 	}
 	t.initialized = true
+	if t.db == "" {
+		t.db = "db0"
+	}
+	if t.rp == "" {
+		t.rp = "rp0"
+	}
+
 	if res, err := s.Write(t.db, t.rp, t.write, t.params); err != nil {
 		return err
 	} else if t.exp != res {
@@ -362,7 +417,7 @@ func configureLogging(s *Server) {
 			SetLogger(*log.Logger)
 		}
 		nullLogger := log.New(ioutil.Discard, "", 0)
-		s.MetaStore.Logger = nullLogger
+		s.MetaStore.SetLogger(nullLogger)
 		s.TSDBStore.Logger = nullLogger
 		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
@@ -372,6 +427,219 @@ func configureLogging(s *Server) {
 			if service, ok := service.(logSetter); ok {
 				service.SetLogger(nullLogger)
 			}
+		}
+	}
+}
+
+type Cluster struct {
+	Servers []*Server
+}
+
+func NewCluster(size int) (*Cluster, error) {
+	c := Cluster{}
+	c.Servers = append(c.Servers, OpenServer(NewConfig(), ""))
+	raftURL := c.Servers[0].MetaStore.Addr.String()
+
+	for i := 1; i < size; i++ {
+		c.Servers = append(c.Servers, OpenServer(NewConfig(), raftURL))
+	}
+
+	for _, s := range c.Servers {
+		configureLogging(s)
+	}
+
+	if err := verifyCluster(&c, size); err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
+func verifyCluster(c *Cluster, size int) error {
+	r, err := c.Servers[0].Query("SHOW SERVERS")
+	if err != nil {
+		return err
+	}
+	var cl client.Response
+	if e := json.Unmarshal([]byte(r), &cl); e != nil {
+		return e
+	}
+
+	var leaderCount int
+	var raftCount int
+
+	for _, result := range cl.Results {
+		for _, series := range result.Series {
+			for i, value := range series.Values {
+				addr := c.Servers[i].MetaStore.Addr.String()
+				if value[0].(float64) != float64(i+1) {
+					return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
+				}
+				if value[1].(string) != addr {
+					return fmt.Errorf("expected addr %s, got %v", addr, value[1])
+				}
+				if value[2].(bool) {
+					raftCount++
+				}
+				if value[3].(bool) {
+					leaderCount++
+				}
+			}
+		}
+	}
+	if leaderCount != 1 {
+		return fmt.Errorf("expected 1 leader, got %d", leaderCount)
+	}
+	if size < 3 && raftCount != size {
+		return fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
+	}
+	if size >= 3 && raftCount != 3 {
+		return fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
+	}
+
+	return nil
+}
+
+func NewClusterWithDefaults(size int) (*Cluster, error) {
+	c, err := NewCluster(size)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := c.Query(&Query{command: "CREATE DATABASE db0"})
+	if err != nil {
+		return nil, err
+	}
+	if r != emptyResults {
+		return nil, fmt.Errorf("%s", r)
+	}
+
+	for i, s := range c.Servers {
+		got, err := s.Query("SHOW DATABASES")
+		if err != nil {
+			return nil, fmt.Errorf("failed to query databases on node %d for show databases", i+1)
+		}
+		if exp := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"]]}]}]}`; got != exp {
+			return nil, fmt.Errorf("unexpected result node %d\nexp: %s\ngot: %s\n", i+1, exp, got)
+		}
+	}
+
+	return c, nil
+}
+
+func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluster, error) {
+	c := Cluster{}
+
+	config := NewConfig()
+	cb(0, config)
+
+	c.Servers = append(c.Servers, OpenServer(config, ""))
+	raftURL := c.Servers[0].MetaStore.Addr.String()
+
+	for i := 1; i < size; i++ {
+		config := NewConfig()
+		cb(i, config)
+		c.Servers = append(c.Servers, OpenServer(config, raftURL))
+	}
+
+	for _, s := range c.Servers {
+		configureLogging(s)
+	}
+
+	if err := verifyCluster(&c, size); err != nil {
+		return nil, err
+	}
+
+	return &c, nil
+}
+
+// Close shuts down all servers.
+func (c *Cluster) Close() {
+	var wg sync.WaitGroup
+	wg.Add(len(c.Servers))
+
+	for _, s := range c.Servers {
+		go func(s *Server) {
+			defer wg.Done()
+			s.Close()
+		}(s)
+	}
+	wg.Wait()
+}
+
+func (c *Cluster) Query(q *Query) (string, error) {
+	r, e := c.Servers[0].Query(q.command)
+	q.act = r
+	return r, e
+}
+
+func (c *Cluster) QueryIndex(index int, q string) (string, error) {
+	return c.Servers[index].Query(q)
+}
+
+func (c *Cluster) QueryAll(q *Query) error {
+	type Response struct {
+		Val string
+		Err error
+	}
+
+	timeoutErr := fmt.Errorf("timed out waiting for response")
+
+	queryAll := func() error {
+		// if a server doesn't return in 5 seconds, fail the response
+		timeout := time.After(5 * time.Second)
+		ch := make(chan Response, 0)
+
+		for _, s := range c.Servers {
+			go func(s *Server) {
+				r, err := s.QueryWithParams(q.command, q.params)
+				ch <- Response{Val: r, Err: err}
+			}(s)
+		}
+
+		resps := []Response{}
+		for i := 0; i < len(c.Servers); i++ {
+			select {
+			case r := <-ch:
+				resps = append(resps, r)
+			case <-timeout:
+				return timeoutErr
+			}
+		}
+
+		for _, r := range resps {
+			if r.Err != nil {
+				return r.Err
+			}
+			if q.pattern {
+				if !expectPattern(q.exp, r.Val) {
+					return fmt.Errorf("unexpected pattern: \n\texp: %s\n\tgot: %s\n", q.exp, r.Val)
+				}
+			} else {
+				if r.Val != q.exp {
+					return fmt.Errorf("unexpected value:\n\texp: %s\n\tgot: %s\n", q.exp, r.Val)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	tick := time.Tick(100 * time.Millisecond)
+	// if we don't reach consensus in 20 seconds, fail the query
+	timeout := time.After(20 * time.Second)
+
+	if err := queryAll(); err == nil {
+		return nil
+	}
+	for {
+		select {
+		case <-tick:
+			if err := queryAll(); err == nil {
+				return nil
+			}
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for response")
 		}
 	}
 }

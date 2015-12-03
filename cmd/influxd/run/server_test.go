@@ -31,115 +31,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create database should succeed",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database with retention duration should succeed",
-				command: `CREATE DATABASE db0_r WITH DURATION 24h REPLICATION 2 NAME db0_r_policy`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should error with bad name",
-				command: `CREATE DATABASE 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 17"}`,
-			},
-			&Query{
-				name:    "create database with retention duration should error with bad retention duration",
-				command: `CREATE DATABASE db0 WITH DURATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 35"}`,
-			},
-			&Query{
-				name:    "create database with retention replication should error with bad retention replication number",
-				command: `CREATE DATABASE db0 WITH REPLICATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected number at line 1, char 38"}`,
-			},
-			&Query{
-				name:    "create database with retention name should error with missing retention name",
-				command: `CREATE DATABASE db0 WITH NAME`,
-				exp:     `{"error":"error parsing query: found EOF, expected identifier at line 1, char 31"}`,
-			},
-			&Query{
-				name:    "show database should succeed",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"]]}]}]}`,
-			},
-			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0_r`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
-				name:    "create database should not error with existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should create non-existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database with retention duration should not error with existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION 24h`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should error IF NOT EXISTS with bad retention duration",
-				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 49"}`,
-			},
-			&Query{
-				name:    "show database should succeed",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"],["db1"]]}]}]}`,
-			},
-			&Query{
-				name:    "drop database db0 should succeed",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database db0_r should succeed",
-				command: `DROP DATABASE db0_r`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database db1 should succeed",
-				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it does not exists",
-				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{"error":"database not found: db1"}]}`,
-			},
-			&Query{
-				name:    "drop database should not error with non-existing database db1 WITH IF EXISTS",
-				command: `DROP DATABASE IF EXISTS db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show database should have no results",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it doesn't exist",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{"error":"database not found: db0"}]}`,
-			},
-		},
-	}
+	test := tests.load(t, "database_commands")
 
 	for _, query := range test.queries {
 		if query.skip {
@@ -159,49 +51,14 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_and_recreate_database")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Drop database after data write",
-			command: `DROP DATABASE db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Recreate database",
-			command: `CREATE DATABASE db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Recreate retention policy",
-			command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 365d REPLICATION 1 DEFAULT`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Show measurements after recreate",
-			command: `SHOW MEASUREMENTS`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data after recreate",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -226,54 +83,17 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_database_isolated")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp1", 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Query data from 1st database",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from 1st database with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop other database",
-			command: `DROP DATABASE db1`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Query data from 1st database and ensure it's still there",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from 1st database and ensure it's still there with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -298,40 +118,14 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_and_recreate_series")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series after data write",
-			command: `DROP SERIES FROM cpu`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Show series is gone",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -351,21 +145,11 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	}
 
 	// Re-write data and test again.
-	reTest := NewTest("db0", "rp0")
-	reTest.write = strings.Join(writes, "\n")
+	retest := tests.load(t, "drop_and_recreate_series_retest")
 
-	reTest.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present again after re-write",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
-
-	for i, query := range reTest.queries {
+	for i, query := range retest.queries {
 		if i == 0 {
-			if err := reTest.init(s); err != nil {
+			if err := retest.init(s); err != nil {
 				t.Fatalf("test init failed: %s", err)
 			}
 		}
@@ -386,73 +170,14 @@ func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_series_from_regex")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`aa,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`b,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`c,host=serverA,region=uswest val=30.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"a","columns":["_key","host","region"],"values":[["a,host=serverA,region=uswest","serverA","uswest"]]},{"name":"aa","columns":["_key","host","region"],"values":[["aa,host=serverA,region=uswest","serverA","uswest"]]},{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series after data write",
-			command: `DROP SERIES FROM /a.*/`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Show series is gone",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series from regex that matches no measurements",
-			command: `DROP SERIES FROM /a.*/`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "make sure DROP SERIES doesn't delete anything when regex doesn't match",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series with WHERE field should error",
-			command: `DROP SERIES FROM c WHERE val > 50.0`,
-			exp:     `{"results":[{"error":"DROP SERIES doesn't support fields in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "make sure DROP SERIES with field in WHERE didn't delete data",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series with WHERE time should error",
-			command: `DROP SERIES FROM c WHERE time > now() - 1d`,
-			exp:     `{"results":[{"error":"DROP SERIES doesn't support time in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -480,79 +205,11 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	s := OpenServer(c, "")
 	defer s.Close()
 
-	// Create a database.
-	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
-		t.Fatal(err)
-	}
+	test := tests.load(t, "retention_policy_commands")
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create retention policy should succeed",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create retention policy should error if it already exists",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy already exists"}]}`,
-			},
-			&Query{
-				name:    "show retention policy should succeed",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}`,
-			},
-			&Query{
-				name:    "alter retention policy should succeed",
-				command: `ALTER RETENTION POLICY rp0 ON db0 DURATION 2h REPLICATION 3 DEFAULT`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should have new altered information",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "dropping default retention policy should not succeed",
-				command: `DROP RETENTION POLICY rp0 ON db0`,
-				exp:     `{"results":[{"error":"retention policy is default"}]}`,
-			},
-			&Query{
-				name:    "show retention policy should still show policy",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "create a second non-default retention policy",
-				command: `CREATE RETENTION POLICY rp2 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should show both",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true],["rp2","1h0m0s",1,false]]}]}]}`,
-			},
-			&Query{
-				name:    "dropping non-default retention policy succeed",
-				command: `DROP RETENTION POLICY rp2 ON db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should show just default",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "Ensure retention policy with unacceptable retention cannot be created",
-				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy duration must be at least 1h0m0s"}]}`,
-			},
-			&Query{
-				name:    "Check error when deleting retention policy on non-existent database",
-				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
-				exp:     `{"results":[{"error":"database not found"}]}`,
-			},
-		},
+	// Create a database.
+	if _, err := s.MetaStore.CreateDatabase(test.database()); err != nil {
+		t.Fatal(err)
 	}
 
 	for _, query := range test.queries {
@@ -574,20 +231,7 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create database should succeed",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policies should return auto-created policy",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
-			},
-		},
-	}
+	test := tests.load(t, "retention_policy_auto_create")
 
 	for _, query := range test.queries {
 		if query.skip {
@@ -1635,7 +1279,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a from a non-existent retention policy should error",
 			command: `SELECT value FROM db0.rp1.cpu`,
-			exp:     `{"results":[{"error":"retention policy not found"}]}`,
+			exp:     `{"results":[{"error":"retention policy not found: rp1"}]}`,
 		},
 		&Query{
 			name:    "selecting a valid  measurement and field should succeed",
@@ -3313,10 +2957,6 @@ func TestServer_Query_TopInt(t *testing.T) {
 			continue
 		}
 
-		println(">>>>", query.name)
-		if query.name != `top - memory - host tag with limit 2` { // FIXME: temporary
-			continue
-		}
 		if err := query.Execute(s); err != nil {
 			t.Error(query.Error(err))
 		} else if !query.success() {
