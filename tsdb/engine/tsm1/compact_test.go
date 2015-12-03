@@ -46,14 +46,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
 	}
 
-	f, err := os.Open(files[0])
-	if err != nil {
-		t.Fatalf("unexpected error openting tsm: %v", err)
-	}
-	r, err := tsm1.NewTSMReader(f)
-	if err != nil {
-		t.Fatalf("unexpected error creating tsm reader: %v", err)
-	}
+	r := MustOpenTSMReader(files[0])
 
 	keys := r.Keys()
 	if got, exp := len(keys), 2; got != exp {
@@ -76,6 +69,81 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 		if got, exp := len(values), len(p.points); got != exp {
 			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+}
+
+// Ensures that a compaction will properly merge multiple TSM files
+func TestCompactor_Compact(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// write 3 TSM files with different data and one new point
+	a1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a1},
+	}
+	f1 := MustWriteTSM(dir, writes)
+
+	a2 := tsm1.NewValue(time.Unix(2, 0), 1.2)
+	b1 := tsm1.NewValue(time.Unix(1, 0), 2.1)
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a2},
+		"cpu,host=B#!~#value": []tsm1.Value{b1},
+	}
+	f2 := MustWriteTSM(dir, writes)
+
+	a3 := tsm1.NewValue(time.Unix(1, 0), 1.3)
+	c1 := tsm1.NewValue(time.Unix(1, 0), 3.1)
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a3},
+		"cpu,host=C#!~#value": []tsm1.Value{c1},
+	}
+	f3 := MustWriteTSM(dir, writes)
+
+	compactor := &tsm1.Compactor{
+		Dir:         dir,
+		FileStore:   &fakeFileStore{},
+		MaxFileSize: 1024 << 10,
+	}
+
+	files, err := compactor.Compact([]string{f1, f2, f3})
+	if err != nil {
+		t.Fatalf("unexpected error writing snapshot: %v", err)
+	}
+
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	r := MustOpenTSMReader(files[0])
+
+	keys := r.Keys()
+	if got, exp := len(keys), 3; got != exp {
+		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{a3, a2}},
+		{"cpu,host=B#!~#value", []tsm1.Value{b1}},
+		{"cpu,host=C#!~#value", []tsm1.Value{c1}},
+	}
+
+	for _, p := range data {
+		values, err := r.ReadAll(p.key)
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch %s: got %v, exp %v", p.key, got, exp)
 		}
 
 		for i, point := range p.points {
@@ -391,7 +459,7 @@ func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader 
 	return tsm1.NewWALSegmentReader(f)
 }
 
-func MustTSMReader(dir string, values map[string][]tsm1.Value) *tsm1.TSMReader {
+func MustWriteTSM(dir string, values map[string][]tsm1.Value) string {
 	f := MustTempFile(dir)
 	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
@@ -412,7 +480,15 @@ func MustTSMReader(dir string, values map[string][]tsm1.Value) *tsm1.TSMReader {
 		panic(fmt.Sprintf("write TSM close: %v", err))
 	}
 
-	f, err = os.Open(f.Name())
+	return f.Name()
+}
+
+func MustTSMReader(dir string, values map[string][]tsm1.Value) *tsm1.TSMReader {
+	return MustOpenTSMReader(MustWriteTSM(dir, values))
+}
+
+func MustOpenTSMReader(name string) *tsm1.TSMReader {
+	f, err := os.Open(name)
 	if err != nil {
 		panic(fmt.Sprintf("open file: %v", err))
 	}
