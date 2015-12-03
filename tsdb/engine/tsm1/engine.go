@@ -362,16 +362,10 @@ func (e *DevEngine) Read(key string, t time.Time) ([]Value, error) {
 	return e.FileStore.Read(key, t)
 }
 
-func (e *DevEngine) Next(key string, t time.Time) ([]Value, error) {
+func (e *DevEngine) Scan(key string, t time.Time, ascending bool) ([]Value, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.FileStore.Next(key, t)
-}
-
-func (e *DevEngine) Prev(key string, t time.Time) ([]Value, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.FileStore.Prev(key, t)
+	return e.FileStore.Scan(key, t, ascending)
 }
 
 type devTx struct {
@@ -418,9 +412,7 @@ func (t *devTx) WriteTo(w io.Writer) (n int64, err error) { panic("not implement
 // devCursor is a cursor that combines both TSM and cached data.
 type devCursor struct {
 	tsm interface {
-		Read(key string, time time.Time) ([]Value, error)
-		Next(key string, time time.Time) ([]Value, error)
-		Prev(key string, time time.Time) ([]Value, error)
+		Scan(key string, time time.Time, ascending bool) ([]Value, error)
 	}
 
 	series string
@@ -464,9 +456,9 @@ func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
 	// TODO: Get the first block from tsm files for the given 'seek'
 	// Seek to position to tsm block.
 	if c.ascending {
-		c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek-1))
+		c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek-1), c.ascending)
 	} else {
-		c.tsmValues, _ = c.tsm.Prev(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek+1))
+		c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek+1), c.ascending)
 	}
 
 	c.tsmPos = sort.Search(len(c.tsmValues), func(i int) bool {
@@ -545,7 +537,7 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 	if c.ascending {
 		c.tsmPos++
 		if c.tsmPos >= len(c.tsmValues) {
-			c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time())
+			c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time(), c.ascending)
 			if len(c.tsmValues) == 0 {
 				return tsdb.EOF, nil
 			}
@@ -555,7 +547,7 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 	} else {
 		c.tsmPos--
 		if c.tsmPos < 0 {
-			c.tsmValues, _ = c.tsm.Prev(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[0].Time())
+			c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[0].Time(), c.ascending)
 			if len(c.tsmValues) == 0 {
 				return tsdb.EOF, nil
 			}

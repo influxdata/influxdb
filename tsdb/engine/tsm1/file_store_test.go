@@ -65,7 +65,7 @@ func TestFileStore_Next_FromStart(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	values, err := fs.Next("cpu", time.Unix(0, 0))
+	values, err := fs.Scan("cpu", time.Unix(0, 0), true)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestFileStore_Next_BeforeStart(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	values, err := fs.Next("cpu", time.Unix(0, 0))
+	values, err := fs.Scan("cpu", time.Unix(0, 0), true)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestFileStore_Next_Middle(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	values, err := fs.Next("cpu", time.Unix(3, 0))
+	values, err := fs.Scan("cpu", time.Unix(3, 0), true)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestFileStore_Next_End(t *testing.T) {
 
 	fs.Add(files...)
 
-	values, err := fs.Next("cpu", time.Unix(2, 0))
+	values, err := fs.Scan("cpu", time.Unix(2, 0), true)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestFileStore_Prev_FromStart(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	values, err := fs.Prev("cpu", time.Unix(0, 0))
+	values, err := fs.Scan("cpu", time.Unix(0, 0), false)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestFileStore_Prev_AfterEnd(t *testing.T) {
 
 	fs.Add(files...)
 
-	values, err := fs.Prev("cpu", time.Unix(4, 0))
+	values, err := fs.Scan("cpu", time.Unix(4, 0), false)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestFileStore_Prev_Middle(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	values, err := fs.Prev("cpu", time.Unix(3, 0))
+	values, err := fs.Scan("cpu", time.Unix(3, 0), false)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestFileStore_Prev_End(t *testing.T) {
 
 	fs.Add(files...)
 
-	values, err := fs.Prev("cpu", time.Unix(2, 0))
+	values, err := fs.Scan("cpu", time.Unix(2, 0), false)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}

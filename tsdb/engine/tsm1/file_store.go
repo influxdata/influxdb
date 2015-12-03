@@ -267,7 +267,15 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 	return nil, nil
 }
 
-func (f *FileStore) Next(key string, t time.Time) ([]Value, error) {
+func (f *FileStore) Scan(key string, t time.Time, ascending bool) ([]Value, error) {
+	if ascending {
+		return f.next(key, t)
+	} else {
+		return f.prev(key, t)
+	}
+}
+
+func (f *FileStore) next(key string, t time.Time) ([]Value, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -290,7 +298,7 @@ func (f *FileStore) Next(key string, t time.Time) ([]Value, error) {
 	return nil, nil
 }
 
-func (f *FileStore) Prev(key string, t time.Time) ([]Value, error) {
+func (f *FileStore) prev(key string, t time.Time) ([]Value, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 

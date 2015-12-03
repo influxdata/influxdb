@@ -863,9 +863,12 @@ func (t *TSMReader) Next(key string, timestamp time.Time) ([]Value, error) {
 	entries := t.index.Entries(key)
 	var entry *IndexEntry
 
+	// If the timestamp is before the earliest block in the file, use the first block
 	if timestamp.Before(entries[0].MinTime) {
 		entry = entries[0]
 	} else {
+		// Otherwise, find the block that this time resides within and return the next block
+		// after it.
 		for i, e := range entries {
 			if e.Contains(timestamp) {
 				if i+1 < len(entries) {
@@ -889,9 +892,12 @@ func (t *TSMReader) Prev(key string, timestamp time.Time) ([]Value, error) {
 	entries := t.index.Entries(key)
 	var entry *IndexEntry
 
+	// If the timestamp is after the oldest block in the file, use the oldest block
 	if timestamp.After(entries[len(entries)-1].MaxTime) {
 		entry = entries[len(entries)-1]
 	} else {
+		// In reverse order, find the block where the timestamp resides than then return
+		// the block just before it.
 		for i := len(entries) - 1; i >= 0; i-- {
 			e := entries[i]
 
