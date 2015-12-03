@@ -1,15 +1,15 @@
 machine:
     services:
         - docker
-    pre:
-        - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
-        - source $HOME/.gvm/scripts/gvm; gvm install go1.5.2 --binary
 
 dependencies:
-    override:
-        - mkdir -p ~/docker
     cache_directories:
         - "~/docker"
+    override:
+      - ./test.sh save:
+          # building the docker images can take a long time, hence caching
+          timeout: 1800
+
 test:
     override:
         - bash circle-test.sh:
