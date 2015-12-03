@@ -131,7 +131,6 @@ func TestDevEngine_QueryTSM_Ascending(t *testing.T) {
 
 // Ensure an engine containing cached values responds correctly to queries.
 func TestDevEngine_QueryCache_Descending(t *testing.T) {
-	t.Skip("fixme")
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm1dev")
 	f.Close()
