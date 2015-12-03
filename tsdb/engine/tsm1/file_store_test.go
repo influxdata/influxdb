@@ -47,6 +47,139 @@ func TestFileStore_Read(t *testing.T) {
 	}
 }
 
+func TestFileStore_Next_FromStart(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	values, err := fs.Next("cpu", time.Unix(0, 0))
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := data[1]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+		}
+	}
+}
+
+func TestFileStore_Next_BeforeStart(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(3, 0), 3.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	values, err := fs.Next("cpu", time.Unix(0, 0))
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := data[0]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+		}
+	}
+}
+
+func TestFileStore_Next_Middle(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0),
+			tsm1.NewValue(time.Unix(2, 0), 2.0),
+			tsm1.NewValue(time.Unix(3, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(4, 0), 4.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	values, err := fs.Next("cpu", time.Unix(3, 0))
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := data[1]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+		}
+	}
+}
+
+func TestFileStore_Next_End(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	values, err := fs.Next("cpu", time.Unix(2, 0))
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	if got, exp := len(values), 0; got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestFileStore_Open(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)

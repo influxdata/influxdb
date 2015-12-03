@@ -192,8 +192,8 @@ func (e *IndexEntry) UnmarshalBinary(b []byte) error {
 // Returns true if this IndexEntry may contain values for the given time.  The min and max
 // times are inclusive.
 func (e *IndexEntry) Contains(t time.Time) bool {
-	return e.MinTime.Equal(t) || e.MinTime.Before(t) &&
-		e.MaxTime.Equal(t) || e.MaxTime.After(t)
+	return (e.MinTime.Equal(t) || e.MinTime.Before(t)) &&
+		(e.MaxTime.Equal(t) || e.MaxTime.After(t))
 }
 
 func NewDirectIndex() TSMIndex {
@@ -763,6 +763,7 @@ type TSMReader struct {
 // TSM file.
 type blockAccessor interface {
 	init() (TSMIndex, error)
+	next(key string, timestamp time.Time) ([]Value, error)
 	read(key string, timestamp time.Time) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	path() string
@@ -853,6 +854,13 @@ func (t *TSMReader) Keys() []string {
 
 func (t *TSMReader) Key(index int) string {
 	return t.index.Key(index)
+}
+
+func (t *TSMReader) Next(key string, timestamp time.Time) ([]Value, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.accessor.next(key, timestamp)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
@@ -994,8 +1002,55 @@ func (f *fileAccessor) init() (TSMIndex, error) {
 	return f.index, nil
 }
 
+func (f *fileAccessor) next(key string, t time.Time) ([]Value, error) {
+	entries := f.index.Entries(key)
+	var entry *IndexEntry
+
+	if t.Before(entries[0].MinTime) {
+		entry = entries[0]
+	} else {
+		for i, entry := range entries {
+			if entry.Contains(t) {
+				if i+1 < len(entries) {
+					entry = entries[i+1]
+				}
+			}
+		}
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	// TODO: remove this allocation
+	b := make([]byte, 16*1024)
+	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
+	if err != nil {
+		return nil, err
+	}
+
+	if int(entry.Size) > len(b) {
+		b = make([]byte, entry.Size)
+	}
+
+	n, err := f.r.Read(b)
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO: Validate checksum
+	var values []Value
+	values, err = DecodeBlock(b[4:n], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
 func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 	block := f.index.Entry(key, timestamp)
+
 	if block == nil {
 		return nil, nil
 	}
@@ -1119,6 +1174,37 @@ func (m *mmapAccessor) init() (TSMIndex, error) {
 	}
 
 	return m.index, nil
+}
+
+func (m *mmapAccessor) next(key string, t time.Time) ([]Value, error) {
+	entries := m.index.Entries(key)
+	var entry *IndexEntry
+
+	if t.Before(entries[0].MinTime) {
+		entry = entries[0]
+	} else {
+		for i, entry := range entries {
+			if entry.Contains(t) {
+				if i+1 < len(entries) {
+					entry = entries[i+1]
+				}
+			}
+		}
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	//TODO: Validate checksum
+	var values []Value
+	var err error
+	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+4+int64(entry.Size)], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
 }
 
 func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {

@@ -1,18 +1,20 @@
 package tsm1
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_CacheQueryAscending(t *testing.T) {
+func TestDevEngine_CacheQuery_Ascending(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm1dev")
 	f.Close()
@@ -71,10 +73,65 @@ func TestDevEngine_CacheQueryAscending(t *testing.T) {
 }
 
 // Ensure an engine containing cached values responds correctly to queries.
-func Test_DevEngineCacheQueryDescending(t *testing.T) {
-	// TODO: fix the cursor so this test passes
-	t.Skip("pending")
+func TestDevEngine_TSMQuery_Ascending(t *testing.T) {
+	fs := NewFileStore("")
 
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu,host=A#!~#value", []Value{NewValue(time.Unix(1, 0), 1.0)}},
+		keyValues{"cpu,host=A#!~#value", []Value{NewValue(time.Unix(2, 0), 2.0)}},
+		keyValues{"cpu,host=A#!~#value", []Value{NewValue(time.Unix(3, 0), 3.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Start a query transactions and get a cursor.
+	ascCursor := devCursor{
+		tsm:       fs,
+		series:    "cpu,host=A",
+		fields:    []string{"value"},
+		ascending: true,
+	}
+
+	k, v := ascCursor.SeekTo(1)
+	if k != 1000000000 {
+		t.Fatalf("failed to seek to before first key: %v %v", k, v)
+	}
+
+	k, v = ascCursor.SeekTo(1000000000)
+	if k != 1000000000 {
+		t.Fatalf("failed to seek to first key: %v %v", k, v)
+	}
+
+	k, v = ascCursor.Next()
+	if k != 2000000000 {
+		t.Fatalf("failed to get next key: %v %v", k, v)
+	}
+
+	k, v = ascCursor.Next()
+	if k != 3000000000 {
+		t.Fatalf("failed to get next key: %v %v", k, v)
+	}
+
+	k, v = ascCursor.Next()
+	if k != -1 {
+		t.Fatalf("failed to get next key: %v %v", k, v)
+	}
+
+	k, v = ascCursor.SeekTo(4000000000)
+	if k != -1 {
+		t.Fatalf("failed to seek to past last key: %v %v", k, v)
+	}
+}
+
+// Ensure an engine containing cached values responds correctly to queries.
+func TestDevEngine_CacheQuery_Descending(t *testing.T) {
+	t.Skip("fixme")
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm1dev")
 	f.Close()
@@ -127,4 +184,36 @@ func parsePoints(buf string) []models.Point {
 
 func parsePoint(buf string) models.Point {
 	return parsePoints(buf)[0]
+}
+
+func newFiles(values ...keyValues) ([]TSMFile, error) {
+	var files []TSMFile
+
+	for _, v := range values {
+		var b bytes.Buffer
+		w, err := NewTSMWriter(&b)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := w.Write(v.key, v.values); err != nil {
+			return nil, err
+		}
+
+		if err := w.WriteIndex(); err != nil {
+			return nil, err
+		}
+
+		r, err := NewTSMReader(bytes.NewReader(b.Bytes()))
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, r)
+	}
+	return files, nil
+}
+
+type keyValues struct {
+	key    string
+	values []Value
 }

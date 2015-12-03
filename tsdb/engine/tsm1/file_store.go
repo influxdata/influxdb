@@ -19,6 +19,9 @@ type TSMFile interface {
 	// Read returns all the values in the block where time t resides
 	Read(key string, t time.Time) ([]Value, error)
 
+	// Next returns all the values in the block after the block where time t resides
+	Next(key string, t time.Time) ([]Value, error)
+
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time
 	ContainsValue(key string, t time.Time) bool
@@ -244,12 +247,35 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 
 	for _, f := range f.files {
 		// Can this file possibly contain this key and timestamp?
-		if !f.ContainsValue(key, t) {
+		if !f.Contains(key) {
 			continue
 		}
 
 		// May have the key and time we are looking for so try to find
 		v, err := f.Read(key, t)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(v) > 0 {
+			return v, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *FileStore) Next(key string, t time.Time) ([]Value, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	for _, f := range f.files {
+		// Can this file possibly contain this key and timestamp?
+		if !f.Contains(key) {
+			continue
+		}
+
+		// May have the key and time we are looking for so try to find
+		v, err := f.Next(key, t)
 		if err != nil {
 			return nil, err
 		}
