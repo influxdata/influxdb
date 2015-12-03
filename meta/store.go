@@ -160,7 +160,12 @@ func NewStore(c *Config) *Store {
 		hashPassword: func(password string) ([]byte, error) {
 			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 		},
-		Logger: log.New(os.Stderr, "[metastore] ", log.LstdFlags),
+	}
+
+	if c.LoggingEnabled {
+		s.Logger = log.New(os.Stderr, "[metastore] ", log.LstdFlags)
+	} else {
+		s.Logger = log.New(ioutil.Discard, "", 0)
 	}
 
 	s.raftState = &localRaft{store: s}
@@ -170,14 +175,6 @@ func NewStore(c *Config) *Store {
 		logger:         s.Logger,
 	}
 	return s
-}
-
-// SetLogger sets the internal logger to the logger passed in.
-func (s *Store) SetLogger(l *log.Logger) {
-	s.Logger = l
-	if s.rpc != nil {
-		s.rpc.logger = l
-	}
 }
 
 // Path returns the root path when open.

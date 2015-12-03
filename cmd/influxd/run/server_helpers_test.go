@@ -223,6 +223,10 @@ func NewConfig() *run.Config {
 	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
 	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
 
+	if !testing.Verbose() {
+		c.Meta.LoggingEnabled = false
+	}
+
 	c.Data.Dir = MustTempFile()
 	c.Data.WALDir = MustTempFile()
 	c.Data.WALLoggingEnabled = false
@@ -417,7 +421,6 @@ func configureLogging(s *Server) {
 			SetLogger(*log.Logger)
 		}
 		nullLogger := log.New(ioutil.Discard, "", 0)
-		s.MetaStore.SetLogger(nullLogger)
 		s.TSDBStore.Logger = nullLogger
 		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
