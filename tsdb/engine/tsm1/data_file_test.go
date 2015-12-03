@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
@@ -526,22 +525,41 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
-	if err := w.Write("cpu", values); err != nil {
-		t.Fatalf("unexpeted error writing: %v", err)
-
+	var data = []struct {
+		key    string
+		values []tsm1.Value
+	}{
+		{"float", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+		},
+		{"int", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+		},
+		{"bool", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), true)},
+		},
+		{"string", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), "foo")},
+		},
 	}
+
+	for _, d := range data {
+		if err := w.Write(d.key, d.values); err != nil {
+			t.Fatalf("unexpected error writing: %v", err)
+		}
+	}
+
 	if err := w.WriteIndex(); err != nil {
-		t.Fatalf("unexpeted error writing index: %v", err)
+		t.Fatalf("unexpected error writing index: %v", err)
 	}
 
 	if err := w.Close(); err != nil {
-		t.Fatalf("unexpeted error closing: %v", err)
+		t.Fatalf("unexpected error closing: %v", err)
 	}
 
 	f, err = os.Open(f.Name())
 	if err != nil {
-		t.Fatalf("unexpeted error open file: %v", err)
+		t.Fatalf("unexpected error open file: %v", err)
 	}
 
 	r, err := tsm1.NewTSMReaderWithOptions(
@@ -553,19 +571,27 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 	}
 	defer r.Close()
 
-	readValues, err := r.ReadAll("cpu")
-	if err != nil {
-		t.Fatalf("unexpeted error readin: %v", err)
-	}
-
-	if len(readValues) != len(values) {
-		t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), len(values))
-	}
-
-	for i, v := range values {
-		if v.Value() != readValues[i].Value() {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
+	var count int
+	for _, d := range data {
+		readValues, err := r.ReadAll(d.key)
+		if err != nil {
+			t.Fatalf("unexpeted error readin: %v", err)
 		}
+
+		if exp := len(d.values); exp != len(readValues) {
+			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
+		}
+
+		for i, v := range d.values {
+			if v.Value() != readValues[i].Value() {
+				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
+			}
+		}
+		count++
+	}
+
+	if got, exp := count, len(data); got != exp {
+		t.Fatalf("read values count mismatch: got %v, exp %v", got, exp)
 	}
 }
 
@@ -580,13 +606,28 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
-	if err := w.Write("cpu", values); err != nil {
-		t.Fatalf("unexpeted error writing: %v", err)
+	var data = []struct {
+		key    string
+		values []tsm1.Value
+	}{
+		{"float", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+		},
+		{"int", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+		},
+		{"bool", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), true)},
+		},
+		{"string", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), "foo")},
+		},
 	}
 
-	if err := w.Write("mem", values); err != nil {
-		t.Fatalf("unexpeted error writing: %v", err)
+	for _, d := range data {
+		if err := w.Write(d.key, d.values); err != nil {
+			t.Fatalf("unexpected error writing: %v", err)
+		}
 	}
 
 	if err := w.WriteIndex(); err != nil {
@@ -611,20 +652,27 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 	}
 	defer r.Close()
 
-	spew.Dump(r.Keys())
-	readValues, err := r.Read("cpu", time.Unix(0, 0))
-	if err != nil {
-		t.Fatalf("unexpeted error readin: %v", err)
-	}
-
-	if len(readValues) != len(values) {
-		t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), len(values))
-	}
-
-	for i, v := range values {
-		if v.Value() != readValues[i].Value() {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
+	var count int
+	for _, d := range data {
+		readValues, err := r.Read(d.key, d.values[0].Time())
+		if err != nil {
+			t.Fatalf("unexpeted error readin: %v", err)
 		}
+
+		if exp := len(d.values); exp != len(readValues) {
+			t.Fatalf("read values length mismatch: got %v, exp %v", len(readValues), exp)
+		}
+
+		for i, v := range d.values {
+			if v.Value() != readValues[i].Value() {
+				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
+			}
+		}
+		count++
+	}
+
+	if got, exp := count, len(data); got != exp {
+		t.Fatalf("read values count mismatch: got %v, exp %v", got, exp)
 	}
 }
 

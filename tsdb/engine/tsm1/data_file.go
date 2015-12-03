@@ -192,8 +192,8 @@ func (e *IndexEntry) UnmarshalBinary(b []byte) error {
 // Returns true if this IndexEntry may contain values for the given time.  The min and max
 // times are inclusive.
 func (e *IndexEntry) Contains(t time.Time) bool {
-	return e.MinTime.Equal(t) || e.MinTime.Before(t) &&
-		e.MaxTime.Equal(t) || e.MaxTime.After(t)
+	return (e.MinTime.Equal(t) || e.MinTime.Before(t)) &&
+		(e.MaxTime.Equal(t) || e.MaxTime.After(t))
 }
 
 func NewDirectIndex() TSMIndex {
@@ -765,6 +765,7 @@ type blockAccessor interface {
 	init() (TSMIndex, error)
 	read(key string, timestamp time.Time) ([]Value, error)
 	readAll(key string) ([]Value, error)
+	readBlock(entry *IndexEntry) ([]Value, error)
 	path() string
 	close() error
 }
@@ -853,6 +854,66 @@ func (t *TSMReader) Keys() []string {
 
 func (t *TSMReader) Key(index int) string {
 	return t.index.Key(index)
+}
+
+func (t *TSMReader) Next(key string, timestamp time.Time) ([]Value, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	entries := t.index.Entries(key)
+	var entry *IndexEntry
+
+	// If the timestamp is before the earliest block in the file, use the first block
+	if timestamp.Before(entries[0].MinTime) {
+		entry = entries[0]
+	} else {
+		// Otherwise, find the block that this time resides within and return the next block
+		// after it.
+		for i, e := range entries {
+			if e.Contains(timestamp) {
+				if i+1 < len(entries) {
+					entry = entries[i+1]
+				}
+			}
+		}
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	return t.accessor.readBlock(entry)
+}
+
+func (t *TSMReader) Prev(key string, timestamp time.Time) ([]Value, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	entries := t.index.Entries(key)
+	var entry *IndexEntry
+
+	// If the timestamp is after the oldest block in the file, use the oldest block
+	if timestamp.After(entries[len(entries)-1].MaxTime) {
+		entry = entries[len(entries)-1]
+	} else {
+		// In reverse order, find the block where the timestamp resides than then return
+		// the block just before it.
+		for i := len(entries) - 1; i >= 0; i-- {
+			e := entries[i]
+
+			if e.Contains(timestamp) {
+				if i-1 >= 0 {
+					entry = entries[i-1]
+				}
+			}
+		}
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	return t.accessor.readBlock(entry)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
@@ -995,20 +1056,25 @@ func (f *fileAccessor) init() (TSMIndex, error) {
 }
 
 func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
-	block := f.index.Entry(key, timestamp)
-	if block == nil {
+	entry := f.index.Entry(key, timestamp)
+
+	if entry == nil {
 		return nil, nil
 	}
 
+	return f.readBlock(entry)
+}
+
+func (f *fileAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
 	// TODO: remove this allocation
 	b := make([]byte, 16*1024)
-	_, err := f.r.Seek(block.Offset, os.SEEK_SET)
+	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
 	}
 
-	if int(block.Size) > len(b) {
-		b = make([]byte, block.Size)
+	if int(entry.Size) > len(b) {
+		b = make([]byte, entry.Size)
 	}
 
 	n, err := f.r.Read(b)
@@ -1122,15 +1188,19 @@ func (m *mmapAccessor) init() (TSMIndex, error) {
 }
 
 func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
-	block := m.index.Entry(key, timestamp)
-	if block == nil {
+	entry := m.index.Entry(key, timestamp)
+	if entry == nil {
 		return nil, nil
 	}
 
+	return m.readBlock(entry)
+}
+
+func (m *mmapAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
 	//TODO: Validate checksum
 	var values []Value
 	var err error
-	values, err = DecodeBlock(m.b[block.Offset+4:block.Offset+4+int64(block.Size)], values)
+	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
 	if err != nil {
 		return nil, err
 	}
@@ -1152,7 +1222,7 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 		//TODO: Validate checksum
 		temp = temp[:0]
 		// The +4 is the 4 byte checksum length
-		temp, err = DecodeBlock(m.b[block.Offset+4:block.Offset+4+int64(block.Size)], temp)
+		temp, err = DecodeBlock(m.b[block.Offset+4:block.Offset+int64(block.Size)], temp)
 		if err != nil {
 			return nil, err
 		}

@@ -356,16 +356,53 @@ func (e *DevEngine) reloadCache() error {
 	return nil
 }
 
+func (e *DevEngine) Read(key string, t time.Time) ([]Value, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.FileStore.Read(key, t)
+}
+
+func (e *DevEngine) Scan(key string, t time.Time, ascending bool) ([]Value, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.FileStore.Scan(key, t, ascending)
+}
+
 type devTx struct {
 	engine *DevEngine
 }
 
 // Cursor returns a cursor for all cached and TSM-based data.
 func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
-	return &devCursor{
-		cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
-		ascending: ascending,
+	if len(fields) == 1 {
+		return &devCursor{
+			tsm:       t.engine,
+			series:    series,
+			fields:    fields,
+			cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
+			ascending: ascending,
+		}
 	}
+
+	// multiple fields. use just the MultiFieldCursor, which also handles time collisions
+	// so we don't need to use the combined cursor
+	var cursors []tsdb.Cursor
+	var cursorFields []string
+	for _, field := range fields {
+		wc := &devCursor{
+			tsm:       t.engine,
+			series:    series,
+			fields:    []string{field},
+			cache:     t.engine.Cache.Values(SeriesFieldKey(series, field)),
+			ascending: ascending,
+		}
+
+		// double up the fields since there's one for the wal and one for the index
+		cursorFields = append(cursorFields, field)
+		cursors = append(cursors, wc)
+	}
+
+	return NewMultiFieldCursor(cursorFields, cursors, ascending)
 }
 func (t *devTx) Rollback() error                          { return nil }
 func (t *devTx) Size() int64                              { panic("not implemented") }
@@ -374,11 +411,20 @@ func (t *devTx) WriteTo(w io.Writer) (n int64, err error) { panic("not implement
 
 // devCursor is a cursor that combines both TSM and cached data.
 type devCursor struct {
+	tsm interface {
+		Scan(key string, time time.Time, ascending bool) ([]Value, error)
+	}
+
+	series string
+	fields []string
+
 	cache         Values
-	position      int
+	cachePos      int
 	cacheKeyBuf   int64
 	cacheValueBuf interface{}
 
+	tsmValues   Values
+	tsmPos      int
 	tsmKeyBuf   int64
 	tsmValueBuf interface{}
 
@@ -389,7 +435,7 @@ type devCursor struct {
 // timestamp and value.
 func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
 	// Seek to position in cache index.
-	c.position = sort.Search(len(c.cache), func(i int) bool {
+	c.cachePos = sort.Search(len(c.cache), func(i int) bool {
 		if c.ascending {
 			return c.cache[i].Time().UnixNano() >= seek
 		}
@@ -400,16 +446,35 @@ func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
 		c.cacheKeyBuf = tsdb.EOF
 	}
 
-	if c.position < len(c.cache) {
-		c.cacheKeyBuf = c.cache[c.position].Time().UnixNano()
-		c.cacheValueBuf = c.cache[c.position].Value()
+	if c.cachePos < len(c.cache) {
+		c.cacheKeyBuf = c.cache[c.cachePos].Time().UnixNano()
+		c.cacheValueBuf = c.cache[c.cachePos].Value()
 	} else {
 		c.cacheKeyBuf = tsdb.EOF
 	}
 
 	// TODO: Get the first block from tsm files for the given 'seek'
 	// Seek to position to tsm block.
-	c.tsmKeyBuf = tsdb.EOF
+	if c.ascending {
+		c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek-1), c.ascending)
+	} else {
+		c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek+1), c.ascending)
+	}
+
+	c.tsmPos = sort.Search(len(c.tsmValues), func(i int) bool {
+		return c.tsmValues[i].Time().UnixNano() >= seek
+	})
+
+	if !c.ascending {
+		c.tsmPos--
+	}
+
+	if c.tsmPos >= 0 && c.tsmPos < len(c.tsmValues) {
+		c.tsmKeyBuf = c.tsmValues[c.tsmPos].Time().UnixNano()
+		c.tsmValueBuf = c.tsmValues[c.tsmPos].Value()
+	} else {
+		c.tsmKeyBuf = tsdb.EOF
+	}
 
 	return c.read()
 }
@@ -460,14 +525,34 @@ func (c *devCursor) read() (int64, interface{}) {
 
 // nextCache returns the next value from the cache.
 func (c *devCursor) nextCache() (int64, interface{}) {
-	c.position++
-	if c.position >= len(c.cache) {
+	c.cachePos++
+	if c.cachePos >= len(c.cache) {
 		return tsdb.EOF, nil
 	}
-	return c.cache[c.position].UnixNano(), c.cache[c.position].Value()
+	return c.cache[c.cachePos].UnixNano(), c.cache[c.cachePos].Value()
 }
 
 // nextTSM returns the next value from the TSM files.
 func (c *devCursor) nextTSM() (int64, interface{}) {
-	return tsdb.EOF, nil
+	if c.ascending {
+		c.tsmPos++
+		if c.tsmPos >= len(c.tsmValues) {
+			c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time(), c.ascending)
+			if len(c.tsmValues) == 0 {
+				return tsdb.EOF, nil
+			}
+			c.tsmPos = 0
+		}
+		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
+	} else {
+		c.tsmPos--
+		if c.tsmPos < 0 {
+			c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[0].Time(), c.ascending)
+			if len(c.tsmValues) == 0 {
+				return tsdb.EOF, nil
+			}
+			c.tsmPos = len(c.tsmValues) - 1
+		}
+		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
+	}
 }
