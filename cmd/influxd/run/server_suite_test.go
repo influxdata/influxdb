@@ -400,6 +400,82 @@ func init() {
 		},
 	}
 
+	tests["user_commands"] = Test{
+		db: "db0",
+		queries: []*Query{
+			&Query{
+				name:    "show users, no actual users",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"]}]}]}`,
+			},
+			&Query{
+				name:    `create user`,
+				command: "CREATE USER jdoe WITH PASSWORD '1337'",
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "show users, 1 existing user",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",false]]}]}]}`,
+			},
+			&Query{
+				name:    "grant all priviledges to jdoe",
+				command: `GRANT ALL PRIVILEGES TO jdoe`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "show users, existing user as admin",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}`,
+			},
+			&Query{
+				name:    "grant DB privileges to user",
+				command: `GRANT READ ON db0 TO jdoe`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "revoke all privileges",
+				command: `REVOKE ALL PRIVILEGES FROM jdoe`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "bad create user request",
+				command: `CREATE USER 0xBAD WITH PASSWORD pwd1337`,
+				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}`,
+			},
+			&Query{
+				name:    "bad create user request, no name",
+				command: `CREATE USER WITH PASSWORD pwd1337`,
+				exp:     `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}`,
+			},
+			&Query{
+				name:    "bad create user request, no password",
+				command: `CREATE USER jdoe`,
+				exp:     `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}`,
+			},
+			&Query{
+				name:    "drop user",
+				command: `DROP USER jdoe`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "make sure user was dropped",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"]}]}]}`,
+			},
+			&Query{
+				name:    "delete non existing user",
+				command: `DROP USER noone`,
+				exp:     `{"results":[{"error":"user not found"}]}`,
+			},
+		},
+	}
+
 }
 
 func (tests Tests) load(t *testing.T, key string) Test {
