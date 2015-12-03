@@ -1109,6 +1109,8 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 			pos = block.Offset
 		}
 
+		println(pos, block.Size)
+
 		if int(block.Size) > len(b) {
 			b = make([]byte, block.Size)
 		}
@@ -1194,7 +1196,7 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
 	//TODO: Validate checksum
 	var values []Value
 	var err error
-	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+4+int64(entry.Size)], values)
+	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
 	if err != nil {
 		return nil, err
 	}
@@ -1216,7 +1218,7 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 		//TODO: Validate checksum
 		temp = temp[:0]
 		// The +4 is the 4 byte checksum length
-		temp, err = DecodeBlock(m.b[block.Offset+4:block.Offset+4+int64(block.Size)], temp)
+		temp, err = DecodeBlock(m.b[block.Offset+4:block.Offset+int64(block.Size)], temp)
 		if err != nil {
 			return nil, err
 		}
