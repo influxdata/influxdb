@@ -10,6 +10,7 @@
 - [#4872](https://github.com/influxdb/influxdb/pull/4872): Add option to disable logging for meta service.
 
 ### Bugfixes
+- [#4974](https://github.com/influxdb/influxdb/issues/4974) Fix Data Race in TSDB when setting measurement field name
 - [#4876](https://github.com/influxdb/influxdb/pull/4876): Complete lint for monitor and services packages. Thanks @e-dard!
 - [#4833](https://github.com/influxdb/influxdb/pull/4833), [#4927](https://github.com/influxdb/influxdb/pull/4927): Fix SHOW MEASURMENTS for clusters. Thanks @li-ang!
 - [#4918](https://github.com/influxdb/influxdb/pull/4918): Restore can hang,  Fix [issue #4806](https://github.com/influxdb/influxdb/issues/4806). Thanks @oiooj
