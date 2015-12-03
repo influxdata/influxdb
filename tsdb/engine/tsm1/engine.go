@@ -374,13 +374,35 @@ type devTx struct {
 
 // Cursor returns a cursor for all cached and TSM-based data.
 func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
-	return &devCursor{
-		tsm:       t.engine,
-		series:    series,
-		fields:    fields,
-		cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
-		ascending: ascending,
+	if len(fields) == 1 {
+		return &devCursor{
+			tsm:       t.engine,
+			series:    series,
+			fields:    fields,
+			cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
+			ascending: ascending,
+		}
 	}
+
+	// multiple fields. use just the MultiFieldCursor, which also handles time collisions
+	// so we don't need to use the combined cursor
+	var cursors []tsdb.Cursor
+	var cursorFields []string
+	for _, field := range fields {
+		wc := &devCursor{
+			tsm:       t.engine,
+			series:    series,
+			fields:    []string{field},
+			cache:     t.engine.Cache.Values(SeriesFieldKey(series, field)),
+			ascending: ascending,
+		}
+
+		// double up the fields since there's one for the wal and one for the index
+		cursorFields = append(cursorFields, field)
+		cursors = append(cursors, wc)
+	}
+
+	return NewMultiFieldCursor(cursorFields, cursors, ascending)
 }
 func (t *devTx) Rollback() error                          { return nil }
 func (t *devTx) Size() int64                              { panic("not implemented") }
