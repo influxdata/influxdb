@@ -231,22 +231,22 @@ func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not imple
 func (e *DevEngine) writeSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
-	closedFiles, snapshot, err := func() ([]string, *Cache, error) {
+	closedFiles, snapshot, compactor, err := func() ([]string, *Cache, *Compactor, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 
 		if err := e.WAL.CloseSegment(); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		segments, err := e.WAL.ClosedSegments()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		snapshot := e.Cache.Snapshot()
 
-		return segments, snapshot, nil
+		return segments, snapshot, e.Compactor.Clone(), nil
 	}()
 
 	if err != nil {
@@ -255,11 +255,14 @@ func (e *DevEngine) writeSnapshot() error {
 
 	go func() {
 		// write the new snapshot files
-		newFiles, err := e.Compactor.WriteSnapshot(snapshot)
+		newFiles, err := compactor.WriteSnapshot(snapshot)
 		if err != nil {
 			e.logger.Printf("error writing snapshot from compactor: %v", err)
 			return
 		}
+
+		e.mu.RLock()
+		defer e.mu.RUnlock()
 
 		// update the file store with these new files
 		if err := e.FileStore.Replace(nil, newFiles); err != nil {

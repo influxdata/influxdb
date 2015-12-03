@@ -147,6 +147,15 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 	return c.writeNewFiles(tsm)
 }
 
+// Clone will return a new compactor that can be used even if the engine is closed
+func (c *Compactor) Clone() *Compactor {
+	return &Compactor{
+		Dir:         c.Dir,
+		MaxFileSize: c.MaxFileSize,
+		FileStore:   c.FileStore,
+	}
+}
+
 // writeNewFiles will write from the iterator into new TSM files, rotating
 // to a new file when we've reached the max TSM file size
 func (c *Compactor) writeNewFiles(iter KeyIterator) ([]string, error) {
