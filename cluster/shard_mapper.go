@@ -213,9 +213,10 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 
 	// Prep the non-JSON version of Mapper output.
 	mo := &tsdb.MapperOutput{
-		Name:   moj.Name,
-		Tags:   moj.Tags,
-		Fields: moj.Fields,
+		Name:      moj.Name,
+		Tags:      moj.Tags,
+		Fields:    moj.Fields,
+		CursorKey: moj.CursorKey,
 	}
 
 	if len(mvj) == 1 && len(mvj[0].AggData) > 0 {
