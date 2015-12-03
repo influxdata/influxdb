@@ -38,7 +38,7 @@ type DevEngine struct {
 	MaxFileSize       uint32
 	MaxPointsPerBlock int
 
-	MinCacheFlushThreshold uint64
+	CacheFlushMemorySizeThreshold uint64
 }
 
 // NewDevEngine returns a new instance of Engine.
@@ -72,7 +72,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		MaxFileSize:       MaxDataFileSize,
 		MaxPointsPerBlock: DefaultMaxPointsPerBlock,
 
-		MinCacheFlushThreshold: uint64(opt.Config.WALFlushMemorySizeThreshold),
+		CacheFlushMemorySizeThreshold: uint64(opt.Config.WALFlushMemorySizeThreshold),
 	}
 
 	return e
@@ -185,9 +185,6 @@ func (e *DevEngine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseInd
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
 func (e *DevEngine) WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
 	values := map[string][]Value{}
 	for _, p := range points {
 		for k, v := range p.Fields() {
@@ -195,6 +192,9 @@ func (e *DevEngine) WritePoints(points []models.Point, measurementFieldsToSave m
 			values[key] = append(values[key], NewValue(p.Time(), v))
 		}
 	}
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 
 	// first try to write to the cache
 	err := e.Cache.WriteMulti(values)
@@ -279,7 +279,7 @@ func (e *DevEngine) writeSnapshot() error {
 
 func (e *DevEngine) compact() {
 	for {
-		if e.Cache.Size() > e.MinCacheFlushThreshold {
+		if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
 			err := e.writeSnapshot()
 			if err != nil {
 				e.logger.Printf("error writing snapshot: %v", err)

@@ -371,3 +371,43 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkWALSegmentReader(b *testing.B) {
+	points := map[string][]tsm1.Value{}
+	for i := 0; i < 5000; i++ {
+		k := "cpu,host=A#!~#value"
+		points[k] = append(points[k], tsm1.NewValue(time.Unix(int64(i), 0), 1.1))
+	}
+
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	f := MustTempFile(dir)
+	w := tsm1.NewWALSegmentWriter(f)
+
+	write := &tsm1.WriteWALEntry{
+		Values: points,
+	}
+
+	for i := 0; i < 100; i++ {
+		if err := w.Write(write); err != nil {
+			b.Fatalf("unexpected error writing entry: %v", err)
+		}
+	}
+
+	r := tsm1.NewWALSegmentReader(f)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		f.Seek(0, os.SEEK_SET)
+		b.StartTimer()
+
+		for r.Next() {
+			_, err := r.Read()
+			if err != nil {
+				b.Fatalf("unexpected error reading entry: %v", err)
+			}
+		}
+	}
+}
