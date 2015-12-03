@@ -18,6 +18,7 @@ heartbeat-timeout = "20s"
 leader-lease-timeout = "30h"
 commit-timeout = "40m"
 raft-promotion-enabled = false
+logging-enabled = false
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -35,5 +36,7 @@ raft-promotion-enabled = false
 		t.Fatalf("unexpected commit timeout: %v", c.CommitTimeout)
 	} else if c.RaftPromotionEnabled {
 		t.Fatalf("unexpected raft promotion enabled: %v", c.RaftPromotionEnabled)
+	} else if c.LoggingEnabled {
+		t.Fatalf("unexpected logging enabled: %v", c.LoggingEnabled)
 	}
 }
