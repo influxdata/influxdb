@@ -763,9 +763,9 @@ type TSMReader struct {
 // TSM file.
 type blockAccessor interface {
 	init() (TSMIndex, error)
-	next(key string, timestamp time.Time) ([]Value, error)
 	read(key string, timestamp time.Time) ([]Value, error)
 	readAll(key string) ([]Value, error)
+	readBlock(entry *IndexEntry) ([]Value, error)
 	path() string
 	close() error
 }
@@ -860,7 +860,54 @@ func (t *TSMReader) Next(key string, timestamp time.Time) ([]Value, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	return t.accessor.next(key, timestamp)
+	entries := t.index.Entries(key)
+	var entry *IndexEntry
+
+	if timestamp.Before(entries[0].MinTime) {
+		entry = entries[0]
+	} else {
+		for i, e := range entries {
+			if e.Contains(timestamp) {
+				if i+1 < len(entries) {
+					entry = entries[i+1]
+				}
+			}
+		}
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	return t.accessor.readBlock(entry)
+}
+
+func (t *TSMReader) Prev(key string, timestamp time.Time) ([]Value, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	entries := t.index.Entries(key)
+	var entry *IndexEntry
+
+	if timestamp.After(entries[len(entries)-1].MaxTime) {
+		entry = entries[len(entries)-1]
+	} else {
+		for i := len(entries) - 1; i >= 0; i-- {
+			e := entries[i]
+
+			if e.Contains(timestamp) {
+				if i-1 >= 0 {
+					entry = entries[i-1]
+				}
+			}
+		}
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	return t.accessor.readBlock(entry)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
@@ -1002,26 +1049,17 @@ func (f *fileAccessor) init() (TSMIndex, error) {
 	return f.index, nil
 }
 
-func (f *fileAccessor) next(key string, t time.Time) ([]Value, error) {
-	entries := f.index.Entries(key)
-	var entry *IndexEntry
-
-	if t.Before(entries[0].MinTime) {
-		entry = entries[0]
-	} else {
-		for i, entry := range entries {
-			if entry.Contains(t) {
-				if i+1 < len(entries) {
-					entry = entries[i+1]
-				}
-			}
-		}
-	}
+func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
+	entry := f.index.Entry(key, timestamp)
 
 	if entry == nil {
 		return nil, nil
 	}
 
+	return f.readBlock(entry)
+}
+
+func (f *fileAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
 	// TODO: remove this allocation
 	b := make([]byte, 16*1024)
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
@@ -1031,39 +1069,6 @@ func (f *fileAccessor) next(key string, t time.Time) ([]Value, error) {
 
 	if int(entry.Size) > len(b) {
 		b = make([]byte, entry.Size)
-	}
-
-	n, err := f.r.Read(b)
-	if err != nil {
-		return nil, err
-	}
-
-	//TODO: Validate checksum
-	var values []Value
-	values, err = DecodeBlock(b[4:n], values)
-	if err != nil {
-		return nil, err
-	}
-
-	return values, nil
-}
-
-func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
-	block := f.index.Entry(key, timestamp)
-
-	if block == nil {
-		return nil, nil
-	}
-
-	// TODO: remove this allocation
-	b := make([]byte, 16*1024)
-	_, err := f.r.Seek(block.Offset, os.SEEK_SET)
-	if err != nil {
-		return nil, err
-	}
-
-	if int(block.Size) > len(b) {
-		b = make([]byte, block.Size)
 	}
 
 	n, err := f.r.Read(b)
@@ -1176,47 +1181,20 @@ func (m *mmapAccessor) init() (TSMIndex, error) {
 	return m.index, nil
 }
 
-func (m *mmapAccessor) next(key string, t time.Time) ([]Value, error) {
-	entries := m.index.Entries(key)
-	var entry *IndexEntry
-
-	if t.Before(entries[0].MinTime) {
-		entry = entries[0]
-	} else {
-		for i, entry := range entries {
-			if entry.Contains(t) {
-				if i+1 < len(entries) {
-					entry = entries[i+1]
-				}
-			}
-		}
-	}
-
+func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
+	entry := m.index.Entry(key, timestamp)
 	if entry == nil {
 		return nil, nil
 	}
 
+	return m.readBlock(entry)
+}
+
+func (m *mmapAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
 	//TODO: Validate checksum
 	var values []Value
 	var err error
 	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+4+int64(entry.Size)], values)
-	if err != nil {
-		return nil, err
-	}
-
-	return values, nil
-}
-
-func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
-	block := m.index.Entry(key, timestamp)
-	if block == nil {
-		return nil, nil
-	}
-
-	//TODO: Validate checksum
-	var values []Value
-	var err error
-	values, err = DecodeBlock(m.b[block.Offset+4:block.Offset+4+int64(block.Size)], values)
 	if err != nil {
 		return nil, err
 	}

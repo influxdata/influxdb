@@ -368,6 +368,12 @@ func (e *DevEngine) Next(key string, t time.Time) ([]Value, error) {
 	return e.FileStore.Next(key, t)
 }
 
+func (e *DevEngine) Prev(key string, t time.Time) ([]Value, error) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.FileStore.Prev(key, t)
+}
+
 type devTx struct {
 	engine *DevEngine
 }
@@ -414,6 +420,7 @@ type devCursor struct {
 	tsm interface {
 		Read(key string, time time.Time) ([]Value, error)
 		Next(key string, time time.Time) ([]Value, error)
+		Prev(key string, time time.Time) ([]Value, error)
 	}
 
 	series string

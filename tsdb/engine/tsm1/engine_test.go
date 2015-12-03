@@ -14,7 +14,7 @@ import (
 )
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_CacheQuery_Ascending(t *testing.T) {
+func TestDevEngine_QueryCache_Ascending(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm1dev")
 	f.Close()
@@ -73,7 +73,7 @@ func TestDevEngine_CacheQuery_Ascending(t *testing.T) {
 }
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_TSMQuery_Ascending(t *testing.T) {
+func TestDevEngine_QueryTSM_Ascending(t *testing.T) {
 	fs := NewFileStore("")
 
 	// Setup 3 files
@@ -130,7 +130,7 @@ func TestDevEngine_TSMQuery_Ascending(t *testing.T) {
 }
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_CacheQuery_Descending(t *testing.T) {
+func TestDevEngine_QueryCache_Descending(t *testing.T) {
 	t.Skip("fixme")
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm1dev")
