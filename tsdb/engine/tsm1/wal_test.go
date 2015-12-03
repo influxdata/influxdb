@@ -347,80 +347,6 @@ func TestWAL_Delete(t *testing.T) {
 	}
 }
 
-func TestWAL_ClosedSegments_Stats(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-
-	w := tsm1.NewWAL(dir)
-	if err := w.Open(); err != nil {
-		t.Fatalf("error opening WAL: %v", err)
-	}
-
-	files, err := w.ClosedSegments()
-	if err != nil {
-		t.Fatalf("error getting closed segments: %v", err)
-	}
-
-	if got, exp := len(files), 0; got != exp {
-		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if _, err := w.WritePoints(map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.1),
-		},
-		"mem,host=A#!~#value": []tsm1.Value{
-			tsm1.NewValue(time.Unix(0, 0), 1.1),
-		},
-	}); err != nil {
-		t.Fatalf("error writing points: %v", err)
-	}
-
-	if _, err := w.WritePoints(map[string][]tsm1.Value{
-		"mem,host=A#!~#value": []tsm1.Value{
-			tsm1.NewValue(time.Unix(2, 0), 1.1),
-		},
-	}); err != nil {
-		t.Fatalf("error writing points: %v", err)
-	}
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("error closing wal: %v", err)
-	}
-
-	// Re-open the WAL
-	w = tsm1.NewWAL(dir)
-	defer w.Close()
-	if err := w.Open(); err != nil {
-		t.Fatalf("error opening WAL: %v", err)
-	}
-
-	files, err = w.ClosedSegments()
-	if err != nil {
-		t.Fatalf("error getting closed segments: %v", err)
-	}
-	if got, exp := len(files), 1; got != exp {
-		t.Fatalf("close segment length mismatch: got %v, exp %v", got, exp)
-	}
-
-	// First segment stats
-	if got, exp := files[0].MinKey, "cpu,host=A#!~#value"; got != exp {
-		t.Fatalf("min key mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := files[0].MaxKey, "mem,host=A#!~#value"; got != exp {
-		t.Fatalf("max key mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := files[0].MinTime, time.Unix(0, 0); got != exp {
-		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := files[0].MaxTime, time.Unix(2, 0); got != exp {
-		t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
-	}
-}
-
 func BenchmarkWALSegmentWriter(b *testing.B) {
 	points := map[string][]tsm1.Value{}
 	for i := 0; i < 5000; i++ {
@@ -442,46 +368,6 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		if err := w.Write(write); err != nil {
 			b.Fatalf("unexpected error writing entry: %v", err)
-		}
-	}
-}
-
-func BenchmarkWALSegmentReader(b *testing.B) {
-	points := map[string][]tsm1.Value{}
-	for i := 0; i < 5000; i++ {
-		k := "cpu,host=A#!~#value"
-		points[k] = append(points[k], tsm1.NewValue(time.Unix(int64(i), 0), 1.1))
-	}
-
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-
-	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
-
-	write := &tsm1.WriteWALEntry{
-		Values: points,
-	}
-
-	for i := 0; i < 100; i++ {
-		if err := w.Write(write); err != nil {
-			b.Fatalf("unexpected error writing entry: %v", err)
-		}
-	}
-
-	r := tsm1.NewWALSegmentReader(f)
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		f.Seek(0, os.SEEK_SET)
-		b.StartTimer()
-
-		for r.Next() {
-			_, err := r.Read()
-			if err != nil {
-				b.Fatalf("unexpected error reading entry: %v", err)
-			}
 		}
 	}
 }
