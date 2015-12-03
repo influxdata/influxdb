@@ -1109,8 +1109,6 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 			pos = block.Offset
 		}
 
-		println(pos, block.Size)
-
 		if int(block.Size) > len(b) {
 			b = make([]byte, block.Size)
 		}

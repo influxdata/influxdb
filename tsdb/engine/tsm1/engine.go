@@ -543,7 +543,6 @@ func (c *devCursor) nextCache() (int64, interface{}) {
 // nextTSM returns the next value from the TSM files.
 func (c *devCursor) nextTSM() (int64, interface{}) {
 	if c.ascending {
-
 		c.tsmPos++
 		if c.tsmPos >= len(c.tsmValues) {
 			c.tsmValues, _ = c.tsm.Next(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time())
