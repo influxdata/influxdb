@@ -345,7 +345,18 @@ func (r *localRaft) leader() string {
 		return ""
 	}
 
-	return r.raft.Leader()
+	leader := r.raft.Leader()
+	// TODO remove debug code
+	leaders := spew.Sdump(r.store.peers)
+	if leader == "" {
+		r.store.Logger.Printf("########## local raft impossible!: %s", leaders)
+	} else {
+		r.store.Logger.Printf("########## local raft returning leader: %s from %s", leader, leaders)
+	}
+	// end debug code
+	return leader
+
+	//return r.raft.Leader()
 }
 
 func (r *localRaft) isLeader() bool {
@@ -471,12 +482,14 @@ func (r *remoteRaft) leader() string {
 	}
 
 	leader := r.store.peers[rand.Intn(len(r.store.peers))]
+	// TODO remove debug code
+	leaders := spew.Sdump(r.store.peers)
 	if leader == "" {
-		// TODO remove debug code
-		leaders := spew.Sdump(r.store.peers)
-		fmt.Printf("########## impossible!: %s", leaders)
-		// end debug code
+		r.store.Logger.Printf("########## remote raft impossible!: %s", leaders)
+	} else {
+		r.store.Logger.Printf("########## remote raft returning leader: %s from %s", leader, leaders)
 	}
+	// end debug code
 	return leader
 }
 

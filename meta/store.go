@@ -1709,7 +1709,7 @@ func (s *Store) remoteExec(b []byte) error {
 	if leader == "" {
 		// TODO remove debug code
 		leaders := spew.Sdump(s.peers)
-		fmt.Printf("********** no leader found: %s", leaders)
+		s.Logger.Printf("********** no leader found: %s", leaders)
 		// end debug code
 		return errors.New("no leader detected during remoteExec")
 	}
