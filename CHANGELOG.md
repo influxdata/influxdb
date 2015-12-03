@@ -7,6 +7,7 @@
 - [#4889](https://github.com/influxdb/influxdb/pull/4889): Implement close notifier and timeout on executors
 - [#2676](https://github.com/influxdb/influxdb/issues/2676), [#4866](https://github.com/influxdb/influxdb/pull/4866): Add support for specifying default retention policy in database create. Thanks @pires!
 - [#4848](https://github.com/influxdb/influxdb/pull/4848): Added framework for cluster integration testing.
+- [#4872](https://github.com/influxdb/influxdb/pull/4872): Add option to disable logging for meta service.
 
 ### Bugfixes
 - [#4876](https://github.com/influxdb/influxdb/pull/4876): Complete lint for monitor and services packages. Thanks @e-dard!
