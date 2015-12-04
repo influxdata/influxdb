@@ -150,10 +150,10 @@ func (e *DevEngine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, 
 	}
 
 	// load metadata from the Cache
-	e.Cache.mu.Lock() // shouldn't need the lock, but just to be safe
-	defer e.Cache.mu.Unlock()
+	e.Cache.Lock() // shouldn't need the lock, but just to be safe
+	defer e.Cache.Unlock()
 
-	for key, entry := range e.Cache.store {
+	for key, entry := range e.Cache.Store() {
 		if keysLoaded[key] {
 			continue
 		}

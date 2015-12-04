@@ -216,6 +216,20 @@ func (c *Cache) Values(key string) Values {
 	return values
 }
 
+// Store returns the underlying cache store. This is not goroutine safe!
+// Protect access by using the Lock and Unlock functions on Cache.
+func (c *Cache) Store() map[string]*entry {
+	return c.store
+}
+
+func (c *Cache) Lock() {
+	c.mu.Lock()
+}
+
+func (c *Cache) Unlock() {
+	c.mu.Unlock()
+}
+
 // values returns the values for the key. It doesn't lock and assumes the data is
 // already sorted. Should only be used in compact.go in the CacheKeyIterator
 func (c *Cache) values(key string) Values {
