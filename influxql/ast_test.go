@@ -627,9 +627,11 @@ func TestParseString(t *testing.T) {
 		{
 			stmt: `DROP CONTINUOUS QUERY "my query" ON "my database"`,
 		},
-		{
-			stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
-		},
+		// See issues https://github.com/influxdb/influxdb/issues/1647
+		// and https://github.com/influxdb/influxdb/issues/4404
+		//{
+		//	stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
+		//},
 		{
 			stmt: `DROP SUBSCRIPTION "ugly \"subscription\" name" ON "\"my\" db"."\"my\" rp"`,
 		},
