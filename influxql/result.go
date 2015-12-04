@@ -95,6 +95,9 @@ type Processor func(values []interface{}) interface{}
 
 func newEchoProcessor(index int) Processor {
 	return func(values []interface{}) interface{} {
+		if index > len(values)-1 {
+			return nil
+		}
 		return values[index]
 	}
 }

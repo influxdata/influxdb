@@ -807,6 +807,60 @@ func TestReduce(t *testing.T) {
 	}
 }
 
+func Test_fieldsNames(t *testing.T) {
+	for _, test := range []struct {
+		in    []string
+		out   []string
+		alias []string
+	}{
+		{ //case: binary expr(valRef)
+			in:    []string{"value+value"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+		{ //case: binary expr + valRef
+			in:    []string{"value+value", "temperature"},
+			out:   []string{"value", "value", "temperature"},
+			alias: []string{"", "temperature"},
+		},
+		{ //case: aggregate expr
+			in:    []string{"mean(value)"},
+			out:   []string{"mean"},
+			alias: []string{"mean"},
+		},
+		{ //case: binary expr(aggregate expr)
+			in:    []string{"mean(value) + max(value)"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+		{ //case: binary expr(aggregate expr) + valRef
+			in:    []string{"mean(value) + max(value)", "temperature"},
+			out:   []string{"value", "value", "temperature"},
+			alias: []string{"", "temperature"},
+		},
+		{ //case: mixed aggregate and varRef
+			in:    []string{"mean(value) + temperature"},
+			out:   []string{"value", "temperature"},
+			alias: []string{""},
+		},
+	} {
+		fields := influxql.Fields{}
+		for _, s := range test.in {
+			expr := MustParseExpr(s)
+			fields = append(fields, &influxql.Field{Expr: expr})
+		}
+		got := fields.Names()
+		if !reflect.DeepEqual(got, test.out) {
+			t.Errorf("get fileds name:\nexp=%v\ngot=%v\n", test.out, got)
+		}
+		alias := fields.AliasNames()
+		if !reflect.DeepEqual(alias, test.alias) {
+			t.Errorf("get fileds alias name:\nexp=%v\ngot=%v\n", test.alias, alias)
+		}
+	}
+
+}
+
 // Valuer represents a simple wrapper around a map to implement the influxql.Valuer interface.
 type Valuer map[string]interface{}
 
