@@ -180,38 +180,20 @@ func (c *Cache) Keys() []string {
 
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key string) Values {
-	values, needSort := func() (Values, bool) {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		e := c.store[key]
-		if e == nil {
-			return nil, false
-		}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-		if e.needSort {
-			return nil, true
-		}
-
-		return e.values[0:len(e.values)], false
-	}()
-
-	// the values in the entry require a sort, do so with a write lock so
-	// we can sort once and set everything in order
-	if needSort {
-		values = func() Values {
-			c.mu.Lock()
-			defer c.mu.Unlock()
-
-			e := c.store[key]
-			if e == nil {
-				return nil
-			}
-			e.values = e.values.Deduplicate()
-			e.needSort = false
-
-			return e.values[0:len(e.values)]
-		}()
+	e := c.store[key]
+	if e == nil {
+		return nil
 	}
+	if e.needSort {
+		e.values = e.values.Deduplicate()
+		e.needSort = false
+	}
+
+	values := make(Values, len(e.values))
+	copy(values, e.values)
 
 	return values
 }
