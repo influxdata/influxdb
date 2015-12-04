@@ -19,11 +19,11 @@ type TSMFile interface {
 	// Read returns all the values in the block where time t resides
 	Read(key string, t time.Time) ([]Value, error)
 
-	// Next returns all the values in the block after the block where time t resides
-	Next(key string, t time.Time) ([]Value, error)
+	// Read returns all the values in the block identified by entry.
+	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
 
-	// Prev returns all the values in the block before the block where time t resides
-	Prev(key string, t time.Time) ([]Value, error)
+	// Entries returns the index entrieds for all blocks for the given key.
+	Entries(key string) []*IndexEntry
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time
@@ -273,50 +273,21 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 	return nil, nil
 }
 
-func (f *FileStore) Scan(key string, t time.Time, ascending bool) ([]Value, error) {
-	if ascending {
-		return f.next(key, t)
-	} else {
-		return f.prev(key, t)
-	}
-}
-
-func (f *FileStore) next(key string, t time.Time) ([]Value, error) {
+func (f *FileStore) KeyCursor(key string) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
+	var locations []*location
 	for _, fd := range f.files {
-		// May have the key and time we are looking for so try to find
-		v, err := fd.Next(key, t)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(v) > 0 {
-			return v, nil
+		for _, ie := range fd.Entries(key) {
+			locations = append(locations, &location{
+				r:     fd,
+				entry: ie,
+			})
 		}
 	}
-	return nil, nil
-}
 
-func (f *FileStore) prev(key string, t time.Time) ([]Value, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	for i := len(f.files) - 1; i >= 0; i-- {
-		fd := f.files[i]
-
-		// May have the key and time we are looking for so try to find
-		v, err := fd.Prev(key, t)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(v) > 0 {
-			return v, nil
-		}
-	}
-	return nil, nil
+	return &KeyCursor{seeks: locations, buf: make([]Value, 1000)}
 }
 
 func (f *FileStore) Stats() []FileStat {
@@ -423,4 +394,66 @@ func (f *FileStore) idFromFileName(name string) (int, error) {
 	id, err := strconv.ParseUint(parts[0], 10, 32)
 
 	return int(id), err
+}
+
+type KeyCursor struct {
+	seeks     []*location
+	current   *location
+	buf       []Value
+	pos       int
+	ascending bool
+}
+
+type location struct {
+	r     TSMFile
+	entry *IndexEntry
+}
+
+func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
+	if len(c.seeks) == 0 {
+		return nil, nil
+	}
+	c.current = nil
+
+	if ascending {
+		for i, e := range c.seeks {
+			if t.Before(e.entry.MinTime) || e.entry.Contains(t) {
+				c.current = e
+				c.pos = i
+				break
+			}
+		}
+	} else {
+		for i := len(c.seeks) - 1; i >= 0; i-- {
+			e := c.seeks[i]
+			if t.After(e.entry.MaxTime) || e.entry.Contains(t) {
+				c.current = e
+				c.pos = i
+				break
+			}
+		}
+	}
+
+	if c.current == nil {
+		return nil, nil
+	}
+	return c.current.r.ReadAt(c.current.entry, c.buf[:0])
+}
+
+func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
+	if ascending {
+		c.pos++
+		if c.pos >= len(c.seeks) {
+			return nil, nil
+		}
+		c.current = c.seeks[c.pos]
+		return c.current.r.ReadAt(c.current.entry, c.buf[:0])
+	} else {
+		c.pos--
+		if c.pos < 0 {
+			return nil, nil
+		}
+		c.current = c.seeks[c.pos]
+		return c.current.r.ReadAt(c.current.entry, c.buf[:0])
+	}
 }
