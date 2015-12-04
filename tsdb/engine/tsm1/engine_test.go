@@ -260,7 +260,7 @@ func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// write the snapshot, ensure we can close and load index from TSM
-	if err := e.WriteSnapshot(false); err != nil {
+	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("error writing snapshot: %s", err.Error())
 	}
 

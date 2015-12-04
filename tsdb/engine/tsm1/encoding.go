@@ -104,7 +104,7 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 // InfluxQLType returns the influxql.DataType the values map to.
 func (a Values) InfluxQLType() (influxql.DataType, error) {
 	if len(a) == 0 {
-		return influxql.Unknown, fmt.Errorf("no values in collection")
+		return influxql.Unknown, fmt.Errorf("no values to infer type")
 	}
 
 	switch a[0].Value().(type) {
