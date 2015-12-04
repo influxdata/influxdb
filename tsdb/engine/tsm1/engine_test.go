@@ -92,10 +92,10 @@ func TestDevEngine_QueryTSM_Ascending(t *testing.T) {
 
 	// Start a query transactions and get a cursor.
 	ascCursor := devCursor{
-		tsm:       fs,
-		series:    "cpu,host=A",
-		fields:    []string{"value"},
-		ascending: true,
+		tsmKeyCursor: fs.KeyCursor("cpu,host=A#!~#value"),
+		series:       "cpu,host=A",
+		fields:       []string{"value"},
+		ascending:    true,
 	}
 
 	k, v := ascCursor.SeekTo(1)
@@ -193,10 +193,10 @@ func TestDevEngine_QueryTSM_Descending(t *testing.T) {
 
 	// Start a query transactions and get a cursor.
 	descCursor := devCursor{
-		tsm:       fs,
-		series:    "cpu,host=A",
-		fields:    []string{"value"},
-		ascending: false,
+		tsmKeyCursor: fs.KeyCursor("cpu,host=A#!~#value"),
+		series:       "cpu,host=A",
+		fields:       []string{"value"},
+		ascending:    false,
 	}
 
 	k, v := descCursor.SeekTo(4000000000)

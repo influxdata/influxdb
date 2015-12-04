@@ -779,7 +779,7 @@ type blockAccessor interface {
 	init() (TSMIndex, error)
 	read(key string, timestamp time.Time) ([]Value, error)
 	readAll(key string) ([]Value, error)
-	readBlock(entry *IndexEntry) ([]Value, error)
+	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
 	path() string
 	close() error
 }
@@ -870,64 +870,10 @@ func (t *TSMReader) Key(index int) string {
 	return t.index.Key(index)
 }
 
-func (t *TSMReader) Next(key string, timestamp time.Time) ([]Value, error) {
+func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	entries := t.index.Entries(key)
-	var entry *IndexEntry
-
-	// If the timestamp is before the earliest block in the file, use the first block
-	if timestamp.Before(entries[0].MinTime) {
-		entry = entries[0]
-	} else {
-		// Otherwise, find the block that this time resides within and return the next block
-		// after it.
-		for i, e := range entries {
-			if e.Contains(timestamp) {
-				if i+1 < len(entries) {
-					entry = entries[i+1]
-				}
-			}
-		}
-	}
-
-	if entry == nil {
-		return nil, nil
-	}
-
-	return t.accessor.readBlock(entry)
-}
-
-func (t *TSMReader) Prev(key string, timestamp time.Time) ([]Value, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	entries := t.index.Entries(key)
-	var entry *IndexEntry
-
-	// If the timestamp is after the oldest block in the file, use the oldest block
-	if timestamp.After(entries[len(entries)-1].MaxTime) {
-		entry = entries[len(entries)-1]
-	} else {
-		// In reverse order, find the block where the timestamp resides than then return
-		// the block just before it.
-		for i := len(entries) - 1; i >= 0; i-- {
-			e := entries[i]
-
-			if e.Contains(timestamp) {
-				if i-1 >= 0 {
-					entry = entries[i-1]
-				}
-			}
-		}
-	}
-
-	if entry == nil {
-		return nil, nil
-	}
-
-	return t.accessor.readBlock(entry)
+	return t.accessor.readBlock(entry, vals)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
@@ -1099,10 +1045,10 @@ func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 		return nil, nil
 	}
 
-	return f.readBlock(entry)
+	return f.readBlock(entry, nil)
 }
 
-func (f *fileAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
+func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
 	// TODO: remove this allocation
 	b := make([]byte, 16*1024)
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
@@ -1120,7 +1066,6 @@ func (f *fileAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
 	}
 
 	//TODO: Validate checksum
-	var values []Value
 	values, err = DecodeBlock(b[4:n], values)
 	if err != nil {
 		return nil, err
@@ -1230,12 +1175,14 @@ func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 		return nil, nil
 	}
 
-	return m.readBlock(entry)
+	return m.readBlock(entry, nil)
 }
 
-func (m *mmapAccessor) readBlock(entry *IndexEntry) ([]Value, error) {
+func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		return nil, nil
+	}
 	//TODO: Validate checksum
-	var values []Value
 	var err error
 	values, err = DecodeBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
 	if err != nil {

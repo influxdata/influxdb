@@ -372,16 +372,10 @@ func (e *DevEngine) reloadCache() error {
 	return nil
 }
 
-func (e *DevEngine) Read(key string, t time.Time) ([]Value, error) {
+func (e *DevEngine) KeyCursor(key string) *KeyCursor {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.FileStore.Read(key, t)
-}
-
-func (e *DevEngine) Scan(key string, t time.Time, ascending bool) ([]Value, error) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.FileStore.Scan(key, t, ascending)
+	return e.FileStore.KeyCursor(key)
 }
 
 type devTx struct {
@@ -392,11 +386,11 @@ type devTx struct {
 func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
 	if len(fields) == 1 {
 		return &devCursor{
-			tsm:       t.engine,
-			series:    series,
-			fields:    fields,
-			cache:     t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
-			ascending: ascending,
+			series:       series,
+			fields:       fields,
+			cache:        t.engine.Cache.Values(SeriesFieldKey(series, fields[0])),
+			tsmKeyCursor: t.engine.KeyCursor(SeriesFieldKey(series, fields[0])),
+			ascending:    ascending,
 		}
 	}
 
@@ -406,11 +400,11 @@ func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, asc
 	var cursorFields []string
 	for _, field := range fields {
 		wc := &devCursor{
-			tsm:       t.engine,
-			series:    series,
-			fields:    []string{field},
-			cache:     t.engine.Cache.Values(SeriesFieldKey(series, field)),
-			ascending: ascending,
+			series:       series,
+			fields:       []string{field},
+			cache:        t.engine.Cache.Values(SeriesFieldKey(series, field)),
+			tsmKeyCursor: t.engine.KeyCursor(SeriesFieldKey(series, field)),
+			ascending:    ascending,
 		}
 
 		// double up the fields since there's one for the wal and one for the index
@@ -427,10 +421,6 @@ func (t *devTx) WriteTo(w io.Writer) (n int64, err error) { panic("not implement
 
 // devCursor is a cursor that combines both TSM and cached data.
 type devCursor struct {
-	tsm interface {
-		Scan(key string, time time.Time, ascending bool) ([]Value, error)
-	}
-
 	series string
 	fields []string
 
@@ -444,7 +434,8 @@ type devCursor struct {
 	tsmKeyBuf   int64
 	tsmValueBuf interface{}
 
-	ascending bool
+	tsmKeyCursor *KeyCursor
+	ascending    bool
 }
 
 // SeekTo positions the cursor at the timestamp specified by seek and returns the
@@ -482,9 +473,9 @@ func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
 
 	// Seek to position to tsm block.
 	if c.ascending {
-		c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek-1), c.ascending)
+		c.tsmValues, _ = c.tsmKeyCursor.SeekTo(time.Unix(0, seek-1), c.ascending)
 	} else {
-		c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), time.Unix(0, seek+1), c.ascending)
+		c.tsmValues, _ = c.tsmKeyCursor.SeekTo(time.Unix(0, seek+1), c.ascending)
 	}
 
 	c.tsmPos = sort.Search(len(c.tsmValues), func(i int) bool {
@@ -571,7 +562,7 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 	if c.ascending {
 		c.tsmPos++
 		if c.tsmPos >= len(c.tsmValues) {
-			c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[c.tsmPos-1].Time(), c.ascending)
+			c.tsmValues, _ = c.tsmKeyCursor.Next(c.ascending)
 			if len(c.tsmValues) == 0 {
 				return tsdb.EOF, nil
 			}
@@ -581,7 +572,7 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 	} else {
 		c.tsmPos--
 		if c.tsmPos < 0 {
-			c.tsmValues, _ = c.tsm.Scan(SeriesFieldKey(c.series, c.fields[0]), c.tsmValues[0].Time(), c.ascending)
+			c.tsmValues, _ = c.tsmKeyCursor.Next(c.ascending)
 			if len(c.tsmValues) == 0 {
 				return tsdb.EOF, nil
 			}

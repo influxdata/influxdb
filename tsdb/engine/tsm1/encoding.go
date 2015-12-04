@@ -132,7 +132,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		for i := range decoded {
 			vals[i] = decoded[i]
 		}
-		return vals, err
+		return vals[:len(decoded)], err
 	case BlockInt64:
 		decoded, err := DecodeInt64Block(block, nil)
 		if len(vals) < len(decoded) {
@@ -141,7 +141,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		for i := range decoded {
 			vals[i] = decoded[i]
 		}
-		return vals, err
+		return vals[:len(decoded)], err
 
 	case BlockBool:
 		decoded, err := DecodeBoolBlock(block, nil)
@@ -151,7 +151,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		for i := range decoded {
 			vals[i] = decoded[i]
 		}
-		return vals, err
+		return vals[:len(decoded)], err
 
 	case BlockString:
 		decoded, err := DecodeStringBlock(block, nil)
@@ -161,7 +161,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		for i := range decoded {
 			vals[i] = decoded[i]
 		}
-		return vals, err
+		return vals[:len(decoded)], err
 
 	default:
 		panic(fmt.Sprintf("unknown block type: %d", blockType))
