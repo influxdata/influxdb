@@ -483,13 +483,9 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *models.Row {
 	selectFields := make([]string, 0, len(selectNames))
 	aliasFields := make([]string, 0, len(selectNames))
 
-	for _, n := range selectNames {
+	for i, n := range selectNames {
 		if _, found := r.tags[n]; !found {
 			selectFields = append(selectFields, n)
-		}
-	}
-	for i, n := range aliasNames {
-		if _, found := r.tags[n]; !found {
 			aliasFields = append(aliasFields, aliasNames[i])
 		}
 	}
