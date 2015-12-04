@@ -12,6 +12,7 @@
 
 ### Bugfixes
 - [#4984](https://github.com/influxdb/influxdb/pull/4984): Allow math on fields, fixes regression. Thanks @mengjinglei
+- [#4666](https://github.com/influxdb/influxdb/issues/4666): Fix panic in derivative with invalid values.
 - [#4858](https://github.com/influxdb/influxdb/pull/4858): Validate nested aggregations in queries. Thanks @viru
 - [#4921](https://github.com/influxdb/influxdb/pull/4921): Error responses should be JSON-formatted. Thanks @pires
 - [#4974](https://github.com/influxdb/influxdb/issues/4974) Fix Data Race in TSDB when setting measurement field name
