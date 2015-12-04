@@ -554,8 +554,8 @@ func Test_NewConfigWithoutFile(t *testing.T) {
 	if wc.Precision != "n" {
 		t.Errorf("Expected n got %s", wc.Precision)
 	}
-	if wc.BatchSize != 10000 {
-		t.Errorf("Expected 10000 got %v", wc.BatchSize)
+	if wc.BatchSize != 5000 {
+		t.Errorf("Expected 5000 got %v", wc.BatchSize)
 	}
 	if wc.BatchInterval != "0s" {
 		t.Errorf("Expected 0s got %v", wc.BatchInterval)

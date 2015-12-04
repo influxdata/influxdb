@@ -82,7 +82,7 @@ func (c *DefaultPlanner) Plan() []string {
 			continue
 		}
 
-		if tsm.Size > maxTSMFileSize {
+		if tsm.Size > rolloverTSMFileSize {
 			continue
 		}
 		tsmPaths = append(tsmPaths, tsm.Path)

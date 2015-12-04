@@ -182,6 +182,15 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 	return closedFiles, nil
 }
 
+func (l *WAL) Remove(files []string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, fn := range files {
+		os.RemoveAll(fn)
+	}
+	return nil
+}
+
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	l.mu.RLock()
 	// Make sure the log has not been closed
@@ -198,6 +207,8 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 		return -1, fmt.Errorf("error rolling WAL segment: %v", err)
 	}
 
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	if err := l.currentSegmentWriter.Write(entry); err != nil {
 		return -1, fmt.Errorf("error writing WAL entry: %v", err)
 	}
@@ -218,7 +229,7 @@ func (l *WAL) rollSegment() error {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
-			return fmt.Errorf("error opening new segment file for wal: %v", err)
+			return fmt.Errorf("error opening new segment file for wal (2): %v", err)
 		}
 		return nil
 	}
@@ -234,7 +245,7 @@ func (l *WAL) CloseSegment() error {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
-			return fmt.Errorf("error opening new segment file for wal: %v", err)
+			return fmt.Errorf("error opening new segment file for wal (1): %v", err)
 		}
 		return nil
 	}
