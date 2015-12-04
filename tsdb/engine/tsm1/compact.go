@@ -111,12 +111,27 @@ type Compactor struct {
 // WriteSnapshot will write a Cache snapshot to a new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	iter := NewCacheKeyIterator(cache)
-
-	return c.writeNewFiles(iter)
+	return c.writeNewFiles(c.FileStore.NextGeneration(), 1, iter)
 }
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
+	var maxGeneration, maxSequence int
+	for _, f := range tsmFiles {
+		gen, seq, err := ParseTSMFileName(f)
+		if err != nil {
+			return nil, err
+		}
+
+		if gen > maxGeneration {
+			maxGeneration = gen
+		}
+
+		if gen == maxGeneration && seq > maxSequence {
+			maxSequence = seq
+		}
+	}
+
 	// For each TSM file, create a TSM reader
 	var trs []*TSMReader
 	for _, file := range tsmFiles {
@@ -144,7 +159,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 		return nil, err
 	}
 
-	return c.writeNewFiles(tsm)
+	return c.writeNewFiles(maxGeneration, maxSequence+1, tsm)
 }
 
 // Clone will return a new compactor that can be used even if the engine is closed
@@ -158,15 +173,13 @@ func (c *Compactor) Clone() *Compactor {
 
 // writeNewFiles will write from the iterator into new TSM files, rotating
 // to a new file when we've reached the max TSM file size
-func (c *Compactor) writeNewFiles(iter KeyIterator) ([]string, error) {
+func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([]string, error) {
 	// These are the new TSM files written
 	var files []string
 
 	for {
-		currentID := c.FileStore.NextGeneration()
-
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", currentID, 1, "tsm1dev"))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, "tsm1dev"))
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter)

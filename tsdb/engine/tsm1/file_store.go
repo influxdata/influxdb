@@ -213,7 +213,7 @@ func (f *FileStore) Open() error {
 
 	for _, fn := range files {
 		// Keep track of the latest ID
-		generation, _, err := f.idFromFileName(fn)
+		generation, _, err := ParseTSMFileName(fn)
 		if err != nil {
 			return err
 		}
@@ -365,14 +365,17 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	return nil
 }
 
-// idFromFileName parses the segment file ID from its name
-func (f *FileStore) idFromFileName(name string) (int, int, error) {
-	parts := strings.Split(filepath.Base(name), ".")
-	if len(parts) != 2 {
+// ParseTSMFileName parses the generation and sequence from a TSM file name.
+func ParseTSMFileName(name string) (int, int, error) {
+	base := filepath.Base(name)
+	idx := strings.Index(base, ".")
+	if idx == -1 {
 		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
 
-	parts = strings.Split(parts[0], "-")
+	id := base[:idx]
+
+	parts := strings.Split(id, "-")
 	if len(parts) != 2 {
 		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}

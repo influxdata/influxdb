@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -87,7 +88,7 @@ func TestCompactor_Compact(t *testing.T) {
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a1},
 	}
-	f1 := MustWriteTSM(dir, writes)
+	f1 := MustWriteTSM(dir, 1, writes)
 
 	a2 := tsm1.NewValue(time.Unix(2, 0), 1.2)
 	b1 := tsm1.NewValue(time.Unix(1, 0), 2.1)
@@ -95,7 +96,7 @@ func TestCompactor_Compact(t *testing.T) {
 		"cpu,host=A#!~#value": []tsm1.Value{a2},
 		"cpu,host=B#!~#value": []tsm1.Value{b1},
 	}
-	f2 := MustWriteTSM(dir, writes)
+	f2 := MustWriteTSM(dir, 2, writes)
 
 	a3 := tsm1.NewValue(time.Unix(1, 0), 1.3)
 	c1 := tsm1.NewValue(time.Unix(1, 0), 3.1)
@@ -103,7 +104,7 @@ func TestCompactor_Compact(t *testing.T) {
 		"cpu,host=A#!~#value": []tsm1.Value{a3},
 		"cpu,host=C#!~#value": []tsm1.Value{c1},
 	}
-	f3 := MustWriteTSM(dir, writes)
+	f3 := MustWriteTSM(dir, 3, writes)
 
 	compactor := &tsm1.Compactor{
 		Dir:         dir,
@@ -118,6 +119,25 @@ func TestCompactor_Compact(t *testing.T) {
 
 	if got, exp := len(files), 1; got != exp {
 		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	if err != nil {
+		t.Fatalf("unexpected error parsing file name: %v", err)
+	}
+	expSeq = expSeq + 1
+
+	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	if err != nil {
+		t.Fatalf("unexpected error parsing file name: %v", err)
+	}
+
+	if gotGen != expGen {
+		t.Fatalf("wrong generation for new file: got %v, exp %v", gotGen, expGen)
+	}
+
+	if gotSeq != expSeq {
+		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
 	}
 
 	r := MustOpenTSMReader(files[0])
@@ -162,7 +182,7 @@ func TestKeyIterator_TSM_Single(t *testing.T) {
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
 	}
 
-	r := MustTSMReader(dir, writes)
+	r := MustTSMReader(dir, 1, writes)
 
 	iter, err := tsm1.NewTSMKeyIterator(r)
 	if err != nil {
@@ -211,7 +231,7 @@ func TestKeyIterator_TSM_Duplicate(t *testing.T) {
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
 	}
 
-	r := MustTSMReader(dir, writes)
+	r := MustTSMReader(dir, 1, writes)
 
 	iter, err := tsm1.NewTSMKeyIterator(r)
 	if err != nil {
@@ -253,7 +273,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
 	}
 
-	r1 := MustTSMReader(dir, points1)
+	r1 := MustTSMReader(dir, 1, points1)
 	r1.Delete("cpu,host=A#!~#value")
 
 	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
@@ -264,7 +284,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 		"cpu,host=B#!~#value": []tsm1.Value{v3},
 	}
 
-	r2 := MustTSMReader(dir, points2)
+	r2 := MustTSMReader(dir, 1, points2)
 	r2.Delete("cpu,host=A#!~#count")
 
 	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
@@ -459,8 +479,13 @@ func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader 
 	return tsm1.NewWALSegmentReader(f)
 }
 
-func MustWriteTSM(dir string, values map[string][]tsm1.Value) string {
+func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	f := MustTempFile(dir)
+	newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(gen))
+	if err := os.Rename(f.Name(), newName); err != nil {
+		panic(fmt.Sprintf("create tsm file: %v", err))
+	}
+
 	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		panic(fmt.Sprintf("create TSM writer: %v", err))
@@ -480,11 +505,11 @@ func MustWriteTSM(dir string, values map[string][]tsm1.Value) string {
 		panic(fmt.Sprintf("write TSM close: %v", err))
 	}
 
-	return f.Name()
+	return newName
 }
 
-func MustTSMReader(dir string, values map[string][]tsm1.Value) *tsm1.TSMReader {
-	return MustOpenTSMReader(MustWriteTSM(dir, values))
+func MustTSMReader(dir string, gen int, values map[string][]tsm1.Value) *tsm1.TSMReader {
+	return MustOpenTSMReader(MustWriteTSM(dir, gen, values))
 }
 
 func MustOpenTSMReader(name string) *tsm1.TSMReader {
