@@ -2419,14 +2419,14 @@ func (a Fields) AliasNames() []string {
 func (a Fields) Names() []string {
 	names := []string{}
 	for _, f := range a {
-		var name string
 		switch expr := f.Expr.(type) {
 		case *Call:
-			name = expr.Name
+			names = append(names, expr.Name)
 		case *VarRef:
-			name = expr.Val
+			names = append(names, expr.Val)
+		case *BinaryExpr:
+			names = append(names, walkNames(expr)...)
 		}
-		names = append(names, name)
 	}
 	return names
 }
