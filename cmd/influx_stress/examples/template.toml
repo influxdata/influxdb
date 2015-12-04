@@ -29,7 +29,7 @@
       # Randomize timestamp a bit (not functional)
       jitter = true
       # Precision of points that are being written
-      precision = "n"
+      precision = "s"
       # name of the measurement that will be written
       measurement = "cpu"
       # The date for the first point that is written into influx
@@ -51,12 +51,12 @@
     [write.influx_client.basic]
       # If enabled the writer will actually write
       enabled = true
-      # Address of the Influxdb instance
-      address = "localhost:8086" # stress_test_server runs on port 1234
+      # Addresses is an array of the Influxdb instances
+      addresses = ["localhost:8086"] # stress_test_server runs on port 1234
       # Database that is being written to
       database = "stress"
       # Precision of points that are being written
-      precision = "n"
+      precision = "s"
       # Size of batches that are sent to db
       batch_size = 10000
       # Interval between each batch
@@ -82,7 +82,7 @@
       # if enabled the reader will actually read
       enabled = true
       # Address of the instance that will be queried
-      address = "localhost:8086"
+      addresses = ["localhost:8086"]
       # Database that will be queried
       database = "stress"
       # Interval bewteen queries
