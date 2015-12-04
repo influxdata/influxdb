@@ -600,10 +600,14 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 		println()
 	}
 
+	var blockSizeAvg int64
+	if blockCount > 0 {
+		blockSizeAvg = blockSize / blockCount
+	}
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Blocks:\n")
 	fmt.Printf("    Total: %d Size: %d Min: %d Max: %d Avg: %d\n",
-		blockCount, blockSize, blockStats.min, blockStats.max, blockSize/blockCount)
+		blockCount, blockSize, blockStats.min, blockStats.max, blockSizeAvg)
 	fmt.Printf("  Index:\n")
 	fmt.Printf("    Total: %d Size: %d\n", blockCount, indexSize)
 	fmt.Printf("  Points:\n")

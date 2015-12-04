@@ -208,12 +208,27 @@ func (e *DevEngine) WritePoints(points []models.Point, measurementFieldsToSave m
 
 // DeleteSeries deletes the series from the engine.
 func (e *DevEngine) DeleteSeries(seriesKeys []string) error {
-	return fmt.Errorf("delete series not implemented")
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	keyMap := map[string]struct{}{}
+	for _, k := range seriesKeys {
+		keyMap[k] = struct{}{}
+	}
+
+	for _, k := range e.FileStore.Keys() {
+		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		if _, ok := keyMap[seriesKey]; ok {
+			e.FileStore.Delete(k)
+		}
+	}
+
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *DevEngine) DeleteMeasurement(name string, seriesKeys []string) error {
-	return fmt.Errorf("delete measurement not implemented")
+	return e.DeleteSeries(seriesKeys)
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -402,9 +417,9 @@ func (t *devTx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, asc
 		cursorFields = append(cursorFields, field)
 		cursors = append(cursors, wc)
 	}
-
 	return NewMultiFieldCursor(cursorFields, cursors, ascending)
 }
+
 func (t *devTx) Rollback() error                          { return nil }
 func (t *devTx) Size() int64                              { panic("not implemented") }
 func (t *devTx) Commit() error                            { panic("not implemented") }
