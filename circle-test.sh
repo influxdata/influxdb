@@ -75,7 +75,7 @@ case $CIRCLE_NODE_INDEX in
         rc=${PIPESTATUS[0]}
         ;;
     1)
-        INFLUXDB_DATA_ENGINE="tsm1" go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
+        INFLUXDB_DATA_ENGINE="tsm1dev" go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
         rc=${PIPESTATUS[0]}
         ;;
     2)
