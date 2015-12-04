@@ -22,7 +22,7 @@ type TSMFile interface {
 	// Read returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
 
-	// Entries returns the index entrieds for all blocks for the given key.
+	// Entries returns the index entries for all blocks for the given key.
 	Entries(key string) []*IndexEntry
 
 	// Returns true if the TSMFile may contain a value with the specified
