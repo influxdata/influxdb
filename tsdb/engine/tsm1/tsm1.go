@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/golang/snappy"
@@ -1971,7 +1970,8 @@ func NewDataFile(f *os.File) (*dataFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	mmap, err := syscall.Mmap(int(f.Fd()), 0, int(fInfo.Size()), syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
+	//mmap, err := syscall.Mmap(int(f.Fd()), 0, int(fInfo.Size()), syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
+	mmap, err := mmap(f, 0, int(fInfo.Size()))
 	if err != nil {
 		return nil, err
 	}
@@ -2030,7 +2030,7 @@ func (d *dataFile) close() error {
 	if d.mmap == nil {
 		return nil
 	}
-	err := syscall.Munmap(d.mmap)
+	err := munmap(d.mmap)
 	if err != nil {
 		return err
 	}
