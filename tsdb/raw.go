@@ -702,15 +702,23 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 
 		// Check the value's type to ensure it's an numeric, if not, return a nil result. We only check the first value
 		// because derivatives cannot be combined with other aggregates currently.
-		validType := false
+		curValidType := false
 		switch cur[1].(type) {
 		case int64:
-			validType = true
+			curValidType = true
 		case float64:
-			validType = true
+			curValidType = true
 		}
 
-		if !validType {
+		prevValidType := false
+		switch prev[1].(type) {
+		case int64:
+			prevValidType = true
+		case float64:
+			prevValidType = true
+		}
+
+		if !curValidType || !prevValidType {
 			derivatives = append(derivatives, []interface{}{
 				cur[0], nil,
 			})

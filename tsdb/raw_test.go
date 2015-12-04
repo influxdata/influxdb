@@ -798,6 +798,40 @@ func TestProcessAggregateDerivative_Bool(t *testing.T) {
 	}
 }
 
+func TestProcessAggregateDerivative_FirstInvalid(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), "1.0"},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 3.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), nil},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 1.0},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+func TestProcessAggregateDerivative_RandomInvalid(t *testing.T) {
+	results := tsdb.ProcessAggregateDerivative([][]interface{}{
+		[]interface{}{time.Unix(0, 0), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 2.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), "3.0"},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), 4.0},
+	}, false, 24*time.Hour)
+
+	if !reflect.DeepEqual(results, [][]interface{}{
+		[]interface{}{time.Unix(0, 0).Add(24 * time.Hour), 1.0},
+		[]interface{}{time.Unix(0, 0).Add(48 * time.Hour), nil},
+		[]interface{}{time.Unix(0, 0).Add(72 * time.Hour), nil},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
 func TestRawQueryDerivative_Process_Empty(t *testing.T) {
 	p := tsdb.RawQueryDerivativeProcessor{
 		IsNonNegative:      false,
