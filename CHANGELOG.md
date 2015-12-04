@@ -1,7 +1,7 @@
 ## v0.9.6 [unreleased]
 
 ### Features
-- [#](https://github.com/influxdb/influxdb/pull/4866): Configurable default retention policy on database creation. Thanks @pires
+- [#4866](https://github.com/influxdb/influxdb/pull/4866): Configurable default retention policy on database creation. Thanks @pires
 - [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
 - [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
 - [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
