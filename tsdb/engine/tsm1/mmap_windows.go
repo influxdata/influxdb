@@ -2,19 +2,16 @@ package tsm1
 
 import (
 	"os"
+	"reflect"
 	"syscall"
 	"unsafe"
-	"reflect"
 )
-
-// maxMapSize represents the largest mmap size supported by Bolt. 
-const maxMapSize = 0xFFFFFFFFFFFF // 256TB 
 
 // mmap implementation for Windows
 // Based on: https://github.com/edsrzf/mmap-go
 // Based on: https://github.com/boltdb/bolt/bolt_windows.go
 // Ref: https://groups.google.com/forum/#!topic/golang-nuts/g0nLwQI9www
-func mmap(f *os.File, offset int64, length int) (out []byte,err error) {
+func mmap(f *os.File, offset int64, length int) (out []byte, err error) {
 	// Open a file mapping handle.
 	sizelo := uint32(length >> 32)
 	sizehi := uint32(length) & 0xffffffff
@@ -47,7 +44,7 @@ func mmap(f *os.File, offset int64, length int) (out []byte,err error) {
 // Based on: https://github.com/edsrzf/mmap-go
 // Based on: https://github.com/boltdb/bolt/bolt_windows.go
 func munmap(b []byte) (err error) {
-	
+
 	addr := (uintptr)(unsafe.Pointer(&b[0]))
 	if err := syscall.UnmapViewOfFile(addr); err != nil {
 		return os.NewSyscallError("UnmapViewOfFile", err)
