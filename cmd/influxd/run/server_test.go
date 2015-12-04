@@ -783,6 +783,26 @@ func TestServer_Query_Math(t *testing.T) {
 			command: `SELECT value * 2.0 from db.rp.integer`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
+		&Query{
+			name:    "SELECT square of float value",
+			command: `SELECT value * value from db.rp.float`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of integer value",
+			command: `SELECT value * value from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of integer, float value",
+			command: `SELECT value * value,float from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","","float"],"values":[["%s",1764,null]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of integer value with alias",
+			command: `SELECT value * value as square from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","square"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
 	}...)
 
 	if err := test.init(s); err != nil {
