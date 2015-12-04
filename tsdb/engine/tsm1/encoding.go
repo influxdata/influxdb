@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -98,6 +99,26 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("unsupported value type %T", a[0])
+}
+
+// InfluxQLType returns the influxql.DataType the values map to.
+func (a Values) InfluxQLType() (influxql.DataType, error) {
+	if len(a) == 0 {
+		return influxql.Unknown, fmt.Errorf("no values to infer type")
+	}
+
+	switch a[0].Value().(type) {
+	case float64:
+		return influxql.Float, nil
+	case int64:
+		return influxql.Integer, nil
+	case bool:
+		return influxql.Boolean, nil
+	case string:
+		return influxql.String, nil
+	}
+
+	return influxql.Unknown, fmt.Errorf("unsupported value type %T", a[0])
 }
 
 // BlockType returns the type of value encoded in a block or an error

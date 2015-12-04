@@ -275,6 +275,7 @@ func (l *WAL) Close() error {
 
 	if l.currentSegmentWriter != nil {
 		l.currentSegmentWriter.Close()
+		l.currentSegmentWriter = nil
 	}
 
 	return nil
