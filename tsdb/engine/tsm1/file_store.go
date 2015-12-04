@@ -61,6 +61,9 @@ type TSMFile interface {
 
 	// Remove deletes the file from the filesystem
 	Remove() error
+
+	// Stats returns summary information about the TSM file.
+	Stats() FileStat
 }
 
 type FileStore struct {
@@ -70,8 +73,6 @@ type FileStore struct {
 	dir           string
 
 	files []TSMFile
-
-	stats []FileStat
 }
 
 type FileStat struct {
@@ -292,32 +293,13 @@ func (f *FileStore) KeyCursor(key string) *KeyCursor {
 
 func (f *FileStore) Stats() []FileStat {
 	f.mu.RLock()
-	if f.stats == nil {
-		f.mu.RUnlock()
-		f.mu.Lock()
-		defer f.mu.Unlock()
-
-		var paths []FileStat
-		for _, fd := range f.files {
-			minTime, maxTime := fd.TimeRange()
-			minKey, maxKey := fd.KeyRange()
-
-			paths = append(paths, FileStat{
-				Path:         fd.Path(),
-				Size:         fd.Size(),
-				MinTime:      minTime,
-				MaxTime:      maxTime,
-				MinKey:       minKey,
-				MaxKey:       maxKey,
-				HasTombstone: fd.HasTombstones(),
-			})
-		}
-		f.stats = paths
-		return f.stats
-	}
 	defer f.mu.RUnlock()
+	stats := make([]FileStat, len(f.files))
+	for i, fd := range f.files {
+		stats[i] = fd.Stats()
+	}
 
-	return f.stats
+	return stats
 }
 
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
@@ -378,7 +360,6 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		}
 	}
 
-	f.stats = nil
 	f.files = active
 
 	return nil

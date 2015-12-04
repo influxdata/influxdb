@@ -154,6 +154,12 @@ type TSMIndex interface {
 	// Size returns the size of a the current index in bytes
 	Size() int
 
+	// TimeRange returns the min and max time across all keys in the file.
+	TimeRange() (time.Time, time.Time)
+
+	// KeyRange returns the min and max keys in the file.
+	KeyRange() (string, string)
+
 	// Type returns the block type of the values stored for the key.  Returns one of
 	// BlockFloat64, BlockInt64, BlockBool, BlockString.  If key does not exist,
 	// an error is returned.
@@ -301,6 +307,35 @@ func (d *directIndex) Key(idx int) string {
 
 func (d *directIndex) KeyCount() int {
 	return len(d.Keys())
+}
+
+func (d *directIndex) KeyRange() (string, string) {
+	var min, max string
+	for k := range d.blocks {
+		if min == "" || k < min {
+			min = k
+		}
+		if max == "" || k > max {
+			max = k
+		}
+
+	}
+	return min, max
+}
+
+func (d *directIndex) TimeRange() (time.Time, time.Time) {
+	min, max := time.Unix(0, math.MaxInt64), time.Unix(0, math.MinInt64)
+	for _, entries := range d.blocks {
+		for _, e := range entries.entries {
+			if e.MinTime.Before(min) {
+				min = e.MinTime
+			}
+			if e.MaxTime.After(max) {
+				max = e.MaxTime
+			}
+		}
+	}
+	return min, max
 }
 
 func (d *directIndex) addEntries(key string, entries *indexEntries) {
@@ -617,6 +652,14 @@ func (d *indirectIndex) Type(key string) (byte, error) {
 	return 0, fmt.Errorf("key does not exist: %v", key)
 }
 
+func (d *indirectIndex) KeyRange() (string, string) {
+	return d.minKey, d.maxKey
+}
+
+func (d *indirectIndex) TimeRange() (time.Time, time.Time) {
+	return d.minTime, d.maxTime
+}
+
 // MarshalBinary returns a byte slice encoded version of the index.
 func (d *indirectIndex) MarshalBinary() ([]byte, error) {
 	d.mu.RLock()
@@ -643,6 +686,19 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
 
+		_, key, err := readKey(b[i:])
+		if err != nil {
+			return err
+		}
+
+		if d.minKey == "" || key < d.minKey {
+			d.minKey = key
+		}
+
+		if d.maxKey == "" || key > d.maxKey {
+			d.maxKey = key
+		}
+
 		keyLen := int32(btou16(b[i : i+2]))
 		// Skip to the start of the key
 		i += 2
@@ -650,17 +706,19 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		// Skip over the key
 		i += keyLen
 
-		// Skip over the block type
-		i += indexTypeSize
+		n, entries, err := readEntries(d.b[i:])
 
-		// Count of all the index blocks for this key
-		count := int32(btou16(b[i : i+2]))
+		minTime := entries.entries[0].MinTime
+		if d.minTime.IsZero() || minTime.Before(d.minTime) {
+			d.minTime = minTime
+		}
 
-		// Skip the count bytes
-		i += 2
+		maxTime := entries.entries[len(entries.entries)-1].MaxTime
+		if d.maxTime.IsZero() || maxTime.After(d.maxTime) {
+			d.maxTime = maxTime
+		}
 
-		// Skip over all the blocks
-		i += count * indexEntrySize
+		i += int32(n)
 	}
 
 	return nil
@@ -940,28 +998,12 @@ func (t *TSMReader) Delete(key string) error {
 
 // TimeRange returns the min and max time across all keys in the file.
 func (t *TSMReader) TimeRange() (time.Time, time.Time) {
-	min, max := time.Unix(0, math.MaxInt64), time.Unix(0, math.MinInt64)
-	for _, k := range t.index.Keys() {
-		for _, e := range t.index.Entries(k) {
-			if e.MinTime.Before(min) {
-				min = e.MinTime
-			}
-			if e.MaxTime.After(max) {
-				max = e.MaxTime
-			}
-		}
-	}
-	return min, max
+	return t.index.TimeRange()
 }
 
 // KeyRange returns the min and max key across all keys in the file.
 func (t *TSMReader) KeyRange() (string, string) {
-	min, max := "", ""
-	if t.index.KeyCount() > 0 {
-		min = t.index.Key(0)
-		max = t.index.Key(t.index.KeyCount() - 1)
-	}
-	return min, max
+	return t.index.KeyRange()
 }
 
 func (t *TSMReader) Entries(key string) []*IndexEntry {
@@ -983,6 +1025,20 @@ func (t *TSMReader) HasTombstones() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.tombstoner.HasTombstones()
+}
+
+func (t *TSMReader) Stats() FileStat {
+	minTime, maxTime := t.index.TimeRange()
+	minKey, maxKey := t.index.KeyRange()
+	return FileStat{
+		Path:         t.Path(),
+		Size:         t.Size(),
+		MinTime:      minTime,
+		MaxTime:      maxTime,
+		MinKey:       minKey,
+		MaxKey:       maxKey,
+		HasTombstone: t.tombstoner.HasTombstones(),
+	}
 }
 
 // fileAccessor is file IO based block accessor.  It provides access to blocks
