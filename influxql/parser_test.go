@@ -644,18 +644,20 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// See issues https://github.com/influxdb/influxdb/issues/1647
+		// and https://github.com/influxdb/influxdb/issues/4404
 		// DELETE statement
-		{
-			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
-			stmt: &influxql.DeleteStatement{
-				Source: &influxql.Measurement{Name: "myseries"},
-				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "host"},
-					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
-				},
-			},
-		},
+		//{
+		//	s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
+		//	stmt: &influxql.DeleteStatement{
+		//		Source: &influxql.Measurement{Name: "myseries"},
+		//		Condition: &influxql.BinaryExpr{
+		//			Op:  influxql.EQ,
+		//			LHS: &influxql.VarRef{Val: "host"},
+		//			RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+		//		},
+		//	},
+		//},
 
 		// SHOW SERVERS
 		{
@@ -1679,9 +1681,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT s =~ /foo/ FROM cpu`, err: `invalid operator =~ in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
-		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
-		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
-		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
+		// See issues https://github.com/influxdb/influxdb/issues/1647
+		// and https://github.com/influxdb/influxdb/issues/4404
+		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
+		//{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
+		//{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
+		{s: `DELETE`, err: `DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead`},
+		{s: `DELETE FROM`, err: `DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead`},
+		{s: `DELETE FROM myseries WHERE`, err: `DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead`},
 		{s: `DROP MEASUREMENT`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES`, err: `found EOF, expected FROM, WHERE at line 1, char 13`},
 		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
