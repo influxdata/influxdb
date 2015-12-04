@@ -2411,16 +2411,8 @@ func (p *Parser) unscan() { p.s.Unscan() }
 
 // ParseDuration parses a time duration from a string.
 func ParseDuration(s string) (time.Duration, error) {
-	// Return an error if the string is blank.
-	if len(s) == 0 {
-		return 0, ErrInvalidDuration
-	}
-
-	// If there's only character then it must be a digit (in microseconds).
-	if len(s) == 1 {
-		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-			return time.Duration(n) * time.Microsecond, nil
-		}
+	// Return an error if the string is blank or one character
+	if len(s) < 2 {
 		return 0, ErrInvalidDuration
 	}
 
@@ -2428,13 +2420,10 @@ func ParseDuration(s string) (time.Duration, error) {
 	a := split(s)
 
 	// Extract the unit of measure.
-	// If the last character is a digit then parse the whole string as microseconds.
-	// If the last two characters are "ms" the parse as milliseconds.
+	// If the last two characters are "ms" then parse as milliseconds.
 	// Otherwise just use the last character as the unit of measure.
 	var num, uom string
-	if isDigit(rune(a[len(a)-1])) {
-		num, uom = s, "u"
-	} else if len(s) > 2 && s[len(s)-2:] == "ms" {
+	if len(s) > 2 && s[len(s)-2:] == "ms" {
 		num, uom = string(a[:len(a)-2]), "ms"
 	} else {
 		num, uom = string(a[:len(a)-1]), string(a[len(a)-1:])
@@ -2484,7 +2473,10 @@ func FormatDuration(d time.Duration) string {
 	} else if d%time.Millisecond == 0 {
 		return fmt.Sprintf("%dms", d/time.Millisecond)
 	}
-	return fmt.Sprintf("%d", d/time.Microsecond)
+	// Although we accept both "u" and "µ" when reading microsecond durations,
+	// we output with "u", which can be represented in 1 byte,
+	// instead of "µ", which requires 2 bytes.
+	return fmt.Sprintf("%du", d/time.Microsecond)
 }
 
 // parseTokens consumes an expected sequence of tokens.
