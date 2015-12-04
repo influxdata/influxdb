@@ -48,6 +48,16 @@ func (e *entry) add(values []Value) {
 	}
 }
 
+// deduplicate sorts and orders the entry's values. If values are already deduped and
+// and sorted, the function does no work and simply returns.
+func (e *entry) deduplicate() {
+	if !e.needSort {
+		return
+	}
+	e.values = e.values.Deduplicate()
+	e.needSort = false
+}
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
 	mu      sync.RWMutex
@@ -132,10 +142,7 @@ func (c *Cache) Snapshot() *Cache {
 	// sort the snapshot before returning it. The compactor and any queries
 	// coming in while it writes will need the values sorted
 	for _, e := range snapshot.store {
-		if e.needSort {
-			e.values = e.values.Deduplicate()
-			e.needSort = false
-		}
+		e.deduplicate()
 	}
 
 	return snapshot
@@ -187,10 +194,7 @@ func (c *Cache) Values(key string) Values {
 	if e == nil {
 		return nil
 	}
-	if e.needSort {
-		e.values = e.values.Deduplicate()
-		e.needSort = false
-	}
+	e.deduplicate()
 
 	values := make(Values, len(e.values))
 	copy(values, e.values)
