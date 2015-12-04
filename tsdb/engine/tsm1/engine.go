@@ -39,6 +39,12 @@ type DevEngine struct {
 	MaxPointsPerBlock int
 
 	CacheFlushMemorySizeThreshold uint64
+
+	// walSeries is a temporary holder on startup for series that appear in the WAL
+	walSeries map[string]string
+
+	// walFields is a temporary holder on startup for measurement fields defined in the WAL
+	walFields map[string]map[string]influxql.DataType
 }
 
 // NewDevEngine returns a new instance of Engine.
@@ -127,7 +133,7 @@ func (e *DevEngine) Close() error {
 func (e *DevEngine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *DevEngine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+func (e *DevEngine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
 	keys := e.FileStore.Keys()
 	for _, k := range keys {
 		seriesKey, field := seriesAndFieldFromCompositeKey(k)
@@ -149,25 +155,13 @@ func (e *DevEngine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseInd
 			measurementFields[measurement] = mf
 		}
 
-		switch typ {
-		case BlockFloat64:
-			if err := mf.CreateFieldIfNotExists(field, influxql.Float, false); err != nil {
-				return err
-			}
-		case BlockInt64:
-			if err := mf.CreateFieldIfNotExists(field, influxql.Integer, false); err != nil {
-				return err
-			}
-		case BlockBool:
-			if err := mf.CreateFieldIfNotExists(field, influxql.Boolean, false); err != nil {
-				return err
-			}
-		case BlockString:
-			if err := mf.CreateFieldIfNotExists(field, influxql.String, false); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unkown block type for: %v. got %v", k, typ)
+		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
+		if err != nil {
+			return err
+		}
+
+		if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
+			return err
 		}
 
 		_, tags, err := models.ParseKey(seriesKey)
@@ -179,6 +173,42 @@ func (e *DevEngine) LoadMetadataIndex(shard *tsdb.Shard, index *tsdb.DatabaseInd
 		s.InitializeShards()
 		index.CreateSeriesIndexIfNotExists(measurement, s)
 	}
+
+	// load the measurement and field metadata from the WAL
+	for measurement, fields := range e.walFields {
+		m := index.CreateMeasurementIndexIfNotExists(measurement)
+
+		mf := measurementFields[measurement]
+		if mf == nil {
+			mf = &tsdb.MeasurementFields{
+				Fields: map[string]*tsdb.Field{},
+			}
+			measurementFields[measurement] = mf
+		}
+
+		for field, fieldType := range fields {
+			m.SetFieldName(field)
+			if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
+				return err
+			}
+		}
+	}
+	e.walFields = nil
+
+	// load the series from the WAL
+	for seriesKey, measurement := range e.walSeries {
+		_, tags, err := models.ParseKey(seriesKey)
+		if err == nil {
+			return err
+		}
+
+		s := tsdb.NewSeries(seriesKey, tags)
+		s.InitializeShards()
+
+		index.CreateSeriesIndexIfNotExists(measurement, s)
+	}
+	e.walSeries = nil
+
 	return nil
 }
 
@@ -228,7 +258,8 @@ func (e *DevEngine) Begin(writable bool) (tsdb.Tx, error) {
 
 func (e *DevEngine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
-func (e *DevEngine) writeSnapshot() error {
+// WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
+func (e *DevEngine) WriteSnapshot(async bool) error {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
 	closedFiles, snapshot, compactor, err := func() ([]string, *Cache, *Compactor, error) {
@@ -253,30 +284,38 @@ func (e *DevEngine) writeSnapshot() error {
 		return err
 	}
 
-	go func() {
-		// write the new snapshot files
-		newFiles, err := compactor.WriteSnapshot(snapshot)
-		if err != nil {
-			e.logger.Printf("error writing snapshot from compactor: %v", err)
-			return
-		}
+	if async {
+		go e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
+		return nil
+	}
 
-		e.mu.RLock()
-		defer e.mu.RUnlock()
+	return e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
+}
 
-		// update the file store with these new files
-		if err := e.FileStore.Replace(nil, newFiles); err != nil {
-			e.logger.Printf("error adding new TSM files from snapshot: %v", err)
-			return
-		}
+// writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments
+func (e *DevEngine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, compactor *Compactor) error {
+	// write the new snapshot files
+	newFiles, err := compactor.WriteSnapshot(snapshot)
+	if err != nil {
+		e.logger.Printf("error writing snapshot from compactor: %v", err)
+		return err
+	}
 
-		// clear the snapshot from the in-memory cache, then the old WAL files
-		e.Cache.ClearSnapshot(snapshot)
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 
-		if err := e.WAL.Remove(closedFiles); err != nil {
-			e.logger.Printf("error removing closed wal segments: %v", err)
-		}
-	}()
+	// update the file store with these new files
+	if err := e.FileStore.Replace(nil, newFiles); err != nil {
+		e.logger.Printf("error adding new TSM files from snapshot: %v", err)
+		return err
+	}
+
+	// clear the snapshot from the in-memory cache, then the old WAL files
+	e.Cache.ClearSnapshot(snapshot)
+
+	if err := e.WAL.Remove(closedFiles); err != nil {
+		e.logger.Printf("error removing closed wal segments: %v", err)
+	}
 
 	return nil
 }
@@ -284,7 +323,7 @@ func (e *DevEngine) writeSnapshot() error {
 func (e *DevEngine) compact() {
 	for {
 		if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
-			err := e.writeSnapshot()
+			err := e.WriteSnapshot(true)
 			if err != nil {
 				e.logger.Printf("error writing snapshot: %v", err)
 			}
@@ -318,11 +357,17 @@ func (e *DevEngine) compact() {
 	}
 }
 
+// reloadCache reads the WAL segment files and loads them into the cache. It also stores
+// the measurements, series and fields defined in the WAL so that it can be used in the
+// LoadMetadataFromIndex function.
 func (e *DevEngine) reloadCache() error {
 	files, err := segmentFileNames(e.WAL.Path())
 	if err != nil {
 		return err
 	}
+
+	e.walSeries = make(map[string]string)
+	e.walFields = make(map[string]map[string]influxql.DataType)
 
 	for _, fn := range files {
 		f, err := os.Open(fn)
@@ -346,6 +391,7 @@ func (e *DevEngine) reloadCache() error {
 				if err := e.Cache.WriteMulti(t.Values); err != nil {
 					return err
 				}
+				e.loadWALMetadata(t.Values)
 			case *DeleteWALEntry:
 				// FIXME: Implement this
 				// if err := e.Cache.Delete(t.Keys); err != nil {
@@ -355,6 +401,28 @@ func (e *DevEngine) reloadCache() error {
 		}
 	}
 	return nil
+}
+
+// loadWALMetadata will put the series key, measurement name, field name and type into the temporary wal maps of metadata
+func (e *DevEngine) loadWALMetadata(vals map[string][]Value) {
+	for k, v := range vals {
+		seriesKey, field := seriesAndFieldFromCompositeKey(k)
+		measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
+		fieldType, err := Values(v).InfluxQLType()
+		if err != nil {
+			continue
+		}
+
+		e.walSeries[seriesKey] = measurement
+
+		m := e.walFields[measurement]
+		if m == nil {
+			m = make(map[string]influxql.DataType)
+			e.walFields[measurement] = m
+		}
+
+		m[field] = fieldType
+	}
 }
 
 func (e *DevEngine) Read(key string, t time.Time) ([]Value, error) {
@@ -573,5 +641,20 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 			c.tsmPos = len(c.tsmValues) - 1
 		}
 		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
+	}
+}
+
+func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
+	switch typ {
+	case BlockFloat64:
+		return influxql.Float, nil
+	case BlockInt64:
+		return influxql.Integer, nil
+	case BlockBool:
+		return influxql.Boolean, nil
+	case BlockString:
+		return influxql.String, nil
+	default:
+		return influxql.Unknown, fmt.Errorf("unkown block type: %v", typ)
 	}
 }
