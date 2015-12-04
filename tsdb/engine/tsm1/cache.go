@@ -55,11 +55,11 @@ type Cache struct {
 	size    uint64
 	maxSize uint64
 
-	// flushingCaches are the cache objects that are currently being written to tsm files
+	// snapshots are the cache objects that are currently being written to tsm files
 	// they're kept in memory while flushing so they can be queried along with the cache.
 	// they are read only and should never be modified
-	snapshotCaches     []*Cache
-	snapshotCachesSize uint64
+	snapshots     []*Cache
+	snapshotsSize uint64
 }
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
@@ -78,7 +78,7 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	// Enough room in the cache?
 	newSize := c.size + uint64(Values(values).Size())
-	if c.maxSize > 0 && newSize+c.snapshotCachesSize > c.maxSize {
+	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
 		return ErrCacheMemoryExceeded
 	}
 
@@ -101,7 +101,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 	// Enough room in the cache?
 	newSize := c.size + uint64(totalSz)
-	if c.maxSize > 0 && newSize+c.snapshotCachesSize > c.maxSize {
+	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
 		return ErrCacheMemoryExceeded
 	}
 
@@ -126,8 +126,8 @@ func (c *Cache) Snapshot() *Cache {
 	c.store = make(map[string]*entry)
 	c.size = 0
 
-	c.snapshotCaches = append(c.snapshotCaches, snapshot)
-	c.snapshotCachesSize += snapshot.size
+	c.snapshots = append(c.snapshots, snapshot)
+	c.snapshotsSize += snapshot.size
 
 	// sort the snapshot before returning it. The compactor and any queries
 	// coming in while it writes will need the values sorted
@@ -147,10 +147,10 @@ func (c *Cache) ClearSnapshot(snapshot *Cache) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for i, cache := range c.snapshotCaches {
+	for i, cache := range c.snapshots {
 		if cache == snapshot {
-			c.snapshotCaches = append(c.snapshotCaches[:i], c.snapshotCaches[i+1:]...)
-			c.snapshotCachesSize -= snapshot.size
+			c.snapshots = append(c.snapshots[:i], c.snapshots[i+1:]...)
+			c.snapshotsSize -= snapshot.size
 			break
 		}
 	}
