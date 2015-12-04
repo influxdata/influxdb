@@ -69,8 +69,8 @@ type TSMFile interface {
 type FileStore struct {
 	mu sync.RWMutex
 
-	currentFileID int
-	dir           string
+	currentGeneration int
+	dir               string
 
 	files []TSMFile
 }
@@ -109,19 +109,19 @@ func (f *FileStore) Count() int {
 	return len(f.files)
 }
 
-// CurrentID returns the max file ID + 1
-func (f *FileStore) CurrentID() int {
+// CurrentGeneration returns the max file ID + 1
+func (f *FileStore) CurrentGeneration() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return f.currentFileID
+	return f.currentGeneration
 }
 
-// NextID returns the max file ID + 1
-func (f *FileStore) NextID() int {
+// NextGeneration returns the max file ID + 1
+func (f *FileStore) NextGeneration() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.currentFileID++
-	return f.currentFileID
+	f.currentGeneration++
+	return f.currentGeneration
 }
 
 func (f *FileStore) Add(files ...TSMFile) {
@@ -213,13 +213,13 @@ func (f *FileStore) Open() error {
 
 	for _, fn := range files {
 		// Keep track of the latest ID
-		id, err := f.idFromFileName(fn)
+		generation, _, err := f.idFromFileName(fn)
 		if err != nil {
 			return err
 		}
 
-		if id >= f.currentFileID {
-			f.currentFileID = id + 1
+		if generation >= f.currentGeneration {
+			f.currentGeneration = generation + 1
 		}
 
 		file, err := os.OpenFile(fn, os.O_RDONLY, 0666)
@@ -366,15 +366,21 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 }
 
 // idFromFileName parses the segment file ID from its name
-func (f *FileStore) idFromFileName(name string) (int, error) {
+func (f *FileStore) idFromFileName(name string) (int, int, error) {
 	parts := strings.Split(filepath.Base(name), ".")
 	if len(parts) != 2 {
-		return 0, fmt.Errorf("file %s is named incorrectly", name)
+		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
 
-	id, err := strconv.ParseUint(parts[0], 10, 32)
+	parts = strings.Split(parts[0], "-")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+	}
 
-	return int(id), err
+	generation, err := strconv.ParseUint(parts[0], 10, 32)
+	sequence, err := strconv.ParseUint(parts[1], 10, 32)
+
+	return int(generation), int(sequence), err
 }
 
 type KeyCursor struct {

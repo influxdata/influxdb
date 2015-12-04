@@ -519,6 +519,6 @@ func (w *fakeFileStore) Stats() []tsm1.FileStat {
 	return w.PathsFn()
 }
 
-func (w *fakeFileStore) NextID() int {
+func (w *fakeFileStore) NextGeneration() int {
 	return 1
 }

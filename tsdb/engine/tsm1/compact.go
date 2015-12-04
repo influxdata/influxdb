@@ -104,7 +104,7 @@ type Compactor struct {
 	MaxFileSize int
 
 	FileStore interface {
-		NextID() int
+		NextGeneration() int
 	}
 }
 
@@ -163,10 +163,10 @@ func (c *Compactor) writeNewFiles(iter KeyIterator) ([]string, error) {
 	var files []string
 
 	for {
-		currentID := c.FileStore.NextID()
+		currentID := c.FileStore.NextGeneration()
 
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", currentID, "tsm1dev"))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", currentID, 1, "tsm1dev"))
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter)
