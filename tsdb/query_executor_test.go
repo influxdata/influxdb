@@ -48,24 +48,6 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
 	}
 
-	got = executeAndGetJSON("SELECT mean(value) + mean(value) as value FROM cpu", executor)
-	exepected = `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:00Z",2]]}]}]`
-	if exepected != got {
-		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
-	}
-
-	got = executeAndGetJSON("SELECT value + value FROM cpu", executor)
-	exepected = `[{"series":[{"name":"cpu","columns":["time",""],"values":[["1970-01-01T00:00:01.000000002Z",2],["1970-01-01T00:00:02.000000003Z",2]]}]}]`
-	if exepected != got {
-		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
-	}
-
-	got = executeAndGetJSON("SELECT value + value as sum FROM cpu", executor)
-	exepected = `[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:01.000000002Z",2],["1970-01-01T00:00:02.000000003Z",2]]}]}]`
-	if exepected != got {
-		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
-	}
-
 	got = executeAndGetJSON("SELECT * FROM cpu GROUP BY *", executor)
 	exepected = `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
 	if exepected != got {
