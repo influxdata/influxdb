@@ -1,6 +1,7 @@
 ## v0.9.6 [unreleased]
 
 ### Features
+- [#](https://github.com/influxdb/influxdb/pull/4866): Configurable default retention policy on database creation. Thanks @pires
 - [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
 - [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
 - [#4841](https://github.com/influxdb/influxdb/pull/4841): Improve point parsing speed. Lint models pacakge. Thanks @e-dard!
@@ -10,6 +11,8 @@
 - [#4872](https://github.com/influxdb/influxdb/pull/4872): Add option to disable logging for meta service.
 
 ### Bugfixes
+- [#4858](https://github.com/influxdb/influxdb/pull/4858): Validate nested aggregations in queries. Thanks @viru
+- [#4921](https://github.com/influxdb/influxdb/pull/4921): Error responses should be JSON-formatted. Thanks @pires
 - [#4974](https://github.com/influxdb/influxdb/issues/4974) Fix Data Race in TSDB when setting measurement field name
 - [#4876](https://github.com/influxdb/influxdb/pull/4876): Complete lint for monitor and services packages. Thanks @e-dard!
 - [#4833](https://github.com/influxdb/influxdb/pull/4833), [#4927](https://github.com/influxdb/influxdb/pull/4927): Fix SHOW MEASURMENTS for clusters. Thanks @li-ang!
