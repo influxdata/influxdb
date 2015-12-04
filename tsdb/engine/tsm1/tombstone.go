@@ -49,6 +49,16 @@ func (t *Tombstoner) Delete() error {
 	return nil
 }
 
+// HasTombstones return true if there are any tombstone entries recorded.
+func (t *Tombstoner) HasTombstones() bool {
+	stat, err := os.Stat(t.tombstonePath())
+	if err != nil {
+		return false
+	}
+
+	return stat.Size() > 0
+}
+
 func (t *Tombstoner) writeTombstone(tombstones []string) error {
 	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
 	if err != nil {

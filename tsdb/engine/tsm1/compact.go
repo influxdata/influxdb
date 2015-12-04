@@ -176,6 +176,13 @@ func (c *Compactor) writeNewFiles(iter KeyIterator) ([]string, error) {
 		if err == errMaxFileExceeded {
 			files = append(files, fileName)
 			continue
+		} else if err == ErrNoValues {
+			// If the file only contained tombstoned entries, then it would be a 0 length
+			// file that we can drop.
+			if err := os.RemoveAll(fileName); err != nil {
+				return nil, err
+			}
+			break
 		}
 
 		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
@@ -205,6 +212,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
 	for iter.Next() {
 		// Each call to read returns the next sorted key (or the prior one if there are
@@ -227,20 +235,12 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 				return err
 			}
 
-			if err := w.Close(); err != nil {
-				return err
-			}
-
 			return errMaxFileExceeded
 		}
 	}
 
 	// We're all done.  Close out the file.
 	if err := w.WriteIndex(); err != nil {
-		return err
-	}
-
-	if err := w.Close(); err != nil {
 		return err
 	}
 

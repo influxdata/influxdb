@@ -50,11 +50,17 @@ type TSMFile interface {
 	// Delete removes the key from the set of keys available in this file.
 	Delete(key string) error
 
+	// HasTombstones returns true if file contains values that have been deleted.
+	HasTombstones() bool
+
 	// Close the underlying file resources
 	Close() error
 
 	// Size returns the size of the file on disk in bytes.
 	Size() int
+
+	// Remove deletes the file from the filesystem
+	Remove() error
 }
 
 type FileStore struct {
@@ -335,12 +341,13 @@ func (f *FileStore) Stats() []FileStat {
 			minKey, maxKey := fd.KeyRange()
 
 			paths = append(paths, FileStat{
-				Path:    fd.Path(),
-				Size:    fd.Size(),
-				MinTime: minTime,
-				MaxTime: maxTime,
-				MinKey:  minKey,
-				MaxKey:  maxKey,
+				Path:         fd.Path(),
+				Size:         fd.Size(),
+				MinTime:      minTime,
+				MaxTime:      maxTime,
+				MinKey:       minKey,
+				MaxKey:       maxKey,
+				HasTombstone: fd.HasTombstones(),
 			})
 		}
 		f.stats = paths
@@ -397,6 +404,9 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 					return err
 				}
 
+				if err := file.Remove(); err != nil {
+					return err
+				}
 				break
 			}
 		}
@@ -408,11 +418,6 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 
 	f.stats = nil
 	f.files = active
-
-	// The old files should be removed since they have been replace by new files
-	for _, f := range oldFiles {
-		os.RemoveAll(f)
-	}
 
 	return nil
 }

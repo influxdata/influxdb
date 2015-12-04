@@ -94,6 +94,8 @@ const (
 	maxIndexEntries = (1 << (indexCountSize * 8)) - 1
 )
 
+var ErrNoValues = fmt.Errorf("no values written")
+
 // TSMWriter writes TSM formatted key and values.
 type TSMWriter interface {
 	// Write writes a new block for key containing and values.  Writes append
@@ -678,19 +680,23 @@ type tsmWriter struct {
 }
 
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
-	n, err := w.Write(append(u32tob(MagicNumber), Version))
-	if err != nil {
-		return nil, err
-	}
-
 	index := &directIndex{
 		blocks: map[string]*indexEntries{},
 	}
 
-	return &tsmWriter{w: w, index: index, n: int64(n)}, nil
+	return &tsmWriter{w: w, index: index}, nil
 }
 
 func (t *tsmWriter) Write(key string, values Values) error {
+	// Write header only after we have some data to write.
+	if t.n == 0 {
+		n, err := t.w.Write(append(u32tob(MagicNumber), Version))
+		if err != nil {
+			return err
+		}
+		t.n = int64(n)
+	}
+
 	block, err := values.Encode(nil)
 	if err != nil {
 		return err
@@ -715,6 +721,8 @@ func (t *tsmWriter) Write(key string, values Values) error {
 	return nil
 }
 
+// WriteIndex writes the index section of the file.  If there are no index entries to write,
+// this returns ErrNoValues
 func (t *tsmWriter) WriteIndex() error {
 	indexPos := t.n
 
@@ -722,6 +730,11 @@ func (t *tsmWriter) WriteIndex() error {
 	b, err := t.index.MarshalBinary()
 	if err != nil {
 		return err
+	}
+
+	// Don't write an index if we don't actually have any blocks in the file.
+	if len(b) == 0 {
+		return ErrNoValues
 	}
 
 	// Write the index followed by index position
@@ -942,6 +955,22 @@ func (t *TSMReader) Close() error {
 	return t.accessor.close()
 }
 
+// Remove removes any underlying files stored on disk for this reader.
+func (t *TSMReader) Remove() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	path := t.accessor.path()
+	if path != "" {
+		os.RemoveAll(path)
+	}
+
+	if err := t.tombstoner.Delete(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (t *TSMReader) Contains(key string) bool {
 	return t.index.Contains(key)
 }
@@ -1000,6 +1029,13 @@ func (t *TSMReader) Size() int {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return int(t.size)
+}
+
+// HasTombstones return true if there are any tombstone entries recorded.
+func (t *TSMReader) HasTombstones() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.tombstoner.HasTombstones()
 }
 
 // fileAccessor is file IO based block accessor.  It provides access to blocks
