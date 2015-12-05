@@ -51,7 +51,7 @@ func (e *entry) add(values []Value) {
 // deduplicate sorts and orders the entry's values. If values are already deduped and
 // and sorted, the function does no work and simply returns.
 func (e *entry) deduplicate() {
-	if !e.needSort {
+	if !e.needSort || len(e.values) == 0 {
 		return
 	}
 	e.values = e.values.Deduplicate()
@@ -192,12 +192,51 @@ func (c *Cache) Values(key string) Values {
 
 	e := c.store[key]
 	if e == nil {
+		if len(c.snapshots) == 0 {
+			// No values in hot cache or snapshots.
+			return nil
+		}
+	} else {
+		e.deduplicate()
+	}
+
+	// Build the sequence of entries that will be returned, in the correct order.
+	// Calculate the required size of the destination buffer.
+	var entries []*entry
+	sz := 0
+	for _, s := range c.snapshots {
+		e := s.store[key]
+		if e != nil {
+			entries = append(entries, e)
+			sz += len(e.values)
+		}
+	}
+	if e != nil {
+		entries = append(entries, e)
+		sz += len(e.values)
+	}
+
+	// Any entries? If not, return.
+	if sz == 0 {
 		return nil
 	}
-	e.deduplicate()
 
-	values := make(Values, len(e.values))
-	copy(values, e.values)
+	// Create the buffer, and copy all hot values and snapshots. Individual
+	// entries are sorted at this point, so now the code has to check if the
+	// resultant buffer will be sorted from start to finish.
+	var needSort bool
+	values := make(Values, sz)
+	n := 0
+	for _, e := range entries {
+		if !needSort && n > 0 {
+			needSort = values[n-1].UnixNano() > e.values[0].UnixNano()
+		}
+		n += copy(values[n:], e.values)
+	}
+
+	if needSort {
+		values = values.Deduplicate()
+	}
 
 	return values
 }
