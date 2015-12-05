@@ -811,3 +811,68 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 }
+
+func TestTSMReader_MMAP_Stats(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values1 := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	if err := w.Write("cpu", values1); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	values2 := []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0)}
+	if err := w.Write("mem", values2); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	stats := r.Stats()
+	if got, exp := stats.MinKey, "cpu"; got != exp {
+		t.Fatalf("min key mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := stats.MaxKey, "mem"; got != exp {
+		t.Fatalf("max key mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := stats.MinTime, values1[0].Time(); got != exp {
+		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := stats.MaxTime, values2[0].Time(); got != exp {
+		t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(r.Keys()), 2; got != exp {
+		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	}
+}

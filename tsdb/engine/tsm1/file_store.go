@@ -61,23 +61,25 @@ type TSMFile interface {
 
 	// Remove deletes the file from the filesystem
 	Remove() error
+
+	// Stats returns summary information about the TSM file.
+	Stats() FileStat
 }
 
 type FileStore struct {
 	mu sync.RWMutex
 
-	currentFileID int
-	dir           string
+	currentGeneration int
+	dir               string
 
 	files []TSMFile
-
-	stats []FileStat
 }
 
 type FileStat struct {
 	Path             string
 	HasTombstone     bool
 	Size             int
+	LastModified     time.Time
 	MinTime, MaxTime time.Time
 	MinKey, MaxKey   string
 }
@@ -108,19 +110,19 @@ func (f *FileStore) Count() int {
 	return len(f.files)
 }
 
-// CurrentID returns the max file ID + 1
-func (f *FileStore) CurrentID() int {
+// CurrentGeneration returns the max file ID + 1
+func (f *FileStore) CurrentGeneration() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return f.currentFileID
+	return f.currentGeneration
 }
 
-// NextID returns the max file ID + 1
-func (f *FileStore) NextID() int {
+// NextGeneration returns the max file ID + 1
+func (f *FileStore) NextGeneration() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.currentFileID++
-	return f.currentFileID
+	f.currentGeneration++
+	return f.currentGeneration
 }
 
 func (f *FileStore) Add(files ...TSMFile) {
@@ -212,13 +214,13 @@ func (f *FileStore) Open() error {
 
 	for _, fn := range files {
 		// Keep track of the latest ID
-		id, err := f.idFromFileName(fn)
+		generation, _, err := ParseTSMFileName(fn)
 		if err != nil {
 			return err
 		}
 
-		if id >= f.currentFileID {
-			f.currentFileID = id + 1
+		if generation >= f.currentGeneration {
+			f.currentGeneration = generation + 1
 		}
 
 		file, err := os.OpenFile(fn, os.O_RDONLY, 0666)
@@ -292,32 +294,13 @@ func (f *FileStore) KeyCursor(key string) *KeyCursor {
 
 func (f *FileStore) Stats() []FileStat {
 	f.mu.RLock()
-	if f.stats == nil {
-		f.mu.RUnlock()
-		f.mu.Lock()
-		defer f.mu.Unlock()
-
-		var paths []FileStat
-		for _, fd := range f.files {
-			minTime, maxTime := fd.TimeRange()
-			minKey, maxKey := fd.KeyRange()
-
-			paths = append(paths, FileStat{
-				Path:         fd.Path(),
-				Size:         fd.Size(),
-				MinTime:      minTime,
-				MaxTime:      maxTime,
-				MinKey:       minKey,
-				MaxKey:       maxKey,
-				HasTombstone: fd.HasTombstones(),
-			})
-		}
-		f.stats = paths
-		return f.stats
-	}
 	defer f.mu.RUnlock()
+	stats := make([]FileStat, len(f.files))
+	for i, fd := range f.files {
+		stats[i] = fd.Stats()
+	}
 
-	return f.stats
+	return stats
 }
 
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
@@ -338,7 +321,9 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		if strings.HasSuffix(file, ".tmp") {
 			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
-			os.Rename(file, newName)
+			if err := os.Rename(file, newName); err != nil {
+				return err
+			}
 		}
 
 		fd, err := os.Open(newName)
@@ -378,22 +363,30 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		}
 	}
 
-	f.stats = nil
 	f.files = active
 
 	return nil
 }
 
-// idFromFileName parses the segment file ID from its name
-func (f *FileStore) idFromFileName(name string) (int, error) {
-	parts := strings.Split(filepath.Base(name), ".")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("file %s is named incorrectly", name)
+// ParseTSMFileName parses the generation and sequence from a TSM file name.
+func ParseTSMFileName(name string) (int, int, error) {
+	base := filepath.Base(name)
+	idx := strings.Index(base, ".")
+	if idx == -1 {
+		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
 
-	id, err := strconv.ParseUint(parts[0], 10, 32)
+	id := base[:idx]
 
-	return int(id), err
+	parts := strings.Split(id, "-")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+	}
+
+	generation, err := strconv.ParseUint(parts[0], 10, 32)
+	sequence, err := strconv.ParseUint(parts[1], 10, 32)
+
+	return int(generation), int(sequence), err
 }
 
 type KeyCursor struct {

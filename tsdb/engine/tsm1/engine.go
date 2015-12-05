@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -96,6 +97,10 @@ func (e *DevEngine) Open() error {
 		return err
 	}
 
+	if err := e.cleanup(); err != nil {
+		return err
+	}
+
 	if err := e.WAL.Open(); err != nil {
 		return err
 	}
@@ -108,7 +113,8 @@ func (e *DevEngine) Open() error {
 		return err
 	}
 
-	go e.compact()
+	go e.compactCache()
+	go e.compactTSM()
 
 	return nil
 }
@@ -323,7 +329,7 @@ func (e *DevEngine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache
 	return nil
 }
 
-func (e *DevEngine) compact() {
+func (e *DevEngine) compactCache() {
 	for {
 		if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
 			err := e.WriteSnapshot()
@@ -331,7 +337,12 @@ func (e *DevEngine) compact() {
 				e.logger.Printf("error writing snapshot: %v", err)
 			}
 		}
+		time.Sleep(time.Second)
+	}
+}
 
+func (e *DevEngine) compactTSM() {
+	for {
 		tsmFiles := e.CompactionPlan.Plan()
 
 		if len(tsmFiles) == 0 {
@@ -397,6 +408,20 @@ func (e *DevEngine) reloadCache() error {
 				// 	return err
 				// }
 			}
+		}
+	}
+	return nil
+}
+
+func (e *DevEngine) cleanup() error {
+	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension)))
+	if err != nil {
+		return fmt.Errorf("error getting compaction checkpoints: %s", err.Error())
+	}
+
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("error removing temp compaction files: %v", err)
 		}
 	}
 	return nil

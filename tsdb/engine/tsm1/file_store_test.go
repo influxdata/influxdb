@@ -361,7 +361,7 @@ func TestFileStore_Open(t *testing.T) {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := fs.CurrentID(), 4; got != exp {
+	if got, exp := fs.CurrentGeneration(), 4; got != exp {
 		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -392,7 +392,7 @@ func TestFileStore_Remove(t *testing.T) {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := fs.CurrentID(), 4; got != exp {
+	if got, exp := fs.CurrentGeneration(), 4; got != exp {
 		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -402,7 +402,7 @@ func TestFileStore_Remove(t *testing.T) {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := fs.CurrentID(), 4; got != exp {
+	if got, exp := fs.CurrentGeneration(), 4; got != exp {
 		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -563,9 +563,9 @@ func MustTempFile(dir string) *os.File {
 }
 
 func fatal(t *testing.T, msg string, err error) {
-	t.Fatalf("unexpected error %s: %v", msg, err)
+	t.Fatalf("unexpected error %v: %v", msg, err)
 }
 
 func tsmFileName(id int) string {
-	return fmt.Sprintf("%07d.tsm1dev", id)
+	return fmt.Sprintf("%09d-%09d.tsm1dev", id, 1)
 }

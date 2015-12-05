@@ -527,3 +527,18 @@ func BenchmarkDecodeBlock_String_TypeSpecific(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkValues_Deduplicate(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
+	}
+	values = append(values, values...)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tsm1.Values(values).Deduplicate()
+	}
+}
