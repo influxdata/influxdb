@@ -320,7 +320,9 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		if strings.HasSuffix(file, ".tmp") {
 			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
-			os.Rename(file, newName)
+			if err := os.Rename(file, newName); err != nil {
+				return err
+			}
 		}
 
 		fd, err := os.Open(newName)

@@ -21,15 +21,22 @@ import (
 	"time"
 )
 
-// maxCompactionSegments is the maximum number of segments that can be
-// compaction at one time.  A lower value would shorten
+// minCompactionFileCount is the minimum number of TSM files that need to
+// exist before a compaction cycle will run
+const minCompactionFileCount = 5
+
+// maxCompactionFileCount is the maximum number of TSM files that can be
+// compacted at one time.  A lower value would shorten
 // compaction times and memory requirements, but produce more TSM files
 // with lower compression ratios.  A higher value increases compaction times
-// and memory usage but produces more dense TSM files.
-const maxCompactionSegments = 10
+// and memory usage but produces more dense TSM files. This value is a cutoff
+// for when to stop looking additional files to add to the compaction set.
+const maxCompactionFileCount = 20
 
 const maxTSMFileSize = 250 * 1024 * 1024
-const rolloverTSMFileSize = 5 * 1025 * 1024
+const rolloverTSMFileSize = 5 * 1024 * 1024
+
+const CompactionTempExtension = "tmp"
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
 
@@ -38,63 +45,140 @@ var (
 	MinTime = time.Unix(0, 0)
 )
 
+// compactionSteps are the sizes of files to roll up into before combining.
+var compactionSteps = []int{
+	32 * 1024 * 1024,
+	128 * 1024 * 1024,
+	512 * 1024 * 1024,
+	2048 * 1024 * 1024,
+}
+
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
 	Plan() []string
 }
 
-// DefaultPlanner implements CompactionPlanner using a strategy to minimize
-// the number of closed WAL segments as well as rewriting existing files for
-// improve compression ratios.  It prefers compacting WAL segments over TSM
-// files to allow cached points to be evicted more quickly.  When looking at
-// TSM files, it will pull in TSM files that need to be rewritten to ensure
-// points exist in only one file.  Reclaiming space is lower priority while
-// there are multiple WAL segments still on disk (e.g. deleting tombstones,
-// combining smaller TSM files, etc..)
-//
-// It prioritizes WAL segments and TSM files as follows:
-//
-// 1) If there are more than 10 closed WAL segments, it will use the 10 oldest
-// 2) If there are any TSM files that contain points that would be overwritten
-//    by a WAL segment, those TSM files are included
-// 3) If there are fewer than 10 WAL segments and no TSM files are required to be
-//    re-written, any TSM files containing tombstones are included.
-// 4) If thare are still fewer than 10 WAL segments and no TSM files included, any
-//    TSM files less than the max file size are included.
+// DefaultPlanner implements CompactionPlanner using a strategy to roll up
+// multiple generations of TSM files into larger files in stages.  It attempts
+// to minimize the number of TSM files on disk while rolling up a bounder number
+// of files.
 type DefaultPlanner struct {
 	FileStore interface {
 		Stats() []FileStat
 	}
 }
 
+// tsmGeneration represents the TSM files within a generation.
+// 000001-01.tsm, 000001-02.tsm would be in the same generation
+// 000001 each with different sequence numbers.
+type tsmGeneration struct {
+	files []FileStat
+}
+
+// size returns the total size of the generation
+func (t *tsmGeneration) size() int {
+	var n int
+	for _, f := range t.files {
+		n += f.Size
+	}
+	return n
+}
+
+// count return then number of files in the generation
+func (t *tsmGeneration) count() int {
+	return len(t.files)
+}
+
 // Plan returns a set of TSM files to rewrite
 func (c *DefaultPlanner) Plan() []string {
-	tsmStats := c.FileStore.Stats()
+	// Determine the generations from all files on disk.  We need to treat
+	// a generation conceptually as a single file even though it's may be
+	// split across several files in sequence.
+	generations := c.findGenerations()
 
-	var tsmPaths []string
-
-	var hasDeletes bool
-	for _, tsm := range tsmStats {
-		if tsm.HasTombstone {
-			tsmPaths = append(tsmPaths, tsm.Path)
-			hasDeletes = true
-			continue
+	// First find the minimum size of all generations and set of generations.
+	var order []int
+	minSize := math.MaxInt64
+	for gen, group := range generations {
+		order = append(order, gen)
+		if group.size() < minSize {
+			minSize = group.size()
 		}
+	}
+	sort.Ints(order)
 
-		if tsm.Size > rolloverTSMFileSize {
-			continue
+	// Default to the smallest roll up
+	stepSize := compactionSteps[0]
+
+	// Find the smallest rollup size based on the sizes of all generations.
+	// This is so we prioritize rolling up a bunch of little files over
+	// a few larger files since a larger number of files on disk impacts
+	// query performance as well as compression ratios.
+	for i := len(compactionSteps) - 1; i >= 0; i-- {
+		step := compactionSteps[i]
+		if minSize < step {
+			stepSize = step
 		}
-		tsmPaths = append(tsmPaths, tsm.Path)
 	}
 
-	sort.Strings(tsmPaths)
+	// The set of files that that should be compacted
+	compacted := &tsmGeneration{}
+	var genCount int
+	for _, gen := range order {
+		group := generations[gen]
 
-	if !hasDeletes && len(tsmPaths) <= 1 {
+		// If the generation size is less than our current roll up size,
+		// include all the files in that generation.
+		if group.size() < stepSize {
+			compacted.files = append(compacted.files, group.files...)
+			genCount++
+		}
+
+		// Make sure we don't include too many files in one compaction run.
+		if genCount >= maxCompactionFileCount {
+			break
+		}
+	}
+
+	// Make sure we have enough files for a compaction run to actually produce
+	// something better.
+	if compacted.count() < minCompactionFileCount {
 		return nil
 	}
 
-	return tsmPaths
+	// All the files to be compacted must be compacted in order
+	var tsmFiles []string
+	for _, f := range compacted.files {
+		tsmFiles = append(tsmFiles, f.Path)
+	}
+	sort.Strings(tsmFiles)
+
+	// Only one, we can't improve on that so nothing to do
+	if len(tsmFiles) == 1 {
+		return nil
+	}
+
+	return tsmFiles
+}
+
+// findGenerations groups all the TSM files by they generation based
+// on their filename
+func (c *DefaultPlanner) findGenerations() map[int]*tsmGeneration {
+	generations := map[int]*tsmGeneration{}
+
+	tsmStats := c.FileStore.Stats()
+	for _, f := range tsmStats {
+		gen, _, _ := ParseTSMFileName(f.Path)
+
+		group := generations[gen]
+		if group == nil {
+			group = &tsmGeneration{}
+			generations[gen] = group
+		}
+		group.files = append(group.files, f)
+	}
+	return generations
 }
 
 // Compactor merges multiple TSM files into new files or
@@ -116,6 +200,9 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
+	// The new compacted files need to added to the max generation in the
+	// set.  We need to find that max generation as well as the max sequence
+	// number to ensure we write to the next unique location.
 	var maxGeneration, maxSequence int
 	for _, f := range tsmFiles {
 		gen, seq, err := ParseTSMFileName(f)
@@ -125,6 +212,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 
 		if gen > maxGeneration {
 			maxGeneration = gen
+			maxSequence = seq
 		}
 
 		if gen == maxGeneration && seq > maxSequence {
@@ -159,7 +247,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 		return nil, err
 	}
 
-	return c.writeNewFiles(maxGeneration, maxSequence+1, tsm)
+	return c.writeNewFiles(maxGeneration, maxSequence, tsm)
 }
 
 // Clone will return a new compactor that can be used even if the engine is closed
@@ -178,6 +266,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 	var files []string
 
 	for {
+		sequence++
 		// New TSM files are written to a temp file and renamed when fully completed.
 		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, "tsm1dev"))
 
@@ -200,6 +289,9 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 
 		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
 		if err != nil {
+			if err := os.Remove(fileName); err != nil {
+				return nil, err
+			}
 			return nil, err
 		}
 

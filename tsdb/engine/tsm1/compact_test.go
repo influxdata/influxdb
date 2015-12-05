@@ -366,21 +366,21 @@ func TestKeyIterator_Cache_Single(t *testing.T) {
 	}
 }
 
-func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
+func TestDefaultCompactionPlanner_Min5(t *testing.T) {
 	cp := &tsm1.DefaultPlanner{
 		FileStore: &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
 				return []tsm1.FileStat{
 					tsm1.FileStat{
-						Path: "1.tsm1",
+						Path: "01-01.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
-						Path: "2.tsm1",
+						Path: "02-01.tsm1",
 						Size: 1 * 1024 * 1024,
 					},
 					tsm1.FileStat{
-						Path: "3.tsm",
+						Path: "03-1.tsm1",
 						Size: 251 * 1024 * 1024,
 					},
 				}
@@ -389,58 +389,136 @@ func TestDefaultCompactionPlanner_OnlyTSM_MaxSize(t *testing.T) {
 	}
 
 	tsm := cp.Plan()
-	if exp, got := 2, len(tsm); got != exp {
+	if exp, got := 0, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 }
 
-func TestDefaultCompactionPlanner_TSM_Rewrite(t *testing.T) {
+func TestDefaultCompactionPlanner_CombineSequence(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "01-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "01-03.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "05-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-1.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+	}
+
 	cp := &tsm1.DefaultPlanner{
 		FileStore: &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					tsm1.FileStat{
-						Path: "0001.tsm1",
-						Size: 1 * 1024 * 1024,
-					},
-					tsm1.FileStat{
-						Path: "0002.tsm1",
-						Size: 1 * 1024 * 1024,
-					},
-					tsm1.FileStat{
-						Size: 251 * 1024 * 1024,
-					},
-				}
+				return data
 			},
 		},
 	}
 
+	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4]}
 	tsm := cp.Plan()
-	if exp, got := 2, len(tsm); got != exp {
+	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles {
+		if got, exp := tsm[i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
 	}
 }
 
-func TestDefaultCompactionPlanner_Rewrite_Deletes(t *testing.T) {
+func TestDefaultCompactionPlanner_SkipMaxSize(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-01.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "05-02.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "06-01.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+	}
+
 	cp := &tsm1.DefaultPlanner{
 		FileStore: &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
-				return []tsm1.FileStat{
-					tsm1.FileStat{
-						Path:         "000007.tsm1",
-						HasTombstone: true,
-					},
-					tsm1.FileStat{
-						Size: 251 * 1024 * 1024,
-					},
-				}
+				return data
 			},
 		},
 	}
 
+	expFiles := []tsm1.FileStat{data[1], data[2], data[3], data[4], data[5]}
 	tsm := cp.Plan()
-	if exp, got := 1, len(tsm); got != exp {
+	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles {
+		if got, exp := tsm[i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
+	}
+}
+
+func TestDefaultCompactionPlanner_Limit20(t *testing.T) {
+	var data []tsm1.FileStat
+	for i := 1; i < 25; i++ {
+		data = append(data, tsm1.FileStat{
+			Path: fmt.Sprintf("%07d-01.tsm1", i),
+			Size: 1 * 1024 * 1024,
+		})
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+	}
+
+	expFiles := data[:20]
+	tsm := cp.Plan()
+	if exp, got := len(expFiles), len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles {
+		if got, exp := tsm[i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
 	}
 }
 
