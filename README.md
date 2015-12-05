@@ -2,7 +2,7 @@
 
 ## An Open-Source, Distributed, Time Series Database
 
-> InfluxDB v0.9.0 is now out. Going forward, the 0.9.x series of releases will not make breaking API changes or breaking changes to the underlying data storage. However, 0.9.0 clustering should be considered an alpha release.
+> InfluxDB v0.9.0 is now out. Going forward, the 0.9.x series of releases will not make breaking API changes or breaking changes to the underlying data storage. However, 0.9.x clustering should be considered an alpha release.
 
 InfluxDB is an open source **distributed time series database** with
 **no external dependencies**. It's useful for recording metrics,
@@ -20,7 +20,7 @@ events, and performing analytics.
   should return in < 100ms.
 
 ## Getting Started
-*The following directions apply only to the 0.9.0 release or building from the source on master.*
+*The following directions apply only to the 0.9.x series or building from the source on master.*
 
 ### Building
 
