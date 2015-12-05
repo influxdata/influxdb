@@ -48,6 +48,16 @@ func (e *entry) add(values []Value) {
 	}
 }
 
+// deduplicate sorts and orders the entry's values. If values are already deduped and
+// and sorted, the function does no work and simply returns.
+func (e *entry) deduplicate() {
+	if !e.needSort || len(e.values) == 0 {
+		return
+	}
+	e.values = e.values.Deduplicate()
+	e.needSort = false
+}
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
 	mu      sync.RWMutex
@@ -132,10 +142,7 @@ func (c *Cache) Snapshot() *Cache {
 	// sort the snapshot before returning it. The compactor and any queries
 	// coming in while it writes will need the values sorted
 	for _, e := range snapshot.store {
-		if e.needSort {
-			e.values = e.values.Deduplicate()
-			e.needSort = false
-		}
+		e.deduplicate()
 	}
 
 	return snapshot
@@ -180,37 +187,79 @@ func (c *Cache) Keys() []string {
 
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key string) Values {
-	values, needSort := func() (Values, bool) {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		e := c.store[key]
-		if e == nil {
-			return nil, false
-		}
-
-		if e.needSort {
-			return nil, true
-		}
-
-		return e.values[0:len(e.values)], false
-	}()
-
-	// the values in the entry require a sort, do so with a write lock so
-	// we can sort once and set everything in order
-	if needSort {
-		values = func() Values {
+	c.mu.RLock()
+	e := c.store[key]
+	if e != nil && e.needSort {
+		// Sorting is needed, so unlock and run the merge operation with
+		// a write-lock. It is actually possible that the data will be
+		// sorted by the time the merge runs, which would mean very occasionally
+		// a write-lock will be held when only a read-lock is required.
+		c.mu.RUnlock()
+		return func() Values {
 			c.mu.Lock()
 			defer c.mu.Unlock()
-
-			e := c.store[key]
-			if e == nil {
-				return nil
-			}
-			e.values = e.values.Deduplicate()
-			e.needSort = false
-
-			return e.values[0:len(e.values)]
+			return c.merged(key)
 		}()
+	}
+
+	// No sorting required for key, so just merge while continuing to hold read-lock.
+	return func() Values {
+		defer c.mu.RUnlock()
+		return c.merged(key)
+	}()
+}
+
+// merged returns a copy of hot and snapshot values. The copy will be merged, deduped, and
+// sorted. It assumes all necessary locks have been taken. If the caller knows that the
+// the hot source data for the key will not be changed, it is safe to call this function
+// with a read-lock taken. Otherwise it must be called with a write-lock taken.
+func (c *Cache) merged(key string) Values {
+	e := c.store[key]
+	if e == nil {
+		if len(c.snapshots) == 0 {
+			// No values in hot cache or snapshots.
+			return nil
+		}
+	} else {
+		e.deduplicate()
+	}
+
+	// Build the sequence of entries that will be returned, in the correct order.
+	// Calculate the required size of the destination buffer.
+	var entries []*entry
+	sz := 0
+	for _, s := range c.snapshots {
+		e := s.store[key]
+		if e != nil {
+			entries = append(entries, e)
+			sz += len(e.values)
+		}
+	}
+	if e != nil {
+		entries = append(entries, e)
+		sz += len(e.values)
+	}
+
+	// Any entries? If not, return.
+	if sz == 0 {
+		return nil
+	}
+
+	// Create the buffer, and copy all hot values and snapshots. Individual
+	// entries are sorted at this point, so now the code has to check if the
+	// resultant buffer will be sorted from start to finish.
+	var needSort bool
+	values := make(Values, sz)
+	n := 0
+	for _, e := range entries {
+		if !needSort && n > 0 {
+			needSort = values[n-1].UnixNano() > e.values[0].UnixNano()
+		}
+		n += copy(values[n:], e.values)
+	}
+
+	if needSort {
+		values = values.Deduplicate()
 	}
 
 	return values
