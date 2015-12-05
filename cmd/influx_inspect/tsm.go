@@ -459,7 +459,9 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 	}
 	b := make([]byte, 8)
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := tsm1.NewTSMReaderWithOptions(tsm1.TSMReaderOptions{
+		MMAPFile: f,
+	})
 	if err != nil {
 		println("Error opening TSM files: ", err.Error())
 	}

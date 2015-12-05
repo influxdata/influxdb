@@ -85,6 +85,16 @@ func (t *tsmGeneration) size() int {
 	return n
 }
 
+func (t *tsmGeneration) lastModified() time.Time {
+	var max time.Time
+	for _, f := range t.files {
+		if f.LastModified.After(max) {
+			max = f.LastModified
+		}
+	}
+	return max
+}
+
 // count return then number of files in the generation
 func (t *tsmGeneration) count() int {
 	return len(t.files)
@@ -107,6 +117,34 @@ func (c *DefaultPlanner) Plan() []string {
 		}
 	}
 	sort.Ints(order)
+
+	// TODO: If we have multiple generations and they have not been modified
+	// after some time cutoff, add them all to the set so they all get rewritten
+	// into one generation.
+	// if len(generations) > 1 {
+
+	// 	cold := true
+	// 	for _, gen := range generations {
+	// 		if gen.lastModified().After(time.Now().Add(-10 * time.Minute)) {
+	// 			cold = false
+	// 		}
+	// 	}
+
+	// 	if cold {
+	// 		var tsmFiles []string
+	// 		for _, gen := range order {
+	// 			group := generations[gen]
+
+	// 			// If the generation size is less than our current roll up size,
+	// 			// include all the files in that generation.
+	// 			for _, f := range group.files {
+	// 				tsmFiles = append(tsmFiles, f.Path)
+	// 			}
+	// 		}
+	// 		sort.Strings(tsmFiles)
+	// 		return tsmFiles
+	// 	}
+	// }
 
 	// Default to the smallest roll up
 	stepSize := compactionSteps[0]
@@ -412,7 +450,7 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 
 		// Grab the key for this reader
-		key := r.Key(k.pos[i])
+		key, entries := r.Key(k.pos[i])
 		k.keys[i] = key
 
 		if key != "" && key <= k.key {
@@ -427,9 +465,14 @@ func (k *tsmKeyIterator) Next() bool {
 		if key != "" {
 			// Note: this could be made more efficient to just grab chunks of values instead of
 			// all for the key.
-			values, err := r.ReadAll(key)
-			if err != nil {
-				k.err = err
+			var values []Value
+			for _, entry := range entries {
+				v, err := r.ReadAt(entry, nil)
+				if err != nil {
+					k.err = err
+				}
+
+				values = append(values, v...)
 			}
 
 			if len(values) > 0 {
@@ -452,7 +495,6 @@ func (k *tsmKeyIterator) Next() bool {
 		// Determine our current key which is the smallest key in the values map
 		k.key = k.currentKey()
 	}
-
 	return len(k.values) > 0
 }
 

@@ -146,7 +146,7 @@ type TSMIndex interface {
 	Keys() []string
 
 	// Key returns the key in the index at the given postion.
-	Key(index int) string
+	Key(index int) (string, []*IndexEntry)
 
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
@@ -298,11 +298,12 @@ func (d *directIndex) Keys() []string {
 	return keys
 }
 
-func (d *directIndex) Key(idx int) string {
+func (d *directIndex) Key(idx int) (string, []*IndexEntry) {
 	if idx < 0 || idx >= len(d.blocks) {
-		return ""
+		return "", nil
 	}
-	return d.Keys()[idx]
+	k := d.Keys()[idx]
+	return k, d.blocks[k].entries
 }
 
 func (d *directIndex) KeyCount() int {
@@ -594,15 +595,16 @@ func (d *indirectIndex) Keys() []string {
 	return keys
 }
 
-func (d *indirectIndex) Key(idx int) string {
+func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	if idx < 0 || idx >= len(d.offsets) {
-		return ""
+		return "", nil
 	}
-	_, key, _ := readKey(d.b[d.offsets[idx]:])
-	return key
+	n, key, _ := readKey(d.b[d.offsets[idx]:])
+	_, entries, _ := readEntries(d.b[int(d.offsets[idx])+n:])
+	return key, entries.entries
 }
 
 func (d *indirectIndex) KeyCount() int {
@@ -828,7 +830,11 @@ type TSMReader struct {
 	// tombstoner ensures tombstoned keys are not available by the index.
 	tombstoner *Tombstoner
 
+	// size is the size of the file on disk.
 	size int64
+
+	// lastModified is the last time this file was modified on disk
+	lastModified time.Time
 }
 
 // blockAccessor abstracts a method of accessing blocks from a
@@ -866,7 +872,14 @@ func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
 			return nil, err
 		}
 		t.size = size
+		if f, ok := opt.Reader.(*os.File); ok {
+			stat, err := f.Stat()
+			if err != nil {
+				return nil, err
+			}
 
+			t.lastModified = stat.ModTime()
+		}
 		t.accessor = &fileAccessor{
 			r: opt.Reader,
 		}
@@ -877,6 +890,7 @@ func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
 			return nil, err
 		}
 		t.size = stat.Size()
+		t.lastModified = stat.ModTime()
 		t.accessor = &mmapAccessor{
 			f: opt.MMAPFile,
 		}
@@ -924,7 +938,7 @@ func (t *TSMReader) Keys() []string {
 	return t.index.Keys()
 }
 
-func (t *TSMReader) Key(index int) string {
+func (t *TSMReader) Key(index int) (string, []*IndexEntry) {
 	return t.index.Key(index)
 }
 
@@ -1020,6 +1034,12 @@ func (t *TSMReader) Size() int {
 	return int(t.size)
 }
 
+func (t *TSMReader) LastModified() time.Time {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.lastModified
+}
+
 // HasTombstones return true if there are any tombstone entries recorded.
 func (t *TSMReader) HasTombstones() bool {
 	t.mu.RLock()
@@ -1033,6 +1053,7 @@ func (t *TSMReader) Stats() FileStat {
 	return FileStat{
 		Path:         t.Path(),
 		Size:         t.Size(),
+		LastModified: t.LastModified(),
 		MinTime:      minTime,
 		MaxTime:      maxTime,
 		MinKey:       minKey,

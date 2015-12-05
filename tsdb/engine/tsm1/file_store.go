@@ -79,6 +79,7 @@ type FileStat struct {
 	Path             string
 	HasTombstone     bool
 	Size             int
+	LastModified     time.Time
 	MinTime, MaxTime time.Time
 	MinKey, MaxKey   string
 }
