@@ -46,7 +46,7 @@ var (
 )
 
 // compactionSteps are the sizes of files to roll up into before combining.
-var compactionSteps = []int{
+var compactionSteps = []int64{
 	32 * 1024 * 1024,
 	128 * 1024 * 1024,
 	512 * 1024 * 1024,
@@ -77,10 +77,10 @@ type tsmGeneration struct {
 }
 
 // size returns the total size of the generation
-func (t *tsmGeneration) size() int {
-	var n int
+func (t *tsmGeneration) size() int64 {
+	var n int64
 	for _, f := range t.files {
-		n += f.Size
+		n += int64(f.Size)
 	}
 	return n
 }
@@ -109,7 +109,7 @@ func (c *DefaultPlanner) Plan() []string {
 
 	// First find the minimum size of all generations and set of generations.
 	var order []int
-	minSize := math.MaxInt64
+	minSize := int64(math.MaxInt64)
 	for gen, group := range generations {
 		order = append(order, gen)
 		if group.size() < minSize {
