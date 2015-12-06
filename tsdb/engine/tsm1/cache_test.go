@@ -1,6 +1,9 @@
 package tsm1
 
 import (
+	"fmt"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -196,4 +199,150 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	if deduped := c.Values("bar"); !reflect.DeepEqual(expAscValues, deduped) {
 		t.Fatalf("deduped ascending values for bar incorrect, exp: %v, got %v", expAscValues, deduped)
 	}
+}
+
+// Ensure the CacheLoader can correctly load from a single segment, even if it's corrupted.
+func TestCacheLoader_LoadSingle(t *testing.T) {
+	// Create a WAL segment.
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+	w := NewWALSegmentWriter(f)
+
+	p1 := NewValue(time.Unix(1, 0), 1.1)
+	p2 := NewValue(time.Unix(1, 0), int64(1))
+	p3 := NewValue(time.Unix(1, 0), true)
+
+	values := map[string][]Value{
+		"foo": []Value{p1},
+		"bar": []Value{p2},
+		"baz": []Value{p3},
+	}
+
+	entry := &WriteWALEntry{
+		Values: values,
+	}
+
+	if err := w.Write(entry); err != nil {
+		t.Fatal("write points", err)
+	}
+
+	// Load the cache using the segment.
+	cache := NewCache(1024)
+	loader := NewCacheLoader([]string{f.Name()})
+	if err := loader.Load(cache); err != nil {
+		t.Fatalf("failed to load cache: %s", err.Error())
+	}
+
+	// Check the cache.
+	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
+	}
+	if values := cache.Values("bar"); !reflect.DeepEqual(values, Values{p2}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p2})
+	}
+	if values := cache.Values("baz"); !reflect.DeepEqual(values, Values{p3}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p3})
+	}
+
+	// Corrupt the WAL segment.
+	if _, err := f.Write([]byte{1, 4, 0, 0, 0}); err != nil {
+		t.Fatalf("corrupt WAL segment: %s", err.Error())
+	}
+
+	// Reload the cache using the segment.
+	cache = NewCache(1024)
+	loader = NewCacheLoader([]string{f.Name()})
+	if err := loader.Load(cache); err != nil {
+		t.Fatalf("failed to load cache: %s", err.Error())
+	}
+
+	// Check the cache.
+	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
+	}
+	if values := cache.Values("bar"); !reflect.DeepEqual(values, Values{p2}) {
+		t.Fatalf("cache key bar not as expected, got %v, exp %v", values, Values{p2})
+	}
+	if values := cache.Values("baz"); !reflect.DeepEqual(values, Values{p3}) {
+		t.Fatalf("cache key baz not as expected, got %v, exp %v", values, Values{p3})
+	}
+}
+
+// Ensure the CacheLoader can correctly load from two segments, even if one is corrupted.
+func TestCacheLoader_LoadDouble(t *testing.T) {
+	// Create a WAL segment.
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f1, f2 := mustTempFile(dir), mustTempFile(dir)
+	w1, w2 := NewWALSegmentWriter(f1), NewWALSegmentWriter(f2)
+
+	p1 := NewValue(time.Unix(1, 0), 1.1)
+	p2 := NewValue(time.Unix(1, 0), int64(1))
+	p3 := NewValue(time.Unix(1, 0), true)
+	p4 := NewValue(time.Unix(1, 0), "string")
+
+	// Write first and second segment.
+
+	segmentWrite := func(w *WALSegmentWriter, values map[string][]Value) {
+		entry := &WriteWALEntry{
+			Values: values,
+		}
+		if err := w1.Write(entry); err != nil {
+			t.Fatal("write points", err)
+		}
+	}
+
+	values := map[string][]Value{
+		"foo": []Value{p1},
+		"bar": []Value{p2},
+	}
+	segmentWrite(w1, values)
+	values = map[string][]Value{
+		"baz": []Value{p3},
+		"qux": []Value{p4},
+	}
+	segmentWrite(w2, values)
+
+	// Corrupt the first WAL segment.
+	if _, err := f1.Write([]byte{1, 4, 0, 0, 0}); err != nil {
+		t.Fatalf("corrupt WAL segment: %s", err.Error())
+	}
+
+	// Load the cache using the segments.
+	cache := NewCache(1024)
+	loader := NewCacheLoader([]string{f1.Name(), f2.Name()})
+	if err := loader.Load(cache); err != nil {
+		t.Fatalf("failed to load cache: %s", err.Error())
+	}
+
+	// Check the cache.
+	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
+	}
+	if values := cache.Values("bar"); !reflect.DeepEqual(values, Values{p2}) {
+		t.Fatalf("cache key bar not as expected, got %v, exp %v", values, Values{p2})
+	}
+	if values := cache.Values("baz"); !reflect.DeepEqual(values, Values{p3}) {
+		t.Fatalf("cache key baz not as expected, got %v, exp %v", values, Values{p3})
+	}
+	if values := cache.Values("qux"); !reflect.DeepEqual(values, Values{p4}) {
+		t.Fatalf("cache key qux not as expected, got %v, exp %v", values, Values{p4})
+	}
+}
+
+func mustTempDir() string {
+	dir, err := ioutil.TempDir("", "tsm1-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir
+}
+
+func mustTempFile(dir string) *os.File {
+	f, err := ioutil.TempFile(dir, "tsm1test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp file: %v", err))
+	}
+	return f
 }
