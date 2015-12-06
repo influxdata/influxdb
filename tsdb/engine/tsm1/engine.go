@@ -360,45 +360,20 @@ func (e *DevEngine) compact() {
 	}
 }
 
-// reloadCache reads the WAL segment files and loads them into the cache. It also stores
-// the measurements, series and fields defined in the WAL so that it can be used in the
-// LoadMetadataFromIndex function.
+// reloadCache reads the WAL segment files and loads them into the cache.
 func (e *DevEngine) reloadCache() error {
 	files, err := segmentFileNames(e.WAL.Path())
 	if err != nil {
 		return err
 	}
 
-	for _, fn := range files {
-		f, err := os.Open(fn)
-		if err != nil {
-			return err
-		}
-
-		r := NewWALSegmentReader(f)
-		defer r.Close()
-
-		// Iterate over each reader in order.  Later readers will overwrite earlier ones if values
-		// overlap.
-		for r.Next() {
-			entry, err := r.Read()
-			if err != nil {
-				return err
-			}
-
-			switch t := entry.(type) {
-			case *WriteWALEntry:
-				if err := e.Cache.WriteMulti(t.Values); err != nil {
-					return err
-				}
-			case *DeleteWALEntry:
-				// FIXME: Implement this
-				// if err := e.Cache.Delete(t.Keys); err != nil {
-				// 	return err
-				// }
-			}
-		}
+	loader := NewCacheLoader(files, e.Cache)
+	cache, err := loader.Load()
+	if err != nil {
+		return err
 	}
+	e.Cache = cache
+
 	return nil
 }
 
