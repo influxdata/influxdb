@@ -24,7 +24,9 @@ var _ tsdb.Engine = &DevEngine{}
 
 // Engine represents a storage engine with compressed blocks.
 type DevEngine struct {
-	mu sync.RWMutex
+	mu   sync.RWMutex
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	path   string
 	logger *log.Logger
@@ -93,6 +95,8 @@ func (e *DevEngine) Format() tsdb.EngineFormat {
 
 // Open opens and initializes the engine.
 func (e *DevEngine) Open() error {
+	e.done = make(chan struct{})
+
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
 	}
@@ -113,6 +117,7 @@ func (e *DevEngine) Open() error {
 		return err
 	}
 
+	e.wg.Add(2)
 	go e.compactCache()
 	go e.compactTSM()
 
@@ -121,12 +126,15 @@ func (e *DevEngine) Open() error {
 
 // Close closes the engine.
 func (e *DevEngine) Close() error {
+	// Shutdown goroutines and wait.
+	close(e.done)
+	e.wg.Wait()
+
+	// Lock now and close everything else down.
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.WAL.Close()
-
-	return nil
+	return e.WAL.Close()
 }
 
 // SetLogOutput is a no-op.
@@ -330,11 +338,18 @@ func (e *DevEngine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache
 }
 
 func (e *DevEngine) compactCache() {
+	defer e.wg.Done()
 	for {
-		if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
-			err := e.WriteSnapshot()
-			if err != nil {
-				e.logger.Printf("error writing snapshot: %v", err)
+		select {
+		case <-e.done:
+			return
+
+		default:
+			if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
+				err := e.WriteSnapshot()
+				if err != nil {
+					e.logger.Printf("error writing snapshot: %v", err)
+				}
 			}
 		}
 		time.Sleep(time.Second)
@@ -342,74 +357,54 @@ func (e *DevEngine) compactCache() {
 }
 
 func (e *DevEngine) compactTSM() {
+	defer e.wg.Done()
 	for {
-		tsmFiles := e.CompactionPlan.Plan()
+		select {
+		case <-e.done:
+			return
 
-		if len(tsmFiles) == 0 {
-			time.Sleep(time.Second)
-			continue
+		default:
+			tsmFiles := e.CompactionPlan.Plan()
+
+			if len(tsmFiles) == 0 {
+				time.Sleep(time.Second)
+				continue
+			}
+
+			start := time.Now()
+			e.logger.Printf("compacting %d TSM files", len(tsmFiles))
+
+			files, err := e.Compactor.Compact(tsmFiles)
+			if err != nil {
+				e.logger.Printf("error compacting TSM files: %v", err)
+				time.Sleep(time.Second)
+				continue
+			}
+
+			if err := e.FileStore.Replace(tsmFiles, files); err != nil {
+				e.logger.Printf("error replacing new TSM files: %v", err)
+				time.Sleep(time.Second)
+				continue
+			}
+
+			e.logger.Printf("compacted %d tsm into %d files in %s",
+				len(tsmFiles), len(files), time.Since(start))
 		}
-
-		start := time.Now()
-		e.logger.Printf("compacting %d TSM files", len(tsmFiles))
-
-		files, err := e.Compactor.Compact(tsmFiles)
-		if err != nil {
-			e.logger.Printf("error compacting TSM files: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		if err := e.FileStore.Replace(tsmFiles, files); err != nil {
-			e.logger.Printf("error replacing new TSM files: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		e.logger.Printf("compacted %d tsm into %d files in %s",
-			len(tsmFiles), len(files), time.Since(start))
 	}
 }
 
-// reloadCache reads the WAL segment files and loads them into the cache. It also stores
-// the measurements, series and fields defined in the WAL so that it can be used in the
-// LoadMetadataFromIndex function.
+// reloadCache reads the WAL segment files and loads them into the cache.
 func (e *DevEngine) reloadCache() error {
 	files, err := segmentFileNames(e.WAL.Path())
 	if err != nil {
 		return err
 	}
 
-	for _, fn := range files {
-		f, err := os.Open(fn)
-		if err != nil {
-			return err
-		}
-
-		r := NewWALSegmentReader(f)
-		defer r.Close()
-
-		// Iterate over each reader in order.  Later readers will overwrite earlier ones if values
-		// overlap.
-		for r.Next() {
-			entry, err := r.Read()
-			if err != nil {
-				return err
-			}
-
-			switch t := entry.(type) {
-			case *WriteWALEntry:
-				if err := e.Cache.WriteMulti(t.Values); err != nil {
-					return err
-				}
-			case *DeleteWALEntry:
-				// FIXME: Implement this
-				// if err := e.Cache.Delete(t.Keys); err != nil {
-				// 	return err
-				// }
-			}
-		}
+	loader := NewCacheLoader(files)
+	if err := loader.Load(e.Cache); err != nil {
+		return err
 	}
+
 	return nil
 }
 

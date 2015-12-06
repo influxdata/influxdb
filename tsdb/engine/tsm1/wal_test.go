@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -60,6 +61,10 @@ func TestWALWriter_WritePoints_Single(t *testing.T) {
 				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
 			}
 		}
+	}
+
+	if n := r.Count(); n != MustReadFileSize(f) {
+		t.Fatalf("wrong count of bytes read, got %d, exp %d", n, MustReadFileSize(f))
 	}
 }
 
@@ -127,6 +132,10 @@ func TestWALWriter_WritePoints_Multiple(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	if n := r.Count(); n != MustReadFileSize(f) {
+		t.Fatalf("wrong count of bytes read, got %d, exp %d", n, MustReadFileSize(f))
 	}
 }
 
@@ -347,6 +356,59 @@ func TestWAL_Delete(t *testing.T) {
 	}
 }
 
+func TestWALWriter_Corrupt(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	w := tsm1.NewWALSegmentWriter(f)
+	corruption := []byte{1, 4, 0, 0, 0}
+
+	p1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#float": []tsm1.Value{p1},
+	}
+
+	entry := &tsm1.WriteWALEntry{
+		Values: values,
+	}
+	if err := w.Write(entry); err != nil {
+		fatal(t, "write points", err)
+	}
+
+	// Write some random bytes to the file to simulate corruption.
+	if _, err := f.Write(corruption); err != nil {
+		fatal(t, "corrupt WAL segment", err)
+	}
+
+	// Create the WAL segment reader.
+	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
+		fatal(t, "seek", err)
+	}
+	r := tsm1.NewWALSegmentReader(f)
+
+	// Try to decode two entries.
+
+	if !r.Next() {
+		t.Fatalf("expected next, got false")
+	}
+	if _, err := r.Read(); err != nil {
+		fatal(t, "read entry", err)
+	}
+
+	if !r.Next() {
+		t.Fatalf("expected next, got false")
+	}
+	if _, err := r.Read(); err == nil {
+		fatal(t, "read entry did not return err", nil)
+	}
+
+	// Count should only return size of valid data.
+	expCount := MustReadFileSize(f) - int64(len(corruption))
+	if n := r.Count(); n != expCount {
+		t.Fatalf("wrong count of bytes read, got %d, exp %d", n, expCount)
+	}
+}
+
 func BenchmarkWALSegmentWriter(b *testing.B) {
 	points := map[string][]tsm1.Value{}
 	for i := 0; i < 5000; i++ {
@@ -410,4 +472,13 @@ func BenchmarkWALSegmentReader(b *testing.B) {
 			}
 		}
 	}
+}
+
+// MustReadFileSize returns the size of the file, or panics.
+func MustReadFileSize(f *os.File) int64 {
+	stat, err := os.Stat(f.Name())
+	if err != nil {
+		panic(fmt.Sprintf("failed to get size of file at %s: %s", f.Name(), err.Error()))
+	}
+	return stat.Size()
 }
