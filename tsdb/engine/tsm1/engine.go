@@ -23,7 +23,9 @@ var _ tsdb.Engine = &DevEngine{}
 
 // Engine represents a storage engine with compressed blocks.
 type DevEngine struct {
-	mu sync.RWMutex
+	mu   sync.RWMutex
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	path   string
 	logger *log.Logger
@@ -92,6 +94,8 @@ func (e *DevEngine) Format() tsdb.EngineFormat {
 
 // Open opens and initializes the engine.
 func (e *DevEngine) Open() error {
+	e.done = make(chan struct{})
+
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
 	}
@@ -108,6 +112,7 @@ func (e *DevEngine) Open() error {
 		return err
 	}
 
+	e.wg.Add(1)
 	go e.compact()
 
 	return nil
@@ -117,6 +122,9 @@ func (e *DevEngine) Open() error {
 func (e *DevEngine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	close(e.done)
+	e.wg.Wait()
 
 	e.WAL.Close()
 
@@ -324,47 +332,52 @@ func (e *DevEngine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache
 }
 
 func (e *DevEngine) compact() {
+	defer e.wg.Done()
+
 	for {
-		if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
-			err := e.WriteSnapshot()
-			if err != nil {
-				e.logger.Printf("error writing snapshot: %v", err)
+		select {
+		case <-e.done:
+			return
+
+		default:
+			if e.Cache.Size() > e.CacheFlushMemorySizeThreshold {
+				err := e.WriteSnapshot()
+				if err != nil {
+					e.logger.Printf("error writing snapshot: %v", err)
+				}
 			}
+
+			tsmFiles := e.CompactionPlan.Plan()
+
+			if len(tsmFiles) == 0 {
+				time.Sleep(time.Second)
+				continue
+			}
+
+			start := time.Now()
+			e.logger.Printf("compacting %d TSM files", len(tsmFiles))
+
+			files, err := e.Compactor.Compact(tsmFiles)
+			if err != nil {
+				e.logger.Printf("error compacting TSM files: %v", err)
+				time.Sleep(time.Second)
+				continue
+			}
+
+			if err := e.FileStore.Replace(tsmFiles, files); err != nil {
+				e.logger.Printf("error replacing new TSM files: %v", err)
+				time.Sleep(time.Second)
+				continue
+			}
+
+			e.logger.Printf("compacted %d tsm into %d files in %s",
+				len(tsmFiles), len(files), time.Since(start))
 		}
-
-		tsmFiles := e.CompactionPlan.Plan()
-
-		if len(tsmFiles) == 0 {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		start := time.Now()
-		e.logger.Printf("compacting %d TSM files", len(tsmFiles))
-
-		files, err := e.Compactor.Compact(tsmFiles)
-		if err != nil {
-			e.logger.Printf("error compacting TSM files: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		if err := e.FileStore.Replace(tsmFiles, files); err != nil {
-			e.logger.Printf("error replacing new TSM files: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		e.logger.Printf("compacted %d tsm into %d files in %s",
-			len(tsmFiles), len(files), time.Since(start))
 	}
 }
 
 // reloadCache reads the WAL segment files and loads them into the cache.
 func (e *DevEngine) reloadCache() error {
-	e.Cache.Lock()
-	defer e.Cache.Unlock()
-
 	files, err := segmentFileNames(e.WAL.Path())
 	if err != nil {
 		return err
