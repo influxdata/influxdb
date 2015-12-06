@@ -110,7 +110,7 @@ func (f *FileStore) Count() int {
 	return len(f.files)
 }
 
-// CurrentGeneration returns the max file ID + 1
+// CurrentGeneration returns the current generation of the TSM files
 func (f *FileStore) CurrentGeneration() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -207,7 +207,7 @@ func (f *FileStore) Open() error {
 		return nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm1dev")))
+	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm")))
 	if err != nil {
 		return err
 	}

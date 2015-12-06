@@ -366,7 +366,7 @@ func TestKeyIterator_Cache_Single(t *testing.T) {
 	}
 }
 
-func TestDefaultCompactionPlanner_Min5(t *testing.T) {
+func TestDefaultCompactionPlanner_Min(t *testing.T) {
 	cp := &tsm1.DefaultPlanner{
 		FileStore: &fakeFileStore{
 			PathsFn: func() []tsm1.FileStat {
@@ -386,6 +386,7 @@ func TestDefaultCompactionPlanner_Min5(t *testing.T) {
 				}
 			},
 		},
+		MinCompactionFileCount: 5,
 	}
 
 	tsm := cp.Plan()
@@ -492,34 +493,10 @@ func TestDefaultCompactionPlanner_SkipMaxSize(t *testing.T) {
 	}
 }
 
-func TestDefaultCompactionPlanner_Limit20(t *testing.T) {
-	var data []tsm1.FileStat
-	for i := 1; i < 25; i++ {
-		data = append(data, tsm1.FileStat{
-			Path: fmt.Sprintf("%07d-01.tsm1", i),
-			Size: 1 * 1024 * 1024,
-		})
-	}
+// Ensure that the setting for skipping compaction for generations
+// that have been modified since some time is respected
+func TestDefaultCompactionPlanner_GenerationModifiedAge(t *testing.T) {
 
-	cp := &tsm1.DefaultPlanner{
-		FileStore: &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		},
-	}
-
-	expFiles := data[:20]
-	tsm := cp.Plan()
-	if exp, got := len(expFiles), len(tsm); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles {
-		if got, exp := tsm[i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
 }
 
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {
@@ -545,7 +522,7 @@ func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader 
 	w := tsm1.NewWALSegmentWriter(f)
 
 	for _, e := range entries {
-		if err := w.Write(e); err != nil {
+		if err := w.Write(mustMarshalEntry(e)); err != nil {
 			panic(fmt.Sprintf("write WAL entry: %v", err))
 		}
 	}

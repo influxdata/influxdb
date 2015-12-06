@@ -17,7 +17,7 @@ import (
 // Ensure an engine containing cached values responds correctly to queries.
 func TestDevEngine_QueryCache_Ascending(t *testing.T) {
 	// Generate temporary file.
-	f, _ := ioutil.TempFile("", "tsm1dev")
+	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
 	os.Remove(f.Name())
 	walPath := filepath.Join(f.Name(), "wal")
@@ -32,7 +32,7 @@ func TestDevEngine_QueryCache_Ascending(t *testing.T) {
 	// Write those points to the engine.
 	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions())
 	if err := e.Open(); err != nil {
-		t.Fatalf("failed to open tsm1dev engine: %s", err.Error())
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 	if err := e.WritePoints([]models.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
@@ -133,7 +133,7 @@ func TestDevEngine_QueryTSM_Ascending(t *testing.T) {
 // Ensure an engine containing cached values responds correctly to queries.
 func TestDevEngine_QueryCache_Descending(t *testing.T) {
 	// Generate temporary file.
-	f, _ := ioutil.TempFile("", "tsm1dev")
+	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
 	os.Remove(f.Name())
 	walPath := filepath.Join(f.Name(), "wal")
@@ -148,7 +148,7 @@ func TestDevEngine_QueryCache_Descending(t *testing.T) {
 	// Write those points to the engine.
 	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions())
 	if err := e.Open(); err != nil {
-		t.Fatalf("failed to open tsm1dev engine: %s", err.Error())
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 	if err := e.WritePoints([]models.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
@@ -218,7 +218,7 @@ func TestDevEngine_QueryTSM_Descending(t *testing.T) {
 
 func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 	// Generate temporary file.
-	f, _ := ioutil.TempFile("", "tsm1dev")
+	f, _ := ioutil.TempFile("", "tsm1")
 	f.Close()
 	os.Remove(f.Name())
 	walPath := filepath.Join(f.Name(), "wal")
@@ -232,7 +232,7 @@ func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 	// Write those points to the engine.
 	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
 	if err := e.Open(); err != nil {
-		t.Fatalf("failed to open tsm1dev engine: %s", err.Error())
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())

@@ -21,20 +21,7 @@ import (
 	"time"
 )
 
-// minCompactionFileCount is the minimum number of TSM files that need to
-// exist before a compaction cycle will run
-const minCompactionFileCount = 5
-
-// maxCompactionFileCount is the maximum number of TSM files that can be
-// compacted at one time.  A lower value would shorten
-// compaction times and memory requirements, but produce more TSM files
-// with lower compression ratios.  A higher value increases compaction times
-// and memory usage but produces more dense TSM files. This value is a cutoff
-// for when to stop looking additional files to add to the compaction set.
-const maxCompactionFileCount = 20
-
-const maxTSMFileSize = 250 * 1024 * 1024
-const rolloverTSMFileSize = 5 * 1024 * 1024
+const maxTSMFileSize = 2048 * 1024 * 1024 // 2GB
 
 const CompactionTempExtension = "tmp"
 
@@ -67,6 +54,8 @@ type DefaultPlanner struct {
 	FileStore interface {
 		Stats() []FileStat
 	}
+
+	MinCompactionFileCount int
 }
 
 // tsmGeneration represents the TSM files within a generation.
@@ -172,16 +161,11 @@ func (c *DefaultPlanner) Plan() []string {
 			compacted.files = append(compacted.files, group.files...)
 			genCount++
 		}
-
-		// Make sure we don't include too many files in one compaction run.
-		if genCount >= maxCompactionFileCount {
-			break
-		}
 	}
 
 	// Make sure we have enough files for a compaction run to actually produce
 	// something better.
-	if compacted.count() < minCompactionFileCount {
+	if compacted.count() < c.MinCompactionFileCount {
 		return nil
 	}
 
@@ -306,7 +290,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 	for {
 		sequence++
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, "tsm1dev"))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, "tsm"))
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter)

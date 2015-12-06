@@ -876,3 +876,22 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 }
+
+// Ensure that we return an error if we try to open a non-tsm file
+func TestTSMReader_VerifiesFileType(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	// write some garbage
+	f.Write([]byte{0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77})
+
+	_, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err == nil {
+		t.Fatal("expected error trying to open non-tsm file")
+	}
+}

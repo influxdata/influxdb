@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/golang/snappy"
 )
 
 func TestCache_NewCache(t *testing.T) {
@@ -223,7 +225,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 		Values: values,
 	}
 
-	if err := w.Write(entry); err != nil {
+	if err := w.Write(mustMarshalEntry(entry)); err != nil {
 		t.Fatal("write points", err)
 	}
 
@@ -288,7 +290,7 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 		entry := &WriteWALEntry{
 			Values: values,
 		}
-		if err := w1.Write(entry); err != nil {
+		if err := w1.Write(mustMarshalEntry(entry)); err != nil {
 			t.Fatal("write points", err)
 		}
 	}
@@ -345,4 +347,15 @@ func mustTempFile(dir string) *os.File {
 		panic(fmt.Sprintf("failed to create temp file: %v", err))
 	}
 	return f
+}
+
+func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
+	bytes := make([]byte, 1024<<2)
+
+	b, err := entry.Encode(bytes)
+	if err != nil {
+		panic("error encoding")
+	}
+
+	return entry.Type(), snappy.Encode(b, b)
 }

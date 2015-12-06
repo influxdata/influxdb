@@ -63,6 +63,7 @@ The last section is the footer that stores the offset of the start of the index.
 */
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
@@ -1070,6 +1071,11 @@ type fileAccessor struct {
 }
 
 func (f *fileAccessor) init() (TSMIndex, error) {
+	// Verify it's a TSM file of the right version
+	if err := verifyVersion(f.r); err != nil {
+		return nil, err
+	}
+
 	// Current the readers size
 	size, err := f.r.Seek(0, os.SEEK_END)
 	if err != nil {
@@ -1219,6 +1225,10 @@ type mmapAccessor struct {
 }
 
 func (m *mmapAccessor) init() (TSMIndex, error) {
+	if err := verifyVersion(m.f); err != nil {
+		return nil, err
+	}
+
 	var err error
 
 	if _, err := m.f.Seek(0, 0); err != nil {
@@ -1379,4 +1389,51 @@ func u16tob(v uint16) []byte {
 
 func btou16(b []byte) uint16 {
 	return uint16(binary.BigEndian.Uint16(b))
+}
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func btou64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}
+
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+func btou32(b []byte) uint32 {
+	return uint32(binary.BigEndian.Uint32(b))
+}
+
+// verifyVersion will verify that the reader's bytes are a TSM byte
+// stream of the correct version (1)
+func verifyVersion(r io.ReadSeeker) error {
+	_, err := r.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("init: failed to seek: %v", err)
+	}
+	b := make([]byte, 4)
+	_, err = r.Read(b)
+	if err != nil {
+		return fmt.Errorf("init: error reading magic number of file: %v", err)
+	}
+	if bytes.Compare(b, u32tob(MagicNumber)) != 0 {
+		return fmt.Errorf("can only read from tsm file")
+	}
+	_, err = r.Read(b)
+	if err != nil {
+		return fmt.Errorf("init: error reading version: %v", err)
+	}
+	if b[0] != Version {
+		return fmt.Errorf("init: file is version %b. expected %b", b[0], Version)
+	}
+
+	return nil
 }
