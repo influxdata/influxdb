@@ -343,11 +343,11 @@ func (s *CreateDatabaseStatement) String() string {
 	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	if s.RetentionPolicyCreate {
-		_, _ = buf.WriteString("WITH DURATION ")
+		_, _ = buf.WriteString(" WITH DURATION ")
 		_, _ = buf.WriteString(s.RetentionPolicyDuration.String())
-		_, _ = buf.WriteString("REPLICATION ")
+		_, _ = buf.WriteString(" REPLICATION ")
 		_, _ = buf.WriteString(strconv.Itoa(s.RetentionPolicyReplication))
-		_, _ = buf.WriteString("NAME ")
+		_, _ = buf.WriteString(" NAME ")
 		_, _ = buf.WriteString(QuoteIdent(s.RetentionPolicyName))
 	}
 
