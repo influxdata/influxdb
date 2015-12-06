@@ -638,11 +638,6 @@ func (r *WALSegmentReader) Next() bool {
 	}
 
 	_, err = io.ReadFull(r.r, b[:length])
-	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		r.err = err
-		return true
-	}
-
 	if err != nil {
 		r.err = err
 		return true
