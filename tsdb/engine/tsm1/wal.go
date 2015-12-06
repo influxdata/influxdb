@@ -602,6 +602,7 @@ func (w *WALSegmentWriter) Close() error {
 type WALSegmentReader struct {
 	r     io.ReadCloser
 	entry WALEntry
+	n     int64
 	err   error
 }
 
@@ -615,9 +616,10 @@ func NewWALSegmentReader(r io.ReadCloser) *WALSegmentReader {
 func (r *WALSegmentReader) Next() bool {
 	b := getBuf(defaultBufLen)
 	defer putBuf(b)
+	var nReadOK int
 
 	// read the type and the length of the entry
-	_, err := io.ReadFull(r.r, b[:5])
+	n, err := io.ReadFull(r.r, b[:5])
 	if err == io.EOF {
 		return false
 	}
@@ -628,6 +630,7 @@ func (r *WALSegmentReader) Next() bool {
 		// will return the this error to be handled.
 		return true
 	}
+	nReadOK += n
 
 	entryType := b[0]
 	length := btou32(b[1:5])
@@ -637,11 +640,12 @@ func (r *WALSegmentReader) Next() bool {
 		b = make([]byte, length)
 	}
 
-	_, err = io.ReadFull(r.r, b[:length])
+	n, err = io.ReadFull(r.r, b[:length])
 	if err != nil {
 		r.err = err
 		return true
 	}
+	nReadOK += n
 
 	data, err := snappy.Decode(nil, b[:length])
 	if err != nil {
@@ -662,6 +666,10 @@ func (r *WALSegmentReader) Next() bool {
 		return true
 	}
 	r.err = r.entry.UnmarshalBinary(data)
+	if r.err == nil {
+		// Read and decode of this entry was successful.
+		r.n += int64(nReadOK)
+	}
 
 	return true
 }
@@ -671,6 +679,13 @@ func (r *WALSegmentReader) Read() (WALEntry, error) {
 		return nil, r.err
 	}
 	return r.entry, nil
+}
+
+// Count returns the total number of bytes read successfully from the segment, as
+// of the last call to Read(). The segment is guaranteed to be valid up to and
+// including this number of bytes.
+func (r *WALSegmentReader) Count() int64 {
+	return r.n
 }
 
 func (r *WALSegmentReader) Error() error {
