@@ -465,6 +465,237 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 	}
 }
 
+func TestSelectStatement_HasDerivative(t *testing.T) {
+	var tests = []struct {
+		stmt       string
+		derivative bool
+	}{
+		// No derivatives
+		{
+			stmt:       `SELECT value FROM cpu`,
+			derivative: false,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: false,
+		},
+
+		// No GROUP BY derivatives, time only
+		{
+			stmt:       `SELECT derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: true,
+		},
+
+		{
+			stmt:       `SELECT value FROM cpu`,
+			derivative: false,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// No GROUP BY derivatives, time only
+		{
+			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: true,
+		},
+
+		// Invalid derivative function name
+		{
+			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
+			derivative: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test derivative detection.
+		if d := stmt.(*influxql.SelectStatement).HasDerivative(); tt.derivative != d {
+			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
+			continue
+		}
+	}
+}
+
+func TestSelectStatement_IsSimpleDerivative(t *testing.T) {
+	var tests = []struct {
+		stmt       string
+		derivative bool
+	}{
+		// No derivatives
+		{
+			stmt:       `SELECT value FROM cpu`,
+			derivative: false,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: false,
+		},
+
+		// No GROUP BY derivatives, time only
+		{
+			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: false,
+		},
+
+		// Invalid derivative function name
+		{
+			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
+			derivative: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test derivative detection.
+		if d := stmt.(*influxql.SelectStatement).IsSimpleDerivative(); tt.derivative != d {
+			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
+			continue
+		}
+	}
+}
+
+func TestSelectStatement_HasSimpleCount(t *testing.T) {
+	var tests = []struct {
+		stmt  string
+		count bool
+	}{
+		// No counts
+		{
+			stmt:  `SELECT value FROM cpu`,
+			count: false,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT count(value) FROM cpu`,
+			count: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT count(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: false,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT typoCount(value) FROM cpu`,
+			count: false,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT typoCount(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test count detection.
+		if c := stmt.(*influxql.SelectStatement).HasSimpleCount(); tt.count != c {
+			t.Errorf("%d. %q: unexpected count detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.count, c)
+			continue
+		}
+	}
+}
+
+func TestSelectStatement_HasCountDistinct(t *testing.T) {
+	var tests = []struct {
+		stmt  string
+		count bool
+	}{
+		// No counts
+		{
+			stmt:  `SELECT value FROM cpu`,
+			count: false,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT count(value) FROM cpu`,
+			count: false,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT count(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: true,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT typoCount(value) FROM cpu`,
+			count: false,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT typoCount(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test count detection.
+		if c := stmt.(*influxql.SelectStatement).HasCountDistinct(); tt.count != c {
+			t.Errorf("%d. %q: unexpected count detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.count, c)
+			continue
+		}
+	}
+}
+
 // Ensure the time range of an expression can be extracted.
 func TestTimeRange(t *testing.T) {
 	for i, tt := range []struct {
