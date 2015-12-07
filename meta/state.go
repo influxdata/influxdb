@@ -203,7 +203,9 @@ func (r *localRaft) logLeaderChanges() {
 }
 
 func (r *localRaft) close() error {
-	close(r.closing)
+	if r.closing != nil {
+		close(r.closing)
+	}
 	r.wg.Wait()
 
 	if r.transport != nil {
