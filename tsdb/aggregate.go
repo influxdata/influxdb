@@ -394,8 +394,18 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 	callInPosition := e.stmt.FunctionCallsByPosition()
 	hasTimeField := e.stmt.HasTimeFieldSpecified()
 
+	FlatCallInPositions := make([][]*influxql.Call, 0)
+	for _, calls := range callInPosition {
+		if calls == nil {
+			FlatCallInPositions = append(FlatCallInPositions, calls)
+		}
+		for _, call := range calls {
+			FlatCallInPositions = append(FlatCallInPositions, []*influxql.Call{call})
+		}
+	}
+
 	var err error
-	for i, calls := range callInPosition {
+	for i, calls := range FlatCallInPositions {
 		// We can only support expanding fields if a single selector call was specified
 		// i.e. select tx, max(rx) from foo
 		// If you have multiple selectors or aggregates, there is no way of knowing who gets to insert the values, so we don't
@@ -425,8 +435,10 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 func (e *AggregateExecutor) processSelectors(results [][]interface{}, callPosition int, hasTimeField bool, columnNames []string) ([][]interface{}, error) {
 	// if the columns doesn't have enough columns, expand it
 	for i, columns := range results {
-		if len(columns) != len(columnNames) {
+		if len(columns) < len(columnNames) {
 			columns = append(columns, make([]interface{}, len(columnNames)-len(columns))...)
+		} else if len(columns) > len(columnNames) {
+			columnNames = append(columnNames, make([]string, len(columns)-len(columnNames))...)
 		}
 		for j := 1; j < len(columns); j++ {
 			switch v := columns[j].(type) {
