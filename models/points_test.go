@@ -43,6 +43,24 @@ func BenchmarkParsePointNoTags(b *testing.B) {
 	}
 }
 
+func BenchmarkParsePointWithPrecisionN(b *testing.B) {
+	line := `cpu value=1i 1000000000`
+	defaultTime := time.Now().UTC()
+	for i := 0; i < b.N; i++ {
+		models.ParsePointsWithPrecision([]byte(line), defaultTime, "n")
+		b.SetBytes(int64(len(line)))
+	}
+}
+
+func BenchmarkParsePointWithPrecisionU(b *testing.B) {
+	line := `cpu value=1i 1000000000`
+	defaultTime := time.Now().UTC()
+	for i := 0; i < b.N; i++ {
+		models.ParsePointsWithPrecision([]byte(line), defaultTime, "u")
+		b.SetBytes(int64(len(line)))
+	}
+}
+
 func BenchmarkParsePointsTagsSorted2(b *testing.B) {
 	line := `cpu,host=serverA,region=us-west value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
