@@ -17,6 +17,22 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
+// these consts are for the old tsm format. They can be removed once we remove
+// the inspection for the original tsm1 files.
+const (
+	//IDsFileExtension is the extension for the file that keeps the compressed map
+	// of keys to uint64 IDs.
+	IDsFileExtension = "ids"
+
+	// FieldsFileExtension is the extension for the file that stores compressed field
+	// encoding data for this db
+	FieldsFileExtension = "fields"
+
+	// SeriesFileExtension is the extension for the file that stores the compressed
+	// series metadata for series in this db
+	SeriesFileExtension = "series"
+)
+
 type tsdmDumpOpts struct {
 	dumpIndex  bool
 	dumpBlocks bool
@@ -91,7 +107,7 @@ var (
 func readFields(path string) (map[string]*tsdb.MeasurementFields, error) {
 	fields := make(map[string]*tsdb.MeasurementFields)
 
-	f, err := os.OpenFile(filepath.Join(path, tsm1.FieldsFileExtension), os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(path, FieldsFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return fields, nil
 	} else if err != nil {
@@ -116,7 +132,7 @@ func readFields(path string) (map[string]*tsdb.MeasurementFields, error) {
 func readSeries(path string) (map[string]*tsdb.Series, error) {
 	series := make(map[string]*tsdb.Series)
 
-	f, err := os.OpenFile(filepath.Join(path, tsm1.SeriesFileExtension), os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(path, SeriesFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return series, nil
 	} else if err != nil {
@@ -141,7 +157,7 @@ func readSeries(path string) (map[string]*tsdb.Series, error) {
 }
 
 func readIds(path string) (map[string]uint64, error) {
-	f, err := os.OpenFile(filepath.Join(path, tsm1.IDsFileExtension), os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(path, IDsFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return nil, nil
 	} else if err != nil {

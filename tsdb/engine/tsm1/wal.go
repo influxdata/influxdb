@@ -39,18 +39,19 @@ type SegmentInfo struct {
 	id   int
 }
 
-// walEntry is a byte written to a wal segment file that indicates what the following compressed block contains
-type walEntryType byte
+// WalEntryType is a byte written to a wal segment file that indicates what the following compressed block contains
+type WalEntryType byte
 
 const (
-	WriteWALEntryType  walEntryType = 0x01
-	DeleteWALEntryType walEntryType = 0x02
+	WriteWALEntryType  WalEntryType = 0x01
+	DeleteWALEntryType WalEntryType = 0x02
 )
 
 var ErrWALClosed = fmt.Errorf("WAL closed")
 
 type WAL struct {
-	mu sync.RWMutex
+	mu            sync.RWMutex
+	lastWriteTime time.Time
 
 	path string
 
@@ -79,7 +80,7 @@ func NewWAL(path string) *WAL {
 		// these options should be overriden by any options in the config
 		LogOutput:   os.Stderr,
 		SegmentSize: DefaultSegmentSize,
-		logger:      log.New(os.Stderr, "[tsm1devwal] ", log.LstdFlags),
+		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 	}
 }
@@ -97,8 +98,8 @@ func (l *WAL) Open() error {
 	defer l.mu.Unlock()
 
 	if l.LoggingEnabled {
-		l.logger.Printf("tsm1dev WAL starting with %d segment size\n", l.SegmentSize)
-		l.logger.Printf("tsm1dev WAL writing to %s\n", l.path)
+		l.logger.Printf("tsm1 WAL starting with %d segment size\n", l.SegmentSize)
+		l.logger.Printf("tsm1 WAL writing to %s\n", l.path)
 	}
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -132,6 +133,8 @@ func (l *WAL) Open() error {
 
 	l.closing = make(chan struct{})
 
+	l.lastWriteTime = time.Now()
+
 	return nil
 }
 
@@ -161,7 +164,7 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 
 	var currentFile string
 	if l.currentSegmentWriter != nil {
-		currentFile = l.currentSegmentWriter.Path()
+		currentFile = l.currentSegmentWriter.path()
 	}
 
 	files, err := segmentFileNames(l.path)
@@ -191,41 +194,53 @@ func (l *WAL) Remove(files []string) error {
 	return nil
 }
 
-func (l *WAL) writeToLog(entry WALEntry) (int, error) {
+// LastWriteTime is the last time anything was written to the WAL
+func (l *WAL) LastWriteTime() time.Time {
 	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.lastWriteTime
+}
+
+func (l *WAL) writeToLog(entry WALEntry) (int, error) {
+	// encode and compress the entry while we're not locked
+	bytes := make([]byte, defaultBufLen)
+
+	b, err := entry.Encode(bytes)
+	if err != nil {
+		return -1, err
+	}
+
+	compressed := snappy.Encode(b, b)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	// Make sure the log has not been closed
 	select {
 	case <-l.closing:
-		l.mu.RUnlock()
 		return -1, ErrWALClosed
 	default:
 	}
 
-	l.mu.RUnlock()
-
+	// roll the segment file if needed
 	if err := l.rollSegment(); err != nil {
 		return -1, fmt.Errorf("error rolling WAL segment: %v", err)
 	}
 
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if err := l.currentSegmentWriter.Write(entry); err != nil {
+	// write and sync
+	if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
 		return -1, fmt.Errorf("error writing WAL entry: %v", err)
 	}
 
-	return l.currentSegmentID, l.currentSegmentWriter.Sync()
+	l.lastWriteTime = time.Now()
+
+	return l.currentSegmentID, l.currentSegmentWriter.sync()
 }
 
 // rollSegment closes the current segment and opens a new one if the current segment is over
 // the max segment size.
 func (l *WAL) rollSegment() error {
-	l.mu.RLock()
-
-	if l.currentSegmentWriter == nil || l.currentSegmentWriter.Size() > DefaultSegmentSize {
-		l.mu.RUnlock()
-		l.mu.Lock()
-		defer l.mu.Unlock()
-
+	if l.currentSegmentWriter == nil || l.currentSegmentWriter.size > DefaultSegmentSize {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
@@ -233,7 +248,7 @@ func (l *WAL) rollSegment() error {
 		}
 		return nil
 	}
-	l.mu.RUnlock()
+
 	return nil
 }
 
@@ -241,7 +256,7 @@ func (l *WAL) rollSegment() error {
 func (l *WAL) CloseSegment() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.currentSegmentWriter == nil || l.currentSegmentWriter.Size() > 0 {
+	if l.currentSegmentWriter == nil || l.currentSegmentWriter.size > 0 {
 		if err := l.newSegmentFile(); err != nil {
 			// A drop database or RP call could trigger this error if writes were in-flight
 			// when the drop statement executes.
@@ -254,6 +269,9 @@ func (l *WAL) CloseSegment() error {
 
 // Delete deletes the given keys, returning the segment ID for the operation.
 func (l *WAL) Delete(keys []string) (int, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
 	entry := &DeleteWALEntry{
 		Keys: keys,
 	}
@@ -274,7 +292,7 @@ func (l *WAL) Close() error {
 	close(l.closing)
 
 	if l.currentSegmentWriter != nil {
-		l.currentSegmentWriter.Close()
+		l.currentSegmentWriter.close()
 		l.currentSegmentWriter = nil
 	}
 
@@ -295,7 +313,7 @@ func segmentFileNames(dir string) ([]string, error) {
 func (l *WAL) newSegmentFile() error {
 	l.currentSegmentID++
 	if l.currentSegmentWriter != nil {
-		if err := l.currentSegmentWriter.Close(); err != nil {
+		if err := l.currentSegmentWriter.close(); err != nil {
 			return err
 		}
 	}
@@ -313,7 +331,7 @@ func (l *WAL) newSegmentFile() error {
 // WALEntry is record stored in each WAL segment.  Each entry has a type
 // and an opaque, type dependent byte slice data attribute.
 type WALEntry interface {
-	Type() walEntryType
+	Type() WalEntryType
 	Encode(dst []byte) ([]byte, error)
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary(b []byte) error
@@ -479,7 +497,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (w *WriteWALEntry) Type() walEntryType {
+func (w *WriteWALEntry) Type() WalEntryType {
 	return WriteWALEntryType
 }
 
@@ -515,13 +533,12 @@ func (w *DeleteWALEntry) Encode(dst []byte) ([]byte, error) {
 	return []byte(dst[:n-1]), nil
 }
 
-func (w *DeleteWALEntry) Type() walEntryType {
+func (w *DeleteWALEntry) Type() WalEntryType {
 	return DeleteWALEntryType
 }
 
 // WALSegmentWriter writes WAL segments.
 type WALSegmentWriter struct {
-	mu   sync.RWMutex
 	w    io.WriteCloser
 	size int
 }
@@ -532,38 +549,23 @@ func NewWALSegmentWriter(w io.WriteCloser) *WALSegmentWriter {
 	}
 }
 
-func (w *WALSegmentWriter) Path() string {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
+func (w *WALSegmentWriter) path() string {
 	if f, ok := w.w.(*os.File); ok {
 		return f.Name()
 	}
 	return ""
 }
 
-func (w *WALSegmentWriter) Write(e WALEntry) error {
-	bytes := make([]byte, defaultBufLen)
-
-	b, err := e.Encode(bytes)
-	if err != nil {
+func (w *WALSegmentWriter) Write(entryType WalEntryType, compressed []byte) error {
+	if _, err := w.w.Write([]byte{byte(entryType)}); err != nil {
 		return err
 	}
 
-	compressed := snappy.Encode(b, b)
-
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if _, err := w.w.Write([]byte{byte(e.Type())}); err != nil {
+	if _, err := w.w.Write(u32tob(uint32(len(compressed)))); err != nil {
 		return err
 	}
 
-	if _, err = w.w.Write(u32tob(uint32(len(compressed)))); err != nil {
-		return err
-	}
-
-	if _, err = w.w.Write(compressed); err != nil {
+	if _, err := w.w.Write(compressed); err != nil {
 		return err
 	}
 
@@ -574,27 +576,14 @@ func (w *WALSegmentWriter) Write(e WALEntry) error {
 }
 
 // Sync flushes the file systems in-memory copy of recently written data to disk.
-func (w *WALSegmentWriter) Sync() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
+func (w *WALSegmentWriter) sync() error {
 	if f, ok := w.w.(*os.File); ok {
 		return f.Sync()
 	}
 	return nil
 }
 
-func (w *WALSegmentWriter) Size() int {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	return w.size
-}
-
-func (w *WALSegmentWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
+func (w *WALSegmentWriter) close() error {
 	return w.w.Close()
 }
 
@@ -654,7 +643,7 @@ func (r *WALSegmentReader) Next() bool {
 	}
 
 	// and marshal it and send it to the cache
-	switch walEntryType(entryType) {
+	switch WalEntryType(entryType) {
 	case WriteWALEntryType:
 		r.entry = &WriteWALEntry{
 			Values: map[string][]Value{},

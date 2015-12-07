@@ -63,6 +63,7 @@ The last section is the footer that stores the offset of the start of the index.
 */
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
@@ -114,7 +115,7 @@ type TSMWriter interface {
 	Close() error
 
 	// Size returns the current size in bytes of the file
-	Size() int
+	Size() uint32
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -152,7 +153,7 @@ type TSMIndex interface {
 	KeyCount() int
 
 	// Size returns the size of a the current index in bytes
-	Size() int
+	Size() uint32
 
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (time.Time, time.Time)
@@ -429,7 +430,7 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (d *directIndex) Size() int {
+func (d *directIndex) Size() uint32 {
 	return 0
 }
 
@@ -726,11 +727,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (d *indirectIndex) Size() int {
+func (d *indirectIndex) Size() uint32 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return len(d.b)
+	return uint32(len(d.b))
 }
 
 // tsmWriter writes keys and values in the TSM format
@@ -814,8 +815,8 @@ func (t *tsmWriter) Close() error {
 	return nil
 }
 
-func (t *tsmWriter) Size() int {
-	return int(t.n) + t.index.Size()
+func (t *tsmWriter) Size() uint32 {
+	return uint32(t.n) + t.index.Size()
 }
 
 type TSMReader struct {
@@ -1024,14 +1025,14 @@ func (t *TSMReader) Entries(key string) []*IndexEntry {
 	return t.index.Entries(key)
 }
 
-func (t *TSMReader) IndexSize() int {
+func (t *TSMReader) IndexSize() uint32 {
 	return t.index.Size()
 }
 
-func (t *TSMReader) Size() int {
+func (t *TSMReader) Size() uint32 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return int(t.size)
+	return uint32(t.size)
 }
 
 func (t *TSMReader) LastModified() time.Time {
@@ -1070,6 +1071,11 @@ type fileAccessor struct {
 }
 
 func (f *fileAccessor) init() (TSMIndex, error) {
+	// Verify it's a TSM file of the right version
+	if err := verifyVersion(f.r); err != nil {
+		return nil, err
+	}
+
 	// Current the readers size
 	size, err := f.r.Seek(0, os.SEEK_END)
 	if err != nil {
@@ -1219,6 +1225,10 @@ type mmapAccessor struct {
 }
 
 func (m *mmapAccessor) init() (TSMIndex, error) {
+	if err := verifyVersion(m.f); err != nil {
+		return nil, err
+	}
+
 	var err error
 
 	if _, err := m.f.Seek(0, 0); err != nil {
@@ -1379,4 +1389,51 @@ func u16tob(v uint16) []byte {
 
 func btou16(b []byte) uint16 {
 	return uint16(binary.BigEndian.Uint16(b))
+}
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func btou64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}
+
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+func btou32(b []byte) uint32 {
+	return uint32(binary.BigEndian.Uint32(b))
+}
+
+// verifyVersion will verify that the reader's bytes are a TSM byte
+// stream of the correct version (1)
+func verifyVersion(r io.ReadSeeker) error {
+	_, err := r.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("init: failed to seek: %v", err)
+	}
+	b := make([]byte, 4)
+	_, err = r.Read(b)
+	if err != nil {
+		return fmt.Errorf("init: error reading magic number of file: %v", err)
+	}
+	if bytes.Compare(b, u32tob(MagicNumber)) != 0 {
+		return fmt.Errorf("can only read from tsm file")
+	}
+	_, err = r.Read(b)
+	if err != nil {
+		return fmt.Errorf("init: error reading version: %v", err)
+	}
+	if b[0] != Version {
+		return fmt.Errorf("init: file is version %b. expected %b", b[0], Version)
+	}
+
+	return nil
 }

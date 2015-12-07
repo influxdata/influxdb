@@ -57,7 +57,7 @@ type TSMFile interface {
 	Close() error
 
 	// Size returns the size of the file on disk in bytes.
-	Size() int
+	Size() uint32
 
 	// Remove deletes the file from the filesystem
 	Remove() error
@@ -67,7 +67,8 @@ type TSMFile interface {
 }
 
 type FileStore struct {
-	mu sync.RWMutex
+	mu           sync.RWMutex
+	lastModified time.Time
 
 	currentGeneration int
 	dir               string
@@ -78,7 +79,7 @@ type FileStore struct {
 type FileStat struct {
 	Path             string
 	HasTombstone     bool
-	Size             int
+	Size             uint32
 	LastModified     time.Time
 	MinTime, MaxTime time.Time
 	MinKey, MaxKey   string
@@ -99,7 +100,8 @@ func (f FileStat) ContainsKey(key string) bool {
 
 func NewFileStore(dir string) *FileStore {
 	return &FileStore{
-		dir: dir,
+		dir:          dir,
+		lastModified: time.Now(),
 	}
 }
 
@@ -110,7 +112,7 @@ func (f *FileStore) Count() int {
 	return len(f.files)
 }
 
-// CurrentGeneration returns the max file ID + 1
+// CurrentGeneration returns the current generation of the TSM files
 func (f *FileStore) CurrentGeneration() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -188,6 +190,8 @@ func (f *FileStore) Delete(key string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.lastModified = time.Now()
+
 	for _, file := range f.files {
 		if file.Contains(key) {
 			if err := file.Delete(key); err != nil {
@@ -207,7 +211,7 @@ func (f *FileStore) Open() error {
 		return nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm1dev")))
+	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", TSMFileExtension)))
 	if err != nil {
 		return err
 	}
@@ -306,6 +310,9 @@ func (f *FileStore) Stats() []FileStat {
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.lastModified = time.Now()
+
 	// Copy the current set of active files while we rename
 	// and load the new files.  We copy the pointers here to minimize
 	// the time that locks are held as well as to ensure that the replacement
@@ -366,6 +373,15 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	f.files = active
 
 	return nil
+}
+
+// LastModified returns the last time the file store was updated with new
+// TSM files or a delete
+func (f *FileStore) LastModified() time.Time {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.lastModified
 }
 
 // ParseTSMFileName parses the generation and sequence from a TSM file name.

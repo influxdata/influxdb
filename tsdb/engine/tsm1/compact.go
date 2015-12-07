@@ -21,22 +21,12 @@ import (
 	"time"
 )
 
-// minCompactionFileCount is the minimum number of TSM files that need to
-// exist before a compaction cycle will run
-const minCompactionFileCount = 5
+const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 
-// maxCompactionFileCount is the maximum number of TSM files that can be
-// compacted at one time.  A lower value would shorten
-// compaction times and memory requirements, but produce more TSM files
-// with lower compression ratios.  A higher value increases compaction times
-// and memory usage but produces more dense TSM files. This value is a cutoff
-// for when to stop looking additional files to add to the compaction set.
-const maxCompactionFileCount = 20
-
-const maxTSMFileSize = 250 * 1024 * 1024
-const rolloverTSMFileSize = 5 * 1024 * 1024
-
-const CompactionTempExtension = "tmp"
+const (
+	CompactionTempExtension = "tmp"
+	TSMFileExtension        = "tsm"
+)
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
 
@@ -46,7 +36,7 @@ var (
 )
 
 // compactionSteps are the sizes of files to roll up into before combining.
-var compactionSteps = []int64{
+var compactionSteps = []uint32{
 	32 * 1024 * 1024,
 	128 * 1024 * 1024,
 	512 * 1024 * 1024,
@@ -56,7 +46,7 @@ var compactionSteps = []int64{
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
-	Plan() []string
+	Plan(lastWrite time.Time) []string
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -66,7 +56,19 @@ type CompactionPlanner interface {
 type DefaultPlanner struct {
 	FileStore interface {
 		Stats() []FileStat
+		LastModified() time.Time
 	}
+
+	MinCompactionFileCount       int
+	CompactFullWriteColdDuration time.Duration
+
+	// lastPlanCompactedFull will be true if the last time
+	// Plan was called, all files were over the max size
+	// or there was only one file
+	lastPlanCompactedFull bool
+
+	// lastPlanCheck is the last time Plan was called
+	lastPlanCheck time.Time
 }
 
 // tsmGeneration represents the TSM files within a generation.
@@ -77,10 +79,10 @@ type tsmGeneration struct {
 }
 
 // size returns the total size of the generation
-func (t *tsmGeneration) size() int64 {
-	var n int64
+func (t *tsmGeneration) size() uint64 {
+	var n uint64
 	for _, f := range t.files {
-		n += int64(f.Size)
+		n += uint64(f.Size)
 	}
 	return n
 }
@@ -101,50 +103,56 @@ func (t *tsmGeneration) count() int {
 }
 
 // Plan returns a set of TSM files to rewrite
-func (c *DefaultPlanner) Plan() []string {
+func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
+	// skip planning if the last time we were fully compacted and the
+	// file store hasn't been modified since then
+	if c.lastPlanCompactedFull && c.lastPlanCheck.UnixNano() > c.FileStore.LastModified().UnixNano() {
+		return nil
+	}
+
 	// Determine the generations from all files on disk.  We need to treat
-	// a generation conceptually as a single file even though it's may be
+	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations()
 
 	// First find the minimum size of all generations and set of generations.
+	// And mark if everything is fully compacted
 	var order []int
-	minSize := int64(math.MaxInt64)
+	minSize := uint32(math.MaxUint32)
+	fileCount := 0
 	for gen, group := range generations {
 		order = append(order, gen)
-		if group.size() < minSize {
-			minSize = group.size()
+		sz := group.size()
+		if sz < uint64(minSize) {
+			minSize = uint32(sz)
 		}
+		fileCount += len(group.files)
 	}
 	sort.Ints(order)
 
-	// TODO: If we have multiple generations and they have not been modified
-	// after some time cutoff, add them all to the set so they all get rewritten
-	// into one generation.
-	// if len(generations) > 1 {
+	if fileCount == 1 || minSize >= maxTSMFileSize {
+		c.lastPlanCompactedFull = true
+	} else {
+		c.lastPlanCompactedFull = false
+	}
+	c.lastPlanCheck = time.Now()
 
-	// 	cold := true
-	// 	for _, gen := range generations {
-	// 		if gen.lastModified().After(time.Now().Add(-10 * time.Minute)) {
-	// 			cold = false
-	// 		}
-	// 	}
+	// Do a full compaction if no writes have occurred in a long time
+	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
+		var tsmFiles []string
+		for _, gen := range order {
+			group := generations[gen]
 
-	// 	if cold {
-	// 		var tsmFiles []string
-	// 		for _, gen := range order {
-	// 			group := generations[gen]
-
-	// 			// If the generation size is less than our current roll up size,
-	// 			// include all the files in that generation.
-	// 			for _, f := range group.files {
-	// 				tsmFiles = append(tsmFiles, f.Path)
-	// 			}
-	// 		}
-	// 		sort.Strings(tsmFiles)
-	// 		return tsmFiles
-	// 	}
-	// }
+			// If the generation size is less the max size
+			if group.size() < uint64(maxTSMFileSize) {
+				for _, f := range group.files {
+					tsmFiles = append(tsmFiles, f.Path)
+				}
+			}
+		}
+		sort.Strings(tsmFiles)
+		return tsmFiles
+	}
 
 	// Default to the smallest roll up
 	stepSize := compactionSteps[0]
@@ -168,20 +176,15 @@ func (c *DefaultPlanner) Plan() []string {
 
 		// If the generation size is less than our current roll up size,
 		// include all the files in that generation.
-		if group.size() < stepSize {
+		if group.size() < uint64(stepSize) {
 			compacted.files = append(compacted.files, group.files...)
 			genCount++
-		}
-
-		// Make sure we don't include too many files in one compaction run.
-		if genCount >= maxCompactionFileCount {
-			break
 		}
 	}
 
 	// Make sure we have enough files for a compaction run to actually produce
 	// something better.
-	if compacted.count() < minCompactionFileCount {
+	if compacted.count() < c.MinCompactionFileCount {
 		return nil
 	}
 
@@ -222,8 +225,7 @@ func (c *DefaultPlanner) findGenerations() map[int]*tsmGeneration {
 // Compactor merges multiple TSM files into new files or
 // writes a Cache into 1 or more TSM files
 type Compactor struct {
-	Dir         string
-	MaxFileSize int
+	Dir string
 
 	FileStore interface {
 		NextGeneration() int
@@ -291,9 +293,8 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 // Clone will return a new compactor that can be used even if the engine is closed
 func (c *Compactor) Clone() *Compactor {
 	return &Compactor{
-		Dir:         c.Dir,
-		MaxFileSize: c.MaxFileSize,
-		FileStore:   c.FileStore,
+		Dir:       c.Dir,
+		FileStore: c.FileStore,
 	}
 }
 
@@ -306,7 +307,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 	for {
 		sequence++
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, "tsm1dev"))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, TSMFileExtension))
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter)
@@ -373,7 +374,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 
 		// If we have a max file size configured and we're over it, close out the file
 		// and return the error.
-		if w.Size() > c.MaxFileSize {
+		if w.Size() > maxTSMFileSize {
 			if err := w.WriteIndex(); err != nil {
 				return err
 			}
