@@ -282,18 +282,7 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 func (f *FileStore) KeyCursor(key string) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-
-	var locations []*location
-	for _, fd := range f.files {
-		for _, ie := range fd.Entries(key) {
-			locations = append(locations, &location{
-				r:     fd,
-				entry: ie,
-			})
-		}
-	}
-
-	return &KeyCursor{seeks: locations, buf: make([]Value, 1000)}
+	return &KeyCursor{key: key, fs: f}
 }
 
 func (f *FileStore) Stats() []FileStat {
@@ -384,6 +373,54 @@ func (f *FileStore) LastModified() time.Time {
 	return f.lastModified
 }
 
+// locations returns the files and index blocks for a key and time.  ascending indicates
+// whether the key will be scan in ascending time order or descenging time order.
+func (f *FileStore) locations(key string, t time.Time, ascending bool) []*location {
+	var locations []*location
+
+	f.mu.RLock()
+	filesSnapshot := make([]TSMFile, len(f.files))
+	for i := range f.files {
+		filesSnapshot[i] = f.files[i]
+	}
+	f.mu.RUnlock()
+
+	for _, fd := range filesSnapshot {
+		minTime, maxTime := fd.TimeRange()
+
+		// If we ascending and the max time of the file is before where we want to start
+		// skip it.
+		if ascending && maxTime.Before(t) {
+			continue
+			// If we are descending and the min time fo the file is after where we want to start,
+			// then skip it.
+		} else if !ascending && minTime.After(t) {
+			continue
+		}
+
+		// This file could potential contain points we are looking for so find the blocks for
+		// the given key.
+		for _, ie := range fd.Entries(key) {
+			// If we ascending and the max time of a block is before where we are looking, skip
+			// it since the data is out of our range
+			if ascending && ie.MaxTime.Before(t) {
+				continue
+				// If we descending and the min time of a block is after where we are looking, skip
+				// it since the data is out of our range
+			} else if !ascending && minTime.After(t) {
+				continue
+			}
+
+			// Otherwise, add this file and block location
+			locations = append(locations, &location{
+				r:     fd,
+				entry: ie,
+			})
+		}
+	}
+	return locations
+}
+
 // ParseTSMFileName parses the generation and sequence from a TSM file name.
 func ParseTSMFileName(name string) (int, int, error) {
 	base := filepath.Base(name)
@@ -406,11 +443,14 @@ func ParseTSMFileName(name string) (int, int, error) {
 }
 
 type KeyCursor struct {
+	key       string
+	fs        *FileStore
 	seeks     []*location
 	current   *location
 	buf       []Value
 	pos       int
 	ascending bool
+	ready     bool
 }
 
 type location struct {
@@ -418,7 +458,18 @@ type location struct {
 	entry *IndexEntry
 }
 
+func (c *KeyCursor) init(t time.Time, ascending bool) {
+	if c.ready {
+		return
+	}
+
+	c.seeks = c.fs.locations(c.key, t, ascending)
+	c.buf = make([]Value, 1000)
+	c.ready = true
+}
+
 func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
+	c.init(t, ascending)
 	if len(c.seeks) == 0 {
 		return nil, nil
 	}
