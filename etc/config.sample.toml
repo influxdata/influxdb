@@ -112,7 +112,7 @@ reporting-disabled = false
 
   # MinCompactionFileCount is the minimum number of TSM files
   # that need to exist before a compaction cycle will run
-  # compact-min-file-count = 5
+  # compact-min-file-count = 3
 
   # CompactFullWriteColdDuration is the duration at which the engine
   # will compact all TSM files in a shard if it hasn't received a

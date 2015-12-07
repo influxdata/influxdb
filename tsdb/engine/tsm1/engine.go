@@ -44,7 +44,6 @@ type DevEngine struct {
 	CompactionPlan CompactionPlanner
 	FileStore      *FileStore
 
-	MaxFileSize       uint32
 	MaxPointsPerBlock int
 
 	// CacheFlushMemorySizeThreshold specifies the minimum size threshodl for
@@ -73,9 +72,8 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
 
 	c := &Compactor{
-		Dir:         path,
-		MaxFileSize: maxTSMFileSize,
-		FileStore:   fs,
+		Dir:       path,
+		FileStore: fs,
 	}
 
 	e := &DevEngine{
@@ -91,7 +89,6 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 			FileStore:              fs,
 			MinCompactionFileCount: opt.Config.CompactMinFileCount,
 		},
-		MaxFileSize:       maxTSMFileSize,
 		MaxPointsPerBlock: opt.Config.MaxPointsPerBlock,
 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
@@ -395,7 +392,7 @@ func (e *DevEngine) compactTSM() {
 			return
 
 		default:
-			tsmFiles := e.CompactionPlan.Plan()
+			tsmFiles := e.CompactionPlan.Plan(e.WAL.LastWriteTime())
 
 			if len(tsmFiles) == 0 {
 				time.Sleep(time.Second)

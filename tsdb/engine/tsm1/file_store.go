@@ -67,7 +67,8 @@ type TSMFile interface {
 }
 
 type FileStore struct {
-	mu sync.RWMutex
+	mu           sync.RWMutex
+	lastModified time.Time
 
 	currentGeneration int
 	dir               string
@@ -99,7 +100,8 @@ func (f FileStat) ContainsKey(key string) bool {
 
 func NewFileStore(dir string) *FileStore {
 	return &FileStore{
-		dir: dir,
+		dir:          dir,
+		lastModified: time.Now(),
 	}
 }
 
@@ -187,6 +189,8 @@ func (f *FileStore) Type(key string) (byte, error) {
 func (f *FileStore) Delete(key string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.lastModified = time.Now()
 
 	for _, file := range f.files {
 		if file.Contains(key) {
@@ -306,6 +310,9 @@ func (f *FileStore) Stats() []FileStat {
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.lastModified = time.Now()
+
 	// Copy the current set of active files while we rename
 	// and load the new files.  We copy the pointers here to minimize
 	// the time that locks are held as well as to ensure that the replacement
@@ -366,6 +373,15 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	f.files = active
 
 	return nil
+}
+
+// LastModified returns the last time the file store was updated with new
+// TSM files or a delete
+func (f *FileStore) LastModified() time.Time {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.lastModified
 }
 
 // ParseTSMFileName parses the generation and sequence from a TSM file name.

@@ -43,7 +43,7 @@ var compactionSteps = []int64{
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
-	Plan() []string
+	Plan(lastWrite time.Time) []string
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -53,9 +53,19 @@ type CompactionPlanner interface {
 type DefaultPlanner struct {
 	FileStore interface {
 		Stats() []FileStat
+		LastModified() time.Time
 	}
 
-	MinCompactionFileCount int
+	MinCompactionFileCount       int
+	CompactFullWriteColdDuration time.Duration
+
+	// lastPlanCompactedFull will be true if the last time
+	// Plan was called, all files were over the max size
+	// or there was only one file
+	lastPlanCompactedFull bool
+
+	// lastPlanCheck is the last time Plan was called
+	lastPlanCheck time.Time
 }
 
 // tsmGeneration represents the TSM files within a generation.
@@ -90,50 +100,55 @@ func (t *tsmGeneration) count() int {
 }
 
 // Plan returns a set of TSM files to rewrite
-func (c *DefaultPlanner) Plan() []string {
+func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
+	// skip planning if the last time we were fully compacted and the
+	// file store hasn't been modified since then
+	if c.lastPlanCompactedFull && c.lastPlanCheck.UnixNano() > c.FileStore.LastModified().UnixNano() {
+		return nil
+	}
+
 	// Determine the generations from all files on disk.  We need to treat
-	// a generation conceptually as a single file even though it's may be
+	// a generation conceptually as a single file even though it may be
 	// split across several files in sequence.
 	generations := c.findGenerations()
 
 	// First find the minimum size of all generations and set of generations.
+	// And mark if everything is fully compacted
 	var order []int
 	minSize := int64(math.MaxInt64)
+	fileCount := 0
 	for gen, group := range generations {
 		order = append(order, gen)
 		if group.size() < minSize {
 			minSize = group.size()
 		}
+		fileCount += len(group.files)
 	}
 	sort.Ints(order)
 
-	// TODO: If we have multiple generations and they have not been modified
-	// after some time cutoff, add them all to the set so they all get rewritten
-	// into one generation.
-	// if len(generations) > 1 {
+	if fileCount == 1 || minSize >= maxTSMFileSize {
+		c.lastPlanCompactedFull = true
+	} else {
+		c.lastPlanCompactedFull = false
+	}
+	c.lastPlanCheck = time.Now()
 
-	// 	cold := true
-	// 	for _, gen := range generations {
-	// 		if gen.lastModified().After(time.Now().Add(-10 * time.Minute)) {
-	// 			cold = false
-	// 		}
-	// 	}
+	// Do a full compaction if no writes have occurred in a long time
+	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
+		var tsmFiles []string
+		for _, gen := range order {
+			group := generations[gen]
 
-	// 	if cold {
-	// 		var tsmFiles []string
-	// 		for _, gen := range order {
-	// 			group := generations[gen]
-
-	// 			// If the generation size is less than our current roll up size,
-	// 			// include all the files in that generation.
-	// 			for _, f := range group.files {
-	// 				tsmFiles = append(tsmFiles, f.Path)
-	// 			}
-	// 		}
-	// 		sort.Strings(tsmFiles)
-	// 		return tsmFiles
-	// 	}
-	// }
+			// If the generation size is less the max size
+			if group.size() < maxTSMFileSize {
+				for _, f := range group.files {
+					tsmFiles = append(tsmFiles, f.Path)
+				}
+			}
+		}
+		sort.Strings(tsmFiles)
+		return tsmFiles
+	}
 
 	// Default to the smallest roll up
 	stepSize := compactionSteps[0]
@@ -206,8 +221,7 @@ func (c *DefaultPlanner) findGenerations() map[int]*tsmGeneration {
 // Compactor merges multiple TSM files into new files or
 // writes a Cache into 1 or more TSM files
 type Compactor struct {
-	Dir         string
-	MaxFileSize int
+	Dir string
 
 	FileStore interface {
 		NextGeneration() int
@@ -275,9 +289,8 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 // Clone will return a new compactor that can be used even if the engine is closed
 func (c *Compactor) Clone() *Compactor {
 	return &Compactor{
-		Dir:         c.Dir,
-		MaxFileSize: c.MaxFileSize,
-		FileStore:   c.FileStore,
+		Dir:       c.Dir,
+		FileStore: c.FileStore,
 	}
 }
 
@@ -357,7 +370,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 
 		// If we have a max file size configured and we're over it, close out the file
 		// and return the error.
-		if w.Size() > c.MaxFileSize {
+		if w.Size() > maxTSMFileSize {
 			if err := w.WriteIndex(); err != nil {
 				return err
 			}

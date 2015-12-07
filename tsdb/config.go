@@ -65,7 +65,7 @@ const (
 
 	// DefaultMinCompactionFileCount is the minimum number of TSM files
 	// that need to exist before a compaction cycle will run
-	DefaultCompactMinFileCount = 5
+	DefaultCompactMinFileCount = 3
 
 	// DefaultCompactFullWriteColdDuration is the duration at which the engine
 	// will compact all TSM files in a shard if it hasn't received a write or delete
