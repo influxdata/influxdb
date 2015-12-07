@@ -793,6 +793,34 @@ func (s *SelectStatement) IsSimpleDerivative() bool {
 	return false
 }
 
+// HasSimpleCount return true if one of the function calls is a count function with a
+// variable ref as the first arg
+func (s *SelectStatement) HasSimpleCount() bool {
+	// recursively check for a simple count(varref) function
+	var hasCount func(f *Call) bool
+	hasCount = func(f *Call) bool {
+		if strings.HasSuffix(f.Name, "count") {
+			// it's nested if the first argument is an aggregate function
+			if _, ok := f.Args[0].(*VarRef); ok {
+				return true
+			}
+		} else {
+			for _, arg := range f.Args {
+				if child, ok := arg.(*Call); ok {
+					return hasCount(child)
+				}
+			}
+		}
+		return false
+	}
+	for _, f := range s.FunctionCalls() {
+		if hasCount(f) {
+			return true
+		}
+	}
+	return false
+}
+
 // TimeAscending returns true if the time field is sorted in chronological order.
 func (s *SelectStatement) TimeAscending() bool {
 	return len(s.SortFields) == 0 || s.SortFields[0].Ascending

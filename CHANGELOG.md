@@ -11,6 +11,7 @@
 - [#4872](https://github.com/influxdb/influxdb/pull/4872): Add option to disable logging for meta service.
 
 ### Bugfixes
+- [#4849](https://github.com/influxdb/influxdb/issues/4849): Derivative works with count, mean, median, sum, first, last, max, min, and percentile.
 - [#4984](https://github.com/influxdb/influxdb/pull/4984): Allow math on fields, fixes regression. Thanks @mengjinglei
 - [#4666](https://github.com/influxdb/influxdb/issues/4666): Fix panic in derivative with invalid values.
 - [#4404](https://github.com/influxdb/influxdb/issues/4404): Return better error for currently unsupported DELETE queries.
