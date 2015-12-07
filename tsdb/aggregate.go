@@ -394,18 +394,18 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 	callInPosition := e.stmt.FunctionCallsByPosition()
 	hasTimeField := e.stmt.HasTimeFieldSpecified()
 
-	FlatCallInPositions := make([][]*influxql.Call, 0)
+	flatCallInPositions := make([][]*influxql.Call, 0)
 	for _, calls := range callInPosition {
 		if calls == nil {
-			FlatCallInPositions = append(FlatCallInPositions, calls)
+			flatCallInPositions = append(flatCallInPositions, calls)
 		}
 		for _, call := range calls {
-			FlatCallInPositions = append(FlatCallInPositions, []*influxql.Call{call})
+			flatCallInPositions = append(flatCallInPositions, []*influxql.Call{call})
 		}
 	}
 
 	var err error
-	for i, calls := range FlatCallInPositions {
+	for i, calls := range flatCallInPositions {
 		// We can only support expanding fields if a single selector call was specified
 		// i.e. select tx, max(rx) from foo
 		// If you have multiple selectors or aggregates, there is no way of knowing who gets to insert the values, so we don't
