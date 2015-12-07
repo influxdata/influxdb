@@ -1739,6 +1739,11 @@ cpu value=20 1278010021000000000
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
 		},
 		&Query{
+			name:    "calculate derivative of count of distinct with unit default (4s) group by time with fill previous",
+			command: `SELECT derivative(count(distinct(value))) from db0.rp0.position where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:07' group by time(4s) fill(previous)`,
+			exp:     `{"results":[{"error":"aggregate call didn't contain a field derivative(count(distinct(value)))"}]}`,
+		},
+		&Query{
 			name:    "calculate derivative of mean with unit default (2s) group by time with fill 0",
 			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-15]]}]}]}`,
