@@ -211,7 +211,7 @@ func (f *FileStore) Open() error {
 		return nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm")))
+	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", TSMFileExtension)))
 	if err != nil {
 		return err
 	}

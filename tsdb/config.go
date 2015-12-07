@@ -60,7 +60,7 @@ const (
 
 	// DefaultCacheSnapshotWriteColdDuration is the length of time at which
 	// the engine will snapshot the cache and write it to a new TSM file if
-	// the shard hasn't receieved writes or deletes
+	// the shard hasn't received writes or deletes
 	DefaultCacheSnapshotWriteColdDuration = time.Duration(time.Hour)
 
 	// DefaultMinCompactionFileCount is the minimum number of TSM files

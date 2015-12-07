@@ -23,7 +23,10 @@ import (
 
 const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 
-const CompactionTempExtension = "tmp"
+const (
+	CompactionTempExtension = "tmp"
+	TSMFileExtension        = "tsm"
+)
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
 
@@ -76,10 +79,10 @@ type tsmGeneration struct {
 }
 
 // size returns the total size of the generation
-func (t *tsmGeneration) size() uint32 {
-	var n uint32
+func (t *tsmGeneration) size() uint64 {
+	var n uint64
 	for _, f := range t.files {
-		n += uint32(f.Size)
+		n += uint64(f.Size)
 	}
 	return n
 }
@@ -119,8 +122,9 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 	fileCount := 0
 	for gen, group := range generations {
 		order = append(order, gen)
-		if group.size() < minSize {
-			minSize = group.size()
+		sz := group.size()
+		if sz < uint64(minSize) {
+			minSize = uint32(sz)
 		}
 		fileCount += len(group.files)
 	}
@@ -140,7 +144,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 			group := generations[gen]
 
 			// If the generation size is less the max size
-			if group.size() < maxTSMFileSize {
+			if group.size() < uint64(maxTSMFileSize) {
 				for _, f := range group.files {
 					tsmFiles = append(tsmFiles, f.Path)
 				}
@@ -172,7 +176,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 
 		// If the generation size is less than our current roll up size,
 		// include all the files in that generation.
-		if group.size() < stepSize {
+		if group.size() < uint64(stepSize) {
 			compacted.files = append(compacted.files, group.files...)
 			genCount++
 		}
@@ -303,7 +307,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 	for {
 		sequence++
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, "tsm"))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, TSMFileExtension))
 
 		// Write as much as possible to this file
 		err := c.write(fileName, iter)

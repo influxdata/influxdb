@@ -50,12 +50,12 @@ type DevEngine struct {
 	// the cache when the engine should write a snapshot to a TSM file
 	CacheFlushMemorySizeThreshold uint64
 
-	// CacheFlushWriteColdDuraion specifies the length of time after which if
+	// CacheFlushWriteColdDuration specifies the length of time after which if
 	// no writes have been committed to the WAL, the engine will write
 	// a snapshot of the cache to a TSM file
-	CacheFlushWriteColdDuraion time.Duration
+	CacheFlushWriteColdDuration time.Duration
 
-	// FullCompactionWriteColdDuration specifies the lenght of time after
+	// FullCompactionWriteColdDuration specifies the length of time after
 	// which if no writes have been committed to the WAL, the engine will
 	// do a full compaction of the TSM files in this shard. This duration
 	// should always be greater than the CacheFlushWriteColdDuraion
@@ -92,7 +92,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		MaxPointsPerBlock: opt.Config.MaxPointsPerBlock,
 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
-		CacheFlushWriteColdDuraion:    time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
+		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 
 		CompactFullWriteColdDuration: time.Duration(opt.Config.CompactFullWriteColdDuration),
 	}
@@ -404,7 +404,7 @@ func (e *DevEngine) ShouldCompactCache(lastWriteTime time.Time) bool {
 	}
 
 	return sz > e.CacheFlushMemorySizeThreshold ||
-		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuraion
+		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuration
 }
 
 func (e *DevEngine) compactTSM() {
