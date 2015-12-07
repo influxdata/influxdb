@@ -558,9 +558,9 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			blockSize += int64(len(buf)) + 4
 
 			startTime := time.Unix(0, int64(btou64(buf[:8])))
-			blockType := buf[8]
+			blockType := buf[0]
 
-			encoded := buf[9:]
+			encoded := buf[1:]
 
 			var v []tsm1.Value
 			v, err := tsm1.DecodeBlock(buf, v)
