@@ -218,7 +218,7 @@ func TestDevEngine_QueryTSM_Descending(t *testing.T) {
 
 func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 	// Generate temporary file.
-	f, _ := ioutil.TempFile("", "tsm1")
+	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
 	os.Remove(f.Name())
 	walPath := filepath.Join(f.Name(), "wal")
@@ -311,6 +311,53 @@ func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
 	} else if s := m.SeriesByID(2); s.Key != "cpu,host=B" || !reflect.DeepEqual(s.Tags, map[string]string{"host": "B"}) {
 		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	}
+}
+
+// Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
+func TestDevEngine_DeleteWALLoadMetadata(t *testing.T) {
+	// Generate temporary file.
+	f, _ := ioutil.TempFile("", "tsm")
+	f.Close()
+	os.Remove(f.Name())
+	walPath := filepath.Join(f.Name(), "wal")
+	os.MkdirAll(walPath, 0777)
+	defer os.RemoveAll(f.Name())
+
+	// Create a few points.
+	p1 := parsePoint("cpu,host=A value=1.1 1000000000")
+	p2 := parsePoint("cpu,host=B value=1.2 2000000000")
+
+	// Write those points to the engine.
+	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+	if err := e.WritePoints([]models.Point{p1, p2}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
+		t.Fatalf("failed to delete series: %s", err.Error())
+	}
+
+	// ensure we can close and load index from the WAL
+	if err := e.Close(); err != nil {
+		t.Fatalf("error closing: %s", err.Error())
+	}
+
+	e = NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	fmt.Println(e.Cache.store)
+
+	if exp, got := 0, len(e.Cache.Values(SeriesFieldKey("cpu,host=A", "value"))); exp != got {
+		t.Fatalf("unexpected number of values: got: %d. exp: %d", got, exp)
+	}
+
+	if exp, got := 1, len(e.Cache.Values(SeriesFieldKey("cpu,host=B", "value"))); exp != got {
+		t.Fatalf("unexpected number of values: got: %d. exp: %d", got, exp)
 	}
 }
 

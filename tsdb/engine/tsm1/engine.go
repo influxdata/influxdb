@@ -272,6 +272,7 @@ func (e *DevEngine) DeleteSeries(seriesKeys []string) error {
 		keyMap[k] = struct{}{}
 	}
 
+	// go through the keys in the file store
 	for _, k := range e.FileStore.Keys() {
 		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
@@ -279,7 +280,24 @@ func (e *DevEngine) DeleteSeries(seriesKeys []string) error {
 		}
 	}
 
-	return nil
+	// find the keys in the cache and remove them
+	walKeys := make([]string, 0)
+	e.Cache.Lock()
+	defer e.Cache.Unlock()
+
+	s := e.Cache.Store()
+	for k, _ := range s {
+		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		if _, ok := keyMap[seriesKey]; ok {
+			walKeys = append(walKeys, k)
+			delete(s, k)
+		}
+	}
+
+	// delete from the WAL
+	_, err := e.WAL.Delete(walKeys)
+
+	return err
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
@@ -379,7 +397,13 @@ func (e *DevEngine) compactCache() {
 // ShouldCompactCache returns true if the Cache is over its flush threshold
 // or if the passed in lastWriteTime is older than the write cold threshold
 func (e *DevEngine) ShouldCompactCache(lastWriteTime time.Time) bool {
-	return e.Cache.Size() > e.CacheFlushMemorySizeThreshold ||
+	sz := e.Cache.Size()
+
+	if sz == 0 {
+		return false
+	}
+
+	return sz > e.CacheFlushMemorySizeThreshold ||
 		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuraion
 }
 

@@ -133,6 +133,8 @@ func (l *WAL) Open() error {
 
 	l.closing = make(chan struct{})
 
+	l.lastWriteTime = time.Now()
+
 	return nil
 }
 
@@ -267,6 +269,9 @@ func (l *WAL) CloseSegment() error {
 
 // Delete deletes the given keys, returning the segment ID for the operation.
 func (l *WAL) Delete(keys []string) (int, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
 	entry := &DeleteWALEntry{
 		Keys: keys,
 	}
