@@ -376,11 +376,16 @@ func (f *FileStore) LastModified() time.Time {
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
 func (f *FileStore) locations(key string, t time.Time, ascending bool) []*location {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
 	var locations []*location
-	for _, fd := range f.files {
+
+	f.mu.RLock()
+	filesSnapshot := make([]TSMFile, len(f.files))
+	for i := range f.files {
+		filesSnapshot[i] = f.files[i]
+	}
+	f.mu.RUnlock()
+
+	for _, fd := range filesSnapshot {
 		minTime, maxTime := fd.TimeRange()
 
 		// If we ascending and the max time of the file is before where we want to start

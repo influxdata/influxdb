@@ -95,7 +95,10 @@ const (
 	maxIndexEntries = (1 << (indexCountSize * 8)) - 1
 )
 
-var ErrNoValues = fmt.Errorf("no values written")
+var (
+	ErrNoValues  = fmt.Errorf("no values written")
+	ErrTSMClosed = fmt.Errorf("tsm file closed")
+)
 
 // TSMWriter writes TSM formatted key and values.
 type TSMWriter interface {
@@ -944,14 +947,15 @@ func (t *TSMReader) Key(index int) (string, []*IndexEntry) {
 }
 
 func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	return t.accessor.readBlock(entry, vals)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	return t.accessor.read(key, timestamp)
 }
@@ -1066,11 +1070,15 @@ func (t *TSMReader) Stats() FileStat {
 // fileAccessor is file IO based block accessor.  It provides access to blocks
 // using a file IO based approach (seek, read, etc.)
 type fileAccessor struct {
+	mu    sync.Mutex
 	r     io.ReadSeeker
 	index TSMIndex
 }
 
 func (f *fileAccessor) init() (TSMIndex, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	// Verify it's a TSM file of the right version
 	if err := verifyVersion(f.r); err != nil {
 		return nil, err
@@ -1132,6 +1140,9 @@ func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 }
 
 func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	// TODO: remove this allocation
 	b := make([]byte, 16*1024)
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
@@ -1164,6 +1175,9 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 	if len(blocks) == 0 {
 		return values, nil
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	var temp []Value
 	// TODO: we can determine the max block size when loading the file create/re-use
@@ -1203,6 +1217,9 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 }
 
 func (f *fileAccessor) path() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if fd, ok := f.r.(*os.File); ok {
 		return fd.Name()
 	}
@@ -1210,6 +1227,9 @@ func (f *fileAccessor) path() string {
 }
 
 func (f *fileAccessor) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if c, ok := f.r.(io.Closer); ok {
 		return c.Close()
 	}
@@ -1219,12 +1239,17 @@ func (f *fileAccessor) close() error {
 // mmapAccess is mmap based block accessor.  It access blocks through an
 // MMAP file interface.
 type mmapAccessor struct {
+	mu sync.RWMutex
+
 	f     *os.File
 	b     []byte
 	index TSMIndex
 }
 
 func (m *mmapAccessor) init() (TSMIndex, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if err := verifyVersion(m.f); err != nil {
 		return nil, err
 	}
@@ -1266,8 +1291,11 @@ func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 }
 
 func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
-		return nil, nil
+		return nil, ErrTSMClosed
 	}
 	//TODO: Validate checksum
 	var err error
@@ -1285,6 +1313,9 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 	if len(blocks) == 0 {
 		return nil, nil
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	var temp []Value
 	var err error
@@ -1304,10 +1335,16 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 }
 
 func (m *mmapAccessor) path() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.f.Name()
 }
 
 func (m *mmapAccessor) close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.b == nil {
 		return nil
 	}
