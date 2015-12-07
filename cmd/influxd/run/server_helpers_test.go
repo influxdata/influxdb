@@ -218,10 +218,10 @@ func NewConfig() *run.Config {
 	c.Cluster.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = "127.0.0.1:0"
-	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
+	//c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
+	//c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
+	//c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
+	//c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
 
 	if !testing.Verbose() {
 		c.Meta.LoggingEnabled = false
