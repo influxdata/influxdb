@@ -23,9 +23,9 @@ const (
 	// BlockString designates a block encodes string values
 	BlockString = byte(3)
 
-	// encodedBlockHeaderSize is the size of the header for an encoded block.  The first 8 bytes
-	// are the minimum timestamp of the block.  The next byte is a block encoding type indicator.
-	encodedBlockHeaderSize = 9
+	// encodedBlockHeaderSize is the size of the header for an encoded block.  There is one
+	// byte encoding the type of the block.
+	encodedBlockHeaderSize = 1
 )
 
 type Value interface {
@@ -124,7 +124,7 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 // BlockType returns the type of value encoded in a block or an error
 // if the block type is unknown.
 func BlockType(block []byte) (byte, error) {
-	blockType := block[8]
+	blockType := block[0]
 	switch blockType {
 	case BlockFloat64, BlockInt64, BlockBool, BlockString:
 		return blockType, nil
@@ -144,6 +144,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	switch blockType {
 	case BlockFloat64:
 		decoded, err := DecodeFloatBlock(block, nil)
@@ -270,15 +271,12 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 
 	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
-	block := packBlockHeader(values[0].Time(), BlockFloat64)
+	block := packBlockHeader(BlockFloat64)
 	block = append(block, packBlock(tb, vb)...)
 	return block, nil
 }
 
 func DecodeFloatBlock(block []byte, a []*FloatValue) ([]*FloatValue, error) {
-	// The first 8 bytes is the minimum timestamp of the block
-	block = block[8:]
-
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockFloat64 {
@@ -378,15 +376,12 @@ func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 
 	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
-	block := packBlockHeader(values[0].Time(), BlockBool)
+	block := packBlockHeader(BlockBool)
 	block = append(block, packBlock(tb, vb)...)
 	return block, nil
 }
 
 func DecodeBoolBlock(block []byte, a []*BoolValue) ([]*BoolValue, error) {
-	// The first 8 bytes is the minimum timestamp of the block
-	block = block[8:]
-
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockBool {
@@ -471,14 +466,11 @@ func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes
-	block := packBlockHeader(values[0].Time(), BlockInt64)
+	block := packBlockHeader(BlockInt64)
 	return append(block, packBlock(tb, vb)...), nil
 }
 
 func DecodeInt64Block(block []byte, a []*Int64Value) ([]*Int64Value, error) {
-	// slice off the first 8 bytes (min timestmap for the block)
-	block = block[8:]
-
 	blockType := block[0]
 	if blockType != BlockInt64 {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInt64, blockType)
@@ -564,14 +556,11 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes
-	block := packBlockHeader(values[0].Time(), BlockString)
+	block := packBlockHeader(BlockString)
 	return append(block, packBlock(tb, vb)...), nil
 }
 
 func DecodeStringBlock(block []byte, a []*StringValue) ([]*StringValue, error) {
-	// slice off the first 8 bytes (min timestmap for the block)
-	block = block[8:]
-
 	blockType := block[0]
 	if blockType != BlockString {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
@@ -615,8 +604,8 @@ func DecodeStringBlock(block []byte, a []*StringValue) ([]*StringValue, error) {
 	return a[:i], nil
 }
 
-func packBlockHeader(firstTime time.Time, blockType byte) []byte {
-	return append(u64tob(uint64(firstTime.UnixNano())), blockType)
+func packBlockHeader(blockType byte) []byte {
+	return []byte{blockType}
 }
 
 func packBlock(ts []byte, values []byte) []byte {
