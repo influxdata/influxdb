@@ -57,7 +57,7 @@ type TSMFile interface {
 	Close() error
 
 	// Size returns the size of the file on disk in bytes.
-	Size() int
+	Size() uint32
 
 	// Remove deletes the file from the filesystem
 	Remove() error
@@ -79,7 +79,7 @@ type FileStore struct {
 type FileStat struct {
 	Path             string
 	HasTombstone     bool
-	Size             int
+	Size             uint32
 	LastModified     time.Time
 	MinTime, MaxTime time.Time
 	MinKey, MaxKey   string

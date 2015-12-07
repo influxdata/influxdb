@@ -115,7 +115,7 @@ type TSMWriter interface {
 	Close() error
 
 	// Size returns the current size in bytes of the file
-	Size() int
+	Size() uint32
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -153,7 +153,7 @@ type TSMIndex interface {
 	KeyCount() int
 
 	// Size returns the size of a the current index in bytes
-	Size() int
+	Size() uint32
 
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (time.Time, time.Time)
@@ -430,7 +430,7 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (d *directIndex) Size() int {
+func (d *directIndex) Size() uint32 {
 	return 0
 }
 
@@ -727,11 +727,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (d *indirectIndex) Size() int {
+func (d *indirectIndex) Size() uint32 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return len(d.b)
+	return uint32(len(d.b))
 }
 
 // tsmWriter writes keys and values in the TSM format
@@ -815,8 +815,8 @@ func (t *tsmWriter) Close() error {
 	return nil
 }
 
-func (t *tsmWriter) Size() int {
-	return int(t.n) + t.index.Size()
+func (t *tsmWriter) Size() uint32 {
+	return uint32(t.n) + t.index.Size()
 }
 
 type TSMReader struct {
@@ -1025,14 +1025,14 @@ func (t *TSMReader) Entries(key string) []*IndexEntry {
 	return t.index.Entries(key)
 }
 
-func (t *TSMReader) IndexSize() int {
+func (t *TSMReader) IndexSize() uint32 {
 	return t.index.Size()
 }
 
-func (t *TSMReader) Size() int {
+func (t *TSMReader) Size() uint32 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return int(t.size)
+	return uint32(t.size)
 }
 
 func (t *TSMReader) LastModified() time.Time {

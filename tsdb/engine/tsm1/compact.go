@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const maxTSMFileSize = 2048 * 1024 * 1024 // 2GB
+const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 
 const CompactionTempExtension = "tmp"
 
@@ -33,7 +33,7 @@ var (
 )
 
 // compactionSteps are the sizes of files to roll up into before combining.
-var compactionSteps = []int64{
+var compactionSteps = []uint32{
 	32 * 1024 * 1024,
 	128 * 1024 * 1024,
 	512 * 1024 * 1024,
@@ -76,10 +76,10 @@ type tsmGeneration struct {
 }
 
 // size returns the total size of the generation
-func (t *tsmGeneration) size() int64 {
-	var n int64
+func (t *tsmGeneration) size() uint32 {
+	var n uint32
 	for _, f := range t.files {
-		n += int64(f.Size)
+		n += uint32(f.Size)
 	}
 	return n
 }
@@ -115,7 +115,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 	// First find the minimum size of all generations and set of generations.
 	// And mark if everything is fully compacted
 	var order []int
-	minSize := int64(math.MaxInt64)
+	minSize := uint32(math.MaxUint32)
 	fileCount := 0
 	for gen, group := range generations {
 		order = append(order, gen)
