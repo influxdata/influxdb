@@ -757,7 +757,7 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		Name:      cursorSet.Measurement,
 		Tags:      cursorSet.Tags,
 		Fields:    m.selectFields,
-		cursorKey: cursorSet.Key,
+		CursorKey: cursorSet.Key,
 	}
 
 	// Always clamp tmin and tmax. This can happen as bucket-times are bucketed to the nearest

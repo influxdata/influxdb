@@ -96,26 +96,28 @@ func (a MapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 type MapperOutput struct {
 	Name      string            `json:"name,omitempty"`
 	Tags      map[string]string `json:"tags,omitempty"`
-	Fields    []string          `json:"fields,omitempty"` // Field names of returned data.
-	Values    []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
-	cursorKey string            // Tagset-based key for the source cursor. Cached for performance reasons.
+	Fields    []string          `json:"fields,omitempty"`    // Field names of returned data.
+	Values    []*MapperValue    `json:"values,omitempty"`    // For aggregates contains a single value at [0]
+	CursorKey string            `json:"cursorkey,omitempty"` // Tagset-based key for the source cursor. Cached for performance reasons.
 }
 
 // MapperOutputJSON is the JSON-encoded representation of MapperOutput. The query data is represented
 // as a raw JSON message, so decode is delayed, and can proceed in a custom manner.
 type MapperOutputJSON struct {
-	Name   string            `json:"name,omitempty"`
-	Tags   map[string]string `json:"tags,omitempty"`
-	Fields []string          `json:"fields,omitempty"` // Field names of returned data.
-	Values json.RawMessage   `json:"values,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Tags      map[string]string `json:"tags,omitempty"`
+	Fields    []string          `json:"fields,omitempty"`    // Field names of returned data.
+	CursorKey string            `json:"cursorkey,omitempty"` // Tagset-based key for the source cursor.
+	Values    json.RawMessage   `json:"values,omitempty"`
 }
 
 // MarshalJSON returns the JSON-encoded representation of a MapperOutput.
 func (mo *MapperOutput) MarshalJSON() ([]byte, error) {
 	o := &MapperOutputJSON{
-		Name:   mo.Name,
-		Tags:   mo.Tags,
-		Fields: mo.Fields,
+		Name:      mo.Name,
+		Tags:      mo.Tags,
+		Fields:    mo.Fields,
+		CursorKey: mo.CursorKey,
 	}
 	data, err := json.Marshal(mo.Values)
 	if err != nil {
@@ -127,7 +129,7 @@ func (mo *MapperOutput) MarshalJSON() ([]byte, error) {
 }
 
 func (mo *MapperOutput) key() string {
-	return mo.cursorKey
+	return mo.CursorKey
 }
 
 // uniqueStrings returns a slice of unique strings from all lists in a.
