@@ -145,7 +145,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 	}
 
 	// don't plan if nothing has changed in the filestore
-	if c.lastPlanCheck.UnixNano() > c.FileStore.LastModified().UnixNano() {
+	if c.lastPlanCheck.After(c.FileStore.LastModified()) {
 		return nil
 	}
 
