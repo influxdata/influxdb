@@ -10,6 +10,8 @@
 ### Release Notes
 This release has an updated design and implementation of the TSM storage engine. If you had been using tsm1 as your storage engine prior to this release (either 0.9.5.x or 0.9.6 nightly builds) you will have to start with a fresh database.
 
+If you had TSM configuration options set, those have been updated. See the the updated sample configuration for more details: https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml#L98-L125
+
 ### Features
 - [#4790](https://github.com/influxdb/influxdb/pull/4790): Allow openTSDB point-level error logging to be disabled
 - [#4728](https://github.com/influxdb/influxdb/pull/4728): SHOW SHARD GROUPS. By @mateuszdyminski
