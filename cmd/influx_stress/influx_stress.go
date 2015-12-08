@@ -47,6 +47,7 @@ func main() {
 
 	bw := stress.NewBroadcastChannel()
 	bw.Register(stress.BasicWriteHandler)
+	bw.Register(stress.WriteHTTPHandler)
 
 	br := stress.NewBroadcastChannel()
 	br.Register(stress.BasicReadHandler)
