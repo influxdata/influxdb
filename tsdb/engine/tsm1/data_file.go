@@ -439,7 +439,7 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 		}
 
 		pos += n
-		d.addEntries(key, entries)
+		d.addEntries(string(key), entries)
 	}
 	return nil
 }
@@ -513,7 +513,7 @@ func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Ti
 
 // search returns the index of i in offsets for where key is located.  If key is not
 // in the index, len(index) is returned.
-func (d *indirectIndex) search(key string) int {
+func (d *indirectIndex) search(key []byte) int {
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
 	i := sort.Search(len(d.offsets), func(i int) bool {
@@ -523,11 +523,8 @@ func (d *indirectIndex) search(key string) int {
 		// It's pointing to the start of the key which is a 2 byte length
 		keyLen := int32(btou16(d.b[offset : offset+2]))
 
-		// Now get the actual key bytes and convert to string
-		k := string(d.b[offset+2 : offset+2+keyLen])
-
 		// See if it matches
-		return key == k || k > key
+		return bytes.Compare(d.b[offset+2:offset+2+keyLen], key) >= 0
 	})
 
 	// See if we might have found the right index
@@ -541,7 +538,7 @@ func (d *indirectIndex) search(key string) int {
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
-		if k != key {
+		if !bytes.Equal(key, k) {
 			return len(d.b)
 		}
 
@@ -558,7 +555,9 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	ofs := d.search(key)
+	kb := []byte(key)
+
+	ofs := d.search(kb)
 	if ofs < len(d.b) {
 		n, k, err := readKey(d.b[ofs:])
 		if err != nil {
@@ -568,7 +567,7 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
-		if k != key {
+		if !bytes.Equal(kb, k) {
 			return nil
 		}
 
@@ -605,7 +604,7 @@ func (d *indirectIndex) Keys() []string {
 	var keys []string
 	for _, offset := range d.offsets {
 		_, key, _ := readKey(d.b[offset:])
-		keys = append(keys, key)
+		keys = append(keys, string(key))
 	}
 	return keys
 }
@@ -619,7 +618,7 @@ func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
 	}
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
 	_, entries, _ := readEntries(d.b[int(d.offsets[idx])+n:])
-	return key, entries.entries
+	return string(key), entries.entries
 }
 
 func (d *indirectIndex) KeyCount() int {
@@ -642,7 +641,7 @@ func (d *indirectIndex) Delete(keys []string) {
 	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
 
-		if _, ok := lookup[indexKey]; ok {
+		if _, ok := lookup[string(indexKey)]; ok {
 			continue
 		}
 		offsets = append(offsets, int32(offset))
@@ -662,7 +661,8 @@ func (d *indirectIndex) Type(key string) (byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	ofs := d.search(key)
+	kb := []byte(key)
+	ofs := d.search(kb)
 	if ofs < len(d.b) {
 		n, _, err := readKey(d.b[ofs:])
 		if err != nil {
@@ -709,10 +709,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
 
-		_, key, err := readKey(b[i:])
+		_, kb, err := readKey(b[i:])
 		if err != nil {
 			return err
 		}
+		key := string(kb)
 
 		if d.minKey == "" || key < d.minKey {
 			d.minKey = key
@@ -1398,12 +1399,12 @@ func (a *indexEntries) MarshalBinary() (b []byte, err error) {
 	return b, nil
 }
 
-func readKey(b []byte) (n int, key string, err error) {
+func readKey(b []byte) (n int, key []byte, err error) {
 	// 2 byte size of key
 	n, size := 2, int(btou16(b[:2]))
 
 	// N byte key
-	key = string(b[n : n+size])
+	key = b[n : n+size]
 
 	n += len(key)
 	return
