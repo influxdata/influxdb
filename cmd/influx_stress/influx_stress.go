@@ -5,25 +5,68 @@ import (
 	"fmt"
 	"os"
 	"runtime/pprof"
+	"strings"
 
 	"github.com/influxdb/influxdb/stress"
 )
 
 var (
-	//database  = flag.String("database", "", "name of database")
-	address = flag.String("addr", "", "IP address and port of database where response times will persist (e.g., localhost:8086)")
-	tags    = flag.String("tags", "", "")
-
-	//id   = flag.String("id", "", "ID for the test that is being ran")
-	//name = flag.String("name", "", "name of the test that is being ran")
-
 	config     = flag.String("config", "", "The stress test file")
 	cpuprofile = flag.String("cpuprofile", "", "Write the cpu profile to `filename`")
+
+	// id   = flag.String("id", "", "ID for the test that is being ran")
+	// name = flag.String("name", "", "name of the test that is being ran")
 )
 
-func main() {
+type outputConfig struct {
+	tags     map[string]string
+	addr     string
+	database string
+}
 
+func (t *outputConfig) SetParams(addr, db string) {
+	t.addr = addr
+	t.database = db
+}
+
+func NewOutputConfig() *outputConfig {
+	var o outputConfig
+	tags := make(map[string]string)
+	o.tags = tags
+	database := flag.String("database", "stress", "name of database")
+	address := flag.String("addr", "http://localhost:8086", "IP address and port of database where response times will persist (e.g., localhost:8086)")
+	flag.Var(&o, "tags", "A comma seperated list of tags")
 	flag.Parse()
+
+	o.SetParams(*address, *database)
+
+	return &o
+
+}
+
+// FIX
+func (t *outputConfig) String() string {
+	var s string
+	for k, v := range t.tags {
+		s += fmt.Sprintf("%v=%v ", k, v)
+	}
+	return fmt.Sprintf("%v %v %v", s, t.database, t.addr)
+}
+
+func (t *outputConfig) Set(value string) error {
+	for _, s := range strings.Split(value, ",") {
+		tags := strings.Split(s, "=")
+		t.tags[tags[0]] = tags[1]
+	}
+	return nil
+}
+
+func main() {
+	o := NewOutputConfig()
+
+	fmt.Println(o)
+	return
+	// flag.Parse()
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)

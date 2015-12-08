@@ -658,8 +658,6 @@ func WriteHTTPHandler(r <-chan response, rt *Timer) {
 				Database:  "stress",
 				Precision: "ns",
 			})
-			fmt.Println("Batch Written!")
 		}
 	}
-	fmt.Println("Got here!")
 }
