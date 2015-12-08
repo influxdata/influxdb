@@ -342,11 +342,12 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 		return newResults
 	}
 
+	isCount := e.stmt.HasSimpleCount()
 	// They're either filling with previous values or a specific number
 	for i, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
-			if vals[j] == nil {
+			if vals[j] == nil || (isCount && isZero(vals[j])) {
 				switch e.stmt.Fill {
 				case influxql.PreviousFill:
 					if i != 0 {
@@ -359,6 +360,18 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 		}
 	}
 	return results
+}
+
+// Returns true if the given interface is a zero valued int64 or float64.
+func isZero(i interface{}) bool {
+	switch v := i.(type) {
+	case int64:
+		return v == 0
+	case float64:
+		return v == 0
+	default:
+		return false
+	}
 }
 
 // processDerivative returns the derivatives of the results
@@ -381,8 +394,18 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 	callInPosition := e.stmt.FunctionCallsByPosition()
 	hasTimeField := e.stmt.HasTimeFieldSpecified()
 
+	flatCallInPositions := make([][]*influxql.Call, 0)
+	for _, calls := range callInPosition {
+		if calls == nil {
+			flatCallInPositions = append(flatCallInPositions, calls)
+		}
+		for _, call := range calls {
+			flatCallInPositions = append(flatCallInPositions, []*influxql.Call{call})
+		}
+	}
+
 	var err error
-	for i, calls := range callInPosition {
+	for i, calls := range flatCallInPositions {
 		// We can only support expanding fields if a single selector call was specified
 		// i.e. select tx, max(rx) from foo
 		// If you have multiple selectors or aggregates, there is no way of knowing who gets to insert the values, so we don't
@@ -412,8 +435,10 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 func (e *AggregateExecutor) processSelectors(results [][]interface{}, callPosition int, hasTimeField bool, columnNames []string) ([][]interface{}, error) {
 	// if the columns doesn't have enough columns, expand it
 	for i, columns := range results {
-		if len(columns) != len(columnNames) {
+		if len(columns) < len(columnNames) {
 			columns = append(columns, make([]interface{}, len(columnNames)-len(columns))...)
+		} else if len(columns) > len(columnNames) {
+			columnNames = append(columnNames, make([]string, len(columns)-len(columnNames))...)
 		}
 		for j := 1; j < len(columns); j++ {
 			switch v := columns[j].(type) {
@@ -694,7 +719,7 @@ func (m *AggregateMapper) initializeMapFunctions() error {
 		}
 		m.mapFuncs[i] = mfn
 
-		// Check for calls like `derivative(lmean(value), 1d)`
+		// Check for calls like `derivative(mean(value), 1d)`
 		var nested *influxql.Call = c
 		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			nested = fn

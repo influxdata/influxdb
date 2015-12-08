@@ -225,7 +225,7 @@ func TestEncoding_BlockType(t *testing.T) {
 		}
 	}
 
-	_, err := tsm1.BlockType([]byte{0, 0, 0, 0, 0, 0, 0, 0, 10})
+	_, err := tsm1.BlockType([]byte{10})
 	if err == nil {
 		t.Fatalf("expected error decoding block type, got nil")
 	}

@@ -211,6 +211,16 @@ func (c *Cache) Values(key string) Values {
 	}()
 }
 
+// Delete will remove the keys from the cache
+func (c *Cache) Delete(keys []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, k := range keys {
+		delete(c.store, k)
+	}
+}
+
 // merged returns a copy of hot and snapshot values. The copy will be merged, deduped, and
 // sorted. It assumes all necessary locks have been taken. If the caller knows that the
 // the hot source data for the key will not be changed, it is safe to call this function
@@ -358,10 +368,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 						return err
 					}
 				case *DeleteWALEntry:
-					// FIXME: Implement this
-					// if err := e.Cache.Delete(t.Keys); err != nil {
-					// 	return err
-					// }
+					cache.Delete(t.Keys)
 				}
 			}
 

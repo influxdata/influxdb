@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
+
+	"github.com/golang/snappy"
 )
 
 func TestWALWriter_WritePoints_Single(t *testing.T) {
@@ -31,7 +33,7 @@ func TestWALWriter_WritePoints_Single(t *testing.T) {
 		Values: values,
 	}
 
-	if err := w.Write(entry); err != nil {
+	if err := w.Write(mustMarshalEntry(entry)); err != nil {
 		fatal(t, "write points", err)
 	}
 
@@ -90,7 +92,7 @@ func TestWALWriter_WritePoints_Multiple(t *testing.T) {
 			Values: map[string][]tsm1.Value{v.key: v.values},
 		}
 
-		if err := w.Write(entry); err != nil {
+		if err := w.Write(mustMarshalEntry(entry)); err != nil {
 			fatal(t, "write points", err)
 		}
 	}
@@ -149,7 +151,7 @@ func TestWALWriter_WriteDelete_Single(t *testing.T) {
 		Keys: []string{"cpu"},
 	}
 
-	if err := w.Write(entry); err != nil {
+	if err := w.Write(mustMarshalEntry(entry)); err != nil {
 		fatal(t, "write points", err)
 	}
 
@@ -197,7 +199,7 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 		Values: values,
 	}
 
-	if err := w.Write(writeEntry); err != nil {
+	if err := w.Write(mustMarshalEntry(writeEntry)); err != nil {
 		fatal(t, "write points", err)
 	}
 
@@ -206,7 +208,7 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 		Keys: []string{"cpu,host=A#!~value"},
 	}
 
-	if err := w.Write(deleteEntry); err != nil {
+	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
 		fatal(t, "write points", err)
 	}
 
@@ -371,7 +373,7 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	entry := &tsm1.WriteWALEntry{
 		Values: values,
 	}
-	if err := w.Write(entry); err != nil {
+	if err := w.Write(mustMarshalEntry(entry)); err != nil {
 		fatal(t, "write points", err)
 	}
 
@@ -428,7 +430,7 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := w.Write(write); err != nil {
+		if err := w.Write(mustMarshalEntry(write)); err != nil {
 			b.Fatalf("unexpected error writing entry: %v", err)
 		}
 	}
@@ -452,7 +454,7 @@ func BenchmarkWALSegmentReader(b *testing.B) {
 	}
 
 	for i := 0; i < 100; i++ {
-		if err := w.Write(write); err != nil {
+		if err := w.Write(mustMarshalEntry(write)); err != nil {
 			b.Fatalf("unexpected error writing entry: %v", err)
 		}
 	}
@@ -481,4 +483,15 @@ func MustReadFileSize(f *os.File) int64 {
 		panic(fmt.Sprintf("failed to get size of file at %s: %s", f.Name(), err.Error()))
 	}
 	return stat.Size()
+}
+
+func mustMarshalEntry(entry tsm1.WALEntry) (tsm1.WalEntryType, []byte) {
+	bytes := make([]byte, 1024<<2)
+
+	b, err := entry.Encode(bytes)
+	if err != nil {
+		panic("error encoding")
+	}
+
+	return entry.Type(), snappy.Encode(b, b)
 }

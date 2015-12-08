@@ -47,8 +47,8 @@ type TSMFile interface {
 	// an error is returned.
 	Type(key string) (byte, error)
 
-	// Delete removes the key from the set of keys available in this file.
-	Delete(key string) error
+	// Delete removes the keys from the set of keys available in this file.
+	Delete(keys []string) error
 
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
@@ -57,7 +57,7 @@ type TSMFile interface {
 	Close() error
 
 	// Size returns the size of the file on disk in bytes.
-	Size() int
+	Size() uint32
 
 	// Remove deletes the file from the filesystem
 	Remove() error
@@ -67,7 +67,8 @@ type TSMFile interface {
 }
 
 type FileStore struct {
-	mu sync.RWMutex
+	mu           sync.RWMutex
+	lastModified time.Time
 
 	currentGeneration int
 	dir               string
@@ -78,7 +79,7 @@ type FileStore struct {
 type FileStat struct {
 	Path             string
 	HasTombstone     bool
-	Size             int
+	Size             uint32
 	LastModified     time.Time
 	MinTime, MaxTime time.Time
 	MinKey, MaxKey   string
@@ -99,7 +100,8 @@ func (f FileStat) ContainsKey(key string) bool {
 
 func NewFileStore(dir string) *FileStore {
 	return &FileStore{
-		dir: dir,
+		dir:          dir,
+		lastModified: time.Now(),
 	}
 }
 
@@ -110,7 +112,7 @@ func (f *FileStore) Count() int {
 	return len(f.files)
 }
 
-// CurrentGeneration returns the max file ID + 1
+// CurrentGeneration returns the current generation of the TSM files
 func (f *FileStore) CurrentGeneration() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -184,15 +186,15 @@ func (f *FileStore) Type(key string) (byte, error) {
 	return 0, fmt.Errorf("unknown type for %v", key)
 }
 
-func (f *FileStore) Delete(key string) error {
+func (f *FileStore) Delete(keys []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	f.lastModified = time.Now()
+
 	for _, file := range f.files {
-		if file.Contains(key) {
-			if err := file.Delete(key); err != nil {
-				return err
-			}
+		if err := file.Delete(keys); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -207,7 +209,7 @@ func (f *FileStore) Open() error {
 		return nil
 	}
 
-	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", "tsm1dev")))
+	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", TSMFileExtension)))
 	if err != nil {
 		return err
 	}
@@ -278,18 +280,7 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 func (f *FileStore) KeyCursor(key string) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-
-	var locations []*location
-	for _, fd := range f.files {
-		for _, ie := range fd.Entries(key) {
-			locations = append(locations, &location{
-				r:     fd,
-				entry: ie,
-			})
-		}
-	}
-
-	return &KeyCursor{seeks: locations, buf: make([]Value, 1000)}
+	return &KeyCursor{key: key, fs: f}
 }
 
 func (f *FileStore) Stats() []FileStat {
@@ -306,6 +297,9 @@ func (f *FileStore) Stats() []FileStat {
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.lastModified = time.Now()
+
 	// Copy the current set of active files while we rename
 	// and load the new files.  We copy the pointers here to minimize
 	// the time that locks are held as well as to ensure that the replacement
@@ -368,6 +362,63 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	return nil
 }
 
+// LastModified returns the last time the file store was updated with new
+// TSM files or a delete
+func (f *FileStore) LastModified() time.Time {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.lastModified
+}
+
+// locations returns the files and index blocks for a key and time.  ascending indicates
+// whether the key will be scan in ascending time order or descenging time order.
+func (f *FileStore) locations(key string, t time.Time, ascending bool) []*location {
+	var locations []*location
+
+	f.mu.RLock()
+	filesSnapshot := make([]TSMFile, len(f.files))
+	for i := range f.files {
+		filesSnapshot[i] = f.files[i]
+	}
+	f.mu.RUnlock()
+
+	for _, fd := range filesSnapshot {
+		minTime, maxTime := fd.TimeRange()
+
+		// If we ascending and the max time of the file is before where we want to start
+		// skip it.
+		if ascending && maxTime.Before(t) {
+			continue
+			// If we are descending and the min time fo the file is after where we want to start,
+			// then skip it.
+		} else if !ascending && minTime.After(t) {
+			continue
+		}
+
+		// This file could potential contain points we are looking for so find the blocks for
+		// the given key.
+		for _, ie := range fd.Entries(key) {
+			// If we ascending and the max time of a block is before where we are looking, skip
+			// it since the data is out of our range
+			if ascending && ie.MaxTime.Before(t) {
+				continue
+				// If we descending and the min time of a block is after where we are looking, skip
+				// it since the data is out of our range
+			} else if !ascending && minTime.After(t) {
+				continue
+			}
+
+			// Otherwise, add this file and block location
+			locations = append(locations, &location{
+				r:     fd,
+				entry: ie,
+			})
+		}
+	}
+	return locations
+}
+
 // ParseTSMFileName parses the generation and sequence from a TSM file name.
 func ParseTSMFileName(name string) (int, int, error) {
 	base := filepath.Base(name)
@@ -390,11 +441,31 @@ func ParseTSMFileName(name string) (int, int, error) {
 }
 
 type KeyCursor struct {
-	seeks     []*location
-	current   *location
-	buf       []Value
+	key string
+	fs  *FileStore
+
+	// seeks is all the file locations that we need to return during iteration.
+	seeks []*location
+
+	// current is the set of blocks possibly containing the next set of points.
+	// Normally this is just one entry, but there may be multiple if points have
+	// been overwritten.
+	current []*location
+	buf     []Value
+
+	// pos is the index within seeks.  Based on ascending, it will increment or
+	// decrement through the size of seeks slice.
 	pos       int
 	ascending bool
+
+	// ready indicates that we know the files and blocks to seek to for the key.
+	ready bool
+
+	// duplicates is a hint that there are overlapping blocks for this key in
+	// multiple files (e.g. points have been overwritten but not fully compacted)
+	// If this is true, we need to scan the duplicate blocks and dedup the points
+	// as query time until they are compacted.
+	duplicates bool
 }
 
 type location struct {
@@ -402,7 +473,30 @@ type location struct {
 	entry *IndexEntry
 }
 
+func (c *KeyCursor) init(t time.Time, ascending bool) {
+	if c.ready {
+		return
+	}
+	c.ascending = ascending
+	c.seeks = c.fs.locations(c.key, t, ascending)
+
+	if len(c.seeks) > 0 {
+		for i := 1; i < len(c.seeks); i++ {
+			prev := c.seeks[i-1]
+			cur := c.seeks[i]
+
+			if prev.entry.MaxTime.Equal(cur.entry.MinTime) || prev.entry.MaxTime.After(cur.entry.MinTime) {
+				c.duplicates = true
+				break
+			}
+		}
+	}
+	c.buf = make([]Value, 1000)
+	c.ready = true
+}
+
 func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
+	c.init(t, ascending)
 	if len(c.seeks) == 0 {
 		return nil, nil
 	}
@@ -411,42 +505,127 @@ func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
 	if ascending {
 		for i, e := range c.seeks {
 			if t.Before(e.entry.MinTime) || e.entry.Contains(t) {
-				c.current = e
-				c.pos = i
-				break
+				// Record the position of the first block matching our seek time
+				if len(c.current) == 0 {
+					c.pos = i
+				}
+
+				c.current = append(c.current, e)
+
+				// If we don't have duplicates, break.  Otherwise, keep looking for additional blocks containing
+				// this point.
+				if !c.duplicates {
+					break
+				}
 			}
 		}
 	} else {
 		for i := len(c.seeks) - 1; i >= 0; i-- {
 			e := c.seeks[i]
 			if t.After(e.entry.MaxTime) || e.entry.Contains(t) {
-				c.current = e
-				c.pos = i
-				break
+				// Record the position of the first block matching our seek time
+				if len(c.current) == 0 {
+					c.pos = i
+				}
+
+				c.current = append(c.current, e)
+
+				// If we don't have duplicates, break.  Otherwise, keep looking for additional blocks containing
+				// this point.
+				if !c.duplicates {
+					break
+				}
 			}
 		}
 	}
 
-	if c.current == nil {
+	return c.readAt()
+}
+
+func (c *KeyCursor) readAt() ([]Value, error) {
+	// No matching blocks to decode
+	if len(c.current) == 0 {
 		return nil, nil
 	}
-	return c.current.r.ReadAt(c.current.entry, c.buf[:0])
+
+	// First block is the oldest block containing the points we're search for.
+	first := c.current[0]
+	values, err := first.r.ReadAt(first.entry, c.buf[:0])
+
+	// Only one block with this key and time range so return it
+	if len(c.current) == 1 {
+		return values, err
+	}
+
+	// Otherwise, search the remaining blocks that overlap and append their values so we can
+	// dedup them.
+	for i := 1; i < len(c.current); i++ {
+		cur := c.current[i]
+		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) {
+			c.pos++
+			v, err := cur.r.ReadAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, v...)
+
+		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) {
+			c.pos--
+
+			v, err := cur.r.ReadAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(v, values...)
+		}
+	}
+
+	return Values(values).Deduplicate(), err
 }
 
 func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
+	c.current = c.current[:0]
+
 	if ascending {
 		c.pos++
 		if c.pos >= len(c.seeks) {
 			return nil, nil
 		}
-		c.current = c.seeks[c.pos]
-		return c.current.r.ReadAt(c.current.entry, c.buf[:0])
+
+		// Append the first matching block
+		c.current = []*location{c.seeks[c.pos]}
+
+		// If we have ovelapping blocks, append all their values so we can dedup
+		if c.duplicates {
+			first := c.seeks[c.pos]
+			for i := c.pos; i < len(c.seeks); i++ {
+				if c.seeks[i].entry.MinTime.Before(first.entry.MaxTime) || c.seeks[i].entry.MinTime.Equal(first.entry.MaxTime) {
+					c.current = append(c.current, c.seeks[i])
+				}
+			}
+		}
+
+		return c.readAt()
+
 	} else {
 		c.pos--
 		if c.pos < 0 {
 			return nil, nil
 		}
-		c.current = c.seeks[c.pos]
-		return c.current.r.ReadAt(c.current.entry, c.buf[:0])
+
+		// Append the first matching block
+		c.current = []*location{c.seeks[c.pos]}
+
+		// If we have ovelapping blocks, append all their values so we can dedup
+		if c.duplicates {
+			first := c.seeks[c.pos]
+			for i := c.pos; i >= 0; i-- {
+				if c.seeks[i].entry.MaxTime.After(first.entry.MinTime) || c.seeks[i].entry.MaxTime.Equal(first.entry.MinTime) {
+					c.current = append(c.current, c.seeks[i])
+				}
+			}
+		}
+
+		return c.readAt()
 	}
 }

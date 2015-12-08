@@ -88,6 +88,79 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 }
 
+func TestAggregateMathQuery(t *testing.T) {
+	store, executor := testStoreAndExecutor("")
+	defer os.RemoveAll(store.Path())
+
+	// Write two points.
+	if err := store.WriteToShard(shardID, []models.Point{
+		models.MustNewPoint(
+			"cpu",
+			map[string]string{"host": "server"},
+			map[string]interface{}{"value": 1.0, "temperature": 2.0},
+			time.Unix(1, 2),
+		),
+		models.MustNewPoint(
+			"cpu",
+			map[string]string{"host": "server"},
+			map[string]interface{}{"value": 3.0, "temperature": 4.0},
+			time.Unix(2, 3),
+		),
+	}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	got := executeAndGetJSON("SELECT max(value) + min(value) as value FROM cpu", executor)
+	exepected := `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:00Z",4]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT sum(value) + mean(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time",""],"values":[["1970-01-01T00:00:00Z",6]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT first(value) + last(value), min(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time","","min"],"values":[["1970-01-01T00:00:00Z",4,1]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT count(value) + last(value), median(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time","","median"],"values":[["1970-01-01T00:00:00Z",5,2]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT sum(value) / count(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time",""],"values":[["1970-01-01T00:00:00Z",2]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT median(value) * count(value) + max(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time",""],"values":[["1970-01-01T00:00:00Z",7]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT median(value) * count(value) + max(value)/min(value), sum(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time","","sum"],"values":[["1970-01-01T00:00:00Z",7,4]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT median(value) * count(value) * max(value)/min(value) / sum(value) FROM cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["time",""],"values":[["1970-01-01T00:00:00Z",3]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	store.Close()
+}
+
 // Ensure writing a point and updating it results in only a single point.
 func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
 	store, executor := testStoreAndExecutor("")
