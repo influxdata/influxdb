@@ -128,8 +128,8 @@ type TSMIndex interface {
 	// Add records a new block entry for a key in the index.
 	Add(key string, blockType byte, minTime, maxTime time.Time, offset int64, size uint32)
 
-	// Delete removes the given key from the index.
-	Delete(key string)
+	// Delete removes the given keys from the index.
+	Delete(keys []string)
 
 	// Contains return true if the given key exists in the index.
 	Contains(key string) bool
@@ -292,11 +292,13 @@ func (d *directIndex) ContainsValue(key string, t time.Time) bool {
 	return d.Entry(key, t) != nil
 }
 
-func (d *directIndex) Delete(key string) {
+func (d *directIndex) Delete(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	delete(d.blocks, key)
+	for _, k := range keys {
+		delete(d.blocks, k)
+	}
 }
 
 func (d *directIndex) Keys() []string {
@@ -627,14 +629,20 @@ func (d *indirectIndex) KeyCount() int {
 	return len(d.offsets)
 }
 
-func (d *indirectIndex) Delete(key string) {
+func (d *indirectIndex) Delete(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	lookup := map[string]struct{}{}
+	for _, k := range keys {
+		lookup[k] = struct{}{}
+	}
 
 	var offsets []int32
 	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
-		if key == indexKey {
+
+		if _, ok := lookup[indexKey]; ok {
 			continue
 		}
 		offsets = append(offsets, int32(offset))
@@ -934,9 +942,7 @@ func (t *TSMReader) applyTombstones() error {
 	}
 
 	// Update our index
-	for _, tombstone := range tombstones {
-		t.index.Delete(tombstone)
-	}
+	t.index.Delete(tombstones)
 	return nil
 }
 
@@ -1015,12 +1021,12 @@ func (t *TSMReader) ContainsValue(key string, ts time.Time) bool {
 	return t.index.ContainsValue(key, ts)
 }
 
-func (t *TSMReader) Delete(key string) error {
-	if err := t.tombstoner.Add(key); err != nil {
+func (t *TSMReader) Delete(keys []string) error {
+	if err := t.tombstoner.Add(keys); err != nil {
 		return err
 	}
 
-	t.index.Delete(key)
+	t.index.Delete(keys)
 	return nil
 }
 
