@@ -1168,18 +1168,6 @@ func MustOpenStoreWithPath(addr, path string) *Store {
 		panic(err)
 	}
 
-	// Wait until the server is ready.
-	select {
-	case err := <-s.Err():
-		panic(err)
-	case <-s.Ready():
-	}
-
-	// now wait for a leader
-	if err := s.WaitForLeader(0); err != nil {
-		panic(err)
-	}
-
 	return s
 }
 
