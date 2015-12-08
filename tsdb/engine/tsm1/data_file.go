@@ -208,6 +208,15 @@ func (e *IndexEntry) Contains(t time.Time) bool {
 		(e.MaxTime.Equal(t) || e.MaxTime.After(t))
 }
 
+func (e *IndexEntry) OverlapsTimeRange(min, max time.Time) bool {
+	return (e.MinTime.Equal(max) || e.MinTime.Before(max)) &&
+		(e.MaxTime.Equal(min) || e.MaxTime.After(min))
+}
+
+func (e *IndexEntry) String() string {
+	return fmt.Sprintf("min=%s max=%s ofs=%d siz=%d", e.MinTime.UTC(), e.MaxTime.UTC(), e.Offset, e.Size)
+}
+
 func NewDirectIndex() TSMIndex {
 	return &directIndex{
 		blocks: map[string]*indexEntries{},
