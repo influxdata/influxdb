@@ -449,11 +449,11 @@ func (s *Store) monitorPeerHealth() {
 		// Wait for next tick or timeout.
 		select {
 		case <-ticker.C:
+			if err := s.promoteNodeToPeer(); err != nil {
+				s.Logger.Printf("error promoting node to raft peer: %s", err)
+			}
 		case <-s.closing:
 			return
-		}
-		if err := s.promoteNodeToPeer(); err != nil {
-			s.Logger.Printf("error promoting node to raft peer: %s", err)
 		}
 	}
 }
@@ -463,8 +463,10 @@ func (s *Store) promoteNodeToPeer() error {
 	defer s.mu.Unlock()
 
 	// Check to see if the store closed
-	if !s.opened {
+	select {
+	case <-s.closing:
 		return nil
+	default:
 	}
 
 	// Only do this if you are the leader
@@ -566,13 +568,14 @@ func (s *Store) close() error {
 		s.raftState.close()
 	}
 
+	// Notify goroutines of close.
+	close(s.closing)
+
 	// Because a go routine could of already fired in the time we acquired the lock
 	// it could then try to acquire another lock, and will deadlock.
 	// For that reason, we will release our lock and signal the close so that
 	// all go routines can exit cleanly and fullfill their contract to the wait group.
 	s.mu.Unlock()
-	// Notify goroutines of close.
-	close(s.closing)
 	s.wg.Wait()
 
 	// Now that all go routines are cleaned up, w lock to do final clean up and exit
