@@ -32,6 +32,7 @@
 - [#4878](https://github.com/influxdb/influxdb/pull/4878): Fix String() function for several InfluxQL statement types
 - [#4913](https://github.com/influxdb/influxdb/pull/4913): Fix b1 flush deadlock
 - [#3170](https://github.com/influxdb/influxdb/issues/3170), [#4921](https://github.com/influxdb/influxdb/pull/4921): Database does not exist error is now JSON. Thanks @pires!
+- [#5029](https://github.com/influxdb/influxdb/pull/5029): Drop UDP point on bad parse.
 
 ## v0.9.5 [2015-11-20]
 
