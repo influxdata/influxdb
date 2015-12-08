@@ -1829,6 +1829,10 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if !s.opened {
+		return fmt.Errorf("apply failed, store is closing")
+	}
+
 	err := func() interface{} {
 		switch cmd.GetType() {
 		case internal.Command_RemovePeerCommand:
