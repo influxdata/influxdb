@@ -108,6 +108,7 @@ func (e *DevEngine) Format() tsdb.EngineFormat {
 // Open opens and initializes the engine.
 func (e *DevEngine) Open() error {
 	e.done = make(chan struct{})
+	e.Compactor.Cancel = e.done
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
