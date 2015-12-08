@@ -459,14 +459,18 @@ func (s *Store) monitorPeerHealth() {
 }
 
 func (s *Store) promoteNodeToPeer() error {
-	// Only do this if you are the leader
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if !s.IsLeader() {
+	// Check to see if the store closed
+	if !s.opened {
 		return nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Only do this if you are the leader
+	if !s.raftState.isLeader() {
+		return nil
+	}
 
 	peers, err := s.raftState.peers()
 	if err != nil {
