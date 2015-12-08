@@ -280,6 +280,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer tr.Close()
 		trs = append(trs, tr)
 	}
 
