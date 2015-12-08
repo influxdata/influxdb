@@ -1175,6 +1175,11 @@ func MustOpenStoreWithPath(addr, path string) *Store {
 	case <-s.Ready():
 	}
 
+	// now wait for a leader
+	if err := s.WaitForLeader(0); err != nil {
+		panic(err)
+	}
+
 	return s
 }
 
