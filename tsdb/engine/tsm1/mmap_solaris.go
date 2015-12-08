@@ -9,7 +9,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-
 func mmap(f *os.File, offset int64, length int) ([]byte, error) {
 	mmap, err := unix.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
