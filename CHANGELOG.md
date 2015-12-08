@@ -3,6 +3,7 @@
 ### Features
 
 ### Bugfixes
+- [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
 
 ## v0.9.6 [unreleased]
 
