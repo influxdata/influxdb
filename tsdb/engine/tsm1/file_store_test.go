@@ -83,6 +83,59 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 	}
 }
 
+func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 4.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	c := fs.KeyCursor("cpu")
+	// Search for an entry that exists in the second file
+	values, err := c.SeekTo(time.Unix(0, 0), true)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := data[1]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Check that calling Next will dedupe points
+	values, err = c.Next(true)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp = data[3]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+}
 func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 	fs := tsm1.NewFileStore("")
 
@@ -226,6 +279,57 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 	}
 }
 
+func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
+	fs := tsm1.NewFileStore("")
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 4.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+	}
+
+	files, err := newFiles(data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	c := fs.KeyCursor("cpu")
+	values, err := c.SeekTo(time.Unix(2, 0), false)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp := data[3]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Check that calling Next will dedupe points
+	values, err = c.Next(false)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp = data[1]
+	if got, exp := len(values), len(exp.values); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp.values {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+}
 func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 	fs := tsm1.NewFileStore("")
 
