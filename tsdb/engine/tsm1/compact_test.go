@@ -393,6 +393,8 @@ func TestDefaultCompactionPlanner_Min(t *testing.T) {
 	}
 }
 
+// Ensure that if there are older files that can be compacted together but a newer
+// file that is in a larger step, the older ones will get compacted.
 func TestDefaultCompactionPlanner_CombineSequence(t *testing.T) {
 	data := []tsm1.FileStat{
 		tsm1.FileStat{
@@ -400,23 +402,23 @@ func TestDefaultCompactionPlanner_CombineSequence(t *testing.T) {
 			Size: 1 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "01-02.tsm1",
+			Path: "02-02.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "01-03.tsm1",
+			Path: "03-03.tsm1",
 			Size: 1 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "04-02.tsm1",
-			Size: 1 * 1024 * 1024,
+			Path: "06-02.tsm1",
+			Size: 67 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "05-02.tsm1",
-			Size: 1 * 1024 * 1024,
+			Path: "07-02.tsm1",
+			Size: 128 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "03-1.tsm1",
+			Path: "04-1.tsm1",
 			Size: 251 * 1024 * 1024,
 		},
 	}
@@ -427,9 +429,10 @@ func TestDefaultCompactionPlanner_CombineSequence(t *testing.T) {
 				return data
 			},
 		},
+		MinCompactionFileCount: 3,
 	}
 
-	expFiles := []tsm1.FileStat{data[0], data[1], data[2], data[3], data[4]}
+	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
 	tsm := cp.Plan(time.Now())
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
@@ -477,6 +480,7 @@ func TestDefaultCompactionPlanner_SmallestCompactionStep(t *testing.T) {
 				return data
 			},
 		},
+		MinCompactionFileCount: 3,
 	}
 
 	expFiles := []tsm1.FileStat{data[1], data[2], data[3], data[4], data[5]}
@@ -531,7 +535,7 @@ func TestDefaultCompactionPlanner_FullOnCold(t *testing.T) {
 		CompactFullWriteColdDuration: time.Nanosecond,
 	}
 
-	tsm := cp.Plan(time.Now())
+	tsm := cp.Plan(time.Now().Add(-time.Second))
 	if exp, got := len(data), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
@@ -571,7 +575,7 @@ func TestDefaultCompactionPlanner_FullSkipMaxSize(t *testing.T) {
 	}
 
 	expFiles := []tsm1.FileStat{data[1], data[2]}
-	tsm := cp.Plan(time.Now())
+	tsm := cp.Plan(time.Now().Add(-time.Second))
 	if exp, got := len(expFiles), len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
@@ -603,7 +607,6 @@ func TestDefaultCompactionPlanner_SkipMaxSizeFiles(t *testing.T) {
 				return data
 			},
 		},
-		CompactFullWriteColdDuration: time.Nanosecond,
 	}
 
 	tsm := cp.Plan(time.Now())
@@ -642,7 +645,7 @@ func TestDefaultCompactionPlanner_SkipPlanningAfterFull(t *testing.T) {
 	}
 
 	// first verify that our test set would return files
-	if exp, got := 2, len(cp.Plan(time.Now())); got != exp {
+	if exp, got := 2, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -659,12 +662,12 @@ func TestDefaultCompactionPlanner_SkipPlanningAfterFull(t *testing.T) {
 	}
 
 	cp.FileStore = getFS(over)
-	if exp, got := 0, len(cp.Plan(time.Now())); got != exp {
+	if exp, got := 0, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 	// even though we do this, the planner should remember that last time we were over
 	cp.FileStore = testFileStore
-	if exp, got := 0, len(cp.Plan(time.Now())); got != exp {
+	if exp, got := 0, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -673,6 +676,50 @@ func TestDefaultCompactionPlanner_SkipPlanningAfterFull(t *testing.T) {
 
 	if exp, got := 2, len(cp.Plan(time.Now())); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Ensure that the planner will compact files that are past the smallest step
+// size even if there is a single file in the smaller step size
+func TestDefaultCompactionPlanner_CompactsMiddleSteps(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-01.tsm1",
+			Size: 64 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-02.tsm1",
+			Size: 64 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-02.tsm1",
+			Size: 64 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-02.tsm1",
+			Size: 2 * 1024 * 1024,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+		MinCompactionFileCount: 3,
+	}
+
+	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
+	tsm := cp.Plan(time.Now())
+	if exp, got := len(expFiles), len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles {
+		if got, exp := tsm[i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
 	}
 }
 
