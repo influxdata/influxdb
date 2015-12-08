@@ -1,7 +1,10 @@
 package stress
 
 import (
+	"flag"
+	"fmt"
 	"github.com/BurntSushi/toml"
+	"strings"
 )
 
 // Config is a struct for the Stress test configuration
@@ -93,4 +96,46 @@ func DecodeConfig(s string) (*Config, error) {
 	}
 
 	return t, nil
+}
+
+type outputConfig struct {
+	tags     map[string]string
+	addr     string
+	database string
+}
+
+func (t *outputConfig) SetParams(addr, db string) {
+	t.addr = addr
+	t.database = db
+}
+
+func NewOutputConfig() *outputConfig {
+	var o outputConfig
+	tags := make(map[string]string)
+	o.tags = tags
+	database := flag.String("database", "stress", "name of database")
+	address := flag.String("addr", "http://localhost:8086", "IP address and port of database where response times will persist (e.g., localhost:8086)")
+	flag.Var(&o, "tags", "A comma seperated list of tags")
+	flag.Parse()
+
+	o.SetParams(*address, *database)
+
+	return &o
+
+}
+
+func (t *outputConfig) String() string {
+	var s string
+	for k, v := range t.tags {
+		s += fmt.Sprintf("%v=%v ", k, v)
+	}
+	return fmt.Sprintf("%v %v %v", s, t.database, t.addr)
+}
+
+func (t *outputConfig) Set(value string) error {
+	for _, s := range strings.Split(value, ",") {
+		tags := strings.Split(s, "=")
+		t.tags[tags[0]] = tags[1]
+	}
+	return nil
 }

@@ -588,7 +588,7 @@ func (b *BroadcastChannel) Handle(rs <-chan response, t *Timer) {
 }
 
 // BasicWriteHandler handles write responses.
-func BasicWriteHandler(rs <-chan response, wt *Timer) {
+func (b *BasicClient) BasicWriteHandler(rs <-chan response, wt *Timer) {
 	n := 0
 	success := 0
 	fail := 0
@@ -617,11 +617,11 @@ func BasicWriteHandler(rs <-chan response, wt *Timer) {
 	fmt.Printf("	Success: %v\n", success)
 	fmt.Printf("	Fail: %v\n", fail)
 	fmt.Printf("Average Response Time: %v\n", s/time.Duration(n))
-	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(10000)/float64(wt.Elapsed().Seconds()))
+	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(b.BatchSize)/float64(wt.Elapsed().Seconds()))
 }
 
 // BasicReadHandler handles read responses.
-func BasicReadHandler(r <-chan response, rt *Timer) {
+func (b *BasicQueryClient) BasicReadHandler(r <-chan response, rt *Timer) {
 	n := 0
 	s := time.Duration(0)
 	for t := range r {
@@ -635,4 +635,36 @@ func BasicReadHandler(r <-chan response, rt *Timer) {
 
 	fmt.Printf("Total Queries: %v\n", n)
 	fmt.Printf("Average Query Response Time: %v\n\n", s/time.Duration(n))
+}
+
+func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Timer) {
+	return func(r <-chan response, rt *Timer) {
+		c, _ := client.NewHTTPClient(client.HTTPConfig{
+			Addr: o.addr,
+		})
+		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  o.database,
+			Precision: "ns",
+		})
+		for p := range r {
+			tags := o.tags
+			tags["method"] = method
+			fields := map[string]interface{}{
+				"response_time": p.Timer.Elapsed(),
+			}
+			pt, _ := client.NewPoint("performance", tags, fields, p.Time)
+			bp.AddPoint(pt)
+			if len(bp.Points())%1000 == 0 && len(bp.Points()) != 0 {
+				c.Write(bp)
+				bp, _ = client.NewBatchPoints(client.BatchPointsConfig{
+					Database:  o.database,
+					Precision: "ns",
+				})
+			}
+		}
+
+		if len(bp.Points()) != 0 {
+			c.Write(bp)
+		}
+	}
 }
