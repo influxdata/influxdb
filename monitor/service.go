@@ -330,7 +330,8 @@ func (m *Monitor) createInternalStorage() {
 		return
 	}
 
-	if err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default"); err != nil && err != influxdb.ErrRetentionPolicyNotFound("default") {
+	err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default")
+	if err != nil && err.Error() != influxdb.ErrRetentionPolicyNotFound("default").Error() {
 		m.Logger.Printf("failed to delete retention policy 'default', failed to created internal storage: %s", err.Error())
 		return
 	}

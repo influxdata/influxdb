@@ -803,6 +803,11 @@ func TestServer_Query_Math(t *testing.T) {
 			command: `SELECT value * value as square from db.rp.integer`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","square"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
+		&Query{
+			name:    "SELECT sum of aggregates",
+			command: `SELECT max(value) + min(value) from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`),
+		},
 	}...)
 
 	if err := test.init(s); err != nil {
@@ -1482,8 +1487,8 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 	}
 }
 
-// Ensure the server can handle various simple calculus queries.
-func TestServer_Query_SelectRawCalculus(t *testing.T) {
+// Ensure the server can handle various simple derivative queries.
+func TestServer_Query_SelectRawDerivative(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -1500,6 +1505,408 @@ func TestServer_Query_SelectRawCalculus(t *testing.T) {
 			name:    "calculate single derivate",
 			command: `SELECT derivative(value) from db0.rp0.cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-200]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivate with unit",
+			command: `SELECT derivative(value, 10s) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-2000]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various simple non_negative_derivative queries.
+func TestServer_Query_SelectRawNonNegativeDerivative(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = fmt.Sprintf(`cpu value=10 1278010021000000000
+cpu value=15 1278010022000000000
+cpu value=10 1278010023000000000
+cpu value=20 1278010024000000000
+`)
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate single non_negative_derivative",
+			command: `SELECT non_negative_derivative(value) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","non_negative_derivative"],"values":[["2010-07-01T18:47:02Z",5],["2010-07-01T18:47:04Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate single non_negative_derivative",
+			command: `SELECT non_negative_derivative(value, 10s) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","non_negative_derivative"],"values":[["2010-07-01T18:47:02Z",50],["2010-07-01T18:47:04Z",100]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various group by time derivative queries.
+func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=15 1278010021000000000
+cpu value=20 1278010022000000000
+cpu value=25 1278010023000000000
+`)
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit 4s group by time",
+			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit default (2s) group by time",
+			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit 4s group by time",
+			command: `SELECT derivative(mean(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit default (2s) group by time",
+			command: `SELECT derivative(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit 4s group by time",
+			command: `SELECT derivative(median(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit default (2s) group by time",
+			command: `SELECT derivative(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit 4s group by time",
+			command: `SELECT derivative(sum(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit default (2s) group by time",
+			command: `SELECT derivative(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit 4s group by time",
+			command: `SELECT derivative(first(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit default (2s) group by time",
+			command: `SELECT derivative(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit 4s group by time",
+			command: `SELECT derivative(last(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit default (2s) group by time",
+			command: `SELECT derivative(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit 4s group by time",
+			command: `SELECT derivative(min(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit default (2s) group by time",
+			command: `SELECT derivative(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit 4s group by time",
+			command: `SELECT derivative(max(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit default (2s) group by time",
+			command: `SELECT derivative(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit 4s group by time",
+			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various group by time derivative queries.
+func TestServer_Query_SelectGroupByTimeDerivativeWithFill(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=20 1278010021000000000
+`)
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-2]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit 4s group by time with fill  0",
+			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-4]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit 4s group by time with fill previous",
+			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count of distinct with unit default (4s) group by time with fill previous",
+			command: `SELECT derivative(count(distinct(value))) from db0.rp0.position where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:07' group by time(4s) fill(previous)`,
+			exp:     `{"results":[{"error":"aggregate call didn't contain a field derivative(count(distinct(value)))"}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit 4s group by time with fill 0",
+			command: `SELECT derivative(mean(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit 4s group by time with fill previous",
+			command: `SELECT derivative(mean(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit 4s group by time with fill 0",
+			command: `SELECT derivative(median(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit 4s group by time with fill previous",
+			command: `SELECT derivative(median(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit 4s group by time with fill 0",
+			command: `SELECT derivative(sum(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-60]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit 4s group by time with fill previous",
+			command: `SELECT derivative(sum(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit 4s group by time with fill 0",
+			command: `SELECT derivative(first(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit 4s group by time with fill previous",
+			command: `SELECT derivative(first(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit 4s group by time with fill 0",
+			command: `SELECT derivative(last(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit 4s group by time with fill previous",
+			command: `SELECT derivative(last(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit 4s group by time with fill 0",
+			command: `SELECT derivative(min(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit 4s group by time with fill previous",
+			command: `SELECT derivative(min(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit 4s group by time with fill 0",
+			command: `SELECT derivative(max(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit 4s group by time with fill previous",
+			command: `SELECT derivative(max(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit 4s group by time with fill 0",
+			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit 4s group by time with fill previous",
+			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
 		},
 	}...)
 

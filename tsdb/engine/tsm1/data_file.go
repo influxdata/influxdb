@@ -63,6 +63,7 @@ The last section is the footer that stores the offset of the start of the index.
 */
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
@@ -94,7 +95,10 @@ const (
 	maxIndexEntries = (1 << (indexCountSize * 8)) - 1
 )
 
-var ErrNoValues = fmt.Errorf("no values written")
+var (
+	ErrNoValues  = fmt.Errorf("no values written")
+	ErrTSMClosed = fmt.Errorf("tsm file closed")
+)
 
 // TSMWriter writes TSM formatted key and values.
 type TSMWriter interface {
@@ -114,7 +118,7 @@ type TSMWriter interface {
 	Close() error
 
 	// Size returns the current size in bytes of the file
-	Size() int
+	Size() uint32
 }
 
 // TSMIndex represent the index section of a TSM file.  The index records all
@@ -124,8 +128,8 @@ type TSMIndex interface {
 	// Add records a new block entry for a key in the index.
 	Add(key string, blockType byte, minTime, maxTime time.Time, offset int64, size uint32)
 
-	// Delete removes the given key from the index.
-	Delete(key string)
+	// Delete removes the given keys from the index.
+	Delete(keys []string)
 
 	// Contains return true if the given key exists in the index.
 	Contains(key string) bool
@@ -152,7 +156,7 @@ type TSMIndex interface {
 	KeyCount() int
 
 	// Size returns the size of a the current index in bytes
-	Size() int
+	Size() uint32
 
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (time.Time, time.Time)
@@ -202,6 +206,15 @@ func (e *IndexEntry) UnmarshalBinary(b []byte) error {
 func (e *IndexEntry) Contains(t time.Time) bool {
 	return (e.MinTime.Equal(t) || e.MinTime.Before(t)) &&
 		(e.MaxTime.Equal(t) || e.MaxTime.After(t))
+}
+
+func (e *IndexEntry) OverlapsTimeRange(min, max time.Time) bool {
+	return (e.MinTime.Equal(max) || e.MinTime.Before(max)) &&
+		(e.MaxTime.Equal(min) || e.MaxTime.After(min))
+}
+
+func (e *IndexEntry) String() string {
+	return fmt.Sprintf("min=%s max=%s ofs=%d siz=%d", e.MinTime.UTC(), e.MaxTime.UTC(), e.Offset, e.Size)
 }
 
 func NewDirectIndex() TSMIndex {
@@ -279,11 +292,13 @@ func (d *directIndex) ContainsValue(key string, t time.Time) bool {
 	return d.Entry(key, t) != nil
 }
 
-func (d *directIndex) Delete(key string) {
+func (d *directIndex) Delete(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	delete(d.blocks, key)
+	for _, k := range keys {
+		delete(d.blocks, k)
+	}
 }
 
 func (d *directIndex) Keys() []string {
@@ -424,12 +439,12 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 		}
 
 		pos += n
-		d.addEntries(key, entries)
+		d.addEntries(string(key), entries)
 	}
 	return nil
 }
 
-func (d *directIndex) Size() int {
+func (d *directIndex) Size() uint32 {
 	return 0
 }
 
@@ -498,7 +513,7 @@ func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Ti
 
 // search returns the index of i in offsets for where key is located.  If key is not
 // in the index, len(index) is returned.
-func (d *indirectIndex) search(key string) int {
+func (d *indirectIndex) search(key []byte) int {
 	// We use a binary search across our indirect offsets (pointers to all the keys
 	// in the index slice).
 	i := sort.Search(len(d.offsets), func(i int) bool {
@@ -508,11 +523,8 @@ func (d *indirectIndex) search(key string) int {
 		// It's pointing to the start of the key which is a 2 byte length
 		keyLen := int32(btou16(d.b[offset : offset+2]))
 
-		// Now get the actual key bytes and convert to string
-		k := string(d.b[offset+2 : offset+2+keyLen])
-
 		// See if it matches
-		return key == k || k > key
+		return bytes.Compare(d.b[offset+2:offset+2+keyLen], key) >= 0
 	})
 
 	// See if we might have found the right index
@@ -526,7 +538,7 @@ func (d *indirectIndex) search(key string) int {
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
-		if k != key {
+		if !bytes.Equal(key, k) {
 			return len(d.b)
 		}
 
@@ -543,7 +555,9 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	ofs := d.search(key)
+	kb := []byte(key)
+
+	ofs := d.search(kb)
 	if ofs < len(d.b) {
 		n, k, err := readKey(d.b[ofs:])
 		if err != nil {
@@ -553,7 +567,7 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 		// The search may have returned an i == 0 which could indicated that the value
 		// searched should be inserted at postion 0.  Make sure the key in the index
 		// matches the search value.
-		if k != key {
+		if !bytes.Equal(kb, k) {
 			return nil
 		}
 
@@ -590,7 +604,7 @@ func (d *indirectIndex) Keys() []string {
 	var keys []string
 	for _, offset := range d.offsets {
 		_, key, _ := readKey(d.b[offset:])
-		keys = append(keys, key)
+		keys = append(keys, string(key))
 	}
 	return keys
 }
@@ -604,7 +618,7 @@ func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
 	}
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
 	_, entries, _ := readEntries(d.b[int(d.offsets[idx])+n:])
-	return key, entries.entries
+	return string(key), entries.entries
 }
 
 func (d *indirectIndex) KeyCount() int {
@@ -614,14 +628,20 @@ func (d *indirectIndex) KeyCount() int {
 	return len(d.offsets)
 }
 
-func (d *indirectIndex) Delete(key string) {
+func (d *indirectIndex) Delete(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	lookup := map[string]struct{}{}
+	for _, k := range keys {
+		lookup[k] = struct{}{}
+	}
 
 	var offsets []int32
 	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
-		if key == indexKey {
+
+		if _, ok := lookup[string(indexKey)]; ok {
 			continue
 		}
 		offsets = append(offsets, int32(offset))
@@ -641,7 +661,8 @@ func (d *indirectIndex) Type(key string) (byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	ofs := d.search(key)
+	kb := []byte(key)
+	ofs := d.search(kb)
 	if ofs < len(d.b) {
 		n, _, err := readKey(d.b[ofs:])
 		if err != nil {
@@ -688,10 +709,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
 
-		_, key, err := readKey(b[i:])
+		_, kb, err := readKey(b[i:])
 		if err != nil {
 			return err
 		}
+		key := string(kb)
 
 		if d.minKey == "" || key < d.minKey {
 			d.minKey = key
@@ -726,11 +748,11 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-func (d *indirectIndex) Size() int {
+func (d *indirectIndex) Size() uint32 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	return len(d.b)
+	return uint32(len(d.b))
 }
 
 // tsmWriter writes keys and values in the TSM format
@@ -814,8 +836,8 @@ func (t *tsmWriter) Close() error {
 	return nil
 }
 
-func (t *tsmWriter) Size() int {
-	return int(t.n) + t.index.Size()
+func (t *tsmWriter) Size() uint32 {
+	return uint32(t.n) + t.index.Size()
 }
 
 type TSMReader struct {
@@ -921,9 +943,7 @@ func (t *TSMReader) applyTombstones() error {
 	}
 
 	// Update our index
-	for _, tombstone := range tombstones {
-		t.index.Delete(tombstone)
-	}
+	t.index.Delete(tombstones)
 	return nil
 }
 
@@ -943,14 +963,15 @@ func (t *TSMReader) Key(index int) (string, []*IndexEntry) {
 }
 
 func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	return t.accessor.readBlock(entry, vals)
 }
 
 func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	return t.accessor.read(key, timestamp)
 }
@@ -1001,12 +1022,12 @@ func (t *TSMReader) ContainsValue(key string, ts time.Time) bool {
 	return t.index.ContainsValue(key, ts)
 }
 
-func (t *TSMReader) Delete(key string) error {
-	if err := t.tombstoner.Add(key); err != nil {
+func (t *TSMReader) Delete(keys []string) error {
+	if err := t.tombstoner.Add(keys); err != nil {
 		return err
 	}
 
-	t.index.Delete(key)
+	t.index.Delete(keys)
 	return nil
 }
 
@@ -1024,14 +1045,14 @@ func (t *TSMReader) Entries(key string) []*IndexEntry {
 	return t.index.Entries(key)
 }
 
-func (t *TSMReader) IndexSize() int {
+func (t *TSMReader) IndexSize() uint32 {
 	return t.index.Size()
 }
 
-func (t *TSMReader) Size() int {
+func (t *TSMReader) Size() uint32 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return int(t.size)
+	return uint32(t.size)
 }
 
 func (t *TSMReader) LastModified() time.Time {
@@ -1065,11 +1086,20 @@ func (t *TSMReader) Stats() FileStat {
 // fileAccessor is file IO based block accessor.  It provides access to blocks
 // using a file IO based approach (seek, read, etc.)
 type fileAccessor struct {
+	mu    sync.Mutex
 	r     io.ReadSeeker
 	index TSMIndex
 }
 
 func (f *fileAccessor) init() (TSMIndex, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Verify it's a TSM file of the right version
+	if err := verifyVersion(f.r); err != nil {
+		return nil, err
+	}
+
 	// Current the readers size
 	size, err := f.r.Seek(0, os.SEEK_END)
 	if err != nil {
@@ -1126,6 +1156,9 @@ func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 }
 
 func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	// TODO: remove this allocation
 	b := make([]byte, 16*1024)
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
@@ -1158,6 +1191,9 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 	if len(blocks) == 0 {
 		return values, nil
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
 	var temp []Value
 	// TODO: we can determine the max block size when loading the file create/re-use
@@ -1197,6 +1233,9 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 }
 
 func (f *fileAccessor) path() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if fd, ok := f.r.(*os.File); ok {
 		return fd.Name()
 	}
@@ -1204,6 +1243,9 @@ func (f *fileAccessor) path() string {
 }
 
 func (f *fileAccessor) close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	if c, ok := f.r.(io.Closer); ok {
 		return c.Close()
 	}
@@ -1213,12 +1255,21 @@ func (f *fileAccessor) close() error {
 // mmapAccess is mmap based block accessor.  It access blocks through an
 // MMAP file interface.
 type mmapAccessor struct {
+	mu sync.RWMutex
+
 	f     *os.File
 	b     []byte
 	index TSMIndex
 }
 
 func (m *mmapAccessor) init() (TSMIndex, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if err := verifyVersion(m.f); err != nil {
+		return nil, err
+	}
+
 	var err error
 
 	if _, err := m.f.Seek(0, 0); err != nil {
@@ -1256,8 +1307,11 @@ func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 }
 
 func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
-		return nil, nil
+		return nil, ErrTSMClosed
 	}
 	//TODO: Validate checksum
 	var err error
@@ -1275,6 +1329,9 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 	if len(blocks) == 0 {
 		return nil, nil
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	var temp []Value
 	var err error
@@ -1294,10 +1351,16 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 }
 
 func (m *mmapAccessor) path() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	return m.f.Name()
 }
 
 func (m *mmapAccessor) close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.b == nil {
 		return nil
 	}
@@ -1336,12 +1399,12 @@ func (a *indexEntries) MarshalBinary() (b []byte, err error) {
 	return b, nil
 }
 
-func readKey(b []byte) (n int, key string, err error) {
+func readKey(b []byte) (n int, key []byte, err error) {
 	// 2 byte size of key
 	n, size := 2, int(btou16(b[:2]))
 
 	// N byte key
-	key = string(b[n : n+size])
+	key = b[n : n+size]
 
 	n += len(key)
 	return
@@ -1379,4 +1442,51 @@ func u16tob(v uint16) []byte {
 
 func btou16(b []byte) uint16 {
 	return uint16(binary.BigEndian.Uint16(b))
+}
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func btou64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}
+
+func u32tob(v uint32) []byte {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, v)
+	return b
+}
+
+func btou32(b []byte) uint32 {
+	return uint32(binary.BigEndian.Uint32(b))
+}
+
+// verifyVersion will verify that the reader's bytes are a TSM byte
+// stream of the correct version (1)
+func verifyVersion(r io.ReadSeeker) error {
+	_, err := r.Seek(0, 0)
+	if err != nil {
+		return fmt.Errorf("init: failed to seek: %v", err)
+	}
+	b := make([]byte, 4)
+	_, err = r.Read(b)
+	if err != nil {
+		return fmt.Errorf("init: error reading magic number of file: %v", err)
+	}
+	if bytes.Compare(b, u32tob(MagicNumber)) != 0 {
+		return fmt.Errorf("can only read from tsm file")
+	}
+	_, err = r.Read(b)
+	if err != nil {
+		return fmt.Errorf("init: error reading version: %v", err)
+	}
+	if b[0] != Version {
+		return fmt.Errorf("init: file is version %b. expected %b", b[0], Version)
+	}
+
+	return nil
 }
