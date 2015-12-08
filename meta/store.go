@@ -1836,8 +1836,11 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.opened {
-		return fmt.Errorf("apply failed, store is closing")
+	// Check to see if the store closed
+	select {
+	case <-s.closing:
+		return nil
+	default:
 	}
 
 	err := func() interface{} {
