@@ -43,6 +43,18 @@ var compactionSteps = []uint32{
 	2048 * 1024 * 1024,
 }
 
+// compactionLevel takes a size and returns the index of the compaction step
+// that the size falls into
+func compactionLevel(size uint64) int {
+	for i, step := range compactionSteps {
+		if size < uint64(step) {
+			return i
+		}
+	}
+
+	return len(compactionSteps)
+}
+
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
@@ -80,6 +92,7 @@ type DefaultPlanner struct {
 // 000001-01.tsm, 000001-02.tsm would be in the same generation
 // 000001 each with different sequence numbers.
 type tsmGeneration struct {
+	id    int
 	files []FileStat
 }
 
@@ -109,45 +122,10 @@ func (t *tsmGeneration) count() int {
 
 // Plan returns a set of TSM files to rewrite
 func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
-	// skip planning if the last time we were fully compacted and the
-	// file store hasn't been modified since then
-	if c.lastPlanCompactedFull && c.lastPlanCheck.UnixNano() > c.FileStore.LastModified().UnixNano() {
-		return nil
-	}
-
-	// Determine the generations from all files on disk.  We need to treat
-	// a generation conceptually as a single file even though it may be
-	// split across several files in sequence.
-	generations := c.findGenerations()
-
-	// First find the minimum size of all generations and set of generations.
-	// And mark if everything is fully compacted
-	var order []int
-	minSize := uint32(math.MaxUint32)
-	fileCount := 0
-	for gen, group := range generations {
-		order = append(order, gen)
-		sz := group.size()
-		if sz < uint64(minSize) {
-			minSize = uint32(sz)
-		}
-		fileCount += len(group.files)
-	}
-	sort.Ints(order)
-
-	if fileCount == 1 || minSize >= maxTSMFileSize {
-		c.lastPlanCompactedFull = true
-	} else {
-		c.lastPlanCompactedFull = false
-	}
-	c.lastPlanCheck = time.Now()
-
-	// Do a full compaction if no writes have occurred in a long time
-	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
+	// first check if we should be doing a full compaction because nothing has been written in a long time
+	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
 		var tsmFiles []string
-		for _, gen := range order {
-			group := generations[gen]
-
+		for _, group := range c.findGenerations() {
 			// If the generation size is less the max size
 			if group.size() < uint64(maxTSMFileSize) {
 				for _, f := range group.files {
@@ -156,47 +134,71 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 			}
 		}
 		sort.Strings(tsmFiles)
+
+		c.lastPlanCompactedFull = true
+
+		if len(tsmFiles) <= 1 {
+			return nil
+		}
+
 		return tsmFiles
 	}
 
-	// Default to the smallest roll up
-	stepSize := compactionSteps[0]
+	// don't plan if nothing has changed in the filestore
+	if c.lastPlanCheck.UnixNano() > c.FileStore.LastModified().UnixNano() {
+		return nil
+	}
 
-	// Find the smallest rollup size based on the sizes of all generations.
-	// This is so we prioritize rolling up a bunch of little files over
-	// a few larger files since a larger number of files on disk impacts
-	// query performance as well as compression ratios.
-	for i := len(compactionSteps) - 1; i >= 0; i-- {
-		step := compactionSteps[i]
-		if minSize < step {
-			stepSize = step
+	// Determine the generations from all files on disk.  We need to treat
+	// a generation conceptually as a single file even though it may be
+	// split across several files in sequence.
+	generations := c.findGenerations()
+
+	c.lastPlanCheck = time.Now()
+
+	if len(generations) <= 1 {
+		return nil
+	}
+
+	// Loop through the generations (they're in decending order) and find the newest generations
+	// that have the min compaction file count in the same compaction step size
+	startIndex := 0
+	endIndex := len(generations)
+	currentLevel := compactionLevel(generations[0].size())
+	count := 0
+	for i, g := range generations {
+		level := compactionLevel(g.size())
+		count += 1
+
+		if level != currentLevel {
+			if count >= c.MinCompactionFileCount {
+				endIndex = i
+				break
+			}
+			currentLevel = level
+			startIndex = i
+			count = 0
+			continue
 		}
 	}
 
-	// The set of files that that should be compacted
-	compacted := &tsmGeneration{}
-	var genCount int
-	for _, gen := range order {
-		group := generations[gen]
-
-		// If the generation size is less than our current roll up size,
-		// include all the files in that generation.
-		if group.size() < uint64(stepSize) {
-			compacted.files = append(compacted.files, group.files...)
-			genCount++
-		}
+	if currentLevel == len(compactionSteps) {
+		return nil
 	}
 
-	// Make sure we have enough files for a compaction run to actually produce
-	// something better.
-	if compacted.count() < c.MinCompactionFileCount {
+	generations = generations[startIndex:endIndex]
+
+	// if we don't have enough generations to compact, return
+	if len(generations) < c.MinCompactionFileCount {
 		return nil
 	}
 
 	// All the files to be compacted must be compacted in order
 	var tsmFiles []string
-	for _, f := range compacted.files {
-		tsmFiles = append(tsmFiles, f.Path)
+	for _, group := range generations {
+		for _, f := range group.files {
+			tsmFiles = append(tsmFiles, f.Path)
+		}
 	}
 	sort.Strings(tsmFiles)
 
@@ -205,12 +207,14 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 		return nil
 	}
 
+	c.lastPlanCompactedFull = false
+
 	return tsmFiles
 }
 
 // findGenerations groups all the TSM files by they generation based
-// on their filename
-func (c *DefaultPlanner) findGenerations() map[int]*tsmGeneration {
+// on their filename then returns the generations in descending order (newest first)
+func (c *DefaultPlanner) findGenerations() tsmGenerations {
 	generations := map[int]*tsmGeneration{}
 
 	tsmStats := c.FileStore.Stats()
@@ -219,12 +223,20 @@ func (c *DefaultPlanner) findGenerations() map[int]*tsmGeneration {
 
 		group := generations[gen]
 		if group == nil {
-			group = &tsmGeneration{}
+			group = &tsmGeneration{
+				id: gen,
+			}
 			generations[gen] = group
 		}
 		group.files = append(group.files, f)
 	}
-	return generations
+
+	orderedGenerations := make(tsmGenerations, 0, len(generations))
+	for _, g := range generations {
+		orderedGenerations = append(orderedGenerations, g)
+	}
+	sort.Sort(sort.Reverse(orderedGenerations))
+	return orderedGenerations
 }
 
 // Compactor merges multiple TSM files into new files or
@@ -566,3 +578,9 @@ func (c *cacheKeyIterator) Read() (string, []Value, error) {
 func (c *cacheKeyIterator) Close() error {
 	return nil
 }
+
+type tsmGenerations []*tsmGeneration
+
+func (a tsmGenerations) Len() int           { return len(a) }
+func (a tsmGenerations) Less(i, j int) bool { return a[i].id < a[j].id }
+func (a tsmGenerations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
