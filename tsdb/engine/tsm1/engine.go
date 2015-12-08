@@ -260,18 +260,22 @@ func (e *DevEngine) DeleteSeries(seriesKeys []string) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
+	// keyMap is used to see if a given key should be deleted.  seriesKey
+	// are the measurement + tagset (minus separate & field)
 	keyMap := map[string]struct{}{}
 	for _, k := range seriesKeys {
 		keyMap[k] = struct{}{}
 	}
 
+	var deleteKeys []string
 	// go through the keys in the file store
 	for _, k := range e.FileStore.Keys() {
 		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
-			e.FileStore.Delete(k)
+			deleteKeys = append(deleteKeys, k)
 		}
 	}
+	e.FileStore.Delete(deleteKeys)
 
 	// find the keys in the cache and remove them
 	walKeys := make([]string, 0)

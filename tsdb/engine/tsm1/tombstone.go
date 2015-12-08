@@ -16,7 +16,7 @@ type Tombstoner struct {
 	Path string
 }
 
-func (t *Tombstoner) Add(key string) error {
+func (t *Tombstoner) Add(keys []string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -31,7 +31,9 @@ func (t *Tombstoner) Add(key string) error {
 		return nil
 	}
 
-	tombstones = append(tombstones, key)
+	for _, k := range keys {
+		tombstones = append(tombstones, k)
+	}
 
 	return t.writeTombstone(tombstones)
 }

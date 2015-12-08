@@ -272,7 +272,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	r1 := MustTSMReader(dir, 1, points1)
-	r1.Delete("cpu,host=A#!~#value")
+	r1.Delete([]string{"cpu,host=A#!~#value"})
 
 	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
 	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
@@ -283,7 +283,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	r2 := MustTSMReader(dir, 1, points2)
-	r2.Delete("cpu,host=A#!~#count")
+	r2.Delete([]string{"cpu,host=A#!~#count"})
 
 	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
 	if err != nil {

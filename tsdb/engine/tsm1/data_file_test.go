@@ -794,7 +794,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 
-	if err := r.Delete("mem"); err != nil {
+	if err := r.Delete([]string{"mem"}); err != nil {
 		t.Fatalf("unexpected error deleting: %v", err)
 	}
 

@@ -537,7 +537,7 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
 
-	if err := fs.Delete("cpu,host=server2!~#!value"); err != nil {
+	if err := fs.Delete([]string{"cpu,host=server2!~#!value"}); err != nil {
 		fatal(t, "deleting", err)
 	}
 
@@ -574,7 +574,7 @@ func TestFileStore_Delete(t *testing.T) {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if err := fs.Delete("cpu,host=server2!~#!value"); err != nil {
+	if err := fs.Delete([]string{"cpu,host=server2!~#!value"}); err != nil {
 		fatal(t, "deleting", err)
 	}
 
