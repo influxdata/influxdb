@@ -519,8 +519,8 @@ func (w *DeleteWALEntry) UnmarshalBinary(b []byte) error {
 func (w *DeleteWALEntry) Encode(dst []byte) ([]byte, error) {
 	var n int
 	for _, k := range w.Keys {
-		if len(dst)+1 > len(dst)-n {
-			grow := make([]byte, defaultBufLen)
+		if len(dst[:n])+1+len(k) > len(dst) {
+			grow := make([]byte, len(dst)*2)
 			dst = append(dst, grow...)
 		}
 

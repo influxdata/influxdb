@@ -47,8 +47,8 @@ type TSMFile interface {
 	// an error is returned.
 	Type(key string) (byte, error)
 
-	// Delete removes the key from the set of keys available in this file.
-	Delete(key string) error
+	// Delete removes the keys from the set of keys available in this file.
+	Delete(keys []string) error
 
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
@@ -186,17 +186,15 @@ func (f *FileStore) Type(key string) (byte, error) {
 	return 0, fmt.Errorf("unknown type for %v", key)
 }
 
-func (f *FileStore) Delete(key string) error {
+func (f *FileStore) Delete(keys []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.lastModified = time.Now()
 
 	for _, file := range f.files {
-		if file.Contains(key) {
-			if err := file.Delete(key); err != nil {
-				return err
-			}
+		if err := file.Delete(keys); err != nil {
+			return err
 		}
 	}
 	return nil
