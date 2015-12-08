@@ -59,7 +59,12 @@ type DefaultPlanner struct {
 		LastModified() time.Time
 	}
 
-	MinCompactionFileCount       int
+	MinCompactionFileCount int
+
+	// CompactFullWriteColdDuration specifies the length of time after
+	// which if no writes have been committed to the WAL, the engine will
+	// do a full compaction of the TSM files in this shard. This duration
+	// should always be greater than the CacheFlushWriteColdDuraion
 	CompactFullWriteColdDuration time.Duration
 
 	// lastPlanCompactedFull will be true if the last time
