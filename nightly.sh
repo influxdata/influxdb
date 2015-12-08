@@ -3,7 +3,7 @@
 SWAKS="/root/swaks"
 
 # Bump this whenever a release branch is created from master
-MASTER_VERSION=0.9.6
+MASTER_VERSION=0.9.7
 
 # send_failure_notification sends an e-mail with a build failure notification.
 function send_failure_notification {
