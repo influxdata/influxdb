@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"net/url"
+	//"net/url"
 	"sync"
 	"time"
 
@@ -521,8 +521,74 @@ func (b *BasicProvisioner) Provision() error {
 	return nil
 }
 
+type BroadcastChannel struct {
+	chs []chan response
+	wg  sync.WaitGroup
+	fns []func(t *Timer)
+}
+
+func NewBroadcastChannel() *BroadcastChannel {
+	chs := make([]chan response, 0)
+
+	var wg sync.WaitGroup
+
+	b := &BroadcastChannel{
+		chs: chs,
+		wg:  wg,
+	}
+
+	return b
+}
+
+func (b *BroadcastChannel) Register(fn responseHandler) {
+	ch := make(chan response, 0)
+
+	b.chs = append(b.chs, ch)
+
+	f := func(t *Timer) {
+		go fn(ch, t)
+	}
+
+	b.fns = append(b.fns, f)
+}
+
+func (b *BroadcastChannel) Broadcast(r response) {
+
+	b.wg.Add(1)
+	for _, ch := range b.chs {
+		b.wg.Add(1)
+		go func(ch chan response) {
+			ch <- r
+			b.wg.Done()
+		}(ch)
+	}
+	b.wg.Done()
+}
+
+func (b *BroadcastChannel) Close() {
+	b.wg.Wait()
+	for _, ch := range b.chs {
+		close(ch)
+		// Workaround
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func (b *BroadcastChannel) Handle(rs <-chan response, t *Timer) {
+
+	// Start all of the handlers
+	for _, fn := range b.fns {
+		fn(t)
+	}
+
+	for i := range rs {
+		b.Broadcast(i)
+	}
+	b.Close()
+}
+
 // BasicWriteHandler handles write responses.
-func BasicWriteHandler(rs <-chan response, wt *Timer) {
+func (b *BasicClient) BasicWriteHandler(rs <-chan response, wt *Timer) {
 	n := 0
 	success := 0
 	fail := 0
@@ -551,57 +617,11 @@ func BasicWriteHandler(rs <-chan response, wt *Timer) {
 	fmt.Printf("	Success: %v\n", success)
 	fmt.Printf("	Fail: %v\n", fail)
 	fmt.Printf("Average Response Time: %v\n", s/time.Duration(n))
-	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(10000)/float64(wt.Elapsed().Seconds()))
-}
-
-func (b *BasicClient) HTTPWriteHandler(rs <-chan response, wt *Timer) {
-	n := 0
-	success := 0
-	fail := 0
-
-	s := time.Duration(0)
-
-	for t := range rs {
-
-		// Send off data to influx coordination server
-
-		n++
-
-		if t.Success() {
-			success++
-		} else {
-			fail++
-		}
-
-		s += t.Timer.Elapsed()
-
-	}
-
-	if n == 0 {
-		return
-	}
-
-	pps := float64(n) * float64(b.BatchSize) / float64(wt.Elapsed().Seconds())
-
-	vals := url.Values{
-		"PerfConfig":      {"some config file"},
-		"InfluxConfig":    {"some config file"},
-		"TestId":          {"1"},
-		"Name":            {"some name"},
-		"BatchSize":       {fmt.Sprintf("%v", int(b.BatchSize))},
-		"BatchInterval":   {fmt.Sprintf("%v", b.BatchInterval)},
-		"Concurrency":     {fmt.Sprintf("%v", int(b.Concurrency))},
-		"PointsPerSecond": {fmt.Sprintf("%v", int(pps))},
-		"FailRequests":    {fmt.Sprintf("%v", int(fail))},
-		"SuccessRequests": {fmt.Sprintf("%v", int(success))},
-	}
-
-	http.PostForm(fmt.Sprintf("http://%s/results", "localhost:8080"), vals)
-
+	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(b.BatchSize)/float64(wt.Elapsed().Seconds()))
 }
 
 // BasicReadHandler handles read responses.
-func BasicReadHandler(r <-chan response, rt *Timer) {
+func (b *BasicQueryClient) BasicReadHandler(r <-chan response, rt *Timer) {
 	n := 0
 	s := time.Duration(0)
 	for t := range r {
@@ -615,4 +635,36 @@ func BasicReadHandler(r <-chan response, rt *Timer) {
 
 	fmt.Printf("Total Queries: %v\n", n)
 	fmt.Printf("Average Query Response Time: %v\n\n", s/time.Duration(n))
+}
+
+func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Timer) {
+	return func(r <-chan response, rt *Timer) {
+		c, _ := client.NewHTTPClient(client.HTTPConfig{
+			Addr: o.addr,
+		})
+		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  o.database,
+			Precision: "ns",
+		})
+		for p := range r {
+			tags := o.tags
+			tags["method"] = method
+			fields := map[string]interface{}{
+				"response_time": p.Timer.Elapsed(),
+			}
+			pt, _ := client.NewPoint("performance", tags, fields, p.Time)
+			bp.AddPoint(pt)
+			if len(bp.Points())%1000 == 0 && len(bp.Points()) != 0 {
+				c.Write(bp)
+				bp, _ = client.NewBatchPoints(client.BatchPointsConfig{
+					Database:  o.database,
+					Precision: "ns",
+				})
+			}
+		}
+
+		if len(bp.Points()) != 0 {
+			c.Write(bp)
+		}
+	}
 }
