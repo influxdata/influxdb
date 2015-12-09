@@ -557,16 +557,6 @@ func (s *Store) close() error {
 	// Notify goroutines of close.
 	close(s.closing)
 
-	// Because a go routine could of already fired in the time we acquired the lock
-	// it could then try to acquire another lock, and will deadlock.
-	// For that reason, we will release our lock and signal the close so that
-	// all go routines can exit cleanly and fullfill their contract to the wait group.
-	s.mu.Unlock()
-	s.wg.Wait()
-
-	// Now that all go routines are cleaned up, w lock to do final clean up and exit
-	s.mu.Lock()
-
 	// Close our exec listener
 	if err := s.ExecListener.Close(); err != nil {
 		s.Logger.Printf("error closing ExecListener %s", err)
@@ -576,6 +566,16 @@ func (s *Store) close() error {
 	if err := s.RPCListener.Close(); err != nil {
 		s.Logger.Printf("error closing ExecListener %s", err)
 	}
+
+	// Because a go routine could of already fired in the time we acquired the lock
+	// it could then try to acquire another lock, and will deadlock.
+	// For that reason, we will release our lock and signal the close so that
+	// all go routines can exit cleanly and fullfill their contract to the wait group.
+	s.mu.Unlock()
+	s.wg.Wait()
+
+	// Now that all go routines are cleaned up, w lock to do final clean up and exit
+	s.mu.Lock()
 
 	if s.raftState != nil {
 		s.raftState.close()
@@ -754,15 +754,15 @@ func (s *Store) serveExecListener() {
 			return
 		}
 
-		// Handle connection in a separate goroutine.
-		s.wg.Add(1)
-		go s.handleExecConn(conn)
-
 		select {
 		case <-s.closing:
 			return
 		default:
 		}
+
+		// Handle connection in a separate goroutine.
+		s.wg.Add(1)
+		go s.handleExecConn(conn)
 	}
 }
 
