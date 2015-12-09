@@ -525,8 +525,6 @@ func (s *Store) initialize() error {
 
 // Close closes the store and shuts down the node in the cluster.
 func (s *Store) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.close()
 }
 
@@ -548,6 +546,8 @@ func (s *Store) WaitForDataChanged() error {
 }
 
 func (s *Store) close() error {
+	s.mu.Lock()
+
 	// Check if store has already been closed.
 	if !s.opened {
 		return ErrStoreClosed
@@ -574,13 +574,7 @@ func (s *Store) close() error {
 	s.mu.Unlock()
 	s.wg.Wait()
 
-	// Now that all go routines are cleaned up, w lock to do final clean up and exit
-	s.mu.Lock()
-
-	if s.raftState != nil {
-		s.raftState.close()
-	}
-	s.raftState = nil
+	s.raftState.close()
 
 	return nil
 }
@@ -754,15 +748,15 @@ func (s *Store) serveExecListener() {
 			return
 		}
 
+		// Handle connection in a separate goroutine.
+		s.wg.Add(1)
+		go s.handleExecConn(conn)
+
 		select {
 		case <-s.closing:
 			return
 		default:
 		}
-
-		// Handle connection in a separate goroutine.
-		s.wg.Add(1)
-		go s.handleExecConn(conn)
 	}
 }
 
@@ -1834,13 +1828,6 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	s := (*Store)(fsm)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Check to see if the store closed
-	select {
-	case <-s.closing:
-		return nil
-	default:
-	}
 
 	err := func() interface{} {
 		switch cmd.GetType() {
