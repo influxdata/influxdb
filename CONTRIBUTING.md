@@ -119,7 +119,7 @@ Build and Test
 Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
 
 ```bash
-cd $GOPATH/src/github.com/influxdb
+cd $GOPATH/src/github.com/influxdb/influxdb
 go get -u -f -t ./...
 ```
 
