@@ -322,6 +322,7 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 		return results
 	}
 
+	isCount := e.stmt.HasSimpleCount()
 	if e.stmt.Fill == influxql.NoFill {
 		// remove any rows that have even one nil value. This one is tricky because they could have multiple
 		// aggregates, but this option means that any row that has even one nil gets purged.
@@ -330,7 +331,7 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 			hasNil := false
 			// start at 1 because the first value is always time
 			for j := 1; j < len(vals); j++ {
-				if vals[j] == nil {
+				if vals[j] == nil || (isCount && isZero(vals[j])) {
 					hasNil = true
 					break
 				}
@@ -342,7 +343,6 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 		return newResults
 	}
 
-	isCount := e.stmt.HasSimpleCount()
 	// They're either filling with previous values or a specific number
 	for i, vals := range results {
 		// start at 1 because the first value is always time
