@@ -554,20 +554,6 @@ func (s *Store) close() error {
 	}
 	s.opened = false
 
-	// Close our exec listener
-	if err := s.ExecListener.Close(); err != nil {
-		s.Logger.Printf("error closing ExecListener %s", err)
-	}
-
-	// Close our RPC listener
-	if err := s.RPCListener.Close(); err != nil {
-		s.Logger.Printf("error closing ExecListener %s", err)
-	}
-
-	if s.raftState != nil {
-		s.raftState.close()
-	}
-
 	// Notify goroutines of close.
 	close(s.closing)
 
@@ -581,6 +567,19 @@ func (s *Store) close() error {
 	// Now that all go routines are cleaned up, w lock to do final clean up and exit
 	s.mu.Lock()
 
+	// Close our exec listener
+	if err := s.ExecListener.Close(); err != nil {
+		s.Logger.Printf("error closing ExecListener %s", err)
+	}
+
+	// Close our RPC listener
+	if err := s.RPCListener.Close(); err != nil {
+		s.Logger.Printf("error closing ExecListener %s", err)
+	}
+
+	if s.raftState != nil {
+		s.raftState.close()
+	}
 	s.raftState = nil
 
 	return nil
