@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.4 or greater.
+InfluxDB requires Go 1.5 or greater.
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,8 +77,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.4.2
-    gvm use go1.4.2 --default
+    gvm install go1.5.2
+    gvm use go1.5.2 --default
 
 Revision Control Systems
 -------------
@@ -123,7 +123,7 @@ cd $GOPATH/src/github.com/influxdb/influxdb
 go get -u -f -t ./...
 ```
 
-To then build and install the binaries, run the following command. 
+To then build and install the binaries, run the following command.
 ```bash
 go clean ./...
 go install ./...
@@ -133,7 +133,7 @@ The binaries will be located in `$GOPATH/bin`. Please note that the InfluxDB bin
 To set the version and commit flags during the build pass the following to the **install** command:
 
 ```bash
--ldflags="-X main.version $VERSION -X main.branch $BRANCH -X main.commit $COMMIT -X main.buildTime $TIME"
+-ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT -X main.buildTime=$TIME"
 ```
 
 where `$VERSION` is the version, `$BRANCH` is the branch, `$COMMIT` is the git commit hash, and `$TIME` is the build timestamp.
