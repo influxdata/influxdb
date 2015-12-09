@@ -636,3 +636,28 @@ func BasicReadHandler(r <-chan response, rt *Timer) {
 	fmt.Printf("Total Queries: %v\n", n)
 	fmt.Printf("Average Query Response Time: %v\n\n", s/time.Duration(n))
 }
+
+func WriteHTTPHandler(r <-chan response, rt *Timer) {
+	c, _ := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
+	})
+	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+		Database:  "stress",
+		Precision: "ns",
+	})
+	for p := range r {
+		tags := map[string]string{"test": "foo"}
+		fields := map[string]interface{}{
+			"response_time": p.Timer.Elapsed(),
+		}
+		pt, _ := client.NewPoint("performance", tags, fields, p.Time)
+		bp.AddPoint(pt)
+		if len(bp.Points())%1000 == 0 && len(bp.Points()) != 0 {
+			c.Write(bp)
+			bp, _ = client.NewBatchPoints(client.BatchPointsConfig{
+				Database:  "stress",
+				Precision: "ns",
+			})
+		}
+	}
+}

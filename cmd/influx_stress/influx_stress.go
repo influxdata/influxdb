@@ -10,20 +10,16 @@ import (
 )
 
 var (
-	//database  = flag.String("database", "", "name of database")
-	address = flag.String("addr", "", "IP address and port of database where response times will persist (e.g., localhost:8086)")
-	tags    = flag.String("tags", "", "")
-
-	//id   = flag.String("id", "", "ID for the test that is being ran")
-	//name = flag.String("name", "", "name of the test that is being ran")
-
 	config     = flag.String("config", "", "The stress test file")
 	cpuprofile = flag.String("cpuprofile", "", "Write the cpu profile to `filename`")
 )
 
-func main() {
-
+func init() {
 	flag.Parse()
+}
+
+func main() {
+	o := stress.NewOutputConfig()
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
@@ -46,10 +42,12 @@ func main() {
 	s := stress.NewStressTest(&c.Provision.Basic, w, r)
 
 	bw := stress.NewBroadcastChannel()
-	bw.Register(stress.BasicWriteHandler)
+	bw.Register(c.Write.InfluxClients.Basic.BasicWriteHandler)
+	bw.Register(o.HTTPHandler("write"))
 
 	br := stress.NewBroadcastChannel()
-	br.Register(stress.BasicReadHandler)
+	br.Register(c.Read.QueryClients.Basic.BasicReadHandler)
+	br.Register(o.HTTPHandler("read"))
 
 	s.Start(bw.Handle, br.Handle)
 
