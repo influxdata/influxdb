@@ -232,9 +232,30 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		if err != nil {
 			return nil, err
 		}
-		pt.time = time.Unix(0, ts*pt.GetPrecisionMultiplier(precision)).UTC()
+		pt.time, err = SafeCalcTime(ts, precision)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return pt, nil
+}
+
+// GetPrecisionMultiplier will return a multiplier for the precision specified
+func GetPrecisionMultiplier(precision string) int64 {
+	d := time.Nanosecond
+	switch precision {
+	case "u":
+		d = time.Microsecond
+	case "ms":
+		d = time.Millisecond
+	case "s":
+		d = time.Second
+	case "m":
+		d = time.Minute
+	case "h":
+		d = time.Hour
+	}
+	return int64(d)
 }
 
 // scanKey scans buf starting at i for the measurement and tag portion of the point.
@@ -1028,10 +1049,15 @@ func unescapeStringField(in string) string {
 }
 
 // NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
-// an unsupported field value (NaN) is passed, this function returns an error.
+// an unsupported field value (NaN) or out of range time is passed, this function returns an error.
 func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, error) {
 	if len(fields) == 0 {
 		return nil, fmt.Errorf("Point without fields is unsupported")
+	}
+	if !time.IsZero() {
+		if err := CheckTime(time); err != nil {
+			return nil, err
+		}
 	}
 
 	for key, value := range fields {
@@ -1200,24 +1226,6 @@ func (p *point) SetPrecision(precision string) {
 	}
 }
 
-// GetPrecisionMultiplier will return a multiplier for the precision specified
-func (p *point) GetPrecisionMultiplier(precision string) int64 {
-	d := time.Nanosecond
-	switch precision {
-	case "u":
-		d = time.Microsecond
-	case "ms":
-		d = time.Millisecond
-	case "s":
-		d = time.Second
-	case "m":
-		d = time.Minute
-	case "h":
-		d = time.Hour
-	}
-	return int64(d)
-}
-
 func (p *point) String() string {
 	if p.Time().IsZero() {
 		return string(p.Key()) + " " + string(p.fields)
@@ -1264,7 +1272,7 @@ func (p *point) PrecisionString(precision string) string {
 		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
 	}
 	return fmt.Sprintf("%s %s %d", p.Key(), string(p.fields),
-		p.UnixNano()/p.GetPrecisionMultiplier(precision))
+		p.UnixNano()/GetPrecisionMultiplier(precision))
 }
 
 func (p *point) RoundedString(d time.Duration) string {

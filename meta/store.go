@@ -24,6 +24,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdb/influxdb/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -1225,6 +1226,10 @@ func (s *Store) DropRetentionPolicy(database, name string) error {
 
 // CreateShardGroup creates a new shard group in a retention policy for a given time.
 func (s *Store) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	// Check the time is valid since we are about to encode it as an int64
+	if err := models.CheckTime(timestamp); err != nil {
+		return nil, err
+	}
 	if err := s.exec(internal.Command_CreateShardGroupCommand, internal.E_CreateShardGroupCommand_Command,
 		&internal.CreateShardGroupCommand{
 			Database:  proto.String(database),
@@ -1250,7 +1255,11 @@ func (s *Store) CreateShardGroupIfNotExists(database, policy string, timestamp t
 	// Attempt to create database.
 	sgi, err := s.CreateShardGroup(database, policy, timestamp)
 	if err == ErrShardGroupExists {
-		return s.ShardGroupByTimestamp(database, policy, timestamp)
+		sgi, err = s.ShardGroupByTimestamp(database, policy, timestamp)
+	}
+	// Check that we are returning either an error or a valid shard group.
+	if sgi == nil && err == nil {
+		return nil, errors.New("failed to create a new shard group, error unknown.")
 	}
 	return sgi, err
 }

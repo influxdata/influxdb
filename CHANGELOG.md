@@ -6,6 +6,7 @@
 - [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
 - [#5059](https://github.com/influxdb/influxdb/pull/5059): Fix unmarshal of database error by client code. Thanks @farshidtz
 - [#4940](https://github.com/influxdb/influxdb/pull/4940): Fix distributed aggregate query query error. Thanks @li-ang
+- [#4622](https://github.com/influxdb/influxdb/issues/4622): Fix panic when passing too large of timestamps to OpenTSDB input.
 
 ## v0.9.6 [2015-12-09]
 

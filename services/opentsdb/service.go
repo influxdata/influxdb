@@ -42,6 +42,7 @@ const (
 	statBatchesTransmitFail      = "batchesTxFail"
 	statConnectionsActive        = "connsActive"
 	statConnectionsHandled       = "connsHandled"
+	statDroppedPointsInvalid     = "droppedPointsInvalid"
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
@@ -367,6 +368,7 @@ func (s *Service) serveHTTP() {
 		ConsistencyLevel: s.ConsistencyLevel,
 		PointsWriter:     s.PointsWriter,
 		Logger:           s.Logger,
+		statMap:          s.statMap,
 	}}
 	srv.Serve(s.httpln)
 }
