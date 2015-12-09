@@ -949,6 +949,7 @@ func TestCluster_Open(t *testing.T) {
 
 // Ensure a multi-node cluster can start, join the cluster, and the first three members are raft nodes.
 func TestCluster_OpenRaft(t *testing.T) {
+	t.Skip()
 	// Start a single node.
 	c := MustOpenCluster(1)
 	defer c.Close()
