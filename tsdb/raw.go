@@ -208,7 +208,7 @@ func (e *RawExecutor) execute(out chan *models.Row, closing <-chan struct{}) {
 				chunkedOutput = &MapperOutput{
 					Name:      m.bufferedChunk.Name,
 					Tags:      m.bufferedChunk.Tags,
-					cursorKey: m.bufferedChunk.key(),
+					CursorKey: m.bufferedChunk.key(),
 				}
 				chunkedOutput.Values = m.bufferedChunk.Values[:ind]
 			} else {
@@ -955,7 +955,7 @@ func (m *RawMapper) NextChunk() (interface{}, error) {
 				Name:      cursor.measurement,
 				Tags:      cursor.tags,
 				Fields:    m.selectFields,
-				cursorKey: cursor.key(),
+				CursorKey: cursor.key(),
 			}
 		}
 
