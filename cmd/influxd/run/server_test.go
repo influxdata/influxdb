@@ -808,6 +808,11 @@ func TestServer_Query_Math(t *testing.T) {
 			command: `SELECT max(value) + min(value) from db.rp.integer`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`),
 		},
+		&Query{
+			name:    "SELECT square of enclosed integer value",
+			command: `SELECT ((value) * (value)) from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
 	}...)
 
 	if err := test.init(s); err != nil {

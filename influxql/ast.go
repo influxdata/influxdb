@@ -2443,7 +2443,7 @@ func (a Fields) AliasNames() []string {
 	return names
 }
 
-// Names returns a list of raw field names.
+// Names returns a list of field names.
 func (a Fields) Names() []string {
 	names := []string{}
 	for _, f := range a {
@@ -2453,6 +2453,8 @@ func (a Fields) Names() []string {
 		case *VarRef:
 			names = append(names, expr.Val)
 		case *BinaryExpr:
+			names = append(names, walkNames(expr)...)
+		case *ParenExpr:
 			names = append(names, walkNames(expr)...)
 		}
 	}
