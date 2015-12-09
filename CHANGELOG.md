@@ -5,7 +5,7 @@
 ### Bugfixes
 - [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
 
-## v0.9.6 [unreleased]
+## v0.9.6 [2015-12-09]
 
 ### Release Notes
 This release has an updated design and implementation of the TSM storage engine. If you had been using tsm1 as your storage engine prior to this release (either 0.9.5.x or 0.9.6 nightly builds) you will have to start with a fresh database.
