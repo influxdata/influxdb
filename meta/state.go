@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb"
 )
@@ -344,7 +345,18 @@ func (r *localRaft) leader() string {
 		return ""
 	}
 
-	return r.raft.Leader()
+	leader := r.raft.Leader()
+	// TODO remove debug code
+	leaders := spew.Sdump(r.store.peers)
+	if leader == "" {
+		r.store.Logger.Printf("########## local raft impossible!: %s", leaders)
+	} else {
+		r.store.Logger.Printf("########## local raft returning leader: %s from %s", leader, leaders)
+	}
+	// end debug code
+	return leader
+
+	//return r.raft.Leader()
 }
 
 func (r *localRaft) isLeader() bool {
@@ -469,7 +481,16 @@ func (r *remoteRaft) leader() string {
 		return ""
 	}
 
-	return r.store.peers[rand.Intn(len(r.store.peers))]
+	leader := r.store.peers[rand.Intn(len(r.store.peers))]
+	// TODO remove debug code
+	leaders := spew.Sdump(r.store.peers)
+	if leader == "" {
+		r.store.Logger.Printf("########## remote raft impossible!: %s", leaders)
+	} else {
+		r.store.Logger.Printf("########## remote raft returning leader: %s from %s", leader, leaders)
+	}
+	// end debug code
+	return leader
 }
 
 func (r *remoteRaft) isLeader() bool {

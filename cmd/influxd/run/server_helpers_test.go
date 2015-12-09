@@ -218,10 +218,10 @@ func NewConfig() *run.Config {
 	c.Cluster.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = "127.0.0.1:0"
-	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
+	//c.Meta.HeartbeatTimeout = toml.Duration(500 * time.Millisecond)
+	//c.Meta.ElectionTimeout = toml.Duration(500 * time.Millisecond)
+	//c.Meta.LeaderLeaseTimeout = toml.Duration(500 * time.Millisecond)
+	//c.Meta.CommitTimeout = toml.Duration(50 * time.Millisecond)
 
 	if !testing.Verbose() {
 		c.Meta.LoggingEnabled = false
@@ -459,48 +459,68 @@ func NewCluster(size int) (*Cluster, error) {
 }
 
 func verifyCluster(c *Cluster, size int) error {
-	r, err := c.Servers[0].Query("SHOW SERVERS")
-	if err != nil {
-		return err
-	}
-	var cl client.Response
-	if e := json.Unmarshal([]byte(r), &cl); e != nil {
-		return e
-	}
+	// Sometimes we need to wait for a leader to settle out, so we retry.
+	verify := func(c *Cluster, size int) error {
+		r, err := c.Servers[0].Query("SHOW SERVERS")
+		if err != nil {
+			return err
+		}
+		var cl client.Response
+		if e := json.Unmarshal([]byte(r), &cl); e != nil {
+			return e
+		}
 
-	var leaderCount int
-	var raftCount int
+		var leaderCount int
+		var raftCount int
 
-	for _, result := range cl.Results {
-		for _, series := range result.Series {
-			for i, value := range series.Values {
-				addr := c.Servers[i].MetaStore.Addr.String()
-				if value[0].(float64) != float64(i+1) {
-					return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
-				}
-				if value[1].(string) != addr {
-					return fmt.Errorf("expected addr %s, got %v", addr, value[1])
-				}
-				if value[2].(bool) {
-					raftCount++
-				}
-				if value[3].(bool) {
-					leaderCount++
+		for _, result := range cl.Results {
+			for _, series := range result.Series {
+				for i, value := range series.Values {
+					addr := c.Servers[i].MetaStore.Addr.String()
+					if value[0].(float64) != float64(i+1) {
+						return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
+					}
+					if value[1].(string) != addr {
+						return fmt.Errorf("expected addr %s, got %v", addr, value[1])
+					}
+					if value[2].(bool) {
+						raftCount++
+					}
+					if value[3].(bool) {
+						leaderCount++
+					}
 				}
 			}
 		}
-	}
-	if leaderCount != 1 {
-		return fmt.Errorf("expected 1 leader, got %d", leaderCount)
-	}
-	if size < 3 && raftCount != size {
-		return fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
-	}
-	if size >= 3 && raftCount != 3 {
-		return fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
+		if leaderCount != 1 {
+			return fmt.Errorf("expected 1 leader, got %d", leaderCount)
+		}
+		if size < 3 && raftCount != size {
+			return fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
+		}
+		if size >= 3 && raftCount != 3 {
+			return fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
+		}
+
+		return nil
 	}
 
-	return nil
+	if err := verify(c, size); err == nil {
+		return nil
+	}
+	ticker := time.Tick(time.Second)
+	timeout := time.After(4 * time.Second)
+	var lastErr error
+	for {
+		select {
+		case <-ticker:
+			if lastErr = verify(c, size); lastErr == nil {
+				return nil
+			}
+		case <-timeout:
+			return fmt.Errorf("timed out verifying cluster status: last error: %s ", lastErr)
+		}
+	}
 }
 
 func NewClusterWithDefaults(size int) (*Cluster, error) {
@@ -558,6 +578,9 @@ func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluste
 
 // Close shuts down all servers.
 func (c *Cluster) Close() {
+	if c == nil {
+		return
+	}
 	var wg sync.WaitGroup
 	wg.Add(len(c.Servers))
 

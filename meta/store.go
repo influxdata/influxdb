@@ -449,24 +449,30 @@ func (s *Store) monitorPeerHealth() {
 		// Wait for next tick or timeout.
 		select {
 		case <-ticker.C:
+			if err := s.promoteNodeToPeer(); err != nil {
+				s.Logger.Printf("error promoting node to raft peer: %s", err)
+			}
 		case <-s.closing:
 			return
-		}
-		if err := s.promoteNodeToPeer(); err != nil {
-			s.Logger.Printf("error promoting node to raft peer: %s", err)
 		}
 	}
 }
 
 func (s *Store) promoteNodeToPeer() error {
-	// Only do this if you are the leader
-
-	if !s.IsLeader() {
-		return nil
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Check to see if the store closed
+	select {
+	case <-s.closing:
+		return nil
+	default:
+	}
+
+	// Only do this if you are the leader
+	if !s.raftState.isLeader() {
+		return nil
+	}
 
 	peers, err := s.raftState.peers()
 	if err != nil {
@@ -519,8 +525,6 @@ func (s *Store) initialize() error {
 
 // Close closes the store and shuts down the node in the cluster.
 func (s *Store) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.close()
 }
 
@@ -542,11 +546,16 @@ func (s *Store) WaitForDataChanged() error {
 }
 
 func (s *Store) close() error {
+	s.mu.Lock()
+
 	// Check if store has already been closed.
 	if !s.opened {
 		return ErrStoreClosed
 	}
 	s.opened = false
+
+	// Notify goroutines of close.
+	close(s.closing)
 
 	// Close our exec listener
 	if err := s.ExecListener.Close(); err != nil {
@@ -558,23 +567,14 @@ func (s *Store) close() error {
 		s.Logger.Printf("error closing ExecListener %s", err)
 	}
 
-	if s.raftState != nil {
-		s.raftState.close()
-	}
-
 	// Because a go routine could of already fired in the time we acquired the lock
 	// it could then try to acquire another lock, and will deadlock.
 	// For that reason, we will release our lock and signal the close so that
 	// all go routines can exit cleanly and fullfill their contract to the wait group.
 	s.mu.Unlock()
-	// Notify goroutines of close.
-	close(s.closing)
 	s.wg.Wait()
 
-	// Now that all go routines are cleaned up, w lock to do final clean up and exit
-	s.mu.Lock()
-
-	s.raftState = nil
+	s.raftState.close()
 
 	return nil
 }
@@ -1706,7 +1706,21 @@ func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
 	leader := s.raftState.leader()
 	if leader == "" {
-		return errors.New("no leader detected during remoteExec")
+		timeout := time.After(5 * time.Second)
+		tick := time.Tick(10 * time.Millisecond)
+		for {
+			select {
+			case <-tick:
+				leader = s.raftState.leader()
+				if leader != "" {
+					// we have a leader, so we can exit the loop
+					break
+				}
+			case <-timeout:
+				// unable to determine a leader so timeout
+				return errors.New("no leader detected during remoteExec")
+			}
+		}
 	}
 
 	// Create a connection to the leader.

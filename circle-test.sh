@@ -6,8 +6,8 @@
 
 BUILD_DIR=$HOME/influxdb-build
 GO_VERSION=go1.4.2
-PARALLELISM="-parallel 1"
-TIMEOUT="-timeout 300s"
+PARALLELISM="-parallel 256"
+TIMEOUT="-timeout 600s"
 
 # Executes the given statement, and exits if the command returns a non-zero code.
 function exit_if_fail {

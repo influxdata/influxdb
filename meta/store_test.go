@@ -1169,13 +1169,6 @@ func MustOpenStoreWithPath(addr, path string) *Store {
 		panic(err)
 	}
 
-	// Wait until the server is ready.
-	select {
-	case err := <-s.Err():
-		panic(err)
-	case <-s.Ready():
-	}
-
 	return s
 }
 
@@ -1228,10 +1221,10 @@ func NewConfig(path string) *meta.Config {
 		Dir:                  path,
 		Hostname:             "localhost",
 		BindAddress:          "127.0.0.1:0",
-		HeartbeatTimeout:     toml.Duration(500 * time.Millisecond),
-		ElectionTimeout:      toml.Duration(500 * time.Millisecond),
-		LeaderLeaseTimeout:   toml.Duration(500 * time.Millisecond),
-		CommitTimeout:        toml.Duration(5 * time.Millisecond),
+		HeartbeatTimeout:     toml.Duration(1000 * time.Millisecond),
+		ElectionTimeout:      toml.Duration(1000 * time.Millisecond),
+		LeaderLeaseTimeout:   toml.Duration(1000 * time.Millisecond),
+		CommitTimeout:        toml.Duration(50 * time.Millisecond),
 		RaftPromotionEnabled: true,
 	}
 }

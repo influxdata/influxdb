@@ -10,7 +10,6 @@ import (
 )
 
 func TestCluster_CreateDatabase(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
 	c, err := NewClusterWithDefaults(5)
@@ -21,7 +20,6 @@ func TestCluster_CreateDatabase(t *testing.T) {
 }
 
 func TestCluster_Write(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
 	c, err := NewClusterWithDefaults(5)
@@ -51,7 +49,6 @@ func TestCluster_Write(t *testing.T) {
 }
 
 func TestCluster_DatabaseCommands(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
@@ -83,7 +80,6 @@ func TestCluster_DatabaseCommands(t *testing.T) {
 }
 
 func TestCluster_Query_DropAndRecreateDatabase(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
@@ -127,7 +123,6 @@ func TestCluster_Query_DropAndRecreateDatabase(t *testing.T) {
 }
 
 func TestCluster_Query_DropDatabaseIsolated(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
@@ -288,7 +283,6 @@ func TestCluster_Query_DropSeriesFromRegex(t *testing.T) {
 }
 
 func TestCluster_RetentionPolicyCommands(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
 	configFunc := func(index int, config *run.Config) {
@@ -339,6 +333,36 @@ func TestCluster_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	defer c.Close()
 
 	test := tests.load(t, "retention_policy_auto_create")
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		t.Logf("Running %s", query.name)
+		if query.once {
+			if _, err := c.Query(query); err != nil {
+				t.Error(query.Error(err))
+			} else if !query.success() {
+				t.Error(query.failureMessage())
+			}
+			continue
+		}
+		if err := c.QueryAll(query); err != nil {
+			t.Error(query.Error(err))
+		}
+	}
+}
+
+func TestCluster_UserCommands(t *testing.T) {
+	t.Parallel()
+	c, err := NewCluster(5)
+	if err != nil {
+		t.Fatalf("error creating cluster: %s", err)
+	}
+	defer c.Close()
+
+	test := tests.load(t, "user_commands")
 
 	for _, query := range test.queries {
 		if query.skip {
