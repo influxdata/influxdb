@@ -419,18 +419,18 @@ func NewQuery(command, database, precision string) Query {
 // Response represents a list of statement results.
 type Response struct {
 	Results []Result
-	Err     error
+	Err     string `json:"error,omitempty"`
 }
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
 func (r *Response) Error() error {
-	if r.Err != nil {
-		return r.Err
+	if r.Err != "" {
+		return fmt.Errorf(r.Err)
 	}
 	for _, result := range r.Results {
-		if result.Err != nil {
-			return result.Err
+		if result.Err != "" {
+			return fmt.Errorf(result.Err)
 		}
 	}
 	return nil
@@ -439,7 +439,7 @@ func (r *Response) Error() error {
 // Result represents a resultset returned from a single statement.
 type Result struct {
 	Series []models.Row
-	Err    error
+	Err    string `json:"error,omitempty"`
 }
 
 func (uc *udpclient) Query(q Query) (*Response, error) {
