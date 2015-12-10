@@ -46,6 +46,9 @@ func (b *BlockIterator) Next() bool {
 
 	if len(b.entries) > 0 {
 		b.entries = b.entries[1:]
+		if len(b.entries) > 0 {
+			return true
+		}
 	}
 
 	if len(b.keys) > 0 {

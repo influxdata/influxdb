@@ -602,6 +602,66 @@ func TestBlockIterator_Single(t *testing.T) {
 	}
 }
 
+func TestBlockIterator_MultipleBlocks(t *testing.T) {
+	var b bytes.Buffer
+	w, err := tsm1.NewTSMWriter(&b)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values1 := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), int64(1))}
+	if err := w.Write("cpu", values1); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	values2 := []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), int64(2))}
+	if err := w.Write("cpu", values2); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	var count int
+	expData := []tsm1.Values{values1, values2}
+	iter := r.BlockIterator()
+	var i int
+	for iter.Next() {
+		key, index, buf, err := iter.Read()
+
+		if err != nil {
+			t.Fatalf("unexpected error creating iterator: %v", err)
+		}
+
+		if got, exp := key, "cpu"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := index.MinTime, expData[i][0].Time(); got != exp {
+			t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := index.MaxTime, expData[i][0].Time(); got != exp {
+			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := uint32(len(buf)), index.Size; got != exp {
+			t.Fatalf("size mismatch: got %v, exp %v", got, exp)
+		}
+		count++
+		i++
+	}
+
+	if got, exp := count, 2; got != exp {
+		t.Fatalf("value count mismatch: got %v, exp %v", got, exp)
+	}
+}
 func TestBlockIterator_Sorted(t *testing.T) {
 	var b bytes.Buffer
 	w, err := tsm1.NewTSMWriter(&b)
