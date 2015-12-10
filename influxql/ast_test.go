@@ -845,6 +845,26 @@ func Test_fieldsNames(t *testing.T) {
 			out:   []string{"value", "temperature"},
 			alias: []string{""},
 		},
+		{ //case: ParenExpr(varRef)
+			in:    []string{"(value)"},
+			out:   []string{"value"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(varRef + varRef)
+			in:    []string{"(value + value)"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(aggregate)
+			in:    []string{"(mean(value))"},
+			out:   []string{"value"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(aggregate + aggregate)
+			in:    []string{"(mean(value) + max(value))"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
 	} {
 		fields := influxql.Fields{}
 		for _, s := range test.in {
