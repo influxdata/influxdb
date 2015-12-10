@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/enterprise-client/v1"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
@@ -23,13 +22,13 @@ import (
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
-	"github.com/influxdb/influxdb/services/registration"
 	"github.com/influxdb/influxdb/services/retention"
 	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/services/subscriber"
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/usage-client/v1"
 	// Initialize the engine packages
 	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
@@ -158,7 +157,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Append services.
 	s.appendClusterService(c.Cluster)
 	s.appendPrecreatorService(c.Precreator)
-	s.appendRegistrationService(c.Registration)
 	s.appendSnapshotterService()
 	s.appendCopierService()
 	s.appendAdminService(c.Admin)
@@ -292,21 +290,6 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	}
 
 	srv.MetaStore = s.MetaStore
-	s.Services = append(s.Services, srv)
-	return nil
-}
-
-func (s *Server) appendRegistrationService(c registration.Config) error {
-	if !c.Enabled {
-		return nil
-	}
-	srv, err := registration.NewService(c, s.buildInfo.Version)
-	if err != nil {
-		return err
-	}
-
-	srv.MetaStore = s.MetaStore
-	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 	return nil
 }
