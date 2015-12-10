@@ -9,15 +9,6 @@
 reporting-disabled = false
 
 ###
-### Enterprise registration control
-###
-
-[registration]
-# enabled = true
-# url = "https://enterprise.influxdata.com" # The Enterprise server URL
-# token = "" # Registration token for Enterprise server
-
-###
 ### [meta]
 ###
 ### Controls the parameters for the Raft consensus group that stores metadata
