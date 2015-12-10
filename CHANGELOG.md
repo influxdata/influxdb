@@ -11,6 +11,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#4940](https://github.com/influxdb/influxdb/pull/4940): Fix distributed aggregate query query error. Thanks @li-ang
 - [#4622](https://github.com/influxdb/influxdb/issues/4622): Fix panic when passing too large of timestamps to OpenTSDB input.
 - [#5064](https://github.com/influxdb/influxdb/pull/5064): Full support for parenthesis in SELECT clause, fixes [#5054](https://github.com/influxdb/influxdb/issues/5054). Thanks @mengjinglei
+- [#5079](https://github.com/influxdb/influxdb/pull/5079): Ensure tsm WAL encoding buffer can handle large batches.
 
 ## v0.9.6 [2015-12-09]
 
