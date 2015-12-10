@@ -988,7 +988,7 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 
 	p.flushCache = c.seriesToFlush
 	c.compactFilesLessThan = p.currentSegmentID
-	c.countCompacting = len(p.cache)
+	c.countCompacting = len(c.seriesToFlush)
 
 	return c, nil
 }
