@@ -110,6 +110,13 @@ type TSMWriter interface {
 	// used as the minimum and maximum values for the index entry.
 	Write(key string, values Values) error
 
+	// WriteBlock writes a new block for key containing the bytes in block.  WriteBlock appends
+	// blocks in the order that the WriteBlock function is called.  The caller is
+	// responsible for ensuring keys and blocks are sorted appropriately, and that the
+	// block and index information is correct for the block.  The minTime and maxTime
+	// timestamp values are used as the minimum and maximum values for the index entry.
+	WriteBlock(key string, minTime, maxTime time.Time, block []byte) error
+
 	// WriteIndex finishes the TSM write streams and writes the index.
 	WriteIndex() error
 
@@ -462,14 +469,21 @@ func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 	return &tsmWriter{w: w, index: index}, nil
 }
 
+func (t *tsmWriter) writeHeader() error {
+	n, err := t.w.Write(append(u32tob(MagicNumber), Version))
+	if err != nil {
+		return err
+	}
+	t.n = int64(n)
+	return nil
+}
+
 func (t *tsmWriter) Write(key string, values Values) error {
 	// Write header only after we have some data to write.
 	if t.n == 0 {
-		n, err := t.w.Write(append(u32tob(MagicNumber), Version))
-		if err != nil {
+		if err := t.writeHeader(); err != nil {
 			return err
 		}
-		t.n = int64(n)
 	}
 
 	block, err := values.Encode(nil)
@@ -493,6 +507,32 @@ func (t *tsmWriter) Write(key string, values Values) error {
 
 	// Increment file position pointer
 	t.n += int64(n)
+	return nil
+}
+
+func (t *tsmWriter) WriteBlock(key string, minTime, maxTime time.Time, block []byte) error {
+	// Write header only after we have some data to write.
+	if t.n == 0 {
+		if err := t.writeHeader(); err != nil {
+			return err
+		}
+	}
+
+	n, err := t.w.Write(block)
+	if err != nil {
+		return err
+	}
+
+	blockType, err := BlockType(block[4:])
+	if err != nil {
+		return err
+	}
+	// Record this block in index
+	t.index.Add(key, blockType, minTime, maxTime, t.n, uint32(n))
+
+	// Increment file position pointer
+	t.n += int64(n)
+
 	return nil
 }
 

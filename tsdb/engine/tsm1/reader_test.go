@@ -573,7 +573,7 @@ func TestBlockIterator_Single(t *testing.T) {
 	var count int
 	iter := r.BlockIterator()
 	for iter.Next() {
-		key, typ, index, buf, err := iter.Read()
+		key, index, buf, err := iter.Read()
 
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
@@ -581,10 +581,6 @@ func TestBlockIterator_Single(t *testing.T) {
 
 		if got, exp := key, "cpu"; got != exp {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
-		}
-
-		if got, exp := typ, tsm1.BlockInt64; got != exp {
-			t.Fatalf("type mismatch: got %v, exp %v", got, exp)
 		}
 
 		if got, exp := index.MinTime, time.Unix(0, 0); got != exp {
@@ -640,7 +636,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	iter := r.BlockIterator()
 	var lastKey string
 	for iter.Next() {
-		key, _, index, buf, err := iter.Read()
+		key, index, buf, err := iter.Read()
 
 		if key < lastKey {
 			t.Fatalf("keys not sorted: got %v, last %v", key, lastKey)

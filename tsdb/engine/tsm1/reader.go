@@ -34,7 +34,6 @@ type TSMReader struct {
 type BlockIterator struct {
 	r       *TSMReader
 	keys    []string
-	typ     byte
 	key     string
 	entries []*IndexEntry
 	err     error
@@ -53,23 +52,22 @@ func (b *BlockIterator) Next() bool {
 		b.key = b.keys[0]
 		b.keys = b.keys[1:]
 		b.entries = b.r.Entries(b.key)
-		b.typ, b.err = b.r.Type(b.key)
 		return true
 	}
 
 	return false
 }
 
-func (b *BlockIterator) Read() (string, byte, *IndexEntry, []byte, error) {
+func (b *BlockIterator) Read() (string, *IndexEntry, []byte, error) {
 	if b.err != nil {
-		return "", 0, nil, nil, b.err
+		return "", nil, nil, b.err
 	}
 
 	buf, err := b.r.readBytes(b.entries[0], nil)
 	if err != nil {
-		return "", 0, nil, nil, err
+		return "", nil, nil, err
 	}
-	return b.key, b.typ, b.entries[0], buf, err
+	return b.key, b.entries[0], buf, err
 }
 
 // blockAccessor abstracts a method of accessing blocks from a
