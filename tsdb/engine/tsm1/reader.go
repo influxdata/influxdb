@@ -29,6 +29,49 @@ type TSMReader struct {
 	lastModified time.Time
 }
 
+// BlockIterator allows iterating over each block in a TSM file in order.  It provides
+// raw access to the block bytes without decoding them.
+type BlockIterator struct {
+	r       *TSMReader
+	keys    []string
+	typ     byte
+	key     string
+	entries []*IndexEntry
+	err     error
+}
+
+func (b *BlockIterator) Next() bool {
+	if len(b.keys) == 0 && len(b.entries) == 0 {
+		return false
+	}
+
+	if len(b.entries) > 0 {
+		b.entries = b.entries[1:]
+	}
+
+	if len(b.keys) > 0 {
+		b.key = b.keys[0]
+		b.keys = b.keys[1:]
+		b.entries = b.r.Entries(b.key)
+		b.typ, b.err = b.r.Type(b.key)
+		return true
+	}
+
+	return false
+}
+
+func (b *BlockIterator) Read() (string, byte, *IndexEntry, []byte, error) {
+	if b.err != nil {
+		return "", 0, nil, nil, b.err
+	}
+
+	buf, err := b.r.readBytes(b.entries[0], nil)
+	if err != nil {
+		return "", 0, nil, nil, err
+	}
+	return b.key, b.typ, b.entries[0], buf, err
+}
+
 // blockAccessor abstracts a method of accessing blocks from a
 // TSM file.
 type blockAccessor interface {
@@ -36,6 +79,7 @@ type blockAccessor interface {
 	read(key string, timestamp time.Time) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
+	readBytes(entry *IndexEntry, buf []byte) ([]byte, error)
 	path() string
 	close() error
 }
@@ -154,6 +198,12 @@ func (t *TSMReader) ReadAll(key string) ([]Value, error) {
 	return t.accessor.readAll(key)
 }
 
+func (t *TSMReader) readBytes(e *IndexEntry, b []byte) ([]byte, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.readBytes(e, b)
+}
+
 func (t *TSMReader) Type(key string) (byte, error) {
 	return t.index.Type(key)
 }
@@ -250,6 +300,13 @@ func (t *TSMReader) Stats() FileStat {
 		MinKey:       minKey,
 		MaxKey:       maxKey,
 		HasTombstone: t.tombstoner.HasTombstones(),
+	}
+}
+
+func (t *TSMReader) BlockIterator() *BlockIterator {
+	return &BlockIterator{
+		r:    t,
+		keys: t.Keys(),
 	}
 }
 
@@ -633,11 +690,28 @@ func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
 }
 
 func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
+	b, err := f.readBytes(entry, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO: Validate checksum
+	values, err = DecodeBlock(b[4:], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	// TODO: remove this allocation
-	b := make([]byte, 16*1024)
+	if b == nil {
+		b = make([]byte, entry.Size)
+	}
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
@@ -652,13 +726,7 @@ func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 		return nil, err
 	}
 
-	//TODO: Validate checksum
-	values, err = DecodeBlock(b[4:n], values)
-	if err != nil {
-		return nil, err
-	}
-
-	return values, nil
+	return b[:n], nil
 }
 
 // ReadAll returns all values for a key in all blocks.
@@ -669,37 +737,20 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 		return values, nil
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	var temp []Value
 	// TODO: we can determine the max block size when loading the file create/re-use
 	// a reader level buf then.
 	b := make([]byte, 16*1024)
-	var pos int64
 	for _, block := range blocks {
-		// Skip the seek call if we are already at the position we're seeking to
-		if pos != block.Offset {
-			_, err := f.r.Seek(block.Offset, os.SEEK_SET)
-			if err != nil {
-				return nil, err
-			}
-			pos = block.Offset
-		}
 
-		if int(block.Size) > len(b) {
-			b = make([]byte, block.Size)
-		}
-
-		n, err := f.r.Read(b[:block.Size])
+		b, err := f.readBytes(block, b)
 		if err != nil {
 			return nil, err
 		}
-		pos += int64(block.Size)
 
 		//TODO: Validate checksum
 		temp = temp[:0]
-		temp, err = DecodeBlock(b[4:n], temp)
+		temp, err = DecodeBlock(b[4:], temp)
 		if err != nil {
 			return nil, err
 		}
@@ -798,6 +849,17 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	}
 
 	return values, nil
+}
+
+func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		return nil, ErrTSMClosed
+	}
+
+	return m.b[entry.Offset : entry.Offset+int64(entry.Size)], nil
 }
 
 // ReadAll returns all values for a key in all blocks.
