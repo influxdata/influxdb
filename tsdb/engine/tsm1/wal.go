@@ -365,7 +365,6 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	var n int
 
 	for k, v := range w.Values {
-
 		// Make sure we have enough space in our buf before copying.  If not,
 		// grow the buf.
 		if len(dst[:n])+2+len(k)+len(v)*8+4 > len(dst) {
@@ -393,8 +392,8 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		n += copy(dst[n:], u32tob(uint32(len(v))))
 
 		for _, vv := range v {
-
-			// Grow our slice if needed
+			// Grow our slice if needed. Enough room is needed for the timestamp (8 bytes)
+			// and the value itself (another 8 bytes).
 			if len(dst[:n])+16 > len(dst) {
 				grow := make([]byte, len(dst)*2)
 				dst = append(dst, grow...)
