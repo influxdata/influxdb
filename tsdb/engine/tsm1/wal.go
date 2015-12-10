@@ -366,6 +366,13 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 
 	for k, v := range w.Values {
 
+		// Make sure we have enough space in our buf before copying.  If not,
+		// grow the buf.
+		if len(dst[:n])+2+len(k)+len(v)*8+4 > len(dst) {
+			grow := make([]byte, len(dst)*2)
+			dst = append(dst, grow...)
+		}
+
 		switch v[0].Value().(type) {
 		case float64:
 			dst[n] = float64EntryType
@@ -380,19 +387,19 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		}
 		n++
 
-		// Make sure we have enough space in our buf before copying.  If not,
-		// grow the buf.
-		if len(k)+2+len(v)*8+4 > len(dst)-n {
-			grow := make([]byte, len(dst)*2)
-			dst = append(dst, grow...)
-		}
-
 		n += copy(dst[n:], u16tob(uint16(len(k))))
 		n += copy(dst[n:], []byte(k))
 
 		n += copy(dst[n:], u32tob(uint32(len(v))))
 
 		for _, vv := range v {
+
+			// Grow our slice if needed
+			if len(dst[:n])+16 > len(dst) {
+				grow := make([]byte, len(dst)*2)
+				dst = append(dst, grow...)
+			}
+
 			n += copy(dst[n:], u64tob(uint64(vv.Time().UnixNano())))
 			switch t := vv.Value().(type) {
 			case float64:

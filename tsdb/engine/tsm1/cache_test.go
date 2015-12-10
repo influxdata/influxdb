@@ -354,7 +354,7 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
-		panic("error encoding")
+		panic(fmt.Sprintf("error encoding: %v", err))
 	}
 
 	return entry.Type(), snappy.Encode(b, b)
