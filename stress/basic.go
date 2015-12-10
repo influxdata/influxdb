@@ -245,7 +245,24 @@ type BasicClient struct {
 	Concurrency   int      `toml:"concurrency"`
 	SSL           bool     `toml:"ssl"`
 	Format        string   `toml:"format"`
-	addrId        int
+
+	addrId   int
+	r        chan<- response
+	interval time.Duration
+}
+
+func (c *BasicClient) retry(b []byte) {
+	rs, err := c.send(b)
+	if err != nil {
+		fmt.Println(err)
+	}
+	time.Sleep(c.interval)
+
+	c.r <- rs
+	if !rs.Success() {
+		fmt.Println("GOT HERE!!!!******")
+		c.retry(b)
+	}
 }
 
 // Batch groups together points
@@ -260,6 +277,7 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 
 	c.Addresses = instanceURLs
 
+	c.r = r
 	var buf bytes.Buffer
 	var wg sync.WaitGroup
 	counter := NewConcurrencyLimiter(c.Concurrency)
@@ -268,6 +286,7 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 	if err != nil {
 		return err
 	}
+	c.interval = interval
 
 	ctr := 0
 
@@ -288,22 +307,14 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 			wg.Add(1)
 			counter.Increment()
 			go func(byt []byte) {
-				defer wg.Done()
-
-				rs, err := c.send(byt)
-				if err != nil {
-					fmt.Println(err)
-				}
-				time.Sleep(interval)
-
+				c.retry(byt)
 				counter.Decrement()
-				r <- rs
+				wg.Done()
 			}(b)
 
 			var temp bytes.Buffer
 			buf = temp
 		}
-
 	}
 
 	wg.Wait()
