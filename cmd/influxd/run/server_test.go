@@ -813,6 +813,11 @@ func TestServer_Query_Math(t *testing.T) {
 			command: `SELECT ((value) * (value)) from db.rp.integer`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
+		&Query{
+			name:    "SELECT square of enclosed integer value",
+			command: `SELECT (value * value) from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
 	}...)
 
 	if err := test.init(s); err != nil {
