@@ -2,6 +2,7 @@ package run_test
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -946,6 +947,49 @@ func TestServer_Query_Now(t *testing.T) {
 			exp:     `{"results":[{}]}`,
 		},
 	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can query without time bounds.
+func TestServer_Query_NoTimeBounds(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf("cpu,host=server01 value=1.0 %s", strconv.FormatInt(time.Unix(0, 1).UnixNano(), 10)),
+		fmt.Sprintf("cpu,host=server01 value=2.0 %s", strconv.FormatInt(time.Unix(0, math.MaxInt64-1).UnixNano(), 10)),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries(&Query{
+		name:    "select without time bound should return all data",
+		command: `SELECT * FROM db0.rp0.cpu`,
+		exp: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","host","value"],"values":[["%s","server01",1],["%s","server01",2]]}]}]}`,
+			time.Unix(0, 1).UTC().Format(time.RFC3339Nano),
+			time.Unix(0, math.MaxInt64-1).UTC().Format(time.RFC3339Nano)),
+	})
 
 	if err := test.init(s); err != nil {
 		t.Fatalf("test init failed: %s", err)
