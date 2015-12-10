@@ -573,7 +573,7 @@ func TestBlockIterator_Single(t *testing.T) {
 	var count int
 	iter := r.BlockIterator()
 	for iter.Next() {
-		key, index, buf, err := iter.Read()
+		key, minTime, maxTime, buf, err := iter.Read()
 
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
@@ -583,17 +583,18 @@ func TestBlockIterator_Single(t *testing.T) {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := index.MinTime, time.Unix(0, 0); got != exp {
+		if got, exp := minTime, time.Unix(0, 0); got != exp {
 			t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := index.MaxTime, time.Unix(0, 0); got != exp {
+		if got, exp := maxTime, time.Unix(0, 0); got != exp {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := uint32(len(buf)), index.Size; got != exp {
-			t.Fatalf("size mismatch: got %v, exp %v", got, exp)
+		if len(buf) == 0 {
+			t.Fatalf("buf length = 0")
 		}
+
 		count++
 	}
 
@@ -633,7 +634,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	iter := r.BlockIterator()
 	var i int
 	for iter.Next() {
-		key, index, buf, err := iter.Read()
+		key, minTime, maxTime, buf, err := iter.Read()
 
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
@@ -643,17 +644,18 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := index.MinTime, expData[i][0].Time(); got != exp {
+		if got, exp := minTime, expData[i][0].Time(); got != exp {
 			t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := index.MaxTime, expData[i][0].Time(); got != exp {
+		if got, exp := maxTime, expData[i][0].Time(); got != exp {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := uint32(len(buf)), index.Size; got != exp {
-			t.Fatalf("size mismatch: got %v, exp %v", got, exp)
+		if len(buf) == 0 {
+			t.Fatalf("buf length = 0")
 		}
+
 		count++
 		i++
 	}
@@ -696,7 +698,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	iter := r.BlockIterator()
 	var lastKey string
 	for iter.Next() {
-		key, index, buf, err := iter.Read()
+		key, _, _, buf, err := iter.Read()
 
 		if key < lastKey {
 			t.Fatalf("keys not sorted: got %v, last %v", key, lastKey)
@@ -708,9 +710,10 @@ func TestBlockIterator_Sorted(t *testing.T) {
 			t.Fatalf("unexpected error creating iterator: %v", err)
 		}
 
-		if got, exp := uint32(len(buf)), index.Size; got != exp {
-			t.Fatalf("size mismatch: got %v, exp %v", got, exp)
+		if len(buf) == 0 {
+			t.Fatalf("buf length = 0")
 		}
+
 		count++
 	}
 

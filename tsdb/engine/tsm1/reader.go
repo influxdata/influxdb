@@ -61,16 +61,16 @@ func (b *BlockIterator) Next() bool {
 	return false
 }
 
-func (b *BlockIterator) Read() (string, *IndexEntry, []byte, error) {
+func (b *BlockIterator) Read() (string, time.Time, time.Time, []byte, error) {
 	if b.err != nil {
-		return "", nil, nil, b.err
+		return "", time.Unix(0, 0), time.Unix(0, 0), nil, b.err
 	}
 
 	buf, err := b.r.readBytes(b.entries[0], nil)
 	if err != nil {
-		return "", nil, nil, err
+		return "", time.Unix(0, 0), time.Unix(0, 0), nil, err
 	}
-	return b.key, b.entries[0], buf, err
+	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, buf, err
 }
 
 // blockAccessor abstracts a method of accessing blocks from a
