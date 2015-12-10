@@ -33,7 +33,7 @@ var s = `
   [write.influx_client]
     [write.influx_client.basic]
       enabled = true
-      addresses = ["localhost:1234"]
+      addresses = ["localhost:8086"]
       database = "stress"
       precision = "n"
       batch_size = 5000

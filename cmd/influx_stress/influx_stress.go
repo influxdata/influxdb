@@ -14,12 +14,9 @@ var (
 	cpuprofile = flag.String("cpuprofile", "", "Write the cpu profile to `filename`")
 )
 
-func init() {
-	flag.Parse()
-}
-
 func main() {
 	o := stress.NewOutputConfig()
+	flag.Parse()
 
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
