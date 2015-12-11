@@ -67,10 +67,10 @@ curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" \
 
 ## Helpful Links
 
-* Understand the [design goals and motivations of the project](http://influxdb.com/docs/v0.9/introduction/overview.html).
-* Follow the [getting started guide](http://influxdb.com/docs/v0.9/introduction/getting_started.html) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
-* See the  [HTTP API documentation to start writing a library for your favorite language](http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html).
+* Understand the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/v0.9/introduction/overview/).
+* Follow the [getting started guide](https://docs.influxdata.com/influxdb/v0.9/introduction/getting_started/) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
+* See the  [HTTP API documentation to start writing a library for your favorite language](https://docs.influxdata.com/influxdb/v0.9/guides/writing_data/).
 
 ## Looking for Support?
 
-InfluxDB has technical support subscriptions to help your project succeed. We offer Developer Support for organizations in active development and Production Support for companies requiring the best response times and SLAs on technical fixes. Visit our [support page](https://influxdb.com/support/index.html) to learn which subscription is right for you, or contact sales@influxdb.com for a quote.
+InfluxDB has technical support subscriptions to help your project succeed. We offer Developer Support for organizations in active development and Production Support for companies requiring the best response times and SLAs on technical fixes. Visit our [support page](https://influxdata.com/services/) to learn which subscription is right for you, or contact sales@influxdb.com for a quote.
