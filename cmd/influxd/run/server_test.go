@@ -113,6 +113,82 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	}
 }
 
+func TestServer_Query_DropMeasurementIsolated(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp1", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu val=1 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}
+
+	test0 := NewTest("db0", "rp0")
+	test0.write = strings.Join(writes, "\n")
+	if err := test0.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+	test1 := NewTest("db1", "rp1")
+	test1.write = strings.Join(writes, "\n")
+	if err := test1.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	test0.addQueries([]*Query{
+		&Query{
+			name:    "SHOW MEASUREMENTS from 1st database",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "SHOW MEASUREMENTS from 2nd database",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "DROP MEASUREMENT from 1st database",
+			command: `DROP MEASUREMENT cpu`,
+			exp:     `{"results":[{}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "SHOW MEASUREMENTS from 1st database",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "SHOW MEASUREMENTS from 2nd database",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for _, query := range test0.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
