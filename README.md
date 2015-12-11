@@ -10,7 +10,7 @@ events, and performing analytics.
 
 ## Features
 
-* Built-in [HTTP API](http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html) so you don't have to write any server side code to get up and running.
+* Built-in [HTTP API](https://docs.influxdata.com/influxdb/v0.9/guides/writing_data/) so you don't have to write any server side code to get up and running.
 * Data can be tagged, allowing very flexible querying.
 * SQL-like query language.
 * Clustering is supported out of the box, so that you can scale horizontally to handle your data.
@@ -25,7 +25,7 @@ events, and performing analytics.
 ### Building
 
 You don't need to build the project to use it - you can use any of our
-[pre-built packages](http://influxdb.com/download/index.html) to install InfluxDB. That's
+[pre-built packages](https://influxdata.com/downloads/) to install InfluxDB. That's
 the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build.
 For those adventurous enough, you can
 [follow along on our docs](http://github.com/influxdb/influxdb/blob/master/CONTRIBUTING.md).
