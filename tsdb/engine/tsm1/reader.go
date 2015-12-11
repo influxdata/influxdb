@@ -697,7 +697,7 @@ func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	}
 
 	//TODO: Validate checksum
-	values, err = DecodeBlock(b[4:], values)
+	values, err = DecodeBlock(b, values)
 	if err != nil {
 		return nil, err
 	}
@@ -727,7 +727,7 @@ func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return b[:n], nil
+	return b[4:n], nil
 }
 
 // ReadAll returns all values for a key in all blocks.
@@ -751,7 +751,7 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 
 		//TODO: Validate checksum
 		temp = temp[:0]
-		temp, err = DecodeBlock(b[4:], temp)
+		temp, err = DecodeBlock(b, temp)
 		if err != nil {
 			return nil, err
 		}
@@ -860,7 +860,7 @@ func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 		return nil, ErrTSMClosed
 	}
 
-	return m.b[entry.Offset : entry.Offset+int64(entry.Size)], nil
+	return m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)], nil
 }
 
 // ReadAll returns all values for a key in all blocks.

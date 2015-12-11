@@ -518,12 +518,14 @@ func (t *tsmWriter) WriteBlock(key string, minTime, maxTime time.Time, block []b
 		}
 	}
 
-	n, err := t.w.Write(block)
+	checksum := crc32.ChecksumIEEE(block)
+
+	n, err := t.w.Write(append(u32tob(checksum), block...))
 	if err != nil {
 		return err
 	}
 
-	blockType, err := BlockType(block[4:])
+	blockType, err := BlockType(block)
 	if err != nil {
 		return err
 	}
