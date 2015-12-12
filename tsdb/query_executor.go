@@ -415,7 +415,7 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 	db.DropMeasurement(m.Name)
 
 	// now drop the raw data
-	if err := q.Store.deleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
+	if err := q.Store.deleteMeasurement(database, m.Name, m.SeriesKeys()); err != nil {
 		return &influxql.Result{Err: err}
 	}
 
@@ -479,7 +479,7 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 	}
 
 	// delete the raw series data
-	if err := q.Store.deleteSeries(seriesKeys); err != nil {
+	if err := q.Store.deleteSeries(database, seriesKeys); err != nil {
 		return &influxql.Result{Err: err}
 	}
 	// remove them from the index

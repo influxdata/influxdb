@@ -115,9 +115,9 @@ func (s *Server) URL() string {
 
 // CreateDatabaseAndRetentionPolicy will create the database and retention policy.
 func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicyInfo) error {
-	if _, err := s.MetaStore.CreateDatabase(db); err != nil {
+	if _, err := s.MetaStore.CreateDatabaseIfNotExists(db); err != nil {
 		return err
-	} else if _, err := s.MetaStore.CreateRetentionPolicy(db, rp); err != nil {
+	} else if _, err := s.MetaStore.CreateRetentionPolicyIfNotExists(db, rp); err != nil {
 		return err
 	}
 	return nil
@@ -333,14 +333,38 @@ func (q *Query) Error(err error) string {
 }
 
 func (q *Query) failureMessage() string {
-	return fmt.Sprintf("%s: unexpected results\nquery:  %s\nexp:    %s\nactual: %s\n", q.name, q.command, q.exp, q.act)
+	return fmt.Sprintf("%s: unexpected results\nquery:  %s\nparams:  %v\nexp:    %s\nactual: %s\n", q.name, q.command, q.params, q.exp, q.act)
+}
+
+type Write struct {
+	db   string
+	rp   string
+	data string
+}
+
+func (w *Write) duplicate() *Write {
+	return &Write{
+		db:   w.db,
+		rp:   w.rp,
+		data: w.data,
+	}
+}
+
+type Writes []*Write
+
+func (a Writes) duplicate() Writes {
+	writes := make(Writes, 0, len(a))
+	for _, w := range a {
+		writes = append(writes, w.duplicate())
+	}
+	return writes
 }
 
 type Tests map[string]Test
 
 type Test struct {
 	initialized bool
-	write       string
+	writes      Writes
 	params      url.Values
 	db          string
 	rp          string
@@ -358,7 +382,7 @@ func NewTest(db, rp string) Test {
 func (t Test) duplicate() Test {
 	test := Test{
 		initialized: t.initialized,
-		write:       t.write,
+		writes:      t.writes.duplicate(),
 		params:      t.params,
 		db:          t.db,
 		rp:          t.rp,
@@ -367,13 +391,6 @@ func (t Test) duplicate() Test {
 	}
 	copy(test.queries, t.queries)
 	return test
-}
-
-func (t *Test) addWrite(s ...string) {
-	if len(t.write) > 0 {
-		t.write += "\n"
-	}
-	t.write = strings.Join(s, "\n")
 }
 
 func (t *Test) addQueries(q ...*Query) {
@@ -395,10 +412,9 @@ func (t *Test) retentionPolicy() string {
 }
 
 func (t *Test) init(s *Server) error {
-	if t.write == "" || t.initialized {
+	if len(t.writes) == 0 || t.initialized {
 		return nil
 	}
-	t.initialized = true
 	if t.db == "" {
 		t.db = "db0"
 	}
@@ -406,11 +422,38 @@ func (t *Test) init(s *Server) error {
 		t.rp = "rp0"
 	}
 
-	if res, err := s.Write(t.db, t.rp, t.write, t.params); err != nil {
+	if err := writeTestData(s, t); err != nil {
 		return err
-	} else if t.exp != res {
-		return fmt.Errorf("unexpected results\nexp: %s\ngot: %s\n", t.exp, res)
 	}
+
+	t.initialized = true
+
+	return nil
+}
+
+func writeTestData(s *Server, t *Test) error {
+	for i, w := range t.writes {
+		if w.db == "" {
+			w.db = t.database()
+		}
+		if w.rp == "" {
+			w.rp = t.retentionPolicy()
+		}
+
+		if err := s.CreateDatabaseAndRetentionPolicy(w.db, newRetentionPolicyInfo(w.rp, 1, 0)); err != nil {
+			return err
+		}
+		if err := s.MetaStore.SetDefaultRetentionPolicy(w.db, w.rp); err != nil {
+			return err
+		}
+
+		if res, err := s.Write(w.db, w.rp, w.data, t.params); err != nil {
+			return fmt.Errorf("write #%d: %s", i, err)
+		} else if t.exp != res {
+			return fmt.Errorf("unexpected results\nexp: %s\ngot: %s\n", t.exp, res)
+		}
+	}
+
 	return nil
 }
 

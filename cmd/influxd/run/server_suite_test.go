@@ -130,9 +130,11 @@ func init() {
 	}
 
 	tests["drop_and_recreate_database"] = Test{
-		db:    "db0",
-		rp:    "rp0",
-		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
 		queries: []*Query{
 			&Query{
 				name:    "Drop database after data write",
@@ -168,9 +170,11 @@ func init() {
 	}
 
 	tests["drop_database_isolated"] = Test{
-		db:    "db0",
-		rp:    "rp0",
-		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
 		queries: []*Query{
 			&Query{
 				name:    "Query data from 1st database",
@@ -206,9 +210,12 @@ func init() {
 	}
 
 	tests["drop_and_recreate_series"] = Test{
-		db:    "db0",
-		rp:    "rp0",
-		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+			&Write{db: "db1", data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
 		queries: []*Query{
 			&Query{
 				name:    "Show series is present",
@@ -229,12 +236,20 @@ func init() {
 				exp:     `{"results":[{}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
+			&Query{
+				name:    "Make sure data wasn't deleted from other database.",
+				command: `SELECT * FROM cpu`,
+				exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+				params:  url.Values{"db": []string{"db1"}},
+			},
 		},
 	}
 	tests["drop_and_recreate_series_retest"] = Test{
-		db:    "db0",
-		rp:    "rp0",
-		write: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
 		queries: []*Query{
 			&Query{
 				name:    "Show series is present again after re-write",
@@ -248,12 +263,14 @@ func init() {
 	tests["drop_series_from_regex"] = Test{
 		db: "db0",
 		rp: "rp0",
-		write: strings.Join([]string{
-			fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-			fmt.Sprintf(`aa,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-			fmt.Sprintf(`b,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-			fmt.Sprintf(`c,host=serverA,region=uswest val=30.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		}, "\n"),
+		writes: Writes{
+			&Write{data: strings.Join([]string{
+				fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+				fmt.Sprintf(`aa,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+				fmt.Sprintf(`b,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+				fmt.Sprintf(`c,host=serverA,region=uswest val=30.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			}, "\n")},
+		},
 		queries: []*Query{
 			&Query{
 				name:    "Show series is present",
