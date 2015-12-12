@@ -760,9 +760,16 @@ func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader 
 
 func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	f := MustTempFile(dir)
-	newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(gen))
-	if err := os.Rename(f.Name(), newName); err != nil {
+	fileName := f.Name()
+	f.Close()
+
+	newName := filepath.Join(filepath.Dir(fileName), tsmFileName(gen))
+	if err := os.Rename(fileName, newName); err != nil {
 		panic(fmt.Sprintf("create tsm file: %v", err))
+	}
+	f, e := os.OpenFile(newName, os.O_WRONLY, 0)
+	if nil != e {
+		panic(e)
 	}
 
 	w, err := tsm1.NewTSMWriter(f)
