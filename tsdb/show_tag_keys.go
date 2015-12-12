@@ -70,7 +70,7 @@ func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Ro
 				for _, mv := range mop.Values {
 					m, ok := mv.Value.(string)
 					if !ok {
-						out <- &models.Row{Err: fmt.Errorf("show measurements mapper returned invalid type: %T", mop)}
+						out <- &models.Row{Err: fmt.Errorf("show tag keys mapper returned invalid type: %T", mop.Values)}
 						return
 					}
 
