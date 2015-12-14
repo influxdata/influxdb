@@ -303,7 +303,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 		return nil, nil
 	}
 
-	tsm, err := NewTSMKeyIterator(trs...)
+	tsm, err := NewTSMKeyIterator(tsdb.DefaultMaxPointsPerBlock, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -445,21 +445,30 @@ type tsmKeyIterator struct {
 	// err is any error we received while iterating values.
 	err error
 
+	size int
 	// key is the current key lowest key across all readers that has not be fully exhausted
 	// of values.
 	key string
 }
 
-func NewTSMKeyIterator(readers ...*TSMReader) (KeyIterator, error) {
+func NewTSMKeyIterator(size int, readers ...*TSMReader) (KeyIterator, error) {
 	return &tsmKeyIterator{
 		readers: readers,
 		values:  map[string][]Value{},
 		pos:     make([]int, len(readers)),
 		keys:    make([]string, len(readers)),
+		size:    size,
 	}, nil
 }
 
 func (k *tsmKeyIterator) Next() bool {
+	// If we had more values than a given chunk, slice off the read ones
+	// and use the remaining ones.
+	if k.key != "" && len(k.values[k.key]) > k.size {
+		k.values[k.key] = k.values[k.key][k.size:]
+		return true
+	}
+
 	// If we have a key from the prior iteration, purge it and it's values from the
 	// values map.  We're done with it.
 	if k.key != "" {
@@ -541,6 +550,10 @@ func (k *tsmKeyIterator) currentKey() string {
 func (k *tsmKeyIterator) Read() (string, []Value, error) {
 	if k.key == "" {
 		return "", nil, k.err
+	}
+
+	if len(k.values) >= k.size {
+		return k.key, k.values[k.key][:k.size], nil
 	}
 
 	return k.key, k.values[k.key], k.err

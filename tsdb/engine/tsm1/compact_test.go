@@ -171,7 +171,7 @@ func TestCompactor_Compact(t *testing.T) {
 }
 
 // Tests that a single TSM file can be read and iterated over
-func TestKeyIterator_TSM_Single(t *testing.T) {
+func TestTSMKeyIterator_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -182,7 +182,7 @@ func TestKeyIterator_TSM_Single(t *testing.T) {
 
 	r := MustTSMReader(dir, 1, writes)
 
-	iter, err := tsm1.NewTSMKeyIterator(r)
+	iter, err := tsm1.NewTSMKeyIterator(1, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -213,12 +213,58 @@ func TestKeyIterator_TSM_Single(t *testing.T) {
 	}
 }
 
+// Tests that a single TSM file can be read and iterated over
+func TestTSMKeyIterator_Chunked(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v0 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	v1 := tsm1.NewValue(time.Unix(2, 0), 2.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
+	}
+
+	r := MustTSMReader(dir, 1, writes)
+
+	iter, err := tsm1.NewTSMKeyIterator(1, r)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var readValues bool
+	var chunk int
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), len(writes); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for _, v := range values {
+			readValues = true
+			assertValueEqual(t, v, writes["cpu,host=A#!~#value"][chunk])
+		}
+		chunk++
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
 // Tests that duplicate point values are merged.  There is only one case
 // where this could happen and that is when a compaction completed and we replace
 // the old TSM file with a new one and we crash just before deleting the old file.
 // No data is lost but the same point time/value would exist in two files until
 // compaction corrects it.
-func TestKeyIterator_TSM_Duplicate(t *testing.T) {
+func TestTSMKeyIterator_Duplicate(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -231,7 +277,7 @@ func TestKeyIterator_TSM_Duplicate(t *testing.T) {
 
 	r := MustTSMReader(dir, 1, writes)
 
-	iter, err := tsm1.NewTSMKeyIterator(r)
+	iter, err := tsm1.NewTSMKeyIterator(1, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -262,7 +308,7 @@ func TestKeyIterator_TSM_Duplicate(t *testing.T) {
 
 // Tests that deleted keys are not seen during iteration with
 // TSM files.
-func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
+func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -285,7 +331,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	r2 := MustTSMReader(dir, 1, points2)
 	r2.Delete([]string{"cpu,host=A#!~#count"})
 
-	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
+	iter, err := tsm1.NewTSMKeyIterator(1, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
