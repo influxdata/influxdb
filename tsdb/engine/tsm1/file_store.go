@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -74,6 +75,8 @@ type FileStore struct {
 	dir               string
 
 	files []TSMFile
+
+	Logger *log.Logger
 }
 
 type FileStat struct {
@@ -102,6 +105,7 @@ func NewFileStore(dir string) *FileStore {
 	return &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
+		Logger:       log.New(os.Stderr, "[filestore]", log.LstdFlags),
 	}
 }
 
@@ -214,7 +218,9 @@ func (f *FileStore) Open() error {
 		return err
 	}
 
-	for _, fn := range files {
+	for i, fn := range files {
+		start := time.Now()
+
 		// Keep track of the latest ID
 		generation, _, err := ParseTSMFileName(fn)
 		if err != nil {
@@ -236,6 +242,7 @@ func (f *FileStore) Open() error {
 		if err != nil {
 			return fmt.Errorf("error opening memory map for file %s: %v", fn, err)
 		}
+		f.Logger.Printf("%s (#%d) opened in %v", fn, i, time.Now().Sub(start))
 
 		f.files = append(f.files, df)
 	}
