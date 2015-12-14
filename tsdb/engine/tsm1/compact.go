@@ -395,9 +395,23 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 			return err
 		}
 
-		// Write the key and value
-		if err := w.Write(key, values); err != nil {
+		if len(values) > 0 {
+			// Write the key and value
+			if err := w.Write(key, values); err != nil {
+				return err
+			}
+		}
+
+		key, minTime, maxTime, block, err := iter.ReadBlock()
+		if err != nil {
 			return err
+		}
+
+		if len(block) > 0 {
+			// Write the key and value
+			if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
+				return err
+			}
 		}
 
 		// If we have a max file size configured and we're over it, close out the file
@@ -423,6 +437,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 type KeyIterator interface {
 	Next() bool
 	Read() (string, []Value, error)
+	ReadBlock() (string, time.Time, time.Time, []byte, error)
 	Close() error
 }
 
@@ -547,6 +562,10 @@ func (k *tsmKeyIterator) currentKey() string {
 	return key
 }
 
+func (k *tsmKeyIterator) ReadBlock() (string, time.Time, time.Time, []byte, error) {
+	return "", time.Unix(0, 0), time.Unix(0, 0), nil, nil
+}
+
 func (k *tsmKeyIterator) Read() (string, []Value, error) {
 	if k.key == "" {
 		return "", nil, k.err
@@ -574,9 +593,12 @@ type cacheKeyIterator struct {
 	cache *Cache
 	size  int
 
-	k      string
-	order  []string
-	values []Value
+	k                string
+	order            []string
+	values           []Value
+	block            []byte
+	minTime, maxTime time.Time
+	err              error
 }
 
 func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
@@ -605,11 +627,22 @@ func (c *cacheKeyIterator) Next() bool {
 }
 
 func (c *cacheKeyIterator) Read() (string, []Value, error) {
-	if len(c.values) >= c.size {
-		return c.k, c.values[:c.size], nil
+	return "", nil, nil
+}
+
+func (c *cacheKeyIterator) ReadBlock() (string, time.Time, time.Time, []byte, error) {
+	minTime, maxTime := c.values[0].Time(), c.values[len(c.values)-1].Time()
+	var b []byte
+	var err error
+	if len(c.values) > c.size {
+		maxTime = c.values[c.size].Time()
+		b, err = Values(c.values[:c.size]).Encode(nil)
+	} else {
+		maxTime = c.values[len(c.values)-1].Time()
+		b, err = Values(c.values).Encode(nil)
 	}
 
-	return c.k, c.cache.values(c.k), nil
+	return c.k, minTime, maxTime, b, err
 }
 
 func (c *cacheKeyIterator) Close() error {

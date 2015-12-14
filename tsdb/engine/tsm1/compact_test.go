@@ -386,9 +386,14 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 	iter := tsm1.NewCacheKeyIterator(c, 1)
 	var readValues bool
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.ReadBlock()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -430,9 +435,14 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 	var readValues bool
 	var chunk int
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.ReadBlock()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
