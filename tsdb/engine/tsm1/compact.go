@@ -390,28 +390,14 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)
-		key, values, err := iter.Read()
+		key, minTime, maxTime, block, err := iter.Read()
 		if err != nil {
 			return err
 		}
 
-		if len(values) > 0 {
-			// Write the key and value
-			if err := w.Write(key, values); err != nil {
-				return err
-			}
-		}
-
-		key, minTime, maxTime, block, err := iter.ReadBlock()
-		if err != nil {
+		// Write the key and value
+		if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
 			return err
-		}
-
-		if len(block) > 0 {
-			// Write the key and value
-			if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
-				return err
-			}
 		}
 
 		// If we have a max file size configured and we're over it, close out the file
@@ -436,8 +422,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 // KeyIterator allows iteration over set of keys and values in sorted order.
 type KeyIterator interface {
 	Next() bool
-	Read() (string, []Value, error)
-	ReadBlock() (string, time.Time, time.Time, []byte, error)
+	Read() (string, time.Time, time.Time, []byte, error)
 	Close() error
 }
 
@@ -562,20 +547,23 @@ func (k *tsmKeyIterator) currentKey() string {
 	return key
 }
 
-func (k *tsmKeyIterator) ReadBlock() (string, time.Time, time.Time, []byte, error) {
-	return "", time.Unix(0, 0), time.Unix(0, 0), nil, nil
-}
-
-func (k *tsmKeyIterator) Read() (string, []Value, error) {
+func (k *tsmKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
 	if k.key == "" {
-		return "", nil, k.err
+		return "", time.Unix(0, 0), time.Unix(0, 0), nil, k.err
 	}
 
-	if len(k.values) >= k.size {
-		return k.key, k.values[k.key][:k.size], nil
+	values := k.values[k.key]
+	minTime, maxTime := values[0].Time(), values[len(values)-1].Time()
+	var b []byte
+	var err error
+	if len(values) > k.size {
+		maxTime = values[k.size].Time()
+		b, err = Values(values[:k.size]).Encode(nil)
+	} else {
+		b, err = Values(values).Encode(nil)
 	}
 
-	return k.key, k.values[k.key], k.err
+	return k.key, minTime, maxTime, b, err
 }
 
 func (k *tsmKeyIterator) Close() error {
@@ -626,11 +614,7 @@ func (c *cacheKeyIterator) Next() bool {
 	return true
 }
 
-func (c *cacheKeyIterator) Read() (string, []Value, error) {
-	return "", nil, nil
-}
-
-func (c *cacheKeyIterator) ReadBlock() (string, time.Time, time.Time, []byte, error) {
+func (c *cacheKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
 	minTime, maxTime := c.values[0].Time(), c.values[len(c.values)-1].Time()
 	var b []byte
 	var err error
@@ -638,7 +622,6 @@ func (c *cacheKeyIterator) ReadBlock() (string, time.Time, time.Time, []byte, er
 		maxTime = c.values[c.size].Time()
 		b, err = Values(c.values[:c.size]).Encode(nil)
 	} else {
-		maxTime = c.values[len(c.values)-1].Time()
 		b, err = Values(c.values).Encode(nil)
 	}
 

@@ -189,9 +189,14 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 
 	var readValues bool
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -234,9 +239,14 @@ func TestTSMKeyIterator_Chunked(t *testing.T) {
 	var readValues bool
 	var chunk int
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -284,9 +294,14 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 
 	var readValues bool
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -345,9 +360,14 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, data[0].key; got != exp {
@@ -386,7 +406,7 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 	iter := tsm1.NewCacheKeyIterator(c, 1)
 	var readValues bool
 	for iter.Next() {
-		key, _, _, block, err := iter.ReadBlock()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
 		}
@@ -435,7 +455,7 @@ func TestCacheKeyIterator_Chunked(t *testing.T) {
 	var readValues bool
 	var chunk int
 	for iter.Next() {
-		key, _, _, block, err := iter.ReadBlock()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
 		}
