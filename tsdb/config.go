@@ -104,6 +104,8 @@ type Config struct {
 	CompactMinFileCount            int           `toml:"compact-min-file-count"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
+
+	DataLoggingEnabled bool `toml:"data-logging-enabled"`
 }
 
 func NewConfig() Config {

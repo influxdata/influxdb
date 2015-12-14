@@ -62,6 +62,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 	w.LoggingEnabled = opt.Config.WALLoggingEnabled
 
 	fs := NewFileStore(path)
+	fs.traceLogging = opt.Config.DataLoggingEnabled
 
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
 
@@ -422,7 +423,7 @@ func (e *DevEngine) compactTSM() {
 			}
 
 			start := time.Now()
-			e.logger.Printf("compacting %d TSM files", len(tsmFiles))
+			e.logger.Printf("beginning compaction of %d TSM files", len(tsmFiles))
 
 			files, err := e.Compactor.Compact(tsmFiles)
 			if err != nil {
@@ -437,7 +438,7 @@ func (e *DevEngine) compactTSM() {
 				continue
 			}
 
-			e.logger.Printf("compacted %d tsm into %d files in %s",
+			e.logger.Printf("compacted %d TSM into %d files in %s",
 				len(tsmFiles), len(files), time.Since(start))
 		}
 	}

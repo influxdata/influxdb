@@ -76,7 +76,8 @@ type FileStore struct {
 
 	files []TSMFile
 
-	Logger *log.Logger
+	Logger       *log.Logger
+	traceLogging bool
 }
 
 type FileStat struct {
@@ -242,7 +243,9 @@ func (f *FileStore) Open() error {
 		if err != nil {
 			return fmt.Errorf("error opening memory map for file %s: %v", fn, err)
 		}
-		f.Logger.Printf("%s (#%d) opened in %v", fn, i, time.Now().Sub(start))
+		if f.traceLogging {
+			f.Logger.Printf("%s (#%d) opened in %v", fn, i, time.Now().Sub(start))
+		}
 
 		f.files = append(f.files, df)
 	}
