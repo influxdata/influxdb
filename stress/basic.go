@@ -2,17 +2,19 @@ package stress
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	//"net/url"
 	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb/client/v2"
 )
+
+const backoffInterval = time.Duration(500 * time.Millisecond)
 
 // AbstractTag is a struct that abstractly
 // defines a tag
@@ -245,7 +247,22 @@ type BasicClient struct {
 	Concurrency   int      `toml:"concurrency"`
 	SSL           bool     `toml:"ssl"`
 	Format        string   `toml:"format"`
-	addrId        int
+
+	addrId   int
+	r        chan<- response
+	interval time.Duration
+}
+
+func (c *BasicClient) retry(b []byte, backoff time.Duration) {
+	bo := backoff + backoffInterval
+	rs, err := c.send(b)
+	time.Sleep(c.interval)
+
+	c.r <- rs
+	if !rs.Success() || err != nil {
+		time.Sleep(bo)
+		c.retry(b, bo)
+	}
 }
 
 // Batch groups together points
@@ -260,6 +277,7 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 
 	c.Addresses = instanceURLs
 
+	c.r = r
 	var buf bytes.Buffer
 	var wg sync.WaitGroup
 	counter := NewConcurrencyLimiter(c.Concurrency)
@@ -268,6 +286,7 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 	if err != nil {
 		return err
 	}
+	c.interval = interval
 
 	ctr := 0
 
@@ -288,22 +307,14 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 			wg.Add(1)
 			counter.Increment()
 			go func(byt []byte) {
-				defer wg.Done()
-
-				rs, err := c.send(byt)
-				if err != nil {
-					fmt.Println(err)
-				}
-				time.Sleep(interval)
-
+				c.retry(byt, time.Duration(1))
 				counter.Decrement()
-				r <- rs
+				wg.Done()
 			}(b)
 
 			var temp bytes.Buffer
 			buf = temp
 		}
-
 	}
 
 	wg.Wait()
@@ -325,7 +336,8 @@ func post(url string, datatype string, data io.Reader) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(body))
+		err := errors.New(string(body))
+		return nil, err
 	}
 
 	return resp, nil
