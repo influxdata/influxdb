@@ -28,13 +28,13 @@ func NewShowTagKeysExecutor(stmt *influxql.ShowTagKeysStatement, mappers []Mappe
 
 // Execute begins execution of the query and returns a channel to receive rows.
 func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Row {
-	// It's important that all resources are released when execution completes.
-	defer e.close()
-
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *models.Row, 0)
 
 	go func() {
+		// It's important that all resources are released when execution completes.
+		defer e.close()
+
 		defer close(out)
 		// Open the mappers.
 		for _, m := range e.mappers {
@@ -60,19 +60,35 @@ func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Ro
 				}
 
 				// Convert the mapper chunk to an array of measurements with tag keys.
-				mtks, ok := c.(MeasurementsTagKeys)
+				mop, ok := c.(*MapperOutput)
 				if !ok {
 					out <- &models.Row{Err: fmt.Errorf("show tag keys mapper returned invalid type: %T", c)}
 					return
 				}
 
 				// Merge mapper chunk with previous mapper outputs.
-				for _, mm := range mtks {
-					for _, key := range mm.TagKeys {
-						if set[mm.Measurement] == nil {
-							set[mm.Measurement] = map[string]struct{}{}
+				for _, mv := range mop.Values {
+					m, ok := mv.Value.(string)
+					if !ok {
+						out <- &models.Row{Err: fmt.Errorf("show tag keys mapper returned invalid type: %T", mop.Values)}
+						return
+					}
+
+					tagKeys := []string{}
+					for k, _ := range mv.Tags {
+						tagKeys = append(tagKeys, k)
+					}
+
+					mtks := &MeasurementTagKeys{
+						Measurement: m,
+						TagKeys:     tagKeys,
+					}
+
+					for _, key := range mtks.TagKeys {
+						if set[mtks.Measurement] == nil {
+							set[mtks.Measurement] = map[string]struct{}{}
 						}
-						set[mm.Measurement][key] = struct{}{}
+						set[mtks.Measurement][key] = struct{}{}
 					}
 				}
 			}
@@ -281,14 +297,17 @@ func (m *ShowTagKeysMapper) NextChunk() (interface{}, error) {
 			return nil, nil
 		}
 
-		mtks := []*MeasurementTagKeys{}
-		if err := json.Unmarshal(b.([]byte), &mtks); err != nil {
+		mop := &MapperOutput{
+			Fields: []string{"tagKey"},
+			Values: make([]*MapperValue, 0),
+		}
+		if err := json.Unmarshal(b.([]byte), &mop); err != nil {
 			return nil, err
-		} else if len(mtks) == 0 {
+		} else if len(mop.Values) == 0 {
 			// Mapper on other node sent 0 values so it's done.
 			return nil, nil
 		}
-		return mtks, nil
+		return mop, nil
 	}
 	return m.nextChunk()
 }
@@ -300,24 +319,38 @@ func (m *ShowTagKeysMapper) nextChunk() (interface{}, error) {
 	if !ok {
 		return nil, nil
 	}
-	// Allocate array to hold measurement names.
-	mtks := make(MeasurementsTagKeys, 0)
+
+	mop := &MapperOutput{
+		Fields: []string{"tagKey"},
+		Values: make([]*MapperValue, 0),
+	}
+
 	// Get the next chunk of tag keys.
 	for n := range ch {
-		mtks = append(mtks, n)
-		if mtks.Size() >= m.chunkSize {
+		tagsOnlyKey := make(map[string]string, len(n.TagKeys))
+
+		for _, key := range n.TagKeys {
+			tagsOnlyKey[key] = ""
+		}
+
+		mop.Values = append(mop.Values, &MapperValue{
+			Value: n.Measurement,
+			Tags:  tagsOnlyKey,
+		})
+
+		if len(mop.Values) >= m.chunkSize {
 			break
 		}
 	}
-	// See if we've read all the names.
-	if len(mtks) == 0 {
+
+	if len(mop.Values) == 0 {
 		return nil, nil
 	}
 
-	return mtks, nil
+	return mop, nil
 }
 
-// Close closes the mapper.
+// Close closes the mapper
 func (m *ShowTagKeysMapper) Close() {
 	if m.remote != nil {
 		m.remote.Close()
