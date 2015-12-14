@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
@@ -252,7 +254,7 @@ type Compactor struct {
 
 // WriteSnapshot will write a Cache snapshot to a new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
-	iter := NewCacheKeyIterator(cache)
+	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
 	return c.writeNewFiles(c.FileStore.NextGeneration(), 1, iter)
 }
 
@@ -557,30 +559,43 @@ func (k *tsmKeyIterator) Close() error {
 
 type cacheKeyIterator struct {
 	cache *Cache
+	size  int
 
-	k     string
-	order []string
+	k      string
+	order  []string
+	values []Value
 }
 
-func NewCacheKeyIterator(cache *Cache) KeyIterator {
+func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
 	keys := cache.Keys()
 
 	return &cacheKeyIterator{
+		size:  size,
 		cache: cache,
 		order: keys,
 	}
 }
 
 func (c *cacheKeyIterator) Next() bool {
+	if len(c.values) > c.size {
+		c.values = c.values[c.size:]
+		return true
+	}
+
 	if len(c.order) == 0 {
 		return false
 	}
 	c.k = c.order[0]
 	c.order = c.order[1:]
+	c.values = c.cache.values(c.k)
 	return true
 }
 
 func (c *cacheKeyIterator) Read() (string, []Value, error) {
+	if len(c.values) >= c.size {
+		return c.k, c.values[:c.size], nil
+	}
+
 	return c.k, c.cache.values(c.k), nil
 }
 

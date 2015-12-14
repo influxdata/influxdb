@@ -322,7 +322,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	}
 }
 
-func TestKeyIterator_Cache_Single(t *testing.T) {
+func TestCacheKeyIterator_Single(t *testing.T) {
 	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
 
 	writes := map[string][]tsm1.Value{
@@ -337,7 +337,7 @@ func TestKeyIterator_Cache_Single(t *testing.T) {
 		}
 	}
 
-	iter := tsm1.NewCacheKeyIterator(c)
+	iter := tsm1.NewCacheKeyIterator(c, 1)
 	var readValues bool
 	for iter.Next() {
 		key, values, err := iter.Read()
@@ -357,6 +357,51 @@ func TestKeyIterator_Cache_Single(t *testing.T) {
 			readValues = true
 			assertValueEqual(t, v, v0)
 		}
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+func TestCacheKeyIterator_Chunked(t *testing.T) {
+	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
+	v1 := tsm1.NewValue(time.Unix(2, 0).UTC(), 2.0)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
+	}
+
+	c := tsm1.NewCache(0)
+
+	for k, v := range writes {
+		if err := c.Write(k, v); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
+		}
+	}
+
+	iter := tsm1.NewCacheKeyIterator(c, 1)
+	var readValues bool
+	var chunk int
+	for iter.Next() {
+		key, values, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for _, v := range values {
+			readValues = true
+			assertValueEqual(t, v, writes["cpu,host=A#!~#value"][chunk])
+		}
+		chunk++
 	}
 
 	if !readValues {
