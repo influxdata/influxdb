@@ -383,11 +383,19 @@ func (t Test) duplicate() Test {
 	test := Test{
 		initialized: t.initialized,
 		writes:      t.writes.duplicate(),
-		params:      t.params,
 		db:          t.db,
 		rp:          t.rp,
 		exp:         t.exp,
 		queries:     make([]*Query, len(t.queries)),
+	}
+
+	if t.params != nil {
+		t.params = url.Values{}
+		for k, a := range t.params {
+			vals := make([]string, len(a))
+			copy(vals, a)
+			test.params[k] = vals
+		}
 	}
 	copy(test.queries, t.queries)
 	return test
