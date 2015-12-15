@@ -135,6 +135,8 @@ func NewConfig() Config {
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactMinFileCount:            DefaultCompactMinFileCount,
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
+
+		DataLoggingEnabled: true,
 	}
 }
 
