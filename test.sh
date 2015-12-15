@@ -106,9 +106,16 @@ function save_docker_image {
     then
         zcat $imagefile | docker load
     fi
+    imageid=$(docker images -q --no-trunc "$imagename")
     build_docker_image "$dockerfile" "$imagename"
-    docker save "$imagename" | gzip > "$imagefile"
-    return "${PIPESTATUS[0]}"
+    newimageid=$(docker images -q --no-trunc "$imagename")
+    rc=0
+    if [ "$imageid" != "$newimageid" ]
+    then
+        docker save "$imagename" | gzip > "$imagefile"
+        rc="${PIPESTATUS[0]}"
+    fi
+    return "$rc"
 }
 
 if [ ! -d "$OUTPUT_DIR" ]
