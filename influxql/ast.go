@@ -772,7 +772,7 @@ func (s *SelectStatement) SourceNames() []string {
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
 	for _, f := range s.FunctionCalls() {
-		if strings.HasSuffix(f.Name, "derivative") {
+		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
 			return true
 		}
 	}
@@ -783,7 +783,7 @@ func (s *SelectStatement) HasDerivative() bool {
 // variable ref as the first arg
 func (s *SelectStatement) IsSimpleDerivative() bool {
 	for _, f := range s.FunctionCalls() {
-		if strings.HasSuffix(f.Name, "derivative") {
+		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
 			// it's nested if the first argument is an aggregate function
 			if _, ok := f.Args[0].(*VarRef); ok {
 				return true
@@ -799,7 +799,7 @@ func (s *SelectStatement) HasSimpleCount() bool {
 	// recursively check for a simple count(varref) function
 	var hasCount func(f *Call) bool
 	hasCount = func(f *Call) bool {
-		if strings.HasSuffix(f.Name, "count") {
+		if f.Name == "count" {
 			// it's nested if the first argument is an aggregate function
 			if _, ok := f.Args[0].(*VarRef); ok {
 				return true
