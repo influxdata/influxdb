@@ -148,6 +148,9 @@ func (e *DevEngine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	if err := e.FileStore.Close(); err != nil {
+		return err
+	}
 	return e.WAL.Close()
 }
 

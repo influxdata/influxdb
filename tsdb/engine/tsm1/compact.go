@@ -449,126 +449,169 @@ type tsmKeyIterator struct {
 	// key is the current key lowest key across all readers that has not be fully exhausted
 	// of values.
 	key string
+
+	iterators []*BlockIterator
+	blocks    blocks
+
+	buf blocks
 }
 
+type block struct {
+	key              string
+	minTime, maxTime time.Time
+	b                []byte
+}
+
+type blocks []*block
+
+func (a blocks) Len() int { return len(a) }
+
+func (a blocks) Less(i, j int) bool {
+	if a[i].key == a[j].key {
+		return a[i].minTime.Before(a[j].minTime)
+	}
+	return a[i].key < a[j].key
+}
+
+func (a blocks) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
 func NewTSMKeyIterator(size int, readers ...*TSMReader) (KeyIterator, error) {
+	var iter []*BlockIterator
+	for _, r := range readers {
+		iter = append(iter, r.BlockIterator())
+	}
+
 	return &tsmKeyIterator{
-		readers: readers,
-		values:  map[string][]Value{},
-		pos:     make([]int, len(readers)),
-		keys:    make([]string, len(readers)),
-		size:    size,
+		readers:   readers,
+		values:    map[string][]Value{},
+		pos:       make([]int, len(readers)),
+		keys:      make([]string, len(readers)),
+		size:      size,
+		iterators: iter,
+		buf:       make([]*block, len(iter)),
 	}, nil
 }
 
 func (k *tsmKeyIterator) Next() bool {
-	// If we had more values than a given chunk, slice off the read ones
-	// and use the remaining ones.
-	if k.key != "" && len(k.values[k.key]) > k.size {
-		k.values[k.key] = k.values[k.key][k.size:]
-		return true
-	}
-
-	// If we have a key from the prior iteration, purge it and it's values from the
-	// values map.  We're done with it.
-	if k.key != "" {
-		delete(k.values, k.key)
-		for i, readerKey := range k.keys {
-			if readerKey == k.key {
-				k.keys[i] = ""
-			}
+	if len(k.blocks) > 0 {
+		k.blocks = k.blocks[1:]
+		if len(k.blocks) > 0 {
+			return true
 		}
 	}
 
-	var skipSearch bool
-	// For each iterator, group up all the values for their current key.
-	for i, r := range k.readers {
-		if k.keys[i] != "" {
-			continue
-		}
-
-		// Grab the key for this reader
-		key, entries := r.Key(k.pos[i])
-		k.keys[i] = key
-
-		if key != "" && key <= k.key {
-			k.key = key
-			skipSearch = true
-		}
-
-		// Bump it to the next key
-		k.pos[i]++
-
-		// If it return a key, grab all the values for it.
-		if key != "" {
-			// Note: this could be made more efficient to just grab chunks of values instead of
-			// all for the key.
-			var values []Value
-			for _, entry := range entries {
-				v, err := r.ReadAt(entry, nil)
+	for i, v := range k.buf {
+		if v == nil {
+			iter := k.iterators[i]
+			if iter.Next() {
+				key, minTime, maxTime, b, err := iter.Read()
 				if err != nil {
 					k.err = err
 				}
 
-				values = append(values, v...)
-			}
-
-			if len(values) > 0 {
-				existing := k.values[key]
-
-				if len(existing) == 0 {
-					k.values[key] = values
-				} else if values[0].Time().After(existing[len(existing)-1].Time()) {
-					k.values[key] = append(existing, values...)
-				} else if values[len(values)-1].Time().Before(existing[0].Time()) {
-					k.values[key] = append(values, existing...)
-				} else {
-					k.values[key] = Values(append(existing, values...)).Deduplicate()
+				k.buf[i] = &block{
+					minTime: minTime,
+					maxTime: maxTime,
+					key:     key,
+					b:       b,
 				}
 			}
 		}
 	}
 
-	if !skipSearch {
-		// Determine our current key which is the smallest key in the values map
-		k.key = k.currentKey()
-	}
-	return len(k.values) > 0
-}
-
-func (k *tsmKeyIterator) currentKey() string {
-	var key string
-	for searchKey := range k.values {
-		if key == "" || searchKey <= key {
-			key = searchKey
+	var minKey string
+	for _, b := range k.buf {
+		if b == nil {
+			continue
+		}
+		if minKey == "" || b.key < minKey {
+			minKey = b.key
 		}
 	}
 
-	return key
+	for i, b := range k.buf {
+		if b == nil {
+			continue
+		}
+		if b.key == minKey {
+			k.blocks = append(k.blocks, b)
+			k.buf[i] = nil
+		}
+	}
+
+	if len(k.blocks) > 1 {
+		var decoded Values
+		var dedup bool
+		for i := 1; i < len(k.blocks); i++ {
+			if k.blocks[i].minTime.Equal(k.blocks[0].maxTime) || k.blocks[i].minTime.Before(k.blocks[0].maxTime) {
+				dedup = true
+				break
+			}
+		}
+
+		if dedup {
+			for i := 0; i < len(k.blocks); i++ {
+				v, err := DecodeBlock(k.blocks[i].b, nil)
+				if err != nil {
+					k.err = err
+					return true
+				}
+				decoded = append(decoded, v...)
+			}
+			decoded = decoded.Deduplicate()
+
+			var chunked blocks
+			for len(decoded) > k.size {
+				cb, err := Values(decoded[:k.size]).Encode(nil)
+				if err != nil {
+					k.err = err
+					return true
+				}
+
+				chunked = append(chunked, &block{
+					minTime: decoded[0].Time(),
+					maxTime: decoded[k.size].Time(),
+					key:     k.blocks[0].key,
+					b:       cb,
+				})
+				decoded = decoded[k.size:]
+			}
+
+			if len(decoded) > 0 {
+				cb, err := Values(decoded).Encode(nil)
+				if err != nil {
+					k.err = err
+					return true
+				}
+
+				chunked = append(chunked, &block{
+					minTime: decoded[0].Time(),
+					maxTime: decoded[len(decoded)-1].Time(),
+					key:     k.blocks[0].key,
+					b:       cb,
+				})
+
+			}
+			k.blocks = chunked
+		}
+	}
+
+	return len(k.blocks) > 0
 }
 
 func (k *tsmKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
-	if k.key == "" {
+	if len(k.blocks) == 0 {
 		return "", time.Unix(0, 0), time.Unix(0, 0), nil, k.err
 	}
 
-	values := k.values[k.key]
-	minTime, maxTime := values[0].Time(), values[len(values)-1].Time()
-	var b []byte
-	var err error
-	if len(values) > k.size {
-		maxTime = values[k.size].Time()
-		b, err = Values(values[:k.size]).Encode(nil)
-	} else {
-		b, err = Values(values).Encode(nil)
-	}
-
-	return k.key, minTime, maxTime, b, err
+	block := k.blocks[0]
+	return block.key, block.minTime, block.maxTime, block.b, k.err
 }
 
 func (k *tsmKeyIterator) Close() error {
 	k.values = nil
 	k.pos = nil
+	k.iterators = nil
 	for _, r := range k.readers {
 		if err := r.Close(); err != nil {
 			return err
