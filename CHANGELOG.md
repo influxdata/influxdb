@@ -6,6 +6,7 @@ With this release InfluxDB is moving to Go 1.5.
 
 ### Bugfixes
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
+- [#4735](https://github.com/influxdb/influxdb/issues/4735): Fix panic when merging empty results.
 - [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
 - [#5059](https://github.com/influxdb/influxdb/pull/5059): Fix unmarshal of database error by client code. Thanks @farshidtz
 - [#4940](https://github.com/influxdb/influxdb/pull/4940): Fix distributed aggregate query query error. Thanks @li-ang

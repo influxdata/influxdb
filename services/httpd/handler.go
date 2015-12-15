@@ -328,17 +328,19 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			resp.Results = append(resp.Results, r)
 		} else if resp.Results[l-1].StatementID == r.StatementID {
 			cr := resp.Results[l-1]
-			lastSeries := cr.Series[len(cr.Series)-1]
 			rowsMerged := 0
+			if len(cr.Series) > 0 {
+				lastSeries := cr.Series[len(cr.Series)-1]
 
-			for _, row := range r.Series {
-				if !lastSeries.SameSeries(row) {
-					// Next row is for a different series than last.
-					break
+				for _, row := range r.Series {
+					if !lastSeries.SameSeries(row) {
+						// Next row is for a different series than last.
+						break
+					}
+					// Values are for the same series, so append them.
+					lastSeries.Values = append(lastSeries.Values, row.Values...)
+					rowsMerged++
 				}
-				// Values are for the same series, so append them.
-				lastSeries.Values = append(lastSeries.Values, row.Values...)
-				rowsMerged++
 			}
 
 			// Append remaining rows as new rows.

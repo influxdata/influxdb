@@ -195,6 +195,25 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 	}
 }
 
+// Ensure the handler merges results from the same statement.
+func TestHandler_Query_MergeEmptyResults(t *testing.T) {
+	h := NewHandler(false)
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
+		return NewResultChan(
+			&influxql.Result{StatementID: 1, Series: models.Rows{}},
+			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})},
+		), nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if w.Body.String() != `{"results":[{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+}
+
 // Ensure the handler can parse chunked and chunk size query parameters.
 func TestHandler_Query_Chunked(t *testing.T) {
 	h := NewHandler(false)
