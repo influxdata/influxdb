@@ -96,6 +96,105 @@ func TestSelectStatement_Substatement(t *testing.T) {
 	}
 }
 
+// Ensure the SELECT statement can extract column names.
+func TestSelectStatement_ColumnNames(t *testing.T) {
+	var tests = []struct {
+		stmt  string
+		names []string
+	}{
+		// Simple name
+		{
+			stmt:  "SELECT value FROM m",
+			names: []string{"value"},
+		},
+		// Multiple names
+		{
+			stmt:  "SELECT value, id FROM m",
+			names: []string{"value", "id"},
+		},
+		// Alias names
+		{
+			stmt:  "SELECT value as v, id as i FROM m",
+			names: []string{"v", "i"},
+		},
+
+		// Function names
+		{
+			stmt:  "SELECT count(value) FROM m",
+			names: []string{"count"},
+		},
+
+		// Alias function names
+		{
+			stmt:  "SELECT count(value) as value FROM m",
+			names: []string{"value"},
+		},
+
+		// Top names
+		{
+			stmt:  "SELECT top(value, 2) FROM m",
+			names: []string{"top"},
+		},
+
+		// Top extra names
+		{
+			stmt:  "SELECT top(value, id, 2) FROM m",
+			names: []string{"top", "id"},
+		},
+
+		// Alias top names
+		{
+			stmt:  "SELECT top(value, 2) as value FROM m",
+			names: []string{"value"},
+		},
+
+		// Alias top extra names
+		{
+			stmt:  "SELECT top(value, id, 2) as value FROM m",
+			names: []string{"value", "id"},
+		},
+
+		// Bottom names
+		{
+			stmt:  "SELECT bottom(value, 2) FROM m",
+			names: []string{"bottom"},
+		},
+
+		// Bottom extra names
+		{
+			stmt:  "SELECT bottom(value, id, 2) FROM m",
+			names: []string{"bottom", "id"},
+		},
+
+		// Alias bottom names
+		{
+			stmt:  "SELECT bottom(value, 2) as value FROM m",
+			names: []string{"value"},
+		},
+
+		// Alias bottom extra names
+		{
+			stmt:  "SELECT bottom(value, id, 2) as value FROM m",
+			names: []string{"value", "id"},
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Get column names
+		exp := append([]string{"time"}, tt.names...)
+		if names := stmt.(*influxql.SelectStatement).ColumnNames(); !reflect.DeepEqual(names, exp) {
+			t.Errorf("%d. %q: unexpected names: got %v exp %v", i, tt.stmt, names, exp)
+			continue
+		}
+	}
+}
+
 // Ensure the SELECT statement can extract GROUP BY interval.
 func TestSelectStatement_GroupByInterval(t *testing.T) {
 	q := "SELECT sum(value) from foo  where time < now() GROUP BY time(10m)"

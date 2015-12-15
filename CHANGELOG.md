@@ -5,6 +5,7 @@ With this release InfluxDB is moving to Go 1.5.
 ### Features
 
 ### Bugfixes
+- [#4949](https://github.com/influxdb/influxdb/issues/4949): Fix aliases for top and bottom functions.
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
 - [#4735](https://github.com/influxdb/influxdb/issues/4735): Fix panic when merging empty results.
 - [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
