@@ -581,7 +581,7 @@ func u16tob(v uint16) []byte {
 }
 
 func btou16(b []byte) uint16 {
-	return uint16(binary.BigEndian.Uint16(b))
+	return binary.BigEndian.Uint16(b)
 }
 
 // u64tob converts a uint64 into an 8-byte slice.
@@ -602,7 +602,7 @@ func u32tob(v uint32) []byte {
 }
 
 func btou32(b []byte) uint32 {
-	return uint32(binary.BigEndian.Uint32(b))
+	return binary.BigEndian.Uint32(b)
 }
 
 // verifyVersion will verify that the reader's bytes are a TSM byte

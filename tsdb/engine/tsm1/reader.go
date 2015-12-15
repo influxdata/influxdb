@@ -563,7 +563,9 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	// Keep a reference to the actual index bytes
 	d.b = b
 
-	// To create our "indirect" index, we need to find he location of all the keys in
+	var minKey, maxKey []byte
+
+	// To create our "indirect" index, we need to find the location of all the keys in
 	// the raw byte slice.  The keys are listed once each (in sorted order).  Following
 	// each key is a time ordered list of index entry blocks for that key.  The loop below
 	// basically skips across the slice keeping track of the counter when we are at a key
@@ -572,19 +574,18 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
 
-		_, kb, err := readKey(b[i:])
+		_, key, err := readKey(b[i:])
 		if err != nil {
 			return err
 		}
-		key := string(kb)
 
-		if d.minKey == "" || key < d.minKey {
-			d.minKey = key
+		// minKey will always be the first key we see
+		if len(minKey) == 0 {
+			minKey = key
 		}
 
-		if d.maxKey == "" || key > d.maxKey {
-			d.maxKey = key
-		}
+		// maxKey will always be the last key we see
+		maxKey = key
 
 		keyLen := int32(btou16(b[i : i+2]))
 		// Skip to the start of the key
@@ -593,20 +594,32 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		// Skip over the key
 		i += keyLen
 
-		n, entries, err := readEntries(d.b[i:])
+		// Skip over the type
+		i++
 
-		minTime := entries.entries[0].MinTime
-		if d.minTime.IsZero() || minTime.Before(d.minTime) {
-			d.minTime = minTime
+		// 2 byte count of index entries
+		count := btou16(b[i : i+indexCountSize])
+		i += indexCountSize
+
+		// Find the min time for the block
+		minT := time.Unix(0, int64(btou64(b[int(i):int(i)+8])))
+		if d.minTime.IsZero() || minT.Before(d.minTime) {
+			d.minTime = minT
 		}
 
-		maxTime := entries.entries[len(entries.entries)-1].MaxTime
-		if d.maxTime.IsZero() || maxTime.After(d.maxTime) {
-			d.maxTime = maxTime
+		i += int32((count - 1) * indexEntrySize)
+
+		// Find the max time for the block
+		maxT := time.Unix(0, int64(btou64(b[int(i)+8:int(i)+16])))
+		if d.maxTime.IsZero() || maxT.After(d.maxTime) {
+			d.maxTime = maxT
 		}
 
-		i += int32(n)
+		i += indexEntrySize
 	}
+
+	d.minKey = string(minKey)
+	d.maxKey = string(maxKey)
 
 	return nil
 }
