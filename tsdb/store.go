@@ -40,7 +40,8 @@ type Store struct {
 	path string
 
 	databaseIndexes map[string]*DatabaseIndex
-	shards          map[uint64]*Shard
+	// shards is a map of shard IDs to Shards for *ALL DATABASES*.
+	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
 	Logger        *log.Logger
@@ -233,10 +234,19 @@ func (s *Store) DiskSize() (int64, error) {
 }
 
 // deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
-func (s *Store) deleteSeries(keys []string) error {
+func (s *Store) deleteSeries(database string, keys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	db, ok := s.databaseIndexes[database]
+	if !ok {
+		return ErrDatabaseNotFound(database)
+	}
+
 	for _, sh := range s.shards {
+		if sh.index != db {
+			continue
+		}
 		if err := sh.DeleteSeries(keys); err != nil {
 			return err
 		}
@@ -245,10 +255,19 @@ func (s *Store) deleteSeries(keys []string) error {
 }
 
 // deleteMeasurement loops through the local shards and removes the measurement field encodings from each shard
-func (s *Store) deleteMeasurement(name string, seriesKeys []string) error {
+func (s *Store) deleteMeasurement(database, name string, seriesKeys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	db, ok := s.databaseIndexes[database]
+	if !ok {
+		return ErrDatabaseNotFound(database)
+	}
+
 	for _, sh := range s.shards {
+		if sh.index != db {
+			continue
+		}
 		if err := sh.DeleteMeasurement(name, seriesKeys); err != nil {
 			return err
 		}

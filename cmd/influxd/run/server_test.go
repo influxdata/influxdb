@@ -513,7 +513,9 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf(`cpu value=1.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano())
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=1.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano())},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -573,7 +575,9 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 		fmt.Sprintf("cpu1,host=server02 value=50,core=2 %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:00Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -621,7 +625,9 @@ func TestServer_Query_IdenticalTagValues(t *testing.T) {
 		fmt.Sprintf("cpu,t1=val2 value=3 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:02:00Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -671,7 +677,9 @@ func TestServer_Query_NoShards(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -711,7 +719,9 @@ func TestServer_Query_NonExistent(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -760,7 +770,9 @@ func TestServer_Query_Math(t *testing.T) {
 	}
 
 	test := NewTest("db", "rp")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -855,7 +867,9 @@ func TestServer_Query_Count(t *testing.T) {
 		`ram value1=1.0,value2=2.0 ` + strconv.FormatInt(now.UnixNano(), 10),
 	}
 
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	hour_ago := now.Add(-time.Hour).UTC()
 
@@ -922,7 +936,9 @@ func TestServer_Query_Now(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -977,7 +993,9 @@ func TestServer_Query_EpochPrecision(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1066,7 +1084,9 @@ func TestServer_Query_Tags(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1228,7 +1248,9 @@ func TestServer_Query_Alias(t *testing.T) {
 		fmt.Sprintf("cpu value=2i,steps=4i %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1303,7 +1325,9 @@ func TestServer_Query_Common(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1378,7 +1402,9 @@ func TestServer_Query_SelectTwoPoints(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu value=100 %s\ncpu value=200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu value=100 %s\ncpu value=200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))},
+	}
 
 	test.addQueries(
 		&Query{
@@ -1424,7 +1450,9 @@ func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu value=-100 %s\ncpu value=-200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu value=-100 %s\ncpu value=-200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))},
+	}
 
 	test.addQueries(&Query{
 		name:    "selecting two negative points should succeed",
@@ -1464,7 +1492,9 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 	yesterday := yesterday()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu,host=server01 value=100 %s\ncpu,host=server01 value=200 %s", strconv.FormatInt(yesterday.UnixNano(), 10), strconv.FormatInt(now.UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu,host=server01 value=100 %s\ncpu,host=server01 value=200 %s", strconv.FormatInt(yesterday.UnixNano(), 10), strconv.FormatInt(now.UnixNano(), 10))},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1508,7 +1538,9 @@ func TestServer_Query_SelectRawDerivative(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu value=210 1278010021000000000\ncpu value=10 1278010022000000000")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu value=210 1278010021000000000\ncpu value=10 1278010022000000000")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1552,11 +1584,13 @@ func TestServer_Query_SelectRawNonNegativeDerivative(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf(`cpu value=10 1278010021000000000
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010021000000000
 cpu value=15 1278010022000000000
 cpu value=10 1278010023000000000
 cpu value=20 1278010024000000000
-`)
+`)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1600,11 +1634,13 @@ func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf(`cpu value=10 1278010020000000000
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
-`)
+`)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1728,9 +1764,11 @@ func TestServer_Query_SelectGroupByTimeDerivativeWithFill(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf(`cpu value=10 1278010020000000000
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
 cpu value=20 1278010021000000000
-`)
+`)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1959,7 +1997,9 @@ func TestServer_Query_MergeMany(t *testing.T) {
 			writes = append(writes, data)
 		}
 	}
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2015,7 +2055,9 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 		data := fmt.Sprintf(`cpu,region=us-east,host=server-%d value=%d %d`, i, i, time.Unix(int64(i), int64(0)).UnixNano())
 		writes = append(writes, data)
 	}
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2072,7 +2114,9 @@ func TestServer_Query_Regex(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2129,9 +2173,11 @@ func TestServer_Query_Aggregates_Int(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		// int64
@@ -2167,10 +2213,12 @@ func TestServer_Query_Aggregates_IntMax(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2205,16 +2253,18 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2333,16 +2383,18 @@ func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2425,16 +2477,18 @@ func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2469,12 +2523,14 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intoverlap,region=us-east value=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-east value=30 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-west value=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-east otherVal=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intoverlap,region=us-east value=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intoverlap,region=us-east value=30 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intoverlap,region=us-west value=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intoverlap,region=us-east otherVal=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2534,9 +2590,11 @@ func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`floatsingle value=45.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`floatsingle value=45.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2571,16 +2629,18 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`floatmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`floatmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2693,12 +2753,14 @@ func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`floatoverlap,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`floatoverlap,region=us-east value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`floatoverlap,region=us-west value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`floatoverlap,region=us-east otherVal=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`floatoverlap,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`floatoverlap,region=us-east value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`floatoverlap,region=us-west value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`floatoverlap,region=us-east otherVal=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2757,11 +2819,13 @@ func TestServer_Query_Aggregates_Load(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`load,region=us-east,host=serverA value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`load,region=us-east,host=serverB value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`load,region=us-west,host=serverC value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`load,region=us-east,host=serverA value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`load,region=us-east,host=serverB value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`load,region=us-west,host=serverC value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2808,10 +2872,12 @@ func TestServer_Query_Aggregates_CPU(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=redis value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=mysql value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`cpu,region=uk,host=serverZ,service=redis value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+			fmt.Sprintf(`cpu,region=uk,host=serverZ,service=mysql value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2846,10 +2912,12 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`stringdata value="first" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-		fmt.Sprintf(`stringdata value="last" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`stringdata value="first" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+			fmt.Sprintf(`stringdata value="last" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		// strings
@@ -2934,7 +3002,9 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3245,7 +3315,9 @@ func TestServer_Query_TopInt(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3428,7 +3500,9 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3490,7 +3564,9 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 		fmt.Sprintf(`cpu value=6i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3643,7 +3719,9 @@ func TestServer_Write_Precision(t *testing.T) {
 
 	// we are doing writes that require parameter changes, so we are fighting the test harness a little to make this happen properly
 	for _, w := range writes {
-		test.write = w.write
+		test.writes = Writes{
+			&Write{data: w.write},
+		}
 		test.params = w.params
 		test.initialized = false
 		if err := test.init(s); err != nil {
@@ -3690,7 +3768,9 @@ func TestServer_Query_Wildcards(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3804,7 +3884,9 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3884,7 +3966,9 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3961,7 +4045,9 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		// non type specific
@@ -4178,7 +4264,9 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4233,7 +4321,9 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4348,7 +4438,9 @@ func TestServer_Query_Fill(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4446,7 +4538,9 @@ func TestServer_Query_Chunk(t *testing.T) {
 	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4487,14 +4581,23 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`memory,host=serverB,region=uswest val=33.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db1", "rp0"); err != nil {
+		t.Fatal(err)
 	}
 
+	writes := strings.Join([]string{
+		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=serverB,region=uswest val=33.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+	}, "\n")
+
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: writes},
+		&Write{db: "db1", data: writes},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4522,7 +4625,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "verify measurements",
+			name:    "verify measurements in DB that we deleted a measurement from",
 			command: `SHOW MEASUREMENTS`,
 			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["memory"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -4538,6 +4641,12 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 			command: `SELECT * FROM cpu`,
 			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "verify cpu measurement is NOT gone from other DB",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+			params:  url.Values{"db": []string{"db1"}},
 		},
 		&Query{
 			name:    "verify selecting from a tag 'host' still works",
@@ -4584,7 +4693,9 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	}
 
 	test = NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: writes},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4642,7 +4753,9 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4742,7 +4855,9 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4830,7 +4945,9 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4948,7 +5065,9 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5046,7 +5165,9 @@ func TestServer_ContinuousQuery(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 	test.addQueries([]*Query{
 		&Query{
 			name:    `create another retention policy for CQ to write into`,
@@ -5208,7 +5329,9 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu select=1,in-bytes=2 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu select=1,in-bytes=2 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5261,7 +5384,9 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5314,7 +5439,9 @@ func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5366,7 +5493,9 @@ func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5422,7 +5551,9 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5506,7 +5637,9 @@ func TestServer_WhereTimeInclusive(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
