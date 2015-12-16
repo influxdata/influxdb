@@ -699,7 +699,7 @@ func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
 	case BlockString:
 		return influxql.String, nil
 	default:
-		return influxql.Unknown, fmt.Errorf("unkown block type: %v", typ)
+		return influxql.Unknown, fmt.Errorf("unknown block type: %v", typ)
 	}
 }
 
