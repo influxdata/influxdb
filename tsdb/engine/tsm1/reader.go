@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -492,6 +493,10 @@ func (d *indirectIndex) KeyCount() int {
 }
 
 func (d *indirectIndex) Delete(keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -563,7 +568,8 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	// Keep a reference to the actual index bytes
 	d.b = b
 
-	var minKey, maxKey []byte
+	//var minKey, maxKey []byte
+	var minTime, maxTime int64 = math.MaxInt64, 0
 
 	// To create our "indirect" index, we need to find the location of all the keys in
 	// the raw byte slice.  The keys are listed once each (in sorted order).  Following
@@ -574,25 +580,12 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
 
-		_, key, err := readKey(b[i:])
-		if err != nil {
-			return err
-		}
-
-		// minKey will always be the first key we see
-		if len(minKey) == 0 {
-			minKey = key
-		}
-
-		// maxKey will always be the last key we see
-		maxKey = key
-
-		keyLen := int32(btou16(b[i : i+2]))
+		keyLen := btou16(b[i : i+2])
 		// Skip to the start of the key
 		i += 2
 
 		// Skip over the key
-		i += keyLen
+		i += int32(keyLen)
 
 		// Skip over the type
 		i++
@@ -602,24 +595,38 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		i += indexCountSize
 
 		// Find the min time for the block
-		minT := time.Unix(0, int64(btou64(b[int(i):int(i)+8])))
-		if d.minTime.IsZero() || minT.Before(d.minTime) {
-			d.minTime = minT
+		minT := int64(btou64(b[int(i) : int(i)+8]))
+		if minT < minTime {
+			minTime = minT
 		}
 
 		i += int32((count - 1) * indexEntrySize)
 
 		// Find the max time for the block
-		maxT := time.Unix(0, int64(btou64(b[int(i)+8:int(i)+16])))
-		if d.maxTime.IsZero() || maxT.After(d.maxTime) {
-			d.maxTime = maxT
+		maxT := int64(btou64(b[int(i)+8 : int(i)+16]))
+		if maxT > maxTime {
+			maxTime = maxT
 		}
 
 		i += indexEntrySize
 	}
 
-	d.minKey = string(minKey)
-	d.maxKey = string(maxKey)
+	firstOfs := d.offsets[0]
+	_, key, err := readKey(b[firstOfs:])
+	if err != nil {
+		return err
+	}
+	d.minKey = string(key)
+
+	lastOfs := d.offsets[len(d.offsets)-1]
+	_, key, err = readKey(b[lastOfs:])
+	if err != nil {
+		return err
+	}
+	d.maxKey = string(key)
+
+	d.minTime = time.Unix(0, minTime)
+	d.maxTime = time.Unix(0, maxTime)
 
 	return nil
 }
