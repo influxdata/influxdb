@@ -493,6 +493,8 @@ func NewTSMKeyIterator(size int, readers ...*TSMReader) (KeyIterator, error) {
 }
 
 func (k *tsmKeyIterator) Next() bool {
+	// If we still have blocks from the last read, slice off the current one
+	// and return
 	if len(k.blocks) > 0 {
 		k.blocks = k.blocks[1:]
 		if len(k.blocks) > 0 {
@@ -500,6 +502,7 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 	}
 
+	// Read the next block from each TSM iterator
 	for i, v := range k.buf {
 		if v == nil {
 			iter := k.iterators[i]
@@ -519,8 +522,11 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 	}
 
+	// Each reader could have a different key that it's currently at, need to find
+	// the next smallest one to keep the sort ordering.
 	var minKey string
 	for _, b := range k.buf {
+		// block could be nil if the iterator has been exhausted for that file
 		if b == nil {
 			continue
 		}
@@ -529,6 +535,8 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 	}
 
+	// Now we need to find all blocks that match the min key so we can combine and dedup
+	// the blocks if necessary
 	for i, b := range k.buf {
 		if b == nil {
 			continue
@@ -539,9 +547,12 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 	}
 
+	// If we have more than one block, we many need to dedup
 	if len(k.blocks) > 1 {
 		var decoded Values
 		var dedup bool
+
+		// Quickly scan each block to see if any overlap with the first block
 		for i := 1; i < len(k.blocks); i++ {
 			if k.blocks[i].minTime.Equal(k.blocks[0].maxTime) || k.blocks[i].minTime.Before(k.blocks[0].maxTime) {
 				dedup = true
@@ -550,6 +561,7 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 
 		if dedup {
+			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
 				v, err := DecodeBlock(k.blocks[i].b, nil)
 				if err != nil {
@@ -560,6 +572,8 @@ func (k *tsmKeyIterator) Next() bool {
 			}
 			decoded = decoded.Deduplicate()
 
+			// Since we combined multiple blocks, we could have more values than we should put into
+			// a single block.  We need to chunk them up into groups and re-encode them.
 			var chunked blocks
 			for len(decoded) > k.size {
 				cb, err := Values(decoded[:k.size]).Encode(nil)
@@ -577,6 +591,7 @@ func (k *tsmKeyIterator) Next() bool {
 				decoded = decoded[k.size:]
 			}
 
+			// Re-encode the remaining values into the last block
 			if len(decoded) > 0 {
 				cb, err := Values(decoded).Encode(nil)
 				if err != nil {

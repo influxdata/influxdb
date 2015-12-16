@@ -221,10 +221,12 @@ func (f *FileStore) Open() error {
 		return err
 	}
 
+	// struct to hold the result of opening each reader in a goroutine
 	type res struct {
 		r   *TSMReader
 		err error
 	}
+
 	readerC := make(chan *res)
 	for i, fn := range files {
 		// Keep track of the latest ID
