@@ -1,13 +1,10 @@
 package meta
 
-import (
-	"errors"
-	"sync"
-)
+import "sync"
 
 type store struct {
-	index        int
 	mu           sync.RWMutex
+	index        int
 	closing      chan struct{}
 	cache        []byte
 	cacheChanged chan struct{}
@@ -39,25 +36,24 @@ func (s *store) SetCache(b []byte) {
 	s.cacheChanged = make(chan struct{})
 }
 
-func (s *store) Snapshot() (int, []byte) {
+func (s *store) Snapshot() ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.index, s.cache
+	return s.cache, nil
 }
 
-func (s *store) WaitForDataChanged(closing chan struct{}) error {
+// AfterIndex returns a channel that will be closed to signal
+// the caller when an updated snapshot is available.
+func (s *store) AfterIndex(index int) chan struct{} {
 	s.mu.RLock()
-	ch := s.cacheChanged
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	for {
-		select {
-		case <-ch:
-			return nil
-		case <-closing:
-			return errors.New("client closed")
-		case <-s.closing:
-			return errors.New("store closed")
-		}
+	if index < s.index {
+		// Client needs update so return a closed channel.
+		ch := make(chan struct{})
+		close(ch)
+		return ch
 	}
+
+	return s.cacheChanged
 }
