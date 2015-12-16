@@ -10,6 +10,7 @@
 #      2: race enabled 64bit tests
 #      3: normal 32bit tests
 #      4: normal 64bit tests against Go tip
+#      5: normal 64bit tests against Go 1.6beta1
 #      save: build the docker images and save them to DOCKER_SAVE_DIR. Do not run tests.
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
@@ -32,7 +33,7 @@ PARALLELISM=${PARALLELISM-1}
 TIMEOUT=${TIMEOUT-480s}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=5
+ENV_COUNT=6
 
 # Default return code 0
 rc=0
@@ -72,6 +73,7 @@ function run_test_docker {
          -v "$DIR:/root/go/src/github.com/influxdb/influxdb" \
          -e "INFLUXDB_DATA_ENGINE=$INFLUXDB_DATA_ENGINE" \
          -e "GORACE=$GORACE" \
+         -e "GO_CHECKOUT=$GO_CHECKOUT" \
          "$imagename" \
          "--parallel=$PARALLELISM" \
          "--timeout=$TIMEOUT" \
@@ -149,7 +151,13 @@ case $ENVIRONMENT_INDEX in
         ;;
     4)
         # 64 bit tests on golang tip
-        run_test_docker Dockerfile_build_ubuntu64_tip test_64bit_gotip --test --no-vet
+        run_test_docker Dockerfile_build_ubuntu64_git test_64bit_gotip --test --no-vet
+        rc=$?
+        ;;
+    5)
+        # 64 bit tests on golang go1.6
+        GO_CHECKOUT=go1.6beta1
+        run_test_docker Dockerfile_build_ubuntu64_git test_64bit_go1.6 --test --no-vet
         rc=$?
         ;;
     "save")
