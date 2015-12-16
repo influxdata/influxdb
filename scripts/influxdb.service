@@ -12,7 +12,7 @@ LimitNOFILE=65536
 Environment='STDOUT=/dev/null'
 Environment='STDERR=/var/log/influxdb/influxd.log'
 EnvironmentFile=-/etc/default/influxdb
-ExecStart=/bin/sh -c "/usr/bin/influxd -config /etc/influxdb/influxdb.conf ${INFLUXD_OPTS} >> ${STDOUT} 2>> ${STDERR}"
+ExecStart=/bin/sh -c "/usr/bin/influxd -config /etc/influxdb/influxdb.conf ${INFLUXD_OPTS} >>${STDOUT} 2>>${STDERR}"
 KillMode=control-group
 Restart=on-failure
 
