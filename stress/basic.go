@@ -629,7 +629,7 @@ func (b *BasicClient) BasicWriteHandler(rs <-chan response, wt *Timer) {
 	fmt.Printf("	Success: %v\n", success)
 	fmt.Printf("	Fail: %v\n", fail)
 	fmt.Printf("Average Response Time: %v\n", s/time.Duration(n))
-	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(b.BatchSize)/float64(wt.Elapsed().Seconds()))
+	fmt.Printf("Points Per Second: %v\n\n", int(float64(n)*float64(b.BatchSize)/float64(wt.Elapsed().Seconds())))
 }
 
 // BasicReadHandler handles read responses.
