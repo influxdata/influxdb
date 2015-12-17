@@ -246,6 +246,7 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 type Compactor struct {
 	Dir    string
 	Cancel chan struct{}
+	Size   int
 
 	FileStore interface {
 		NextGeneration() int
@@ -255,11 +256,15 @@ type Compactor struct {
 // WriteSnapshot will write a Cache snapshot to a new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
-	return c.writeNewFiles(c.FileStore.NextGeneration(), 1, iter)
+	return c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
 }
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
+	size := c.Size
+	if size <= 0 {
+		size = tsdb.DefaultMaxPointsPerBlock
+	}
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
@@ -303,7 +308,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 		return nil, nil
 	}
 
-	tsm, err := NewTSMKeyIterator(tsdb.DefaultMaxPointsPerBlock, trs...)
+	tsm, err := NewTSMKeyIterator(size, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -548,70 +553,118 @@ func (k *tsmKeyIterator) Next() bool {
 	}
 
 	// If we have more than one block, we many need to dedup
-	if len(k.blocks) > 1 {
-		var decoded Values
-		var dedup bool
+	var dedup bool
 
-		// Quickly scan each block to see if any overlap with the first block
+	// Only one block, just return early everything after is wasted work
+	if len(k.blocks) == 1 {
+		return true
+	}
+
+	if len(k.blocks) > 1 {
+		// Quickly scan each block to see if any overlap with the first block, if they overlap then
+		// we need to dedup as there may be duplicate points now
 		for i := 1; i < len(k.blocks); i++ {
 			if k.blocks[i].minTime.Equal(k.blocks[0].maxTime) || k.blocks[i].minTime.Before(k.blocks[0].maxTime) {
 				dedup = true
 				break
 			}
 		}
-
-		if dedup {
-			// We have some overlapping blocks so decode all, append in order and then dedup
-			for i := 0; i < len(k.blocks); i++ {
-				v, err := DecodeBlock(k.blocks[i].b, nil)
-				if err != nil {
-					k.err = err
-					return true
-				}
-				decoded = append(decoded, v...)
-			}
-			decoded = decoded.Deduplicate()
-
-			// Since we combined multiple blocks, we could have more values than we should put into
-			// a single block.  We need to chunk them up into groups and re-encode them.
-			var chunked blocks
-			for len(decoded) > k.size {
-				cb, err := Values(decoded[:k.size]).Encode(nil)
-				if err != nil {
-					k.err = err
-					return true
-				}
-
-				chunked = append(chunked, &block{
-					minTime: decoded[0].Time(),
-					maxTime: decoded[k.size].Time(),
-					key:     k.blocks[0].key,
-					b:       cb,
-				})
-				decoded = decoded[k.size:]
-			}
-
-			// Re-encode the remaining values into the last block
-			if len(decoded) > 0 {
-				cb, err := Values(decoded).Encode(nil)
-				if err != nil {
-					k.err = err
-					return true
-				}
-
-				chunked = append(chunked, &block{
-					minTime: decoded[0].Time(),
-					maxTime: decoded[len(decoded)-1].Time(),
-					key:     k.blocks[0].key,
-					b:       cb,
-				})
-
-			}
-			k.blocks = chunked
-		}
 	}
 
+	k.blocks = k.combine(dedup)
+
 	return len(k.blocks) > 0
+}
+
+// combine returns a new set of blocks using the current blocks in the buffers.  If dedup
+// is true, all the blocks will be decoded, dedup and sorted in in order.  If dedup is false,
+// only blocks that are smaller than the chunk size will be decoded and combined.
+func (k *tsmKeyIterator) combine(dedup bool) blocks {
+	var decoded Values
+	if dedup {
+		// We have some overlapping blocks so decode all, append in order and then dedup
+		for i := 0; i < len(k.blocks); i++ {
+			v, err := DecodeBlock(k.blocks[i].b, nil)
+			if err != nil {
+				k.err = err
+				return nil
+			}
+			decoded = append(decoded, v...)
+		}
+		decoded = decoded.Deduplicate()
+
+		// Since we combined multiple blocks, we could have more values than we should put into
+		// a single block.  We need to chunk them up into groups and re-encode them.
+		return k.chunk(nil, decoded)
+	} else {
+		var chunked blocks
+		var i int
+
+		for i < len(k.blocks) {
+			// If we this block is already full, just add it as is
+			if BlockCount(k.blocks[i].b) >= k.size {
+				chunked = append(chunked, k.blocks[i])
+			} else {
+				break
+			}
+			i++
+		}
+
+		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+		if i == len(k.blocks)-1 {
+			chunked = append(chunked, k.blocks[i])
+			i++
+		}
+
+		// The remaining blocks can be combined and we know that they do not overlap and are already
+		// sorted so we can just append each and re-encode.
+		for i < len(k.blocks) {
+			v, err := DecodeBlock(k.blocks[i].b, nil)
+			if err != nil {
+				k.err = err
+				return nil
+			}
+			decoded = append(decoded, v...)
+			i++
+		}
+
+		return k.chunk(chunked, decoded)
+	}
+}
+
+func (k *tsmKeyIterator) chunk(dst blocks, values []Value) blocks {
+	for len(values) > k.size {
+		cb, err := Values(values[:k.size]).Encode(nil)
+		if err != nil {
+			k.err = err
+			return nil
+		}
+
+		dst = append(dst, &block{
+			minTime: values[0].Time(),
+			maxTime: values[k.size].Time(),
+			key:     k.blocks[0].key,
+			b:       cb,
+		})
+		values = values[k.size:]
+	}
+
+	// Re-encode the remaining values into the last block
+	if len(values) > 0 {
+		cb, err := Values(values).Encode(nil)
+		if err != nil {
+			k.err = err
+			return nil
+		}
+
+		dst = append(dst, &block{
+			minTime: values[0].Time(),
+			maxTime: values[len(values)-1].Time(),
+			key:     k.blocks[0].key,
+			b:       cb,
+		})
+	}
+	return dst
 }
 
 func (k *tsmKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
