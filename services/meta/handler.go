@@ -52,7 +52,6 @@ func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	handler = http.HandlerFunc(hf)
 	handler = gzipFilter(handler)
 	handler = versionHeader(handler, h)
-	handler = cors(handler)
 	handler = requestID(handler)
 	if h.loggingEnabled {
 		handler = logging(handler, name, h.logger)
@@ -158,44 +157,6 @@ func gzipFilter(inner http.Handler) http.Handler {
 func versionHeader(inner http.Handler, h *handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-InfluxDB-Version", h.Version)
-		inner.ServeHTTP(w, r)
-	})
-}
-
-// cors responds to incoming requests and adds the appropriate cors headers
-// TODO: corylanou: add the ability to configure this in our config
-func cors(inner http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" {
-			w.Header().Set(`Access-Control-Allow-Origin`, origin)
-			w.Header().Set(`Access-Control-Allow-Methods`, strings.Join([]string{
-				`DELETE`,
-				`GET`,
-				`OPTIONS`,
-				`POST`,
-				`PUT`,
-			}, ", "))
-
-			w.Header().Set(`Access-Control-Allow-Headers`, strings.Join([]string{
-				`Accept`,
-				`Accept-Encoding`,
-				`Authorization`,
-				`Content-Length`,
-				`Content-Type`,
-				`X-CSRF-Token`,
-				`X-HTTP-Method-Override`,
-			}, ", "))
-
-			w.Header().Set(`Access-Control-Expose-Headers`, strings.Join([]string{
-				`Date`,
-				`X-Influxdb-Version`,
-			}, ", "))
-		}
-
-		if r.Method == "OPTIONS" {
-			return
-		}
-
 		inner.ServeHTTP(w, r)
 	})
 }
