@@ -529,6 +529,13 @@ func (c *KeyCursor) init(t time.Time, ascending bool) {
 	c.ready = true
 }
 
+func (c *KeyCursor) Close() {
+	c.buf = nil
+	c.seeks = nil
+	c.fs = nil
+	c.current = nil
+}
+
 func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
 	c.init(t, ascending)
 	if len(c.seeks) == 0 {
