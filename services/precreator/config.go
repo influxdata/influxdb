@@ -3,7 +3,7 @@ package precreator
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -17,16 +17,16 @@ const (
 
 // Config represents the configuration for shard precreation.
 type Config struct {
-	Enabled       bool          `toml:"enabled"`
-	CheckInterval toml.Duration `toml:"check-interval"`
-	AdvancePeriod toml.Duration `toml:"advance-period"`
+	Enabled       bool            `toml:"enabled"`
+	CheckInterval config.Duration `toml:"check-interval"`
+	AdvancePeriod config.Duration `toml:"advance-period"`
 }
 
 // NewConfig returns a new Config with defaults.
 func NewConfig() Config {
 	return Config{
 		Enabled:       true,
-		CheckInterval: toml.Duration(DefaultCheckInterval),
-		AdvancePeriod: toml.Duration(DefaultAdvancePeriod),
+		CheckInterval: config.Duration(DefaultCheckInterval),
+		AdvancePeriod: config.Duration(DefaultAdvancePeriod),
 	}
 }

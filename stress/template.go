@@ -27,7 +27,7 @@ var s = `
         value = "us-west"
       [[write.point_generator.basic.field]]
         key = "value"
-        value = "float64"
+        type = "float64"
 
 
   [write.influx_client]

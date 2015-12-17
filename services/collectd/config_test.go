@@ -3,14 +3,14 @@ package collectd_test
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/collectd"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c collectd.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = true
 bind-address = ":9000"
 database = "xxx"

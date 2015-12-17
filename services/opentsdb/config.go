@@ -3,7 +3,7 @@ package opentsdb
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -31,17 +31,17 @@ const (
 
 // Config represents the configuration of the OpenTSDB service.
 type Config struct {
-	Enabled          bool          `toml:"enabled"`
-	BindAddress      string        `toml:"bind-address"`
-	Database         string        `toml:"database"`
-	RetentionPolicy  string        `toml:"retention-policy"`
-	ConsistencyLevel string        `toml:"consistency-level"`
-	TLSEnabled       bool          `toml:"tls-enabled"`
-	Certificate      string        `toml:"certificate"`
-	BatchSize        int           `toml:"batch-size"`
-	BatchPending     int           `toml:"batch-pending"`
-	BatchTimeout     toml.Duration `toml:"batch-timeout"`
-	LogPointErrors   bool          `toml:"log-point-errors"`
+	Enabled          bool            `toml:"enabled"`
+	BindAddress      string          `toml:"bind-address"`
+	Database         string          `toml:"database"`
+	RetentionPolicy  string          `toml:"retention-policy"`
+	ConsistencyLevel string          `toml:"consistency-level"`
+	TLSEnabled       bool            `toml:"tls-enabled"`
+	Certificate      string          `toml:"certificate"`
+	BatchSize        int             `toml:"batch-size"`
+	BatchPending     int             `toml:"batch-pending"`
+	BatchTimeout     config.Duration `toml:"batch-timeout"`
+	LogPointErrors   bool            `toml:"log-point-errors"`
 }
 
 // NewConfig returns a new config for the service.
@@ -55,7 +55,7 @@ func NewConfig() Config {
 		Certificate:      "/etc/ssl/influxdb.pem",
 		BatchSize:        DefaultBatchSize,
 		BatchPending:     DefaultBatchPending,
-		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
+		BatchTimeout:     config.Duration(DefaultBatchTimeout),
 		LogPointErrors:   true,
 	}
 }

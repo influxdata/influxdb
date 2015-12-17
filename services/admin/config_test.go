@@ -3,14 +3,14 @@ package admin_test
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/admin"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c admin.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = true
 bind-address = ":8083"
 https-enabled = true

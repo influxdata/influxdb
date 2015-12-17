@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -37,14 +37,14 @@ const (
 
 // Config is a hinted handoff configuration.
 type Config struct {
-	Enabled          bool          `toml:"enabled"`
-	Dir              string        `toml:"dir"`
-	MaxSize          int64         `toml:"max-size"`
-	MaxAge           toml.Duration `toml:"max-age"`
-	RetryRateLimit   int64         `toml:"retry-rate-limit"`
-	RetryInterval    toml.Duration `toml:"retry-interval"`
-	RetryMaxInterval toml.Duration `toml:"retry-max-interval"`
-	PurgeInterval    toml.Duration `toml:"purge-interval"`
+	Enabled          bool            `toml:"enabled"`
+	Dir              string          `toml:"dir"`
+	MaxSize          int64           `toml:"max-size"`
+	MaxAge           config.Duration `toml:"max-age"`
+	RetryRateLimit   int64           `toml:"retry-rate-limit"`
+	RetryInterval    config.Duration `toml:"retry-interval"`
+	RetryMaxInterval config.Duration `toml:"retry-max-interval"`
+	PurgeInterval    config.Duration `toml:"purge-interval"`
 }
 
 // NewConfig returns a new Config.
@@ -52,11 +52,11 @@ func NewConfig() Config {
 	return Config{
 		Enabled:          false,
 		MaxSize:          DefaultMaxSize,
-		MaxAge:           toml.Duration(DefaultMaxAge),
+		MaxAge:           config.Duration(DefaultMaxAge),
 		RetryRateLimit:   DefaultRetryRateLimit,
-		RetryInterval:    toml.Duration(DefaultRetryInterval),
-		RetryMaxInterval: toml.Duration(DefaultRetryMaxInterval),
-		PurgeInterval:    toml.Duration(DefaultPurgeInterval),
+		RetryInterval:    config.Duration(DefaultRetryInterval),
+		RetryMaxInterval: config.Duration(DefaultRetryMaxInterval),
+		PurgeInterval:    config.Duration(DefaultPurgeInterval),
 	}
 }
 

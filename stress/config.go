@@ -3,7 +3,7 @@ package stress
 import (
 	"flag"
 	"fmt"
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"strings"
 )
 
@@ -78,20 +78,26 @@ func DecodeFile(s string) (*Config, error) {
 	t := &Config{}
 
 	// Decode the toml file
-	if _, err := toml.DecodeFile(s, t); err != nil {
+	cfg, err := config.NewConfig(s, struct{}{})
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.Decode(t)
+	if err != nil {
 		return nil, err
 	}
 
 	return t, nil
 }
 
-// DecodeConfig takes a file path for a toml config file
+// DecodeConfig takes string of toml source
 // and returns a pointer to a Config Struct.
 func DecodeConfig(s string) (*Config, error) {
 	t := &Config{}
 
 	// Decode the toml file
-	if _, err := toml.Decode(s, t); err != nil {
+	if err := config.Decode(s, t); err != nil {
 		return nil, err
 	}
 

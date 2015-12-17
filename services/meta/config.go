@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -61,18 +61,18 @@ type Config struct {
 	HTTPSCertificate string `toml:"https-certificate"`
 
 	// JoinPeers if specified gives other metastore servers to join this server to the cluster
-	JoinPeers            []string      `toml:"-"`
-	RetentionAutoCreate  bool          `toml:"retention-autocreate"`
-	ElectionTimeout      toml.Duration `toml:"election-timeout"`
-	HeartbeatTimeout     toml.Duration `toml:"heartbeat-timeout"`
-	LeaderLeaseTimeout   toml.Duration `toml:"leader-lease-timeout"`
-	CommitTimeout        toml.Duration `toml:"commit-timeout"`
-	ClusterTracing       bool          `toml:"cluster-tracing"`
-	RaftPromotionEnabled bool          `toml:"raft-promotion-enabled"`
-	LoggingEnabled       bool          `toml:"logging-enabled"`
-	PprofEnabled         bool          `toml:"pprof-enabled"`
+	JoinPeers            []string        `toml:"-"`
+	RetentionAutoCreate  bool            `toml:"retention-autocreate"`
+	ElectionTimeout      config.Duration `toml:"election-timeout"`
+	HeartbeatTimeout     config.Duration `toml:"heartbeat-timeout"`
+	LeaderLeaseTimeout   config.Duration `toml:"leader-lease-timeout"`
+	CommitTimeout        config.Duration `toml:"commit-timeout"`
+	ClusterTracing       bool            `toml:"cluster-tracing"`
+	RaftPromotionEnabled bool            `toml:"raft-promotion-enabled"`
+	LoggingEnabled       bool            `toml:"logging-enabled"`
+	PprofEnabled         bool            `toml:"pprof-enabled"`
 
-	LeaseDuration toml.Duration `toml:"lease-duration"`
+	LeaseDuration config.Duration `toml:"lease-duration"`
 }
 
 // NewConfig builds a new configuration with default values.
@@ -82,12 +82,12 @@ func NewConfig() *Config {
 		BindAddress:          DefaultRaftBindAddress,
 		HTTPBindAddress:      DefaultHTTPBindAddress,
 		RetentionAutoCreate:  true,
-		ElectionTimeout:      toml.Duration(DefaultElectionTimeout),
-		HeartbeatTimeout:     toml.Duration(DefaultHeartbeatTimeout),
-		LeaderLeaseTimeout:   toml.Duration(DefaultLeaderLeaseTimeout),
-		CommitTimeout:        toml.Duration(DefaultCommitTimeout),
+		ElectionTimeout:      config.Duration(DefaultElectionTimeout),
+		HeartbeatTimeout:     config.Duration(DefaultHeartbeatTimeout),
+		LeaderLeaseTimeout:   config.Duration(DefaultLeaderLeaseTimeout),
+		CommitTimeout:        config.Duration(DefaultCommitTimeout),
 		RaftPromotionEnabled: DefaultRaftPromotionEnabled,
-		LeaseDuration:        toml.Duration(DefaultLeaseDuration),
+		LeaseDuration:        config.Duration(DefaultLeaseDuration),
 		LoggingEnabled:       DefaultLoggingEnabled,
 		JoinPeers:            []string{},
 	}

@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/monitor"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c monitor.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 store-enabled=true
 store-database="the_db"
 store-interval="10m"

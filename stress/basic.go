@@ -70,6 +70,7 @@ func (f AbstractFields) Template() (string, []string) {
 
 // BasicPointGenerator implements the PointGenerator interface
 type BasicPointGenerator struct {
+	Enabled     bool           `toml:"enabled"`
 	PointCount  int            `toml:"point_count"`
 	Tick        string         `toml:"tick"`
 	Jitter      bool           `toml:"jitter"`

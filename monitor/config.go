@@ -3,7 +3,7 @@ package monitor
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -20,9 +20,9 @@ const (
 
 // Config represents the configuration for the monitor service.
 type Config struct {
-	StoreEnabled  bool          `toml:"store-enabled"`
-	StoreDatabase string        `toml:"store-database"`
-	StoreInterval toml.Duration `toml:"store-interval"`
+	StoreEnabled  bool            `toml:"store-enabled"`
+	StoreDatabase string          `toml:"store-database"`
+	StoreInterval config.Duration `toml:"store-interval"`
 }
 
 // NewConfig returns an instance of Config with defaults.
@@ -30,6 +30,6 @@ func NewConfig() Config {
 	return Config{
 		StoreEnabled:  true,
 		StoreDatabase: DefaultStoreDatabase,
-		StoreInterval: toml.Duration(DefaultStoreInterval),
+		StoreInterval: config.Duration(DefaultStoreInterval),
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	cfg "github.com/influxdata/config"
 )
 
 const logo = `
@@ -212,9 +212,11 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	}
 
 	log.Printf("Using configuration at: %s\n", path)
+	l := log.New(cmd.Stderr, "[config] ", log.LstdFlags)
 
 	config := NewConfig()
-	if _, err := toml.DecodeFile(path, &config); err != nil {
+	cfg.SetLogger(l)
+	if err := cfg.DecodeFile(path, config); err != nil {
 		return nil, err
 	}
 
