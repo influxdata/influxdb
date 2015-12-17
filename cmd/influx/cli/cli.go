@@ -116,10 +116,14 @@ func (c *CommandLine) Run() {
 	if c.Execute != "" {
 		// Modify precision before executing query
 		c.SetPrecision(c.Precision)
-		if err := c.ExecuteQuery(c.Execute); err != nil {
-			c.Line.Close()
-			os.Exit(1)
+
+		// Make the non-interactive mode send everything through the CLI's parser
+		// the same way the interactive mode works
+		lines := strings.Split(c.Execute, "\n")
+		for _, line := range lines {
+			c.ParseCommand(line)
 		}
+
 		c.Line.Close()
 		os.Exit(0)
 	}
