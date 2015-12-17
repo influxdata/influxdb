@@ -18,6 +18,10 @@ cmd/influxd/version.go
 
 # executables
 
+influx_tsm
+**/influx_tsm
+!**/influx_tsm/
+
 influx_stress
 **/influx_stress
 !**/influx_stress/
