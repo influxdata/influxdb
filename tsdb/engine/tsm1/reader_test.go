@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -719,5 +720,25 @@ func TestBlockIterator_Sorted(t *testing.T) {
 
 	if got, exp := count, len(values); got != exp {
 		t.Fatalf("value count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
+	index := tsm1.NewDirectIndex()
+	for i := 0; i < 100000; i++ {
+		index.Add(fmt.Sprintf("cpu-%d", i), tsm1.BlockFloat64, time.Unix(int64(i*2), 0), time.Unix(int64(i*2+1), 0), 10, 100)
+	}
+
+	bytes, err := index.MarshalBinary()
+	if err != nil {
+		b.Fatalf("unexpected error marshaling index: %v", err)
+	}
+
+	indirect := tsm1.NewIndirectIndex()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := indirect.UnmarshalBinary(bytes); err != nil {
+			b.Fatalf("unexpected error unmarshaling index: %v", err)
+		}
 	}
 }
