@@ -123,7 +123,7 @@ func (c *CommandLine) Run() {
 		for _, line := range lines {
 			c.ParseCommand(line)
 		}
-		
+
 		c.Line.Close()
 		os.Exit(0)
 	}
