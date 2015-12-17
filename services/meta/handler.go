@@ -15,31 +15,39 @@ import (
 	"github.com/influxdb/influxdb/uuid"
 )
 
-// Handler represents an HTTP handler for the InfluxDB server.
-type Handler struct {
+//type store interface {
+//	AfterIndex(index int) <-chan struct{}
+//	Database(name string) (*DatabaseInfo, error)
+//}
+
+// handler represents an HTTP handler for the meta service.
+type handler struct {
 	config  *Config
 	Version string
 
-	Logger         *log.Logger
+	logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
 	pprofEnabled   bool
-	store          *store
+	store          interface {
+		AfterIndex(index int) <-chan struct{}
+		Snapshot() ([]byte, error)
+		SetCache(b []byte)
+	}
 }
 
-// NewHandler returns a new instance of handler with routes.
-func NewHandler(c *Config, s *store) *Handler {
-	h := &Handler{
+// newHandler returns a new instance of handler with routes.
+func newHandler(c *Config) *handler {
+	h := &handler{
 		config:         c,
-		Logger:         log.New(os.Stderr, "[meta-http] ", log.LstdFlags),
+		logger:         log.New(os.Stderr, "[meta-http] ", log.LstdFlags),
 		loggingEnabled: c.LoggingEnabled,
-		store:          s,
 	}
 
 	return h
 }
 
 // SetRoutes sets the provided routes on the handler.
-func (h *Handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
+func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	var handler http.Handler
 	handler = http.HandlerFunc(hf)
 	handler = gzipFilter(handler)
@@ -47,15 +55,15 @@ func (h *Handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 	handler = cors(handler)
 	handler = requestID(handler)
 	if h.loggingEnabled {
-		handler = logging(handler, name, h.Logger)
+		handler = logging(handler, name, h.logger)
 	}
-	handler = recovery(handler, name, h.Logger) // make sure recovery is always last
+	handler = recovery(handler, name, h.logger) // make sure recovery is always last
 
 	return handler
 }
 
 // ServeHTTP responds to HTTP request to the handler.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "HEAD":
 		h.WrapHandler("ping", h.servePing).ServeHTTP(w, r)
@@ -69,11 +77,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveExec executes the requested command.
-func (h *Handler) serveExec(w http.ResponseWriter, r *http.Request) {
+func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveSnapshot is a long polling http connection to server cache updates
-func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
+func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 	// get the current index that client has
 	index, _ := strconv.Atoi(r.URL.Query().Get("index"))
 
@@ -82,7 +90,7 @@ func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 		// Send updated snapshot to client.
 		ss, err := h.store.Snapshot()
 		if err != nil {
-			h.Logger.Println(err)
+			h.logger.Println(err)
 			http.Error(w, "", http.StatusInternalServerError)
 			return
 		}
@@ -94,7 +102,7 @@ func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 // servePing returns a simple response to let the client know the server is running.
-func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ACK"))
 }
 
@@ -147,7 +155,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 
 // versionHeader takes a HTTP handler and returns a HTTP handler
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
-func versionHeader(inner http.Handler, h *Handler) http.Handler {
+func versionHeader(inner http.Handler, h *handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-InfluxDB-Version", h.Version)
 		inner.ServeHTTP(w, r)

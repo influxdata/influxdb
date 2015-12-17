@@ -1,4 +1,4 @@
-package meta_test
+package meta
 
 import (
 	"fmt"
@@ -6,13 +6,12 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
-
-	"github.com/influxdb/influxdb/services/meta"
+	"time"
 )
 
 func TestService_Open(t *testing.T) {
 	cfg := newConfig()
-	s := meta.NewService(cfg)
+	s := NewService(cfg)
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +22,7 @@ func TestService_Open(t *testing.T) {
 
 func TestService_PingEndpoint(t *testing.T) {
 	cfg := newConfig()
-	s := meta.NewService(cfg)
+	s := NewService(cfg)
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +50,7 @@ func TestService_PingEndpoint(t *testing.T) {
 
 func TestService_LongPollCache(t *testing.T) {
 	cfg := newConfig()
-	s := meta.NewService(cfg)
+	s := NewService(cfg)
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +83,15 @@ func TestService_LongPollCache(t *testing.T) {
 	}
 
 	go reqFunc(0)
-	go reqFunc(0)
+	go reqFunc(1)
+	go func() {
+		time.Sleep(1 * time.Second)
+		s.handler.store.SetCache([]byte("world"))
+	}()
 
 	for n := 0; n < 2; n++ {
 		b := <-ch
-		t.Log(b)
+		t.Log(string(b))
 		println("client read cache update")
 	}
 	close(ch)
@@ -98,8 +101,8 @@ func TestService_LongPollCache(t *testing.T) {
 	}
 }
 
-func newConfig() *meta.Config {
-	cfg := meta.NewConfig()
+func newConfig() *Config {
+	cfg := NewConfig()
 	cfg.HTTPdBindAddress = "127.0.0.1:0"
 	return cfg
 }

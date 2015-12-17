@@ -44,7 +44,7 @@ func (s *store) Snapshot() ([]byte, error) {
 
 // AfterIndex returns a channel that will be closed to signal
 // the caller when an updated snapshot is available.
-func (s *store) AfterIndex(index int) chan struct{} {
+func (s *store) AfterIndex(index int) <-chan struct{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

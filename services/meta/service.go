@@ -12,7 +12,7 @@ import (
 
 type Service struct {
 	config   *Config
-	Handler  *Handler
+	handler  *handler
 	ln       net.Listener
 	raftAddr string
 	httpAddr string
@@ -20,9 +20,11 @@ type Service struct {
 	cert     string
 	err      chan error
 
-	store *store
-
 	Logger *log.Logger
+
+	store interface {
+		Close() error
+	}
 }
 
 // NewService returns a new instance of Service.
@@ -44,11 +46,13 @@ func (s *Service) Open() error {
 	s.Logger.Println("Starting meta service")
 
 	// Open the store
-	s.store = newStore(s.config)
+	store := newStore(s.config)
+	s.store = store
 
-	handler := NewHandler(s.config, s.store)
-	handler.Logger = s.Logger
-	s.Handler = handler
+	handler := newHandler(s.config)
+	handler.logger = s.Logger
+	handler.store = store
+	s.handler = handler
 
 	// Open listener.
 	if s.https {
@@ -86,7 +90,7 @@ func (s *Service) Open() error {
 func (s *Service) serve() {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	err := http.Serve(s.ln, s.Handler)
+	err := http.Serve(s.ln, s.handler)
 	if err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}
