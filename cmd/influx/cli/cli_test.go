@@ -46,6 +46,21 @@ func TestRunCLI(t *testing.T) {
 	c.Run()
 }
 
+func TestRunCLI_ExecuteInsert(t *testing.T) {
+    t.Parallel()
+    ts := emptyTestServer()
+    defer ts.Close()
+
+    u, _ := url.Parse(ts.URL)
+    h, p, _ := net.SplitHostPort(u.Host)
+    c := cli.New(CLIENT_VERSION)
+    c.Host = h
+    c.Port, _ = strconv.Atoi(p)
+    c.Precision = "ms"
+    c.Execute = "INSERT sensor,floor=1 value=2"
+    c.Run() 
+}
+
 func TestConnect(t *testing.T) {
 	t.Parallel()
 	ts := emptyTestServer()
