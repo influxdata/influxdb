@@ -385,7 +385,7 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 		"cpu,host=A#!~#value": []tsm1.Value{v2},
 	}
 
-	r2 := MustTSMReader(dir, 1, writes2)
+	r2 := MustTSMReader(dir, 2, writes2)
 
 	iter, err := tsm1.NewTSMKeyIterator(1, r1, r2)
 	if err != nil {
@@ -443,7 +443,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 		"cpu,host=B#!~#value": []tsm1.Value{v3},
 	}
 
-	r2 := MustTSMReader(dir, 1, points2)
+	r2 := MustTSMReader(dir, 2, points2)
 	r2.Delete([]string{"cpu,host=A#!~#count"})
 
 	iter, err := tsm1.NewTSMKeyIterator(1, r1, r2)
