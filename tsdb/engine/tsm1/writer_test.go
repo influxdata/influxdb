@@ -25,6 +25,26 @@ func TestTSMWriter_Write_Empty(t *testing.T) {
 	}
 }
 
+func TestTSMWriter_Write_NoValues(t *testing.T) {
+	var b bytes.Buffer
+	w, err := tsm1.NewTSMWriter(&b)
+	if err != nil {
+		t.Fatalf("unexpected error created writer: %v", err)
+	}
+
+	if err := w.Write("foo", []tsm1.Value{}); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != tsm1.ErrNoValues {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if got, exp := len(b.Bytes()), 0; got < exp {
+		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestTSMWriter_Write_Single(t *testing.T) {
 	var b bytes.Buffer
 	w, err := tsm1.NewTSMWriter(&b)

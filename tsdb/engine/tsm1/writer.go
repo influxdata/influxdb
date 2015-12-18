@@ -479,6 +479,11 @@ func (t *tsmWriter) writeHeader() error {
 }
 
 func (t *tsmWriter) Write(key string, values Values) error {
+	// Nothing to write
+	if len(values) == 0 {
+		return nil
+	}
+
 	// Write header only after we have some data to write.
 	if t.n == 0 {
 		if err := t.writeHeader(); err != nil {
