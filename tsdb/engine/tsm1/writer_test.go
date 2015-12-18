@@ -374,6 +374,27 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 	}
 }
 
+func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
+	// Write a new TSM file
+	var b bytes.Buffer
+	w, err := tsm1.NewTSMWriter(&b)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	if err := w.WriteBlock("cpu", time.Unix(0, 0), time.Unix(0, 0), nil); err != nil {
+		t.Fatalf("unexpected error writing block: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != tsm1.ErrNoValues {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if got, exp := len(b.Bytes()), 0; got < exp {
+		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 	// Write a new TSM file
 	var b bytes.Buffer
