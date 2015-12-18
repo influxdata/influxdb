@@ -655,12 +655,12 @@ func TestDefaultCompactionPlanner_CombineSequence(t *testing.T) {
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
 	tsm := cp.Plan(time.Now())
-	if exp, got := len(expFiles), len(tsm); got != exp {
+	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
 	for i, p := range expFiles {
-		if got, exp := tsm[i], p.Path; got != exp {
+		if got, exp := tsm[0][i], p.Path; got != exp {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}
@@ -706,12 +706,12 @@ func TestDefaultCompactionPlanner_SmallestCompactionStep(t *testing.T) {
 
 	expFiles := []tsm1.FileStat{data[1], data[2], data[3], data[4], data[5]}
 	tsm := cp.Plan(time.Now())
-	if exp, got := len(expFiles), len(tsm); got != exp {
+	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
 	for i, p := range expFiles {
-		if got, exp := tsm[i], p.Path; got != exp {
+		if got, exp := tsm[0][i], p.Path; got != exp {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}
@@ -757,12 +757,12 @@ func TestDefaultCompactionPlanner_FullOnCold(t *testing.T) {
 	}
 
 	tsm := cp.Plan(time.Now().Add(-time.Second))
-	if exp, got := len(data), len(tsm); got != exp {
+	if exp, got := len(data), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
 	for i, p := range data {
-		if got, exp := tsm[i], p.Path; got != exp {
+		if got, exp := tsm[0][i], p.Path; got != exp {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}
@@ -797,12 +797,12 @@ func TestDefaultCompactionPlanner_FullSkipMaxSize(t *testing.T) {
 
 	expFiles := []tsm1.FileStat{data[1], data[2]}
 	tsm := cp.Plan(time.Now().Add(-time.Second))
-	if exp, got := len(expFiles), len(tsm); got != exp {
+	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
 	for i, p := range expFiles {
-		if got, exp := tsm[i], p.Path; got != exp {
+		if got, exp := tsm[0][i], p.Path; got != exp {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}
@@ -866,7 +866,7 @@ func TestDefaultCompactionPlanner_SkipPlanningAfterFull(t *testing.T) {
 	}
 
 	// first verify that our test set would return files
-	if exp, got := 2, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
+	if exp, got := 2, len(cp.Plan(time.Now().Add(-time.Second))[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -895,7 +895,7 @@ func TestDefaultCompactionPlanner_SkipPlanningAfterFull(t *testing.T) {
 	// ensure that it will plan if last modified has changed
 	testFileStore.lastModified = time.Now()
 
-	if exp, got := 2, len(cp.Plan(time.Now())); got != exp {
+	if exp, got := 2, len(cp.Plan(time.Now())[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -933,12 +933,12 @@ func TestDefaultCompactionPlanner_CompactsMiddleSteps(t *testing.T) {
 
 	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
 	tsm := cp.Plan(time.Now())
-	if exp, got := len(expFiles), len(tsm); got != exp {
+	if exp, got := len(expFiles), len(tsm[0]); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
 	for i, p := range expFiles {
-		if got, exp := tsm[i], p.Path; got != exp {
+		if got, exp := tsm[0][i], p.Path; got != exp {
 			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
 		}
 	}

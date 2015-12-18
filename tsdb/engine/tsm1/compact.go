@@ -57,10 +57,12 @@ func compactionLevel(size uint64) int {
 	return len(compactionSteps)
 }
 
+type CompactionGroup []string
+
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
-	Plan(lastWrite time.Time) []string
+	Plan(lastWrite time.Time) []CompactionGroup
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -123,7 +125,7 @@ func (t *tsmGeneration) count() int {
 }
 
 // Plan returns a set of TSM files to rewrite
-func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
+func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
 		var tsmFiles []string
@@ -143,7 +145,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 			return nil
 		}
 
-		return tsmFiles
+		return []CompactionGroup{tsmFiles}
 	}
 
 	// don't plan if nothing has changed in the filestore
@@ -211,7 +213,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
 
 	c.lastPlanCompactedFull = false
 
-	return tsmFiles
+	return []CompactionGroup{tsmFiles}
 }
 
 // findGenerations groups all the TSM files by they generation based

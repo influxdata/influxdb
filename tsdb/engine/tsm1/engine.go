@@ -428,14 +428,14 @@ func (e *DevEngine) compactTSM() {
 			start := time.Now()
 			e.logger.Printf("beginning compaction of %d TSM files", len(tsmFiles))
 
-			files, err := e.Compactor.Compact(tsmFiles)
+			files, err := e.Compactor.Compact(tsmFiles[0])
 			if err != nil {
 				e.logger.Printf("error compacting TSM files: %v", err)
 				time.Sleep(time.Second)
 				continue
 			}
 
-			if err := e.FileStore.Replace(tsmFiles, files); err != nil {
+			if err := e.FileStore.Replace(tsmFiles[0], files); err != nil {
 				e.logger.Printf("error replacing new TSM files: %v", err)
 				time.Sleep(time.Second)
 				continue
