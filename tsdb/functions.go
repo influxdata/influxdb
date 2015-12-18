@@ -38,6 +38,12 @@ type MapItem struct {
 	Tags   map[string]string
 }
 
+type MapItems []MapItem
+
+func (a MapItems) Len() int           { return len(a) }
+func (a MapItems) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+func (a MapItems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // mapFunc represents a function used for mapping over a sequential series of data.
 // The iterator represents a single group by interval
 type mapFunc func(*MapInput) interface{}

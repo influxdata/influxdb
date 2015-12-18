@@ -2,7 +2,7 @@
 
 ## An Open-Source, Distributed, Time Series Database
 
-> InfluxDB v0.9.0 is now out. Going forward, the 0.9.x series of releases will not make breaking API changes or breaking changes to the underlying data storage. However, 0.9.0 clustering should be considered an alpha release.
+> InfluxDB v0.9.0 is now out. Going forward, the 0.9.x series of releases will not make breaking API changes or breaking changes to the underlying data storage. However, 0.9.x clustering should be considered an alpha release.
 
 InfluxDB is an open source **distributed time series database** with
 **no external dependencies**. It's useful for recording metrics,
@@ -10,7 +10,7 @@ events, and performing analytics.
 
 ## Features
 
-* Built-in [HTTP API](http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html) so you don't have to write any server side code to get up and running.
+* Built-in [HTTP API](https://docs.influxdata.com/influxdb/v0.9/guides/writing_data/) so you don't have to write any server side code to get up and running.
 * Data can be tagged, allowing very flexible querying.
 * SQL-like query language.
 * Clustering is supported out of the box, so that you can scale horizontally to handle your data.
@@ -20,12 +20,12 @@ events, and performing analytics.
   should return in < 100ms.
 
 ## Getting Started
-*The following directions apply only to the 0.9.0 release or building from the source on master.*
+*The following directions apply only to the 0.9.x series or building from the source on master.*
 
 ### Building
 
 You don't need to build the project to use it - you can use any of our
-[pre-built packages](http://influxdb.com/download/index.html) to install InfluxDB. That's
+[pre-built packages](https://influxdata.com/downloads/) to install InfluxDB. That's
 the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build.
 For those adventurous enough, you can
 [follow along on our docs](http://github.com/influxdb/influxdb/blob/master/CONTRIBUTING.md).
@@ -67,10 +67,10 @@ curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" \
 
 ## Helpful Links
 
-* Understand the [design goals and motivations of the project](http://influxdb.com/docs/v0.9/introduction/overview.html).
-* Follow the [getting started guide](http://influxdb.com/docs/v0.9/introduction/getting_started.html) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
-* See the  [HTTP API documentation to start writing a library for your favorite language](http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html).
+* Understand the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/v0.9/introduction/overview/).
+* Follow the [getting started guide](https://docs.influxdata.com/influxdb/v0.9/introduction/getting_started/) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
+* See the  [HTTP API documentation to start writing a library for your favorite language](https://docs.influxdata.com/influxdb/v0.9/guides/writing_data/).
 
 ## Looking for Support?
 
-InfluxDB has technical support subscriptions to help your project succeed. We offer Developer Support for organizations in active development and Production Support for companies requiring the best response times and SLAs on technical fixes. Visit our [support page](https://influxdb.com/support/index.html) to learn which subscription is right for you, or contact sales@influxdb.com for a quote.
+InfluxDB has technical support subscriptions to help your project succeed. We offer Developer Support for organizations in active development and Production Support for companies requiring the best response times and SLAs on technical fixes. Visit our [support page](https://influxdata.com/services/) to learn which subscription is right for you, or contact sales@influxdb.com for a quote.

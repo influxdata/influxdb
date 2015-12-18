@@ -21,7 +21,7 @@ curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
 
 # write data
-curl -X POST http://localhost:8086/write --data-urlencode "db=mydb" --data-binary "cpu,region=useast,host=server_1,service=redis value=61" 
+curl -X POST http://localhost:8086/write --data-urlencode "db=mydb" --data-binary "cpu,region=useast,host=server_1,service=redis value=61"
 
 # Delete a Measurement
 curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.4 or greater.
+InfluxDB requires Go 1.5.2 or greater.
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,8 +77,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.4.2
-    gvm use go1.4.2 --default
+    gvm install go1.5.2
+    gvm use go1.5.2 --default
 
 Revision Control Systems
 -------------
@@ -119,11 +119,11 @@ Build and Test
 Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
 
 ```bash
-cd $GOPATH/src/github.com/influxdb
+cd $GOPATH/src/github.com/influxdb/influxdb
 go get -u -f -t ./...
 ```
 
-To then build and install the binaries, run the following command. 
+To then build and install the binaries, run the following command.
 ```bash
 go clean ./...
 go install ./...
@@ -133,7 +133,7 @@ The binaries will be located in `$GOPATH/bin`. Please note that the InfluxDB bin
 To set the version and commit flags during the build pass the following to the **install** command:
 
 ```bash
--ldflags="-X main.version $VERSION -X main.branch $BRANCH -X main.commit $COMMIT -X main.buildTime $TIME"
+-ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT -X main.buildTime=$TIME"
 ```
 
 where `$VERSION` is the version, `$BRANCH` is the branch, `$COMMIT` is the git commit hash, and `$TIME` is the build timestamp.
@@ -181,13 +181,13 @@ Finally run, `go generate` after updating any `*.proto` file:
 ```bash
 go generate ./...
 ```
-**Trouleshooting**
+**Troubleshooting**
 
 If generating the protobuf code is failing for you, check each of the following:
- * Ensure the protobuf library can be found. Make sure that `LD_LIBRRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
- * Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
- * 
- Pre-commit checks
+* Ensure the protobuf library can be found. Make sure that `LD_LIBRRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
+* Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
+
+Pre-commit checks
 -------------
 
 We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:

@@ -31,115 +31,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create database should succeed",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database with retention duration should succeed",
-				command: `CREATE DATABASE db0_r WITH DURATION 24h REPLICATION 2 NAME db0_r_policy`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should error with bad name",
-				command: `CREATE DATABASE 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 17"}`,
-			},
-			&Query{
-				name:    "create database with retention duration should error with bad retention duration",
-				command: `CREATE DATABASE db0 WITH DURATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 35"}`,
-			},
-			&Query{
-				name:    "create database with retention replication should error with bad retention replication number",
-				command: `CREATE DATABASE db0 WITH REPLICATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected number at line 1, char 38"}`,
-			},
-			&Query{
-				name:    "create database with retention name should error with missing retention name",
-				command: `CREATE DATABASE db0 WITH NAME`,
-				exp:     `{"error":"error parsing query: found EOF, expected identifier at line 1, char 31"}`,
-			},
-			&Query{
-				name:    "show database should succeed",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"]]}]}]}`,
-			},
-			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0_r`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
-				name:    "create database should not error with existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should create non-existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database with retention duration should not error with existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION 24h`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create database should error IF NOT EXISTS with bad retention duration",
-				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 49"}`,
-			},
-			&Query{
-				name:    "show database should succeed",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"],["db1"]]}]}]}`,
-			},
-			&Query{
-				name:    "drop database db0 should succeed",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database db0_r should succeed",
-				command: `DROP DATABASE db0_r`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database db1 should succeed",
-				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it does not exists",
-				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{"error":"database not found: db1"}]}`,
-			},
-			&Query{
-				name:    "drop database should not error with non-existing database db1 WITH IF EXISTS",
-				command: `DROP DATABASE IF EXISTS db1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show database should have no results",
-				command: `SHOW DATABASES`,
-				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it doesn't exist",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{"error":"database not found: db0"}]}`,
-			},
-		},
-	}
+	test := tests.load(t, "database_commands")
 
 	for _, query := range test.queries {
 		if query.skip {
@@ -159,49 +51,14 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_and_recreate_database")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Drop database after data write",
-			command: `DROP DATABASE db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Recreate database",
-			command: `CREATE DATABASE db0`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Recreate retention policy",
-			command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 365d REPLICATION 1 DEFAULT`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Show measurements after recreate",
-			command: `SHOW MEASUREMENTS`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data after recreate",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -226,54 +83,17 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_database_isolated")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp1", 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Query data from 1st database",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from 1st database with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop other database",
-			command: `DROP DATABASE db1`,
-			exp:     `{"results":[{}]}`,
-		},
-		&Query{
-			name:    "Query data from 1st database and ensure it's still there",
-			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Query data from 1st database and ensure it's still there with GROUP BY *",
-			command: `SELECT * FROM cpu GROUP BY *`,
-			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -298,40 +118,14 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_and_recreate_series")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series after data write",
-			command: `DROP SERIES FROM cpu`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Show series is gone",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -351,21 +145,11 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	}
 
 	// Re-write data and test again.
-	reTest := NewTest("db0", "rp0")
-	reTest.write = strings.Join(writes, "\n")
+	retest := tests.load(t, "drop_and_recreate_series_retest")
 
-	reTest.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present again after re-write",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
-
-	for i, query := range reTest.queries {
+	for i, query := range retest.queries {
 		if i == 0 {
-			if err := reTest.init(s); err != nil {
+			if err := retest.init(s); err != nil {
 				t.Fatalf("test init failed: %s", err)
 			}
 		}
@@ -386,73 +170,14 @@ func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	test := tests.load(t, "drop_series_from_regex")
+
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`a,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`aa,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`b,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`c,host=serverA,region=uswest val=30.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}
-
-	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
-
-	test.addQueries([]*Query{
-		&Query{
-			name:    "Show series is present",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"a","columns":["_key","host","region"],"values":[["a,host=serverA,region=uswest","serverA","uswest"]]},{"name":"aa","columns":["_key","host","region"],"values":[["aa,host=serverA,region=uswest","serverA","uswest"]]},{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series after data write",
-			command: `DROP SERIES FROM /a.*/`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Show series is gone",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series from regex that matches no measurements",
-			command: `DROP SERIES FROM /a.*/`,
-			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "make sure DROP SERIES doesn't delete anything when regex doesn't match",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series with WHERE field should error",
-			command: `DROP SERIES FROM c WHERE val > 50.0`,
-			exp:     `{"results":[{"error":"DROP SERIES doesn't support fields in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "make sure DROP SERIES with field in WHERE didn't delete data",
-			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "Drop series with WHERE time should error",
-			command: `DROP SERIES FROM c WHERE time > now() - 1d`,
-			exp:     `{"results":[{"error":"DROP SERIES doesn't support time in WHERE clause"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-	}...)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -480,79 +205,11 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	s := OpenServer(c, "")
 	defer s.Close()
 
-	// Create a database.
-	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
-		t.Fatal(err)
-	}
+	test := tests.load(t, "retention_policy_commands")
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create retention policy should succeed",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "create retention policy should error if it already exists",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy already exists"}]}`,
-			},
-			&Query{
-				name:    "show retention policy should succeed",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}`,
-			},
-			&Query{
-				name:    "alter retention policy should succeed",
-				command: `ALTER RETENTION POLICY rp0 ON db0 DURATION 2h REPLICATION 3 DEFAULT`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should have new altered information",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "dropping default retention policy should not succeed",
-				command: `DROP RETENTION POLICY rp0 ON db0`,
-				exp:     `{"results":[{"error":"retention policy is default"}]}`,
-			},
-			&Query{
-				name:    "show retention policy should still show policy",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "create a second non-default retention policy",
-				command: `CREATE RETENTION POLICY rp2 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should show both",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true],["rp2","1h0m0s",1,false]]}]}]}`,
-			},
-			&Query{
-				name:    "dropping non-default retention policy succeed",
-				command: `DROP RETENTION POLICY rp2 ON db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policy should show just default",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
-			},
-			&Query{
-				name:    "Ensure retention policy with unacceptable retention cannot be created",
-				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy duration must be at least 1h0m0s"}]}`,
-			},
-			&Query{
-				name:    "Check error when deleting retention policy on non-existent database",
-				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
-				exp:     `{"results":[{"error":"database not found"}]}`,
-			},
-		},
+	// Create a database.
+	if _, err := s.MetaStore.CreateDatabase(test.database()); err != nil {
+		t.Fatal(err)
 	}
 
 	for _, query := range test.queries {
@@ -574,20 +231,7 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
 
-	test := Test{
-		queries: []*Query{
-			&Query{
-				name:    "create database should succeed",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{}]}`,
-			},
-			&Query{
-				name:    "show retention policies should return auto-created policy",
-				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
-			},
-		},
-	}
+	test := tests.load(t, "retention_policy_auto_create")
 
 	for _, query := range test.queries {
 		if query.skip {
@@ -869,7 +513,9 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf(`cpu value=1.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano())
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=1.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano())},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -929,7 +575,9 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 		fmt.Sprintf("cpu1,host=server02 value=50,core=2 %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:00Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -977,7 +625,9 @@ func TestServer_Query_IdenticalTagValues(t *testing.T) {
 		fmt.Sprintf("cpu,t1=val2 value=3 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:02:00Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1027,7 +677,9 @@ func TestServer_Query_NoShards(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1067,7 +719,9 @@ func TestServer_Query_NonExistent(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1116,7 +770,9 @@ func TestServer_Query_Math(t *testing.T) {
 	}
 
 	test := NewTest("db", "rp")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1138,6 +794,41 @@ func TestServer_Query_Math(t *testing.T) {
 			name:    "SELECT float multiple of integer value",
 			command: `SELECT value * 2.0 from db.rp.integer`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of float value",
+			command: `SELECT value * value from db.rp.float`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of integer value",
+			command: `SELECT value * value from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of integer, float value",
+			command: `SELECT value * value,float from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","","float"],"values":[["%s",1764,null]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of integer value with alias",
+			command: `SELECT value * value as square from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","square"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT sum of aggregates",
+			command: `SELECT max(value) + min(value) from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`),
+		},
+		&Query{
+			name:    "SELECT square of enclosed integer value",
+			command: `SELECT ((value) * (value)) from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT square of enclosed integer value",
+			command: `SELECT (value * value) from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 	}...)
 
@@ -1176,7 +867,9 @@ func TestServer_Query_Count(t *testing.T) {
 		`ram value1=1.0,value2=2.0 ` + strconv.FormatInt(now.UnixNano(), 10),
 	}
 
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	hour_ago := now.Add(-time.Hour).UTC()
 
@@ -1243,7 +936,9 @@ func TestServer_Query_Now(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1298,7 +993,9 @@ func TestServer_Query_EpochPrecision(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1387,7 +1084,9 @@ func TestServer_Query_Tags(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1549,7 +1248,9 @@ func TestServer_Query_Alias(t *testing.T) {
 		fmt.Sprintf("cpu value=2i,steps=4i %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1624,7 +1325,9 @@ func TestServer_Query_Common(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1635,7 +1338,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a from a non-existent retention policy should error",
 			command: `SELECT value FROM db0.rp1.cpu`,
-			exp:     `{"results":[{"error":"retention policy not found"}]}`,
+			exp:     `{"results":[{"error":"retention policy not found: rp1"}]}`,
 		},
 		&Query{
 			name:    "selecting a valid  measurement and field should succeed",
@@ -1699,7 +1402,9 @@ func TestServer_Query_SelectTwoPoints(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu value=100 %s\ncpu value=200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu value=100 %s\ncpu value=200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))},
+	}
 
 	test.addQueries(
 		&Query{
@@ -1745,7 +1450,9 @@ func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 	now := now()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu value=-100 %s\ncpu value=-200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu value=-100 %s\ncpu value=-200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))},
+	}
 
 	test.addQueries(&Query{
 		name:    "selecting two negative points should succeed",
@@ -1785,7 +1492,9 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 	yesterday := yesterday()
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu,host=server01 value=100 %s\ncpu,host=server01 value=200 %s", strconv.FormatInt(yesterday.UnixNano(), 10), strconv.FormatInt(now.UnixNano(), 10))
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu,host=server01 value=100 %s\ncpu,host=server01 value=200 %s", strconv.FormatInt(yesterday.UnixNano(), 10), strconv.FormatInt(now.UnixNano(), 10))},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1818,8 +1527,8 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 	}
 }
 
-// Ensure the server can handle various simple calculus queries.
-func TestServer_Query_SelectRawCalculus(t *testing.T) {
+// Ensure the server can handle various simple derivative queries.
+func TestServer_Query_SelectRawDerivative(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -1829,13 +1538,423 @@ func TestServer_Query_SelectRawCalculus(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu value=210 1278010021000000000\ncpu value=10 1278010022000000000")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu value=210 1278010021000000000\ncpu value=10 1278010022000000000")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
 			name:    "calculate single derivate",
 			command: `SELECT derivative(value) from db0.rp0.cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-200]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivate with unit",
+			command: `SELECT derivative(value, 10s) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-2000]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various simple non_negative_derivative queries.
+func TestServer_Query_SelectRawNonNegativeDerivative(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010021000000000
+cpu value=15 1278010022000000000
+cpu value=10 1278010023000000000
+cpu value=20 1278010024000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate single non_negative_derivative",
+			command: `SELECT non_negative_derivative(value) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","non_negative_derivative"],"values":[["2010-07-01T18:47:02Z",5],["2010-07-01T18:47:04Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate single non_negative_derivative",
+			command: `SELECT non_negative_derivative(value, 10s) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","non_negative_derivative"],"values":[["2010-07-01T18:47:02Z",50],["2010-07-01T18:47:04Z",100]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various group by time derivative queries.
+func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=15 1278010021000000000
+cpu value=20 1278010022000000000
+cpu value=25 1278010023000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit 4s group by time",
+			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit default (2s) group by time",
+			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit 4s group by time",
+			command: `SELECT derivative(mean(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit default (2s) group by time",
+			command: `SELECT derivative(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit 4s group by time",
+			command: `SELECT derivative(median(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit default (2s) group by time",
+			command: `SELECT derivative(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit 4s group by time",
+			command: `SELECT derivative(sum(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit default (2s) group by time",
+			command: `SELECT derivative(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit 4s group by time",
+			command: `SELECT derivative(first(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit default (2s) group by time",
+			command: `SELECT derivative(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit 4s group by time",
+			command: `SELECT derivative(last(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit default (2s) group by time",
+			command: `SELECT derivative(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit 4s group by time",
+			command: `SELECT derivative(min(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit default (2s) group by time",
+			command: `SELECT derivative(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit 4s group by time",
+			command: `SELECT derivative(max(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit default (2s) group by time",
+			command: `SELECT derivative(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit 4s group by time",
+			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various group by time derivative queries.
+func TestServer_Query_SelectGroupByTimeDerivativeWithFill(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=20 1278010021000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-2]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit 4s group by time with fill  0",
+			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-4]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count with unit 4s group by time with fill previous",
+			command: `SELECT derivative(count(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of count of distinct with unit default (4s) group by time with fill previous",
+			command: `SELECT derivative(count(distinct(value))) from db0.rp0.position where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:07' group by time(4s) fill(previous)`,
+			exp:     `{"results":[{"error":"aggregate call didn't contain a field derivative(count(distinct(value)))"}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit 4s group by time with fill 0",
+			command: `SELECT derivative(mean(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of mean with unit 4s group by time with fill previous",
+			command: `SELECT derivative(mean(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit 4s group by time with fill 0",
+			command: `SELECT derivative(median(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of median with unit 4s group by time with fill previous",
+			command: `SELECT derivative(median(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit 4s group by time with fill 0",
+			command: `SELECT derivative(sum(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-60]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of sum with unit 4s group by time with fill previous",
+			command: `SELECT derivative(sum(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit 4s group by time with fill 0",
+			command: `SELECT derivative(first(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of first with unit 4s group by time with fill previous",
+			command: `SELECT derivative(first(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit 4s group by time with fill 0",
+			command: `SELECT derivative(last(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of last with unit 4s group by time with fill previous",
+			command: `SELECT derivative(last(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit 4s group by time with fill 0",
+			command: `SELECT derivative(min(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of min with unit 4s group by time with fill previous",
+			command: `SELECT derivative(min(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit 4s group by time with fill 0",
+			command: `SELECT derivative(max(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of max with unit 4s group by time with fill previous",
+			command: `SELECT derivative(max(value), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit default (2s) group by time with fill 0",
+			command: `SELECT derivative(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit 4s group by time with fill 0",
+			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit default (2s) group by time with fill previous",
+			command: `SELECT derivative(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of percentile with unit 4s group by time with fill previous",
+			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",0]]}]}]}`,
 		},
 	}...)
 
@@ -1878,7 +1997,9 @@ func TestServer_Query_MergeMany(t *testing.T) {
 			writes = append(writes, data)
 		}
 	}
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1934,7 +2055,9 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 		data := fmt.Sprintf(`cpu,region=us-east,host=server-%d value=%d %d`, i, i, time.Unix(int64(i), int64(0)).UnixNano())
 		writes = append(writes, data)
 	}
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -1991,7 +2114,9 @@ func TestServer_Query_Regex(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2048,9 +2173,11 @@ func TestServer_Query_Aggregates_Int(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		// int64
@@ -2086,10 +2213,12 @@ func TestServer_Query_Aggregates_IntMax(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2124,16 +2253,18 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2252,16 +2383,18 @@ func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2344,16 +2477,18 @@ func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2388,12 +2523,14 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`intoverlap,region=us-east value=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-east value=30 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-west value=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`intoverlap,region=us-east otherVal=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`intoverlap,region=us-east value=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intoverlap,region=us-east value=30 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`intoverlap,region=us-west value=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`intoverlap,region=us-east otherVal=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2453,9 +2590,11 @@ func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`floatsingle value=45.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`floatsingle value=45.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2490,16 +2629,18 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`floatmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
-		fmt.Sprintf(`floatmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`floatmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+			fmt.Sprintf(`floatmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2612,12 +2753,14 @@ func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`floatoverlap,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`floatoverlap,region=us-east value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`floatoverlap,region=us-west value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`floatoverlap,region=us-east otherVal=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`floatoverlap,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`floatoverlap,region=us-east value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`floatoverlap,region=us-west value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`floatoverlap,region=us-east otherVal=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2676,11 +2819,13 @@ func TestServer_Query_Aggregates_Load(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`load,region=us-east,host=serverA value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`load,region=us-east,host=serverB value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`load,region=us-west,host=serverC value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`load,region=us-east,host=serverA value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+			fmt.Sprintf(`load,region=us-east,host=serverB value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+			fmt.Sprintf(`load,region=us-west,host=serverC value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2727,10 +2872,12 @@ func TestServer_Query_Aggregates_CPU(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=redis value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=mysql value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`cpu,region=uk,host=serverZ,service=redis value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+			fmt.Sprintf(`cpu,region=uk,host=serverZ,service=mysql value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2765,10 +2912,12 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join([]string{
-		fmt.Sprintf(`stringdata value="first" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
-		fmt.Sprintf(`stringdata value="last" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
-	}, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join([]string{
+			fmt.Sprintf(`stringdata value="first" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+			fmt.Sprintf(`stringdata value="last" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
+		}, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		// strings
@@ -2853,7 +3002,9 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3164,7 +3315,9 @@ func TestServer_Query_TopInt(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3313,10 +3466,6 @@ func TestServer_Query_TopInt(t *testing.T) {
 			continue
 		}
 
-		println(">>>>", query.name)
-		if query.name != `top - memory - host tag with limit 2` { // FIXME: temporary
-			continue
-		}
 		if err := query.Execute(s); err != nil {
 			t.Error(query.Error(err))
 		} else if !query.success() {
@@ -3351,7 +3500,9 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3413,7 +3564,9 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 		fmt.Sprintf(`cpu value=6i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
 	}
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3566,7 +3719,9 @@ func TestServer_Write_Precision(t *testing.T) {
 
 	// we are doing writes that require parameter changes, so we are fighting the test harness a little to make this happen properly
 	for _, w := range writes {
-		test.write = w.write
+		test.writes = Writes{
+			&Write{data: w.write},
+		}
 		test.params = w.params
 		test.initialized = false
 		if err := test.init(s); err != nil {
@@ -3613,7 +3768,9 @@ func TestServer_Query_Wildcards(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3727,7 +3884,9 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3807,7 +3966,9 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -3884,7 +4045,9 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		// non type specific
@@ -4101,7 +4264,9 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4156,7 +4321,9 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4271,7 +4438,9 @@ func TestServer_Query_Fill(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4308,6 +4477,24 @@ func TestServer_Query_Fill(t *testing.T) {
 			name:    "fill defaults to null",
 			command: `select mean(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s)`,
 			exp:     `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",null],["2009-11-10T23:00:15Z",10]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "fill defaults to 0 for count",
+			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s)`,
+			exp:     `{"results":[{"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:00Z",2],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:10Z",0],["2009-11-10T23:00:15Z",1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "fill none drops 0s for count",
+			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(none)`,
+			exp:     `{"results":[{"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:00Z",2],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:15Z",1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "fill previous overwrites 0s for count",
+			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:00Z",2],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -4351,7 +4538,9 @@ func TestServer_Query_Chunk(t *testing.T) {
 	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4392,14 +4581,23 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
 		t.Fatal(err)
 	}
-
-	writes := []string{
-		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`memory,host=serverB,region=uswest val=33.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db1", "rp0"); err != nil {
+		t.Fatal(err)
 	}
 
+	writes := strings.Join([]string{
+		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`memory,host=serverB,region=uswest val=33.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+	}, "\n")
+
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: writes},
+		&Write{db: "db1", data: writes},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4427,7 +4625,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "verify measurements",
+			name:    "verify measurements in DB that we deleted a measurement from",
 			command: `SHOW MEASUREMENTS`,
 			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["memory"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -4443,6 +4641,12 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 			command: `SELECT * FROM cpu`,
 			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "verify cpu measurement is NOT gone from other DB",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+			params:  url.Values{"db": []string{"db1"}},
 		},
 		&Query{
 			name:    "verify selecting from a tag 'host' still works",
@@ -4489,7 +4693,9 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	}
 
 	test = NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: writes},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4547,7 +4753,9 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4647,7 +4855,9 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4735,7 +4945,9 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4853,7 +5065,9 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -4951,7 +5165,9 @@ func TestServer_ContinuousQuery(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 	test.addQueries([]*Query{
 		&Query{
 			name:    `create another retention policy for CQ to write into`,
@@ -5113,7 +5329,9 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu select=1,in-bytes=2 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf("cpu select=1,in-bytes=2 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5166,7 +5384,9 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5219,7 +5439,9 @@ func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5271,7 +5493,9 @@ func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5327,7 +5551,9 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{
@@ -5411,7 +5637,9 @@ func TestServer_WhereTimeInclusive(t *testing.T) {
 	}
 
 	test := NewTest("db0", "rp0")
-	test.write = strings.Join(writes, "\n")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
 
 	test.addQueries([]*Query{
 		&Query{

@@ -375,7 +375,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 
 		// ensure the measurement is in the index and the field is there
 		measurement := s.index.CreateMeasurementIndexIfNotExists(f.Measurement)
-		measurement.fieldNames[f.Field.Name] = struct{}{}
+		measurement.SetFieldName(f.Field.Name)
 	}
 
 	return measurementsToSave, nil

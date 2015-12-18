@@ -17,6 +17,22 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
+// these consts are for the old tsm format. They can be removed once we remove
+// the inspection for the original tsm1 files.
+const (
+	//IDsFileExtension is the extension for the file that keeps the compressed map
+	// of keys to uint64 IDs.
+	IDsFileExtension = "ids"
+
+	// FieldsFileExtension is the extension for the file that stores compressed field
+	// encoding data for this db
+	FieldsFileExtension = "fields"
+
+	// SeriesFileExtension is the extension for the file that stores the compressed
+	// series metadata for series in this db
+	SeriesFileExtension = "series"
+)
+
 type tsdmDumpOpts struct {
 	dumpIndex  bool
 	dumpBlocks bool
@@ -91,7 +107,7 @@ var (
 func readFields(path string) (map[string]*tsdb.MeasurementFields, error) {
 	fields := make(map[string]*tsdb.MeasurementFields)
 
-	f, err := os.OpenFile(filepath.Join(path, tsm1.FieldsFileExtension), os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(path, FieldsFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return fields, nil
 	} else if err != nil {
@@ -116,7 +132,7 @@ func readFields(path string) (map[string]*tsdb.MeasurementFields, error) {
 func readSeries(path string) (map[string]*tsdb.Series, error) {
 	series := make(map[string]*tsdb.Series)
 
-	f, err := os.OpenFile(filepath.Join(path, tsm1.SeriesFileExtension), os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(path, SeriesFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return series, nil
 	} else if err != nil {
@@ -141,7 +157,7 @@ func readSeries(path string) (map[string]*tsdb.Series, error) {
 }
 
 func readIds(path string) (map[string]uint64, error) {
-	f, err := os.OpenFile(filepath.Join(path, tsm1.IDsFileExtension), os.O_RDONLY, 0666)
+	f, err := os.OpenFile(filepath.Join(path, IDsFileExtension), os.O_RDONLY, 0666)
 	if os.IsNotExist(err) {
 		return nil, nil
 	} else if err != nil {
@@ -459,7 +475,9 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 	}
 	b := make([]byte, 8)
 
-	r, err := tsm1.NewTSMReader(f)
+	r, err := tsm1.NewTSMReaderWithOptions(tsm1.TSMReaderOptions{
+		MMAPFile: f,
+	})
 	if err != nil {
 		println("Error opening TSM files: ", err.Error())
 	}
@@ -532,17 +550,16 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			f.Seek(int64(e.Offset), 0)
 			f.Read(b[:4])
 
-			chksum := btou32(b)
+			chksum := btou32(b[:4])
 
-			buf := make([]byte, e.Size)
+			buf := make([]byte, e.Size-4)
 			f.Read(buf)
 
 			blockSize += int64(len(buf)) + 4
 
-			startTime := time.Unix(0, int64(btou64(buf[:8])))
-			blockType := buf[8]
+			blockType := buf[0]
 
-			encoded := buf[9:]
+			encoded := buf[1:]
 
 			var v []tsm1.Value
 			v, err := tsm1.DecodeBlock(buf, v)
@@ -550,6 +567,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 				fmt.Printf("error: %v\n", err.Error())
 				os.Exit(1)
 			}
+			startTime := v[0].Time()
 
 			pointCount += int64(len(v))
 
@@ -600,10 +618,14 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 		println()
 	}
 
+	var blockSizeAvg int64
+	if blockCount > 0 {
+		blockSizeAvg = blockSize / blockCount
+	}
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Blocks:\n")
 	fmt.Printf("    Total: %d Size: %d Min: %d Max: %d Avg: %d\n",
-		blockCount, blockSize, blockStats.min, blockStats.max, blockSize/blockCount)
+		blockCount, blockSize, blockStats.min, blockStats.max, blockSizeAvg)
 	fmt.Printf("  Index:\n")
 	fmt.Printf("    Total: %d Size: %d\n", blockCount, indexSize)
 	fmt.Printf("  Points:\n")

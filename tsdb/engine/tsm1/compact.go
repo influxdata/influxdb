@@ -19,17 +19,16 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/influxdb/influxdb/tsdb"
 )
 
-// maxCompactionSegments is the maximum number of segments that can be
-// compaction at one time.  A lower value would shorten
-// compaction times and memory requirements, but produce more TSM files
-// with lower compression ratios.  A higher value increases compaction times
-// and memory usage but produces more dense TSM files.
-const maxCompactionSegments = 10
+const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
 
-const maxTSMFileSize = 250 * 1024 * 1024
-const rolloverTSMFileSize = 5 * 1025 * 1024
+const (
+	CompactionTempExtension = "tmp"
+	TSMFileExtension        = "tsm"
+)
 
 var errMaxFileExceeded = fmt.Errorf("max file exceeded")
 
@@ -38,129 +37,252 @@ var (
 	MinTime = time.Unix(0, 0)
 )
 
+// compactionSteps are the sizes of files to roll up into before combining.
+var compactionSteps = []uint32{
+	32 * 1024 * 1024,
+	128 * 1024 * 1024,
+	512 * 1024 * 1024,
+	2048 * 1024 * 1024,
+}
+
+// compactionLevel takes a size and returns the index of the compaction step
+// that the size falls into
+func compactionLevel(size uint64) int {
+	for i, step := range compactionSteps {
+		if size < uint64(step) {
+			return i
+		}
+	}
+
+	return len(compactionSteps)
+}
+
 // CompactionPlanner determines what TSM files and WAL segments to include in a
 // given compaction run.
 type CompactionPlanner interface {
-	Plan() ([]string, []string, error)
+	Plan(lastWrite time.Time) []string
 }
 
-// DefaultPlanner implements CompactionPlanner using a strategy to minimize
-// the number of closed WAL segments as well as rewriting existing files for
-// improve compression ratios.  It prefers compacting WAL segments over TSM
-// files to allow cached points to be evicted more quickly.  When looking at
-// TSM files, it will pull in TSM files that need to be rewritten to ensure
-// points exist in only one file.  Reclaiming space is lower priority while
-// there are multiple WAL segments still on disk (e.g. deleting tombstones,
-// combining smaller TSM files, etc..)
-//
-// It prioritizes WAL segments and TSM files as follows:
-//
-// 1) If there are more than 10 closed WAL segments, it will use the 10 oldest
-// 2) If there are any TSM files that contain points that would be overwritten
-//    by a WAL segment, those TSM files are included
-// 3) If there are fewer than 10 WAL segments and no TSM files are required to be
-//    re-written, any TSM files containing tombstones are included.
-// 4) If thare are still fewer than 10 WAL segments and no TSM files included, any
-//    TSM files less than the max file size are included.
+// DefaultPlanner implements CompactionPlanner using a strategy to roll up
+// multiple generations of TSM files into larger files in stages.  It attempts
+// to minimize the number of TSM files on disk while rolling up a bounder number
+// of files.
 type DefaultPlanner struct {
-	WAL interface {
-		ClosedSegments() ([]SegmentStat, error)
-	}
-
-	Cache interface {
-		CheckpointRange() (uint64, uint64)
-	}
-
 	FileStore interface {
 		Stats() []FileStat
+		LastModified() time.Time
 	}
+
+	MinCompactionFileCount int
+
+	// CompactFullWriteColdDuration specifies the length of time after
+	// which if no writes have been committed to the WAL, the engine will
+	// do a full compaction of the TSM files in this shard. This duration
+	// should always be greater than the CacheFlushWriteColdDuraion
+	CompactFullWriteColdDuration time.Duration
+
+	// lastPlanCompactedFull will be true if the last time
+	// Plan was called, all files were over the max size
+	// or there was only one file
+	lastPlanCompactedFull bool
+
+	// lastPlanCheck is the last time Plan was called
+	lastPlanCheck time.Time
 }
 
-// Plan returns a set of TSM files to rewrite, and WAL segments to compact
-func (c *DefaultPlanner) Plan() (tsmFiles, walSegments []string, err error) {
-	wal, err := c.WAL.ClosedSegments()
-	if err != nil {
-		return nil, nil, err
-	}
+// tsmGeneration represents the TSM files within a generation.
+// 000001-01.tsm, 000001-02.tsm would be in the same generation
+// 000001 each with different sequence numbers.
+type tsmGeneration struct {
+	id    int
+	files []FileStat
+}
 
-	if len(wal) > maxCompactionSegments {
-		wal = wal[:maxCompactionSegments]
+// size returns the total size of the generation
+func (t *tsmGeneration) size() uint64 {
+	var n uint64
+	for _, f := range t.files {
+		n += uint64(f.Size)
 	}
-	// Check the cache to see what segments are currently cached.  If they are
-	// not in the cache, we can't compact them and we don't want to include them
-	// in walSegments because they will be deleted after the compaction runs.
-	minCheck, maxCheck := c.Cache.CheckpointRange()
-	var cachedWal []SegmentStat
-	for _, w := range wal {
-		if uint64(w.ID) >= minCheck && uint64(w.ID) <= maxCheck {
-			cachedWal = append(cachedWal, w)
+	return n
+}
+
+func (t *tsmGeneration) lastModified() time.Time {
+	var max time.Time
+	for _, f := range t.files {
+		if f.LastModified.After(max) {
+			max = f.LastModified
 		}
 	}
-	wal = cachedWal
+	return max
+}
+
+// count return then number of files in the generation
+func (t *tsmGeneration) count() int {
+	return len(t.files)
+}
+
+// Plan returns a set of TSM files to rewrite
+func (c *DefaultPlanner) Plan(lastWrite time.Time) []string {
+	// first check if we should be doing a full compaction because nothing has been written in a long time
+	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
+		var tsmFiles []string
+		for _, group := range c.findGenerations() {
+			// If the generation size is less the max size
+			if group.size() < uint64(maxTSMFileSize) {
+				for _, f := range group.files {
+					tsmFiles = append(tsmFiles, f.Path)
+				}
+			}
+		}
+		sort.Strings(tsmFiles)
+
+		c.lastPlanCompactedFull = true
+
+		if len(tsmFiles) <= 1 {
+			return nil
+		}
+
+		return tsmFiles
+	}
+
+	// don't plan if nothing has changed in the filestore
+	if c.lastPlanCheck.After(c.FileStore.LastModified()) {
+		return nil
+	}
+
+	// Determine the generations from all files on disk.  We need to treat
+	// a generation conceptually as a single file even though it may be
+	// split across several files in sequence.
+	generations := c.findGenerations()
+
+	c.lastPlanCheck = time.Now()
+
+	if len(generations) <= 1 {
+		return nil
+	}
+
+	// Loop through the generations (they're in decending order) and find the newest generations
+	// that have the min compaction file count in the same compaction step size
+	startIndex := 0
+	endIndex := len(generations)
+	currentLevel := compactionLevel(generations[0].size())
+	count := 0
+	for i, g := range generations {
+		level := compactionLevel(g.size())
+		count += 1
+
+		if level != currentLevel {
+			if count >= c.MinCompactionFileCount {
+				endIndex = i
+				break
+			}
+			currentLevel = level
+			startIndex = i
+			count = 0
+			continue
+		}
+	}
+
+	if currentLevel == len(compactionSteps) {
+		return nil
+	}
+
+	generations = generations[startIndex:endIndex]
+
+	// if we don't have enough generations to compact, return
+	if len(generations) < c.MinCompactionFileCount {
+		return nil
+	}
+
+	// All the files to be compacted must be compacted in order
+	var tsmFiles []string
+	for _, group := range generations {
+		for _, f := range group.files {
+			tsmFiles = append(tsmFiles, f.Path)
+		}
+	}
+	sort.Strings(tsmFiles)
+
+	// Only one, we can't improve on that so nothing to do
+	if len(tsmFiles) == 1 {
+		return nil
+	}
+
+	c.lastPlanCompactedFull = false
+
+	return tsmFiles
+}
+
+// findGenerations groups all the TSM files by they generation based
+// on their filename then returns the generations in descending order (newest first)
+func (c *DefaultPlanner) findGenerations() tsmGenerations {
+	generations := map[int]*tsmGeneration{}
 
 	tsmStats := c.FileStore.Stats()
+	for _, f := range tsmStats {
+		gen, _, _ := ParseTSMFileName(f.Path)
 
-	var walPaths []string
-	var tsmPaths []string
-
-	// We need to rewrite any TSM files that could contain points for any keys in the
-	// WAL segments.
-	for _, w := range wal {
-		walPaths = append(walPaths, w.Path)
-	}
-
-	var hasDeletes bool
-	// Only look to rollup TSM files we don't have any WAL files to compact
-	if len(wal) == 0 && len(tsmStats) > 1 {
-		for _, tsm := range tsmStats {
-			if tsm.HasTombstone {
-				tsmPaths = append(tsmPaths, tsm.Path)
-				hasDeletes = true
-				continue
+		group := generations[gen]
+		if group == nil {
+			group = &tsmGeneration{
+				id: gen,
 			}
-
-			if tsm.Size > maxTSMFileSize {
-				continue
-			}
-			tsmPaths = append(tsmPaths, tsm.Path)
+			generations[gen] = group
 		}
+		group.files = append(group.files, f)
 	}
 
-	sort.Strings(tsmPaths)
-
-	if !hasDeletes && len(tsmPaths) == 1 && len(walPaths) == 0 {
-		return nil, nil, nil
+	orderedGenerations := make(tsmGenerations, 0, len(generations))
+	for _, g := range generations {
+		orderedGenerations = append(orderedGenerations, g)
 	}
-	return tsmPaths, walPaths, nil
+	sort.Sort(sort.Reverse(orderedGenerations))
+	return orderedGenerations
 }
 
-// Compactor merges multiple WAL segments and TSM files into one or more
-// new TSM files.
+// Compactor merges multiple TSM files into new files or
+// writes a Cache into 1 or more TSM files
 type Compactor struct {
-	Dir         string
-	MaxFileSize int
-	currentID   int
+	Dir    string
+	Cancel chan struct{}
+	Size   int
 
 	FileStore interface {
-		NextID() int
+		NextGeneration() int
 	}
-
-	Cache *Cache
-
-	merge *MergeIterator
 }
 
-// Compact converts WAL segements and TSM files into new TSM files.
-func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
-	var wal KeyIterator
-	var err error
-	if len(walSegments) > 0 {
-		ids := SegmentPaths(walSegments).IDs()
-		min, max := uint64(ids[0]), uint64(ids[len(ids)-1])
+// WriteSnapshot will write a Cache snapshot to a new TSM files.
+func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
+	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
+	return c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+}
 
-		// WALKeyIterator allows all the segments to be ordered by key and
-		// sorted values during compaction.
-		wal = NewCacheKeyIterator(c.Cache, min, max)
+// Compact will write multiple smaller TSM files into 1 or more larger files
+func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
+	size := c.Size
+	if size <= 0 {
+		size = tsdb.DefaultMaxPointsPerBlock
+	}
+	// The new compacted files need to added to the max generation in the
+	// set.  We need to find that max generation as well as the max sequence
+	// number to ensure we write to the next unique location.
+	var maxGeneration, maxSequence int
+	for _, f := range tsmFiles {
+		gen, seq, err := ParseTSMFileName(f)
+		if err != nil {
+			return nil, err
+		}
+
+		if gen > maxGeneration {
+			maxGeneration = gen
+			maxSequence = seq
+		}
+
+		if gen == maxGeneration && seq > maxSequence {
+			maxSequence = seq
+		}
 	}
 
 	// For each TSM file, create a TSM reader
@@ -178,58 +300,75 @@ func (c *Compactor) Compact(tsmFiles, walSegments []string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer tr.Close()
 		trs = append(trs, tr)
 	}
 
-	var tsm KeyIterator
-	if len(trs) > 0 {
-		tsm, err = NewTSMKeyIterator(trs...)
-		if err != nil {
-			return nil, err
-		}
+	if len(trs) == 0 {
+		return nil, nil
 	}
 
-	// Merge iterator combines the WAL and TSM iterators (note: TSM iteration is
-	// not in place yet).  It will also chunk the values into 1000 element blocks.
-	c.merge = NewMergeIterator(tsm, wal, 1000, MinTime, MaxTime)
-	defer c.merge.Close()
+	tsm, err := NewTSMKeyIterator(size, trs...)
+	if err != nil {
+		return nil, err
+	}
 
+	return c.writeNewFiles(maxGeneration, maxSequence, tsm)
+}
+
+// Clone will return a new compactor that can be used even if the engine is closed
+func (c *Compactor) Clone() *Compactor {
+	return &Compactor{
+		Dir:       c.Dir,
+		FileStore: c.FileStore,
+		Cancel:    c.Cancel,
+	}
+}
+
+// writeNewFiles will write from the iterator into new TSM files, rotating
+// to a new file when we've reached the max TSM file size
+func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([]string, error) {
 	// These are the new TSM files written
 	var files []string
 
 	for {
-		c.currentID = c.FileStore.NextID()
-
+		sequence++
 		// New TSM files are written to a temp file and renamed when fully completed.
-		fileName := filepath.Join(c.Dir, fmt.Sprintf("%07d.%s.tmp", c.currentID, "tsm1dev"))
+		fileName := filepath.Join(c.Dir, fmt.Sprintf("%09d-%09d.%s.tmp", generation, sequence, TSMFileExtension))
 
-		rollover := rolloverTSMFileSize
-		if len(walSegments) == 0 {
-			rollover = maxTSMFileSize
-		}
 		// Write as much as possible to this file
-		err := c.write(fileName, rollover)
+		err := c.write(fileName, iter)
 
 		// We've hit the max file limit and there is more to write.  Create a new file
 		// and continue.
 		if err == errMaxFileExceeded {
 			files = append(files, fileName)
 			continue
+		} else if err == ErrNoValues {
+			// If the file only contained tombstoned entries, then it would be a 0 length
+			// file that we can drop.
+			if err := os.RemoveAll(fileName); err != nil {
+				return nil, err
+			}
+			break
 		}
 
 		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
 		if err != nil {
+			if err := os.Remove(fileName); err != nil {
+				return nil, err
+			}
 			return nil, err
 		}
 
 		files = append(files, fileName)
 		break
 	}
-	c.merge = nil
+
 	return files, nil
 }
 
-func (c *Compactor) write(path string, rollover int) error {
+func (c *Compactor) write(path string, iter KeyIterator) error {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		return fmt.Errorf("%v already file exists. aborting", path)
 	}
@@ -244,29 +383,32 @@ func (c *Compactor) write(path string, rollover int) error {
 	if err != nil {
 		return err
 	}
+	defer w.Close()
 
-	for c.merge.Next() {
+	for iter.Next() {
+		select {
+		case <-c.Cancel:
+			return fmt.Errorf("compaction aborted")
+		default:
+		}
+
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)
-		key, values, err := c.merge.Read()
+		key, minTime, maxTime, block, err := iter.Read()
 		if err != nil {
 			return err
 		}
 
 		// Write the key and value
-		if err := w.Write(key, values); err != nil {
+		if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
 			return err
 		}
 
 		// If we have a max file size configured and we're over it, close out the file
 		// and return the error.
-		if rollover != 0 && w.Size() > rollover {
+		if w.Size() > maxTSMFileSize {
 			if err := w.WriteIndex(); err != nil {
-				return err
-			}
-
-			if err := w.Close(); err != nil {
 				return err
 			}
 
@@ -279,285 +421,14 @@ func (c *Compactor) write(path string, rollover int) error {
 		return err
 	}
 
-	if err := w.Close(); err != nil {
-		return err
-	}
-
 	return nil
-}
-
-// MergeIterator merges multiple KeyIterators while chunking each read call
-// into a fixed size.  Each iteration, the lowest lexicographically ordered
-// key is returned with the next set of values for that key ordered by time.  Values
-// with identical times are overwitten by the WAL KeyIterator.
-//
-// Moving through the full iteration cycle will result in sorted, unique, chunks of values
-// up to a max size. Each key returned will be greater than or equal to the prior
-// key returned.
-type MergeIterator struct {
-	// wal is the iterator for multiple WAL segments combined
-	wal KeyIterator
-
-	// tsm is the iterator for multiple TSM files combined
-	tsm KeyIterator
-
-	// size is the maximum value of a chunk to return
-	size int
-
-	// key is the current iteration series key
-	key, walKey, tsmKey string
-
-	// walBuf is the remaining values from the last wal Read call
-	walBuf map[string][]Value
-
-	// tsmBuf is the remaining values from the last tsm Read call
-	tsmBuf map[string][]Value
-
-	// values is the current set of values that will be returned by Read.
-	values []Value
-
-	// err is any error returned by an underlying iterator to be returned by Read
-	err error
-
-	minTime, maxTime time.Time
-}
-
-func NewMergeIterator(TSM KeyIterator, WAL KeyIterator, size int, minTime, maxTime time.Time) *MergeIterator {
-	m := &MergeIterator{
-		wal:     WAL,
-		tsm:     TSM,
-		walBuf:  map[string][]Value{},
-		tsmBuf:  map[string][]Value{},
-		size:    size,
-		minTime: minTime,
-		maxTime: maxTime,
-	}
-	return m
-}
-func (m *MergeIterator) Next() bool {
-	for {
-		// If we still have values in the current chunk, slice off up to size of them
-		if m.size < len(m.values) {
-			m.values = m.values[:m.size]
-		} else {
-			m.values = m.values[:0]
-		}
-
-		// We still have values.
-		if len(m.values) > 0 {
-			return true
-		}
-
-		// Prime the tsm buffers if possible
-		if len(m.tsmBuf) == 0 && m.tsm != nil && m.tsm.Next() {
-			k, v, err := m.tsm.Read()
-			m.err = err
-			m.tsmKey = k
-			if len(v) > 0 {
-				m.tsmBuf[k] = v
-			}
-		}
-
-		// Prime the wal buffer if possible
-		if len(m.walBuf) == 0 && m.wal != nil && m.wal.Next() {
-			k, v, err := m.wal.Read()
-			m.err = err
-			m.walKey = k
-			if len(v) > 0 {
-				m.walBuf[k] = v
-			}
-		}
-
-		m.key = m.currentKey()
-
-		// No more keys, we're done.
-		if m.key == "" {
-			return false
-		}
-
-		// Otherwise, append the wal values to the tsm values and sort, dedup.  We want
-		// the wal values to overwrite any tsm values so they are append second.
-		var dedup bool
-		if len(m.walBuf[m.key]) > 0 && len(m.tsmBuf[m.key]) > 0 {
-			tsmVals := m.tsmBuf[m.key]
-			walPoint := m.walBuf[m.key][0].Time()
-			tsmPoint := tsmVals[len(tsmVals)-1].Time()
-
-			if walPoint.Before(tsmPoint) || walPoint.Equal(tsmPoint) {
-				dedup = true
-			}
-		}
-
-		// Only have wal values? Use the wal buf
-		if len(m.tsmBuf[m.key]) == 0 && len(m.walBuf[m.key]) > 0 {
-			m.values = m.walBuf[m.key]
-			m.walKey = ""
-			// Only have tsm values? Use the wal buf
-		} else if len(m.walBuf[m.key]) == 0 && len(m.tsmBuf[m.key]) > 0 {
-			m.values = m.tsmBuf[m.key]
-			m.tsmKey = ""
-		} else {
-			m.values = append(m.tsmBuf[m.key], m.walBuf[m.key]...)
-			m.walKey = ""
-			m.tsmKey = ""
-		}
-
-		if dedup {
-			m.values = Values(m.values).Deduplicate(true)
-		}
-
-		// We need to find the index of the min and max values that are within
-		// the minTime/maxTime filters.
-		minIndex, maxIndex := 0, len(m.values)
-		for i, v := range m.values {
-			if v.Time().Before(m.minTime) {
-				minIndex = i
-			}
-			if v.Time().Equal(m.minTime) {
-				minIndex = i
-			}
-
-			if m.maxTime.Before(v.Time()) {
-				maxIndex = i + 1
-			}
-
-			if m.maxTime.Equal(v.Time()) {
-				maxIndex = i
-			}
-		}
-		m.values = m.values[minIndex:maxIndex]
-
-		// Remove the values from our buffer since they are all moved into the current chunk
-		delete(m.tsmBuf, m.key)
-		delete(m.walBuf, m.key)
-
-		// If we have any values, return true.  Otherwise, continue looping until we exhaust
-		// all the keys or finds some values.
-		if len(m.values) > 0 {
-			return true
-		}
-	}
-}
-
-func (m *MergeIterator) Read() (string, []Value, error) {
-	if len(m.values) >= m.size {
-		return m.key, m.values[:m.size], m.err
-	}
-	return m.key, m.values, m.err
-}
-
-func (m *MergeIterator) Close() error {
-	m.walBuf = nil
-	m.values = nil
-	if m.wal != nil {
-		m.wal.Close()
-	}
-
-	if m.tsm != nil {
-		m.tsm.Close()
-	}
-	return nil
-}
-
-func (m *MergeIterator) currentKey() string {
-	var key string
-	// This is the smallest key across the wal and tsm maps
-	if m.tsmKey == "" && m.walKey == "" {
-		key = ""
-	} else if m.tsmKey != "" && m.walKey == "" {
-		key = m.tsmKey
-	} else if m.walKey != "" && m.tsmKey == "" {
-		key = m.walKey
-	} else if m.walKey <= m.tsmKey {
-		key = m.walKey
-	} else {
-		key = m.tsmKey
-	}
-
-	return key
 }
 
 // KeyIterator allows iteration over set of keys and values in sorted order.
 type KeyIterator interface {
 	Next() bool
-	Read() (string, []Value, error)
+	Read() (string, time.Time, time.Time, []byte, error)
 	Close() error
-}
-
-// walKeyIterator allows WAL segments to be iterated over in sorted order.
-type walKeyIterator struct {
-	k      string
-	Order  []string
-	Series map[string]Values
-}
-
-func (k *walKeyIterator) Next() bool {
-	if len(k.Order) == 0 {
-		return false
-	}
-	k.k = k.Order[0]
-	k.Order = k.Order[1:]
-	return true
-}
-
-func (k *walKeyIterator) Read() (string, []Value, error) {
-	return k.k, k.Series[k.k], nil
-}
-
-func (k *walKeyIterator) Close() error {
-	k.Order = nil
-	k.Series = nil
-	return nil
-}
-
-func NewWALKeyIterator(readers ...*WALSegmentReader) (KeyIterator, error) {
-	series := map[string]Values{}
-	order := []string{}
-
-	// Iterate over each reader in order.  Later readers will overwrite earlier ones if values
-	// overlap.
-	for _, r := range readers {
-		for r.Next() {
-			entry, err := r.Read()
-			if err != nil {
-				return nil, err
-			}
-
-			switch t := entry.(type) {
-			case *WriteWALEntry:
-				// Each point needs to be decomposed from a time with multiple fields, to a time, value tuple
-				for k, v := range t.Values {
-					// Just append each point as we see it.  Dedup and sorting happens later.
-					series[k] = append(series[k], v...)
-				}
-
-			case *DeleteWALEntry:
-				// Each key is a series, measurement + tagset string
-				for _, k := range t.Keys {
-					// seriesKey is specific to a field, measurment + tagset string + sep + field name
-					for seriesKey := range series {
-						//  If the delete series key matches the portion before the separator, we delete what we have
-						if k == seriesKey {
-							delete(series, seriesKey)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Need to create the order that we'll iterate over (sorted key), as well as
-	// sort and dedup all the points for each key.
-	for k, v := range series {
-		order = append(order, k)
-		series[k] = v.Deduplicate(true)
-	}
-	sort.Strings(order)
-
-	return &walKeyIterator{
-		Series: series,
-		Order:  order,
-	}, nil
 }
 
 // tsmKeyIterator implements the KeyIterator for set of TSMReaders.  Iteration produces
@@ -579,106 +450,236 @@ type tsmKeyIterator struct {
 	// err is any error we received while iterating values.
 	err error
 
+	size int
 	// key is the current key lowest key across all readers that has not be fully exhausted
 	// of values.
 	key string
+
+	iterators []*BlockIterator
+	blocks    blocks
+
+	buf blocks
 }
 
-func NewTSMKeyIterator(readers ...*TSMReader) (KeyIterator, error) {
+type block struct {
+	key              string
+	minTime, maxTime time.Time
+	b                []byte
+}
+
+type blocks []*block
+
+func (a blocks) Len() int { return len(a) }
+
+func (a blocks) Less(i, j int) bool {
+	if a[i].key == a[j].key {
+		return a[i].minTime.Before(a[j].minTime)
+	}
+	return a[i].key < a[j].key
+}
+
+func (a blocks) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func NewTSMKeyIterator(size int, readers ...*TSMReader) (KeyIterator, error) {
+	var iter []*BlockIterator
+	for _, r := range readers {
+		iter = append(iter, r.BlockIterator())
+	}
+
 	return &tsmKeyIterator{
-		readers: readers,
-		values:  map[string][]Value{},
-		pos:     make([]int, len(readers)),
-		keys:    make([]string, len(readers)),
+		readers:   readers,
+		values:    map[string][]Value{},
+		pos:       make([]int, len(readers)),
+		keys:      make([]string, len(readers)),
+		size:      size,
+		iterators: iter,
+		buf:       make([]*block, len(iter)),
 	}, nil
 }
 
 func (k *tsmKeyIterator) Next() bool {
-	// If we have a key from the prior iteration, purge it and it's values from the
-	// values map.  We're done with it.
-	if k.key != "" {
-		delete(k.values, k.key)
-		for i, readerKey := range k.keys {
-			if readerKey == k.key {
-				k.keys[i] = ""
-			}
+	// If we still have blocks from the last read, slice off the current one
+	// and return
+	if len(k.blocks) > 0 {
+		k.blocks = k.blocks[1:]
+		if len(k.blocks) > 0 {
+			return true
 		}
 	}
 
-	var skipSearch bool
-	// For each iterator, group up all the values for their current key.
-	for i, r := range k.readers {
-		if k.keys[i] != "" {
-			continue
-		}
+	// Read the next block from each TSM iterator
+	for i, v := range k.buf {
+		if v == nil {
+			iter := k.iterators[i]
+			if iter.Next() {
+				key, minTime, maxTime, b, err := iter.Read()
+				if err != nil {
+					k.err = err
+				}
 
-		// Grab the key for this reader
-		key := r.Key(k.pos[i])
-		k.keys[i] = key
-
-		if key != "" && key <= k.key {
-			k.key = key
-			skipSearch = true
-		}
-
-		// Bump it to the next key
-		k.pos[i]++
-
-		// If it return a key, grab all the values for it.
-		if key != "" {
-			// Note: this could be made more efficient to just grab chunks of values instead of
-			// all for the key.
-			values, err := r.ReadAll(key)
-			if err != nil {
-				k.err = err
-			}
-
-			if len(values) > 0 {
-				existing := k.values[key]
-
-				if len(existing) == 0 {
-					k.values[key] = values
-				} else if values[0].Time().After(existing[len(existing)-1].Time()) {
-					k.values[key] = append(existing, values...)
-				} else if values[len(values)-1].Time().Before(existing[0].Time()) {
-					k.values[key] = append(values, existing...)
-				} else {
-					k.values[key] = Values(append(existing, values...)).Deduplicate(true)
+				k.buf[i] = &block{
+					minTime: minTime,
+					maxTime: maxTime,
+					key:     key,
+					b:       b,
 				}
 			}
 		}
 	}
 
-	if !skipSearch {
-		// Determine our current key which is the smallest key in the values map
-		k.key = k.currentKey()
-	}
-
-	return len(k.values) > 0
-}
-
-func (k *tsmKeyIterator) currentKey() string {
-	var key string
-	for searchKey := range k.values {
-		if key == "" || searchKey <= key {
-			key = searchKey
+	// Each reader could have a different key that it's currently at, need to find
+	// the next smallest one to keep the sort ordering.
+	var minKey string
+	for _, b := range k.buf {
+		// block could be nil if the iterator has been exhausted for that file
+		if b == nil {
+			continue
+		}
+		if minKey == "" || b.key < minKey {
+			minKey = b.key
 		}
 	}
 
-	return key
-}
-
-func (k *tsmKeyIterator) Read() (string, []Value, error) {
-	if k.key == "" {
-		return "", nil, k.err
+	// Now we need to find all blocks that match the min key so we can combine and dedupe
+	// the blocks if necessary
+	for i, b := range k.buf {
+		if b == nil {
+			continue
+		}
+		if b.key == minKey {
+			k.blocks = append(k.blocks, b)
+			k.buf[i] = nil
+		}
 	}
 
-	return k.key, k.values[k.key], k.err
+	// If we have more than one block, we many need to dedup
+	var dedup bool
+
+	// Only one block, just return early everything after is wasted work
+	if len(k.blocks) == 1 {
+		return true
+	}
+
+	if len(k.blocks) > 1 {
+		// Quickly scan each block to see if any overlap with the first block, if they overlap then
+		// we need to dedup as there may be duplicate points now
+		for i := 1; i < len(k.blocks); i++ {
+			if k.blocks[i].minTime.Equal(k.blocks[0].maxTime) || k.blocks[i].minTime.Before(k.blocks[0].maxTime) {
+				dedup = true
+				break
+			}
+		}
+	}
+
+	k.blocks = k.combine(dedup)
+
+	return len(k.blocks) > 0
+}
+
+// combine returns a new set of blocks using the current blocks in the buffers.  If dedup
+// is true, all the blocks will be decoded, dedup and sorted in in order.  If dedup is false,
+// only blocks that are smaller than the chunk size will be decoded and combined.
+func (k *tsmKeyIterator) combine(dedup bool) blocks {
+	var decoded Values
+	if dedup {
+		// We have some overlapping blocks so decode all, append in order and then dedup
+		for i := 0; i < len(k.blocks); i++ {
+			v, err := DecodeBlock(k.blocks[i].b, nil)
+			if err != nil {
+				k.err = err
+				return nil
+			}
+			decoded = append(decoded, v...)
+		}
+		decoded = decoded.Deduplicate()
+
+		// Since we combined multiple blocks, we could have more values than we should put into
+		// a single block.  We need to chunk them up into groups and re-encode them.
+		return k.chunk(nil, decoded)
+	} else {
+		var chunked blocks
+		var i int
+
+		for i < len(k.blocks) {
+			// If we this block is already full, just add it as is
+			if BlockCount(k.blocks[i].b) >= k.size {
+				chunked = append(chunked, k.blocks[i])
+			} else {
+				break
+			}
+			i++
+		}
+
+		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+		if i == len(k.blocks)-1 {
+			chunked = append(chunked, k.blocks[i])
+			i++
+		}
+
+		// The remaining blocks can be combined and we know that they do not overlap and are already
+		// sorted so we can just append each and re-encode.
+		for i < len(k.blocks) {
+			v, err := DecodeBlock(k.blocks[i].b, nil)
+			if err != nil {
+				k.err = err
+				return nil
+			}
+			decoded = append(decoded, v...)
+			i++
+		}
+
+		return k.chunk(chunked, decoded)
+	}
+}
+
+func (k *tsmKeyIterator) chunk(dst blocks, values []Value) blocks {
+	for len(values) > k.size {
+		cb, err := Values(values[:k.size]).Encode(nil)
+		if err != nil {
+			k.err = err
+			return nil
+		}
+
+		dst = append(dst, &block{
+			minTime: values[0].Time(),
+			maxTime: values[k.size].Time(),
+			key:     k.blocks[0].key,
+			b:       cb,
+		})
+		values = values[k.size:]
+	}
+
+	// Re-encode the remaining values into the last block
+	if len(values) > 0 {
+		cb, err := Values(values).Encode(nil)
+		if err != nil {
+			k.err = err
+			return nil
+		}
+
+		dst = append(dst, &block{
+			minTime: values[0].Time(),
+			maxTime: values[len(values)-1].Time(),
+			key:     k.blocks[0].key,
+			b:       cb,
+		})
+	}
+	return dst
+}
+
+func (k *tsmKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
+	if len(k.blocks) == 0 {
+		return "", time.Unix(0, 0), time.Unix(0, 0), nil, k.err
+	}
+
+	block := k.blocks[0]
+	return block.key, block.minTime, block.maxTime, block.b, k.err
 }
 
 func (k *tsmKeyIterator) Close() error {
 	k.values = nil
 	k.pos = nil
+	k.iterators = nil
 	for _, r := range k.readers {
 		if err := r.Close(); err != nil {
 			return err
@@ -688,37 +689,62 @@ func (k *tsmKeyIterator) Close() error {
 }
 
 type cacheKeyIterator struct {
-	cache    *Cache
-	min, max uint64
+	cache *Cache
+	size  int
 
-	k     string
-	order []string
+	k                string
+	order            []string
+	values           []Value
+	block            []byte
+	minTime, maxTime time.Time
+	err              error
 }
 
-func NewCacheKeyIterator(cache *Cache, min, max uint64) KeyIterator {
-	keys := cache.KeyRange(min, max)
+func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
+	keys := cache.Keys()
 
 	return &cacheKeyIterator{
+		size:  size,
 		cache: cache,
 		order: keys,
-		min:   min,
-		max:   max,
 	}
 }
 
 func (c *cacheKeyIterator) Next() bool {
+	if len(c.values) > c.size {
+		c.values = c.values[c.size:]
+		return true
+	}
+
 	if len(c.order) == 0 {
 		return false
 	}
 	c.k = c.order[0]
 	c.order = c.order[1:]
+	c.values = c.cache.values(c.k)
 	return true
 }
 
-func (c *cacheKeyIterator) Read() (string, []Value, error) {
-	return c.k, c.cache.ValuesRange(c.k, c.min, c.max), nil
+func (c *cacheKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
+	minTime, maxTime := c.values[0].Time(), c.values[len(c.values)-1].Time()
+	var b []byte
+	var err error
+	if len(c.values) > c.size {
+		maxTime = c.values[c.size].Time()
+		b, err = Values(c.values[:c.size]).Encode(nil)
+	} else {
+		b, err = Values(c.values).Encode(nil)
+	}
+
+	return c.k, minTime, maxTime, b, err
 }
 
 func (c *cacheKeyIterator) Close() error {
 	return nil
 }
+
+type tsmGenerations []*tsmGeneration
+
+func (a tsmGenerations) Len() int           { return len(a) }
+func (a tsmGenerations) Less(i, j int) bool { return a[i].id < a[j].id }
+func (a tsmGenerations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

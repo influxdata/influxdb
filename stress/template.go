@@ -18,6 +18,7 @@ var s = `
       jitter = true
       measurement = "cpu"
       start_date = "2006-Jan-02"
+      precision = "n"
       [[write.point_generator.basic.tag]]
         key = "host"
         value = "server"
@@ -32,11 +33,10 @@ var s = `
   [write.influx_client]
     [write.influx_client.basic]
       enabled = true
-     #address = "localhost:1234"
-      address = "localhost:8086"
+      addresses = ["localhost:8086"]
       database = "stress"
       precision = "n"
-      batch_size = 10000
+      batch_size = 5000
       batch_interval = "0s"
       concurrency = 10
       ssl = false
@@ -50,7 +50,8 @@ var s = `
 
   [read.query_client]
     [read.query_client.basic]
-      address = "localhost:8086"
+      enabled = true
+      addresses = ["localhost:8086"]
       database = "stress"
       query_interval = "100ms"
       concurrency = 1

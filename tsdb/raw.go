@@ -208,7 +208,7 @@ func (e *RawExecutor) execute(out chan *models.Row, closing <-chan struct{}) {
 				chunkedOutput = &MapperOutput{
 					Name:      m.bufferedChunk.Name,
 					Tags:      m.bufferedChunk.Tags,
-					cursorKey: m.bufferedChunk.key(),
+					CursorKey: m.bufferedChunk.key(),
 				}
 				chunkedOutput.Values = m.bufferedChunk.Values[:ind]
 			} else {
@@ -483,9 +483,13 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *models.Row {
 	selectFields := make([]string, 0, len(selectNames))
 	aliasFields := make([]string, 0, len(selectNames))
 
-	for i, n := range selectNames {
+	for _, n := range selectNames {
 		if _, found := r.tags[n]; !found {
 			selectFields = append(selectFields, n)
+		}
+	}
+	for i, n := range aliasNames {
+		if _, found := r.tags[n]; !found {
 			aliasFields = append(aliasFields, aliasNames[i])
 		}
 	}
@@ -698,15 +702,9 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 
 		// Check the value's type to ensure it's an numeric, if not, return a nil result. We only check the first value
 		// because derivatives cannot be combined with other aggregates currently.
-		validType := false
-		switch cur[1].(type) {
-		case int64:
-			validType = true
-		case float64:
-			validType = true
-		}
-
-		if !validType {
+		prevValue, prevOK := toFloat64(prev[1])
+		curValue, curOK := toFloat64(cur[1])
+		if !prevOK || !curOK {
 			derivatives = append(derivatives, []interface{}{
 				cur[0], nil,
 			})
@@ -714,7 +712,7 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 		}
 
 		elapsed := cur[0].(time.Time).Sub(prev[0].(time.Time))
-		diff := int64toFloat64(cur[1]) - int64toFloat64(prev[1])
+		diff := curValue - prevValue
 		value := 0.0
 		if elapsed > 0 {
 			value = float64(diff) / (float64(elapsed) / float64(interval))
@@ -763,14 +761,29 @@ func resultsEmpty(resultValues [][]interface{}) bool {
 	return true
 }
 
-func int64toFloat64(v interface{}) float64 {
-	switch v.(type) {
+// Convert commonly understood types to a float64
+// Valid types are int64, float64 or PositionPoint with a Value of int64 or float64
+// The second retuned boolean indicates if the conversion was successful.
+func toFloat64(v interface{}) (float64, bool) {
+	switch value := v.(type) {
 	case int64:
-		return float64(v.(int64))
+		return float64(value), true
 	case float64:
-		return v.(float64)
+		return value, true
+	case PositionPoint:
+		return toFloat64(value.Value)
 	}
-	panic(fmt.Sprintf("expected either int64 or float64, got %v", v))
+	return 0, false
+}
+
+func int64toFloat64(v interface{}) float64 {
+	switch value := v.(type) {
+	case int64:
+		return float64(value)
+	case float64:
+		return value
+	}
+	panic(fmt.Sprintf("expected either int64 or float64, got %T", v))
 }
 
 // RawMapper runs the map phase for non-aggregate, raw SELECT queries.
@@ -942,7 +955,7 @@ func (m *RawMapper) NextChunk() (interface{}, error) {
 				Name:      cursor.measurement,
 				Tags:      cursor.tags,
 				Fields:    m.selectFields,
-				cursorKey: cursor.key(),
+				CursorKey: cursor.key(),
 			}
 		}
 

@@ -48,16 +48,32 @@ const (
 	// size for the in-memory WAL cache.
 	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 
-	// Default WAL settings for the TSM1 WAL
-	DefaultFlushMemorySizeThreshold    = 5 * 1024 * 1024   // 5MB
-	DefaultMaxMemorySizeThreshold      = 100 * 1024 * 1024 // 100MB
-	DefaultIndexCompactionAge          = time.Minute
-	DefaultIndexMinCompactionInterval  = time.Minute
-	DefaultIndexMinCompactionFileCount = 5
-	DefaultIndexCompactionFullAge      = 5 * time.Minute
+	// Default settings for TSM
 
-	DefaultCacheMaxMemorySize = 0 // No max memory limit
+	// DefaultCacheMaxMemorySize is the maximum size a shard's cache can
+	// reach before it starts rejecting writes.
+	DefaultCacheMaxMemorySize = 500 * 1024 * 1024 // 500MB
 
+	// DefaultCacheSnapshotMemorySize is the size at which the engine will
+	// snapshot the cache and write it to a TSM file, freeing up memory
+	DefaultCacheSnapshotMemorySize = 25 * 1024 * 1024 // 25MB
+
+	// DefaultCacheSnapshotWriteColdDuration is the length of time at which
+	// the engine will snapshot the cache and write it to a new TSM file if
+	// the shard hasn't received writes or deletes
+	DefaultCacheSnapshotWriteColdDuration = time.Duration(time.Hour)
+
+	// DefaultMinCompactionFileCount is the minimum number of TSM files
+	// that need to exist before a compaction cycle will run
+	DefaultCompactMinFileCount = 3
+
+	// DefaultCompactFullWriteColdDuration is the duration at which the engine
+	// will compact all TSM files in a shard if it hasn't received a write or delete
+	DefaultCompactFullWriteColdDuration = time.Duration(24 * time.Hour)
+
+	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
+	// block in a TSM file
+	DefaultMaxPointsPerBlock = 1000
 )
 
 type Config struct {
@@ -78,34 +94,18 @@ type Config struct {
 	WALFlushColdInterval      toml.Duration `toml:"wal-flush-cold-interval"`
 	WALPartitionSizeThreshold uint64        `toml:"wal-partition-size-threshold"`
 
-	// WAL configuration options for tsm1 introduced in 0.9.5
-	WALFlushMemorySizeThreshold int `toml:"wal-flush-memory-size-threshold"`
-	WALMaxMemorySizeThreshold   int `toml:"wal-max-memory-size-threshold"`
-
-	// compaction options for tsm1 introduced in 0.9.5
-
-	// IndexCompactionAge specifies the duration after the data file creation time
-	// at which it is eligible to be compacted
-	IndexCompactionAge time.Duration `toml:"index-compaction-age"`
-
-	// IndexMinimumCompactionInterval specifies the minimum amount of time that must
-	// pass after a compaction before another compaction is run
-	IndexMinCompactionInterval time.Duration `toml:"index-min-compaction-interval"`
-
-	// IndexCompactionFileCount specifies the minimum number of data files that
-	// must be eligible for compaction before actually running one
-	IndexMinCompactionFileCount int `toml:"index-compaction-min-file-count"`
-
-	// IndexCompactionFullAge specifies how long after the last write was received
-	// in the WAL that a full compaction should be performed.
-	IndexCompactionFullAge time.Duration `toml:"index-compaction-full-age"`
-
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
-	// compaction options for tsm1dev
+	// Compaction options for tsm1 (descriptions above with defaults)
+	CacheMaxMemorySize             uint64        `toml:"cache-max-memory-size"`
+	CacheSnapshotMemorySize        uint64        `toml:"cache-snapshot-memory-size"`
+	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
+	CompactMinFileCount            int           `toml:"compact-min-file-count"`
+	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
+	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
 
-	CacheMaxMemorySize uint64 `toml:"cache-max-memory-size"`
+	DataLoggingEnabled bool `toml:"data-logging-enabled"`
 }
 
 func NewConfig() Config {
@@ -121,22 +121,22 @@ func NewConfig() Config {
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
 
-		WALLoggingEnabled:           true,
-		WALReadySeriesSize:          DefaultReadySeriesSize,
-		WALCompactionThreshold:      DefaultCompactionThreshold,
-		WALMaxSeriesSize:            DefaultMaxSeriesSize,
-		WALFlushColdInterval:        toml.Duration(DefaultFlushColdInterval),
-		WALPartitionSizeThreshold:   DefaultPartitionSizeThreshold,
-		WALFlushMemorySizeThreshold: DefaultFlushMemorySizeThreshold,
-		WALMaxMemorySizeThreshold:   DefaultMaxMemorySizeThreshold,
-		IndexCompactionAge:          DefaultIndexCompactionAge,
-		IndexMinCompactionFileCount: DefaultIndexMinCompactionFileCount,
-		IndexCompactionFullAge:      DefaultIndexCompactionFullAge,
-		IndexMinCompactionInterval:  DefaultIndexMinCompactionInterval,
+		WALLoggingEnabled:         true,
+		WALReadySeriesSize:        DefaultReadySeriesSize,
+		WALCompactionThreshold:    DefaultCompactionThreshold,
+		WALMaxSeriesSize:          DefaultMaxSeriesSize,
+		WALFlushColdInterval:      toml.Duration(DefaultFlushColdInterval),
+		WALPartitionSizeThreshold: DefaultPartitionSizeThreshold,
 
 		QueryLogEnabled: true,
 
-		CacheMaxMemorySize: DefaultCacheMaxMemorySize,
+		CacheMaxMemorySize:             DefaultCacheMaxMemorySize,
+		CacheSnapshotMemorySize:        DefaultCacheSnapshotMemorySize,
+		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
+		CompactMinFileCount:            DefaultCompactMinFileCount,
+		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
+
+		DataLoggingEnabled: true,
 	}
 }
 

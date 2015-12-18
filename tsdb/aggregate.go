@@ -322,6 +322,7 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 		return results
 	}
 
+	isCount := e.stmt.HasSimpleCount()
 	if e.stmt.Fill == influxql.NoFill {
 		// remove any rows that have even one nil value. This one is tricky because they could have multiple
 		// aggregates, but this option means that any row that has even one nil gets purged.
@@ -330,7 +331,7 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 			hasNil := false
 			// start at 1 because the first value is always time
 			for j := 1; j < len(vals); j++ {
-				if vals[j] == nil {
+				if vals[j] == nil || (isCount && isZero(vals[j])) {
 					hasNil = true
 					break
 				}
@@ -346,7 +347,7 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 	for i, vals := range results {
 		// start at 1 because the first value is always time
 		for j := 1; j < len(vals); j++ {
-			if vals[j] == nil {
+			if vals[j] == nil || (isCount && isZero(vals[j])) {
 				switch e.stmt.Fill {
 				case influxql.PreviousFill:
 					if i != 0 {
@@ -359,6 +360,18 @@ func (e *AggregateExecutor) processFill(results [][]interface{}) [][]interface{}
 		}
 	}
 	return results
+}
+
+// Returns true if the given interface is a zero valued int64 or float64.
+func isZero(i interface{}) bool {
+	switch v := i.(type) {
+	case int64:
+		return v == 0
+	case float64:
+		return v == 0
+	default:
+		return false
+	}
 }
 
 // processDerivative returns the derivatives of the results
@@ -381,8 +394,18 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 	callInPosition := e.stmt.FunctionCallsByPosition()
 	hasTimeField := e.stmt.HasTimeFieldSpecified()
 
+	flatCallInPositions := make([][]*influxql.Call, 0)
+	for _, calls := range callInPosition {
+		if calls == nil {
+			flatCallInPositions = append(flatCallInPositions, calls)
+		}
+		for _, call := range calls {
+			flatCallInPositions = append(flatCallInPositions, []*influxql.Call{call})
+		}
+	}
+
 	var err error
-	for i, calls := range callInPosition {
+	for i, calls := range flatCallInPositions {
 		// We can only support expanding fields if a single selector call was specified
 		// i.e. select tx, max(rx) from foo
 		// If you have multiple selectors or aggregates, there is no way of knowing who gets to insert the values, so we don't
@@ -412,8 +435,10 @@ func (e *AggregateExecutor) processFunctions(results [][]interface{}, columnName
 func (e *AggregateExecutor) processSelectors(results [][]interface{}, callPosition int, hasTimeField bool, columnNames []string) ([][]interface{}, error) {
 	// if the columns doesn't have enough columns, expand it
 	for i, columns := range results {
-		if len(columns) != len(columnNames) {
+		if len(columns) < len(columnNames) {
 			columns = append(columns, make([]interface{}, len(columnNames)-len(columns))...)
+		} else if len(columns) > len(columnNames) {
+			columnNames = append(columnNames, make([]string, len(columns)-len(columnNames))...)
 		}
 		for j := 1; j < len(columns); j++ {
 			switch v := columns[j].(type) {
@@ -694,7 +719,7 @@ func (m *AggregateMapper) initializeMapFunctions() error {
 		}
 		m.mapFuncs[i] = mfn
 
-		// Check for calls like `derivative(lmean(value), 1d)`
+		// Check for calls like `derivative(mean(value), 1d)`
 		var nested *influxql.Call = c
 		if fn, ok := c.Args[0].(*influxql.Call); ok {
 			nested = fn
@@ -757,7 +782,7 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		Name:      cursorSet.Measurement,
 		Tags:      cursorSet.Tags,
 		Fields:    m.selectFields,
-		cursorKey: cursorSet.Key,
+		CursorKey: cursorSet.Key,
 	}
 
 	// Always clamp tmin and tmax. This can happen as bucket-times are bucketed to the nearest
@@ -770,93 +795,100 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		qmax = m.qmax + 1
 	}
 
-	for _, c := range cursorSet.Cursors {
-		mapperValue := &MapperValue{
-			Time:  tmin,
-			Value: make([]interface{}, len(m.mapFuncs)),
-		}
-
-		for i := range m.mapFuncs {
-			// Build a map input from the cursor.
-			input := &MapInput{
-				TMin:  -1,
-				Items: readMapItems(c, m.fieldNames[i], qmin, qmin, qmax),
-			}
-			if len(m.stmt.Dimensions) > 0 && !m.stmt.HasTimeFieldSpecified() {
-				input.TMin = tmin
-			}
-
-			// Execute the map function which walks the entire interval, and aggregates the result.
-			value := m.mapFuncs[i](input)
-			if value == nil {
-				continue
-			}
-			mapperValue.Value.([]interface{})[i] = value
-		}
-		output.Values = append(output.Values, mapperValue)
+	mapperValue := &MapperValue{
+		Time:  tmin,
+		Value: make([]interface{}, len(m.mapFuncs)),
 	}
+
+	for i := range m.mapFuncs {
+		// Build a map input from the cursor.
+		input := &MapInput{
+			TMin:  -1,
+			Items: readMapItems(cursorSet.Cursors, m.fieldNames[i], qmin, qmin, qmax),
+		}
+
+		if len(m.stmt.Dimensions) > 0 && !m.stmt.HasTimeFieldSpecified() {
+			input.TMin = tmin
+		}
+
+		// Execute the map function which walks the entire interval, and aggregates the result.
+		value := m.mapFuncs[i](input)
+		if value == nil {
+			continue
+		}
+		mapperValue.Value.([]interface{})[i] = value
+	}
+	output.Values = append(output.Values, mapperValue)
 
 	return output, nil
 }
 
-func readMapItems(c *TagsCursor, field string, seek, tmin, tmax int64) []MapItem {
+func readMapItems(cursors []*TagsCursor, field string, seek, tmin, tmax int64) []MapItem {
 	var items []MapItem
-	var seeked bool
-	for {
-		var timestamp int64
-		var value interface{}
-		if !seeked {
-			timestamp, value = c.SeekTo(seek)
-			seeked = true
-		} else {
-			timestamp, value = c.Next()
-		}
 
-		// We're done if the point is outside the query's time range [tmin:tmax).
-		if timestamp != tmin && (timestamp < tmin || timestamp >= tmax) {
-			return items
-		}
+	for _, c := range cursors {
+		seeked := false
 
-		// Convert values to fields map.
-		fields, ok := value.(map[string]interface{})
-		if !ok {
-			fields = map[string]interface{}{"": value}
-		}
+		for {
+			var timestamp int64
+			var value interface{}
 
-		// Value didn't match, look for the next one.
-		if value == nil {
-			continue
-		}
-
-		// Filter value.
-		if c.filter != nil {
-			// Convert value to a map for filter evaluation.
-			m, ok := value.(map[string]interface{})
-			if !ok {
-				m = map[string]interface{}{field: value}
+			if !seeked {
+				timestamp, value = c.SeekTo(seek)
+				seeked = true
+			} else {
+				timestamp, value = c.Next()
 			}
 
-			// If filter fails then skip to the next value.
-			if !influxql.EvalBool(c.filter, m) {
+			// We're done if the point is outside the query's time range [tmin:tmax).
+			if timestamp != tmin && (timestamp < tmin || timestamp >= tmax) {
+				break
+			}
+
+			// Convert values to fields map.
+			fields, ok := value.(map[string]interface{})
+			if !ok {
+				fields = map[string]interface{}{"": value}
+			}
+
+			// Value didn't match, look for the next one.
+			if value == nil {
 				continue
 			}
-		}
 
-		// Filter out single field, if specified.
-		if m, ok := value.(map[string]interface{}); ok {
-			value = m[field]
-		}
-		if value == nil {
-			continue
-		}
+			// Filter value.
+			if c.filter != nil {
+				// Convert value to a map for filter evaluation.
+				m, ok := value.(map[string]interface{})
+				if !ok {
+					m = map[string]interface{}{field: value}
+				}
 
-		items = append(items, MapItem{
-			Timestamp: timestamp,
-			Value:     value,
-			Fields:    fields,
-			Tags:      c.tags,
-		})
+				// If filter fails then skip to the next value.
+				if !influxql.EvalBool(c.filter, m) {
+					continue
+				}
+			}
+
+			// Filter out single field, if specified.
+			if m, ok := value.(map[string]interface{}); ok {
+				value = m[field]
+			}
+			if value == nil {
+				continue
+			}
+
+			items = append(items, MapItem{
+				Timestamp: timestamp,
+				Value:     value,
+				Fields:    fields,
+				Tags:      c.tags,
+			})
+		}
 	}
+	sort.Sort(MapItems(items))
+
+	return items
 }
 
 // nextInterval returns the next interval for which to return data.

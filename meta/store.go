@@ -21,8 +21,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdb/influxdb/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -159,7 +161,12 @@ func NewStore(c *Config) *Store {
 		hashPassword: func(password string) ([]byte, error) {
 			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 		},
-		Logger: log.New(os.Stderr, "[metastore] ", log.LstdFlags),
+	}
+
+	if c.LoggingEnabled {
+		s.Logger = log.New(os.Stderr, "[metastore] ", log.LstdFlags)
+	} else {
+		s.Logger = log.New(ioutil.Discard, "", 0)
 	}
 
 	s.raftState = &localRaft{store: s}
@@ -1105,7 +1112,7 @@ func (s *Store) DefaultRetentionPolicy(database string) (rpi *RetentionPolicyInf
 	err = s.read(func(data *Data) error {
 		di := data.Database(database)
 		if di == nil {
-			return ErrDatabaseNotFound
+			return influxdb.ErrDatabaseNotFound(database)
 		}
 
 		for i := range di.RetentionPolicies {
@@ -1124,7 +1131,7 @@ func (s *Store) RetentionPolicies(database string) (a []RetentionPolicyInfo, err
 	err = s.read(func(data *Data) error {
 		di := data.Database(database)
 		if di != nil {
-			return ErrDatabaseNotFound
+			return influxdb.ErrDatabaseNotFound(database)
 		}
 		a = di.RetentionPolicies
 		return nil
@@ -1219,6 +1226,10 @@ func (s *Store) DropRetentionPolicy(database, name string) error {
 
 // CreateShardGroup creates a new shard group in a retention policy for a given time.
 func (s *Store) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	// Check the time is valid since we are about to encode it as an int64
+	if err := models.CheckTime(timestamp); err != nil {
+		return nil, err
+	}
 	if err := s.exec(internal.Command_CreateShardGroupCommand, internal.E_CreateShardGroupCommand_Command,
 		&internal.CreateShardGroupCommand{
 			Database:  proto.String(database),
@@ -1244,7 +1255,11 @@ func (s *Store) CreateShardGroupIfNotExists(database, policy string, timestamp t
 	// Attempt to create database.
 	sgi, err := s.CreateShardGroup(database, policy, timestamp)
 	if err == ErrShardGroupExists {
-		return s.ShardGroupByTimestamp(database, policy, timestamp)
+		sgi, err = s.ShardGroupByTimestamp(database, policy, timestamp)
+	}
+	// Check that we are returning either an error or a valid shard group.
+	if sgi == nil && err == nil {
+		return nil, errors.New("failed to create a new shard group, error unknown.")
 	}
 	return sgi, err
 }

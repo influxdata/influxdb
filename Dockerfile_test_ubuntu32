@@ -1,7 +1,7 @@
 FROM 32bit/ubuntu:14.04
 
 RUN apt-get update && apt-get install -y python-software-properties software-properties-common git
-RUN add-apt-repository ppa:evarlast/golang1.4
+RUN add-apt-repository ppa:evarlast/golang1.5
 RUN apt-get update && apt-get install -y -o Dpkg::Options::="--force-overwrite" golang-go
 
 ENV GOPATH=/root/go

@@ -504,21 +504,19 @@ func TestClient_Timeout(t *testing.T) {
 	}))
 	defer ts.Close()
 	defer func() { done <- true }()
-
 	u, _ := url.Parse(ts.URL)
 	config := client.Config{URL: *u, Timeout: 500 * time.Millisecond}
 	c, err := client.NewClient(config)
 	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		t.Fatalf("unexpected error. expected %v, actual %v", nil, err)
 	}
-
 	query := client.Query{}
 	_, err = c.Query(query)
 	if err == nil {
-		t.Fatalf("unexpected success.  expected timeout error")
+		t.Fatalf("unexpected success. expected timeout error")
 	} else if !strings.Contains(err.Error(), "request canceled") &&
 		!strings.Contains(err.Error(), "use of closed network connection") {
-		t.Fatalf("unexpected error.  expected 'request canceled' error, got %v", err)
+		t.Fatalf("unexpected error. expected 'request canceled' error, got %v", err)
 	}
 }
 

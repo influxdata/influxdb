@@ -225,9 +225,35 @@ func TestEncoding_BlockType(t *testing.T) {
 		}
 	}
 
-	_, err := tsm1.BlockType([]byte{0, 0, 0, 0, 0, 0, 0, 0, 10})
+	_, err := tsm1.BlockType([]byte{10})
 	if err == nil {
 		t.Fatalf("expected error decoding block type, got nil")
+	}
+}
+
+func TestEncoding_Count(t *testing.T) {
+	tests := []struct {
+		value     interface{}
+		blockType byte
+	}{
+		{value: float64(1.0), blockType: tsm1.BlockFloat64},
+		{value: int64(1), blockType: tsm1.BlockInt64},
+		{value: true, blockType: tsm1.BlockBool},
+		{value: "string", blockType: tsm1.BlockString},
+	}
+
+	for _, test := range tests {
+		var values []tsm1.Value
+		values = append(values, tsm1.NewValue(time.Unix(0, 0), test.value))
+
+		b, err := tsm1.Values(values).Encode(nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if got, exp := tsm1.BlockCount(b), 1; got != exp {
+			t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
+		}
 	}
 }
 
@@ -525,5 +551,20 @@ func BenchmarkDecodeBlock_String_TypeSpecific(b *testing.B) {
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}
+	}
+}
+
+func BenchmarkValues_Deduplicate(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	values := make([]tsm1.Value, len(times))
+	for i, t := range times {
+		values[i] = tsm1.NewValue(t, fmt.Sprintf("value %d", i))
+	}
+	values = append(values, values...)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tsm1.Values(values).Deduplicate()
 	}
 }

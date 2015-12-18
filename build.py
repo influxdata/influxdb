@@ -169,7 +169,7 @@ def get_go_version():
 def check_path_for(b):
     def is_exe(fpath):
         return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
-    
+
     for path in os.environ["PATH"].split(os.pathsep):
         path = path.strip('"')
         full_path = os.path.join(path, b)
@@ -180,7 +180,7 @@ def check_environ(build_dir = None):
     print "\nChecking environment:"
     for v in [ "GOPATH", "GOBIN" ]:
         print "\t- {} -> {}".format(v, os.environ.get(v))
-    
+
     cwd = os.getcwd()
     if build_dir == None and os.environ.get("GOPATH") and os.environ.get("GOPATH") not in cwd:
         print "\n!! WARNING: Your current directory is not under your GOPATH! This probably won't work."
@@ -224,14 +224,47 @@ def upload_packages(packages, nightly=False):
         else:
             print "\t - Not uploading {}, already exists.".format(p)
     print ""
-    
-def run_tests():
+
+def run_tests(race, parallel, timeout, no_vet):
     get_command = "go get -d -t ./..."
     print "Retrieving Go dependencies...",
+    sys.stdout.flush()
     run(get_command)
     print "done."
-    print "Running tests..."
-    code = os.system("go test ./...")
+    print "Running tests:"
+    print "\tRace: ", race
+    if parallel is not None:
+        print "\tParallel:", parallel
+    if timeout is not None:
+        print "\tTimeout:", timeout
+    sys.stdout.flush()
+    p = subprocess.Popen(["go", "fmt", "./..."], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if len(out) > 0 or len(err) > 0:
+        print "Code not formatted. Please use 'go fmt ./...' to fix formatting errors."
+        print out
+        print err
+        return False
+    if not no_vet:
+        p = subprocess.Popen(["go", "tool", "vet", "-composites=false", "./"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        if len(out) > 0 or len(err) > 0:
+            print "Go vet failed. Please run 'go vet ./...' and fix any errors."
+            print out
+            print err
+            return False
+    else:
+        print "Skipping go vet ..."
+        sys.stdout.flush()
+    test_command = "go test -v"
+    if race:
+        test_command += " -race"
+    if parallel is not None:
+        test_command += " -parallel {}".format(parallel)
+    if timeout is not None:
+        test_command += " -timeout {}".format(timeout)
+    test_command += " ./..."
+    code = os.system(test_command)
     if code != 0:
         print "Tests Failed"
         return False
@@ -269,11 +302,11 @@ def build(version=None,
         print "Cleaning build directory..."
         shutil.rmtree(outdir)
         os.makedirs(outdir)
-    
+
     if rc:
         # If a release candidate, update the version information accordingly
         version = "{}rc{}".format(version, rc)
-    
+
     print "Starting build..."
     for b, c in targets.iteritems():
         print "\t- Building '{}'...".format(os.path.join(outdir, b)),
@@ -344,7 +377,7 @@ def package_scripts(build_root):
     shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
     os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"), 0644)
 
-def go_get(update=False):        
+def go_get(update=False):
     get_command = None
     if update:
         get_command = "go get -u -f -d ./..."
@@ -353,14 +386,14 @@ def go_get(update=False):
     print "Retrieving Go dependencies...",
     run(get_command)
     print "done.\n"
-    
+
 def generate_md5_from_file(path):
     m = hashlib.md5()
     with open(path, 'rb') as f:
         for chunk in iter(lambda: f.read(4096), b""):
             m.update(chunk)
     return m.hexdigest()
-    
+
 def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
     outfiles = []
     tmp_build_dir = create_temp_dir()
@@ -458,12 +491,14 @@ def print_usage():
     print "\t --nightly \n\t\t- Whether the produced build is a nightly (affects version information)."
     print "\t --update \n\t\t- Whether dependencies should be updated prior to building."
     print "\t --test \n\t\t- Run Go tests. Will not produce a build."
+    print "\t --parallel \n\t\t- Run Go tests in parallel up to the count specified."
+    print "\t --timeout \n\t\t- Timeout for Go tests. Default 480s"
     print "\t --clean \n\t\t- Clean the build output directory prior to creating build."
     print ""
 
 def print_package_summary(packages):
     print packages
-    
+
 def main():
     # Command-line arguments
     outdir = "build"
@@ -480,8 +515,11 @@ def main():
     clean = False
     upload = False
     test = False
+    parallel = None
+    timeout = None
     iteration = 1
-    
+    no_vet = False
+
     for arg in sys.argv[1:]:
         if '--outdir' in arg:
             # Output directory. If none is specified, then builds will be placed in the same directory.
@@ -508,13 +546,13 @@ def main():
             # Signifies that race detection should be enabled.
             race = True
         elif '--package' in arg:
-            # Signifies that race detection should be enabled.
+            # Signifies that packages should be built.
             package = True
         elif '--nightly' in arg:
             # Signifies that this is a nightly build.
             nightly = True
         elif '--update' in arg:
-            # Signifies that race detection should be enabled.
+            # Signifies that dependencies should be updated.
             update = True
         elif '--upload' in arg:
             # Signifies that the resulting packages should be uploaded to S3
@@ -522,11 +560,19 @@ def main():
         elif '--test' in arg:
             # Run tests and exit
             test = True
+        elif '--parallel' in arg:
+            # Set parallel for tests.
+            parallel = int(arg.split("=")[1])
+        elif '--timeout' in arg:
+            # Set timeout for tests.
+            timeout = arg.split("=")[1]
         elif '--clean' in arg:
             # Signifies that the outdir should be deleted before building
             clean = True
         elif '--iteration' in arg:
             iteration = arg.split("=")[1]
+        elif '--no-vet' in arg:
+            no_vet = True
         elif '--help' in arg:
             print_usage()
             return 0
@@ -546,7 +592,7 @@ def main():
     # Pre-build checks
     check_environ()
     check_prereqs()
-        
+
     if not commit:
         commit = get_current_commit(short=True)
     if not branch:
@@ -563,12 +609,12 @@ def main():
     # TODO(rossmcdonald): Prepare git repo for build (checking out correct branch/commit, etc.)
     # prepare(branch=branch, commit=commit)
     if test:
-        if not run_tests():
+        if not run_tests(race, parallel, timeout, no_vet):
             return 1
         return 0
 
     go_get(update=update)
-    
+
     platforms = []
     single_build = True
     if target_platform == 'all':
@@ -576,7 +622,7 @@ def main():
         single_build = False
     else:
         platforms = [target_platform]
-        
+
     for platform in platforms:
         build_output.update( { platform : {} } )
         archs = []
@@ -616,4 +662,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-    
+

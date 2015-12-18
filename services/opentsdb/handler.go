@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"io"
 	"log"
 	"net"
@@ -27,6 +28,8 @@ type Handler struct {
 	}
 
 	Logger *log.Logger
+
+	statMap *expvar.Map
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +116,7 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 		pt, err := models.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts)
 		if err != nil {
 			h.Logger.Printf("Dropping point %v: %v", p.Metric, err)
+			h.statMap.Add(statDroppedPointsInvalid, 1)
 			continue
 		}
 		points = append(points, pt)

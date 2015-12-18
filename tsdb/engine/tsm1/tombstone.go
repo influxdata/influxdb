@@ -16,7 +16,7 @@ type Tombstoner struct {
 	Path string
 }
 
-func (t *Tombstoner) Add(key string) error {
+func (t *Tombstoner) Add(keys []string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -31,7 +31,9 @@ func (t *Tombstoner) Add(key string) error {
 		return nil
 	}
 
-	tombstones = append(tombstones, key)
+	for _, k := range keys {
+		tombstones = append(tombstones, k)
+	}
 
 	return t.writeTombstone(tombstones)
 }
@@ -47,6 +49,16 @@ func (t *Tombstoner) Delete() error {
 		return err
 	}
 	return nil
+}
+
+// HasTombstones return true if there are any tombstone entries recorded.
+func (t *Tombstoner) HasTombstones() bool {
+	stat, err := os.Stat(t.tombstonePath())
+	if err != nil {
+		return false
+	}
+
+	return stat.Size() > 0
 }
 
 func (t *Tombstoner) writeTombstone(tombstones []string) error {

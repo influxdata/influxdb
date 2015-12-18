@@ -9,15 +9,6 @@
 reporting-disabled = false
 
 ###
-### Enterprise registration control
-###
-
-[registration]
-# enabled = true
-# url = "https://enterprise.influxdata.com" # The Enterprise server URL
-# token = "" # Registration token for Enterprise server
-
-###
 ### [meta]
 ###
 ### Controls the parameters for the Raft consensus group that stores metadata
@@ -70,6 +61,7 @@ reporting-disabled = false
   # These are the WAL settings for the storage engine >= 0.9.3
   wal-dir = "/var/lib/influxdb/wal"
   wal-logging-enabled = true
+  data-logging-enabled = true
 
   # When a series in the WAL in-memory cache reaches this size in bytes it is marked as ready to
   # flush to the index
@@ -94,6 +86,35 @@ reporting-disabled = false
   # Whether queries should be logged before execution. Very useful for troubleshooting, but will
   # log any sensitive data contained within a query.
   # query-log-enabled = true
+
+  # Settings for the TSM engine
+
+  # CacheMaxMemorySize is the maximum size a shard's cache can
+  # reach before it starts rejecting writes.
+  # cache-max-memory-size = 524288000
+
+  # CacheSnapshotMemorySize is the size at which the engine will
+  # snapshot the cache and write it to a TSM file, freeing up memory
+  # cache-snapshot-memory-size = 26214400
+
+  # CacheSnapshotWriteColdDuration is the length of time at
+  # which the engine will snapshot the cache and write it to
+  # a new TSM file if the shard hasn't received writes or deletes
+  # cache-snapshot-write-cold-duration = "1h"
+
+  # MinCompactionFileCount is the minimum number of TSM files
+  # that need to exist before a compaction cycle will run
+  # compact-min-file-count = 3
+
+  # CompactFullWriteColdDuration is the duration at which the engine
+  # will compact all TSM files in a shard if it hasn't received a
+  # write or delete
+  # compact-full-write-cold-duration = "24h"
+
+  # MaxPointsPerBlock is the maximum number of points in an encoded
+  # block in a TSM file. Larger numbers may yield better compression
+  # but could incur a performance peanalty when querying
+  # max-points-per-block = 1000
 
 ###
 ### [hinted-handoff]

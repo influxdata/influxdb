@@ -343,11 +343,11 @@ func (s *CreateDatabaseStatement) String() string {
 	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	if s.RetentionPolicyCreate {
-		_, _ = buf.WriteString("WITH DURATION ")
+		_, _ = buf.WriteString(" WITH DURATION ")
 		_, _ = buf.WriteString(s.RetentionPolicyDuration.String())
-		_, _ = buf.WriteString("REPLICATION ")
+		_, _ = buf.WriteString(" REPLICATION ")
 		_, _ = buf.WriteString(strconv.Itoa(s.RetentionPolicyReplication))
-		_, _ = buf.WriteString("NAME ")
+		_, _ = buf.WriteString(" NAME ")
 		_, _ = buf.WriteString(QuoteIdent(s.RetentionPolicyName))
 	}
 
@@ -772,7 +772,7 @@ func (s *SelectStatement) SourceNames() []string {
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
 	for _, f := range s.FunctionCalls() {
-		if strings.HasSuffix(f.Name, "derivative") {
+		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
 			return true
 		}
 	}
@@ -783,11 +783,39 @@ func (s *SelectStatement) HasDerivative() bool {
 // variable ref as the first arg
 func (s *SelectStatement) IsSimpleDerivative() bool {
 	for _, f := range s.FunctionCalls() {
-		if strings.HasSuffix(f.Name, "derivative") {
+		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
 			// it's nested if the first argument is an aggregate function
 			if _, ok := f.Args[0].(*VarRef); ok {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+// HasSimpleCount return true if one of the function calls is a count function with a
+// variable ref as the first arg
+func (s *SelectStatement) HasSimpleCount() bool {
+	// recursively check for a simple count(varref) function
+	var hasCount func(f *Call) bool
+	hasCount = func(f *Call) bool {
+		if f.Name == "count" {
+			// it's nested if the first argument is an aggregate function
+			if _, ok := f.Args[0].(*VarRef); ok {
+				return true
+			}
+		} else {
+			for _, arg := range f.Args {
+				if child, ok := arg.(*Call); ok {
+					return hasCount(child)
+				}
+			}
+		}
+		return false
+	}
+	for _, f := range s.FunctionCalls() {
+		if hasCount(f) {
+			return true
 		}
 	}
 	return false
@@ -1158,6 +1186,45 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 	return nil
 }
 
+// validTopBottomAggr determines if TOP or BOTTOM aggregates have valid arguments.
+func (s *SelectStatement) validTopBottomAggr(expr *Call) error {
+	if exp, got := 2, len(expr.Args); got < exp {
+		return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", expr.Name, exp, got)
+	}
+	if len(expr.Args) > 1 {
+		callLimit, ok := expr.Args[len(expr.Args)-1].(*NumberLiteral)
+		if !ok {
+			return fmt.Errorf("expected integer as last argument in %s(), found %s", expr.Name, expr.Args[len(expr.Args)-1])
+		}
+		// Check if they asked for a limit smaller than what they passed into the call
+		if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
+			return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), expr.Name, int64(s.Limit))
+		}
+
+		for _, v := range expr.Args[:len(expr.Args)-1] {
+			if _, ok := v.(*VarRef); !ok {
+				return fmt.Errorf("only fields or tags are allowed in %s(), found %s", expr.Name, v)
+			}
+		}
+	}
+	return nil
+}
+
+// validPercentileAggr determines if PERCENTILE have valid arguments.
+func (s *SelectStatement) validPercentileAggr(expr *Call) error {
+	if err := s.validSelectWithAggregate(); err != nil {
+		return err
+	}
+	if exp, got := 2, len(expr.Args); got != exp {
+		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+	}
+	_, ok := expr.Args[1].(*NumberLiteral)
+	if !ok {
+		return fmt.Errorf("expected float argument in percentile()")
+	}
+	return nil
+}
+
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
@@ -1170,43 +1237,37 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 				}
 				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
-				groupByInterval, _ := s.GroupByInterval()
+				groupByInterval, err := s.GroupByInterval()
+				if err != nil {
+					return fmt.Errorf("invalid group interval: %v", err)
+				}
 				if groupByInterval > 0 {
-					if _, ok := expr.Args[0].(*Call); !ok {
+					c, ok := expr.Args[0].(*Call)
+					if !ok {
 						return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
 					}
-				}
-
-			case "percentile":
-				if err := s.validSelectWithAggregate(); err != nil {
-					return err
-				}
-				if exp, got := 2, len(expr.Args); got != exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
-				}
-				_, ok := expr.Args[1].(*NumberLiteral)
-				if !ok {
-					return fmt.Errorf("expected float argument in percentile()")
-				}
-			case "top", "bottom":
-				if exp, got := 2, len(expr.Args); got < exp {
-					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", expr.Name, exp, got)
-				}
-				if len(expr.Args) > 1 {
-					callLimit, ok := expr.Args[len(expr.Args)-1].(*NumberLiteral)
-					if !ok {
-						return fmt.Errorf("expected integer as last argument in %s(), found %s", expr.Name, expr.Args[len(expr.Args)-1])
-					}
-					// Check if they asked for a limit smaller than what they passed into the call
-					if int64(callLimit.Val) > int64(s.Limit) && s.Limit != 0 {
-						return fmt.Errorf("limit (%d) in %s function can not be larger than the LIMIT (%d) in the select statement", int64(callLimit.Val), expr.Name, int64(s.Limit))
-					}
-
-					for _, v := range expr.Args[:len(expr.Args)-1] {
-						if _, ok := v.(*VarRef); !ok {
-							return fmt.Errorf("only fields or tags are allowed in %s(), found %s", expr.Name, v)
+					switch c.Name {
+					case "top", "bottom":
+						if err := s.validTopBottomAggr(c); err != nil {
+							return err
+						}
+					case "percentile":
+						if err := s.validPercentileAggr(c); err != nil {
+							return err
+						}
+					default:
+						if exp, got := 1, len(c.Args); got != exp {
+							return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
 						}
 					}
+				}
+			case "top", "bottom":
+				if err := s.validTopBottomAggr(expr); err != nil {
+					return err
+				}
+			case "percentile":
+				if err := s.validPercentileAggr(expr); err != nil {
+					return err
 				}
 			default:
 				if err := s.validSelectWithAggregate(); err != nil {
@@ -2382,18 +2443,20 @@ func (a Fields) AliasNames() []string {
 	return names
 }
 
-// Names returns a list of raw field names.
+// Names returns a list of field names.
 func (a Fields) Names() []string {
 	names := []string{}
 	for _, f := range a {
-		var name string
 		switch expr := f.Expr.(type) {
 		case *Call:
-			name = expr.Name
+			names = append(names, expr.Name)
 		case *VarRef:
-			name = expr.Val
+			names = append(names, expr.Val)
+		case *BinaryExpr:
+			names = append(names, walkNames(expr)...)
+		case *ParenExpr:
+			names = append(names, walkNames(expr)...)
 		}
-		names = append(names, name)
 	}
 	return names
 }

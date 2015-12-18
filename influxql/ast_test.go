@@ -465,6 +465,237 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 	}
 }
 
+func TestSelectStatement_HasDerivative(t *testing.T) {
+	var tests = []struct {
+		stmt       string
+		derivative bool
+	}{
+		// No derivatives
+		{
+			stmt:       `SELECT value FROM cpu`,
+			derivative: false,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: false,
+		},
+
+		// No GROUP BY derivatives, time only
+		{
+			stmt:       `SELECT derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: true,
+		},
+
+		{
+			stmt:       `SELECT value FROM cpu`,
+			derivative: false,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// No GROUP BY derivatives, time only
+		{
+			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: true,
+		},
+
+		// Invalid derivative function name
+		{
+			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
+			derivative: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test derivative detection.
+		if d := stmt.(*influxql.SelectStatement).HasDerivative(); tt.derivative != d {
+			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
+			continue
+		}
+	}
+}
+
+func TestSelectStatement_IsSimpleDerivative(t *testing.T) {
+	var tests = []struct {
+		stmt       string
+		derivative bool
+	}{
+		// No derivatives
+		{
+			stmt:       `SELECT value FROM cpu`,
+			derivative: false,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// Query derivative
+		{
+			stmt:       `SELECT non_negative_derivative(value) FROM cpu`,
+			derivative: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: false,
+		},
+
+		// No GROUP BY derivatives, time only
+		{
+			stmt:       `SELECT non_negative_derivative(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			derivative: false,
+		},
+
+		// Invalid derivative function name
+		{
+			stmt:       `SELECT typoDerivative(value) FROM cpu where time < now()`,
+			derivative: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test derivative detection.
+		if d := stmt.(*influxql.SelectStatement).IsSimpleDerivative(); tt.derivative != d {
+			t.Errorf("%d. %q: unexpected derivative detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.derivative, d)
+			continue
+		}
+	}
+}
+
+func TestSelectStatement_HasSimpleCount(t *testing.T) {
+	var tests = []struct {
+		stmt  string
+		count bool
+	}{
+		// No counts
+		{
+			stmt:  `SELECT value FROM cpu`,
+			count: false,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT count(value) FROM cpu`,
+			count: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT count(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: false,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT typoCount(value) FROM cpu`,
+			count: false,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT typoCount(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test count detection.
+		if c := stmt.(*influxql.SelectStatement).HasSimpleCount(); tt.count != c {
+			t.Errorf("%d. %q: unexpected count detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.count, c)
+			continue
+		}
+	}
+}
+
+func TestSelectStatement_HasCountDistinct(t *testing.T) {
+	var tests = []struct {
+		stmt  string
+		count bool
+	}{
+		// No counts
+		{
+			stmt:  `SELECT value FROM cpu`,
+			count: false,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT count(value) FROM cpu`,
+			count: false,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT count(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: true,
+		},
+
+		// Query count
+		{
+			stmt:  `SELECT typoCount(value) FROM cpu`,
+			count: false,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:  `SELECT typoCount(distinct(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			count: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test count detection.
+		if c := stmt.(*influxql.SelectStatement).HasCountDistinct(); tt.count != c {
+			t.Errorf("%d. %q: unexpected count detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.count, c)
+			continue
+		}
+	}
+}
+
 // Ensure the time range of an expression can be extracted.
 func TestTimeRange(t *testing.T) {
 	for i, tt := range []struct {
@@ -627,9 +858,11 @@ func TestParseString(t *testing.T) {
 		{
 			stmt: `DROP CONTINUOUS QUERY "my query" ON "my database"`,
 		},
-		{
-			stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
-		},
+		// See issues https://github.com/influxdb/influxdb/issues/1647
+		// and https://github.com/influxdb/influxdb/issues/4404
+		//{
+		//	stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
+		//},
 		{
 			stmt: `DROP SUBSCRIPTION "ugly \"subscription\" name" ON "\"my\" db"."\"my\" rp"`,
 		},
@@ -805,6 +1038,80 @@ func TestReduce(t *testing.T) {
 			continue
 		}
 	}
+}
+
+func Test_fieldsNames(t *testing.T) {
+	for _, test := range []struct {
+		in    []string
+		out   []string
+		alias []string
+	}{
+		{ //case: binary expr(valRef)
+			in:    []string{"value+value"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+		{ //case: binary expr + valRef
+			in:    []string{"value+value", "temperature"},
+			out:   []string{"value", "value", "temperature"},
+			alias: []string{"", "temperature"},
+		},
+		{ //case: aggregate expr
+			in:    []string{"mean(value)"},
+			out:   []string{"mean"},
+			alias: []string{"mean"},
+		},
+		{ //case: binary expr(aggregate expr)
+			in:    []string{"mean(value) + max(value)"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+		{ //case: binary expr(aggregate expr) + valRef
+			in:    []string{"mean(value) + max(value)", "temperature"},
+			out:   []string{"value", "value", "temperature"},
+			alias: []string{"", "temperature"},
+		},
+		{ //case: mixed aggregate and varRef
+			in:    []string{"mean(value) + temperature"},
+			out:   []string{"value", "temperature"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(varRef)
+			in:    []string{"(value)"},
+			out:   []string{"value"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(varRef + varRef)
+			in:    []string{"(value + value)"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(aggregate)
+			in:    []string{"(mean(value))"},
+			out:   []string{"value"},
+			alias: []string{""},
+		},
+		{ //case: ParenExpr(aggregate + aggregate)
+			in:    []string{"(mean(value) + max(value))"},
+			out:   []string{"value", "value"},
+			alias: []string{""},
+		},
+	} {
+		fields := influxql.Fields{}
+		for _, s := range test.in {
+			expr := MustParseExpr(s)
+			fields = append(fields, &influxql.Field{Expr: expr})
+		}
+		got := fields.Names()
+		if !reflect.DeepEqual(got, test.out) {
+			t.Errorf("get fileds name:\nexp=%v\ngot=%v\n", test.out, got)
+		}
+		alias := fields.AliasNames()
+		if !reflect.DeepEqual(alias, test.alias) {
+			t.Errorf("get fileds alias name:\nexp=%v\ngot=%v\n", test.alias, alias)
+		}
+	}
+
 }
 
 // Valuer represents a simple wrapper around a map to implement the influxql.Valuer interface.

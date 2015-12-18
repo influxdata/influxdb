@@ -644,18 +644,20 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// See issues https://github.com/influxdb/influxdb/issues/1647
+		// and https://github.com/influxdb/influxdb/issues/4404
 		// DELETE statement
-		{
-			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
-			stmt: &influxql.DeleteStatement{
-				Source: &influxql.Measurement{Name: "myseries"},
-				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "host"},
-					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
-				},
-			},
-		},
+		//{
+		//	s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
+		//	stmt: &influxql.DeleteStatement{
+		//		Source: &influxql.Measurement{Name: "myseries"},
+		//		Condition: &influxql.BinaryExpr{
+		//			Op:  influxql.EQ,
+		//			LHS: &influxql.VarRef{Val: "host"},
+		//			RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+		//		},
+		//	},
+		//},
 
 		// SHOW SERVERS
 		{
@@ -1663,17 +1665,30 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `select derivative() from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 0`},
 		{s: `select derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3`},
 		{s: `SELECT derivative(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to derivative`},
+		{s: `SELECT derivative(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
+		{s: `SELECT derivative(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
+		{s: `SELECT derivative(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
+		{s: `SELECT derivative(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
 		{s: `SELECT non_negative_derivative(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
 		{s: `select non_negative_derivative() from myseries`, err: `invalid number of arguments for non_negative_derivative, expected at least 1 but no more than 2, got 0`},
 		{s: `select non_negative_derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for non_negative_derivative, expected at least 1 but no more than 2, got 3`},
 		{s: `SELECT non_negative_derivative(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to non_negative_derivative`},
+		{s: `SELECT non_negative_derivative(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
+		{s: `SELECT non_negative_derivative(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
+		{s: `SELECT non_negative_derivative(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
+		{s: `SELECT non_negative_derivative(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
 		{s: `SELECT field1 from myseries WHERE host =~ 'asd' LIMIT 1`, err: `found asd, expected regex at line 1, char 42`},
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT s =~ /foo/ FROM cpu`, err: `invalid operator =~ in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
-		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
-		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
-		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
+		// See issues https://github.com/influxdb/influxdb/issues/1647
+		// and https://github.com/influxdb/influxdb/issues/4404
+		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
+		//{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
+		//{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
+		{s: `DELETE`, err: `DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead`},
+		{s: `DELETE FROM`, err: `DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead`},
+		{s: `DELETE FROM myseries WHERE`, err: `DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead`},
 		{s: `DROP MEASUREMENT`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES`, err: `found EOF, expected FROM, WHERE at line 1, char 13`},
 		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
@@ -2057,8 +2072,6 @@ func TestParseDuration(t *testing.T) {
 		d   time.Duration
 		err string
 	}{
-		{s: `3`, d: 3 * time.Microsecond},
-		{s: `1000`, d: 1000 * time.Microsecond},
 		{s: `10u`, d: 10 * time.Microsecond},
 		{s: `10µ`, d: 10 * time.Microsecond},
 		{s: `15ms`, d: 15 * time.Millisecond},
@@ -2069,7 +2082,10 @@ func TestParseDuration(t *testing.T) {
 		{s: `2w`, d: 2 * 7 * 24 * time.Hour},
 
 		{s: ``, err: "invalid duration"},
+		{s: `3`, err: "invalid duration"},
+		{s: `1000`, err: "invalid duration"},
 		{s: `w`, err: "invalid duration"},
+		{s: `ms`, err: "invalid duration"},
 		{s: `1.2w`, err: "invalid duration"},
 		{s: `10x`, err: "invalid duration"},
 	}
@@ -2090,8 +2106,8 @@ func TestFormatDuration(t *testing.T) {
 		d time.Duration
 		s string
 	}{
-		{d: 3 * time.Microsecond, s: `3`},
-		{d: 1001 * time.Microsecond, s: `1001`},
+		{d: 3 * time.Microsecond, s: `3u`},
+		{d: 1001 * time.Microsecond, s: `1001u`},
 		{d: 15 * time.Millisecond, s: `15ms`},
 		{d: 100 * time.Second, s: `100s`},
 		{d: 2 * time.Minute, s: `2m`},

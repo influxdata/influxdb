@@ -188,7 +188,7 @@ func (s *Service) parser() {
 			if err != nil {
 				s.statMap.Add(statPointsParseFail, 1)
 				s.Logger.Printf("Failed to parse points: %s", err)
-				return
+				continue
 			}
 
 			for _, point := range points {

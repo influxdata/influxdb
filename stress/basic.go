@@ -2,6 +2,7 @@ package stress
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/influxdb/influxdb/client/v2"
 )
+
+const backoffInterval = time.Duration(500 * time.Millisecond)
 
 // AbstractTag is a struct that abstractly
 // defines a tag
@@ -75,6 +78,7 @@ type BasicPointGenerator struct {
 	Tags        AbstractTags   `toml:"tag"`
 	Fields      AbstractFields `toml:"field"`
 	StartDate   string         `toml:"start_date"`
+	Precision   string         `toml:"precision"`
 	time        time.Time
 	mu          sync.Mutex
 }
@@ -104,6 +108,18 @@ func typeArr(a []string) []interface{} {
 	return i
 }
 
+func (b *BasicPointGenerator) timestamp(t time.Time) int64 {
+	var n int64
+
+	if b.Precision == "s" {
+		n = t.Unix()
+	} else {
+		n = t.UnixNano()
+	}
+
+	return n
+}
+
 // Template returns a function that returns a pointer to a Pnt.
 func (b *BasicPointGenerator) Template() func(i int, t time.Time) *Pnt {
 	ts := b.Tags.Template()
@@ -114,7 +130,7 @@ func (b *BasicPointGenerator) Template() func(i int, t time.Time) *Pnt {
 		p := &Pnt{}
 		arr := []interface{}{i}
 		arr = append(arr, typeArr(fa)...)
-		arr = append(arr, t.UnixNano())
+		arr = append(arr, b.timestamp(t))
 
 		str := fmt.Sprintf(tmplt, arr...)
 		p.Set([]byte(str))
@@ -222,15 +238,31 @@ func (b *BasicPointGenerator) Time() time.Time {
 // BasicClient implements the InfluxClient
 // interface.
 type BasicClient struct {
-	Enabled       bool   `toml:"enabled"`
-	Address       string `toml:"address"`
-	Database      string `toml:"database"`
-	Precision     string `toml:"precision"`
-	BatchSize     int    `toml:"batch_size"`
-	BatchInterval string `toml:"batch_interval"`
-	Concurrency   int    `toml:"concurrency"`
-	SSL           bool   `toml:"ssl"`
-	Format        string `toml:"format"`
+	Enabled       bool     `toml:"enabled"`
+	Addresses     []string `toml:"addresses"`
+	Database      string   `toml:"database"`
+	Precision     string   `toml:"precision"`
+	BatchSize     int      `toml:"batch_size"`
+	BatchInterval string   `toml:"batch_interval"`
+	Concurrency   int      `toml:"concurrency"`
+	SSL           bool     `toml:"ssl"`
+	Format        string   `toml:"format"`
+
+	addrId   int
+	r        chan<- response
+	interval time.Duration
+}
+
+func (c *BasicClient) retry(b []byte, backoff time.Duration) {
+	bo := backoff + backoffInterval
+	rs, err := c.send(b)
+	time.Sleep(c.interval)
+
+	c.r <- rs
+	if !rs.Success() || err != nil {
+		time.Sleep(bo)
+		c.retry(b, bo)
+	}
 }
 
 // Batch groups together points
@@ -238,7 +270,14 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 	if !c.Enabled {
 		return nil
 	}
+	instanceURLs := make([]string, len(c.Addresses))
+	for i := 0; i < len(c.Addresses); i++ {
+		instanceURLs[i] = fmt.Sprintf("http://%v/write?db=%v&precision=%v", c.Addresses[i], c.Database, c.Precision)
+	}
 
+	c.Addresses = instanceURLs
+
+	c.r = r
 	var buf bytes.Buffer
 	var wg sync.WaitGroup
 	counter := NewConcurrencyLimiter(c.Concurrency)
@@ -247,11 +286,13 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 	if err != nil {
 		return err
 	}
+	c.interval = interval
 
 	ctr := 0
 
 	for p := range ps {
 		b := p.Line()
+		c.addrId = ctr % len(c.Addresses)
 		ctr++
 
 		buf.Write(b)
@@ -266,22 +307,14 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 			wg.Add(1)
 			counter.Increment()
 			go func(byt []byte) {
-				defer wg.Done()
-
-				rs, err := c.send(byt)
-				if err != nil {
-					fmt.Println(err)
-				}
-				time.Sleep(interval)
-
+				c.retry(byt, time.Duration(1))
 				counter.Decrement()
-				r <- rs
+				wg.Done()
 			}(b)
 
 			var temp bytes.Buffer
 			buf = temp
 		}
-
 	}
 
 	wg.Wait()
@@ -303,7 +336,8 @@ func post(url string, datatype string, data io.Reader) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(string(body))
+		err := errors.New(string(body))
+		return nil, err
 	}
 
 	return resp, nil
@@ -311,10 +345,9 @@ func post(url string, datatype string, data io.Reader) (*http.Response, error) {
 
 // Send calls post and returns a response
 func (c *BasicClient) send(b []byte) (response, error) {
-	instanceURL := fmt.Sprintf("http://%v/write?db=%v&precision=%v", c.Address, c.Database, c.Precision)
 
 	t := NewTimer()
-	resp, err := post(instanceURL, "application/x-www-form-urlencoded", bytes.NewBuffer(b))
+	resp, err := post(c.Addresses[c.addrId], "application/x-www-form-urlencoded", bytes.NewBuffer(b))
 	t.StopTimer()
 	if err != nil {
 		return response{Timer: t}, err
@@ -360,25 +393,29 @@ func (q *BasicQuery) SetTime(t time.Time) {
 
 // BasicQueryClient implements the QueryClient interface
 type BasicQueryClient struct {
-	Enabled       bool   `toml:"enabled"`
-	Address       string `toml:"address"`
-	Database      string `toml:"database"`
-	QueryInterval string `toml:"query_interval"`
-	Concurrency   int    `toml:"concurrency"`
-	client        client.Client
+	Enabled       bool     `toml:"enabled"`
+	Addresses     []string `toml:"addresses"`
+	Database      string   `toml:"database"`
+	QueryInterval string   `toml:"query_interval"`
+	Concurrency   int      `toml:"concurrency"`
+	clients       []client.Client
+	addrId        int
 }
 
 // Init initializes the InfluxDB client
 func (b *BasicQueryClient) Init() error {
-	cl, err := client.NewHTTPClient(client.HTTPConfig{
-		Addr: fmt.Sprintf("http://%v", b.Address),
-	})
 
-	if err != nil {
-		return err
+	for _, a := range b.Addresses {
+		cl, err := client.NewHTTPClient(client.HTTPConfig{
+			Addr: fmt.Sprintf("http://%v", a),
+		})
+
+		if err != nil {
+			return err
+		}
+
+		b.clients = append(b.clients, cl)
 	}
-
-	b.client = cl
 
 	return nil
 }
@@ -391,7 +428,7 @@ func (b *BasicQueryClient) Query(cmd Query) (response, error) {
 	}
 
 	t := NewTimer()
-	_, err := b.client.Query(q)
+	_, err := b.clients[b.addrId].Query(q)
 	t.StopTimer()
 
 	if err != nil {
@@ -423,7 +460,12 @@ func (b *BasicQueryClient) Exec(qs <-chan Query, r chan<- response) error {
 		return err
 	}
 
+	ctr := 0
+
 	for q := range qs {
+		b.addrId = ctr % len(b.Addresses)
+		ctr++
+
 		wg.Add(1)
 		counter.Increment()
 		func(q Query) {
@@ -491,8 +533,74 @@ func (b *BasicProvisioner) Provision() error {
 	return nil
 }
 
+type BroadcastChannel struct {
+	chs []chan response
+	wg  sync.WaitGroup
+	fns []func(t *Timer)
+}
+
+func NewBroadcastChannel() *BroadcastChannel {
+	chs := make([]chan response, 0)
+
+	var wg sync.WaitGroup
+
+	b := &BroadcastChannel{
+		chs: chs,
+		wg:  wg,
+	}
+
+	return b
+}
+
+func (b *BroadcastChannel) Register(fn responseHandler) {
+	ch := make(chan response, 0)
+
+	b.chs = append(b.chs, ch)
+
+	f := func(t *Timer) {
+		go fn(ch, t)
+	}
+
+	b.fns = append(b.fns, f)
+}
+
+func (b *BroadcastChannel) Broadcast(r response) {
+
+	b.wg.Add(1)
+	for _, ch := range b.chs {
+		b.wg.Add(1)
+		go func(ch chan response) {
+			ch <- r
+			b.wg.Done()
+		}(ch)
+	}
+	b.wg.Done()
+}
+
+func (b *BroadcastChannel) Close() {
+	b.wg.Wait()
+	for _, ch := range b.chs {
+		close(ch)
+		// Workaround
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func (b *BroadcastChannel) Handle(rs <-chan response, t *Timer) {
+
+	// Start all of the handlers
+	for _, fn := range b.fns {
+		fn(t)
+	}
+
+	for i := range rs {
+		b.Broadcast(i)
+	}
+	b.Close()
+}
+
 // BasicWriteHandler handles write responses.
-func BasicWriteHandler(rs <-chan response, wt *Timer) {
+func (b *BasicClient) BasicWriteHandler(rs <-chan response, wt *Timer) {
 	n := 0
 	success := 0
 	fail := 0
@@ -521,11 +629,11 @@ func BasicWriteHandler(rs <-chan response, wt *Timer) {
 	fmt.Printf("	Success: %v\n", success)
 	fmt.Printf("	Fail: %v\n", fail)
 	fmt.Printf("Average Response Time: %v\n", s/time.Duration(n))
-	fmt.Printf("Points Per Second: %v\n\n", float64(n)*float64(10000)/float64(wt.Elapsed().Seconds()))
+	fmt.Printf("Points Per Second: %v\n\n", int(float64(n)*float64(b.BatchSize)/float64(wt.Elapsed().Seconds())))
 }
 
 // BasicReadHandler handles read responses.
-func BasicReadHandler(r <-chan response, rt *Timer) {
+func (b *BasicQueryClient) BasicReadHandler(r <-chan response, rt *Timer) {
 	n := 0
 	s := time.Duration(0)
 	for t := range r {
@@ -539,4 +647,36 @@ func BasicReadHandler(r <-chan response, rt *Timer) {
 
 	fmt.Printf("Total Queries: %v\n", n)
 	fmt.Printf("Average Query Response Time: %v\n\n", s/time.Duration(n))
+}
+
+func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Timer) {
+	return func(r <-chan response, rt *Timer) {
+		c, _ := client.NewHTTPClient(client.HTTPConfig{
+			Addr: o.addr,
+		})
+		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+			Database:  o.database,
+			Precision: "ns",
+		})
+		for p := range r {
+			tags := o.tags
+			tags["method"] = method
+			fields := map[string]interface{}{
+				"response_time": p.Timer.Elapsed(),
+			}
+			pt, _ := client.NewPoint("performance", tags, fields, p.Time)
+			bp.AddPoint(pt)
+			if len(bp.Points())%1000 == 0 && len(bp.Points()) != 0 {
+				c.Write(bp)
+				bp, _ = client.NewBatchPoints(client.BatchPointsConfig{
+					Database:  o.database,
+					Precision: "ns",
+				})
+			}
+		}
+
+		if len(bp.Points()) != 0 {
+			c.Write(bp)
+		}
+	}
 }

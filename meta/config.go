@@ -27,6 +27,9 @@ const (
 
 	// DefaultRaftPromotionEnabled is the default for auto promoting a node to a raft node when needed
 	DefaultRaftPromotionEnabled = true
+
+	// DefaultLoggingEnabled determines if log messages are printed for the meta service
+	DefaultLoggingEnabled = true
 )
 
 // Config represents the meta configuration.
@@ -42,6 +45,7 @@ type Config struct {
 	CommitTimeout        toml.Duration `toml:"commit-timeout"`
 	ClusterTracing       bool          `toml:"cluster-tracing"`
 	RaftPromotionEnabled bool          `toml:"raft-promotion-enabled"`
+	LoggingEnabled       bool          `toml:"logging-enabled"`
 }
 
 // NewConfig builds a new configuration with default values.
@@ -55,5 +59,6 @@ func NewConfig() *Config {
 		LeaderLeaseTimeout:   toml.Duration(DefaultLeaderLeaseTimeout),
 		CommitTimeout:        toml.Duration(DefaultCommitTimeout),
 		RaftPromotionEnabled: DefaultRaftPromotionEnabled,
+		LoggingEnabled:       DefaultLoggingEnabled,
 	}
 }
