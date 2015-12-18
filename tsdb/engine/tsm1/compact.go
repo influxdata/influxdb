@@ -540,7 +540,7 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 	}
 
-	// Now we need to find all blocks that match the min key so we can combine and dedup
+	// Now we need to find all blocks that match the min key so we can combine and dedupe
 	// the blocks if necessary
 	for i, b := range k.buf {
 		if b == nil {

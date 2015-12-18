@@ -880,6 +880,7 @@ func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 		return nil, ErrTSMClosed
 	}
 
+	// return the bytes after the 4 byte checksum
 	return m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)], nil
 }
 
