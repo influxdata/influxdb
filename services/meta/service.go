@@ -19,12 +19,8 @@ type Service struct {
 	https    bool
 	cert     string
 	err      chan error
-
-	Logger *log.Logger
-
-	store interface {
-		Close() error
-	}
+	Logger   *log.Logger
+	store    *store
 }
 
 // NewService returns a new instance of Service.
@@ -102,7 +98,7 @@ func (s *Service) Close() error {
 		return s.ln.Close()
 	}
 
-	if err := s.store.Close(); err != nil {
+	if err := s.store.close(); err != nil {
 		return err
 	}
 

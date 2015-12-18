@@ -2,9 +2,10 @@ package meta
 
 import (
 	"compress/gzip"
-	"expvar"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -12,13 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb/meta/internal"
 	"github.com/influxdb/influxdb/uuid"
 )
 
-//type store interface {
-//	AfterIndex(index int) <-chan struct{}
-//	Database(name string) (*DatabaseInfo, error)
-//}
+// execMagic is the first 4 bytes sent to a remote exec connection to verify
+// that it is coming from a remote exec client connection.
+const execMagic = "EXEC"
 
 // handler represents an HTTP handler for the meta service.
 type handler struct {
@@ -29,9 +31,12 @@ type handler struct {
 	loggingEnabled bool // Log every HTTP access.
 	pprofEnabled   bool
 	store          interface {
-		AfterIndex(index int) <-chan struct{}
-		Snapshot() ([]byte, error)
-		SetCache(b []byte)
+		afterIndex(index uint64) <-chan struct{}
+		index() uint64
+		isLeader() bool
+		leader() string
+		snapshot() (*Data, error)
+		apply(b []byte) error
 	}
 }
 
@@ -71,29 +76,98 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		h.WrapHandler("execute", h.serveExec).ServeHTTP(w, r)
 	default:
-		http.Error(w, "bad request", http.StatusBadRequest)
+		http.Error(w, "", http.StatusBadRequest)
 	}
 }
 
 // serveExec executes the requested command.
 func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
+	// If not the leader, redirect.
+	if !h.store.isLeader() {
+		l := h.store.leader()
+		if l == "" {
+			h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
+			return
+		}
+		l = r.URL.Scheme + "//" + l + "/execute"
+		http.Redirect(w, r, l, http.StatusFound)
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.httpError(err, w, http.StatusInternalServerError)
+		return
+	}
+
+	if err := validateCommand(body); err != nil {
+		h.httpError(err, w, http.StatusBadRequest)
+		return
+	}
+
+	resp := h.exec(body)
+	b, err := proto.Marshal(resp)
+	if err != nil {
+		h.httpError(err, w, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/octet-stream")
+	w.Write(b)
+}
+
+func validateCommand(b []byte) error {
+	// Read marker message.
+	if len(b) < 4 {
+		return errors.New("invalid execMagic size")
+	} else if string(b[:4]) != execMagic {
+		return fmt.Errorf("invalid exec magic: %q", string(b[:4]))
+	}
+
+	// Ensure command can be deserialized before applying.
+	if err := proto.Unmarshal(b[4:], &internal.Command{}); err != nil {
+		return fmt.Errorf("unable to unmarshal command: %s", err)
+	}
+
+	return nil
+}
+
+func (h *handler) exec(b []byte) *internal.Response {
+	if err := h.store.apply(b); err != nil {
+		return &internal.Response{
+			OK:    proto.Bool(false),
+			Error: proto.String(err.Error()),
+		}
+	}
+
+	return &internal.Response{
+		OK:    proto.Bool(true),
+		Index: proto.Uint64(h.store.index()),
+	}
 }
 
 // serveSnapshot is a long polling http connection to server cache updates
 func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 	// get the current index that client has
-	index, _ := strconv.Atoi(r.URL.Query().Get("index"))
+	index, err := strconv.ParseUint(r.URL.Query().Get("index"), 10, 64)
+	if err != nil {
+		http.Error(w, "error parsing index", http.StatusBadRequest)
+	}
 
 	select {
-	case <-h.store.AfterIndex(index):
+	case <-h.store.afterIndex(index):
 		// Send updated snapshot to client.
-		ss, err := h.store.Snapshot()
+		ss, err := h.store.snapshot()
 		if err != nil {
-			h.logger.Println(err)
-			http.Error(w, "", http.StatusInternalServerError)
+			h.httpError(err, w, http.StatusInternalServerError)
 			return
 		}
-		w.Write(ss)
+		b, err := ss.MarshalBinary()
+		if err != nil {
+			h.httpError(err, w, http.StatusInternalServerError)
+			return
+		}
+		w.Write(b)
 	case <-w.(http.CloseNotifier).CloseNotify():
 		// Client closed the connection so we're done.
 		return
@@ -103,21 +177,6 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ACK"))
-}
-
-// serveExpvar serves registered expvar information over HTTP.
-func serveExpvar(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Fprintf(w, "{\n")
-	first := true
-	expvar.Do(func(kv expvar.KeyValue) {
-		if !first {
-			fmt.Fprintf(w, ",\n")
-		}
-		first = false
-		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
-	})
-	fmt.Fprintf(w, "\n}\n")
 }
 
 type gzipResponseWriter struct {
@@ -196,4 +255,11 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 
 		inner.ServeHTTP(l, r)
 	})
+}
+
+func (h *handler) httpError(err error, w http.ResponseWriter, status int) {
+	if h.loggingEnabled {
+		h.logger.Println(err)
+	}
+	http.Error(w, "", status)
 }
