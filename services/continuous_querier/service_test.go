@@ -44,9 +44,6 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	// Set RunInterval high so we can trigger using Run method.
 	s.RunInterval = 10 * time.Minute
 
-	// Only want one call to ExecuteQueryFn per CQ.
-	s.Config.RecomputePreviousN = 0
-
 	done := make(chan struct{})
 	expectCallCnt := 3
 	callCnt := 0
@@ -63,9 +60,13 @@ func TestContinuousQueryService_Run(t *testing.T) {
 		return dummych, nil
 	}
 
+	// Use a custom "now" time since the internals of last run care about
+	// what the actual time is. Truncate to 10 minutes we are starting on an interval.
+	now := time.Now().Truncate(10 * time.Minute)
+
 	s.Open()
 	// Trigger service to run all CQs.
-	s.Run("", "", time.Now())
+	s.Run("", "", now)
 	// Shouldn't time out.
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Error(err)
@@ -80,7 +81,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	expectCallCnt = 1
 	callCnt = 0
 	s.Open()
-	s.Run("db", "cq", time.Now())
+	s.Run("db", "cq", now)
 	// Shouldn't time out.
 	if err := wait(done, 100*time.Millisecond); err != nil {
 		t.Error(err)
@@ -90,6 +91,84 @@ func TestContinuousQueryService_Run(t *testing.T) {
 		t.Error("too many queries executed")
 	}
 	s.Close()
+}
+
+func TestContinuousQueryService_ResampleOptions(t *testing.T) {
+	s := NewTestService(t)
+	ms := NewMetaStore(t)
+	ms.CreateDatabase("db", "")
+	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
+	s.MetaStore = ms
+
+	db, err := s.MetaStore.Database("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cq, err := NewContinuousQuery(db.Name, &db.ContinuousQueries[0])
+	if err != nil {
+		t.Fatal(err)
+	} else if cq.Resample.Every != 10*time.Second {
+		t.Errorf("expected resample every to be 10s, got %s", influxql.FormatDuration(cq.Resample.Every))
+	} else if cq.Resample.For != 2*time.Minute {
+		t.Errorf("expected resample for 2m, got %s", influxql.FormatDuration(cq.Resample.For))
+	}
+
+	// Set RunInterval high so we can trigger using Run method.
+	s.RunInterval = 10 * time.Minute
+
+	done := make(chan struct{})
+	expectCallCnt := 0
+	callCnt := 0
+
+	// Set a callback for ExecuteQuery.
+	qe := s.QueryExecutor.(*QueryExecutor)
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
+		callCnt++
+		if callCnt >= expectCallCnt {
+			done <- struct{}{}
+		}
+		dummych := make(chan *influxql.Result, 1)
+		dummych <- &influxql.Result{}
+		return dummych, nil
+	}
+
+	s.Open()
+	defer s.Close()
+
+	// Set the 'now' time to the start of a 10 minute interval. Then trigger a run.
+	// This should trigger two queries (one for the current time interval, one for the previous).
+	now := time.Now().Truncate(10 * time.Minute)
+	expectCallCnt += 2
+	s.RunCh <- &RunRequest{Now: now}
+
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	// Trigger another run 10 seconds later. Another two queries should happen,
+	// but it will be a different two queries.
+	expectCallCnt += 2
+	s.RunCh <- &RunRequest{Now: now.Add(10 * time.Second)}
+
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reset the time period and send the initial request at 5 seconds after the
+	// 10 minute mark. There should be exactly one call since the current interval is too
+	// young and only one interval matches the FOR duration.
+	expectCallCnt += 1
+	s.Run("", "", now.Add(5*time.Second))
+
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	// No overflow should be sent.
+	if err := wait(done, 100*time.Millisecond); err == nil {
+		t.Error("too many queries executed")
+	}
 }
 
 // Test service when not the cluster leader (CQs shouldn't run).
@@ -180,7 +259,8 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
+	now := time.Now().Truncate(10 * time.Minute)
+	err := s.ExecuteContinuousQuery(&dbi, &cqi, now)
 	if err != errExpected {
 		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}

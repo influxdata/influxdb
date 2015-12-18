@@ -1403,6 +1403,13 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 	stmt.Database = ident
 
+	if p.parseTokenMaybe(RESAMPLE) {
+		stmt.ResampleEvery, stmt.ResampleFor, err = p.parseResample()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Expect a "BEGIN SELECT" tokens.
 	if err := p.parseTokens([]Token{BEGIN, SELECT}); err != nil {
 		return nil, err
@@ -2391,6 +2398,47 @@ func (p *Parser) parseCall(name string) (*Call, error) {
 	return &Call{Name: name, Args: args}, nil
 }
 
+// parseResample parses a RESAMPLE [EVERY <duration>] [FOR <duration>].
+// This function assumes RESAMPLE has already been consumed.
+// EVERY and FOR are optional, but at least one of the two has to be used.
+func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
+	var interval time.Duration
+	if p.parseTokenMaybe(EVERY) {
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok != DURATION_VAL {
+			return 0, 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
+		}
+
+		d, err := ParseDuration(lit)
+		if err != nil {
+			return 0, 0, &ParseError{Message: err.Error(), Pos: pos}
+		}
+		interval = d
+	}
+
+	var maxDuration time.Duration
+	if p.parseTokenMaybe(FOR) {
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		if tok != DURATION_VAL {
+			return 0, 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
+		}
+
+		d, err := ParseDuration(lit)
+		if err != nil {
+			return 0, 0, &ParseError{Message: err.Error(), Pos: pos}
+		}
+		maxDuration = d
+	}
+
+	// Neither EVERY or FOR were read, so read the next token again
+	// so we can return a suitable error message.
+	if interval == 0 && maxDuration == 0 {
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		return 0, 0, newParseError(tokstr(tok, lit), []string{"EVERY", "FOR"}, pos)
+	}
+	return interval, maxDuration, nil
+}
+
 // scan returns the next token from the underlying scanner.
 func (p *Parser) scan() (tok Token, pos Pos, lit string) { return p.s.Scan() }
 
@@ -2491,6 +2539,17 @@ func (p *Parser) parseTokens(toks []Token) error {
 		}
 	}
 	return nil
+}
+
+// parseTokenMaybe consumes the next token if it matches the expected one and
+// does nothing if the next token is not the next one.
+func (p *Parser) parseTokenMaybe(expected Token) bool {
+	tok, _, _ := p.scanIgnoreWhitespace()
+	if tok != expected {
+		p.unscan()
+		return false
+	}
+	return true
 }
 
 // QuoteString returns a quoted string.
