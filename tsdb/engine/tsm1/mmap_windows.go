@@ -10,5 +10,5 @@ func mmap(f *os.File, offset int64, length int) ([]byte, error) {
 }
 
 func munmap(b []byte) (err error) {
-	return nil, fmt.Errorf("munmap file not supported on windows")
+	return fmt.Errorf("munmap file not supported on windows")
 }
