@@ -307,3 +307,37 @@ func (d *decoder) decodeRaw(b []byte) {
 		}
 	}
 }
+
+func CountTimestamps(b []byte) int {
+	if len(b) == 0 {
+		return 0
+	}
+
+	// Encoding type is stored in the 4 high bits of the first byte
+	encoding := b[0] >> 4
+	switch encoding {
+	case timeUncompressed:
+		// Uncompressed timestamps are just 8 bytes each
+		return len(b[1:]) / 8
+	case timeCompressedRLE:
+		// First 9 bytes are the starting timestamp and scaling factor, skip over them
+		i := 9
+		// Next 1-10 bytes is our (scaled down by factor of 10) run length values
+		_, n := binary.Uvarint(b[9:])
+		i += n
+		// Last 1-10 bytes is how many times the value repeats
+		count, _ := binary.Uvarint(b[i:])
+		return int(count)
+	case timeCompressedPackedSimple:
+		// First 9 bytes are the starting timestamp and scaling factor, skip over them
+		dec := simple8b.NewDecoder(b[9:])
+		count := 1
+		// Count the deltas
+		for dec.Next() {
+			count++
+		}
+		return count
+	default:
+		return 0
+	}
+}

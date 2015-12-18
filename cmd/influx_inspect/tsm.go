@@ -550,14 +550,13 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			f.Seek(int64(e.Offset), 0)
 			f.Read(b[:4])
 
-			chksum := btou32(b)
+			chksum := btou32(b[:4])
 
-			buf := make([]byte, e.Size)
+			buf := make([]byte, e.Size-4)
 			f.Read(buf)
 
 			blockSize += int64(len(buf)) + 4
 
-			startTime := time.Unix(0, int64(btou64(buf[:8])))
 			blockType := buf[0]
 
 			encoded := buf[1:]
@@ -568,6 +567,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 				fmt.Printf("error: %v\n", err.Error())
 				os.Exit(1)
 			}
+			startTime := v[0].Time()
 
 			pointCount += int64(len(v))
 

@@ -136,6 +136,7 @@ func (f *FileStore) Add(files ...TSMFile) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.files = append(f.files, files...)
+	sort.Sort(tsmReaders(f.files))
 }
 
 // Remove removes the files with matching paths from the set of active files.  It does
@@ -158,6 +159,7 @@ func (f *FileStore) Remove(paths ...string) {
 		}
 	}
 	f.files = active
+	sort.Sort(tsmReaders(f.files))
 }
 
 func (f *FileStore) Keys() []string {
@@ -219,9 +221,14 @@ func (f *FileStore) Open() error {
 		return err
 	}
 
-	for i, fn := range files {
-		start := time.Now()
+	// struct to hold the result of opening each reader in a goroutine
+	type res struct {
+		r   *TSMReader
+		err error
+	}
 
+	readerC := make(chan *res)
+	for i, fn := range files {
 		// Keep track of the latest ID
 		generation, _, err := ParseTSMFileName(fn)
 		if err != nil {
@@ -237,18 +244,34 @@ func (f *FileStore) Open() error {
 			return fmt.Errorf("error opening file %s: %v", fn, err)
 		}
 
-		df, err := NewTSMReaderWithOptions(TSMReaderOptions{
-			MMAPFile: file,
-		})
-		if err != nil {
-			return fmt.Errorf("error opening memory map for file %s: %v", fn, err)
-		}
-		if f.traceLogging {
-			f.Logger.Printf("%s (#%d) opened in %v", fn, i, time.Now().Sub(start))
-		}
+		go func(idx int, file *os.File) {
+			start := time.Now()
+			df, err := NewTSMReaderWithOptions(TSMReaderOptions{
+				MMAPFile: file,
+			})
+			if f.traceLogging {
+				f.Logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
+			}
 
-		f.files = append(f.files, df)
+			if err != nil {
+				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
+				return
+			}
+			readerC <- &res{r: df}
+		}(i, file)
 	}
+
+	for range files {
+		res := <-readerC
+		if res.err != nil {
+
+			return res.err
+		}
+		f.files = append(f.files, res.r)
+	}
+	close(readerC)
+
+	sort.Sort(tsmReaders(f.files))
 	return nil
 }
 
@@ -368,6 +391,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	}
 
 	f.files = active
+	sort.Sort(tsmReaders(f.files))
 
 	return nil
 }
@@ -505,6 +529,13 @@ func (c *KeyCursor) init(t time.Time, ascending bool) {
 	c.ready = true
 }
 
+func (c *KeyCursor) Close() {
+	c.buf = nil
+	c.seeks = nil
+	c.fs = nil
+	c.current = nil
+}
+
 func (c *KeyCursor) SeekTo(t time.Time, ascending bool) ([]Value, error) {
 	c.init(t, ascending)
 	if len(c.seeks) == 0 {
@@ -639,3 +670,9 @@ func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
 		return c.readAt()
 	}
 }
+
+type tsmReaders []TSMFile
+
+func (a tsmReaders) Len() int           { return len(a) }
+func (a tsmReaders) Less(i, j int) bool { return a[i].Path() < a[j].Path() }
+func (a tsmReaders) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

@@ -170,8 +170,101 @@ func TestCompactor_Compact(t *testing.T) {
 	}
 }
 
+// Ensures that a compaction will properly merge multiple TSM files
+func TestCompactor_Compact_SkipFullBlocks(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// write 3 TSM files with different data and one new point
+	a1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	a2 := tsm1.NewValue(time.Unix(2, 0), 1.2)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a1, a2},
+	}
+	f1 := MustWriteTSM(dir, 1, writes)
+
+	a3 := tsm1.NewValue(time.Unix(3, 0), 1.3)
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a3},
+	}
+	f2 := MustWriteTSM(dir, 2, writes)
+
+	a4 := tsm1.NewValue(time.Unix(4, 0), 1.4)
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{a4},
+	}
+	f3 := MustWriteTSM(dir, 3, writes)
+
+	compactor := &tsm1.Compactor{
+		Dir:       dir,
+		FileStore: &fakeFileStore{},
+		Size:      2,
+	}
+
+	files, err := compactor.Compact([]string{f1, f2, f3})
+	if err != nil {
+		t.Fatalf("unexpected error writing snapshot: %v", err)
+	}
+
+	if got, exp := len(files), 1; got != exp {
+		t.Fatalf("files length mismatch: got %v, exp %v", got, exp)
+	}
+
+	expGen, expSeq, err := tsm1.ParseTSMFileName(f3)
+	if err != nil {
+		t.Fatalf("unexpected error parsing file name: %v", err)
+	}
+	expSeq = expSeq + 1
+
+	gotGen, gotSeq, err := tsm1.ParseTSMFileName(files[0])
+	if err != nil {
+		t.Fatalf("unexpected error parsing file name: %v", err)
+	}
+
+	if gotGen != expGen {
+		t.Fatalf("wrong generation for new file: got %v, exp %v", gotGen, expGen)
+	}
+
+	if gotSeq != expSeq {
+		t.Fatalf("wrong sequence for new file: got %v, exp %v", gotSeq, expSeq)
+	}
+
+	r := MustOpenTSMReader(files[0])
+
+	keys := r.Keys()
+	if got, exp := len(keys), 1; got != exp {
+		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
+	}
+
+	var data = []struct {
+		key    string
+		points []tsm1.Value
+	}{
+		{"cpu,host=A#!~#value", []tsm1.Value{a1, a2, a3, a4}},
+	}
+
+	for _, p := range data {
+		values, err := r.ReadAll(p.key)
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if got, exp := len(values), len(p.points); got != exp {
+			t.Fatalf("values length mismatch %s: got %v, exp %v", p.key, got, exp)
+		}
+
+		for i, point := range p.points {
+			assertValueEqual(t, values[i], point)
+		}
+	}
+
+	if got, exp := len(r.Entries("cpu,host=A#!~#value")), 2; got != exp {
+		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 // Tests that a single TSM file can be read and iterated over
-func TestKeyIterator_TSM_Single(t *testing.T) {
+func TestTSMKeyIterator_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -182,16 +275,21 @@ func TestKeyIterator_TSM_Single(t *testing.T) {
 
 	r := MustTSMReader(dir, 1, writes)
 
-	iter, err := tsm1.NewTSMKeyIterator(r)
+	iter, err := tsm1.NewTSMKeyIterator(1, r)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
 	var readValues bool
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -213,34 +311,97 @@ func TestKeyIterator_TSM_Single(t *testing.T) {
 	}
 }
 
+// Tests that a single TSM file can be read and iterated over
+func TestTSMKeyIterator_Chunked(t *testing.T) {
+	t.Skip("fixme")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	v0 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	v1 := tsm1.NewValue(time.Unix(2, 0), 2.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
+	}
+
+	r := MustTSMReader(dir, 1, writes)
+
+	iter, err := tsm1.NewTSMKeyIterator(1, r)
+	if err != nil {
+		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
+	}
+
+	var readValues bool
+	var chunk int
+	for iter.Next() {
+		key, _, _, block, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), len(writes); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for _, v := range values {
+			readValues = true
+			assertValueEqual(t, v, writes["cpu,host=A#!~#value"][chunk])
+		}
+		chunk++
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
 // Tests that duplicate point values are merged.  There is only one case
 // where this could happen and that is when a compaction completed and we replace
 // the old TSM file with a new one and we crash just before deleting the old file.
 // No data is lost but the same point time/value would exist in two files until
 // compaction corrects it.
-func TestKeyIterator_TSM_Duplicate(t *testing.T) {
+func TestTSMKeyIterator_Duplicate(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
 	v1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
-	v2 := tsm1.NewValue(time.Unix(1, 0), int64(1))
+	v2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
 
-	writes := map[string][]tsm1.Value{
+	writes1 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
 	}
 
-	r := MustTSMReader(dir, 1, writes)
+	r1 := MustTSMReader(dir, 1, writes1)
 
-	iter, err := tsm1.NewTSMKeyIterator(r)
+	writes2 := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v2},
+	}
+
+	r2 := MustTSMReader(dir, 1, writes2)
+
+	iter, err := tsm1.NewTSMKeyIterator(1, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
 
 	var readValues bool
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -262,7 +423,7 @@ func TestKeyIterator_TSM_Duplicate(t *testing.T) {
 
 // Tests that deleted keys are not seen during iteration with
 // TSM files.
-func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
+func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
@@ -285,7 +446,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	r2 := MustTSMReader(dir, 1, points2)
 	r2.Delete([]string{"cpu,host=A#!~#count"})
 
-	iter, err := tsm1.NewTSMKeyIterator(r1, r2)
+	iter, err := tsm1.NewTSMKeyIterator(1, r1, r2)
 	if err != nil {
 		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
 	}
@@ -299,9 +460,14 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, data[0].key; got != exp {
@@ -322,7 +488,7 @@ func TestKeyIterator_TSM_MultipleKeysDeleted(t *testing.T) {
 	}
 }
 
-func TestKeyIterator_Cache_Single(t *testing.T) {
+func TestCacheKeyIterator_Single(t *testing.T) {
 	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
 
 	writes := map[string][]tsm1.Value{
@@ -337,12 +503,17 @@ func TestKeyIterator_Cache_Single(t *testing.T) {
 		}
 	}
 
-	iter := tsm1.NewCacheKeyIterator(c)
+	iter := tsm1.NewCacheKeyIterator(c, 1)
 	var readValues bool
 	for iter.Next() {
-		key, values, err := iter.Read()
+		key, _, _, block, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
 		}
 
 		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
@@ -357,6 +528,56 @@ func TestKeyIterator_Cache_Single(t *testing.T) {
 			readValues = true
 			assertValueEqual(t, v, v0)
 		}
+	}
+
+	if !readValues {
+		t.Fatalf("failed to read any values")
+	}
+}
+
+func TestCacheKeyIterator_Chunked(t *testing.T) {
+	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
+	v1 := tsm1.NewValue(time.Unix(2, 0).UTC(), 2.0)
+
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
+	}
+
+	c := tsm1.NewCache(0)
+
+	for k, v := range writes {
+		if err := c.Write(k, v); err != nil {
+			t.Fatalf("failed to write key foo to cache: %s", err.Error())
+		}
+	}
+
+	iter := tsm1.NewCacheKeyIterator(c, 1)
+	var readValues bool
+	var chunk int
+	for iter.Next() {
+		key, _, _, block, err := iter.Read()
+		if err != nil {
+			t.Fatalf("unexpected error read: %v", err)
+		}
+
+		values, err := tsm1.DecodeBlock(block, nil)
+		if err != nil {
+			t.Fatalf("unexpected error decode: %v", err)
+		}
+
+		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
+			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for _, v := range values {
+			readValues = true
+			assertValueEqual(t, v, writes["cpu,host=A#!~#value"][chunk])
+		}
+		chunk++
 	}
 
 	if !readValues {

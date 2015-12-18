@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
@@ -244,6 +246,7 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 type Compactor struct {
 	Dir    string
 	Cancel chan struct{}
+	Size   int
 
 	FileStore interface {
 		NextGeneration() int
@@ -252,12 +255,16 @@ type Compactor struct {
 
 // WriteSnapshot will write a Cache snapshot to a new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
-	iter := NewCacheKeyIterator(cache)
-	return c.writeNewFiles(c.FileStore.NextGeneration(), 1, iter)
+	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
+	return c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
 }
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
+	size := c.Size
+	if size <= 0 {
+		size = tsdb.DefaultMaxPointsPerBlock
+	}
 	// The new compacted files need to added to the max generation in the
 	// set.  We need to find that max generation as well as the max sequence
 	// number to ensure we write to the next unique location.
@@ -301,7 +308,7 @@ func (c *Compactor) Compact(tsmFiles []string) ([]string, error) {
 		return nil, nil
 	}
 
-	tsm, err := NewTSMKeyIterator(trs...)
+	tsm, err := NewTSMKeyIterator(size, trs...)
 	if err != nil {
 		return nil, err
 	}
@@ -388,13 +395,13 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)
-		key, values, err := iter.Read()
+		key, minTime, maxTime, block, err := iter.Read()
 		if err != nil {
 			return err
 		}
 
 		// Write the key and value
-		if err := w.Write(key, values); err != nil {
+		if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
 			return err
 		}
 
@@ -420,7 +427,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 // KeyIterator allows iteration over set of keys and values in sorted order.
 type KeyIterator interface {
 	Next() bool
-	Read() (string, []Value, error)
+	Read() (string, time.Time, time.Time, []byte, error)
 	Close() error
 }
 
@@ -443,110 +450,236 @@ type tsmKeyIterator struct {
 	// err is any error we received while iterating values.
 	err error
 
+	size int
 	// key is the current key lowest key across all readers that has not be fully exhausted
 	// of values.
 	key string
+
+	iterators []*BlockIterator
+	blocks    blocks
+
+	buf blocks
 }
 
-func NewTSMKeyIterator(readers ...*TSMReader) (KeyIterator, error) {
+type block struct {
+	key              string
+	minTime, maxTime time.Time
+	b                []byte
+}
+
+type blocks []*block
+
+func (a blocks) Len() int { return len(a) }
+
+func (a blocks) Less(i, j int) bool {
+	if a[i].key == a[j].key {
+		return a[i].minTime.Before(a[j].minTime)
+	}
+	return a[i].key < a[j].key
+}
+
+func (a blocks) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func NewTSMKeyIterator(size int, readers ...*TSMReader) (KeyIterator, error) {
+	var iter []*BlockIterator
+	for _, r := range readers {
+		iter = append(iter, r.BlockIterator())
+	}
+
 	return &tsmKeyIterator{
-		readers: readers,
-		values:  map[string][]Value{},
-		pos:     make([]int, len(readers)),
-		keys:    make([]string, len(readers)),
+		readers:   readers,
+		values:    map[string][]Value{},
+		pos:       make([]int, len(readers)),
+		keys:      make([]string, len(readers)),
+		size:      size,
+		iterators: iter,
+		buf:       make([]*block, len(iter)),
 	}, nil
 }
 
 func (k *tsmKeyIterator) Next() bool {
-	// If we have a key from the prior iteration, purge it and it's values from the
-	// values map.  We're done with it.
-	if k.key != "" {
-		delete(k.values, k.key)
-		for i, readerKey := range k.keys {
-			if readerKey == k.key {
-				k.keys[i] = ""
-			}
+	// If we still have blocks from the last read, slice off the current one
+	// and return
+	if len(k.blocks) > 0 {
+		k.blocks = k.blocks[1:]
+		if len(k.blocks) > 0 {
+			return true
 		}
 	}
 
-	var skipSearch bool
-	// For each iterator, group up all the values for their current key.
-	for i, r := range k.readers {
-		if k.keys[i] != "" {
-			continue
-		}
-
-		// Grab the key for this reader
-		key, entries := r.Key(k.pos[i])
-		k.keys[i] = key
-
-		if key != "" && key <= k.key {
-			k.key = key
-			skipSearch = true
-		}
-
-		// Bump it to the next key
-		k.pos[i]++
-
-		// If it return a key, grab all the values for it.
-		if key != "" {
-			// Note: this could be made more efficient to just grab chunks of values instead of
-			// all for the key.
-			var values []Value
-			for _, entry := range entries {
-				v, err := r.ReadAt(entry, nil)
+	// Read the next block from each TSM iterator
+	for i, v := range k.buf {
+		if v == nil {
+			iter := k.iterators[i]
+			if iter.Next() {
+				key, minTime, maxTime, b, err := iter.Read()
 				if err != nil {
 					k.err = err
 				}
 
-				values = append(values, v...)
-			}
-
-			if len(values) > 0 {
-				existing := k.values[key]
-
-				if len(existing) == 0 {
-					k.values[key] = values
-				} else if values[0].Time().After(existing[len(existing)-1].Time()) {
-					k.values[key] = append(existing, values...)
-				} else if values[len(values)-1].Time().Before(existing[0].Time()) {
-					k.values[key] = append(values, existing...)
-				} else {
-					k.values[key] = Values(append(existing, values...)).Deduplicate()
+				k.buf[i] = &block{
+					minTime: minTime,
+					maxTime: maxTime,
+					key:     key,
+					b:       b,
 				}
 			}
 		}
 	}
 
-	if !skipSearch {
-		// Determine our current key which is the smallest key in the values map
-		k.key = k.currentKey()
-	}
-	return len(k.values) > 0
-}
-
-func (k *tsmKeyIterator) currentKey() string {
-	var key string
-	for searchKey := range k.values {
-		if key == "" || searchKey <= key {
-			key = searchKey
+	// Each reader could have a different key that it's currently at, need to find
+	// the next smallest one to keep the sort ordering.
+	var minKey string
+	for _, b := range k.buf {
+		// block could be nil if the iterator has been exhausted for that file
+		if b == nil {
+			continue
+		}
+		if minKey == "" || b.key < minKey {
+			minKey = b.key
 		}
 	}
 
-	return key
-}
-
-func (k *tsmKeyIterator) Read() (string, []Value, error) {
-	if k.key == "" {
-		return "", nil, k.err
+	// Now we need to find all blocks that match the min key so we can combine and dedupe
+	// the blocks if necessary
+	for i, b := range k.buf {
+		if b == nil {
+			continue
+		}
+		if b.key == minKey {
+			k.blocks = append(k.blocks, b)
+			k.buf[i] = nil
+		}
 	}
 
-	return k.key, k.values[k.key], k.err
+	// If we have more than one block, we many need to dedup
+	var dedup bool
+
+	// Only one block, just return early everything after is wasted work
+	if len(k.blocks) == 1 {
+		return true
+	}
+
+	if len(k.blocks) > 1 {
+		// Quickly scan each block to see if any overlap with the first block, if they overlap then
+		// we need to dedup as there may be duplicate points now
+		for i := 1; i < len(k.blocks); i++ {
+			if k.blocks[i].minTime.Equal(k.blocks[0].maxTime) || k.blocks[i].minTime.Before(k.blocks[0].maxTime) {
+				dedup = true
+				break
+			}
+		}
+	}
+
+	k.blocks = k.combine(dedup)
+
+	return len(k.blocks) > 0
+}
+
+// combine returns a new set of blocks using the current blocks in the buffers.  If dedup
+// is true, all the blocks will be decoded, dedup and sorted in in order.  If dedup is false,
+// only blocks that are smaller than the chunk size will be decoded and combined.
+func (k *tsmKeyIterator) combine(dedup bool) blocks {
+	var decoded Values
+	if dedup {
+		// We have some overlapping blocks so decode all, append in order and then dedup
+		for i := 0; i < len(k.blocks); i++ {
+			v, err := DecodeBlock(k.blocks[i].b, nil)
+			if err != nil {
+				k.err = err
+				return nil
+			}
+			decoded = append(decoded, v...)
+		}
+		decoded = decoded.Deduplicate()
+
+		// Since we combined multiple blocks, we could have more values than we should put into
+		// a single block.  We need to chunk them up into groups and re-encode them.
+		return k.chunk(nil, decoded)
+	} else {
+		var chunked blocks
+		var i int
+
+		for i < len(k.blocks) {
+			// If we this block is already full, just add it as is
+			if BlockCount(k.blocks[i].b) >= k.size {
+				chunked = append(chunked, k.blocks[i])
+			} else {
+				break
+			}
+			i++
+		}
+
+		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
+		if i == len(k.blocks)-1 {
+			chunked = append(chunked, k.blocks[i])
+			i++
+		}
+
+		// The remaining blocks can be combined and we know that they do not overlap and are already
+		// sorted so we can just append each and re-encode.
+		for i < len(k.blocks) {
+			v, err := DecodeBlock(k.blocks[i].b, nil)
+			if err != nil {
+				k.err = err
+				return nil
+			}
+			decoded = append(decoded, v...)
+			i++
+		}
+
+		return k.chunk(chunked, decoded)
+	}
+}
+
+func (k *tsmKeyIterator) chunk(dst blocks, values []Value) blocks {
+	for len(values) > k.size {
+		cb, err := Values(values[:k.size]).Encode(nil)
+		if err != nil {
+			k.err = err
+			return nil
+		}
+
+		dst = append(dst, &block{
+			minTime: values[0].Time(),
+			maxTime: values[k.size].Time(),
+			key:     k.blocks[0].key,
+			b:       cb,
+		})
+		values = values[k.size:]
+	}
+
+	// Re-encode the remaining values into the last block
+	if len(values) > 0 {
+		cb, err := Values(values).Encode(nil)
+		if err != nil {
+			k.err = err
+			return nil
+		}
+
+		dst = append(dst, &block{
+			minTime: values[0].Time(),
+			maxTime: values[len(values)-1].Time(),
+			key:     k.blocks[0].key,
+			b:       cb,
+		})
+	}
+	return dst
+}
+
+func (k *tsmKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
+	if len(k.blocks) == 0 {
+		return "", time.Unix(0, 0), time.Unix(0, 0), nil, k.err
+	}
+
+	block := k.blocks[0]
+	return block.key, block.minTime, block.maxTime, block.b, k.err
 }
 
 func (k *tsmKeyIterator) Close() error {
 	k.values = nil
 	k.pos = nil
+	k.iterators = nil
 	for _, r := range k.readers {
 		if err := r.Close(); err != nil {
 			return err
@@ -557,31 +690,53 @@ func (k *tsmKeyIterator) Close() error {
 
 type cacheKeyIterator struct {
 	cache *Cache
+	size  int
 
-	k     string
-	order []string
+	k                string
+	order            []string
+	values           []Value
+	block            []byte
+	minTime, maxTime time.Time
+	err              error
 }
 
-func NewCacheKeyIterator(cache *Cache) KeyIterator {
+func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
 	keys := cache.Keys()
 
 	return &cacheKeyIterator{
+		size:  size,
 		cache: cache,
 		order: keys,
 	}
 }
 
 func (c *cacheKeyIterator) Next() bool {
+	if len(c.values) > c.size {
+		c.values = c.values[c.size:]
+		return true
+	}
+
 	if len(c.order) == 0 {
 		return false
 	}
 	c.k = c.order[0]
 	c.order = c.order[1:]
+	c.values = c.cache.values(c.k)
 	return true
 }
 
-func (c *cacheKeyIterator) Read() (string, []Value, error) {
-	return c.k, c.cache.values(c.k), nil
+func (c *cacheKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
+	minTime, maxTime := c.values[0].Time(), c.values[len(c.values)-1].Time()
+	var b []byte
+	var err error
+	if len(c.values) > c.size {
+		maxTime = c.values[c.size].Time()
+		b, err = Values(c.values[:c.size]).Encode(nil)
+	} else {
+		b, err = Values(c.values).Encode(nil)
+	}
+
+	return c.k, minTime, maxTime, b, err
 }
 
 func (c *cacheKeyIterator) Close() error {

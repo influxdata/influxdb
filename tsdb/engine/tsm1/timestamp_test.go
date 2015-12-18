@@ -428,8 +428,91 @@ func Test_TimeEncoder_RLESeconds(t *testing.T) {
 	if dec.Next() {
 		t.Fatalf("unexpected extra values")
 	}
-
 }
+
+func TestTimeEncoder_Count_Uncompressed(t *testing.T) {
+	enc := NewTimeEncoder()
+	t1 := time.Unix(0, 0)
+	t2 := time.Unix(1, 0)
+
+	// about 36.5yrs in NS resolution is max range for compressed format
+	// This should cause the encoding to fallback to raw points
+	t3 := time.Unix(2, (2 << 59))
+	enc.Write(t1)
+	enc.Write(t2)
+	enc.Write(t3)
+
+	b, err := enc.Bytes()
+	if got := b[0] >> 4; got != timeUncompressed {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := CountTimestamps(b), 3; got != exp {
+		t.Fatalf("count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTimeEncoder_Count_RLE(t *testing.T) {
+	enc := NewTimeEncoder()
+	ts := make([]time.Time, 6)
+
+	ts[0] = time.Unix(0, 1444448158000000000)
+	ts[1] = time.Unix(0, 1444448168000000000)
+	ts[2] = time.Unix(0, 1444448178000000000)
+	ts[3] = time.Unix(0, 1444448188000000000)
+	ts[4] = time.Unix(0, 1444448198000000000)
+	ts[5] = time.Unix(0, 1444448208000000000)
+
+	for _, v := range ts {
+		enc.Write(v)
+	}
+
+	b, err := enc.Bytes()
+	if got := b[0] >> 4; got != timeCompressedRLE {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := CountTimestamps(b), len(ts); got != exp {
+		t.Fatalf("count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestTimeEncoder_Count_Simple8(t *testing.T) {
+	enc := NewTimeEncoder()
+	t1 := time.Unix(0, 0)
+	t2 := time.Unix(0, 1)
+	t3 := time.Unix(0, 3)
+
+	enc.Write(t1)
+	enc.Write(t2)
+	enc.Write(t3)
+
+	b, err := enc.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := b[0] >> 4; got != timeCompressedPackedSimple {
+		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
+	}
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got, exp := CountTimestamps(b), 3; got != exp {
+		t.Fatalf("count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func BenchmarkTimeEncoder(b *testing.B) {
 	enc := NewTimeEncoder()
 	x := make([]time.Time, 1024)

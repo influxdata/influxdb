@@ -133,6 +133,15 @@ func BlockType(block []byte) (byte, error) {
 	}
 }
 
+func BlockCount(block []byte) int {
+	if len(block) <= encodedBlockHeaderSize {
+		panic(fmt.Sprintf("count of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
+	}
+	// first byte is the block type
+	tb, _ := unpackBlock(block[1:])
+	return CountTimestamps(tb)
+}
+
 // DecodeBlock takes a byte array and will decode into values of the appropriate type
 // based on the block.
 func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
