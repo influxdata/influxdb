@@ -981,9 +981,23 @@ func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader 
 
 func MustWriteTSM(dir string, gen int, values map[string][]tsm1.Value) string {
 	f := MustTempFile(dir)
-	newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(gen))
-	if err := os.Rename(f.Name(), newName); err != nil {
+	oldName := f.Name()
+
+	// Windows can't rename a file while it's open.  Close first, rename and
+	// then re-open
+	if err := f.Close(); err != nil {
+		panic(fmt.Sprintf("close temp file: %v", err))
+	}
+
+	newName := filepath.Join(filepath.Dir(oldName), tsmFileName(gen))
+	if err := os.Rename(oldName, newName); err != nil {
 		panic(fmt.Sprintf("create tsm file: %v", err))
+	}
+
+	var err error
+	f, err = os.OpenFile(newName, os.O_RDWR, 0666)
+	if err != nil {
+		panic(fmt.Sprintf("open tsm files: %v", err))
 	}
 
 	w, err := tsm1.NewTSMWriter(f)
