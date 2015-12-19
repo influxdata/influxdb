@@ -40,6 +40,15 @@ type BlockIterator struct {
 	err     error
 }
 
+func (b *BlockIterator) PeekNext() string {
+	if len(b.entries) > 1 {
+		return b.key
+	} else if len(b.keys) > 1 {
+		return b.keys[1]
+	}
+	return ""
+}
+
 func (b *BlockIterator) Next() bool {
 	if len(b.keys) == 0 && len(b.entries) == 0 {
 		return false
