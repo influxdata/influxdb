@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdb/influxdb/services/meta/internal"
 	"github.com/influxdb/influxdb/uuid"
 )
 

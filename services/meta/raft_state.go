@@ -15,51 +15,59 @@ import (
 	"github.com/hashicorp/raft-boltdb"
 )
 
+// Raft configuration.
+const (
+	raftLogCacheSize      = 512
+	raftSnapshotsRetained = 2
+	raftTransportMaxPool  = 3
+	raftTransportTimeout  = 10 * time.Second
+)
+
 // raftState is a consensus strategy that uses a local raft implementation for
 // consensus operations.
 type raftState struct {
-	wg        sync.WaitGroup
-	config    *Config
-	closing   chan struct{}
-	raft      *raft.Raft
-	transport *raft.NetworkTransport
-	peerStore raft.PeerStore
-	raftStore *raftboltdb.BoltStore
-	raftLayer *raftLayer
-	peers     []string
-	ln        *net.Listner
-	logger    *log.Logger
+	wg         sync.WaitGroup
+	config     *Config
+	closing    chan struct{}
+	raft       *raft.Raft
+	transport  *raft.NetworkTransport
+	peerStore  raft.PeerStore
+	raftStore  *raftboltdb.BoltStore
+	raftLayer  *raftLayer
+	joinPeers  []string
+	ln         net.Listener
+	logger     *log.Logger
+	remoteAddr net.Addr
+	path       string
 }
 
-func newRaftState(c *Config, peers []string, ln *net.Listener, l *log.Logger) *raftState {
+func newRaftState(c *Config, joinPeers []string) *raftState {
 	return &raftState{
-		config: c,
-		peers:  peers,
-		logger: l,
-		ln:     ln,
+		config:    c,
+		joinPeers: joinPeers,
 	}
 }
 
-func (r *raftState) open() error {
+func (r *raftState) open(s *store) error {
 	r.closing = make(chan struct{})
 
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
 	config.LogOutput = ioutil.Discard
 
-	if s.clusterTracingEnabled {
-		config.Logger = s.logger
+	if r.config.ClusterTracing {
+		config.Logger = r.logger
 	}
-	config.HeartbeatTimeout = r.config.HeartbeatTimeout
-	config.ElectionTimeout = r.config.ElectionTimeout
-	config.LeaderLeaseTimeout = r.config.LeaderLeaseTimeout
-	config.CommitTimeout = r.config.CommitTimeout
+	config.HeartbeatTimeout = time.Duration(r.config.HeartbeatTimeout)
+	config.ElectionTimeout = time.Duration(r.config.ElectionTimeout)
+	config.LeaderLeaseTimeout = time.Duration(r.config.LeaderLeaseTimeout)
+	config.CommitTimeout = time.Duration(r.config.CommitTimeout)
 	// Since we actually never call `removePeer` this is safe.
 	// If in the future we decide to call remove peer we have to re-evaluate how to handle this
 	config.ShutdownOnRemove = false
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	if len(s.peers) <= 1 {
+	if len(r.joinPeers) <= 1 {
 		config.EnableSingleNode = true
 		// Ensure we can always become the leader
 		config.DisableBootstrapAfterElect = false
@@ -72,7 +80,7 @@ func (r *raftState) open() error {
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
 
 	// Create peer storage.
-	r.peerStore = raft.NewJSONPeers(s.path, r.transport)
+	r.peerStore = raft.NewJSONPeers(r.path, r.transport)
 
 	peers, err := r.peerStore.Peers()
 	if err != nil {
@@ -82,30 +90,30 @@ func (r *raftState) open() error {
 	// For single-node clusters, we can update the raft peers before we start the cluster if the hostname
 	// has changed.
 	if config.EnableSingleNode {
-		if err := r.peerStore.SetPeers([]string{s.RemoteAddr.String()}); err != nil {
+		if err := r.peerStore.SetPeers([]string{r.remoteAddr.String()}); err != nil {
 			return err
 		}
-		peers = []string{s.RemoteAddr.String()}
+		peers = []string{r.remoteAddr.String()}
 	}
 
 	// If we have multiple nodes in the cluster, make sure our address is in the raft peers or
 	// we won't be able to boot into the cluster because the other peers will reject our new hostname.  This
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
-	if len(peers) > 0 && !raft.PeerContained(peers, s.RemoteAddr.String()) {
-		s.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", s.RemoteAddr.String(), s.Path())
-		return fmt.Errorf("peers out of sync: %v not in %v", s.RemoteAddr.String(), peers)
+	if len(peers) > 0 && !raft.PeerContained(peers, r.remoteAddr.String()) {
+		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.remoteAddr.String(), r.path)
+		return fmt.Errorf("peers out of sync: %v not in %v", r.remoteAddr.String(), peers)
 	}
 
 	// Create the log store and stable store.
-	store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))
+	store, err := raftboltdb.NewBoltStore(filepath.Join(r.path, "raft.db"))
 	if err != nil {
 		return fmt.Errorf("new bolt store: %s", err)
 	}
 	r.raftStore = store
 
 	// Create the snapshot store.
-	snapshots, err := raft.NewFileSnapshotStore(s.path, raftSnapshotsRetained, os.Stderr)
+	snapshots, err := raft.NewFileSnapshotStore(r.path, raftSnapshotsRetained, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("file snapshot store: %s", err)
 	}
@@ -177,7 +185,7 @@ func (r *raftState) initialize() error {
 	}
 
 	// Force set peers.
-	if err := r.setPeers(r.peers); err != nil {
+	if err := r.setPeers(r.joinPeers); err != nil {
 		return fmt.Errorf("set raft peers: %s", err)
 	}
 
@@ -196,9 +204,11 @@ func (r *raftState) apply(b []byte) error {
 	// No other non-nil objects should be returned.
 	resp := f.Response()
 	if err, ok := resp.(error); ok {
-		return lookupError(err)
+		return err
 	}
-	assert(resp == nil, "unexpected response: %#v", resp)
+	if resp != nil {
+		panic(fmt.Sprintf("unexpected response: %#v", resp))
+	}
 
 	return nil
 }
@@ -290,13 +300,6 @@ func (l *raftLayer) Addr() net.Addr { return l.addr }
 func (l *raftLayer) Dial(addr string, timeout time.Duration) (net.Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
-		return nil, err
-	}
-
-	// Write a marker byte for raft messages.
-	_, err = conn.Write([]byte{MuxRaftHeader})
-	if err != nil {
-		conn.Close()
 		return nil, err
 	}
 	return conn, err
