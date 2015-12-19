@@ -7,7 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdb/influxdb/services/meta/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto

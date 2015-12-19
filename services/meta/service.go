@@ -44,6 +44,9 @@ func (s *Service) Open() error {
 	// Open the store
 	store := newStore(s.config)
 	s.store = store
+	if err := s.store.open(); err != nil {
+		return err
+	}
 
 	handler := newHandler(s.config)
 	handler.logger = s.Logger

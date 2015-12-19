@@ -3,11 +3,14 @@ package meta
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -15,15 +18,30 @@ import (
 )
 
 type store struct {
-	mu          sync.RWMutex
-	closing     chan struct{}
+	id uint64 // local node id
+
+	mu      sync.RWMutex
+	closing chan struct{}
+
+	config      *Config
 	data        *Data
 	raftState   *raftState
 	dataChanged chan struct{}
+	ready       chan struct{}
 	addr        string
 	raftln      net.Listener
 	path        string
 	opened      bool
+	peers       []string
+	logger      *log.Logger
+
+	// Authentication cache.
+	authCache map[string]authUser
+}
+
+type authUser struct {
+	salt []byte
+	hash []byte
 }
 
 func newStore(c *Config) *store {
@@ -31,11 +49,19 @@ func newStore(c *Config) *store {
 		data: &Data{
 			Index: 1,
 		},
+		ready:       make(chan struct{}),
 		closing:     make(chan struct{}),
 		dataChanged: make(chan struct{}),
-		addr:        c.RaftAddr,
+		addr:        c.RaftBindAddress,
 		path:        c.Dir,
+		config:      c,
 	}
+	if c.LoggingEnabled {
+		s.logger = log.New(os.Stderr, "[metastore] ", log.LstdFlags)
+	} else {
+		s.logger = log.New(ioutil.Discard, "", 0)
+	}
+
 	return &s
 }
 
@@ -46,9 +72,9 @@ func (s *store) open() error {
 		return err
 	}
 	s.raftln = ln
-	s.addr = ln.Addr()
+	s.addr = ln.Addr().String()
 
-	s.Logger.Printf("Using data dir: %v", s.path)
+	s.logger.Printf("Using data dir: %v", s.path)
 
 	if err := func() error {
 		s.mu.Lock()
@@ -76,7 +102,7 @@ func (s *store) open() error {
 		}
 
 		// Initialize the store, if necessary.
-		if err := s.initialize(); err != nil {
+		if err := s.raftState.initialize(); err != nil {
 			return fmt.Errorf("initialize raft: %s", err)
 		}
 
@@ -90,13 +116,6 @@ func (s *store) open() error {
 		return err
 	}
 
-	// Begin serving listener.
-	s.wg.Add(1)
-	go s.serveExecListener()
-
-	s.wg.Add(1)
-	go s.serveRPCListener()
-
 	// Join an existing cluster if we needed
 	if err := s.joinCluster(); err != nil {
 		return fmt.Errorf("join: %v", err)
@@ -104,23 +123,21 @@ func (s *store) open() error {
 
 	// If the ID doesn't exist then create a new node.
 	if s.id == 0 {
-		go s.init()
+		go s.raftState.initialize()
 	} else {
-		go s.syncNodeInfo()
+		// TODO: enable node info sync
+		// all this does is update the raft peers with the new hostname of this node if it changed
+		// based on the ID of this node
+
+		// go s.syncNodeInfo()
 		close(s.ready)
 	}
 
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
 	<-s.ready
-	if err := s.WaitForLeader(0); err != nil {
+	if err := s.waitForLeader(0); err != nil {
 		return err
-	}
-
-	if s.raftPromotionEnabled {
-		s.wg.Add(1)
-		s.Logger.Printf("spun up monitoring for %d", s.NodeID())
-		go s.monitorPeerHealth()
 	}
 
 	return nil
@@ -167,6 +184,86 @@ func readPeersJSON(path string) ([]string, error) {
 
 	return peers, nil
 }
+
+// IDPath returns the path to the local node ID file.
+func (s *store) IDPath() string { return filepath.Join(s.path, "id") }
+
+// readID reads the local node ID from the ID file.
+func (s *store) readID() error {
+	b, err := ioutil.ReadFile(s.IDPath())
+	if os.IsNotExist(err) {
+		s.id = 0
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("read file: %s", err)
+	}
+
+	id, err := strconv.ParseUint(string(b), 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse id: %s", err)
+	}
+	s.id = id
+
+	return nil
+}
+
+func (s *store) openRaft() error {
+	rs := newRaftState(s.config, s.peers)
+	rs.ln = s.raftln
+	rs.logger = s.logger
+	rs.path = s.path
+	rs.remoteAddr = s.raftln.Addr()
+
+	rs.open(s)
+
+	return nil
+}
+
+func (s *store) joinCluster() error {
+
+	// No join options, so nothing to do
+	if len(s.peers) == 0 {
+		return nil
+	}
+
+	// We already have a node ID so were already part of a cluster,
+	// don't join again so we can use our existing state.
+	if s.id != 0 {
+		s.logger.Printf("Skipping cluster join: already member of cluster: nodeId=%v raftEnabled=%v peers=%v",
+			s.id, raft.PeerContained(s.peers, s.addr), s.peers)
+		return nil
+	}
+
+	s.logger.Printf("Joining cluster at: %v", s.peers)
+	for {
+		for _, join := range s.peers {
+			// delete me:
+			_ = join
+
+			// TODO rework this to use the HTTP endpoint for joining
+			//res, err := s.rpc.join(s.RemoteAddr.String(), join)
+			//if err != nil {
+			//s.logger.Printf("Join node %v failed: %v: retrying...", join, err)
+			//continue
+			//}
+
+			//s.logger.Printf("Joined remote node %v", join)
+			//s.logger.Printf("nodeId=%v raftEnabled=%v peers=%v", res.NodeID, res.RaftEnabled, res.RaftNodes)
+
+			//s.peers = res.RaftNodes
+			//s.id = res.NodeID
+
+			//if err := s.writeNodeID(res.NodeID); err != nil {
+			//s.logger.Printf("Write node id failed: %v", err)
+			//break
+			//}
+
+			return nil
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func (s *store) close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -196,14 +293,40 @@ func (s *store) afterIndex(index uint64) <-chan struct{} {
 	return s.dataChanged
 }
 
+// WaitForLeader sleeps until a leader is found or a timeout occurs.
+// timeout == 0 means to wait forever.
+func (s *store) waitForLeader(timeout time.Duration) error {
+	// Begin timeout timer.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	// Continually check for leader until timeout.
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return errors.New("closing")
+		case <-timer.C:
+			if timeout != 0 {
+				return errors.New("timeout")
+			}
+		case <-ticker.C:
+			if s.leader() != "" {
+				return nil
+			}
+		}
+	}
+}
+
 // isLeader returns true if the store is currently the leader.
 func (s *store) isLeader() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.raft == nil {
+	if s.raftState == nil {
 		return false
 	}
-	return s.raft.State() == raft.Leader
+	return s.raftState.raft.State() == raft.Leader
 }
 
 // leader returns what the store thinks is the current leader. An empty
@@ -211,7 +334,10 @@ func (s *store) isLeader() bool {
 func (s *store) leader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.raft.Leader()
+	if s.raftState == nil {
+		return ""
+	}
+	return s.raftState.raft.Leader()
 }
 
 // index returns the current store index.
@@ -226,7 +352,7 @@ func (s *store) apply(b []byte) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	// Apply to raft log.
-	f := s.raft.Apply(b, 0)
+	f := s.raftState.raft.Apply(b, 0)
 	if err := f.Error(); err != nil {
 		return err
 	}
