@@ -9,11 +9,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdb/influxdb/services/meta/internal"
 )
 
 // storeFSM represents the finite state machine used by Store to interact with Raft.
-type storeFSM Store
+type storeFSM store
 
 func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	var cmd internal.Command
@@ -22,7 +22,7 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	}
 
 	// Lock the store.
-	s := (*Store)(fsm)
+	s := (*store)(fsm)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -80,7 +80,10 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	// Copy term and index to new metadata.
 	fsm.data.Term = l.Term
 	fsm.data.Index = l.Index
-	s.notifyChanged()
+
+	// signal that the data changed
+	close(s.dataChanged)
+	s.dataChanged = make(chan struct{})
 
 	return err
 }
@@ -95,17 +98,17 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 	// Only do this if you are the leader
 	if fsm.raftState.isLeader() {
 		//Remove that node from the peer
-		fsm.Logger.Printf("removing peer for node id %d, %s", id, addr)
+		fsm.logger.Printf("removing peer for node id %d, %s", id, addr)
 		if err := fsm.raftState.removePeer(addr); err != nil {
-			fsm.Logger.Printf("error removing peer: %s", err)
+			fsm.logger.Printf("error removing peer: %s", err)
 		}
 	}
 
 	// If this is the node being shutdown, close raft
 	if fsm.id == id {
-		fsm.Logger.Printf("shutting down raft for %s", addr)
+		fsm.logger.Printf("shutting down raft for %s", addr)
 		if err := fsm.raftState.close(); err != nil {
-			fsm.Logger.Printf("failed to shut down raft: %s", err)
+			fsm.logger.Printf("failed to shut down raft: %s", err)
 		}
 	}
 
@@ -160,7 +163,7 @@ func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
 	fsm.data = other
 
 	id := v.GetID()
-	fsm.Logger.Printf("node '%d' removed", id)
+	fsm.logger.Printf("node '%d' removed", id)
 
 	return nil
 }
@@ -431,11 +434,11 @@ func (fsm *storeFSM) applySetDataCommand(cmd *internal.Command) interface{} {
 }
 
 func (fsm *storeFSM) Snapshot() (raft.FSMSnapshot, error) {
-	s := (*Store)(fsm)
+	s := (*store)(fsm)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return &storeFSMSnapshot{Data: (*Store)(fsm).data}, nil
+	return &storeFSMSnapshot{Data: (*store)(fsm).data}, nil
 }
 
 func (fsm *storeFSM) Restore(r io.ReadCloser) error {
