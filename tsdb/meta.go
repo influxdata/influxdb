@@ -375,7 +375,7 @@ func (m *Measurement) SeriesByID(id uint64) *Series {
 func (m *Measurement) SeriesKeys() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	var keys []string
+	keys := make([]string, 0, len(m.seriesByID))
 	for _, s := range m.seriesByID {
 		keys = append(keys, s.Key)
 	}
@@ -499,7 +499,7 @@ func (m *Measurement) DropSeries(seriesID uint64) {
 // matching the where clause and any filter expression that should be applied to each
 func (m *Measurement) filters(condition influxql.Expr) (map[uint64]influxql.Expr, error) {
 	if condition == nil || influxql.OnlyTimeExpr(condition) {
-		seriesIdsToExpr := make(map[uint64]influxql.Expr)
+		seriesIdsToExpr := make(map[uint64]influxql.Expr, len(m.seriesIDs))
 		for _, id := range m.seriesIDs {
 			seriesIdsToExpr[id] = nil
 		}
@@ -549,7 +549,7 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	tagSets := make(map[string]*influxql.TagSet)
 	for id, filter := range filters {
 		s := m.seriesByID[id]
-		tags := make(map[string]string)
+		tags := make(map[string]string, len(dimensions))
 
 		// Build the TagSet for this series.
 		for _, dim := range dimensions {
@@ -563,7 +563,7 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 		if !ok {
 			// This TagSet is new, create a new entry for it.
 			tagSet = &influxql.TagSet{}
-			tagsForSet := make(map[string]string)
+			tagsForSet := make(map[string]string, len(tags))
 			for k, v := range tags {
 				tagsForSet[k] = v
 			}
@@ -1144,7 +1144,7 @@ func (s *Series) UnmarshalBinary(buf []byte) error {
 		return err
 	}
 	s.Key = pb.GetKey()
-	s.Tags = make(map[string]string)
+	s.Tags = make(map[string]string, len(pb.Tags))
 	for _, t := range pb.Tags {
 		s.Tags[t.GetKey()] = t.GetValue()
 	}
@@ -1342,7 +1342,7 @@ func (m *Measurement) TagKeys() []string {
 func (m *Measurement) TagValues(key string) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	values := []string{}
+	values := make([]string, 0, len(m.seriesByTagKeyValue[key]))
 	for v := range m.seriesByTagKeyValue[key] {
 		values = append(values, v)
 	}
@@ -1357,14 +1357,15 @@ func (m *Measurement) SetFieldName(name string) {
 }
 
 // FieldNames returns a list of the measurement's field names
-func (m *Measurement) FieldNames() (a []string) {
+func (m *Measurement) FieldNames() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	a := make([]string, 0, len(m.fieldNames))
 	for n := range m.fieldNames {
 		a = append(a, n)
 	}
-	return
+	return a
 }
 
 func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs) map[string]stringSet {
@@ -1443,16 +1444,16 @@ func (s stringSet) union(o stringSet) stringSet {
 	return ns
 }
 
-// union returns the intersection of this set and another.
+// intersect returns the intersection of this set and another.
 func (s stringSet) intersect(o stringSet) stringSet {
-	ns := newStringSet()
-	for k := range s {
-		if _, ok := o[k]; ok {
-			ns[k] = struct{}{}
-		}
+	shorter, longer := s, o
+	if len(longer) < len(shorter) {
+		shorter, longer = longer, shorter
 	}
-	for k := range o {
-		if _, ok := s[k]; ok {
+
+	ns := newStringSet()
+	for k := range shorter {
+		if _, ok := longer[k]; ok {
 			ns[k] = struct{}{}
 		}
 	}
@@ -1466,5 +1467,5 @@ func MeasurementFromSeriesKey(key string) string {
 	if idx == -1 {
 		return key
 	}
-	return key[:strings.Index(key, ",")]
+	return key[:idx]
 }
