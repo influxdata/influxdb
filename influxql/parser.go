@@ -119,7 +119,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		if tok == KEYS {
 			return p.parseShowFieldKeysStatement()
 		}
-		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"KEYS"}, pos)
 	case MEASUREMENTS:
 		return p.parseShowMeasurementsStatement()
 	case RETENTION:
