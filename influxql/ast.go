@@ -2503,7 +2503,7 @@ func (f *Field) String() string {
 	if f.Alias == "" {
 		return str
 	}
-	return fmt.Sprintf("%s AS %s", str, fmt.Sprintf(`"%s"`, f.Alias))
+	return fmt.Sprintf("%s AS %s", str, QuoteIdent(f.Alias))
 }
 
 // Sort Interface for Fields
