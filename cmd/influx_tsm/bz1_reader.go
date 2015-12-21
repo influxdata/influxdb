@@ -12,6 +12,7 @@ type BZ1Reader struct {
 	db   *bolt.DB
 }
 
+// Could this instead implement a KeyIterator interface? Or be wrapped so that it does?
 func NewBZ1Reader(path string) *BZ1Reader {
 	return &BZ1Reader{
 		path: path,
