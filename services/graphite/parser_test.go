@@ -602,6 +602,27 @@ func TestApplyTemplateSpecific(t *testing.T) {
 	}
 }
 
+// Test that most specific template is N/A
+func TestApplyTemplateSpecificIsNA(t *testing.T) {
+	o := graphite.Options{
+		Separator: "_",
+		Templates: []string{
+			"current.* measurement.service",
+			"current.*.*.test measurement.measurement.service",
+		},
+	}
+	p, err := graphite.NewParserWithOptions(o)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	measurement, _, _, _ := p.ApplyTemplate("current.users.facebook")
+	if measurement != "current" {
+		t.Errorf("Parser.ApplyTemplate unexpected result. got %s, exp %s",
+			measurement, "current")
+	}
+}
+
 func TestApplyTemplateTags(t *testing.T) {
 	o := graphite.Options{
 		Separator: "_",
