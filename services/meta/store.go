@@ -213,8 +213,10 @@ func (s *store) openRaft() error {
 	rs.logger = s.logger
 	rs.path = s.path
 	rs.remoteAddr = s.raftln.Addr()
-
-	rs.open(s)
+	if err := rs.open(s); err != nil {
+		return err
+	}
+	s.raftState = rs
 
 	return nil
 }
