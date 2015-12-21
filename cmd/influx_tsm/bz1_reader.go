@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/golang/snappy"
 )
 
 type BZ1Reader struct {
@@ -25,9 +26,26 @@ func (b *BZ1Reader) Open() error {
 	}
 	b.db = db
 
+	var data []byte
+	err = b.db.View(func(tx *bolt.Tx) error {
+		buf := tx.Bucket([]byte("meta")).Get([]byte("series"))
+		if b == nil {
+			// No data in this shard.
+			return nil
+		}
+
+		data, err = snappy.Decode(nil, buf)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
 	return nil
 }
 
+// Next returns the next timestamp and values available. It returns -1 for the
+// timestamp when no values remain.
 func (b *BZ1Reader) Next() (int64, []byte) {
 	return 0, nil
 }

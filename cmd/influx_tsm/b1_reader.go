@@ -8,6 +8,7 @@ import (
 
 type B1Reader struct {
 	path string
+	db   *bolt.DB
 }
 
 func NewB1Reader(path string) *B1Reader {
