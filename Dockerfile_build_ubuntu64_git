@@ -38,5 +38,6 @@ RUN git clone https://go.googlesource.com/go
 ENV PATH /go/bin:$PATH
 
 # Add script for compiling go
-ADD ./tip.sh /tip.sh
-ENTRYPOINT [ "/tip.sh" ]
+ENV GO_CHECKOUT master
+ADD ./gobuild.sh /gobuild.sh
+ENTRYPOINT [ "/gobuild.sh" ]
