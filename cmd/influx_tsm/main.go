@@ -83,6 +83,7 @@ func main() {
 		shards = append(shards, shs...)
 	}
 	sort.Sort(ShardInfos(shards))
+	shards = ShardInfos(shards).Filter(tsm1)
 
 	// Anything to convert?
 	if len(shards) == 0 {

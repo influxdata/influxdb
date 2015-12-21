@@ -67,6 +67,18 @@ func (s ShardInfos) Databases() []string {
 	return dbs
 }
 
+// Filter returns a copy of the ShardInfos, with shards of the given
+// format removed.
+func (s ShardInfos) Filter(fmt EngineFormat) ShardInfos {
+	var a ShardInfos
+	for _, si := range s {
+		if si.Format != fmt {
+			a = append(a, si)
+		}
+	}
+	return a
+}
+
 // Database represents an entire database on disk.
 type Database struct {
 	path string
