@@ -66,18 +66,27 @@ func Convert(path string) error {
 	if err := reader.Open(); err != nil {
 		return err
 	}
-	defer reader.Close()
 
 	// Create the TSM file and TSM writer.
 	tfd, err := os.Create(fmt.Sprintf("%s.%s", path, tsm.TSMFileExtension))
 	if err != nil {
 		return err
 	}
-	w, err := tsm.NewTSMWriter(tfd)
+	writer, err := tsm.NewTSMWriter(tfd)
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+
+	// Coversion complete! Close everything and delete source.
+	if err := reader.Close(); err != nil {
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
 
 	return nil
 }
