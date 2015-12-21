@@ -7,6 +7,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
+	tsm "github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 type ShardReader interface {
@@ -41,17 +42,17 @@ type Series struct {
 }
 
 func Convert(path string) error {
-	// Check file format
-	// Create the right reader.
 	// Create a TSMWriter.
 	// Walk reader, and write to tmp TSM.
 	// All good?  Delete src.
 
+	// What format?
 	format, _, err := shardFormat(path)
 	if err != nil {
 		return err
 	}
 
+	// Create a suitable reader and open it.
 	var reader ShardReader
 	switch format {
 	case b1:
@@ -66,6 +67,18 @@ func Convert(path string) error {
 		return err
 	}
 	defer reader.Close()
+
+	// Create the TSM file and TSM writer.
+	tfd, err := os.Create(fmt.Sprintf("%s.%s", path, tsm.TSMFileExtension))
+	if err != nil {
+		return err
+	}
+	w, err := tsm.NewTSMWriter(tfd)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+
 	return nil
 }
 
