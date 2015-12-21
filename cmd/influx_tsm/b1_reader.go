@@ -1,5 +1,11 @@
 package main
 
+import (
+	"time"
+
+	"github.com/boltdb/bolt"
+)
+
 type B1Reader struct {
 	path string
 }
@@ -11,6 +17,13 @@ func NewB1Reader(path string) *B1Reader {
 }
 
 func (b *B1Reader) Open() error {
+	// Open underlying storage.
+	db, err := bolt.Open(b.path, 0666, &bolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return err
+	}
+	b.db = db
+
 	return nil
 }
 
