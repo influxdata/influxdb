@@ -15,6 +15,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#5079](https://github.com/influxdb/influxdb/pull/5079): Ensure tsm WAL encoding buffer can handle large batches.
 - [#4303](https://github.com/influxdb/influxdb/issues/4303): Don't drop measurements or series from multiple databases.
 - [#5078](https://github.com/influxdb/influxdb/issues/5078): influx non-interactive mode - INSERT must be handled. Thanks @grange74
+- [[#5178](https://github.com/influxdb/influxdb/pull/5178): SHOW FIELD shouln't consider VALUES to be valid. Thanks @pires
 
 ## v0.9.6 [2015-12-09]
 
