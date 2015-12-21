@@ -183,7 +183,7 @@ func copyDir(dest, src string) error {
 	return filepath.Walk(src, copyFile)
 }
 
-// contains returns true the haystack contains the needle,
+// contains returns true if the haystack contains the needle,
 // false otherwise.
 func contains(haystack []string, needle string) bool {
 	for _, a := range haystack {
