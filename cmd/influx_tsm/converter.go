@@ -60,7 +60,7 @@ func Convert(path string) error {
 	case bz1:
 		reader = NewBZ1Reader(path)
 	default:
-		return fmt.Errorf("conversion of %s engine format unsupported", format.String())
+		return fmt.Errorf("conversion of %s shard format unsupported", format.String())
 	}
 
 	if err := reader.Open(); err != nil {
@@ -77,7 +77,7 @@ func Convert(path string) error {
 		return err
 	}
 
-	// Coversion complete! Close everything and delete source.
+	// Conversion complete! Close everything and delete source.
 	if err := reader.Close(); err != nil {
 		return err
 	}
