@@ -97,8 +97,7 @@ func main() {
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
 	fmt.Fprintln(w, "Database\tRetention\tPath\tEngine\tSize")
 	for _, si := range shards {
-		fullPath := filepath.Join(dataPath, si.Database, si.Path)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\n", si.Database, si.RetentionPolicy, fullPath, si.FormatAsString(), si.Size)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\n", si.Database, si.RetentionPolicy, si.FullPath(dataPath), si.FormatAsString(), si.Size)
 	}
 	w.Flush()
 
@@ -137,11 +136,11 @@ func main() {
 
 	// Convert each shard.
 	for _, si := range shards {
-		if err := Convert(si.Path); err != nil {
-			fmt.Printf("Conversion of %s failed: %s\n", si.Path, err.Error())
+		if err := Convert(si.FullPath(dataPath)); err != nil {
+			fmt.Printf("Conversion of %s failed: %s\n", si.FullPath(dataPath), err.Error())
 			os.Exit(1)
 		}
-		fmt.Printf("Conversion of %s successful.\n", si.Path)
+		fmt.Printf("Conversion of %s successful.\n", si.FullPath(dataPath))
 	}
 }
 

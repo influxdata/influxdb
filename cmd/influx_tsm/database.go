@@ -41,6 +41,11 @@ func (s *ShardInfo) FormatAsString() string {
 	return s.Format.String()
 }
 
+// FullPath returns the full path to the shard, given the data directory root.
+func (s *ShardInfo) FullPath(dataPath string) string {
+	return filepath.Join(dataPath, s.Database, s.RetentionPolicy, s.Path)
+}
+
 type ShardInfos []*ShardInfo
 
 func (s ShardInfos) Len() int      { return len(s) }
