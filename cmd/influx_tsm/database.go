@@ -7,13 +7,26 @@ import (
 	"sort"
 )
 
-type EngineFormat int
-
 const (
 	b1 = iota
 	bz1
 	tsm1
 )
+
+type EngineFormat int
+
+func (e EngineFormat) String() string {
+	switch e {
+	case tsm1:
+		return "tsm1"
+	case b1:
+		return "b1"
+	case bz1:
+		return "bz1"
+	default:
+		panic("unrecognized shard engine format")
+	}
+}
 
 // ShardInfo is the description of a shard on disk.
 type ShardInfo struct {
@@ -25,16 +38,7 @@ type ShardInfo struct {
 }
 
 func (s *ShardInfo) FormatAsString() string {
-	switch s.Format {
-	case tsm1:
-		return "tsm1"
-	case b1:
-		return "b1"
-	case bz1:
-		return "bz1"
-	default:
-		panic("unrecognized shard engine format")
-	}
+	return s.Format.String()
 }
 
 type ShardInfos []*ShardInfo

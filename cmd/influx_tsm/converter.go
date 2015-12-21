@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -45,6 +46,26 @@ func Convert(path string) error {
 	// Create a TSMWriter.
 	// Walk reader, and write to tmp TSM.
 	// All good?  Delete src.
+
+	format, _, err := shardFormat(path)
+	if err != nil {
+		return err
+	}
+
+	var reader ShardReader
+	switch format {
+	case b1:
+		reader = NewB1Reader(path)
+	case bz1:
+		reader = NewBZ1Reader(path)
+	default:
+		return fmt.Errorf("conversion of %s engine format unsupported", format.String())
+	}
+
+	if err := reader.Open(); err != nil {
+		return err
+	}
+	defer reader.Close()
 	return nil
 }
 

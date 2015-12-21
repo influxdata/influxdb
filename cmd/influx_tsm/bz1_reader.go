@@ -49,3 +49,7 @@ func (b *BZ1Reader) Open() error {
 func (b *BZ1Reader) Next() (int64, []byte) {
 	return 0, nil
 }
+
+func (b *BZ1Reader) Close() error {
+	return nil
+}
