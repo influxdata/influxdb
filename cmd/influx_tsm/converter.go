@@ -149,23 +149,12 @@ func decodeKeyValue(fields []string, dec *FieldCodec, k, v []byte) (key int64, v
 	// Convert key to a timestamp.
 	key = int64(btou64(k[0:8]))
 
-	// Decode values. Optimize for single field.
-	switch len(fields) {
-	case 0:
+	// Decode all values.
+	m, err := dec.DecodeFieldsWithNames(v)
+	if err != nil {
 		return
-	case 1:
-		decValue, err := dec.DecodeByName(fields[0], v)
-		if err != nil {
-			return
-		}
-		return key, decValue
-	default:
-		m, err := dec.DecodeFieldsWithNames(v)
-		if err != nil {
-			return
-		}
-		return key, m
 	}
+	return key, m
 }
 
 // u64tob converts a uint64 into an 8-byte slice.

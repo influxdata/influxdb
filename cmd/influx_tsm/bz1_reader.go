@@ -75,6 +75,27 @@ func (b *BZ1Reader) Open() error {
 		b.Codecs[k] = NewFieldCodec(v.Fields)
 	}
 
+	for s, _ := range b.Series {
+		tx, err := b.db.Begin(false)
+		if err != nil {
+			return err
+		}
+
+		// Get measurement name.
+		measurement := MeasurementFromSeriesKey(s)
+
+		// Get the list of all field names for the measurement.
+		var names []string
+		for _, f := range b.Fields[MeasurementFromSeriesKey(s)].Fields {
+			names = append(names, f.Name)
+		}
+
+		// Build cursors.
+		c := NewBZ1Cursor(tx, s, names, b.Codecs[measurement])
+		fmt.Println(s)
+		fmt.Println(c.SeekTo(0))
+	}
+
 	return nil
 }
 
