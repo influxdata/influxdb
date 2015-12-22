@@ -135,7 +135,7 @@ func (s *store) open() error {
 
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
-	<-s.ready
+	//<-s.ready
 	if err := s.waitForLeader(0); err != nil {
 		return err
 	}
@@ -351,27 +351,7 @@ func (s *store) index() uint64 {
 
 // apply applies a command to raft.
 func (s *store) apply(b []byte) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	// Apply to raft log.
-	f := s.raftState.raft.Apply(b, 0)
-	if err := f.Error(); err != nil {
-		return err
-	}
-
-	// Return response if it's an error.
-	// No other non-nil objects should be returned.
-	resp := f.Response()
-	if err, ok := resp.(error); ok {
-		return err
-	}
-
-	// resp should either be an error or nil.
-	if resp != nil {
-		panic(fmt.Sprintf("unexpected response: %#v", resp))
-	}
-
-	return nil
+	return s.raftState.apply(b)
 }
 
 // RetentionPolicyUpdate represents retention policy fields to be updated.
