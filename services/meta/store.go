@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/raft"
 )
 
@@ -47,7 +48,15 @@ type authUser struct {
 func newStore(c *Config) *store {
 	s := store{
 		data: &Data{
-			Index: 1,
+			Term:            1,
+			Index:           1,
+			ClusterID:       1,
+			Nodes:           []NodeInfo{},
+			Databases:       []DatabaseInfo{},
+			Users:           []UserInfo{},
+			MaxNodeID:       1,
+			MaxShardGroupID: 1,
+			MaxShardID:      1,
 		},
 		ready:       make(chan struct{}),
 		closing:     make(chan struct{}),
@@ -97,32 +106,42 @@ func (s *store) open() error {
 		}
 
 		// Open the raft store.
+		println("s.openRaft start")
 		if err := s.openRaft(); err != nil {
 			return fmt.Errorf("raft: %s", err)
 		}
+		println("s.openRaft end")
 
 		// Initialize the store, if necessary.
+		println("s.raftState.initialize start")
 		if err := s.raftState.initialize(); err != nil {
 			return fmt.Errorf("initialize raft: %s", err)
 		}
+		println("s.raftState.initialize end")
 
 		// Load existing ID, if exists.
+		println("s.readID start")
 		if err := s.readID(); err != nil {
 			return fmt.Errorf("read id: %s", err)
 		}
+		println("s.readID end")
 
 		return nil
 	}(); err != nil {
+		println("error ***************")
 		return err
 	}
 
 	// Join an existing cluster if we needed
+	println("s.joinCluster start")
 	if err := s.joinCluster(); err != nil {
 		return fmt.Errorf("join: %v", err)
 	}
+	println("s.joinCluster end")
 
 	// If the ID doesn't exist then create a new node.
 	if s.id == 0 {
+		println("ID doesn't exist, creating new node")
 		go s.raftState.initialize()
 	} else {
 		// TODO: enable node info sync
@@ -135,7 +154,9 @@ func (s *store) open() error {
 
 	// Wait for a leader to be elected so we know the raft log is loaded
 	// and up to date
-	<-s.ready
+	println("<-s.ready start")
+	//<-s.ready
+	println("<-s.ready end")
 	if err := s.waitForLeader(0); err != nil {
 		return err
 	}
@@ -276,6 +297,8 @@ func (s *store) close() error {
 func (s *store) snapshot() (*Data, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	spew.Dump(s.data)
+	spew.Dump(s.data.Clone())
 	return s.data.Clone(), nil
 }
 

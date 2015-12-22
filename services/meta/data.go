@@ -690,6 +690,8 @@ func (data *Data) marshal() *internal.Data {
 
 // unmarshal deserializes from a protobuf representation.
 func (data *Data) unmarshal(pb *internal.Data) {
+	println("Data.unmarshal start")
+	defer println("Data.unmarshal end")
 	data.Term = pb.GetTerm()
 	data.Index = pb.GetIndex()
 	data.ClusterID = pb.GetClusterID()
@@ -721,6 +723,8 @@ func (data *Data) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes the object from a binary format.
 func (data *Data) UnmarshalBinary(buf []byte) error {
+	println("Data.UnmarshalBinary start")
+	defer println("Data.UnmarshalBinary end")
 	var pb internal.Data
 	if err := proto.Unmarshal(buf, &pb); err != nil {
 		return err
