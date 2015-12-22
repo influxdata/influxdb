@@ -330,7 +330,9 @@ reporting-disabled = false
   # batch-pending = 5 # number of batches that may be pending in memory
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
   # read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
-  # udp-payload-size = 1500 # set the expected UDP payload size, default: 65536
+ 
+  # set the expected UDP payload size; lower values tend to yield better performance, default is max UDP size 65536
+  # udp-payload-size = 65536
 
 ###
 ### [continuous_queries]
