@@ -75,8 +75,8 @@ func (b *BZ1Reader) Open() error {
 		b.Codecs[k] = NewFieldCodec(v.Fields)
 	}
 
+	tx, err := b.db.Begin(false)
 	for s, _ := range b.Series {
-		tx, err := b.db.Begin(false)
 		if err != nil {
 			return err
 		}
@@ -95,6 +95,7 @@ func (b *BZ1Reader) Open() error {
 		fmt.Println(s)
 		fmt.Println(c.SeekTo(0))
 	}
+	tx.Rollback()
 
 	return nil
 }
