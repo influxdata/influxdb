@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"time"
@@ -16,15 +17,16 @@ type ShardReader interface {
 	Close() error
 }
 
+// Cursor represents an iterator over a series.
+type Cursor interface {
+	SeekTo(seek int64) (key int64, value interface{})
+	Next() (key int64, value interface{})
+}
+
 type Field struct {
 	ID   uint8             `json:"id,omitempty"`
 	Name string            `json:"name,omitempty"`
 	Type influxql.DataType `json:"type,omitempty"`
-}
-
-type FieldCodec struct {
-	fieldsByID   map[uint8]*Field
-	fieldsByName map[string]*Field
 }
 
 type MeasurementFields struct {
@@ -35,15 +37,11 @@ type MeasurementFields struct {
 type Series struct {
 	Key  string
 	Tags map[string]string
-
-	id uint64
-	//measurement *Measurement
-	shardIDs map[uint64]bool
 }
 
 func Convert(path string) error {
 	// Create a TSMWriter.
-	// Walk reader, and write to tmp TSM.
+	// Walk reader, and write to tmp TSM directory.
 	// All good?  Delete src.
 
 	// What format?
@@ -136,3 +134,37 @@ func shardFormat(path string) (EngineFormat, int64, error) {
 	})
 	return format, fi.Size(), err
 }
+
+// decodeKeyValue decodes the key and value from bytes.
+func decodeKeyValue(fields []string, dec *FieldCodec, k, v []byte) (key int64, value interface{}) {
+	// Convert key to a timestamp.
+	key = int64(btou64(k[0:8]))
+
+	// Decode values. Optimize for single field.
+	switch len(fields) {
+	case 0:
+		return
+	case 1:
+		decValue, err := dec.DecodeByName(fields[0], v)
+		if err != nil {
+			return
+		}
+		return key, decValue
+	default:
+		m, err := dec.DecodeFieldsWithNames(v)
+		if err != nil {
+			return
+		}
+		return key, m
+	}
+}
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+// btou64 converts an 8-byte slice into an uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
