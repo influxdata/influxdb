@@ -39,7 +39,7 @@ const (
 	//
 	// https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
 	//
-	// Reading packets from a UDP socket in golang actually only pulls
+	// Reading packets from a UDP socket in go actually only pulls
 	// one packet at a time, requiring a very fast reader to keep up with
 	// incoming data at scale. Reducing the overhead of the expected packet
 	// helps allocate memory faster (~10-25µs --> ~150ns with go1.5.2), thereby
