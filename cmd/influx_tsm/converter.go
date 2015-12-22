@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -37,6 +38,14 @@ type MeasurementFields struct {
 type Series struct {
 	Key  string
 	Tags map[string]string
+}
+
+func MeasurementFromSeriesKey(key string) string {
+	idx := strings.Index(key, ",")
+	if idx == -1 {
+		return key
+	}
+	return key[:strings.Index(key, ",")]
 }
 
 func Convert(path string) error {
