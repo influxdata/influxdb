@@ -18,10 +18,6 @@ import (
 )
 
 const (
-	// UDPBufferSize is the maximum UDP packet size
-	// see https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
-	UDPBufferSize = 65536
-
 	// Arbitrary, testing indicated that this doesn't typically get over 10
 	parserChanLen = 1000
 )
@@ -163,7 +159,7 @@ func (s *Service) serve() {
 			return
 		default:
 			// Keep processing.
-			buf := make([]byte, UDPBufferSize)
+			buf := make([]byte, s.config.UDPPayloadSize)
 			n, _, err := s.conn.ReadFromUDP(buf)
 			if err != nil {
 				s.statMap.Add(statReadFail, 1)
