@@ -324,8 +324,7 @@ func (c *CommandLine) use(cmd string) {
 	d := args[1]
 
 	// validate if specified database exists
-	query := "SHOW DATABASES"
-	response, err := c.Client.Query(client.Query{Command: query})
+	response, err := c.Client.Query(client.Query{Command: "SHOW DATABASES"})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return
@@ -337,20 +336,22 @@ func (c *CommandLine) use(cmd string) {
 	}
 
 	// verify the provided database exists
-	databaseExists := false
-	for _, result := range response.Results {
-		for _, row := range result.Series {
-			if row.Name == "databases" {
-				for _, values := range row.Values {
-					for _, database := range values {
-						if database == d {
-							databaseExists = true
+	databaseExists := func() bool {
+		for _, result := range response.Results {
+			for _, row := range result.Series {
+				if row.Name == "databases" {
+					for _, values := range row.Values {
+						for _, database := range values {
+							if database == d {
+								return true
+							}
 						}
 					}
 				}
 			}
 		}
-	}
+		return false
+	}()
 	if databaseExists {
 		c.Database = d
 		fmt.Printf("Using database %s\n", d)
