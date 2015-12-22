@@ -17,6 +17,7 @@ type BZ1Reader struct {
 
 	Series map[string]*Series
 	Fields map[string]*MeasurementFields
+	Codecs map[string]*FieldCodec
 }
 
 // Could this instead implement a KeyIterator interface? Or be wrapped so that it does?
@@ -25,6 +26,7 @@ func NewBZ1Reader(path string) *BZ1Reader {
 		path:   path,
 		Series: make(map[string]*Series),
 		Fields: make(map[string]*MeasurementFields),
+		Codecs: make(map[string]*FieldCodec),
 	}
 }
 
@@ -67,6 +69,11 @@ func (b *BZ1Reader) Open() error {
 		}
 		return nil
 	})
+
+	// Build the codec for each measurement.
+	for k, v := range b.Fields {
+		b.Codecs[k] = NewFieldCodec(v.Fields)
+	}
 
 	return nil
 }
