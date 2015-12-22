@@ -14,6 +14,7 @@ import (
 type BZ1Reader struct {
 	path string
 	db   *bolt.DB
+	tx   *bolt.Tx
 
 	Series map[string]*Series
 	Fields map[string]*MeasurementFields
@@ -75,7 +76,10 @@ func (b *BZ1Reader) Open() error {
 		b.Codecs[k] = NewFieldCodec(v.Fields)
 	}
 
-	tx, err := b.db.Begin(false)
+	b.tx, err = b.db.Begin(false)
+	if err != nil {
+		return err
+	}
 	for s, _ := range b.Series {
 		if err != nil {
 			return err
@@ -91,11 +95,10 @@ func (b *BZ1Reader) Open() error {
 		}
 
 		// Build cursors.
-		c := NewBZ1Cursor(tx, s, names, b.Codecs[measurement])
+		c := NewBZ1Cursor(b.tx, s, names, b.Codecs[measurement])
 		fmt.Println(s)
 		fmt.Println(c.SeekTo(0))
 	}
-	tx.Rollback()
 
 	return nil
 }
@@ -107,6 +110,7 @@ func (b *BZ1Reader) Next() (int64, []byte) {
 }
 
 func (b *BZ1Reader) Close() error {
+	b.tx.Rollback()
 	return nil
 }
 
