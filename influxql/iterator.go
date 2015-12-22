@@ -475,6 +475,12 @@ type IteratorOptions struct {
 
 	// Sorted in time ascending order if true.
 	Ascending bool
+
+	// Limits the number of points per series.
+	Limit, Offset int
+
+	// Limits the number of series.
+	SLimit, SOffset int
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -509,6 +515,9 @@ func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err err
 	opt.Sources = stmt.Sources
 	opt.Condition = stmt.Condition
 	opt.Ascending = stmt.TimeAscending()
+
+	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
+	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
 
 	return opt, nil
 }

@@ -1657,22 +1657,22 @@ func (s *SelectStatement) NamesInDimension() []string {
 }
 
 // LimitTagSets returns a tag set list with SLIMIT and SOFFSET applied.
-func (s *SelectStatement) LimitTagSets(a []*TagSet) []*TagSet {
+func LimitTagSets(a []*TagSet, slimit, soffset int) []*TagSet {
 	// Ignore if no limit or offset is specified.
-	if s.SLimit == 0 && s.SOffset == 0 {
+	if slimit == 0 && soffset == 0 {
 		return a
 	}
 
 	// If offset is beyond the number of tag sets then return nil.
-	if s.SOffset > len(a) {
+	if soffset > len(a) {
 		return nil
 	}
 
 	// Clamp limit to the max number of tag sets.
-	if s.SOffset+s.SLimit > len(a) {
-		s.SLimit = len(a) - s.SOffset
+	if soffset+slimit > len(a) {
+		slimit = len(a) - soffset
 	}
-	return a[s.SOffset : s.SOffset+s.SLimit]
+	return a[soffset : soffset+slimit]
 }
 
 // walkNames will walk the Expr and return the database fields

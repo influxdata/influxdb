@@ -170,8 +170,8 @@ func newTxVarRefIterator(tx Tx, sh *Shard, opt influxql.IteratorOptions, dimensi
 				return err
 			}
 
-			// FIXME(benbjohnson): Calculate tag sets and apply SLIMIT/SOFFSET.
-			// tagSets = m.stmt.LimitTagSets(tagSets)
+			// Calculate tag sets and apply SLIMIT/SOFFSET.
+			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
 			for _, t := range tagSets {
 				for i, seriesKey := range t.SeriesKeys {
