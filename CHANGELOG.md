@@ -3,6 +3,7 @@
 With this release InfluxDB is moving to Go 1.5.
 
 ### Features
+- [#5183](https://github.com/influxdb/influxdb/pull/5183): CLI confirms database exists when USE executed. Thanks @pires
 
 ### Bugfixes
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
