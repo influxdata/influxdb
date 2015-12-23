@@ -1658,3 +1658,28 @@ func TestParsePointsStringWithExtraBuffer(t *testing.T) {
 		t.Fatalf("expected both keys are same but got %s and %s", key, pointKey)
 	}
 }
+
+func TestParsePointsQuotesInFieldKey(t *testing.T) {
+	buf := `cpu "a=1`
+	points, err := models.ParsePointsString(buf)
+	if err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	pointFields := points[0].Fields()
+	value, ok := pointFields["\"a"]
+	if !ok {
+		t.Fatalf("expected to parse field '\"a'")
+	}
+
+	if value != float64(1) {
+		t.Fatalf("expected field value to be 1, got %v", value)
+	}
+
+	// The following input should not parse
+	buf = `cpu "\, '= "\ v=1.0`
+	_, err = models.ParsePointsString(buf)
+	if err == nil {
+		t.Fatalf("expected parsing failure but got no error")
+	}
+}

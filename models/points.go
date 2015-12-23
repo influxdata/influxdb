@@ -534,20 +534,14 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 
 		// escaped characters?
 		if buf[i] == '\\' && i+1 < len(buf) {
-
-			// Is this an escape char within a string field? Only " and \ are allowed.
-			if quoted && (buf[i+1] == '"' || buf[i+1] == '\\') {
-				i += 2
-				continue
-				// Non-string field escaped chars
-			} else if !quoted && isFieldEscapeChar(buf[i+1]) {
-				i += 2
-				continue
-			}
+			i += 2
+			continue
 		}
 
 		// If the value is quoted, scan until we get to the end quote
-		if buf[i] == '"' {
+		// Only quote values in the field value since quotes are not significant
+		// in the field key
+		if buf[i] == '"' && equals > commas {
 			quoted = !quoted
 			i++
 			continue
