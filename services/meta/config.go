@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// DefaultEnabled is the default state for the meta service to run
+	DefaultEnabled = true
+
 	// DefaultHostname is the default hostname if one is not provided.
 	DefaultHostname = "localhost"
 
@@ -37,6 +40,7 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
+	Enabled              bool          `toml:"enabled"`
 	Dir                  string        `toml:"dir"`
 	Hostname             string        `toml:"hostname"`
 	RaftBindAddress      string        `toml:"raft-bind-address"`

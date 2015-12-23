@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
@@ -20,6 +19,7 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
@@ -104,12 +104,12 @@ func NewDemoConfig() (*Config, error) {
 
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
-	if c.Meta.Dir == "" {
+	if c.Meta.Enabled && c.Meta.Dir == "" {
 		return errors.New("Meta.Dir must be specified")
-	} else if c.HintedHandoff.Enabled && c.HintedHandoff.Dir == "" {
+	}
+	if c.HintedHandoff.Enabled && c.HintedHandoff.Dir == "" {
 		return errors.New("HintedHandoff.Dir must be specified")
 	}
-
 	if err := c.Data.Validate(); err != nil {
 		return err
 	}
