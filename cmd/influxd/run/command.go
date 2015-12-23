@@ -214,9 +214,8 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 
 var usage = `usage: run [flags]
 
-run starts the broker and data node server. If this is the first time running
-the command then a new cluster will be initialized unless the -join argument
-is used.
+run starts the InfluxDB server. If this is the first time running the command
+then a new cluster will be initialized unless the -join argument is used.
 
         -config <path>
                           Set the path to the configuration file.
