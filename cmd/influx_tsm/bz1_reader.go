@@ -125,6 +125,19 @@ func (b *BZ1Reader) Close() error {
 	return nil
 }
 
+// BZ1Cursor provides ordered iteration across a series.
+type BZ1Cursor struct {
+	cursor       *bolt.Cursor
+	buf          []byte // uncompressed buffer
+	off          int    // buffer offset
+	fieldIndices []int
+	index        int
+
+	series string
+	field  string
+	dec    *FieldCodec
+}
+
 // Cursor returns an iterator for a key.
 func NewBZ1Cursor(tx *bolt.Tx, series string, field string, dec *FieldCodec) *BZ1Cursor {
 
@@ -140,19 +153,6 @@ func NewBZ1Cursor(tx *bolt.Tx, series string, field string, dec *FieldCodec) *BZ
 		field:  field,
 		dec:    dec,
 	}
-}
-
-// BZ1Cursor provides ordered iteration across a series.
-type BZ1Cursor struct {
-	cursor       *bolt.Cursor
-	buf          []byte // uncompressed buffer
-	off          int    // buffer offset
-	fieldIndices []int
-	index        int
-
-	series string
-	field  string
-	dec    *FieldCodec
 }
 
 // Seek moves the cursor to a position and returns the closest key/value pair.
@@ -248,7 +248,7 @@ func (c *BZ1Cursor) read() (key int64, value interface{}) {
 	buf := c.buf[c.off:]
 	dataSize := entryDataSize(buf)
 
-	return decodeKeyValue([]string{c.field}, c.dec, buf[0:8], buf[entryHeaderSize:entryHeaderSize+dataSize])
+	return decodeKeyValue(c.field, c.dec, buf[0:8], buf[entryHeaderSize:entryHeaderSize+dataSize])
 }
 
 // Sort bz1 cursors in correct order for writing to TSM files.

@@ -145,16 +145,15 @@ func shardFormat(path string) (EngineFormat, int64, error) {
 }
 
 // decodeKeyValue decodes the key and value from bytes.
-func decodeKeyValue(fields []string, dec *FieldCodec, k, v []byte) (key int64, value interface{}) {
+func decodeKeyValue(field string, dec *FieldCodec, k, v []byte) (int64, interface{}) {
 	// Convert key to a timestamp.
-	key = int64(btou64(k[0:8]))
+	key := int64(btou64(k[0:8]))
 
-	// Decode all values.
-	m, err := dec.DecodeFieldsWithNames(v)
+	decValue, err := dec.DecodeByName(field, v)
 	if err != nil {
-		return
+		return -1, nil
 	}
-	return key, m
+	return key, decValue
 }
 
 // u64tob converts a uint64 into an 8-byte slice.
