@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"gopkg.in/fatih/pool.v2"
 )
 
@@ -22,7 +22,7 @@ type ShardWriter struct {
 	pool    *clientPool
 	timeout time.Duration
 
-	MetaStore interface {
+	MetaClient interface {
 		Node(id uint64) (ni *meta.NodeInfo, err error)
 	}
 }
@@ -94,7 +94,7 @@ func (w *ShardWriter) dial(nodeID uint64) (net.Conn, error) {
 	_, ok := w.pool.getPool(nodeID)
 	if !ok {
 		factory := &connFactory{nodeID: nodeID, clientPool: w.pool, timeout: w.timeout}
-		factory.metaStore = w.MetaStore
+		factory.metaClient = w.MetaClient
 
 		p, err := pool.NewChannelPool(1, 3, factory.dial)
 		if err != nil {
@@ -130,7 +130,7 @@ type connFactory struct {
 		size() int
 	}
 
-	metaStore interface {
+	metaClient interface {
 		Node(id uint64) (ni *meta.NodeInfo, err error)
 	}
 }
@@ -140,7 +140,7 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, errMaxConnectionsExceeded
 	}
 
-	ni, err := c.metaStore.Node(c.nodeID)
+	ni, err := c.metaClient.Node(c.nodeID)
 	if err != nil {
 		return nil, err
 	}

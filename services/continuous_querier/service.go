@@ -12,7 +12,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -72,7 +72,7 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 
 // Service manages continuous query execution.
 type Service struct {
-	MetaStore     metaStore
+	MetaClient    metaStore
 	QueryExecutor queryExecutor
 	Config        *Config
 	RunInterval   time.Duration
@@ -111,7 +111,7 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	assert(s.MetaStore != nil, "MetaStore is nil")
+	assert(s.MetaClient != nil, "MetaClient is nil")
 	assert(s.QueryExecutor != nil, "QueryExecutor is nil")
 
 	s.stop = make(chan struct{})
@@ -144,7 +144,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 
 	if database != "" {
 		// Find the requested database.
-		db, err := s.MetaStore.Database(database)
+		db, err := s.MetaClient.Database(database)
 		if err != nil {
 			return err
 		} else if db == nil {
@@ -154,7 +154,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 	} else {
 		// Get all databases.
 		var err error
-		dbs, err = s.MetaStore.Databases()
+		dbs, err = s.MetaClient.Databases()
 		if err != nil {
 			return err
 		}
@@ -190,12 +190,12 @@ func (s *Service) backgroundLoop() {
 			s.Logger.Println("continuous query service terminating")
 			return
 		case req := <-s.RunCh:
-			if s.MetaStore.IsLeader() {
+			if s.MetaClient.IsLeader() {
 				s.Logger.Printf("running continuous queries by request for time: %v", req.Now)
 				s.runContinuousQueries(req)
 			}
 		case <-time.After(s.RunInterval):
-			if s.MetaStore.IsLeader() {
+			if s.MetaClient.IsLeader() {
 				s.runContinuousQueries(&RunRequest{Now: time.Now()})
 			}
 		}
@@ -205,7 +205,7 @@ func (s *Service) backgroundLoop() {
 // runContinuousQueries gets CQs from the meta store and runs them.
 func (s *Service) runContinuousQueries(req *RunRequest) {
 	// Get list of all databases.
-	dbs, err := s.MetaStore.Databases()
+	dbs, err := s.MetaClient.Databases()
 	if err != nil {
 		s.Logger.Println("error getting databases")
 		return

@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // Service represents the retention policy enforcement service.
 type Service struct {
-	MetaStore interface {
+	MetaClient interface {
 		IsLeader() bool
 		VisitRetentionPolicies(f func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo))
 		DeleteShardGroup(database, policy string, id uint64) error
@@ -73,14 +73,14 @@ func (s *Service) deleteShardGroups() {
 		case <-ticker.C:
 			// Only run this on the leader, but always allow the loop to check
 			// as the leader can change.
-			if !s.MetaStore.IsLeader() {
+			if !s.MetaClient.IsLeader() {
 				continue
 			}
 			s.logger.Println("retention policy enforcement check commencing")
 
-			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
+			s.MetaClient.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
 				for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
-					if err := s.MetaStore.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
+					if err := s.MetaClient.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
 						s.logger.Printf("failed to delete shard group %d from database %s, retention policy %s: %s",
 							g.ID, d.Name, r.Name, err.Error())
 					} else {
@@ -111,7 +111,7 @@ func (s *Service) deleteShards() {
 				rp string
 			}
 			deletedShardIDs := make(map[uint64]deletionInfo, 0)
-			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
+			s.MetaClient.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
 				for _, g := range r.DeletedShardGroups() {
 					for _, sh := range g.Shards {
 						deletedShardIDs[sh.ID] = deletionInfo{db: d.Name, rp: r.Name}

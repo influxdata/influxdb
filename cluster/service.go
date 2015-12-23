@@ -14,8 +14,8 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -43,7 +43,7 @@ type Service struct {
 
 	Listener net.Listener
 
-	MetaStore interface {
+	MetaClient interface {
 		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
 	}
 
@@ -198,7 +198,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 	if err == tsdb.ErrShardNotFound {
 
 		// Query the metastore for the owner of this shard
-		database, retentionPolicy, sgi := s.MetaStore.ShardOwner(req.ShardID())
+		database, retentionPolicy, sgi := s.MetaClient.ShardOwner(req.ShardID())
 		if sgi == nil {
 			// If we can't find it, then we need to drop this request
 			// as it is no longer valid.  This could happen if writes were queued via

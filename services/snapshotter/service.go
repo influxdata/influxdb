@@ -24,7 +24,7 @@ type Service struct {
 	wg  sync.WaitGroup
 	err chan error
 
-	MetaStore interface {
+	MetaClient interface {
 		encoding.BinaryMarshaler
 		Database(name string) (*meta.DatabaseInfo, error)
 	}
