@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"errors"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
@@ -73,4 +74,11 @@ func NewConfig() *Config {
 		RaftPromotionEnabled: DefaultRaftPromotionEnabled,
 		LoggingEnabled:       DefaultLoggingEnabled,
 	}
+}
+
+func (c *Config) Validate() error {
+	if c.Enabled && c.Dir == "" {
+		return errors.New("Meta.Dir must be specified")
+	}
+	return nil
 }

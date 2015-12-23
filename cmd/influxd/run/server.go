@@ -55,9 +55,11 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Node          *influxdb.Node
-	MetaClient    *meta.Client
-	MetaService   *meta.Service
+	Node *influxdb.Node
+
+	MetaClient  *meta.Client
+	MetaService *meta.Service
+
 	TSDBStore     *tsdb.Store
 	QueryExecutor *tsdb.QueryExecutor
 	PointsWriter  *cluster.PointsWriter
@@ -85,10 +87,6 @@ type Server struct {
 
 // NewServer returns a new instance of Server built from a config.
 func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
-	// Construct base meta store and data store.
-	tsdbStore := tsdb.NewStore(c.Data.Dir)
-	tsdbStore.EngineOptions.Config = c.Data
-
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
@@ -97,10 +95,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		Hostname:    c.Meta.Hostname,
 		BindAddress: c.Meta.RaftBindAddress,
 
-		Node:        influxdb.NewNode(),
-		MetaClient:  meta.NewClient(c.Meta),
-		MetaService: meta.NewService(c.Meta),
-		TSDBStore:   tsdbStore,
+		Node:       influxdb.NewNode(),
+		MetaClient: meta.NewClient(c.Meta),
 
 		Monitor: monitor.New(c.Monitor),
 
@@ -109,78 +105,90 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	s.Monitor.Node = s.Node
 
-	// Copy TSDB configuration.
-	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
-	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
-	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
-
-	// Set the shard mapper
-	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
-	s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
-	s.ShardMapper.MetaClient = s.MetaClient
-	s.ShardMapper.TSDBStore = s.TSDBStore
-	s.ShardMapper.Node = s.Node
-
-	// Initialize query executor.
-	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
-	s.QueryExecutor.MetaClient = s.MetaClient
-	s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
-	s.QueryExecutor.ShardMapper = s.ShardMapper
-	s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
-
-	// Set the shard writer
-	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
-	s.ShardWriter.MetaClient = s.MetaClient
-
-	// Create the hinted handoff service
-	s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaClient)
-	s.HintedHandoff.Monitor = s.Monitor
-
-	// Create the Subscriber service
-	s.Subscriber = subscriber.NewService(c.Subscriber)
-	s.Subscriber.MetaClient = s.MetaClient
-
-	// Initialize points writer.
-	s.PointsWriter = cluster.NewPointsWriter()
-	s.PointsWriter.WriteTimeout = time.Duration(c.Cluster.WriteTimeout)
-	s.PointsWriter.MetaClient = s.MetaClient
-	s.PointsWriter.TSDBStore = s.TSDBStore
-	s.PointsWriter.ShardWriter = s.ShardWriter
-	s.PointsWriter.HintedHandoff = s.HintedHandoff
-	s.PointsWriter.Subscriber = s.Subscriber
-
-	// needed for executing INTO queries.
-	s.QueryExecutor.IntoWriter = s.PointsWriter
-
-	// Initialize the monitor
-	s.Monitor.Version = s.buildInfo.Version
-	s.Monitor.Commit = s.buildInfo.Commit
-	s.Monitor.Branch = s.buildInfo.Branch
-	s.Monitor.BuildTime = s.buildInfo.Time
-	s.Monitor.MetaClient = s.MetaClient
-	s.Monitor.PointsWriter = s.PointsWriter
-
-	// Append services.
-	s.appendClusterService(c.Cluster)
-	s.appendPrecreatorService(c.Precreator)
-	s.appendSnapshotterService()
-	s.appendCopierService()
-	s.appendAdminService(c.Admin)
-	s.appendContinuousQueryService(c.ContinuousQuery)
-	s.appendHTTPDService(c.HTTPD)
-	s.appendCollectdService(c.Collectd)
-	if err := s.appendOpenTSDBService(c.OpenTSDB); err != nil {
-		return nil, err
+	if c.Meta.Enabled {
+		s.MetaService = meta.NewService(c.Meta)
 	}
-	for _, g := range c.UDPs {
-		s.appendUDPService(g)
-	}
-	s.appendRetentionPolicyService(c.Retention)
-	for _, g := range c.Graphites {
-		if err := s.appendGraphiteService(g); err != nil {
+
+	if c.Data.Enabled {
+		s.TSDBStore = tsdb.NewStore(c.Data.Dir)
+		s.TSDBStore.EngineOptions.Config = c.Data
+
+		// Copy TSDB configuration.
+		s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
+		s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
+		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
+
+		// Set the shard mapper
+		s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
+		s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
+		s.ShardMapper.MetaClient = s.MetaClient
+		s.ShardMapper.TSDBStore = s.TSDBStore
+		s.ShardMapper.Node = s.Node
+
+		// Initialize query executor.
+		s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
+		s.QueryExecutor.MetaClient = s.MetaClient
+		s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
+		s.QueryExecutor.ShardMapper = s.ShardMapper
+		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
+
+		// Set the shard writer
+		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
+		s.ShardWriter.MetaClient = s.MetaClient
+
+		// Create the hinted handoff service
+		s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaClient)
+		s.HintedHandoff.Monitor = s.Monitor
+
+		// Create the Subscriber service
+		s.Subscriber = subscriber.NewService(c.Subscriber)
+		s.Subscriber.MetaClient = s.MetaClient
+
+		// Initialize points writer.
+		s.PointsWriter = cluster.NewPointsWriter()
+		s.PointsWriter.WriteTimeout = time.Duration(c.Cluster.WriteTimeout)
+		s.PointsWriter.MetaClient = s.MetaClient
+		s.PointsWriter.TSDBStore = s.TSDBStore
+		s.PointsWriter.ShardWriter = s.ShardWriter
+		s.PointsWriter.HintedHandoff = s.HintedHandoff
+		s.PointsWriter.Subscriber = s.Subscriber
+		s.PointsWriter.Node = s.Node
+
+		// needed for executing INTO queries.
+		s.QueryExecutor.IntoWriter = s.PointsWriter
+
+		// Initialize the monitor
+		s.Monitor.Version = s.buildInfo.Version
+		s.Monitor.Commit = s.buildInfo.Commit
+		s.Monitor.Branch = s.buildInfo.Branch
+		s.Monitor.BuildTime = s.buildInfo.Time
+		s.Monitor.MetaClient = s.MetaClient
+		s.Monitor.PointsWriter = s.PointsWriter
+		s.Monitor.Node = s.Node
+
+		// Append services.
+		s.appendClusterService(c.Cluster)
+		s.appendPrecreatorService(c.Precreator)
+		s.appendSnapshotterService()
+		s.appendCopierService()
+		s.appendAdminService(c.Admin)
+		s.appendContinuousQueryService(c.ContinuousQuery)
+		s.appendHTTPDService(c.HTTPD)
+		s.appendCollectdService(c.Collectd)
+		if err := s.appendOpenTSDBService(c.OpenTSDB); err != nil {
 			return nil, err
 		}
+		for _, g := range c.UDPs {
+			s.appendUDPService(g)
+		}
+		s.appendRetentionPolicyService(c.Retention)
+		for _, g := range c.Graphites {
+			if err := s.appendGraphiteService(g); err != nil {
+				return nil, err
+			}
+		}
+
 	}
 
 	return s, nil
