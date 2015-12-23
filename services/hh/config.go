@@ -1,6 +1,7 @@
 package hh
 
 import (
+	"errors"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
@@ -57,4 +58,11 @@ func NewConfig() Config {
 		RetryMaxInterval: toml.Duration(DefaultRetryMaxInterval),
 		PurgeInterval:    toml.Duration(DefaultPurgeInterval),
 	}
+}
+
+func (c *Config) Validate() error {
+	if c.Enabled && c.Dir == "" {
+		return errors.New("HintedHandoff.Dir must be specified")
+	}
+	return nil
 }
