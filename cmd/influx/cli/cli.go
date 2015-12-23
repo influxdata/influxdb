@@ -68,7 +68,7 @@ func New(version string) *CommandLine {
 // Run executes the CLI
 func (c *CommandLine) Run() {
 	// register OS signals for graceful termination
-	signal.Notify(c.osSignals, os.Kill, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(c.osSignals, os.Kill, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
 
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
@@ -180,7 +180,10 @@ func (c *CommandLine) Run() {
 			c.exit()
 		default:
 			l, e := c.Line.Prompt("> ")
-			if e != nil {
+			if e == io.EOF {
+				// Instead of die, register that someone exited the program gracefully
+				l = "exit"
+			} else if e != nil {
 				break
 			}
 			if c.ParseCommand(l) {
@@ -201,7 +204,7 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 
 	if len(tokens) > 0 {
 		switch tokens[0] {
-		case "exit":
+		case "exit", "quit":
 			// signal the program to exit
 			close(c.Quit)
 		case "gopher":
@@ -731,7 +734,7 @@ func (c *CommandLine) help() {
         consistency <level>   sets write consistency level: any, one, quorum, or all
         history               displays command history
         settings              outputs the current settings for the shell
-        exit                  quits the influx shell
+        exit/quit/ctrl+d      quits the influx shell
 
         show databases        show database names
         show series           show series information
