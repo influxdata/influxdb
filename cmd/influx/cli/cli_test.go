@@ -237,6 +237,27 @@ func TestParseCommand_Exit(t *testing.T) {
 	}
 }
 
+func TestParseCommand_Quit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "quit"},
+		{cmd: " quit"},
+		{cmd: "quit "},
+		{cmd: "Quit "},
+	}
+
+	for _, test := range tests {
+		c := cli.CommandLine{Quit: make(chan struct{}, 1)}
+		c.ParseCommand(test.cmd)
+		// channel should be closed
+		if _, ok := <-c.Quit; ok {
+			t.Fatalf(`Command "quit" failed for %q.`, test.cmd)
+		}
+	}
+}
+
 func TestParseCommand_Use(t *testing.T) {
 	t.Parallel()
 	c := cli.CommandLine{}
