@@ -52,6 +52,7 @@ type CommandLine struct {
 	Path             string
 	Compressed       bool
 	Quit             chan struct{}
+	IgnoreSignals    bool // Ignore signals normally caught by this process (used primarily for testing)
 	osSignals        chan os.Signal
 	historyFile      *os.File
 }
@@ -66,9 +67,11 @@ func New(version string) *CommandLine {
 }
 
 // Run executes the CLI
-func (c *CommandLine) Run() {
+func (c *CommandLine) Run() error {
 	// register OS signals for graceful termination
-	signal.Notify(c.osSignals, os.Kill, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+	if !c.IgnoreSignals {
+		signal.Notify(c.osSignals, os.Kill, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+	}
 
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
@@ -95,17 +98,15 @@ func (c *CommandLine) Run() {
 	}
 
 	if err := c.Connect(""); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.\n",
+		return fmt.Errorf(
+			"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.",
 			c.Client.Addr())
-		return
 	}
 
 	if c.Execute == "" && !c.Import {
 		token, err := c.DatabaseToken()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to check token: %s\n", err.Error())
-			return
+			return fmt.Errorf("Failed to check token: %s", err.Error())
 		}
 		if token == "" {
 			fmt.Printf(noTokenMsg)
@@ -125,15 +126,14 @@ func (c *CommandLine) Run() {
 		}
 
 		c.Line.Close()
-		os.Exit(0)
+		return nil
 	}
 
 	if c.Import {
 		path := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 		u, e := client.ParseConnectionString(path, c.Ssl)
 		if e != nil {
-			fmt.Println(e)
-			return
+			return e
 		}
 
 		config := v8.NewConfig()
@@ -150,12 +150,12 @@ func (c *CommandLine) Run() {
 
 		i := v8.NewImporter(config)
 		if err := i.Import(); err != nil {
-			fmt.Printf("ERROR: %s\n", err)
+			err = fmt.Errorf("ERROR: %s\n", err)
 			c.Line.Close()
-			os.Exit(1)
+			return err
 		}
 		c.Line.Close()
-		os.Exit(0)
+		return nil
 	}
 
 	c.Version()
@@ -178,6 +178,7 @@ func (c *CommandLine) Run() {
 			close(c.Quit)
 		case <-c.Quit:
 			c.exit()
+			return nil
 		default:
 			l, e := c.Line.Prompt("> ")
 			if e == io.EOF {
@@ -824,6 +825,4 @@ func (c *CommandLine) exit() {
 	// release line resources
 	c.Line.Close()
 	c.Line = nil
-	// exit CLI
-	os.Exit(0)
 }
