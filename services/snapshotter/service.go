@@ -22,7 +22,7 @@ type Service struct {
 	wg  sync.WaitGroup
 	err chan error
 
-	MetaStore interface {
+	MetaClient interface {
 		encoding.BinaryMarshaler
 	}
 
@@ -122,7 +122,7 @@ func (s *Service) readManifest(conn net.Conn) (snapshot.Manifest, error) {
 // writeSnapshot creates a snapshot writer, trims the manifest, and writes to conn.
 func (s *Service) writeSnapshot(conn net.Conn, prev snapshot.Manifest) error {
 	// Retrieve and serialize the current meta data.
-	buf, err := s.MetaStore.MarshalBinary()
+	buf, err := s.MetaClient.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}

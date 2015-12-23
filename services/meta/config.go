@@ -1,12 +1,16 @@
 package meta
 
 import (
+	"errors"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
 )
 
 const (
+	// DefaultEnabled is the default state for the meta service to run
+	DefaultEnabled = true
+
 	// DefaultHostname is the default hostname if one is not provided.
 	DefaultHostname = "localhost"
 
@@ -37,6 +41,7 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
+	Enabled              bool          `toml:"enabled"`
 	Dir                  string        `toml:"dir"`
 	Hostname             string        `toml:"hostname"`
 	RaftBindAddress      string        `toml:"raft-bind-address"`
@@ -69,4 +74,11 @@ func NewConfig() *Config {
 		RaftPromotionEnabled: DefaultRaftPromotionEnabled,
 		LoggingEnabled:       DefaultLoggingEnabled,
 	}
+}
+
+func (c *Config) Validate() error {
+	if c.Enabled && c.Dir == "" {
+		return errors.New("Meta.Dir must be specified")
+	}
+	return nil
 }

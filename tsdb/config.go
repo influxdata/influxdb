@@ -77,8 +77,9 @@ const (
 )
 
 type Config struct {
-	Dir    string `toml:"dir"`
-	Engine string `toml:"engine"`
+	Enabled bool   `toml:"enabled"`
+	Dir     string `toml:"dir"`
+	Engine  string `toml:"engine"`
 
 	// WAL config options for b1 (introduced in 0.9.2)
 	MaxWALSize             int           `toml:"max-wal-size"`

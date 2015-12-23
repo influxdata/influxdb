@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/monitor"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // ErrHintedHandoffDisabled is returned when attempting to use a
@@ -43,7 +43,7 @@ type Service struct {
 	cfg     Config
 
 	shardWriter shardWriter
-	metastore   metaStore
+	metaclient  metaClient
 
 	Monitor interface {
 		RegisterDiagnosticsClient(name string, client monitor.DiagsClient)
@@ -55,12 +55,12 @@ type shardWriter interface {
 	WriteShard(shardID, ownerID uint64, points []models.Point) error
 }
 
-type metaStore interface {
+type metaClient interface {
 	Node(id uint64) (ni *meta.NodeInfo, err error)
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config, w shardWriter, m metaStore) *Service {
+func NewService(c Config, w shardWriter, m metaClient) *Service {
 	key := strings.Join([]string{"hh", c.Dir}, ":")
 	tags := map[string]string{"path": c.Dir}
 
@@ -71,7 +71,7 @@ func NewService(c Config, w shardWriter, m metaStore) *Service {
 		statMap:     influxdb.NewStatistics(key, "hh", tags),
 		Logger:      log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 		shardWriter: w,
-		metastore:   m,
+		metaclient:  m,
 	}
 }
 
@@ -110,7 +110,7 @@ func (s *Service) Open() error {
 			continue
 		}
 
-		n := NewNodeProcessor(nodeID, s.pathforNode(nodeID), s.shardWriter, s.metastore)
+		n := NewNodeProcessor(nodeID, s.pathforNode(nodeID), s.shardWriter, s.metaclient)
 		if err := n.Open(); err != nil {
 			return err
 		}
@@ -168,7 +168,7 @@ func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) err
 
 			processor, ok = s.processors[ownerID]
 			if !ok {
-				processor = NewNodeProcessor(ownerID, s.pathforNode(ownerID), s.shardWriter, s.metastore)
+				processor = NewNodeProcessor(ownerID, s.pathforNode(ownerID), s.shardWriter, s.metaclient)
 				if err := processor.Open(); err != nil {
 					return err
 				}

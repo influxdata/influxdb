@@ -12,8 +12,8 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -56,7 +56,7 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 
-	MetaStore interface {
+	MetaClient interface {
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 
@@ -91,7 +91,7 @@ func (s *Service) Open() (err error) {
 		return errors.New("database has to be specified in config")
 	}
 
-	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.config.Database); err != nil {
+	if _, err := s.MetaClient.CreateDatabaseIfNotExists(s.config.Database); err != nil {
 		return errors.New("Failed to ensure target database exists")
 	}
 
