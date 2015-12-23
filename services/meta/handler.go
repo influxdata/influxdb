@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/hashicorp/raft"
 	"github.com/influxdb/influxdb/services/meta/internal"
 	"github.com/influxdb/influxdb/uuid"
 )
@@ -82,68 +83,74 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // serveExec executes the requested command.
 func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
-	// If not the leader, redirect.
-	if !h.store.isLeader() {
-		l := h.store.leader()
-		if l == "" {
-			h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
-			return
-		}
-		l = r.URL.Scheme + "//" + l + "/execute"
-		http.Redirect(w, r, l, http.StatusFound)
-		return
-	}
-
+	// Read the command from the request body.
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.httpError(err, w, http.StatusInternalServerError)
 		return
 	}
 
+	// Make sure it's a valid command.
 	if err := validateCommand(body); err != nil {
 		h.httpError(err, w, http.StatusBadRequest)
 		return
 	}
 
-	resp := h.exec(body)
+	// Apply the command to the store.
+	var resp *internal.Response
+	if err := h.store.apply(body); err != nil {
+		// If we aren't the leader, redirect client to the leader.
+		if err == raft.ErrNotLeader {
+			l := h.store.leader()
+			if l == "" {
+				// No cluster leader. Client will have to try again later.
+				h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
+				return
+			}
+			l = r.URL.Scheme + "//" + l + "/execute"
+			http.Redirect(w, r, l, http.StatusFound)
+			return
+		}
+
+		// Error wasn't a leadership error so pass it back to client.
+		resp = &internal.Response{
+			OK:    proto.Bool(false),
+			Error: proto.String(err.Error()),
+		}
+	} else {
+		// Apply was successful. Return the new store index to the client.
+		resp = &internal.Response{
+			OK:    proto.Bool(false),
+			Index: proto.Uint64(h.store.index()),
+		}
+	}
+
+	// Marshal the response.
 	b, err := proto.Marshal(resp)
 	if err != nil {
 		h.httpError(err, w, http.StatusInternalServerError)
 		return
 	}
 
+	// Send response to client.
 	w.Header().Add("Content-Type", "application/octet-stream")
 	w.Write(b)
 }
 
 func validateCommand(b []byte) error {
 	// Read marker message.
-	if len(b) < 4 {
-		return errors.New("invalid execMagic size")
-	} else if string(b[:4]) != execMagic {
-		return fmt.Errorf("invalid exec magic: %q", string(b[:4]))
-	}
+	//if len(b) < 4 {
+	//	return errors.New("invalid execMagic size")
+	//} else if string(b[:4]) != execMagic {
+	//	return fmt.Errorf("invalid exec magic: %q", string(b[:4]))
+	//}
 
 	// Ensure command can be deserialized before applying.
-	if err := proto.Unmarshal(b[4:], &internal.Command{}); err != nil {
+	if err := proto.Unmarshal(b, &internal.Command{}); err != nil {
 		return fmt.Errorf("unable to unmarshal command: %s", err)
 	}
 
 	return nil
-}
-
-func (h *handler) exec(b []byte) *internal.Response {
-	if err := h.store.apply(b); err != nil {
-		return &internal.Response{
-			OK:    proto.Bool(false),
-			Error: proto.String(err.Error()),
-		}
-	}
-
-	return &internal.Response{
-		OK:    proto.Bool(true),
-		Index: proto.Uint64(h.store.index()),
-	}
 }
 
 // serveSnapshot is a long polling http connection to server cache updates
@@ -168,6 +175,7 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Write(b)
+		return
 	case <-w.(http.CloseNotifier).CloseNotify():
 		// Client closed the connection so we're done.
 		return

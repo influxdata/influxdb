@@ -178,21 +178,16 @@ func (r *raftState) close() error {
 
 func (r *raftState) initialize() error {
 	// If we have committed entries then the store is already in the cluster.
-	println("r.raftStore.LastIndex start")
 	if index, err := r.raftStore.LastIndex(); err != nil {
 		return fmt.Errorf("last index: %s", err)
 	} else if index > 0 {
-		println("r.raftStore.LastIndex is nil")
 		return nil
 	}
-	println("r.raftStore.LastIndex end")
 
 	// Force set peers.
-	println("r.setPeers start")
 	if err := r.setPeers(r.joinPeers); err != nil {
 		return fmt.Errorf("set raft peers: %s", err)
 	}
-	println("r.setPeers end")
 
 	return nil
 }
