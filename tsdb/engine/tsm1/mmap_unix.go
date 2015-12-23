@@ -8,13 +8,11 @@ import (
 	"unsafe"
 )
 
-func mmap(f *os.File, offset int64, length int) ([]byte, error) {
-	mmap, err := syscall.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
-	if err != nil {
-		return nil, err
-	}
+const MAP_POPULATE = 0x8000
 
-	if err := madvise(mmap, syscall.MADV_RANDOM); err != nil {
+func mmap(f *os.File, offset int64, length int) ([]byte, error) {
+	mmap, err := syscall.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
+	if err != nil {
 		return nil, err
 	}
 

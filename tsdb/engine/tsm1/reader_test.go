@@ -26,6 +26,10 @@ func TestTSMReader_Type(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
 	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
@@ -566,6 +570,10 @@ func TestBlockIterator_Single(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
 	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
@@ -622,6 +630,10 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	}
 
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
@@ -687,6 +699,10 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	}
 
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 

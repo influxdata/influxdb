@@ -505,10 +505,18 @@ type KeyCursor struct {
 type location struct {
 	r     TSMFile
 	entry *IndexEntry
+
+	// Has this location been before
+	read bool
 }
 
 func (c *KeyCursor) init(t time.Time, ascending bool) {
 	if c.ready {
+		// Re-set the read status of each blocks in case a cursor is Seeked to
+		// multiple times
+		for _, c := range c.seeks {
+			c.read = false
+		}
 		return
 	}
 	c.ascending = ascending
@@ -592,6 +600,7 @@ func (c *KeyCursor) readAt() ([]Value, error) {
 	// First block is the oldest block containing the points we're search for.
 	first := c.current[0]
 	values, err := first.r.ReadAt(first.entry, c.buf[:0])
+	first.read = true
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
@@ -602,15 +611,16 @@ func (c *KeyCursor) readAt() ([]Value, error) {
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) {
+		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
 			c.pos++
 			v, err := cur.r.ReadAt(cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
 			values = append(values, v...)
-
-		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) {
+		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
 			c.pos--
 
 			v, err := cur.r.ReadAt(cur.entry, nil)
@@ -628,9 +638,15 @@ func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
 	c.current = c.current[:0]
 
 	if ascending {
-		c.pos++
-		if c.pos >= len(c.seeks) {
-			return nil, nil
+		for {
+			c.pos++
+			if c.pos >= len(c.seeks) {
+				return nil, nil
+			}
+
+			if !c.seeks[c.pos].read {
+				break
+			}
 		}
 
 		// Append the first matching block
@@ -639,7 +655,11 @@ func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
 		// If we have ovelapping blocks, append all their values so we can dedup
 		if c.duplicates {
 			first := c.seeks[c.pos]
-			for i := c.pos; i < len(c.seeks); i++ {
+			for i := c.pos + 1; i < len(c.seeks); i++ {
+				if c.seeks[i].read {
+					continue
+				}
+
 				if c.seeks[i].entry.MinTime.Before(first.entry.MaxTime) || c.seeks[i].entry.MinTime.Equal(first.entry.MaxTime) {
 					c.current = append(c.current, c.seeks[i])
 				}
@@ -649,9 +669,15 @@ func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
 		return c.readAt()
 
 	} else {
-		c.pos--
-		if c.pos < 0 {
-			return nil, nil
+		for {
+			c.pos--
+			if c.pos < 0 {
+				return nil, nil
+			}
+
+			if !c.seeks[c.pos].read {
+				break
+			}
 		}
 
 		// Append the first matching block
@@ -661,6 +687,9 @@ func (c *KeyCursor) Next(ascending bool) ([]Value, error) {
 		if c.duplicates {
 			first := c.seeks[c.pos]
 			for i := c.pos; i >= 0; i-- {
+				if c.seeks[i].read {
+					continue
+				}
 				if c.seeks[i].entry.MaxTime.After(first.entry.MinTime) || c.seeks[i].entry.MaxTime.Equal(first.entry.MinTime) {
 					c.current = append(c.current, c.seeks[i])
 				}

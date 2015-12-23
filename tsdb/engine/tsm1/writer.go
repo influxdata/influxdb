@@ -63,6 +63,7 @@ The last section is the footer that stores the offset of the start of the index.
 */
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -456,9 +457,10 @@ func (d *directIndex) Size() uint32 {
 
 // tsmWriter writes keys and values in the TSM format
 type tsmWriter struct {
-	w     io.Writer
-	index TSMIndex
-	n     int64
+	wrapped io.Writer
+	w       *bufio.Writer
+	index   TSMIndex
+	n       int64
 }
 
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
@@ -466,7 +468,7 @@ func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 		blocks: map[string]*indexEntries{},
 	}
 
-	return &tsmWriter{w: w, index: index}, nil
+	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 4*1024*1024), index: index}, nil
 }
 
 func (t *tsmWriter) writeHeader() error {
@@ -574,7 +576,11 @@ func (t *tsmWriter) WriteIndex() error {
 }
 
 func (t *tsmWriter) Close() error {
-	if c, ok := t.w.(io.Closer); ok {
+	if err := t.w.Flush(); err != nil {
+		return err
+	}
+
+	if c, ok := t.wrapped.(io.Closer); ok {
 		return c.Close()
 	}
 	return nil

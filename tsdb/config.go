@@ -63,10 +63,6 @@ const (
 	// the shard hasn't received writes or deletes
 	DefaultCacheSnapshotWriteColdDuration = time.Duration(time.Hour)
 
-	// DefaultMinCompactionFileCount is the minimum number of TSM files
-	// that need to exist before a compaction cycle will run
-	DefaultCompactMinFileCount = 3
-
 	// DefaultCompactFullWriteColdDuration is the duration at which the engine
 	// will compact all TSM files in a shard if it hasn't received a write or delete
 	DefaultCompactFullWriteColdDuration = time.Duration(24 * time.Hour)
@@ -101,7 +97,6 @@ type Config struct {
 	CacheMaxMemorySize             uint64        `toml:"cache-max-memory-size"`
 	CacheSnapshotMemorySize        uint64        `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
-	CompactMinFileCount            int           `toml:"compact-min-file-count"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
 
@@ -133,7 +128,6 @@ func NewConfig() Config {
 		CacheMaxMemorySize:             DefaultCacheMaxMemorySize,
 		CacheSnapshotMemorySize:        DefaultCacheSnapshotMemorySize,
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
-		CompactMinFileCount:            DefaultCompactMinFileCount,
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 
 		DataLoggingEnabled: true,

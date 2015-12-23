@@ -603,7 +603,7 @@ func newFileDir(dir string, values ...keyValues) ([]string, error) {
 			return nil, err
 		}
 
-		if err := f.Close(); err != nil {
+		if err := w.Close(); err != nil {
 			return nil, err
 		}
 		newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(id))
@@ -633,6 +633,10 @@ func newFiles(values ...keyValues) ([]tsm1.TSMFile, error) {
 		}
 
 		if err := w.WriteIndex(); err != nil {
+			return nil, err
+		}
+
+		if err := w.Close(); err != nil {
 			return nil, err
 		}
 

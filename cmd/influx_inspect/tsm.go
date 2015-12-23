@@ -369,14 +369,8 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 
 		encoded := buf[9:]
 
-		var v []tsm1.Value
-		v, err := tsm1.DecodeBlock(buf, v)
-		if err != nil {
-			fmt.Printf("error: %v\n", err.Error())
-			os.Exit(1)
-		}
-
-		pointCount += int64(len(v))
+		cnt := tsm1.BlockCount(buf)
+		pointCount += int64(cnt)
 
 		// Length of the timestamp block
 		tsLen, j := binary.Uvarint(encoded)
@@ -409,7 +403,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			strconv.FormatUint(id, 10),
 			typeDesc,
 			startTime.UTC().Format(time.RFC3339Nano),
-			strconv.FormatInt(int64(len(v)), 10),
+			strconv.FormatInt(int64(cnt), 10),
 			fmt.Sprintf("%s/%s", tsEncoding, vEncoding),
 			fmt.Sprintf("%d/%d", len(ts), len(values)),
 		}, "\t"))
