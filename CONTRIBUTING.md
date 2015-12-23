@@ -214,11 +214,11 @@ For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/
 
 Profiling
 -----
-When troubleshooting problems with CPU or memory the Go toolchain can be helpful. You can start InfluxDB with CPU or memory profiling turned on. For example:
+When troubleshooting problems with CPU or memory the Go toolchain can be helpful. You can start InfluxDB with CPU and memory profiling turned on. For example:
 
 ```sh
 # start influx with profiling
-./influxd -cpuprofile influxd.prof
+./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof 
 # run queries, writes, whatever you're testing
 # Quit out of influxd and influxd.prof will then be written.
 # open up pprof to examine the profiling data.
