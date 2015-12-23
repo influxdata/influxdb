@@ -283,7 +283,7 @@ func exec(s *Service, typ internal.Command_Type, desc *proto.ExtensionDesc, valu
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected result:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.Status)
+		return fmt.Errorf("unexpected result:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.StatusCode)
 	}
 	return nil
 }
