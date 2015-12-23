@@ -5,10 +5,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
 	"github.com/golang/snappy"
+	tsm "github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
 type BZ1Reader struct {
@@ -16,12 +18,14 @@ type BZ1Reader struct {
 	db   *bolt.DB
 	tx   *bolt.Tx
 
+	cursors    []*BZ1Cursor
+	nextCursor int
+
 	Series map[string]*Series
 	Fields map[string]*MeasurementFields
 	Codecs map[string]*FieldCodec
 }
 
-// Could this instead implement a KeyIterator interface? Or be wrapped so that it does?
 func NewBZ1Reader(path string) *BZ1Reader {
 	return &BZ1Reader{
 		path:   path,
@@ -85,20 +89,13 @@ func (b *BZ1Reader) Open() error {
 			return err
 		}
 
-		// Get measurement name.
 		measurement := MeasurementFromSeriesKey(s)
-
-		// Get the list of all field names for the measurement.
-		var names []string
 		for _, f := range b.Fields[MeasurementFromSeriesKey(s)].Fields {
-			names = append(names, f.Name)
+			c := NewBZ1Cursor(b.tx, s, f.Name, b.Codecs[measurement])
+			b.cursors = append(b.cursors, c)
 		}
-
-		// Build cursors.
-		c := NewBZ1Cursor(b.tx, s, names, b.Codecs[measurement])
-		fmt.Println(s)
-		fmt.Println(c.SeekTo(0))
 	}
+	sort.Sort(BZ1Cursors(b.cursors))
 
 	return nil
 }
@@ -115,7 +112,7 @@ func (b *BZ1Reader) Close() error {
 }
 
 // Cursor returns an iterator for a key.
-func NewBZ1Cursor(tx *bolt.Tx, series string, fields []string, dec *FieldCodec) Cursor {
+func NewBZ1Cursor(tx *bolt.Tx, series string, field string, dec *FieldCodec) *BZ1Cursor {
 
 	// Retrieve points bucket. Ignore if there is no bucket.
 	b := tx.Bucket([]byte("points")).Bucket([]byte(series))
@@ -125,7 +122,8 @@ func NewBZ1Cursor(tx *bolt.Tx, series string, fields []string, dec *FieldCodec) 
 
 	return &BZ1Cursor{
 		cursor: b.Cursor(),
-		fields: fields,
+		series: series,
+		field:  field,
 		dec:    dec,
 	}
 }
@@ -138,7 +136,8 @@ type BZ1Cursor struct {
 	fieldIndices []int
 	index        int
 
-	fields []string
+	series string
+	field  string
 	dec    *FieldCodec
 }
 
@@ -235,7 +234,17 @@ func (c *BZ1Cursor) read() (key int64, value interface{}) {
 	buf := c.buf[c.off:]
 	dataSize := entryDataSize(buf)
 
-	return decodeKeyValue(c.fields, c.dec, buf[0:8], buf[entryHeaderSize:entryHeaderSize+dataSize])
+	return decodeKeyValue([]string{c.field}, c.dec, buf[0:8], buf[entryHeaderSize:entryHeaderSize+dataSize])
+}
+
+// Sort bz1 cursors in correct order for writing to TSM files.
+
+type BZ1Cursors []*BZ1Cursor
+
+func (b BZ1Cursors) Len() int      { return len(b) }
+func (b BZ1Cursors) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+func (b BZ1Cursors) Less(i, j int) bool {
+	return tsm.SeriesFieldKey(b[i].series, b[i].field) < tsm.SeriesFieldKey(b[j].series, b[j].field)
 }
 
 // entryHeaderSize is the number of bytes required for the header.
