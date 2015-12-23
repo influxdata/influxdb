@@ -43,6 +43,8 @@ func (s *Service) Open() error {
 
 	// Open the store
 	store := newStore(s.config)
+	// Set the peers from the config
+	store.peers = s.config.Peers
 	s.store = store
 	if err := s.store.open(); err != nil {
 		return err
