@@ -104,21 +104,26 @@ func NewDemoConfig() (*Config, error) {
 
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
-	if c.Meta.Enabled && c.Meta.Dir == "" {
-		return errors.New("Meta.Dir must be specified")
+	if !c.Meta.Enabled && !c.Data.Enabled {
+		return errors.New("either Meta, Data, or both must be enabled")
 	}
-	if c.HintedHandoff.Enabled && c.HintedHandoff.Dir == "" {
-		return errors.New("HintedHandoff.Dir must be specified")
+	if err := c.Meta.Validate(); err != nil {
+		return err
 	}
 	if err := c.Data.Validate(); err != nil {
 		return err
 	}
-
-	for _, g := range c.Graphites {
-		if err := g.Validate(); err != nil {
-			return fmt.Errorf("invalid graphite config: %v", err)
+	if c.Data.Enabled {
+		if err := c.HintedHandoff.Validate(); err != nil {
+			return err
+		}
+		for _, g := range c.Graphites {
+			if err := g.Validate(); err != nil {
+				return fmt.Errorf("invalid graphite config: %v", err)
+			}
 		}
 	}
+
 	return nil
 }
 

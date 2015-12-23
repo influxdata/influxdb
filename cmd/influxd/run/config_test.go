@@ -145,3 +145,20 @@ enabled = true
 		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
 	}
 }
+
+func TestConfig_ValidateNoServiceConfigured(t *testing.T) {
+	var c run.Config
+	if _, err := toml.Decode(`
+[meta]
+enabled = false
+
+[data]
+enabled = false
+`, &c); err != nil {
+		t.Fatal(err)
+	}
+
+	if e := c.Validate(); e == nil {
+		t.Fatalf("expected error, got nil")
+	}
+}
