@@ -163,6 +163,10 @@ func newTxVarRefIterator(tx Tx, sh *Shard, opt influxql.IteratorOptions, dimensi
 	var itrs []influxql.Iterator
 	if err := func() error {
 		mms := Measurements(sh.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+
+		// Retrieve non-time field names from condition.
+		conditionFields := influxql.ExprNames(opt.Condition)
+
 		for _, mm := range mms {
 			// Determine tagsets for this measurement based on dimensions and filters.
 			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
@@ -181,6 +185,7 @@ func newTxVarRefIterator(tx Tx, sh *Shard, opt influxql.IteratorOptions, dimensi
 						fields = append(fields, ref.Val)
 					}
 					fields = append(fields, opt.Aux...)
+					fields = append(fields, conditionFields...)
 
 					// Create cursor.
 					cur := tx.Cursor(seriesKey, fields, sh.FieldCodec(mm.Name), opt.Ascending)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1700,6 +1701,25 @@ func walkNames(exp Expr) []string {
 	}
 
 	return nil
+}
+
+// ExprNames returns a list of non-"time" field names from an expression.
+func ExprNames(expr Expr) []string {
+	m := make(map[string]struct{})
+	for _, name := range walkNames(expr) {
+		if name == "time" {
+			continue
+		}
+		m[name] = struct{}{}
+	}
+
+	a := make([]string, 0, len(m))
+	for k := range m {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+
+	return a
 }
 
 // FunctionCalls returns the Call objects from the query
