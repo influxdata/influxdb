@@ -19,7 +19,7 @@ type BZ1Reader struct {
 	tx   *bolt.Tx
 
 	cursors    []*BZ1Cursor
-	nextCursor int
+	currCursor int
 
 	Series map[string]*Series
 	Fields map[string]*MeasurementFields
@@ -92,6 +92,7 @@ func (b *BZ1Reader) Open() error {
 		measurement := MeasurementFromSeriesKey(s)
 		for _, f := range b.Fields[MeasurementFromSeriesKey(s)].Fields {
 			c := NewBZ1Cursor(b.tx, s, f.Name, b.Codecs[measurement])
+			c.SeekTo(0)
 			b.cursors = append(b.cursors, c)
 		}
 	}
@@ -102,8 +103,21 @@ func (b *BZ1Reader) Open() error {
 
 // Next returns the next timestamp and values available. It returns -1 for the
 // timestamp when no values remain.
-func (b *BZ1Reader) Next() (int64, []byte) {
-	return 0, nil
+func (b *BZ1Reader) Next() (int64, interface{}) {
+	for {
+		if b.currCursor == len(b.cursors) {
+			// No more cursors left. We're finished.
+			return -1, nil
+		}
+
+		k, v := b.cursors[b.currCursor].Next()
+		if k == -1 {
+			// Go to next cursor.
+			b.currCursor++
+			continue
+		}
+		return k, v
+	}
 }
 
 func (b *BZ1Reader) Close() error {

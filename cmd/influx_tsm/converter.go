@@ -14,7 +14,7 @@ import (
 
 type ShardReader interface {
 	Open() error
-	Next() (int64, []byte)
+	Next() (int64, interface{})
 	Close() error
 }
 

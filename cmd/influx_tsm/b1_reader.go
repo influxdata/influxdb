@@ -28,7 +28,7 @@ func (b *B1Reader) Open() error {
 	return nil
 }
 
-func (b *B1Reader) Next() (int64, []byte) {
+func (b *B1Reader) Next() (int64, interface{}) {
 	return 0, nil
 }
 
