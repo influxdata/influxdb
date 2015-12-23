@@ -32,7 +32,7 @@ type NodeProcessor struct {
 	done chan struct{}
 
 	queue  *queue
-	meta   metaStore
+	meta   metaClient
 	writer shardWriter
 
 	statMap *expvar.Map
@@ -41,7 +41,7 @@ type NodeProcessor struct {
 
 // NewNodeProcessor returns a new NodeProcessor for the given node, using dir for
 // the hinted-handoff data.
-func NewNodeProcessor(nodeID uint64, dir string, w shardWriter, m metaStore) *NodeProcessor {
+func NewNodeProcessor(nodeID uint64, dir string, w shardWriter, m metaClient) *NodeProcessor {
 	key := strings.Join([]string{"hh_processor", dir}, ":")
 	tags := map[string]string{"node": fmt.Sprintf("%d", nodeID), "path": dir}
 
