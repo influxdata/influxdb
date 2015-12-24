@@ -14,7 +14,8 @@ import (
 
 type ShardReader interface {
 	Open() error
-	Next() (int64, interface{})
+	Next() bool
+	Read() (string, []tsm.Value, error)
 	Close() error
 }
 
@@ -63,7 +64,7 @@ func Convert(path string) error {
 	var reader ShardReader
 	switch format {
 	case b1:
-		reader = NewB1Reader(path)
+		//reader = NewB1Reader(path)
 	case bz1:
 		reader = NewBZ1Reader(path)
 	default:

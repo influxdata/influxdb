@@ -20,18 +20,20 @@ type BZ1Reader struct {
 
 	cursors    []*BZ1Cursor
 	currCursor int
+	keyBuf     int64
+	valBuf     interface{}
 
-	Series map[string]*Series
-	Fields map[string]*MeasurementFields
-	Codecs map[string]*FieldCodec
+	series map[string]*Series
+	fields map[string]*MeasurementFields
+	codecs map[string]*FieldCodec
 }
 
 func NewBZ1Reader(path string) *BZ1Reader {
 	return &BZ1Reader{
 		path:   path,
-		Series: make(map[string]*Series),
-		Fields: make(map[string]*MeasurementFields),
-		Codecs: make(map[string]*FieldCodec),
+		series: make(map[string]*Series),
+		fields: make(map[string]*MeasurementFields),
+		codecs: make(map[string]*FieldCodec),
 	}
 }
 
@@ -55,7 +57,7 @@ func (b *BZ1Reader) Open() error {
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal(data, &b.Series); err != nil {
+		if err := json.Unmarshal(data, &b.series); err != nil {
 			return err
 		}
 
@@ -69,29 +71,29 @@ func (b *BZ1Reader) Open() error {
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal(data, &b.Fields); err != nil {
+		if err := json.Unmarshal(data, &b.fields); err != nil {
 			return err
 		}
 		return nil
 	})
 
 	// Build the codec for each measurement.
-	for k, v := range b.Fields {
-		b.Codecs[k] = NewFieldCodec(v.Fields)
+	for k, v := range b.fields {
+		b.codecs[k] = NewFieldCodec(v.Fields)
 	}
 
 	b.tx, err = b.db.Begin(false)
 	if err != nil {
 		return err
 	}
-	for s, _ := range b.Series {
+	for s, _ := range b.series {
 		if err != nil {
 			return err
 		}
 
 		measurement := MeasurementFromSeriesKey(s)
-		for _, f := range b.Fields[MeasurementFromSeriesKey(s)].Fields {
-			c := NewBZ1Cursor(b.tx, s, f.Name, b.Codecs[measurement])
+		for _, f := range b.fields[MeasurementFromSeriesKey(s)].Fields {
+			c := NewBZ1Cursor(b.tx, s, f.Name, b.codecs[measurement])
 			c.SeekTo(0)
 			b.cursors = append(b.cursors, c)
 		}
@@ -101,23 +103,44 @@ func (b *BZ1Reader) Open() error {
 	return nil
 }
 
-// Next returns the next timestamp and values available. It returns -1 for the
-// timestamp when no values remain.
-func (b *BZ1Reader) Next() (int64, interface{}) {
+func (b *BZ1Reader) Next() bool {
 	for {
 		if b.currCursor == len(b.cursors) {
-			// No more cursors left. We're finished.
-			return -1, nil
+			// No more cursors remain. We're finished.
+			return false
 		}
 
-		k, v := b.cursors[b.currCursor].Next()
-		if k == -1 {
-			// Go to next cursor.
+		b.keyBuf, b.valBuf = b.cursors[b.currCursor].Next()
+		if b.keyBuf == -1 {
+			// Go to next cursor and try again.
 			b.currCursor++
 			continue
 		}
-		return k, v
+		return true
 	}
+}
+
+func (b *BZ1Reader) Read() (string, []tsm.Value, error) {
+	var values []tsm.Value
+
+	// Add buffered point.
+	values = append(values, convertToValue(b.keyBuf, b.valBuf))
+
+	// Add up go the chunk size of points from the current cursor.
+	cc := b.cursors[b.currCursor]
+	for {
+		if len(values) == 1000 {
+			break
+		}
+
+		k, v := cc.Next()
+		if k == -1 {
+			break
+		}
+		values = append(values, convertToValue(k, v))
+	}
+
+	return tsm.SeriesFieldKey(cc.series, cc.field), values, nil
 }
 
 func (b *BZ1Reader) Close() error {
@@ -259,6 +282,37 @@ func (b BZ1Cursors) Len() int      { return len(b) }
 func (b BZ1Cursors) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 func (b BZ1Cursors) Less(i, j int) bool {
 	return tsm.SeriesFieldKey(b[i].series, b[i].field) < tsm.SeriesFieldKey(b[j].series, b[j].field)
+}
+
+func convertToValue(k int64, v interface{}) tsm.Value {
+	var value tsm.Value
+
+	switch v := v.(type) {
+	case int64:
+		value = &Int64Value{
+			time:  time.Unix(0, k),
+			value: v,
+		}
+	case float64:
+		value = &FloatValue{
+			time:  time.Unix(0, k),
+			value: v,
+		}
+	case bool:
+		value = &BoolValue{
+			time:  time.Unix(0, k),
+			value: v,
+		}
+	case string:
+		value = &StringValue{
+			time:  time.Unix(0, k),
+			value: v,
+		}
+	default:
+		panic("value unsupported for conversion")
+	}
+
+	return value
 }
 
 // entryHeaderSize is the number of bytes required for the header.
