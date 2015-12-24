@@ -848,46 +848,6 @@ func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {
 	}
 }
 
-// Ensure that the planner will compact all files if no writes
-// have happened in some interval but skip files already over the limit
-func TestDefaultPlanner_Plan_FullSkipMaxSize(t *testing.T) {
-	data := []tsm1.FileStat{
-		tsm1.FileStat{
-			Path: "01-01.tsm1",
-			Size: 2049 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "02-02.tsm1",
-			Size: 129 * 1024 * 1024,
-		},
-		tsm1.FileStat{
-			Path: "03-02.tsm1",
-			Size: 33 * 1024 * 1024,
-		},
-	}
-
-	cp := &tsm1.DefaultPlanner{
-		FileStore: &fakeFileStore{
-			PathsFn: func() []tsm1.FileStat {
-				return data
-			},
-		},
-		CompactFullWriteColdDuration: time.Nanosecond,
-	}
-
-	expFiles := []tsm1.FileStat{data[1], data[2]}
-	tsm := cp.Plan(time.Now().Add(-time.Second))
-	if exp, got := len(expFiles), len(tsm[0]); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, p := range expFiles {
-		if got, exp := tsm[0][i], p.Path; got != exp {
-			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
-		}
-	}
-}
-
 // Ensure that the planner will not return files that are over the max
 // allowable size
 func TestDefaultPlanner_Plan_SkipMaxSizeFiles(t *testing.T) {

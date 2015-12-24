@@ -200,14 +200,11 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
+	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
 		for _, group := range generations {
-			// If the generation size is less the max size
-			if group.size() < uint64(maxTSMFileSize) || group.hasTombstones() {
-				for _, f := range group.files {
-					tsmFiles = append(tsmFiles, f.Path)
-				}
+			for _, f := range group.files {
+				tsmFiles = append(tsmFiles, f.Path)
 			}
 		}
 		sort.Strings(tsmFiles)
