@@ -119,6 +119,16 @@ func (t *tsmGeneration) count() int {
 	return len(t.files)
 }
 
+// hasTombstones returns true if there a keys removed for any of the files
+func (t *tsmGeneration) hasTombstones() bool {
+	for _, f := range t.files {
+		if f.HasTombstone {
+			return true
+		}
+	}
+	return false
+}
+
 // PlanLevel returns a set of TSM files to rewrite for a specific level
 func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 	// Determine the generations from all files on disk.  We need to treat
@@ -126,7 +136,7 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 	// split across several files in sequence.
 	generations := c.findGenerations()
 
-	if len(generations) <= 1 {
+	if len(generations) <= 1 && !generations.hasTombstones() {
 		return nil
 	}
 
@@ -139,25 +149,12 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 
 		// If the current and next level match the specified level, then add the current level
 		// to the group
-		if level == cur.level() && next.level() == level {
+		if level == cur.level() && (next.level() == level || cur.hasTombstones()) {
 			for _, f := range cur.files {
 				cGroup = append(cGroup, f.Path)
 			}
 			continue
 		}
-
-		// // Special case that has occurred experimentally where a generation matching the
-		// // level we are looking for is bordered on each side by a higher level.  If this happens,
-		// // higher level compactions will stop for these files and this specific file will get stuck.
-		// // In this case, add
-		// if i > 0 {
-		// 	prev := generations[i-1]
-		// 	if level == cur.level() && prev.level() > level && next.level() > level {
-		// 		for _, f := range cur.files {
-		// 			cGroup = append(cGroup, f.Path)
-		// 		}
-		// 	}
-		// }
 	}
 
 	// Add the last segments if it matches the level
@@ -168,6 +165,14 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 				cGroup = append(cGroup, f.Path)
 			}
 		}
+	}
+
+	if len(cGroup) == 0 {
+		return nil
+	}
+
+	if generations.hasTombstones() {
+		return []CompactionGroup{cGroup}
 	}
 
 	// Ensure we have at least 2 generations.  For higher levels, we want to use more files to maximize
@@ -192,12 +197,14 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 // Plan returns a set of TSM files to rewrite for level 4 or higher.  The planning returns
 // multiple groups if possible to allow compactions to run concurrently.
 func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
+	generations := c.findGenerations()
+
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration {
 		var tsmFiles []string
-		for _, group := range c.findGenerations() {
+		for _, group := range generations {
 			// If the generation size is less the max size
-			if group.size() < uint64(maxTSMFileSize) {
+			if group.size() < uint64(maxTSMFileSize) || group.hasTombstones() {
 				for _, f := range group.files {
 					tsmFiles = append(tsmFiles, f.Path)
 				}
@@ -215,20 +222,15 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	}
 
 	// don't plan if nothing has changed in the filestore
-	if c.lastPlanCheck.After(c.FileStore.LastModified()) {
+	if c.lastPlanCheck.After(c.FileStore.LastModified()) && !generations.hasTombstones() {
 		return nil
 	}
-
-	// Determine the generations from all files on disk.  We need to treat
-	// a generation conceptually as a single file even though it may be
-	// split across several files in sequence.
-	generations := c.findGenerations()
 
 	c.lastPlanCheck = time.Now()
 
 	// If there is only one generation, return early to avoid re-compacting the same file
 	// over and over again.
-	if len(generations) <= 1 {
+	if len(generations) <= 1 && !generations.hasTombstones() {
 		return nil
 	}
 
@@ -245,7 +247,16 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 
 	// As compactions run, the oldest files get bigger.  We don't want to re-compact them during
 	// this planning if they are maxed out so skip over any we see.
+	var hasTombstones bool
 	for i, g := range generations[:end] {
+		if g.hasTombstones() {
+			hasTombstones = true
+		}
+
+		if hasTombstones {
+			continue
+		}
+
 		if g.size() > uint64(maxTSMFileSize) {
 			start = i + 1
 		}
@@ -316,7 +327,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	compactable := []tsmGenerations{}
 	for _, group := range groups {
 		//if we don't have enough generations to compact, skip it
-		if len(group) < 2 {
+		if len(group) < 2 && !group.hasTombstones() {
 			continue
 		}
 		compactable = append(compactable, group)
@@ -920,3 +931,11 @@ type tsmGenerations []*tsmGeneration
 func (a tsmGenerations) Len() int           { return len(a) }
 func (a tsmGenerations) Less(i, j int) bool { return a[i].id < a[j].id }
 func (a tsmGenerations) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a tsmGenerations) hasTombstones() bool {
+	for _, g := range a {
+		if g.hasTombstones() {
+			return true
+		}
+	}
+	return false
+}
