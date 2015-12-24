@@ -315,6 +315,61 @@ type floatHeapItem struct {
 	ascending bool
 }
 
+// floatLimitIterator represents an iterator that limits points per group.
+type floatLimitIterator struct {
+	input FloatIterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// newFloatLimitIterator returns a new instance of floatLimitIterator.
+func newFloatLimitIterator(input FloatIterator, opt IteratorOptions) *floatLimitIterator {
+	return &floatLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Close closes the underlying iterators.
+func (itr *floatLimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *floatLimitIterator) Next() *FloatPoint {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p
+	}
+}
+
 // floatJoinIterator represents a join iterator that processes float values.
 type floatJoinIterator struct {
 	input FloatIterator
@@ -909,6 +964,61 @@ type stringHeapItem struct {
 	ascending bool
 }
 
+// stringLimitIterator represents an iterator that limits points per group.
+type stringLimitIterator struct {
+	input StringIterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// newStringLimitIterator returns a new instance of stringLimitIterator.
+func newStringLimitIterator(input StringIterator, opt IteratorOptions) *stringLimitIterator {
+	return &stringLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Close closes the underlying iterators.
+func (itr *stringLimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *stringLimitIterator) Next() *StringPoint {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p
+	}
+}
+
 // stringJoinIterator represents a join iterator that processes string values.
 type stringJoinIterator struct {
 	input StringIterator
@@ -1501,6 +1611,61 @@ type booleanHeapItem struct {
 	point     *BooleanPoint
 	itr       BooleanIterator
 	ascending bool
+}
+
+// booleanLimitIterator represents an iterator that limits points per group.
+type booleanLimitIterator struct {
+	input BooleanIterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// newBooleanLimitIterator returns a new instance of booleanLimitIterator.
+func newBooleanLimitIterator(input BooleanIterator, opt IteratorOptions) *booleanLimitIterator {
+	return &booleanLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Close closes the underlying iterators.
+func (itr *booleanLimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *booleanLimitIterator) Next() *BooleanPoint {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p
+	}
 }
 
 // booleanJoinIterator represents a join iterator that processes boolean values.

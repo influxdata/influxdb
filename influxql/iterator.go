@@ -86,61 +86,6 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
-// floatLimitIterator represents an iterator that limits points per group.
-type floatLimitIterator struct {
-	input FloatIterator
-	opt   IteratorOptions
-	n     int
-
-	prev struct {
-		name string
-		tags Tags
-	}
-}
-
-// newFloatLimitIterator returns a new instance of floatLimitIterator.
-func newFloatLimitIterator(input FloatIterator, opt IteratorOptions) *floatLimitIterator {
-	return &floatLimitIterator{
-		input: input,
-		opt:   opt,
-	}
-}
-
-// Close closes the underlying iterators.
-func (itr *floatLimitIterator) Close() error { return itr.input.Close() }
-
-// Next returns the next point from the iterator.
-func (itr *floatLimitIterator) Next() *FloatPoint {
-	for {
-		p := itr.input.Next()
-		if p == nil {
-			return nil
-		}
-
-		// Reset window and counter if a new window is encountered.
-		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
-			itr.prev.name = p.Name
-			itr.prev.tags = p.Tags
-			itr.n = 0
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Read next point if not beyond the offset.
-		if itr.n <= itr.opt.Offset {
-			continue
-		}
-
-		// Read next point if we're beyond the limit.
-		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
-			continue
-		}
-
-		return p
-	}
-}
-
 // Join combines inputs based on timestamp and returns new iterators.
 // The output iterators guarantee that one value will be output for every timestamp.
 func Join(inputs []Iterator) (outputs []Iterator) {
@@ -497,6 +442,21 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	start = t + int64(opt.Interval.Offset)
 	end = start + int64(opt.Interval.Duration)
 	return
+}
+
+// DerivativeInterval returns the time interval for the derivative function.
+func (opt IteratorOptions) DerivativeInterval() Interval {
+	// Use the interval on the derivative() call, if specified.
+	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
+		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
+	}
+
+	// Otherwise use the group by interval, if specified.
+	if opt.Interval.Duration > 0 {
+		return opt.Interval
+	}
+
+	return Interval{Duration: time.Second}
 }
 
 // selectInfo represents an object that stores info about select fields.

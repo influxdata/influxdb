@@ -315,6 +315,61 @@ type {{.name}}HeapItem struct {
 	ascending bool
 }
 
+// {{.name}}LimitIterator represents an iterator that limits points per group.
+type {{.name}}LimitIterator struct {
+	input {{.Name}}Iterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// new{{.Name}}LimitIterator returns a new instance of {{.name}}LimitIterator.
+func new{{.Name}}LimitIterator(input {{.Name}}Iterator, opt IteratorOptions) *{{.name}}LimitIterator {
+	return &{{.name}}LimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Close closes the underlying iterators.
+func (itr *{{.name}}LimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *{{.name}}LimitIterator) Next() *{{.Name}}Point {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p
+	}
+}
+
 // {{.name}}JoinIterator represents a join iterator that processes {{.name}} values.
 type {{.name}}JoinIterator struct {
 	input {{.Name}}Iterator

@@ -353,3 +353,57 @@ func newFloatPercentileReduceSliceFunc(percentile float64) floatReduceSliceFunc 
 		return []FloatPoint{{Time: opt.startTime, Value: a[i].Value}}
 	}
 }
+
+// newDerivativeIterator returns an iterator for operating on a derivative() call.
+func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatDerivativeReduceSliceFunc(interval, isNonNegative)}
+	default:
+		panic(fmt.Sprintf("unsupported derivative iterator type: %T", input))
+	}
+}
+
+// newFloatDerivativeReduceSliceFunc returns the derivative value within a window.
+func newFloatDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) floatReduceSliceFunc {
+	prev := FloatPoint{Time: -1}
+
+	return func(a []FloatPoint, opt *reduceOptions) []FloatPoint {
+		if len(a) == 0 {
+			return a
+		} else if len(a) == 1 {
+			return []FloatPoint{{Time: a[0].Time, Value: 0}}
+		}
+
+		if prev.Time == -1 {
+			prev = a[0]
+		}
+
+		output := make([]FloatPoint, 0, len(a)-1)
+		for i := 1; i < len(a); i++ {
+			p := &a[i]
+
+			fmt.Println("\033[7mDBG>>>>>>>>>>", p, "//", prev, "\033[0m")
+
+			// Calculate the derivative of successive points by dividing the
+			// difference of each value by the elapsed time normalized to the interval.
+			diff := p.Value - prev.Value
+			elapsed := p.Time - prev.Time
+
+			value := 0.0
+			if elapsed > 0 {
+				value = diff / (float64(elapsed) / float64(interval.Duration))
+			}
+
+			prev = *p
+
+			// Drop negative values for non-negative derivatives.
+			if isNonNegative && diff < 0 {
+				continue
+			}
+
+			output = append(output, FloatPoint{Time: p.Time, Value: value})
+		}
+		return output
+	}
+}

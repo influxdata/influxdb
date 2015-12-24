@@ -174,10 +174,16 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			}
 			percentile := expr.Args[1].(*NumberLiteral).Val
 			return newPercentileIterator(input, opt, percentile), nil
-		case "derivative":
-			panic("FIXME: wrap derivative reduce slice iterator over raw iterator")
-		case "non_negative_derivative":
-			panic("FIXME: wrap derivative reduce slice iterator over raw iterator")
+		case "derivative", "non_negative_derivative":
+			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+			if err != nil {
+				return nil, err
+			}
+
+			interval := opt.DerivativeInterval()
+			isNonNegative := (expr.Name == "non_negative_derivative")
+
+			return newDerivativeIterator(input, opt, interval, isNonNegative), nil
 		default:
 			panic(fmt.Sprintf("unsupported call: %s", expr.Name))
 		}
