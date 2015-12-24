@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"math"
+	"container/heap"
 	"sort"
 	"sync"
 )
@@ -211,6 +212,107 @@ func (itr *{{.name}}MergeIterator) Next() *{{.Name}}Point {
 		return v
 	}
 	return nil
+}
+
+// new{{.Name}}SortedMergeIterator returns an instance of {{.name}}SortedMergeIterator.
+func new{{.Name}}SortedMergeIterator(inputs []{{.Name}}Iterator, opt IteratorOptions) Iterator {
+	itr := &{{.name}}SortedMergeIterator{
+		inputs: newBuf{{.Name}}Iterators(inputs),
+		heap:   make({{.name}}Heap, 0, len(inputs)),
+		opt:    opt,
+	}
+
+	// Initialize heap.
+	for _, input := range inputs {
+		// Read next point.
+		p := input.Next()
+		if p == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap = append(itr.heap, &{{.name}}HeapItem{point: p, itr: input, ascending: opt.Ascending})
+	}
+	heap.Init(&itr.heap)
+
+	return itr
+}
+
+// {{.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type {{.name}}SortedMergeIterator struct {
+	inputs buf{{.Name}}Iterators
+	opt    IteratorOptions
+	heap   {{.name}}Heap
+}
+
+// Close closes the underlying iterators.
+func (itr *{{.name}}SortedMergeIterator) Close() error { return itr.inputs.Close() }
+
+// Next returns the next points from the iterator.
+func (itr *{{.name}}SortedMergeIterator) Next() *{{.Name}}Point { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *{{.name}}SortedMergeIterator) pop() *{{.Name}}Point {
+	if len(itr.heap) == 0 {
+		return nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(&itr.heap).(*{{.name}}HeapItem)
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point = item.itr.Next(); item.point != nil {
+		heap.Push(&itr.heap, item)
+	}
+
+	return p
+}
+
+// {{.name}}Heap represents a heap of {{.name}}HeapItems.
+type {{.name}}Heap []*{{.name}}HeapItem
+
+func (h {{.name}}Heap) Len() int      { return len(h) }
+func (h {{.name}}Heap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h {{.name}}Heap) Less(i, j int) bool {
+	x, y := h[i].point, h[j].point
+
+	if h[i].ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if !x.Tags.Equals(&y.Tags) {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if !x.Tags.Equals(&y.Tags) {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *{{.name}}Heap) Push(x interface{}) {
+	*h = append(*h, x.(*{{.name}}HeapItem))
+}
+
+func (h *{{.name}}Heap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+
+type {{.name}}HeapItem struct {
+	point     *{{.Name}}Point
+	itr       {{.Name}}Iterator
+	ascending bool
 }
 
 // {{.name}}JoinIterator represents a join iterator that processes {{.name}} values.

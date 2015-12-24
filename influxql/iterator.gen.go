@@ -4,6 +4,7 @@
 package influxql
 
 import (
+	"container/heap"
 	"math"
 	"sort"
 	"sync"
@@ -211,6 +212,107 @@ func (itr *floatMergeIterator) Next() *FloatPoint {
 		return v
 	}
 	return nil
+}
+
+// newFloatSortedMergeIterator returns an instance of floatSortedMergeIterator.
+func newFloatSortedMergeIterator(inputs []FloatIterator, opt IteratorOptions) Iterator {
+	itr := &floatSortedMergeIterator{
+		inputs: newBufFloatIterators(inputs),
+		heap:   make(floatHeap, 0, len(inputs)),
+		opt:    opt,
+	}
+
+	// Initialize heap.
+	for _, input := range inputs {
+		// Read next point.
+		p := input.Next()
+		if p == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap = append(itr.heap, &floatHeapItem{point: p, itr: input, ascending: opt.Ascending})
+	}
+	heap.Init(&itr.heap)
+
+	return itr
+}
+
+// floatSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type floatSortedMergeIterator struct {
+	inputs bufFloatIterators
+	opt    IteratorOptions
+	heap   floatHeap
+}
+
+// Close closes the underlying iterators.
+func (itr *floatSortedMergeIterator) Close() error { return itr.inputs.Close() }
+
+// Next returns the next points from the iterator.
+func (itr *floatSortedMergeIterator) Next() *FloatPoint { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *floatSortedMergeIterator) pop() *FloatPoint {
+	if len(itr.heap) == 0 {
+		return nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(&itr.heap).(*floatHeapItem)
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point = item.itr.Next(); item.point != nil {
+		heap.Push(&itr.heap, item)
+	}
+
+	return p
+}
+
+// floatHeap represents a heap of floatHeapItems.
+type floatHeap []*floatHeapItem
+
+func (h floatHeap) Len() int      { return len(h) }
+func (h floatHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h floatHeap) Less(i, j int) bool {
+	x, y := h[i].point, h[j].point
+
+	if h[i].ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if !x.Tags.Equals(&y.Tags) {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if !x.Tags.Equals(&y.Tags) {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *floatHeap) Push(x interface{}) {
+	*h = append(*h, x.(*floatHeapItem))
+}
+
+func (h *floatHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+
+type floatHeapItem struct {
+	point     *FloatPoint
+	itr       FloatIterator
+	ascending bool
 }
 
 // floatJoinIterator represents a join iterator that processes float values.
@@ -706,6 +808,107 @@ func (itr *stringMergeIterator) Next() *StringPoint {
 	return nil
 }
 
+// newStringSortedMergeIterator returns an instance of stringSortedMergeIterator.
+func newStringSortedMergeIterator(inputs []StringIterator, opt IteratorOptions) Iterator {
+	itr := &stringSortedMergeIterator{
+		inputs: newBufStringIterators(inputs),
+		heap:   make(stringHeap, 0, len(inputs)),
+		opt:    opt,
+	}
+
+	// Initialize heap.
+	for _, input := range inputs {
+		// Read next point.
+		p := input.Next()
+		if p == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap = append(itr.heap, &stringHeapItem{point: p, itr: input, ascending: opt.Ascending})
+	}
+	heap.Init(&itr.heap)
+
+	return itr
+}
+
+// stringSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type stringSortedMergeIterator struct {
+	inputs bufStringIterators
+	opt    IteratorOptions
+	heap   stringHeap
+}
+
+// Close closes the underlying iterators.
+func (itr *stringSortedMergeIterator) Close() error { return itr.inputs.Close() }
+
+// Next returns the next points from the iterator.
+func (itr *stringSortedMergeIterator) Next() *StringPoint { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *stringSortedMergeIterator) pop() *StringPoint {
+	if len(itr.heap) == 0 {
+		return nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(&itr.heap).(*stringHeapItem)
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point = item.itr.Next(); item.point != nil {
+		heap.Push(&itr.heap, item)
+	}
+
+	return p
+}
+
+// stringHeap represents a heap of stringHeapItems.
+type stringHeap []*stringHeapItem
+
+func (h stringHeap) Len() int      { return len(h) }
+func (h stringHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h stringHeap) Less(i, j int) bool {
+	x, y := h[i].point, h[j].point
+
+	if h[i].ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if !x.Tags.Equals(&y.Tags) {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if !x.Tags.Equals(&y.Tags) {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *stringHeap) Push(x interface{}) {
+	*h = append(*h, x.(*stringHeapItem))
+}
+
+func (h *stringHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+
+type stringHeapItem struct {
+	point     *StringPoint
+	itr       StringIterator
+	ascending bool
+}
+
 // stringJoinIterator represents a join iterator that processes string values.
 type stringJoinIterator struct {
 	input StringIterator
@@ -1197,6 +1400,107 @@ func (itr *booleanMergeIterator) Next() *BooleanPoint {
 		return v
 	}
 	return nil
+}
+
+// newBooleanSortedMergeIterator returns an instance of booleanSortedMergeIterator.
+func newBooleanSortedMergeIterator(inputs []BooleanIterator, opt IteratorOptions) Iterator {
+	itr := &booleanSortedMergeIterator{
+		inputs: newBufBooleanIterators(inputs),
+		heap:   make(booleanHeap, 0, len(inputs)),
+		opt:    opt,
+	}
+
+	// Initialize heap.
+	for _, input := range inputs {
+		// Read next point.
+		p := input.Next()
+		if p == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap = append(itr.heap, &booleanHeapItem{point: p, itr: input, ascending: opt.Ascending})
+	}
+	heap.Init(&itr.heap)
+
+	return itr
+}
+
+// booleanSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type booleanSortedMergeIterator struct {
+	inputs bufBooleanIterators
+	opt    IteratorOptions
+	heap   booleanHeap
+}
+
+// Close closes the underlying iterators.
+func (itr *booleanSortedMergeIterator) Close() error { return itr.inputs.Close() }
+
+// Next returns the next points from the iterator.
+func (itr *booleanSortedMergeIterator) Next() *BooleanPoint { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *booleanSortedMergeIterator) pop() *BooleanPoint {
+	if len(itr.heap) == 0 {
+		return nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(&itr.heap).(*booleanHeapItem)
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point = item.itr.Next(); item.point != nil {
+		heap.Push(&itr.heap, item)
+	}
+
+	return p
+}
+
+// booleanHeap represents a heap of booleanHeapItems.
+type booleanHeap []*booleanHeapItem
+
+func (h booleanHeap) Len() int      { return len(h) }
+func (h booleanHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h booleanHeap) Less(i, j int) bool {
+	x, y := h[i].point, h[j].point
+
+	if h[i].ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if !x.Tags.Equals(&y.Tags) {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if !x.Tags.Equals(&y.Tags) {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *booleanHeap) Push(x interface{}) {
+	*h = append(*h, x.(*booleanHeapItem))
+}
+
+func (h *booleanHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+
+type booleanHeapItem struct {
+	point     *BooleanPoint
+	itr       BooleanIterator
+	ascending bool
 }
 
 // booleanJoinIterator represents a join iterator that processes boolean values.

@@ -4373,7 +4373,7 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 		&Query{
 			name:    "limit - offset higher than number of points",
 			command: `select foo from "limited" LIMIT 2 OFFSET 20`,
-			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","foo"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -4404,18 +4404,6 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 			name:    "limit - offset higher than number of points with group by time",
 			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
 			exp:     `{"results":[{}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "limit higher than the number of data points should error",
-			command: `select mean(foo)  from "limited"  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
-			exp:     `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
-			command: `select mean(foo)  from "limited"  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
-			exp:     `{"results":[{"series":[{"name":"limited","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]},{"name":"limited","tags":{"tennant":"todd"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",0]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

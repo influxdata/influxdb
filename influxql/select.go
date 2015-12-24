@@ -46,6 +46,11 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 		return nil, err
 	}
 
+	// Apply limit & offset.
+	if opt.Limit > 0 || opt.Offset > 0 {
+		input = NewLimitIterator(input, opt)
+	}
+
 	// Wrap in an auxilary iterator to separate the fields.
 	aitr := NewAuxIterator(input, opt)
 
@@ -90,6 +95,13 @@ func buildExprIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) 
 
 	// Join iterators together on time.
 	itrs = Join(itrs)
+
+	// If there is a limit or offset then apply it.
+	if opt.Limit > 0 || opt.Offset > 0 {
+		for i := range itrs {
+			itrs[i] = NewLimitIterator(itrs[i], opt)
+		}
+	}
 
 	return itrs, nil
 }

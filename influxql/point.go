@@ -4,6 +4,8 @@ import (
 	"sort"
 )
 
+//go:generate tmpl -data=[{"Name":"Float","name":"float","Type":"float64","Nil":"math.NaN()"},{"Name":"String","name":"string","Type":"string","Nil":"\"\""},{"Name":"Boolean","name":"boolean","Type":"bool","Nil":"false"}] point.gen.go.tmpl
+
 // ZeroTime is the Unix nanosecond timestamp for time.Time{}.
 const ZeroTime = int64(-6795364578871345152)
 
@@ -25,90 +27,6 @@ type Point interface {
 
 // Points represents a list of points.
 type Points []Point
-
-// FloatPoint represents a point with a float value.
-type FloatPoint struct {
-	Name string
-	Tags Tags
-
-	Time  int64
-	Value float64
-	Aux   []interface{}
-}
-
-func (v *FloatPoint) name() string       { return v.Name }
-func (v *FloatPoint) tags() Tags         { return v.Tags }
-func (v *FloatPoint) time() int64        { return v.Time }
-func (v *FloatPoint) value() interface{} { return v.Value }
-func (v *FloatPoint) aux() []interface{} { return v.Aux }
-
-// Clone returns a copy of v.
-func (v *FloatPoint) Clone() *FloatPoint {
-	if v == nil {
-		return nil
-	}
-
-	other := *v
-	if v.Aux != nil {
-		other.Aux = make([]interface{}, len(v.Aux))
-		copy(other.Aux, v.Aux)
-	}
-
-	return &other
-}
-
-// floatPoints represents a slice of points sortable by value.
-type floatPoints []FloatPoint
-
-func (a floatPoints) Len() int           { return len(a) }
-func (a floatPoints) Less(i, j int) bool { return a[i].Time < a[j].Time }
-func (a floatPoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// floatPointsByValue represents a slice of points sortable by value.
-type floatPointsByValue []FloatPoint
-
-func (a floatPointsByValue) Len() int           { return len(a) }
-func (a floatPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value }
-func (a floatPointsByValue) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// StringPoint represents a point with a string value.
-type StringPoint struct {
-	Name string
-	Tags Tags
-
-	Time  int64
-	Value string
-	Aux   []interface{}
-}
-
-func (v *StringPoint) name() string       { return v.Name }
-func (v *StringPoint) tags() Tags         { return v.Tags }
-func (v *StringPoint) time() int64        { return v.Time }
-func (v *StringPoint) value() interface{} { return v.Value }
-func (v *StringPoint) aux() []interface{} { return v.Aux }
-
-// stringPoints represents a slice of points sortable by value.
-type stringPoints []StringPoint
-
-func (a stringPoints) Len() int           { return len(a) }
-func (a stringPoints) Less(i, j int) bool { return a[i].Time < a[j].Time }
-func (a stringPoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// BooleanPoint represents a point with a boolean value.
-type BooleanPoint struct {
-	Name string
-	Tags Tags
-
-	Time  int64
-	Value bool
-	Aux   []interface{}
-}
-
-func (v *BooleanPoint) name() string       { return v.Name }
-func (v *BooleanPoint) tags() Tags         { return v.Tags }
-func (v *BooleanPoint) time() int64        { return v.Time }
-func (v *BooleanPoint) value() interface{} { return v.Value }
-func (v *BooleanPoint) aux() []interface{} { return v.Aux }
 
 // Tags represent a map of keys and values.
 // It memoizes its key so it can be used efficiently during query execution.

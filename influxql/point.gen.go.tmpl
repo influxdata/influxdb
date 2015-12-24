@@ -1,0 +1,54 @@
+package influxql
+
+{{range .}}
+
+// {{.Name}}Point represents a point with a {{.Type}} value.
+type {{.Name}}Point struct {
+	Name string
+	Tags Tags
+
+	Time  int64
+	Value {{.Type}}
+	Aux   []interface{}
+}
+
+func (v *{{.Name}}Point) name() string       { return v.Name }
+func (v *{{.Name}}Point) tags() Tags         { return v.Tags }
+func (v *{{.Name}}Point) time() int64        { return v.Time }
+func (v *{{.Name}}Point) value() interface{} { return v.Value }
+func (v *{{.Name}}Point) aux() []interface{} { return v.Aux }
+
+// Clone returns a copy of v.
+func (v *{{.Name}}Point) Clone() *{{.Name}}Point {
+	if v == nil {
+		return nil
+	}
+
+	other := *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+
+	return &other
+}
+
+// {{.name}}Points represents a slice of points sortable by value.
+type {{.name}}Points []{{.Name}}Point
+
+func (a {{.name}}Points) Len() int           { return len(a) }
+func (a {{.name}}Points) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a {{.name}}Points) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// {{.name}}PointsByValue represents a slice of points sortable by value.
+type {{.name}}PointsByValue []{{.Name}}Point
+
+func (a {{.name}}PointsByValue) Len() int           { return len(a) }
+{{if eq .Name "Boolean"}}
+func (a {{.name}}PointsByValue) Less(i, j int) bool { return !a[i].Value }
+{{else}}
+func (a {{.name}}PointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value }
+{{end}}
+func (a {{.name}}PointsByValue) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+{{end}}

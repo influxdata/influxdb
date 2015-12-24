@@ -78,6 +78,31 @@ func TestFloatAuxIterator(t *testing.T) {
 	}
 }
 
+// Ensure limit iterator returns a subset of points.
+func TestLimitIterator(t *testing.T) {
+	itr := influxql.NewLimitIterator(
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Time: 0, Value: 0},
+			{Time: 1, Value: 1},
+			{Time: 2, Value: 2},
+			{Time: 3, Value: 3},
+		}},
+		influxql.IteratorOptions{
+			Limit:     2,
+			Offset:    1,
+			StartTime: influxql.MinTime,
+			EndTime:   influxql.MaxTime,
+		},
+	)
+
+	if a := (Iterators{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Time: 1, Value: 1}},
+		{&influxql.FloatPoint{Time: 2, Value: 2}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
 func BenchmarkJoin(b *testing.B) {
 	// Generate inputs.
 	rand := rand.New(rand.NewSource(0))

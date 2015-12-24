@@ -1,7 +1,6 @@
 package influxql
 
 import (
-	"container/heap"
 	"errors"
 	"fmt"
 	"math"
@@ -77,105 +76,69 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
-// newFloatSortedMergeIterator returns an instance of floatSortedMergeIterator.
-func newFloatSortedMergeIterator(inputs []FloatIterator, opt IteratorOptions) Iterator {
-	itr := &floatSortedMergeIterator{
-		inputs: newBufFloatIterators(inputs),
-		heap:   make(floatHeap, 0, len(inputs)),
-		opt:    opt,
+// NewLimitIterator returns an iterator that limits the number of points per grouping.
+func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatLimitIterator(input, opt)
+	default:
+		panic(fmt.Sprintf("unsupported limit iterator type: %T", input))
 	}
-
-	// Initialize heap.
-	for _, input := range inputs {
-		// Read next point.
-		p := input.Next()
-		if p == nil {
-			continue
-		}
-
-		// Append to the heap.
-		itr.heap = append(itr.heap, &floatHeapItem{point: p, itr: input, ascending: opt.Ascending})
-	}
-	heap.Init(&itr.heap)
-
-	return itr
 }
 
-// floatSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
-type floatSortedMergeIterator struct {
-	inputs bufFloatIterators
-	opt    IteratorOptions
-	heap   floatHeap
+// floatLimitIterator represents an iterator that limits points per group.
+type floatLimitIterator struct {
+	input FloatIterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// newFloatLimitIterator returns a new instance of floatLimitIterator.
+func newFloatLimitIterator(input FloatIterator, opt IteratorOptions) *floatLimitIterator {
+	return &floatLimitIterator{
+		input: input,
+		opt:   opt,
+	}
 }
 
 // Close closes the underlying iterators.
-func (itr *floatSortedMergeIterator) Close() error { return itr.inputs.Close() }
+func (itr *floatLimitIterator) Close() error { return itr.input.Close() }
 
-// Next returns the next points from the iterator.
-func (itr *floatSortedMergeIterator) Next() *FloatPoint { return itr.pop() }
-
-// pop returns the next point from the heap.
-// Reads the next point from item's cursor and puts it back on the heap.
-func (itr *floatSortedMergeIterator) pop() *FloatPoint {
-	if len(itr.heap) == 0 {
-		return nil
-	}
-
-	// Read the next item from the heap.
-	item := heap.Pop(&itr.heap).(*floatHeapItem)
-
-	// Copy the point for return.
-	p := item.point.Clone()
-
-	// Read the next item from the cursor. Push back to heap if one exists.
-	if item.point = item.itr.Next(); item.point != nil {
-		heap.Push(&itr.heap, item)
-	}
-
-	return p
-}
-
-// floatHeap represents a heap of floatHeapItems.
-type floatHeap []*floatHeapItem
-
-func (h floatHeap) Len() int      { return len(h) }
-func (h floatHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h floatHeap) Less(i, j int) bool {
-	x, y := h[i].point, h[j].point
-
-	if h[i].ascending {
-		if x.Name != y.Name {
-			return x.Name < y.Name
-		} else if !x.Tags.Equals(&y.Tags) {
-			return x.Tags.ID() < y.Tags.ID()
+// Next returns the next point from the iterator.
+func (itr *floatLimitIterator) Next() *FloatPoint {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
 		}
-		return x.Time < y.Time
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p
 	}
-
-	if x.Name != y.Name {
-		return x.Name > y.Name
-	} else if !x.Tags.Equals(&y.Tags) {
-		return x.Tags.ID() > y.Tags.ID()
-	}
-	return x.Time > y.Time
-}
-
-func (h *floatHeap) Push(x interface{}) {
-	*h = append(*h, x.(*floatHeapItem))
-}
-
-func (h *floatHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	item := old[n-1]
-	*h = old[0 : n-1]
-	return item
-}
-
-type floatHeapItem struct {
-	point     *FloatPoint
-	itr       FloatIterator
-	ascending bool
 }
 
 // Join combines inputs based on timestamp and returns new iterators.
