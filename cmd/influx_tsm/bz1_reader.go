@@ -22,6 +22,7 @@ type BZ1Reader struct {
 	currCursor int
 	keyBuf     int64
 	valBuf     interface{}
+	valuesBuf  []tsm.Value
 
 	series map[string]*Series
 	fields map[string]*MeasurementFields
@@ -48,7 +49,12 @@ func (b *BZ1Reader) Open() error {
 	err = b.db.View(func(tx *bolt.Tx) error {
 		var data []byte
 
-		buf := tx.Bucket([]byte("meta")).Get([]byte("series"))
+		meta := tx.Bucket([]byte("meta"))
+		if meta == nil {
+			// No data in this shard.
+			return nil
+		}
+		buf := meta.Get([]byte("series"))
 		if buf == nil {
 			// No data in this shard.
 			return nil
@@ -61,7 +67,7 @@ func (b *BZ1Reader) Open() error {
 			return err
 		}
 
-		buf = tx.Bucket([]byte("meta")).Get([]byte("fields"))
+		buf = meta.Get([]byte("fields"))
 		if buf == nil {
 			// No data in this shard.
 			return nil
@@ -94,7 +100,7 @@ func (b *BZ1Reader) Open() error {
 		measurement := MeasurementFromSeriesKey(s)
 		for _, f := range b.fields[MeasurementFromSeriesKey(s)].Fields {
 			c := NewBZ1Cursor(b.tx, s, f.Name, b.codecs[measurement])
-			c.SeekTo(0)
+			b.keyBuf, b.valBuf = c.SeekTo(0)
 			b.cursors = append(b.cursors, c)
 		}
 	}
@@ -103,43 +109,38 @@ func (b *BZ1Reader) Open() error {
 	return nil
 }
 
+// Next returns whether there is any more data to be read.
 func (b *BZ1Reader) Next() bool {
 	for {
-		if b.currCursor == len(b.cursors) {
-			// No more cursors remain. We're finished.
-			return false
-		}
-
-		b.keyBuf, b.valBuf = b.cursors[b.currCursor].Next()
 		if b.keyBuf == -1 {
 			// Go to next cursor and try again.
 			b.currCursor++
+			if b.currCursor == len(b.cursors) {
+				// No more cursors remain. We're finished.
+				return false
+			}
+			b.keyBuf, b.valBuf = b.cursors[b.currCursor].Next()
 			continue
 		}
-		return true
+
+		for {
+			b.valuesBuf = append(b.valuesBuf, convertToValue(b.keyBuf, b.valBuf))
+			b.keyBuf, b.valBuf = b.cursors[b.currCursor].Next()
+			if len(b.valuesBuf) == 1000 {
+				return true
+			}
+			if b.keyBuf == -1 {
+				return true
+			}
+		}
 	}
 }
 
 func (b *BZ1Reader) Read() (string, []tsm.Value, error) {
-	var values []tsm.Value
+	values := b.valuesBuf
+	b.valuesBuf = nil
 
-	// Add buffered point.
-	values = append(values, convertToValue(b.keyBuf, b.valBuf))
-
-	// Add up go the chunk size of points from the current cursor.
 	cc := b.cursors[b.currCursor]
-	for {
-		if len(values) == 1000 {
-			break
-		}
-
-		k, v := cc.Next()
-		if k == -1 {
-			break
-		}
-		values = append(values, convertToValue(k, v))
-	}
-
 	return tsm.SeriesFieldKey(cc.series, cc.field), values, nil
 }
 
@@ -309,7 +310,7 @@ func convertToValue(k int64, v interface{}) tsm.Value {
 			value: v,
 		}
 	default:
-		panic("value unsupported for conversion")
+		panic(fmt.Sprintf("value type %T unsupported for conversion", v))
 	}
 
 	return value
