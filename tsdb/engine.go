@@ -39,6 +39,8 @@ type Engine interface {
 	Format() EngineFormat
 
 	io.WriterTo
+
+	Backup(w io.Writer, basePath string, since time.Time) error
 }
 
 type EngineFormat int

@@ -299,6 +299,13 @@ func (t *TSMReader) HasTombstones() bool {
 	return t.tombstoner.HasTombstones()
 }
 
+// TombstoneFiles returns any tombstone files associated with this TSM file.
+func (t *TSMReader) TombstoneFiles() []FileStat {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.tombstoner.TombstoneFiles()
+}
+
 func (t *TSMReader) Stats() FileStat {
 	minTime, maxTime := t.index.TimeRange()
 	minKey, maxKey := t.index.KeyRange()

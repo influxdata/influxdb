@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"archive/tar"
 	"fmt"
 	"io"
 	"log"
@@ -201,6 +202,69 @@ func (e *DevEngine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, 
 			return err
 		}
 	}
+
+	return nil
+}
+
+// Backup will write a tar archive of any TSM files modified since the passed
+// in time to the passed in writer. The basePath will be prepended to the names
+// of the files in the archive. It will force a snapshot of the WAL first
+// then perform the backup with a read lock against the file store. This means
+// that new TSM files will not be able to be created in this shard while the
+// backup is running. For shards that are still acively getting writes, this
+// could cause the WAL to backup, increasing memory usage and evenutally rejecting writes.
+func (e *DevEngine) Backup(w io.Writer, basePath string, since time.Time) error {
+	if err := e.WriteSnapshot(); err != nil {
+		return err
+	}
+	e.FileStore.mu.RLock()
+	defer e.FileStore.mu.RUnlock()
+
+	var files []FileStat
+
+	// grab all the files and tombstones that have a modified time after since
+	for _, f := range e.FileStore.files {
+		if stat := f.Stats(); stat.LastModified.After(since) {
+			files = append(files, f.Stats())
+		}
+		for _, t := range f.TombstoneFiles() {
+			if t.LastModified.After(since) {
+				files = append(files, f.Stats())
+			}
+		}
+	}
+
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
+	for _, f := range files {
+		if err := e.writeFileToBackup(f, basePath, tw); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeFileToBackup will copy the file into the tar archive. Files will use the shardRelativePath
+// in their names. This should be the <db>/<retention policy>/<id> part of the path
+func (e *DevEngine) writeFileToBackup(f FileStat, shardRelativePath string, tw *tar.Writer) error {
+	h := &tar.Header{
+		Name:    filepath.Join(shardRelativePath, filepath.Base(f.Path)),
+		ModTime: f.LastModified,
+		Size:    int64(f.Size),
+	}
+	if err := tw.WriteHeader(h); err != nil {
+		return err
+	}
+	fr, err := os.Open(f.Path)
+	if err != nil {
+		return err
+	}
+
+	defer fr.Close()
+
+	io.Copy(tw, fr)
 
 	return nil
 }

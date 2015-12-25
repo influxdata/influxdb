@@ -111,6 +111,10 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	return e
 }
 
+func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
+	return fmt.Errorf("backup not implemented on bz1 engine")
+}
+
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 

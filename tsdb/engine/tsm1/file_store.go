@@ -54,6 +54,10 @@ type TSMFile interface {
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
 
+	// TombstoneFiles returns the tombstone filestats if there are any tombstones
+	// written for this file.
+	TombstoneFiles() []FileStat
+
 	// Close the underlying file resources
 	Close() error
 

@@ -1,6 +1,7 @@
 package restore
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"flag"
@@ -10,138 +11,126 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/snapshot"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 // Command represents the program execution for "influxd restore".
 type Command struct {
 	Stdout io.Writer
 	Stderr io.Writer
+
+	backupFilesPath string
+	metadir         string
+	datadir         string
+	database        string
+	retention       string
+	shard           string
+
+	// TODO: when the new meta stuff is done this should not be exported or be gone
+	MetaConfig *meta.Config
 }
 
 // NewCommand returns a new instance of Command with default settings.
 func NewCommand() *Command {
 	return &Command{
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdout:     os.Stdout,
+		Stderr:     os.Stderr,
+		MetaConfig: meta.NewConfig(),
 	}
 }
 
 // Run executes the program.
 func (cmd *Command) Run(args ...string) error {
-	config, path, err := cmd.parseFlags(args)
+	if err := cmd.parseFlags(args); err != nil {
+		return err
+	}
+
+	if cmd.metadir != "" {
+		if err := cmd.unpackMeta(); err != nil {
+			return err
+		}
+	}
+
+	if cmd.shard != "" {
+		return cmd.unpackShard(cmd.shard)
+	} else if cmd.retention != "" {
+		return cmd.unpackRetention()
+	}
+
+	return cmd.unpackDatabase()
+}
+
+// parseFlags parses and validates the command line arguments.
+func (cmd *Command) parseFlags(args []string) error {
+	fs := flag.NewFlagSet("", flag.ContinueOnError)
+	fs.StringVar(&cmd.metadir, "metadir", "", "")
+	fs.StringVar(&cmd.datadir, "datadir", "", "")
+	fs.StringVar(&cmd.database, "database", "", "")
+	fs.StringVar(&cmd.retention, "retention", "", "")
+	fs.StringVar(&cmd.shard, "shard", "", "")
+	fs.SetOutput(cmd.Stderr)
+	fs.Usage = cmd.printUsage
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	cmd.MetaConfig = meta.NewConfig()
+	cmd.MetaConfig.Dir = cmd.metadir
+
+	// Require output path.
+	cmd.backupFilesPath = fs.Arg(0)
+	if cmd.backupFilesPath == "" {
+		return fmt.Errorf("path with backup files required")
+	}
+
+	// validate the arguments
+	if cmd.metadir == "" && cmd.database == "" {
+		return fmt.Errorf("either a metadir or database are required to restore")
+	}
+
+	if cmd.database != "" || cmd.retention != "" || cmd.shard != "" {
+		if cmd.datadir == "" {
+			return fmt.Errorf("datadir is required to restore")
+		}
+	}
+
+	if cmd.shard != "" {
+		if cmd.database == "" {
+			return fmt.Errorf("database is required to restore shard")
+		}
+		if cmd.retention == "" {
+			return fmt.Errorf("retention is required to restore shard")
+		}
+	} else if cmd.retention != "" {
+		if cmd.database == "" {
+			return fmt.Errorf("database is required to restore retention policy")
+		}
+	}
+
+	return nil
+}
+
+// unpackMeta reads the metadata from the backup directory and initializes a raft
+// cluster and replaces the root metadata.
+func (cmd *Command) unpackMeta() error {
+	// find the meta file
+	metaFiles, err := filepath.Glob(filepath.Join(cmd.backupFilesPath, backup.Metafile+".*"))
+	if err != nil {
+		return err
+	}
+	if len(metaFiles) == 0 {
+		return fmt.Errorf("no metastore backups in %s", cmd.backupFilesPath)
+	}
+
+	// Read the metastore backup
+	f, err := os.Open(metaFiles[len(metaFiles)-1])
 	if err != nil {
 		return err
 	}
 
-	return cmd.Restore(config, path)
-}
-
-// Restore restores a database snapshot
-func (cmd *Command) Restore(config *Config, path string) error {
-	// Remove meta and data directories.
-	if err := os.RemoveAll(config.Meta.Dir); err != nil {
-		return fmt.Errorf("remove meta dir: %s", err)
-	} else if err := os.RemoveAll(config.Data.Dir); err != nil {
-		return fmt.Errorf("remove data dir: %s", err)
-	}
-
-	// Open snapshot file and all incremental backups.
-	mr, files, err := snapshot.OpenFileMultiReader(path)
-	if err != nil {
-		return fmt.Errorf("open multireader: %s", err)
-	}
-	defer closeAll(files)
-
-	// Unpack files from archive.
-	if err := cmd.unpack(mr, config); err != nil {
-		return fmt.Errorf("unpack: %s", err)
-	}
-
-	// Notify user of completion.
-	fmt.Fprintf(os.Stdout, "restore complete using %s", path)
-	return nil
-}
-
-// parseFlags parses and validates the command line arguments.
-func (cmd *Command) parseFlags(args []string) (*Config, string, error) {
-	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	configPath := fs.String("config", "", "")
-	fs.SetOutput(cmd.Stderr)
-	fs.Usage = cmd.printUsage
-	if err := fs.Parse(args); err != nil {
-		return nil, "", err
-	}
-
-	// Parse configuration file from disk.
-	if *configPath == "" {
-		return nil, "", fmt.Errorf("config required")
-	}
-
-	// Parse config.
-	config := Config{
-		Meta: meta.NewConfig(),
-		Data: tsdb.NewConfig(),
-	}
-	if _, err := toml.DecodeFile(*configPath, &config); err != nil {
-		return nil, "", err
-	}
-
-	// Require output path.
-	path := fs.Arg(0)
-	if path == "" {
-		return nil, "", fmt.Errorf("snapshot path required")
-	}
-
-	return &config, path, nil
-}
-
-func closeAll(a []io.Closer) {
-	for _, c := range a {
-		_ = c.Close()
-	}
-}
-
-// unpack expands the files in the snapshot archive into a directory.
-func (cmd *Command) unpack(mr *snapshot.MultiReader, config *Config) error {
-	// Loop over files and extract.
-	for {
-		// Read entry header.
-		sf, err := mr.Next()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return fmt.Errorf("next: entry=%s, err=%s", sf.Name, err)
-		}
-
-		// Log progress.
-		fmt.Fprintf(os.Stdout, "unpacking: %s (%d bytes)\n", sf.Name, sf.Size)
-
-		// Handle meta and tsdb files separately.
-		switch sf.Name {
-		case "meta":
-			if err := cmd.unpackMeta(mr, sf, config); err != nil {
-				return fmt.Errorf("meta: %s", err)
-			}
-		default:
-			if err := cmd.unpackData(mr, sf, config); err != nil {
-				return fmt.Errorf("data: %s", err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// unpackMeta reads the metadata from the snapshot and initializes a raft
-// cluster and replaces the root metadata.
-func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
-	// Read meta into buffer.
 	var buf bytes.Buffer
-	if _, err := io.CopyN(&buf, mr, sf.Size); err != nil {
+	if _, err := io.Copy(&buf, f); err != nil {
 		return fmt.Errorf("copy: %s", err)
 	}
 
@@ -151,22 +140,18 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 		return fmt.Errorf("unmarshal: %s", err)
 	}
 
-	// Copy meta config and remove peers so it starts in single mode.
-	c := config.Meta
-	c.Peers = nil
-
 	// Initialize meta store.
-	store := meta.NewStore(config.Meta)
+	store := meta.NewStore(cmd.MetaConfig)
 	store.RaftListener = newNopListener()
 	store.ExecListener = newNopListener()
 	store.RPCListener = newNopListener()
 
 	// Determine advertised address.
-	_, port, err := net.SplitHostPort(config.Meta.BindAddress)
+	_, port, err := net.SplitHostPort(cmd.MetaConfig.BindAddress)
 	if err != nil {
 		return fmt.Errorf("split bind address: %s", err)
 	}
-	hostport := net.JoinHostPort(config.Meta.Hostname, port)
+	hostport := net.JoinHostPort(cmd.MetaConfig.Hostname, port)
 
 	// Resolve address.
 	addr, err := net.ResolveTCPAddr("tcp", hostport)
@@ -197,23 +182,111 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 	return nil
 }
 
-func (cmd *Command) unpackData(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
-	path := filepath.Join(config.Data.Dir, sf.Name)
-	// Create parent directory for output file.
-	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
-		return fmt.Errorf("mkdir: entry=%s, err=%s", sf.Name, err)
+// unpackShard will look for all backup files in the path matching this shard ID
+// and restore them to the data dir
+func (cmd *Command) unpackShard(shardID string) error {
+	// make sure the shard isn't already there so we don't clobber anything
+	restorePath := filepath.Join(cmd.datadir, cmd.database, cmd.retention, shardID)
+	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("shard already present: %s", restorePath)
 	}
 
-	// Create output file.
-	f, err := os.Create(path)
+	// find the shard backup files
+	pat := filepath.Join(cmd.backupFilesPath, fmt.Sprintf(backup.BackupFilePattern, cmd.database, cmd.retention, shardID))
+	return cmd.unpackFiles(pat + ".*")
+}
+
+// unpackDatabase will look for all backup files in the path matching this database
+// and restore them to the data dir
+func (cmd *Command) unpackDatabase() error {
+	// make sure the shard isn't already there so we don't clobber anything
+	restorePath := filepath.Join(cmd.datadir, cmd.database)
+	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("database already present: %s", restorePath)
+	}
+
+	// find the database backup files
+	pat := filepath.Join(cmd.backupFilesPath, cmd.database)
+	return cmd.unpackFiles(pat + ".*")
+}
+
+// unpackRetention will look for all backup files in the path matching this retention
+// and restore them to the data dir
+func (cmd *Command) unpackRetention() error {
+	// make sure the shard isn't already there so we don't clobber anything
+	restorePath := filepath.Join(cmd.datadir, cmd.database, cmd.retention)
+	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("retention already present: %s", restorePath)
+	}
+
+	// find the retention backup files
+	pat := filepath.Join(cmd.backupFilesPath, cmd.database)
+	return cmd.unpackFiles(fmt.Sprintf("%s.%s.*", pat, cmd.retention))
+}
+
+// unpackFiles will look for backup files matching the pattern and restore them to the data dir
+func (cmd *Command) unpackFiles(pat string) error {
+	fmt.Printf("restoring from backup %s\n", pat)
+
+	backupFiles, err := filepath.Glob(pat)
 	if err != nil {
-		return fmt.Errorf("create: entry=%s, err=%s", sf.Name, err)
+		return err
+	}
+
+	if len(backupFiles) == 0 {
+		return fmt.Errorf("no backup files for %s in %s", pat, cmd.backupFilesPath)
+	}
+
+	for _, fn := range backupFiles {
+		if err := cmd.unpackTar(fn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// unpackTar will restore a single tar archive to the data dir
+func (cmd *Command) unpackTar(tarFile string) error {
+	f, err := os.Open(tarFile)
+	if err != nil {
+		return err
 	}
 	defer f.Close()
 
-	// Copy contents from reader.
-	if _, err := io.CopyN(f, mr, sf.Size); err != nil {
-		return fmt.Errorf("copy: entry=%s, err=%s", sf.Name, err)
+	tr := tar.NewReader(f)
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		if err := cmd.unpackFile(tr, hdr.Name); err != nil {
+			return err
+		}
+	}
+}
+
+// unpackFile will copy the current file from the tar archive to the data dir
+func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
+	fn := filepath.Join(cmd.datadir, fileName)
+	fmt.Printf("unpacking %s", fn)
+
+	if err := os.MkdirAll(filepath.Dir(fn), 0777); err != nil {
+		return fmt.Errorf("error making restore dir: %s", err.Error())
+	}
+
+	ff, err := os.Create(fn)
+	if err != nil {
+		return err
+	}
+	defer ff.Close()
+
+	if _, err := io.Copy(ff, tr); err != nil {
+		return err
 	}
 
 	return nil
@@ -223,17 +296,20 @@ func (cmd *Command) unpackData(mr *snapshot.MultiReader, sf snapshot.File, confi
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stderr, `usage: influxd restore [flags] PATH
 
-restore uses a snapshot of a data node to rebuild a cluster.
+restore uses backups from the PATH to restore the metastore, databases, retention policies, or specific shards. The InfluxDB process must not be running during restore.
 
-        -config <path>
-                          Set the path to the configuration file.
+        -metadir <path>
+                    	Optional. If set the metastore will be recovered to the given path.
+        -datadir <path>
+        				Optional. If set the restore process will recover the specified
+        				database, retention policy or shard to the given directory.
+       	-database <name>
+       					Optional. Required if no metadir given. Will restore the database TSM files.
+       	-retention <name>
+       					Optional. If given, database is required. Will restore the retention policy's TSM files.
+       	-shard <id>
+       					Optional. If given, database and retention are required. Will restore the shard's TSM files.
 `)
-}
-
-// Config represents a partial config for rebuilding the server.
-type Config struct {
-	Meta *meta.Config `toml:"meta"`
-	Data tsdb.Config  `toml:"data"`
 }
 
 type nopListener struct {

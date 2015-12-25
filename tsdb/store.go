@@ -2,6 +2,7 @@ package tsdb
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -231,6 +232,29 @@ func (s *Store) DiskSize() (int64, error) {
 		size += sz
 	}
 	return size, nil
+}
+
+// BackupShard will get the shard and have the engine backup since the passed in time to the writer
+func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
+	shard := s.Shard(id)
+	if shard == nil {
+		return fmt.Errorf("shard %d doesn't exist on this server", id)
+	}
+
+	path, err := relativePath(s.path, shard.path)
+	if err != nil {
+		return err
+	}
+
+	return shard.engine.Backup(w, path, since)
+}
+
+func (s *Store) ShardRelativePath(id uint64) (string, error) {
+	shard := s.Shard(id)
+	if shard == nil {
+		return "", fmt.Errorf("shard %d doesn't exist on this server", id)
+	}
+	return relativePath(s.path, shard.path)
 }
 
 // deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
@@ -471,4 +495,25 @@ func IsRetryable(err error) bool {
 		return false
 	}
 	return true
+}
+
+// relativePath will expand out the full paths passed in and return
+// the relative shard path from the store
+func relativePath(storePath, shardPath string) (string, error) {
+	path, err := filepath.Abs(storePath)
+	if err != nil {
+		return "", fmt.Errorf("store abs path: %s", err)
+	}
+
+	fp, err := filepath.Abs(shardPath)
+	if err != nil {
+		return "", fmt.Errorf("file abs path: %s", err)
+	}
+
+	name, err := filepath.Rel(path, fp)
+	if err != nil {
+		return "", fmt.Errorf("file rel path: %s", err)
+	}
+
+	return name, nil
 }
