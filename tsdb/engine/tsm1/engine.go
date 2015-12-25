@@ -264,9 +264,9 @@ func (e *DevEngine) writeFileToBackup(f FileStat, shardRelativePath string, tw *
 
 	defer fr.Close()
 
-	io.Copy(tw, fr)
+	_, err = io.CopyN(tw, fr, h.Size)
 
-	return nil
+	return err
 }
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the

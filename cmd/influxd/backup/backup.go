@@ -147,7 +147,7 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 	return cmd.downloadAndVerify(req, shardArchivePath)
 }
 
-// backupDatabase will request the database information from the server and then backup the metasore and
+// backupDatabase will request the database information from the server and then backup the metastore and
 // every shard in every retention policy in the database. Each shard will be written to a separate tar.
 func (cmd *Command) backupDatabase(since time.Time) error {
 	cmd.Logger.Printf("backing up database %s since %s", cmd.database, since)
