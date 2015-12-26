@@ -78,6 +78,7 @@ targets = {
     'influxd' : './cmd/influxd/main.go',
     'influx_stress' : './cmd/influx_stress/influx_stress.go',
     'influx_inspect' : './cmd/influx_inspect/*.go',
+    'influx_tsm' : './cmd/influx_tsm/main.go',
 }
 
 supported_builds = {
