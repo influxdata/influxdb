@@ -218,6 +218,12 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
 		}
 		return p.parseDropRetentionPolicyStatement()
+	} else if tok == SHARD {
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok == GROUP {
+			return p.parseDropShardGroupStatement()
+		}
+		p.unscan()
+		return p.parseDropShardStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
 	} else if tok == SERVER {
@@ -1597,6 +1603,25 @@ func (p *Parser) parseDropRetentionPolicyStatement() (*DropRetentionPolicyStatem
 		return nil, err
 	}
 
+	return stmt, nil
+}
+
+// parseDropShardStatement parses a string and returns a DropShardStatement.
+// This function assumes the DROP SHARD tokens have been consumed.
+func (p *Parser) parseDropShardStatement() (*DropShardStatement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+// parseDropShardGroupStatement parses a string and returns a DropShardGroupStatement.
+// This function assumes the DROP SHARD GROUP tokens have been consumed.
+func (p *Parser) parseDropShardGroupStatement() (*DropShardGroupStatement, error) {
+	stmt := &DropShardGroupStatement{}
+	var err error
+
+	// Parse the shard group's ID.
+	if stmt.ID, err = p.parseUInt64(); err != nil {
+		return nil, err
+	}
 	return stmt, nil
 }
 
