@@ -58,6 +58,10 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 
 	}
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
@@ -114,6 +118,10 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
 	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
@@ -165,6 +173,10 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 	}
 
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
@@ -223,6 +235,10 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
 	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
@@ -275,6 +291,10 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 	}
 
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
@@ -331,6 +351,10 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 	}
 
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
@@ -421,6 +445,10 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
 	if got, exp := len(b.Bytes()), 5; got < exp {
 		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
 	}
@@ -452,6 +480,10 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 		}
 	}
 	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 

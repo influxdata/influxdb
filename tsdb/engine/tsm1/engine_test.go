@@ -391,6 +391,10 @@ func newFiles(values ...keyValues) ([]TSMFile, error) {
 			return nil, err
 		}
 
+		if err := w.Close(); err != nil {
+			return nil, err
+		}
+
 		r, err := NewTSMReader(bytes.NewReader(b.Bytes()))
 		if err != nil {
 			return nil, err

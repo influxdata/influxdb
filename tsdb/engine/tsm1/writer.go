@@ -63,6 +63,7 @@ The last section is the footer that stores the offset of the start of the index.
 */
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -232,8 +233,8 @@ func NewDirectIndex() TSMIndex {
 // directIndex is a simple in-memory index implementation for a TSM file.  The full index
 // must fit in memory.
 type directIndex struct {
-	mu sync.RWMutex
-
+	mu     sync.RWMutex
+	size   uint32
 	blocks map[string]*indexEntries
 }
 
@@ -247,6 +248,11 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime time.Time
 			Type: blockType,
 		}
 		d.blocks[key] = entries
+		// size of the key stored in the index
+		d.size += uint32(2 + len(key))
+
+		// size of the count of entries stored in the index
+		d.size += indexCountSize
 	}
 	entries.Append(&IndexEntry{
 		MinTime: minTime,
@@ -254,6 +260,10 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime time.Time
 		Offset:  offset,
 		Size:    size,
 	})
+
+	// size of the encoded index entry
+	d.size += indexEntrySize
+
 }
 
 func (d *directIndex) Entries(key string) []*IndexEntry {
@@ -431,6 +441,8 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	d.size = uint32(len(b))
+
 	var pos int
 	for pos < len(b) {
 		n, key, err := readKey(b[pos:])
@@ -451,14 +463,15 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 }
 
 func (d *directIndex) Size() uint32 {
-	return 0
+	return d.size
 }
 
 // tsmWriter writes keys and values in the TSM format
 type tsmWriter struct {
-	w     io.Writer
-	index TSMIndex
-	n     int64
+	wrapped io.Writer
+	w       *bufio.Writer
+	index   TSMIndex
+	n       int64
 }
 
 func NewTSMWriter(w io.Writer) (TSMWriter, error) {
@@ -466,7 +479,7 @@ func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 		blocks: map[string]*indexEntries{},
 	}
 
-	return &tsmWriter{w: w, index: index}, nil
+	return &tsmWriter{wrapped: w, w: bufio.NewWriterSize(w, 4*1024*1024), index: index}, nil
 }
 
 func (t *tsmWriter) writeHeader() error {
@@ -574,7 +587,11 @@ func (t *tsmWriter) WriteIndex() error {
 }
 
 func (t *tsmWriter) Close() error {
-	if c, ok := t.w.(io.Closer); ok {
+	if err := t.w.Flush(); err != nil {
+		return err
+	}
+
+	if c, ok := t.wrapped.(io.Closer); ok {
 		return c.Close()
 	}
 	return nil

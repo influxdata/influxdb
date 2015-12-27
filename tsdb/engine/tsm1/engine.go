@@ -82,7 +82,6 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 		Compactor: c,
 		CompactionPlan: &DefaultPlanner{
 			FileStore:                    fs,
-			MinCompactionFileCount:       opt.Config.CompactMinFileCount,
 			CompactFullWriteColdDuration: time.Duration(opt.Config.CompactFullWriteColdDuration),
 		},
 		MaxPointsPerBlock: opt.Config.MaxPointsPerBlock,
@@ -131,9 +130,12 @@ func (e *DevEngine) Open() error {
 		return err
 	}
 
-	e.wg.Add(2)
+	e.wg.Add(5)
 	go e.compactCache()
-	go e.compactTSM()
+	go e.compactTSMFull()
+	go e.compactTSMLevel(true, 1)
+	go e.compactTSMLevel(true, 2)
+	go e.compactTSMLevel(false, 3)
 
 	return nil
 }
@@ -409,7 +411,71 @@ func (e *DevEngine) ShouldCompactCache(lastWriteTime time.Time) bool {
 		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuration
 }
 
-func (e *DevEngine) compactTSM() {
+func (e *DevEngine) compactTSMLevel(fast bool, level int) {
+	defer e.wg.Done()
+
+	for {
+		select {
+		case <-e.done:
+			return
+
+		default:
+			tsmFiles := e.CompactionPlan.PlanLevel(level)
+
+			if len(tsmFiles) == 0 {
+				time.Sleep(time.Second)
+				continue
+			}
+
+			var wg sync.WaitGroup
+			for i, group := range tsmFiles {
+				wg.Add(1)
+				go func(groupNum int, group CompactionGroup) {
+					defer wg.Done()
+					start := time.Now()
+					e.logger.Printf("beginning level %d compaction of group %d, %d TSM files", level, groupNum, len(group))
+					for i, f := range group {
+						e.logger.Printf("compacting level %d group (%d) %s (#%d)", level, groupNum, f, i)
+					}
+
+					var files []string
+					var err error
+
+					if fast {
+						files, err = e.Compactor.CompactFast(group)
+						if err != nil {
+							e.logger.Printf("error compacting TSM files: %v", err)
+							time.Sleep(time.Second)
+							return
+						}
+					} else {
+						files, err = e.Compactor.CompactFull(group)
+						if err != nil {
+							e.logger.Printf("error compacting TSM files: %v", err)
+							time.Sleep(time.Second)
+							return
+						}
+					}
+
+					if err := e.FileStore.Replace(group, files); err != nil {
+						e.logger.Printf("error replacing new TSM files: %v", err)
+						time.Sleep(time.Second)
+						return
+					}
+
+					for i, f := range files {
+						e.logger.Printf("compacted level %d group (%d) into %s (#%d)", level, groupNum, f, i)
+					}
+					e.logger.Printf("compacted level %d group %d of %d files into %d files in %s",
+						level, groupNum, len(group), len(files), time.Since(start))
+				}(i, group)
+			}
+			wg.Wait()
+		}
+	}
+}
+
+func (e *DevEngine) compactTSMFull() {
 	defer e.wg.Done()
 
 	for {
@@ -425,24 +491,38 @@ func (e *DevEngine) compactTSM() {
 				continue
 			}
 
-			start := time.Now()
-			e.logger.Printf("beginning compaction of %d TSM files", len(tsmFiles))
+			var wg sync.WaitGroup
+			for i, group := range tsmFiles {
+				wg.Add(1)
+				go func(groupNum int, group CompactionGroup) {
+					defer wg.Done()
+					start := time.Now()
+					e.logger.Printf("beginning full compaction of group %d, %d TSM files", groupNum, len(group))
+					for i, f := range group {
+						e.logger.Printf("compacting full group (%d) %s (#%d)", groupNum, f, i)
+					}
 
-			files, err := e.Compactor.Compact(tsmFiles)
-			if err != nil {
-				e.logger.Printf("error compacting TSM files: %v", err)
-				time.Sleep(time.Second)
-				continue
+					files, err := e.Compactor.CompactFull(group)
+					if err != nil {
+						e.logger.Printf("error compacting TSM files: %v", err)
+						time.Sleep(time.Second)
+						return
+					}
+
+					if err := e.FileStore.Replace(group, files); err != nil {
+						e.logger.Printf("error replacing new TSM files: %v", err)
+						time.Sleep(time.Second)
+						return
+					}
+
+					for i, f := range files {
+						e.logger.Printf("compacted full group (%d) into %s (#%d)", groupNum, f, i)
+					}
+					e.logger.Printf("compacted full %d files into %d files in %s",
+						len(group), len(files), time.Since(start))
+				}(i, group)
 			}
-
-			if err := e.FileStore.Replace(tsmFiles, files); err != nil {
-				e.logger.Printf("error replacing new TSM files: %v", err)
-				time.Sleep(time.Second)
-				continue
-			}
-
-			e.logger.Printf("compacted %d TSM into %d files in %s",
-				len(tsmFiles), len(files), time.Since(start))
+			wg.Wait()
 		}
 	}
 }
