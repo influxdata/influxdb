@@ -269,12 +269,14 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := now.Round(interval)
-	if startTime.UnixNano() > now.UnixNano() {
-		startTime = startTime.Add(-interval)
+	startTime := now.Add(-interval * time.Duration(s.Config.RecomputePreviousN))
+
+	recomputeNoOlderThan := time.Duration(s.Config.RecomputeNoOlderThan)
+	if now.Sub(startTime) > recomputeNoOlderThan {
+		startTime = now.Add(-recomputeNoOlderThan)
 	}
 
-	if err := cq.q.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
+	if err := cq.q.SetTimeRange(startTime, now); err != nil {
 		s.Logger.Printf("error setting time range: %s\n", err)
 	}
 
@@ -288,27 +290,6 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return err
 	}
 
-	recomputeNoOlderThan := time.Duration(s.Config.RecomputeNoOlderThan)
-
-	for i := 0; i < s.Config.RecomputePreviousN; i++ {
-		// if we're already more time past the previous window than we're going to look back, stop
-		if now.Sub(startTime) > recomputeNoOlderThan {
-			return nil
-		}
-		newStartTime := startTime.Add(-interval)
-
-		if err := cq.q.SetTimeRange(newStartTime, startTime); err != nil {
-			s.Logger.Printf("error setting time range: %s\n", err)
-			return err
-		}
-
-		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
-			s.Logger.Printf("error during recompute previous: %s. running: %s\n", err, cq.q.String())
-			return err
-		}
-
-		startTime = newStartTime
-	}
 	return nil
 }
 
