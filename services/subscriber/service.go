@@ -11,7 +11,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // Statistics for the Subscriber service.
@@ -37,8 +37,8 @@ type subEntry struct {
 // to defined third party destinations.
 // Subscriptions are defined per database and retention policy.
 type Service struct {
-	subs      map[subEntry]PointsWriter
-	MetaStore interface {
+	subs       map[subEntry]PointsWriter
+	MetaClient interface {
 		Databases() ([]meta.DatabaseInfo, error)
 		WaitForDataChanged() error
 	}
@@ -68,7 +68,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.MetaStore == nil {
+	if s.MetaClient == nil {
 		panic("no meta store")
 	}
 
@@ -104,7 +104,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 
 func (s *Service) waitForMetaUpdates() {
 	for {
-		err := s.MetaStore.WaitForDataChanged()
+		err := s.MetaClient.WaitForDataChanged()
 		if err != nil {
 			s.Logger.Printf("error while waiting for meta data changes, err: %v\n", err)
 			return
@@ -124,7 +124,7 @@ func (s *Service) waitForMetaUpdates() {
 
 // Update will start new and stop deleted subscriptions.
 func (s *Service) Update() error {
-	dbis, err := s.MetaStore.Databases()
+	dbis, err := s.MetaClient.Databases()
 	if err != nil {
 		return err
 	}

@@ -14,8 +14,8 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -82,7 +82,7 @@ type Service struct {
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
-	MetaStore interface {
+	MetaClient interface {
 		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
@@ -143,12 +143,12 @@ func (s *Service) Open() error {
 		s.Monitor.RegisterDiagnosticsClient(key, s)
 	}
 
-	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
+	if err := s.MetaClient.WaitForLeader(leaderWaitTimeout); err != nil {
 		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
 		return err
 	}
 
-	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.database); err != nil {
+	if _, err := s.MetaClient.CreateDatabaseIfNotExists(s.database); err != nil {
 		s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
 		return err
 	}
