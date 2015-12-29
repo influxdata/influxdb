@@ -12,6 +12,7 @@ import (
 var (
 	config     = flag.String("config", "", "The stress test file")
 	cpuprofile = flag.String("cpuprofile", "", "Write the cpu profile to `filename`")
+	db         = flag.String("db", "", "name of the database where the stress test will take place")
 )
 
 func main() {
@@ -32,6 +33,12 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		return
+	}
+
+	if *db != "" {
+		c.Provision.Basic.Database = *db
+		c.Write.InfluxClients.Basic.Database = *db
+		c.Read.QueryClients.Basic.Database = *db
 	}
 
 	w := stress.NewWriter(&c.Write.PointGenerators.Basic, &c.Write.InfluxClients.Basic)
