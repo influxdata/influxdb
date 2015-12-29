@@ -12,7 +12,7 @@ import (
 var (
 	config     = flag.String("config", "", "The stress test file")
 	cpuprofile = flag.String("cpuprofile", "", "Write the cpu profile to `filename`")
-	db         = flag.String("db", "", "name of the database where the stress test will take place")
+	db         = flag.String("db", "", "target database within test system for write and query load")
 )
 
 func main() {
