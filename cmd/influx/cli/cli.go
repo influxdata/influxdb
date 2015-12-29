@@ -38,6 +38,7 @@ type CommandLine struct {
 	Password         string
 	Database         string
 	Ssl              bool
+	UnsafeSsl        bool
 	RetentionPolicy  string
 	ClientVersion    string
 	ServerVersion    string
@@ -270,6 +271,7 @@ func (c *CommandLine) Connect(cmd string) error {
 	config.Password = c.Password
 	config.UserAgent = "InfluxDBShell/" + c.ClientVersion
 	config.Precision = c.Precision
+	config.UnsafeSsl = c.UnsafeSsl
 	cl, err := client.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("Could not create client %s", err)

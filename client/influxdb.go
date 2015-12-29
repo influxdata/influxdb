@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,6 +80,7 @@ type Config struct {
 	UserAgent string
 	Timeout   time.Duration
 	Precision string
+	UnsafeSsl bool
 }
 
 // NewConfig will create a config to be used in connecting to the client
@@ -114,11 +116,19 @@ const (
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
 func NewClient(c Config) (*Client, error) {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: c.UnsafeSsl,
+	}
+
+	tr := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
 	client := Client{
 		url:        c.URL,
 		username:   c.Username,
 		password:   c.Password,
-		httpClient: &http.Client{Timeout: c.Timeout},
+		httpClient: &http.Client{Timeout: c.Timeout, Transport: tr},
 		userAgent:  c.UserAgent,
 		precision:  c.Precision,
 	}
