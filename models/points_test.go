@@ -1660,7 +1660,8 @@ func TestParsePointsStringWithExtraBuffer(t *testing.T) {
 }
 
 func TestParsePointsQuotesInFieldKey(t *testing.T) {
-	buf := `cpu "a=1`
+	buf := `cpu "a=1
+cpu value=2 1`
 	points, err := models.ParsePointsString(buf)
 	if err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
@@ -1681,5 +1682,18 @@ func TestParsePointsQuotesInFieldKey(t *testing.T) {
 	_, err = models.ParsePointsString(buf)
 	if err == nil {
 		t.Fatalf("expected parsing failure but got no error")
+	}
+}
+
+func TestParsePointsQuotesInTags(t *testing.T) {
+	buf := `t159,label=hey\ "ya a=1i,value=0i
+t159,label=another a=2i,value=1i 1`
+	points, err := models.ParsePointsString(buf)
+	if err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if len(points) != 2 {
+		t.Fatalf("expected 2 points, got %d", len(points))
 	}
 }
