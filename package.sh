@@ -73,6 +73,7 @@ BINS=(
     influxd
     influx
     influx_stress
+    influx_tsm
     influx_inspect
     )
 
