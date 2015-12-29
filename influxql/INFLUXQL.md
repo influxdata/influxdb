@@ -85,16 +85,16 @@ _cpu_stats
 ALL           ALTER         ANY           AS            ASC           BEGIN
 BY            CREATE        CONTINUOUS    DATABASE      DATABASES     DEFAULT
 DELETE        DESC          DESTINATIONS  DIAGNOSTICS   DISTINCT      DROP
-DURATION      END           EXISTS        EXPLAIN       FIELD         FOR
-FORCE         FROM          GRANT         GRANTS        GROUP         GROUPS
-IF            IN            INF           INNER         INSERT        INTO
-KEY           KEYS          LIMIT         SHOW          MEASUREMENT   MEASUREMENTS
-NOT           OFFSET        ON            ORDER         PASSWORD      POLICY
-POLICIES      PRIVILEGES    QUERIES       QUERY         READ          REPLICATION
-RETENTION     REVOKE        SELECT        SERIES        SERVER        SERVERS
-SET           SHARD         SHARDS        SLIMIT        SOFFSET       STATS
-SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER          USERS
-VALUES        WHERE         WITH          WRITE
+DURATION      END           EVERY         EXISTS        EXPLAIN       FIELD
+FOR           FORCE         FROM          GRANT         GRANTS        GROUP
+GROUPS        IF            IN            INF           INNER         INSERT
+INTO          KEY           KEYS          LIMIT         SHOW          MEASUREMENT
+MEASUREMENTS  NOT           OFFSET        ON            ORDER         PASSWORD
+POLICY        POLICIES      PRIVILEGES    QUERIES       QUERY         READ
+REPLICATION   RESAMPLE      RETENTION     REVOKE        SELECT        SERIES
+SERVER        SERVERS       SET           SHARD         SHARDS        SLIMIT
+SOFFSET       STATS         SUBSCRIPTION  SUBSCRIPTIONS TAG           TO
+USER          USERS         VALUES        WHERE         WITH          WRITE
 ```
 
 ## Literals
@@ -229,9 +229,14 @@ ALTER RETENTION POLICY policy1 ON somedb DURATION 1h REPLICATION 4
 
 ```
 create_continuous_query_stmt = "CREATE CONTINUOUS QUERY" query_name on_clause
+                               [ "RESAMPLE" resample_opts ]
                                "BEGIN" select_stmt "END" .
 
 query_name                   = identifier .
+
+resample_opts                = (every_stmt for_stmt | every_stmt | for_stmt) .
+every_stmt                   = "EVERY" duration_lit
+for_stmt                     = "FOR" duration_lit
 ```
 
 #### Examples:
@@ -255,6 +260,18 @@ BEGIN
   INTO "2_years".events
   FROM "6_months".events
   GROUP BY time(1h)
+END;
+
+-- this customizes the resample interval so the interval is queried every 10s and intervals are resampled until 2m after their start time
+-- when resample is used, at least one of "EVERY" or "FOR" must be used
+CREATE CONTINUOUS QUERY "cpu_mean"
+ON db_name
+RESAMPLE EVERY 10s FOR 2m
+BEGIN
+  SELECT mean(value)
+  INTO "cpu_mean"
+  FROM "cpu"
+  GROUP BY time(1m)
 END;
 ```
 

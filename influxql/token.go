@@ -76,6 +76,7 @@ const (
 	DROP
 	DURATION
 	END
+	EVERY
 	EXISTS
 	EXPLAIN
 	FIELD
@@ -110,6 +111,7 @@ const (
 	QUERY
 	READ
 	REPLICATION
+	RESAMPLE
 	RETENTION
 	REVOKE
 	SELECT
@@ -195,6 +197,7 @@ var tokens = [...]string{
 	DROP:          "DROP",
 	DURATION:      "DURATION",
 	END:           "END",
+	EVERY:         "EVERY",
 	EXISTS:        "EXISTS",
 	EXPLAIN:       "EXPLAIN",
 	FIELD:         "FIELD",
@@ -229,6 +232,7 @@ var tokens = [...]string{
 	QUERY:         "QUERY",
 	READ:          "READ",
 	REPLICATION:   "REPLICATION",
+	RESAMPLE:      "RESAMPLE",
 	RETENTION:     "RETENTION",
 	REVOKE:        "REVOKE",
 	SELECT:        "SELECT",

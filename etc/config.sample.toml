@@ -343,7 +343,4 @@ reporting-disabled = false
 [continuous_queries]
   log-enabled = true
   enabled = true
-  recompute-previous-n = 2
-  recompute-no-older-than = "10m"
-  compute-runs-per-interval = 10
-  compute-no-more-than = "2m"
+  # run-interval = "1s" # interval for how often continuous queries will be checked if they need to run

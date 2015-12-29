@@ -1051,7 +1051,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb RESAMPLE EVERY 1m FOR 1h BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
@@ -1070,6 +1070,56 @@ func TestParser_ParseStatement(t *testing.T) {
 						},
 					},
 				},
+				ResampleEvery: time.Minute,
+				ResampleFor:   time.Hour,
+			},
+		},
+
+		{
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb RESAMPLE FOR 1h BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name:     "myquery",
+				Database: "testdb",
+				Source: &influxql.SelectStatement{
+					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
+					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1", IsTarget: true}},
+					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+					Dimensions: []*influxql.Dimension{
+						{
+							Expr: &influxql.Call{
+								Name: "time",
+								Args: []influxql.Expr{
+									&influxql.DurationLiteral{Val: 5 * time.Minute},
+								},
+							},
+						},
+					},
+				},
+				ResampleFor: time.Hour,
+			},
+		},
+
+		{
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb RESAMPLE EVERY 1m BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name:     "myquery",
+				Database: "testdb",
+				Source: &influxql.SelectStatement{
+					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
+					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1", IsTarget: true}},
+					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+					Dimensions: []*influxql.Dimension{
+						{
+							Expr: &influxql.Call{
+								Name: "time",
+								Args: []influxql.Expr{
+									&influxql.DurationLiteral{Val: 5 * time.Minute},
+								},
+							},
+						},
+					},
+				},
+				ResampleEvery: time.Minute,
 			},
 		},
 
