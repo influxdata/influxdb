@@ -8,6 +8,14 @@
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
+# directory where server ID and cluster metaservers information will be kept
+dir = "/var/lib/influxdb"
+
+# we'll try to get the hostname automatically, but if it the os returns something
+# that isn't resolvable by other servers in the cluster, use this option to
+# manually set the hostname
+# hostname = "localhost"
+
 ###
 ### [meta]
 ###
@@ -16,8 +24,12 @@ reporting-disabled = false
 ###
 
 [meta]
+  # Controls if this node should run the metaservice and participate in the Raft group
+  enabled = true
+
+  # Where the metadata/raft database is stored
   dir = "/var/lib/influxdb/meta"
-  hostname = "localhost"
+
   bind-address = ":8088"
   retention-autocreate = true
   election-timeout = "1s"
@@ -25,13 +37,6 @@ reporting-disabled = false
   leader-lease-timeout = "500ms"
   commit-timeout = "50ms"
   cluster-tracing = false
-
-  # If enabled, when a Raft cluster loses a peer due to a `DROP SERVER` command,
-  # the leader will automatically ask a non-raft peer node to promote to a raft
-  # peer. This only happens if there is a non-raft peer node available to promote.
-  # This setting only affects the local node, so to ensure if operates correctly, be sure to set
-  # it in the config of every node.
-  raft-promotion-enabled = true
 
 ###
 ### [data]
@@ -43,6 +48,9 @@ reporting-disabled = false
 ###
 
 [data]
+  # Controls if this node holds time series data shards in the cluster
+  enabled = true
+
   dir = "/var/lib/influxdb/data"
 
   # Controls the storage engine used for new shards. Engines available are b1,

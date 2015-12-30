@@ -41,6 +41,7 @@ func NewMux() *Mux {
 
 // Serve handles connections from ln and multiplexes then across registered listener.
 func (mux *Mux) Serve(ln net.Listener) error {
+	mux.ln = ln
 	for {
 		// Wait for the next connection.
 		// If it returns a temporary error then simply retry.
@@ -112,7 +113,8 @@ func (mux *Mux) Listen(header byte) net.Listener {
 
 	// Create a new listener and assign it.
 	ln := &listener{
-		c: make(chan net.Conn),
+		c:   make(chan net.Conn),
+		mux: mux,
 	}
 	mux.m[header] = ln
 
@@ -121,7 +123,8 @@ func (mux *Mux) Listen(header byte) net.Listener {
 
 // listener is a receiver for connections received by Mux.
 type listener struct {
-	c chan net.Conn
+	c   chan net.Conn
+	mux *Mux
 }
 
 // Accept waits for and returns the next connection to the listener.
@@ -136,8 +139,13 @@ func (ln *listener) Accept() (c net.Conn, err error) {
 // Close is a no-op. The mux's listener should be closed instead.
 func (ln *listener) Close() error { return nil }
 
-// Addr always returns nil.
-func (ln *listener) Addr() net.Addr { return nil }
+// Addr returns the Addr of the listener
+func (ln *listener) Addr() net.Addr {
+	if ln.mux != nil && ln.mux.ln != nil {
+		return ln.mux.ln.Addr()
+	}
+	return nil
+}
 
 // Dial connects to a remote mux listener with a given header byte.
 func Dial(network, address string, header byte) (net.Conn, error) {

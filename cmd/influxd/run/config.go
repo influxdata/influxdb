@@ -45,13 +45,20 @@ type Config struct {
 	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
 	UDPs       []udp.Config      `toml:"udp"`
 
-	// Snapshot SnapshotConfig `toml:"snapshot"`
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
-
-	HintedHandoff hh.Config `toml:"hinted-handoff"`
+	HintedHandoff   hh.Config                 `toml:"hinted-handoff"`
 
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
+
+	Dir string `toml:"dir"`
+
+	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
+	BindAddress `toml:"bind-address"`
+
+	// Hostname is the resolvable name for other servers in
+	// the cluster to reach this server
+	Hostname string `toml:"hostname"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
