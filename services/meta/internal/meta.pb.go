@@ -709,6 +709,7 @@ var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 
 type CreateDatabaseCommand struct {
 	Name             *string `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	IfNotExists      *bool   `protobuf:"varint,2,req,name=IfNotExists" json:"IfNotExists,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -721,6 +722,13 @@ func (m *CreateDatabaseCommand) GetName() string {
 		return *m.Name
 	}
 	return ""
+}
+
+func (m *CreateDatabaseCommand) GetIfNotExists() bool {
+	if m != nil && m.IfNotExists != nil {
+		return *m.IfNotExists
+	}
+	return false
 }
 
 var E_CreateDatabaseCommand_Command = &proto.ExtensionDesc{
@@ -758,6 +766,7 @@ var E_DropDatabaseCommand_Command = &proto.ExtensionDesc{
 type CreateRetentionPolicyCommand struct {
 	Database         *string              `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
 	RetentionPolicy  *RetentionPolicyInfo `protobuf:"bytes,2,req,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
+	IfNotExists      *bool                `protobuf:"varint,3,req,name=IfNotExists" json:"IfNotExists,omitempty"`
 	XXX_unrecognized []byte               `json:"-"`
 }
 
@@ -779,6 +788,13 @@ func (m *CreateRetentionPolicyCommand) GetRetentionPolicy() *RetentionPolicyInfo
 	return nil
 }
 
+func (m *CreateRetentionPolicyCommand) GetIfNotExists() bool {
+	if m != nil && m.IfNotExists != nil {
+		return *m.IfNotExists
+	}
+	return false
+}
+
 var E_CreateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateRetentionPolicyCommand)(nil),
@@ -790,6 +806,7 @@ var E_CreateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 type DropRetentionPolicyCommand struct {
 	Database         *string `protobuf:"bytes,1,req,name=Database" json:"Database,omitempty"`
 	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
+	IfExists         *bool   `protobuf:"varint,3,req,name=IfExists" json:"IfExists,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -809,6 +826,13 @@ func (m *DropRetentionPolicyCommand) GetName() string {
 		return *m.Name
 	}
 	return ""
+}
+
+func (m *DropRetentionPolicyCommand) GetIfExists() bool {
+	if m != nil && m.IfExists != nil {
+		return *m.IfExists
+	}
+	return false
 }
 
 var E_DropRetentionPolicyCommand_Command = &proto.ExtensionDesc{
