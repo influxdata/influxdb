@@ -120,7 +120,7 @@ func (c *Client) Databases() ([]DatabaseInfo, error) {
 	if c.data.Databases == nil {
 		return []DatabaseInfo{}, nil
 	}
-	return c.data.CloneDatabases(), nil
+	return c.data.Databases, nil
 }
 
 // CreateDatabase creates a database.
