@@ -2,6 +2,7 @@ package meta
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,10 +20,6 @@ import (
 	"github.com/influxdb/influxdb/uuid"
 )
 
-// execMagic is the first 4 bytes sent to a remote exec connection to verify
-// that it is coming from a remote exec client connection.
-const execMagic = "EXEC"
-
 // handler represents an HTTP handler for the meta service.
 type handler struct {
 	config  *Config
@@ -34,10 +31,11 @@ type handler struct {
 	store          interface {
 		afterIndex(index uint64) <-chan struct{}
 		index() uint64
-		isLeader() bool
 		leader() string
+		leaderHTTP() string
 		snapshot() (*Data, error)
 		apply(b []byte) error
+		join(n *NodeInfo) error
 	}
 }
 
@@ -90,6 +88,41 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("serveExec: ", r.Host)
+	if r.URL.Path == "/join" {
+		n := &NodeInfo{}
+		if err := json.Unmarshal(body, n); err != nil {
+			h.httpError(err, w, http.StatusInternalServerError)
+			return
+		}
+		err := h.store.join(n)
+		if err == raft.ErrNotLeader {
+			l := h.store.leaderHTTP()
+			fmt.Println("redirecting to leader:", l)
+			if l == "" {
+				// No cluster leader. Client will have to try again later.
+				h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
+				return
+			}
+			scheme := "http://"
+			if h.config.HTTPSEnabled {
+				scheme = "https://"
+			}
+
+			l = scheme + l + "/join"
+			fmt.Println("FOO: ", l)
+			http.Redirect(w, r, l, http.StatusTemporaryRedirect)
+			return
+		}
+
+		if err != nil {
+			h.httpError(err, w, http.StatusInternalServerError)
+			return
+		}
+
+		return
+	}
+
 	// Make sure it's a valid command.
 	if err := validateCommand(body); err != nil {
 		h.httpError(err, w, http.StatusBadRequest)
@@ -101,14 +134,20 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.apply(body); err != nil {
 		// If we aren't the leader, redirect client to the leader.
 		if err == raft.ErrNotLeader {
-			l := h.store.leader()
+			l := h.store.leaderHTTP()
 			if l == "" {
 				// No cluster leader. Client will have to try again later.
 				h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
 				return
 			}
-			l = r.URL.Scheme + "//" + l + "/execute"
-			http.Redirect(w, r, l, http.StatusFound)
+			scheme := "http://"
+			if h.config.HTTPSEnabled {
+				scheme = "https://"
+			}
+
+			l = scheme + l + "/execute"
+			fmt.Println("FOO: ", l)
+			http.Redirect(w, r, l, http.StatusTemporaryRedirect)
 			return
 		}
 

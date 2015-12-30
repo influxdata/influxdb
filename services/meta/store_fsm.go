@@ -31,7 +31,13 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 		case internal.Command_RemovePeerCommand:
 			return fsm.applyRemovePeerCommand(&cmd)
 		case internal.Command_CreateNodeCommand:
-			return fsm.applyCreateNodeCommand(&cmd)
+			// create node was in < 0.10.0 servers, we need the peers
+			// list to convert to the appropriate data/meta nodes now
+			peers, err := s.raftState.peers()
+			if err != nil {
+				return err
+			}
+			return fsm.applyCreateNodeCommand(&cmd, peers)
 		case internal.Command_DeleteNodeCommand:
 			return fsm.applyDeleteNodeCommand(&cmd)
 		case internal.Command_CreateDatabaseCommand:
@@ -72,6 +78,10 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applySetDataCommand(&cmd)
 		case internal.Command_UpdateNodeCommand:
 			return fsm.applyUpdateNodeCommand(&cmd)
+		case internal.Command_CreateMetaNodeCommand:
+			return fsm.applyCreateMetaNodeCommand(&cmd)
+		case internal.Command_DeleteMetaNodeCommand:
+			return fsm.applyDeleteMetaNodeCommand(&cmd, s)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -92,36 +102,45 @@ func (fsm *storeFSM) applyRemovePeerCommand(cmd *internal.Command) interface{} {
 	ext, _ := proto.GetExtension(cmd, internal.E_RemovePeerCommand_Command)
 	v := ext.(*internal.RemovePeerCommand)
 
-	id := v.GetID()
 	addr := v.GetAddr()
 
 	// Only do this if you are the leader
 	if fsm.raftState.isLeader() {
 		//Remove that node from the peer
-		fsm.logger.Printf("removing peer for node id %d, %s", id, addr)
+		fsm.logger.Printf("removing peer: %s", addr)
 		if err := fsm.raftState.removePeer(addr); err != nil {
 			fsm.logger.Printf("error removing peer: %s", err)
-		}
-	}
-
-	// If this is the node being shutdown, close raft
-	if fsm.id == id {
-		fsm.logger.Printf("shutting down raft for %s", addr)
-		if err := fsm.raftState.close(); err != nil {
-			fsm.logger.Printf("failed to shut down raft: %s", err)
 		}
 	}
 
 	return nil
 }
 
-func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
+func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command, peers []string) interface{} {
 	ext, _ := proto.GetExtension(cmd, internal.E_CreateNodeCommand_Command)
 	v := ext.(*internal.CreateNodeCommand)
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.CreateNode(v.GetHost()); err != nil {
+
+	// CreateNode is a command from < 0.10.0 clusters. Every node in
+	// those clusters would be a data node and only the nodes that are
+	// in the list of peers would be meta nodes
+	isMeta := false
+	for _, p := range peers {
+		if v.GetHost() == p {
+			isMeta = true
+			break
+		}
+	}
+
+	if isMeta {
+		if err := other.CreateMetaNode(v.GetHost(), v.GetHost()); err != nil {
+			return err
+		}
+	}
+
+	if err := other.CreateDataNode(v.GetHost()); err != nil {
 		return err
 	}
 
@@ -134,37 +153,32 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
 	return nil
 }
 
+// applyUpdateNodeCommand was in < 0.10.0, noop this now
 func (fsm *storeFSM) applyUpdateNodeCommand(cmd *internal.Command) interface{} {
-	ext, _ := proto.GetExtension(cmd, internal.E_UpdateNodeCommand_Command)
-	v := ext.(*internal.UpdateNodeCommand)
+	return nil
+}
+
+func (fsm *storeFSM) applyUpdateDataNodeCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_CreateNodeCommand_Command)
+	v := ext.(*internal.UpdateDataNodeCommand)
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	ni := other.Node(v.GetID())
-	if ni == nil {
+
+	node := other.DataNode(v.GetID())
+	if node == nil {
 		return ErrNodeNotFound
 	}
 
-	ni.Host = v.GetHost()
+	node.Host = v.GetHost()
+	node.TCPHost = v.GetTCPHost()
 
 	fsm.data = other
 	return nil
 }
 
+// applyDeleteNodeCommand is from < 0.10.0. no op for this one
 func (fsm *storeFSM) applyDeleteNodeCommand(cmd *internal.Command) interface{} {
-	ext, _ := proto.GetExtension(cmd, internal.E_DeleteNodeCommand_Command)
-	v := ext.(*internal.DeleteNodeCommand)
-
-	// Copy data and update.
-	other := fsm.data.Clone()
-	if err := other.DeleteNode(v.GetID(), v.GetForce()); err != nil {
-		return err
-	}
-	fsm.data = other
-
-	id := v.GetID()
-	fsm.logger.Printf("node '%d' removed", id)
-
 	return nil
 }
 
@@ -430,6 +444,37 @@ func (fsm *storeFSM) applySetDataCommand(cmd *internal.Command) interface{} {
 	fsm.data = &Data{}
 	fsm.data.unmarshal(v.GetData())
 
+	return nil
+}
+
+func (fsm *storeFSM) applyCreateMetaNodeCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_CreateMetaNodeCommand_Command)
+	v := ext.(*internal.CreateMetaNodeCommand)
+
+	other := fsm.data.Clone()
+	other.CreateMetaNode(v.GetHTTPAddr(), v.GetTCPAddr())
+	fsm.data = other
+	return nil
+}
+
+func (fsm *storeFSM) applyDeleteMetaNodeCommand(cmd *internal.Command, s *store) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_DeleteMetaNodeCommand_Command)
+	v := ext.(*internal.DeleteMetaNodeCommand)
+
+	other := fsm.data.Clone()
+	node := other.MetaNode(v.GetID())
+	if node == nil {
+		return ErrNodeNotFound
+	}
+
+	if err := s.leave(node); err != nil && err != raft.ErrNotLeader {
+		return err
+	}
+
+	if err := other.DeleteMetaNode(v.GetID()); err != nil {
+		return err
+	}
+	fsm.data = other
 	return nil
 }
 

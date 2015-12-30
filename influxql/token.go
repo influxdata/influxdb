@@ -65,6 +65,7 @@ const (
 	BY
 	CREATE
 	CONTINUOUS
+	DATA
 	DATABASE
 	DATABASES
 	DEFAULT
@@ -95,6 +96,7 @@ const (
 	KEY
 	KEYS
 	LIMIT
+	META
 	MEASUREMENT
 	MEASUREMENTS
 	NAME
@@ -184,6 +186,7 @@ var tokens = [...]string{
 	BY:            "BY",
 	CREATE:        "CREATE",
 	CONTINUOUS:    "CONTINUOUS",
+	DATA:          "DATA",
 	DATABASE:      "DATABASE",
 	DATABASES:     "DATABASES",
 	DEFAULT:       "DEFAULT",
@@ -216,6 +219,7 @@ var tokens = [...]string{
 	LIMIT:         "LIMIT",
 	MEASUREMENT:   "MEASUREMENT",
 	MEASUREMENTS:  "MEASUREMENTS",
+	META:          "META",
 	NAME:          "NAME",
 	NOT:           "NOT",
 	OFFSET:        "OFFSET",

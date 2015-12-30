@@ -26,29 +26,27 @@ const (
 // raftState is a consensus strategy that uses a local raft implementation for
 // consensus operations.
 type raftState struct {
-	wg         sync.WaitGroup
-	config     *Config
-	closing    chan struct{}
-	raft       *raft.Raft
-	transport  *raft.NetworkTransport
-	peerStore  raft.PeerStore
-	raftStore  *raftboltdb.BoltStore
-	raftLayer  *raftLayer
-	joinPeers  []string
-	ln         net.Listener
-	logger     *log.Logger
-	remoteAddr net.Addr
-	path       string
+	wg        sync.WaitGroup
+	config    *Config
+	closing   chan struct{}
+	raft      *raft.Raft
+	transport *raft.NetworkTransport
+	peerStore raft.PeerStore
+	raftStore *raftboltdb.BoltStore
+	raftLayer *raftLayer
+	ln        net.Listener
+	logger    *log.Logger
+	path      string
 }
 
-func newRaftState(c *Config, joinPeers []string) *raftState {
+func newRaftState(c *Config) *raftState {
 	return &raftState{
-		config:    c,
-		joinPeers: joinPeers,
+		config: c,
 	}
 }
 
-func (r *raftState) open(s *store) error {
+func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) error {
+	r.ln = ln
 	r.closing = make(chan struct{})
 
 	// Setup raft configuration.
@@ -66,15 +64,8 @@ func (r *raftState) open(s *store) error {
 	// If in the future we decide to call remove peer we have to re-evaluate how to handle this
 	config.ShutdownOnRemove = false
 
-	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	if len(r.joinPeers) <= 1 {
-		config.EnableSingleNode = true
-		// Ensure we can always become the leader
-		config.DisableBootstrapAfterElect = false
-	}
-
 	// Build raft layer to multiplex listener.
-	r.raftLayer = newRaftLayer(r.ln, r.remoteAddr)
+	r.raftLayer = newRaftLayer(r.ln)
 
 	// Create a transport layer
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
@@ -82,27 +73,41 @@ func (r *raftState) open(s *store) error {
 	// Create peer storage.
 	r.peerStore = raft.NewJSONPeers(r.path, r.transport)
 
+	// This server is joining the raft cluster for the first time if initializePeers are passed in
+	if len(initializePeers) > 0 {
+		if err := r.peerStore.SetPeers(initializePeers); err != nil {
+			return err
+		}
+	}
+
 	peers, err := r.peerStore.Peers()
 	if err != nil {
 		return err
 	}
 
-	// For single-node clusters, we can update the raft peers before we start the cluster if the hostname
-	// has changed.
-	if config.EnableSingleNode {
-		if err := r.peerStore.SetPeers([]string{r.remoteAddr.String()}); err != nil {
+	// If no peers are set in the config or there is one and we are it, then start as a single server.
+	if len(peers) <= 1 {
+		fmt.Println("single node!")
+		config.EnableSingleNode = true
+
+		// Ensure we can always become the leader
+		config.DisableBootstrapAfterElect = false
+
+		// For single-node clusters, we can update the raft peers before we start the cluster if the hostname
+		// has changed.
+		if err := r.peerStore.SetPeers([]string{r.ln.Addr().String()}); err != nil {
 			return err
 		}
-		peers = []string{r.remoteAddr.String()}
+		peers = []string{r.ln.Addr().String()}
 	}
 
 	// If we have multiple nodes in the cluster, make sure our address is in the raft peers or
 	// we won't be able to boot into the cluster because the other peers will reject our new hostname.  This
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
-	if len(peers) > 0 && !raft.PeerContained(peers, r.remoteAddr.String()) {
-		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.remoteAddr.String(), r.path)
-		return fmt.Errorf("peers out of sync: %v not in %v", r.remoteAddr.String(), peers)
+	if len(peers) > 0 && !raft.PeerContained(peers, r.ln.Addr().String()) {
+		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.ln.Addr().String(), r.path)
+		return fmt.Errorf("peers out of sync: %v not in %v", r.ln.Addr().String(), peers)
 	}
 
 	// Create the log store and stable store.
@@ -176,22 +181,6 @@ func (r *raftState) close() error {
 	return nil
 }
 
-func (r *raftState) initialize() error {
-	// If we have committed entries then the store is already in the cluster.
-	if index, err := r.raftStore.LastIndex(); err != nil {
-		return fmt.Errorf("last index: %s", err)
-	} else if index > 0 {
-		return nil
-	}
-
-	// Force set peers.
-	if err := r.setPeers(r.joinPeers); err != nil {
-		return fmt.Errorf("set raft peers: %s", err)
-	}
-
-	return nil
-}
-
 // apply applies a serialized command to the raft log.
 func (r *raftState) apply(b []byte) error {
 	// Apply to raft log.
@@ -224,13 +213,24 @@ func (r *raftState) snapshot() error {
 
 // addPeer adds addr to the list of peers in the cluster.
 func (r *raftState) addPeer(addr string) error {
+	// peers, err := r.peerStore.Peers()
+	// if err != nil {
+	// 	return err
+	// }
+	// peers = append(peers, addr)
+	// if fut := r.raft.SetPeers(peers); fut.Error() != nil {
+	// 	return fut.Error()
+	// }
+
 	peers, err := r.peerStore.Peers()
 	if err != nil {
 		return err
 	}
 
-	if len(peers) >= 3 {
-		return nil
+	for _, p := range peers {
+		if addr == p {
+			return nil
+		}
 	}
 
 	if fut := r.raft.AddPeer(addr); fut.Error() != nil {
@@ -249,11 +249,6 @@ func (r *raftState) removePeer(addr string) error {
 		return fut.Error()
 	}
 	return nil
-}
-
-// setPeers sets a list of peers in the cluster.
-func (r *raftState) setPeers(addrs []string) error {
-	return r.raft.SetPeers(addrs).Error()
 }
 
 func (r *raftState) peers() ([]string, error) {
@@ -278,28 +273,32 @@ func (r *raftState) isLeader() bool {
 // raftLayer wraps the connection so it can be re-used for forwarding.
 type raftLayer struct {
 	ln     net.Listener
-	addr   net.Addr
 	conn   chan net.Conn
 	closed chan struct{}
 }
 
 // newRaftLayer returns a new instance of raftLayer.
-func newRaftLayer(ln net.Listener, addr net.Addr) *raftLayer {
+func newRaftLayer(ln net.Listener) *raftLayer {
 	return &raftLayer{
 		ln:     ln,
-		addr:   addr,
 		conn:   make(chan net.Conn),
 		closed: make(chan struct{}),
 	}
 }
 
 // Addr returns the local address for the layer.
-func (l *raftLayer) Addr() net.Addr { return l.addr }
+func (l *raftLayer) Addr() net.Addr { return l.ln.Addr() }
 
 // Dial creates a new network connection.
 func (l *raftLayer) Dial(addr string, timeout time.Duration) (net.Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
+		return nil, err
+	}
+	// Write a marker byte for raft messages.
+	_, err = conn.Write([]byte{MuxHeader})
+	if err != nil {
+		conn.Close()
 		return nil, err
 	}
 	return conn, err

@@ -8,13 +8,21 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/influxdb/influxdb"
+)
+
+const (
+	MuxHeader = 8
 )
 
 type Service struct {
+	RaftListener net.Listener
+
 	config   *Config
+	node     *influxdb.Node
 	handler  *handler
 	ln       net.Listener
-	raftAddr string
 	httpAddr string
 	https    bool
 	cert     string
@@ -24,11 +32,10 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c *Config) *Service {
+func NewService(c *Config, node *influxdb.Node) *Service {
 	s := &Service{
 		config:   c,
-		raftAddr: c.RaftBindAddress,
-		httpAddr: c.HTTPdBindAddress,
+		httpAddr: c.HTTPBindAddress,
 		https:    c.HTTPSEnabled,
 		cert:     c.HTTPSCertificate,
 		err:      make(chan error),
@@ -41,19 +48,9 @@ func NewService(c *Config) *Service {
 func (s *Service) Open() error {
 	s.Logger.Println("Starting meta service")
 
-	// Open the store
-	store := newStore(s.config)
-	// Set the peers from the config
-	store.peers = s.config.Peers
-	s.store = store
-	if err := s.store.open(); err != nil {
-		return err
+	if s.RaftListener == nil {
+		panic("no raft listener set")
 	}
-
-	handler := newHandler(s.config)
-	handler.logger = s.Logger
-	handler.store = store
-	s.handler = handler
 
 	// Open listener.
 	if s.https {
@@ -81,6 +78,17 @@ func (s *Service) Open() error {
 		s.ln = listener
 	}
 	s.httpAddr = s.ln.Addr().String()
+
+	// Open the store
+	s.store = newStore(s.config)
+	if err := s.store.open(s.ln.Addr().String(), s.RaftListener); err != nil {
+		return err
+	}
+
+	handler := newHandler(s.config)
+	handler.logger = s.Logger
+	handler.store = s.store
+	s.handler = handler
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serve()
