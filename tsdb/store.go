@@ -249,6 +249,7 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	return shard.engine.Backup(w, path, since)
 }
 
+// ShardRelativePath will return the relative path to the shard. i.e. <database>/<retention>/<id>
 func (s *Store) ShardRelativePath(id uint64) (string, error) {
 	shard := s.Shard(id)
 	if shard == nil {

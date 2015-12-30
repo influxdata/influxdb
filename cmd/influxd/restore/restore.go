@@ -89,10 +89,8 @@ func (cmd *Command) parseFlags(args []string) error {
 		return fmt.Errorf("either a metadir or database are required to restore")
 	}
 
-	if cmd.database != "" || cmd.retention != "" || cmd.shard != "" {
-		if cmd.datadir == "" {
-			return fmt.Errorf("datadir is required to restore")
-		}
+	if cmd.datadir == "" {
+		return fmt.Errorf("datadir is required to restore")
 	}
 
 	if cmd.shard != "" {
@@ -102,10 +100,8 @@ func (cmd *Command) parseFlags(args []string) error {
 		if cmd.retention == "" {
 			return fmt.Errorf("retention is required to restore shard")
 		}
-	} else if cmd.retention != "" {
-		if cmd.database == "" {
-			return fmt.Errorf("database is required to restore retention policy")
-		}
+	} else if cmd.retention != "" && cmd.database == "" {
+		return fmt.Errorf("database is required to restore retention policy")
 	}
 
 	return nil
@@ -226,7 +222,7 @@ func (cmd *Command) unpackRetention() error {
 
 // unpackFiles will look for backup files matching the pattern and restore them to the data dir
 func (cmd *Command) unpackFiles(pat string) error {
-	fmt.Printf("restoring from backup %s\n", pat)
+	fmt.Printf("Restoring from backup %s\n", pat)
 
 	backupFiles, err := filepath.Glob(pat)
 	if err != nil {

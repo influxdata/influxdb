@@ -25,7 +25,7 @@ const (
 	Metafile = "meta"
 
 	// BackupFilePattern is the beginning of the pattern for a backup
-	// file. They follow the scheme <database>.<retention>.<shardID>.<inrement>
+	// file. They follow the scheme <database>.<retention>.<shardID>.<increment>
 	BackupFilePattern = "%s.%s.%05d"
 )
 
@@ -166,7 +166,7 @@ func (cmd *Command) backupDatabase(since time.Time) error {
 }
 
 // backupRetentionPolicy will request the retention policy information from the server and then backup
-// the metasore and every shard in the retention policy. Each shard will be written to a separate tar.
+// the metastore and every shard in the retention policy. Each shard will be written to a separate tar.
 func (cmd *Command) backupRetentionPolicy(retentionPolicy string, since time.Time) error {
 	cmd.Logger.Printf("backing up retention policy %s since %s", retentionPolicy, since)
 
