@@ -1,16 +1,66 @@
 package meta
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/services/meta/internal"
+
+	"github.com/gogo/protobuf/proto"
 )
 
+const errSleep = 10 * time.Millisecond
+
 type Client struct {
+	tls    bool
+	logger *log.Logger
+
+	mu          sync.RWMutex
+	metaServers []string
+	changed     chan struct{}
+	closing     chan struct{}
+	data        *Data
+
+	executor *StatementExecutor
 }
 
-func NewClient(c *Config) *Client {
-	return &Client{}
+func NewClient(metaServers []string, tls bool) *Client {
+	client := &Client{
+		data:        &Data{},
+		metaServers: metaServers,
+		tls:         tls,
+		logger:      log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
+	}
+	client.executor = &StatementExecutor{Store: client}
+	return client
+}
+
+func (c *Client) Open() error {
+	c.changed = make(chan struct{})
+	c.closing = make(chan struct{})
+	c.data = c.retryUntilSnapshot(0)
+
+	go c.pollForUpdates()
+
+	return nil
+}
+
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	close(c.closing)
+
+	return nil
 }
 
 func (c *Client) ClusterID() (id uint64, err error) {
@@ -18,12 +68,48 @@ func (c *Client) ClusterID() (id uint64, err error) {
 }
 
 // Node returns a node by id.
-func (c *Client) Node(id uint64) (*NodeInfo, error) {
+func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
 	return nil, nil
 }
 
+func (c *Client) DataNodes() ([]NodeInfo, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.data.DataNodes, nil
+}
+
+func (c *Client) DeleteDataNode(nodeID uint64) error {
+	return nil
+}
+
+func (c *Client) MetaNodes() ([]NodeInfo, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.data.MetaNodes, nil
+}
+
+func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, n := range c.data.MetaNodes {
+		if n.Host == addr {
+			return &n
+		}
+	}
+	return nil
+}
+
 func (c *Client) Database(name string) (*DatabaseInfo, error) {
-	return nil, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, d := range c.data.Databases {
+		if d.Name == name {
+			return &d, nil
+		}
+	}
+
+	return nil, influxdb.ErrDatabaseNotFound(name)
 }
 
 func (c *Client) Databases() ([]DatabaseInfo, error) {
@@ -31,6 +117,27 @@ func (c *Client) Databases() ([]DatabaseInfo, error) {
 }
 
 func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
+	cmd := &internal.CreateDatabaseCommand{
+		Name: proto.String(name),
+	}
+
+	err := c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.Database(name)
+}
+
+func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error) {
+	return nil, nil
+}
+
+func (c *Client) DropDatabase(name string) error {
+	return nil
+}
+
+func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
 	return nil, nil
 }
 
@@ -50,6 +157,10 @@ func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
 	return nil
 }
 
+func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+	return nil
+}
+
 func (c *Client) IsLeader() bool {
 	return false
 }
@@ -63,6 +174,34 @@ func (c *Client) Users() (a []UserInfo, err error) {
 }
 
 func (c *Client) User(name string) (*UserInfo, error) {
+	return nil, nil
+}
+
+func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error) {
+	return nil, nil
+}
+
+func (c *Client) UpdateUser(name, password string) error {
+	return nil
+}
+
+func (c *Client) DropUser(name string) error {
+	return nil
+}
+
+func (c *Client) SetPrivilege(username, database string, p influxql.Privilege) error {
+	return nil
+}
+
+func (c *Client) SetAdminPrivilege(username string, admin bool) error {
+	return nil
+}
+
+func (c *Client) UserPrivileges(username string) (map[string]influxql.Privilege, error) {
+	return nil, nil
+}
+
+func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, error) {
 	return nil, nil
 }
 
@@ -106,14 +245,259 @@ func (c *Client) ShardOwner(shardID uint64) (string, string, *ShardGroupInfo) {
 	return "", "", nil
 }
 
-func (c *Client) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
+// JoinMetaServer will add the passed in tcpAddr to the raft peers and add a MetaNode to
+// the metastore
+func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
+	node := &NodeInfo{
+		Host:    httpAddr,
+		TCPHost: tcpAddr,
+	}
+	b, err := json.Marshal(node)
+	if err != nil {
+		return err
+	}
+
+	currentServer := 0
+	redirectServer := ""
+	for {
+		// get the server to try to join against
+		var url string
+		if redirectServer != "" {
+			url = redirectServer
+		} else {
+			c.mu.RLock()
+
+			if currentServer >= len(c.metaServers) {
+				currentServer = 0
+			}
+			server := c.metaServers[currentServer]
+			c.mu.RUnlock()
+
+			url = c.url(server) + "/join"
+		}
+
+		resp, err := http.Post(url, "application/json", bytes.NewBuffer(b))
+		if err != nil {
+			currentServer++
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectServer = resp.Header.Get("Location")
+			continue
+		}
+
+		return nil
+	}
+}
+
+func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) error {
+	cmd := &internal.CreateMetaNodeCommand{
+		HTTPAddr: proto.String(httpAddr),
+		TCPAddr:  proto.String(tcpAddr),
+	}
+
+	return c.retryUntilExec(internal.Command_CreateMetaNodeCommand, internal.E_CreateMetaNodeCommand_Command, cmd)
+}
+
+func (c *Client) DeleteMetaNode(id uint64) error {
+	cmd := &internal.DeleteMetaNodeCommand{
+		ID: proto.Uint64(id),
+	}
+
+	return c.retryUntilExec(internal.Command_DeleteMetaNodeCommand, internal.E_DeleteMetaNodeCommand_Command, cmd)
+}
+
+func (c *Client) CreateContinuousQuery(database, name, query string) error {
 	return nil
 }
 
-func (c *Client) WaitForDataChanged() error {
+func (c *Client) DropContinuousQuery(database, name string) error {
 	return nil
+}
+
+func (c *Client) CreateSubscription(database, rp, name, mode string, destinations []string) error {
+	return nil
+}
+
+func (c *Client) DropSubscription(database, rp, name string) error {
+	return nil
+}
+
+func (c *Client) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
+	return c.executor.ExecuteStatement(stmt)
+}
+
+// WaitForDataChanged will return a channel that will get closed when
+// the metastore data has changed
+func (c *Client) WaitForDataChanged() chan struct{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.changed
 }
 
 func (c *Client) MarshalBinary() ([]byte, error) {
 	return nil, nil
+}
+
+func (c *Client) MetaServers() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.metaServers
+}
+
+func (c *Client) index() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.data.Index
+}
+
+// retryUntilExec will attempt the command on each of the metaservers and return on the first success
+func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
+	var err error
+	var index uint64
+	for _, s := range c.MetaServers() {
+		index, err = c.exec(s, typ, desc, value)
+		if err == nil {
+			c.waitForIndex(index)
+			return nil
+		}
+	}
+
+	return err
+}
+
+func (c *Client) exec(addr string, typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) (index uint64, err error) {
+	// Create command.
+	cmd := &internal.Command{Type: &typ}
+	if err := proto.SetExtension(cmd, desc, value); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return 0, err
+	}
+
+	// execute against the metaserver
+	url := fmt.Sprintf("://%s/execute", addr)
+	if c.tls {
+		url = "https" + url
+	} else {
+		url = "http" + url
+	}
+
+	resp, err := http.Post(url, "application/octet-stream", bytes.NewBuffer(b))
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	// read the response
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("unexpected result:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.StatusCode)
+	}
+
+	res := &internal.Response{}
+
+	b, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := proto.Unmarshal(b, res); err != nil {
+		return 0, err
+	}
+	es := res.GetError()
+	if es != "" {
+		return 0, fmt.Errorf("exec err: %s", es)
+	}
+
+	return res.GetIndex(), nil
+}
+
+func (c *Client) waitForIndex(idx uint64) {
+	for {
+		c.mu.RLock()
+		if c.data.Index >= idx {
+			c.mu.RUnlock()
+			return
+		}
+		ch := c.changed
+		c.mu.RUnlock()
+		<-ch
+	}
+}
+
+func (c *Client) pollForUpdates() {
+	for {
+		data := c.retryUntilSnapshot(c.index())
+
+		// update the data and notify of the change
+		c.mu.Lock()
+		idx := c.data.Index
+		c.data = data
+		if idx < data.Index {
+			close(c.changed)
+			c.changed = make(chan struct{})
+		}
+		c.mu.Unlock()
+	}
+}
+
+func (c *Client) getSnapshot(server string, index uint64) (*Data, error) {
+	resp, err := http.Get(c.url(server) + fmt.Sprintf("?index=%d", index))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	data := &Data{}
+	if err := data.UnmarshalBinary(b); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (c *Client) url(server string) string {
+	url := fmt.Sprintf("://%s", server)
+
+	if c.tls {
+		url = "https" + url
+	} else {
+		url = "http" + url
+	}
+
+	return url
+}
+
+func (c *Client) retryUntilSnapshot(idx uint64) *Data {
+	currentServer := 0
+	for {
+		// get the index to look from and the server to poll
+		c.mu.RLock()
+
+		if currentServer >= len(c.metaServers) {
+			currentServer = 0
+		}
+		server := c.metaServers[currentServer]
+		c.mu.RUnlock()
+
+		data, err := c.getSnapshot(server, idx)
+
+		if err == nil {
+			return data
+		}
+
+		c.logger.Printf("failure getting snapshot from %s: %s", server, err.Error())
+
+		currentServer += 1
+		time.Sleep(errSleep)
+
+		continue
+	}
 }
