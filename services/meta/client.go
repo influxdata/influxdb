@@ -447,6 +447,7 @@ func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.Extension
 
 		index, err = c.exec(url, typ, desc, value)
 		tries++
+		currentServer++
 
 		if err == nil {
 			c.waitForIndex(index)
