@@ -113,7 +113,7 @@ func NewOutputConfig() *outputConfig {
 	var o outputConfig
 	tags := make(map[string]string)
 	o.tags = tags
-	database := flag.String("database", "stress", "name of database")
+	database := flag.String("database", "stress", "name of database where the response times will persist")
 	address := flag.String("addr", "http://localhost:8086", "IP address and port of database where response times will persist (e.g., localhost:8086)")
 	flag.Var(&o, "tags", "A comma seperated list of tags")
 	flag.Parse()

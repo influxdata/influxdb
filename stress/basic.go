@@ -662,7 +662,7 @@ func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Ti
 			tags := o.tags
 			tags["method"] = method
 			fields := map[string]interface{}{
-				"response_time": p.Timer.Elapsed(),
+				"response_time": float64(p.Timer.Elapsed()),
 			}
 			pt, _ := client.NewPoint("performance", tags, fields, p.Time)
 			bp.AddPoint(pt)
