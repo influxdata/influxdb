@@ -87,14 +87,13 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
 	if len(peers) <= 1 {
-		fmt.Println("single node!")
 		config.EnableSingleNode = true
 
 		// Ensure we can always become the leader
 		config.DisableBootstrapAfterElect = false
 
-		// For single-node clusters, we can update the raft peers before we start the cluster if the hostname
-		// has changed.
+		// For single-node clusters, we can update the raft peers before we start the cluster
+		// just in case the hostname has changed.
 		if err := r.peerStore.SetPeers([]string{r.ln.Addr().String()}); err != nil {
 			return err
 		}
