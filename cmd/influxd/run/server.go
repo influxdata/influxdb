@@ -87,15 +87,20 @@ type Server struct {
 
 // NewServer returns a new instance of Server built from a config.
 func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
+	node, err := influxdb.NewNode(c.Dir)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
 		closing:   make(chan struct{}),
 
 		Hostname:    c.Meta.Hostname,
-		BindAddress: c.Meta.RaftBindAddress,
+		BindAddress: c.Meta.BindAddress,
 
-		Node:       influxdb.NewNode(),
+		Node:       node,
 		MetaClient: meta.NewClient(c.Meta),
 
 		Monitor: monitor.New(c.Monitor),
@@ -364,6 +369,7 @@ func (s *Server) Open() error {
 		// Multiplex listener.
 		mux := tcp.NewMux()
 
+		s.MetaService.RaftListener = mux.Listen(meta.MuxHeader)
 		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 		s.CopierService.Listener = mux.Listen(copier.MuxHeader)

@@ -100,7 +100,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if options.Join != "" {
-		config.Meta.Peers = strings.Split(options.Join, ",")
+		config.Meta.JoinPeers = strings.Split(options.Join, ",")
 	}
 
 	// Validate the configuration.

@@ -1,45 +1,33 @@
-package meta
+package meta_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"runtime"
 	"testing"
-	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb/services/meta/internal"
+	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdb/influxdb/tcp"
 )
 
-func TestService_Open(t *testing.T) {
-	t.Parallel()
-
-	cfg := newConfig()
-	defer os.RemoveAll(cfg.Dir)
-	s := NewService(cfg)
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // Test the ping endpoint.
-func TestService_PingEndpoint(t *testing.T) {
+func TestMetaService_PingEndpoint(t *testing.T) {
 	t.Parallel()
 
 	cfg := newConfig()
 	defer os.RemoveAll(cfg.Dir)
-	s := NewService(cfg)
+	s := newService(cfg)
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
+	defer s.Close()
 
 	url, err := url.Parse(s.URL())
 	if err != nil {
@@ -64,167 +52,115 @@ func TestService_PingEndpoint(t *testing.T) {
 	}
 }
 
-// Test creating a node in the meta service.
-func TestService_CreateNode(t *testing.T) {
-	t.Parallel()
-
+func TestMetaService_CreateDatabase(t *testing.T) {
 	cfg := newConfig()
 	defer os.RemoveAll(cfg.Dir)
-	s := NewService(cfg)
+	s := newService(cfg)
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
+	defer s.Close()
 
-	before, err := snapshot(s, 0)
+	c := meta.NewClient([]string{s.URL()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer c.Close()
+
+	c.ExecuteStatement(mustParseStatement("CREATE DATABASE foo"))
+	db, err := c.Database("foo")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf(err.Error())
 	}
-
-	node := before.Node(1)
-	if node != nil {
-		t.Fatal("expected <nil> but got a node")
-	}
-
-	host := "127.0.0.1"
-	cmdval := &internal.CreateNodeCommand{
-		Host: proto.String(host),
-		Rand: proto.Uint64(42),
-	}
-	if err := exec(s, internal.Command_CreateNodeCommand, internal.E_CreateNodeCommand_Command, cmdval); err != nil {
-		t.Fatal(err)
-	}
-
-	after, err := snapshot(s, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	node = after.Node(1)
-	if node == nil {
-		t.Fatal("expected node but got <nil>")
-	} else if node.Host != host {
-		t.Fatalf("unexpected host:\n\texp: %s\n\tgot: %s\n", host, node.Host)
+	if db.Name != "foo" {
+		t.Fatalf("db name wrong: %s", db.Name)
 	}
 }
 
-// Test creating a database in the meta service.
-func TestService_CreateDatabase(t *testing.T) {
-	t.Parallel()
+func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
+	cfg1 := newConfig()
+	defer os.RemoveAll(cfg1.Dir)
+	cfg2 := newConfig()
+	defer os.RemoveAll(cfg2.Dir)
+	cfg3 := newConfig()
+	defer os.RemoveAll(cfg3.Dir)
+	cfg4 := newConfig()
+	defer os.RemoveAll(cfg4.Dir)
 
-	cfg := newConfig()
-	defer os.RemoveAll(cfg.Dir)
-	s := NewService(cfg)
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
+	s1 := newService(cfg1)
+	if err := s1.Open(); err != nil {
+		t.Fatalf(err.Error())
 	}
+	defer s1.Close()
 
-	before, err := snapshot(s, 0)
-	if err != nil {
-		t.Fatal(err)
+	cfg2.JoinPeers = []string{s1.URL()}
+	s2 := newService(cfg2)
+	if err := s2.Open(); err != nil {
+		t.Fatal(err.Error())
 	}
+	defer s2.Close()
 
-	name := "mydb"
-	db := before.Database(name)
-	if db != nil {
-		t.Fatal("expected <nil> but got database")
-	}
-
-	cmdval := &internal.CreateDatabaseCommand{
-		Name: proto.String(name),
-	}
-	if err := exec(s, internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmdval); err != nil {
-		t.Fatal(err)
-	}
-
-	after, err := snapshot(s, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	db = after.Database(name)
-	if db == nil {
-		t.Fatal("expected database but got <nil>")
-	} else if db.Name != name {
-		t.Fatalf("unexpected name:\n\texp: %s\n\tgot: %s\n", name, db.Name)
-	}
-}
-
-// Test long poll of snapshot.
-// Clients will make a long poll request for a snapshot update by passing their
-// current snapshot index.  The meta service will respond to the request when
-// its snapshot index exceeds the client's snapshot index.
-func TestService_LongPoll(t *testing.T) {
-	t.Parallel()
-
-	cfg := newConfig()
-	defer os.RemoveAll(cfg.Dir)
-	s := NewService(cfg)
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	before, err := snapshot(s, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	node := before.Node(1)
-	if node != nil {
-		t.Fatal("expected <nil> but got a node")
-	}
-
-	// Start a long poll request for a snapshot update.
-	ch := make(chan *Data)
-	errch := make(chan error)
-	go func() {
-		after, err := snapshot(s, 1)
-		if err != nil {
-			errch <- err
+	func() {
+		cfg3.JoinPeers = []string{s2.URL()}
+		s3 := newService(cfg3)
+		if err := s3.Open(); err != nil {
+			t.Fatal(err.Error())
 		}
-		ch <- after
-	}()
+		defer s3.Close()
 
-	// Fire off an update after a delay.
-	host := "127.0.0.1"
-	update := make(chan struct{})
-	go func() {
-		<-update
-		cmdval := &internal.CreateNodeCommand{
-			Host: proto.String(host),
-			Rand: proto.Uint64(42),
+		fmt.Println("ALL OPEN!")
+
+		c1 := meta.NewClient([]string{s1.URL()}, false)
+		if err := c1.Open(); err != nil {
+			t.Fatal(err.Error())
 		}
-		if err := exec(s, internal.Command_CreateNodeCommand, internal.E_CreateNodeCommand_Command, cmdval); err != nil {
-			errch <- err
+		defer c1.Close()
+
+		metaNodes, _ := c1.MetaNodes()
+		if len(metaNodes) != 3 {
+			t.Fatalf("meta nodes wrong: %v", metaNodes)
 		}
 	}()
 
-	for i := 0; i < 2; i++ {
-		select {
-		case after := <-ch:
-			node = after.Node(1)
-			if node == nil {
-				t.Fatal("expected node but got <nil>")
-			} else if node.Host != host {
-				t.Fatalf("unexpected host:\n\texp: %s\n\tgot: %s\n", host, node.Host)
-			}
-		case err := <-errch:
-			t.Fatal(err)
-		case <-time.After(time.Second):
-			// First time through the loop it should time out because update hasn't happened.
-			if i == 0 {
-				// Signal the update
-				update <- struct{}{}
-			} else {
-				t.Fatal("timed out waiting for snapshot update")
-			}
-		}
+	c := meta.NewClient([]string{s1.URL()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	if res := c.ExecuteStatement(mustParseStatement("DROP META SERVER 3")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	metaNodes, _ := c.MetaNodes()
+	if len(metaNodes) != 2 {
+		t.Fatalf("meta nodes wrong: %v", metaNodes)
+	}
+
+	cfg4.JoinPeers = []string{s1.URL()}
+	s4 := newService(cfg4)
+	if err := s4.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer s4.Close()
+
+	metaNodes, _ = c.MetaNodes()
+	if len(metaNodes) != 3 {
+		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 }
 
-func newConfig() *Config {
-	cfg := NewConfig()
-	cfg.RaftBindAddress = "127.0.0.1:0"
-	cfg.HTTPdBindAddress = "127.0.0.1:0"
+// Ensure that if we attempt to create a database and the client
+// is pointed at a server that isn't the leader, it automatically
+// hits the leader and finishes the command
+func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
+
+}
+
+func newConfig() *meta.Config {
+	cfg := meta.NewConfig()
+	cfg.BindAddress = "127.0.0.1:0"
+	cfg.HTTPBindAddress = "127.0.0.1:0"
 	cfg.Dir = testTempDir(2)
 	return cfg
 }
@@ -244,46 +180,28 @@ func testTempDir(skip int) string {
 	return dir
 }
 
-func mustProtoMarshal(v proto.Message) []byte {
-	b, err := proto.Marshal(v)
+func newService(cfg *meta.Config) *meta.Service {
+	// Open shared TCP connection.
+	ln, err := net.Listen("tcp", cfg.BindAddress)
 	if err != nil {
 		panic(err)
 	}
-	return b
+
+	// Multiplex listener.
+	mux := tcp.NewMux()
+
+	s := meta.NewService(cfg, &influxdb.Node{})
+	s.RaftListener = mux.Listen(meta.MuxHeader)
+
+	go mux.Serve(ln)
+
+	return s
 }
 
-func snapshot(s *Service, index int) (*Data, error) {
-	url := fmt.Sprintf("http://%s?index=%d", s.URL(), index)
-	resp, err := http.Get(url)
+func mustParseStatement(s string) influxql.Statement {
+	stmt, err := influxql.ParseStatement(s)
 	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	data := &Data{}
-	if err := data.UnmarshalBinary(b); err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-func exec(s *Service, typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
-	// Create command.
-	cmd := &internal.Command{Type: &typ}
-	if err := proto.SetExtension(cmd, desc, value); err != nil {
 		panic(err)
 	}
-	b := mustProtoMarshal(cmd)
-	url := fmt.Sprintf("http://%s/execute", s.URL())
-	resp, err := http.Post(url, "application/octet-stream", bytes.NewBuffer(b))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected result:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.StatusCode)
-	}
-	return nil
+	return stmt
 }

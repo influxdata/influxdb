@@ -17,8 +17,8 @@ const (
 	// DefaultRaftBindAddress is the default address to bind to.
 	DefaultRaftBindAddress = ":8088"
 
-	// DefaultHTTPdBindAddress is the default address to bind to.
-	DefaultHTTPdBindAddress = ":8091"
+	// DefaultHTTPBindAddress is the default address to bind the API to.
+	DefaultHTTPBindAddress = ":8091"
 
 	// DefaultHeartbeatTimeout is the default heartbeat timeout for the store.
 	DefaultHeartbeatTimeout = 1000 * time.Millisecond
@@ -41,14 +41,20 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
-	Enabled              bool          `toml:"enabled"`
-	Dir                  string        `toml:"dir"`
-	Hostname             string        `toml:"hostname"`
-	RaftBindAddress      string        `toml:"raft-bind-address"`
-	HTTPdBindAddress     string        `toml:"httpd-bind-address"`
-	HTTPSEnabled         bool          `toml:"https-enabled"`
-	HTTPSCertificate     string        `toml:"https-certificate"`
-	Peers                []string      `toml:"-"`
+	Enabled  bool   `toml:"enabled"`
+	Dir      string `toml:"dir"`
+	Hostname string `toml:"hostname"`
+
+	// this is deprecated. Should use the address from run/config.go
+	BindAddress string `toml:"bind-address"`
+
+	// HTTPBindAddress is the bind address for the metaservice HTTP API
+	HTTPBindAddress  string `toml:"http-bind-address"`
+	HTTPSEnabled     bool   `toml:"https-enabled"`
+	HTTPSCertificate string `toml:"https-certificate"`
+
+	// JoinPeers if specified gives other metastore servers to join this server to the cluster
+	JoinPeers            []string      `toml:"-"`
 	RetentionAutoCreate  bool          `toml:"retention-autocreate"`
 	ElectionTimeout      toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout     toml.Duration `toml:"heartbeat-timeout"`
@@ -63,9 +69,10 @@ type Config struct {
 // NewConfig builds a new configuration with default values.
 func NewConfig() *Config {
 	return &Config{
+		Enabled:              true, // enabled by default
 		Hostname:             DefaultHostname,
-		RaftBindAddress:      DefaultRaftBindAddress,
-		HTTPdBindAddress:     DefaultHTTPdBindAddress,
+		BindAddress:          DefaultRaftBindAddress,
+		HTTPBindAddress:      DefaultHTTPBindAddress,
 		RetentionAutoCreate:  true,
 		ElectionTimeout:      toml.Duration(DefaultElectionTimeout),
 		HeartbeatTimeout:     toml.Duration(DefaultHeartbeatTimeout),
