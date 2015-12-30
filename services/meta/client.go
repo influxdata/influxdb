@@ -453,6 +453,10 @@ func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.Extension
 			return nil
 		}
 
+		if tries > maxRetries {
+			return err
+		}
+
 		if e, ok := err.(errRedirect); ok {
 			redirectServer = e.host
 			continue
