@@ -88,7 +88,6 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("serveExec: ", r.Host)
 	if r.URL.Path == "/join" {
 		n := &NodeInfo{}
 		if err := json.Unmarshal(body, n); err != nil {
@@ -98,7 +97,6 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 		err := h.store.join(n)
 		if err == raft.ErrNotLeader {
 			l := h.store.leaderHTTP()
-			fmt.Println("redirecting to leader:", l)
 			if l == "" {
 				// No cluster leader. Client will have to try again later.
 				h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
@@ -110,7 +108,6 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 			}
 
 			l = scheme + l + "/join"
-			fmt.Println("FOO: ", l)
 			http.Redirect(w, r, l, http.StatusTemporaryRedirect)
 			return
 		}
@@ -146,7 +143,6 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 			}
 
 			l = scheme + l + "/execute"
-			fmt.Println("FOO: ", l)
 			http.Redirect(w, r, l, http.StatusTemporaryRedirect)
 			return
 		}

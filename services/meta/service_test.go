@@ -350,6 +350,8 @@ func newServiceAndClient() (string, *meta.Service, *meta.Client) {
 }
 
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
+	t.Parallel()
+
 	cfg1 := newConfig()
 	defer os.RemoveAll(cfg1.Dir)
 	cfg2 := newConfig()
@@ -426,7 +428,41 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 // is pointed at a server that isn't the leader, it automatically
 // hits the leader and finishes the command
 func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
+	t.Parallel()
 
+	cfgs := make([]*meta.Config, 3)
+	srvs := make([]*meta.Service, 3)
+	for i, _ := range cfgs {
+		c := newConfig()
+
+		cfgs[i] = c
+
+		if i > 0 {
+			c.JoinPeers = []string{srvs[0].URL()}
+		}
+		srvs[i] = newService(c)
+		if err := srvs[i].Open(); err != nil {
+			t.Fatal(err.Error())
+		}
+		defer srvs[i].Close()
+	}
+
+	c := meta.NewClient([]string{srvs[2].URL()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	metaNodes, _ := c.MetaNodes()
+	if len(metaNodes) != 3 {
+		t.Fatalf("meta nodes wrong: %v", metaNodes)
+	}
+
+	if _, err := c.CreateDatabase("foo", true); err != nil {
+		t.Fatal(err)
+	}
+
+	if db, err := c.Database("foo"); db == nil || err != nil {
+		t.Fatalf("database foo wasn't created: %s", err.Error())
+	}
 }
 
 func newConfig() *meta.Config {

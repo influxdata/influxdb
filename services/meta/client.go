@@ -18,7 +18,15 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-const errSleep = 10 * time.Millisecond
+const (
+	// errSleep is the time to sleep after we've failed on every metaserver
+	// before making another pass
+	errSleep = 100 * time.Millisecond
+
+	// maxRetries is the maximum number of attemps to make before returning
+	// a failure to the caller
+	maxRetries = 10
+)
 
 type Client struct {
 	tls    bool
@@ -323,6 +331,7 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
 		var url string
 		if redirectServer != "" {
 			url = redirectServer
+			redirectServer = ""
 		} else {
 			c.mu.RLock()
 
@@ -399,34 +408,61 @@ func (c *Client) MarshalBinary() ([]byte, error) {
 	return nil, nil
 }
 
-func (c *Client) MetaServers() []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.metaServers
-}
-
 func (c *Client) index() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.data.Index
 }
 
-// retryUntilExec will attempt the command on each of the metaservers and return on the first success
+// retryUntilExec will attempt the command on each of the metaservers until it either succeeds or
+// hits the max number of tries
 func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
 	var err error
 	var index uint64
-	for _, s := range c.MetaServers() {
-		index, err = c.exec(s, typ, desc, value)
+	tries := 0
+	currentServer := 0
+	var redirectServer string
+
+	for {
+		// build the url to hit the redirect server or the next metaserver
+		var url string
+		if redirectServer != "" {
+			url = redirectServer
+			redirectServer = ""
+		} else {
+			c.mu.RLock()
+			if currentServer >= len(c.metaServers) {
+				currentServer = 0
+			}
+			server := c.metaServers[currentServer]
+			c.mu.RUnlock()
+
+			url = fmt.Sprintf("://%s/execute", server)
+			if c.tls {
+				url = "https" + url
+			} else {
+				url = "http" + url
+			}
+		}
+
+		index, err = c.exec(url, typ, desc, value)
+		tries++
+
 		if err == nil {
 			c.waitForIndex(index)
 			return nil
 		}
-	}
 
-	return err
+		if e, ok := err.(errRedirect); ok {
+			redirectServer = e.host
+			continue
+		}
+
+		time.Sleep(errSleep)
+	}
 }
 
-func (c *Client) exec(addr string, typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) (index uint64, err error) {
+func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) (index uint64, err error) {
 	// Create command.
 	cmd := &internal.Command{Type: &typ}
 	if err := proto.SetExtension(cmd, desc, value); err != nil {
@@ -438,14 +474,6 @@ func (c *Client) exec(addr string, typ internal.Command_Type, desc *proto.Extens
 		return 0, err
 	}
 
-	// execute against the metaserver
-	url := fmt.Sprintf("://%s/execute", addr)
-	if c.tls {
-		url = "https" + url
-	} else {
-		url = "http" + url
-	}
-
 	resp, err := http.Post(url, "application/octet-stream", bytes.NewBuffer(b))
 	if err != nil {
 		return 0, err
@@ -453,7 +481,9 @@ func (c *Client) exec(addr string, typ internal.Command_Type, desc *proto.Extens
 	defer resp.Body.Close()
 
 	// read the response
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusTemporaryRedirect {
+		return 0, errRedirect{host: resp.Header.Get("Location")}
+	} else if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("unexpected result:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.StatusCode)
 	}
 
@@ -553,10 +583,16 @@ func (c *Client) retryUntilSnapshot(idx uint64) *Data {
 		}
 
 		c.logger.Printf("failure getting snapshot from %s: %s", server, err.Error())
-
-		currentServer += 1
 		time.Sleep(errSleep)
 
-		continue
+		currentServer++
 	}
+}
+
+type errRedirect struct {
+	host string
+}
+
+func (e errRedirect) Error() string {
+	return fmt.Sprintf("redirect to %s", e.host)
 }
