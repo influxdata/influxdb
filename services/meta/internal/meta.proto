@@ -153,6 +153,7 @@ message CreateDatabaseCommand {
         optional CreateDatabaseCommand command = 103;
     }
 	required string Name = 1;
+	required bool IfNotExists = 2;
 }
 
 message DropDatabaseCommand {
@@ -168,6 +169,7 @@ message CreateRetentionPolicyCommand {
     }
 	required string Database = 1;
 	required RetentionPolicyInfo RetentionPolicy = 2;
+	required bool IfNotExists = 3;
 }
 
 message DropRetentionPolicyCommand {
@@ -176,6 +178,7 @@ message DropRetentionPolicyCommand {
     }
 	required string Database = 1;
 	required string Name = 2;
+	required bool IfExists = 3;
 }
 
 message SetDefaultRetentionPolicyCommand {

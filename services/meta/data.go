@@ -173,12 +173,27 @@ func (data *Data) Database(name string) *DatabaseInfo {
 	return nil
 }
 
+// CloneDatabases returns a copy of the databases.
+func (data *Data) CloneDatabases() []DatabaseInfo {
+	if data.Databases == nil {
+		return nil
+	}
+	dbs := make([]DatabaseInfo, len(data.Databases))
+	for i := range data.Databases {
+		dbs[i] = data.Databases[i].clone()
+	}
+	return dbs
+}
+
 // CreateDatabase creates a new database.
 // Returns an error if name is blank or if a database with the same name already exists.
-func (data *Data) CreateDatabase(name string) error {
+func (data *Data) CreateDatabase(name string, ifNotExists bool) error {
 	if name == "" {
 		return ErrDatabaseNameRequired
 	} else if data.Database(name) != nil {
+		if ifNotExists {
+			return nil
+		}
 		return ErrDatabaseExists
 	}
 
@@ -216,7 +231,7 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 
 // CreateRetentionPolicy creates a new retention policy on a database.
 // Returns an error if name is blank or if a database does not exist.
-func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) error {
+func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo, ifNotExists bool) error {
 	// Validate retention policy.
 	if rpi.Name == "" {
 		return ErrRetentionPolicyNameRequired
@@ -229,6 +244,9 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	if di == nil {
 		return influxdb.ErrDatabaseNotFound(database)
 	} else if di.RetentionPolicy(rpi.Name) != nil {
+		if ifNotExists {
+			return nil
+		}
 		return ErrRetentionPolicyExists
 	}
 
@@ -244,7 +262,7 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 }
 
 // DropRetentionPolicy removes a retention policy from a database by name.
-func (data *Data) DropRetentionPolicy(database, name string) error {
+func (data *Data) DropRetentionPolicy(database, name string, ifExists bool) error {
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
@@ -263,6 +281,11 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 			return nil
 		}
 	}
+
+	if ifExists {
+		return nil
+	}
+
 	return influxdb.ErrRetentionPolicyNotFound(name)
 }
 
