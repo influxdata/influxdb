@@ -352,8 +352,6 @@ func TestDevEngine_DeleteWALLoadMetadata(t *testing.T) {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
-	fmt.Println(e.Cache.store)
-
 	if exp, got := 0, len(e.Cache.Values(SeriesFieldKey("cpu,host=A", "value"))); exp != got {
 		t.Fatalf("unexpected number of values: got: %d. exp: %d", got, exp)
 	}
@@ -383,6 +381,9 @@ func TestDevEngine_Backup(t *testing.T) {
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+
 	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
@@ -488,3 +489,8 @@ type keyValues struct {
 	key    string
 	values []Value
 }
+
+type mockPlanner struct{}
+
+func (m *mockPlanner) Plan(lastWrite time.Time) []CompactionGroup { return nil }
+func (m *mockPlanner) PlanLevel(level int) []CompactionGroup      { return nil }
