@@ -22,14 +22,14 @@ type StatementExecutor struct {
 
 		Database(name string) (*DatabaseInfo, error)
 		Databases() ([]DatabaseInfo, error)
-		CreateDatabase(name string, ifNotExists bool) (*DatabaseInfo, error)
-		CreateDatabaseWithRetentionPolicy(name string, ifNotExists bool, rpi *RetentionPolicyInfo) (*DatabaseInfo, error)
+		CreateDatabase(name string) (*DatabaseInfo, error)
+		CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error)
 		DropDatabase(name string) error
 
-		CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo, ifNotExists bool) (*RetentionPolicyInfo, error)
+		CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error)
 		UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error
 		SetDefaultRetentionPolicy(database, name string) error
-		DropRetentionPolicy(database, name string, ifExists bool) error
+		DropRetentionPolicy(database, name string) error
 
 		Users() ([]UserInfo, error)
 		CreateUser(name, password string, admin bool) (*UserInfo, error)
@@ -116,9 +116,9 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDat
 		rpi := NewRetentionPolicyInfo(q.RetentionPolicyName)
 		rpi.Duration = q.RetentionPolicyDuration
 		rpi.ReplicaN = q.RetentionPolicyReplication
-		_, err = e.Store.CreateDatabaseWithRetentionPolicy(q.Name, q.IfNotExists, rpi)
+		_, err = e.Store.CreateDatabaseWithRetentionPolicy(q.Name, rpi)
 	} else {
-		_, err = e.Store.CreateDatabase(q.Name, q.IfNotExists)
+		_, err = e.Store.CreateDatabase(q.Name)
 	}
 
 	return &influxql.Result{Err: err}
@@ -251,7 +251,7 @@ func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql
 	rpi.ReplicaN = stmt.Replication
 
 	// Create new retention policy.
-	_, err := e.Store.CreateRetentionPolicy(stmt.Database, rpi, false)
+	_, err := e.Store.CreateRetentionPolicy(stmt.Database, rpi)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
@@ -285,7 +285,7 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 }
 
 func (e *StatementExecutor) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement) *influxql.Result {
-	return &influxql.Result{Err: e.Store.DropRetentionPolicy(q.Database, q.Name, false)}
+	return &influxql.Result{Err: e.Store.DropRetentionPolicy(q.Database, q.Name)}
 }
 
 func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement) *influxql.Result {
