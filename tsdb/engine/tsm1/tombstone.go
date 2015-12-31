@@ -61,6 +61,23 @@ func (t *Tombstoner) HasTombstones() bool {
 	return stat.Size() > 0
 }
 
+// TombstoneFiles returns any tombstone files associated with this TSM file.
+func (t *Tombstoner) TombstoneFiles() []FileStat {
+	stat, err := os.Stat(t.tombstonePath())
+	if err != nil {
+		return nil
+	}
+
+	if stat.Size() > 0 {
+		return []FileStat{FileStat{
+			Path:         stat.Name(),
+			LastModified: stat.ModTime(),
+			Size:         uint32(stat.Size())}}
+	}
+
+	return nil
+}
+
 func (t *Tombstoner) writeTombstone(tombstones []string) error {
 	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
 	if err != nil {
