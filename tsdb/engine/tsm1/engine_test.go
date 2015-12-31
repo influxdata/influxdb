@@ -378,11 +378,13 @@ func TestDevEngine_Backup(t *testing.T) {
 
 	// Write those points to the engine.
 	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
-	// mock the planner so compactions don't run during the test
-	e.CompactionPlan = &mockPlanner{}
 
 	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())

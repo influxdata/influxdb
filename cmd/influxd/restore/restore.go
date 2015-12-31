@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/meta"
@@ -309,14 +310,18 @@ restore uses backups from the PATH to restore the metastore, databases, retentio
 }
 
 type nopListener struct {
+	mu      sync.Mutex
 	closing chan struct{}
 }
 
 func newNopListener() *nopListener {
-	return &nopListener{make(chan struct{})}
+	return &nopListener{closing: make(chan struct{})}
 }
 
 func (ln *nopListener) Accept() (net.Conn, error) {
+	ln.mu.Lock()
+	defer ln.mu.Unlock()
+
 	<-ln.closing
 	return nil, errors.New("listener closing")
 }
@@ -324,6 +329,9 @@ func (ln *nopListener) Accept() (net.Conn, error) {
 func (ln *nopListener) Close() error {
 	if ln.closing != nil {
 		close(ln.closing)
+		ln.mu.Lock()
+		defer ln.mu.Unlock()
+
 		ln.closing = nil
 	}
 	return nil
