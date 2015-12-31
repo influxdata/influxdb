@@ -9,6 +9,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#5224](https://github.com/influxdb/influxdb/pull/5224): Online backup/incremental backup. Restore (for TSM).
 
 ### Bugfixes
+- [#4098](https://github.com/influxdb/influxdb/issues/4098): Fixed lint warnings on the tsdb/engine/wal subpackage
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
 - [#4735](https://github.com/influxdb/influxdb/issues/4735): Fix panic when merging empty results.
 - [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
