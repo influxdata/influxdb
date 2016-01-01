@@ -191,6 +191,32 @@ func (fsm *storeFSM) applyCreateDatabaseCommand(cmd *internal.Command) interface
 	if err := other.CreateDatabase(v.GetName()); err != nil {
 		return err
 	}
+
+	s := (*store)(fsm)
+	if s.config.RetentionAutoCreate {
+		// Read node count.
+		// Retention policies must be fully replicated.
+		replicaN := len(other.DataNodes)
+		if replicaN > maxAutoCreatedRetentionPolicyReplicaN {
+			replicaN = maxAutoCreatedRetentionPolicyReplicaN
+		} else if replicaN < 1 {
+			replicaN = 1
+		}
+
+		// Create a retention policy.
+		rpi := NewRetentionPolicyInfo(autoCreateRetentionPolicyName)
+		rpi.ReplicaN = replicaN
+		rpi.Duration = autoCreateRetentionPolicyPeriod
+		if err := other.CreateRetentionPolicy(v.GetName(), rpi); err != nil {
+			return err
+		}
+
+		// Set it as the default retention policy.
+		if err := other.SetDefaultRetentionPolicy(v.GetName(), autoCreateRetentionPolicyName); err != nil {
+			return err
+		}
+	}
+
 	fsm.data = other
 
 	return nil
