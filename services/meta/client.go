@@ -234,7 +234,12 @@ func (c *Client) DropRetentionPolicy(database, name string) error {
 
 // SetDefaultRetentionPolicy sets a database's default retention policy.
 func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
-	return nil
+	cmd := &internal.SetDefaultRetentionPolicyCommand{
+		Database: proto.String(database),
+		Name:     proto.String(name),
+	}
+
+	return c.retryUntilExec(internal.Command_SetDefaultRetentionPolicyCommand, internal.E_SetDefaultRetentionPolicyCommand_Command, cmd)
 }
 
 // UpdateRetentionPolicy updates a retention policy.

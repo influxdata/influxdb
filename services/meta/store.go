@@ -16,7 +16,20 @@ import (
 	"github.com/hashicorp/raft"
 )
 
-const raftListenerStartupTimeout = time.Second
+// Retention policy settings.
+const (
+	autoCreateRetentionPolicyName   = "default"
+	autoCreateRetentionPolicyPeriod = 0
+
+	// maxAutoCreatedRetentionPolicyReplicaN is the maximum replication factor that will
+	// be set for auto-created retention policies.
+	maxAutoCreatedRetentionPolicyReplicaN = 3
+)
+
+// Raft configuration.
+const (
+	raftListenerStartupTimeout = time.Second
+)
 
 type store struct {
 	mu      sync.RWMutex
