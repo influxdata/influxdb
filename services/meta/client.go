@@ -154,7 +154,6 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 
 	err := c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
 	if err != nil {
-		fmt.Println("ERROR: ", err)
 		return nil, err
 	}
 
@@ -543,7 +542,6 @@ func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.Extensi
 func (c *Client) waitForIndex(idx uint64) {
 	for {
 		c.mu.RLock()
-		fmt.Println("waitForIndex: ", idx, c.data.Index)
 		if c.data.Index >= idx {
 			c.mu.RUnlock()
 			return
