@@ -556,6 +556,8 @@ func (c *Client) pollForUpdates() {
 	for {
 		data := c.retryUntilSnapshot(c.index())
 		if data == nil {
+			// this will only be nil if the client has been closed,
+			// so we can exit out
 			return
 		}
 
