@@ -21,7 +21,7 @@ import (
 const (
 	// errSleep is the time to sleep after we've failed on every metaserver
 	// before making another pass
-	errSleep = 100 * time.Millisecond
+	errSleep = time.Second
 
 	// maxRetries is the maximum number of attemps to make before returning
 	// a failure to the caller
@@ -71,7 +71,12 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	close(c.closing)
+	select {
+	case <-c.closing:
+		return nil
+	default:
+		close(c.closing)
+	}
 
 	return nil
 }
@@ -149,6 +154,7 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 
 	err := c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
 	if err != nil {
+		fmt.Println("ERROR: ", err)
 		return nil, err
 	}
 
@@ -437,6 +443,17 @@ func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.Extension
 	var redirectServer string
 
 	for {
+		c.mu.RLock()
+		// exit if we're closed
+		select {
+		case <-c.closing:
+			c.mu.RUnlock()
+			return nil
+		default:
+			// we're still open, continue on
+		}
+		c.mu.RUnlock()
+
 		// build the url to hit the redirect server or the next metaserver
 		var url string
 		if redirectServer != "" {
@@ -526,6 +543,7 @@ func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.Extensi
 func (c *Client) waitForIndex(idx uint64) {
 	for {
 		c.mu.RLock()
+		fmt.Println("waitForIndex: ", idx, c.data.Index)
 		if c.data.Index >= idx {
 			c.mu.RUnlock()
 			return
@@ -539,6 +557,9 @@ func (c *Client) waitForIndex(idx uint64) {
 func (c *Client) pollForUpdates() {
 	for {
 		data := c.retryUntilSnapshot(c.index())
+		if data == nil {
+			return
+		}
 
 		// update the data and notify of the change
 		c.mu.Lock()
@@ -587,6 +608,15 @@ func (c *Client) retryUntilSnapshot(idx uint64) *Data {
 	for {
 		// get the index to look from and the server to poll
 		c.mu.RLock()
+
+		// exit if we're closed
+		select {
+		case <-c.closing:
+			c.mu.RUnlock()
+			return nil
+		default:
+			// we're still open, continue on
+		}
 
 		if currentServer >= len(c.metaServers) {
 			currentServer = 0

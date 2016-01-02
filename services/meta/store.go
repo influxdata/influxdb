@@ -177,8 +177,15 @@ func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
 func (s *store) close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	close(s.closing)
-	return nil
+
+	select {
+	case <-s.closing:
+		// already closed
+		return nil
+	default:
+		close(s.closing)
+		return s.raftState.close()
+	}
 }
 
 func (s *store) snapshot() (*Data, error) {
