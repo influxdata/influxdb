@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ func TestMetaService_PingEndpoint(t *testing.T) {
 	}
 	defer s.Close()
 
-	url, err := url.Parse(s.URL())
+	url, err := url.Parse(s.HTTPAddr())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,23 +354,6 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 	}
 }
 
-// newServiceAndClient returns new data directory, *Service, and *Client or panics.
-// Caller is responsible for deleting data dir and closing client.
-func newServiceAndClient() (string, *meta.Service, *meta.Client) {
-	cfg := newConfig()
-	s := newService(cfg)
-	if err := s.Open(); err != nil {
-		panic(err)
-	}
-
-	c := meta.NewClient([]string{s.URL()}, false)
-	if err := c.Open(); err != nil {
-		panic(err)
-	}
-
-	return cfg.Dir, s, c
-}
-
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
@@ -388,7 +372,7 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	}
 	defer s1.Close()
 
-	cfg2.JoinPeers = []string{s1.URL()}
+	cfg2.JoinPeers = []string{s1.HTTPAddr()}
 	s2 := newService(cfg2)
 	if err := s2.Open(); err != nil {
 		t.Fatal(err.Error())
@@ -396,14 +380,14 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	defer s2.Close()
 
 	func() {
-		cfg3.JoinPeers = []string{s2.URL()}
+		cfg3.JoinPeers = []string{s2.HTTPAddr()}
 		s3 := newService(cfg3)
 		if err := s3.Open(); err != nil {
 			t.Fatal(err.Error())
 		}
 		defer s3.Close()
 
-		c1 := meta.NewClient([]string{s1.URL()}, false)
+		c1 := meta.NewClient([]string{s1.HTTPAddr()}, false)
 		if err := c1.Open(); err != nil {
 			t.Fatal(err.Error())
 		}
@@ -415,7 +399,7 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		}
 	}()
 
-	c := meta.NewClient([]string{s1.URL()}, false)
+	c := meta.NewClient([]string{s1.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
 		t.Fatal(err.Error())
 	}
@@ -430,7 +414,7 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 
-	cfg4.JoinPeers = []string{s1.URL()}
+	cfg4.JoinPeers = []string{s1.HTTPAddr()}
 	s4 := newService(cfg4)
 	if err := s4.Open(); err != nil {
 		t.Fatal(err.Error())
@@ -450,26 +434,29 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 	t.Parallel()
 
 	cfgs := make([]*meta.Config, 3)
-	srvs := make([]*meta.Service, 3)
+	srvs := make([]*testService, 3)
 	for i, _ := range cfgs {
 		c := newConfig()
 
 		cfgs[i] = c
 
 		if i > 0 {
-			c.JoinPeers = []string{srvs[0].URL()}
+			c.JoinPeers = []string{srvs[0].HTTPAddr()}
 		}
 		srvs[i] = newService(c)
 		if err := srvs[i].Open(); err != nil {
 			t.Fatal(err.Error())
 		}
 		defer srvs[i].Close()
+		defer os.RemoveAll(c.Dir)
 	}
 
-	c := meta.NewClient([]string{srvs[2].URL()}, false)
+	c := meta.NewClient([]string{srvs[2].HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
 		t.Fatal(err.Error())
 	}
+	defer c.Close()
+
 	metaNodes, _ := c.MetaNodes()
 	if len(metaNodes) != 3 {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
@@ -482,6 +469,121 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 	if db, err := c.Database("foo"); db == nil || err != nil {
 		t.Fatalf("database foo wasn't created: %s", err.Error())
 	}
+}
+
+// Ensure that the client will fail over to another server if the leader goes
+// down. Also ensure that the cluster will come back up successfully after restart
+func TestMetaService_FailureAndRestartCluster(t *testing.T) {
+	t.Parallel()
+
+	cfgs := make([]*meta.Config, 3)
+	srvs := make([]*testService, 3)
+	for i, _ := range cfgs {
+		c := newConfig()
+
+		cfgs[i] = c
+
+		if i > 0 {
+			c.JoinPeers = []string{srvs[0].HTTPAddr()}
+		}
+		srvs[i] = newService(c)
+		if err := srvs[i].Open(); err != nil {
+			t.Fatal(err.Error())
+		}
+		c.HTTPBindAddress = srvs[i].HTTPAddr()
+		c.BindAddress = srvs[i].RaftAddr()
+		c.JoinPeers = nil
+		defer srvs[i].Close()
+		defer os.RemoveAll(c.Dir)
+	}
+
+	c := meta.NewClient([]string{srvs[0].HTTPAddr(), srvs[1].HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	if _, err := c.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	if db, err := c.Database("foo"); db == nil || err != nil {
+		t.Fatalf("database foo wasn't created: %s", err.Error())
+	}
+
+	if err := srvs[0].Close(); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if _, err := c.CreateDatabase("bar"); err != nil {
+		t.Fatal(err)
+	}
+
+	if db, err := c.Database("bar"); db == nil || err != nil {
+		t.Fatalf("database bar wasn't created: %s", err.Error())
+	}
+
+	if err := srvs[1].Close(); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := srvs[2].Close(); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	// give them a second to shut down
+	time.Sleep(time.Second)
+
+	// when we start back up they need to happen simultaneously, otherwise
+	// a leader won't get elected
+	var wg sync.WaitGroup
+	for i, cfg := range cfgs {
+		srvs[i] = newService(cfg)
+		wg.Add(1)
+		go func(srv *testService) {
+			if err := srv.Open(); err != nil {
+				panic(err)
+			}
+			wg.Done()
+		}(srvs[i])
+		defer srvs[i].Close()
+	}
+	wg.Wait()
+	time.Sleep(time.Second)
+
+	c2 := meta.NewClient([]string{srvs[0].HTTPAddr()}, false)
+	if err := c2.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer c2.Close()
+
+	if db, err := c2.Database("bar"); db == nil || err != nil {
+		t.Fatalf("database bar wasn't created: %s", err.Error())
+	}
+
+	if _, err := c2.CreateDatabase("asdf"); err != nil {
+		t.Fatal(err)
+	}
+
+	if db, err := c2.Database("asdf"); db == nil || err != nil {
+		t.Fatalf("database bar wasn't created: %s", err.Error())
+	}
+}
+
+// newServiceAndClient returns new data directory, *Service, and *Client or panics.
+// Caller is responsible for deleting data dir and closing client.
+func newServiceAndClient() (string, *testService, *meta.Client) {
+	cfg := newConfig()
+	s := newService(cfg)
+	if err := s.Open(); err != nil {
+		panic(err)
+	}
+
+	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		panic(err)
+	}
+
+	return cfg.Dir, s, c
 }
 
 func newConfig() *meta.Config {
@@ -507,7 +609,19 @@ func testTempDir(skip int) string {
 	return dir
 }
 
-func newService(cfg *meta.Config) *meta.Service {
+type testService struct {
+	*meta.Service
+	ln net.Listener
+}
+
+func (t *testService) Close() error {
+	if err := t.Service.Close(); err != nil {
+		return err
+	}
+	return t.ln.Close()
+}
+
+func newService(cfg *meta.Config) *testService {
 	// Open shared TCP connection.
 	ln, err := net.Listen("tcp", cfg.BindAddress)
 	if err != nil {
@@ -522,7 +636,7 @@ func newService(cfg *meta.Config) *meta.Service {
 
 	go mux.Serve(ln)
 
-	return s
+	return &testService{Service: s, ln: ln}
 }
 
 func mustParseStatement(s string) influxql.Statement {

@@ -85,7 +85,7 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	handler := newHandler(s.config)
+	handler := newHandler(s.config, s)
 	handler.logger = s.Logger
 	handler.store = s.store
 	s.handler = handler
@@ -108,19 +108,23 @@ func (s *Service) serve() {
 // Close closes the underlying listener.
 func (s *Service) Close() error {
 	if s.ln != nil {
-		return s.ln.Close()
+		if err := s.ln.Close(); err != nil {
+			return err
+		}
 	}
+	s.handler.Close()
 
-	if err := s.store.close(); err != nil {
-		return err
-	}
-
-	return nil
+	return s.store.close()
 }
 
-// URL returns the HTTP URL.
-func (s *Service) URL() string {
+// HTTPAddr returns the bind address for the HTTP API
+func (s *Service) HTTPAddr() string {
 	return s.httpAddr
+}
+
+// RaftAddr returns the bind address for the Raft TCP listener
+func (s *Service) RaftAddr() string {
+	return s.store.raftState.ln.Addr().String()
 }
 
 // Err returns a channel for fatal errors that occur on the listener.
