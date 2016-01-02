@@ -1,7 +1,6 @@
 package meta_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -71,6 +70,14 @@ func TestMetaService_CreateDatabase(t *testing.T) {
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
+
+	// Make sure a default retention policy was created.
+	_, err = c.RetentionPolicy("db0", "default")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.DefaultRetentionPolicy != "default" {
+		t.Fatalf("rp name wrong: %s", db.DefaultRetentionPolicy)
+	}
 }
 
 func TestMetaService_CreateDatabaseIfNotExists(t *testing.T) {
@@ -139,14 +146,14 @@ func TestMetaService_Databases(t *testing.T) {
 	defer c.Close()
 
 	// Create two databases.
-	db, err := c.CreateDatabase("db0", false)
+	db, err := c.CreateDatabase("db0")
 	if err != nil {
 		t.Fatalf(err.Error())
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	db, err = c.CreateDatabase("db1", false)
+	db, err = c.CreateDatabase("db1")
 	if err != nil {
 		t.Fatalf(err.Error())
 	} else if db.Name != "db1" {
@@ -230,9 +237,25 @@ func TestMetaService_CreateRetentionPolicy(t *testing.T) {
 	} else if rp.ReplicaN != 1 {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
 	}
+
+	// Create the same policy.  Should not error.
+	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	rp, err = c.RetentionPolicy("db0", "rp0")
+	if err != nil {
+		t.Fatal(err)
+	} else if rp.Name != "rp0" {
+		t.Fatalf("rp name wrong: %s", rp.Name)
+	} else if rp.Duration != time.Hour {
+		t.Fatalf("rp duration wrong: %s", rp.Duration.String())
+	} else if rp.ReplicaN != 1 {
+		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
+	}
 }
 
-func TestMetaService_CreateRetentionPolicyIfNotExists(t *testing.T) {
+func TestMetaService_SetDefaultRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, s, c := newServiceAndClient()
@@ -240,7 +263,8 @@ func TestMetaService_CreateRetentionPolicyIfNotExists(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+	qry := `CREATE DATABASE db0 WITH DURATION 1h REPLICATION 1 NAME rp0`
+	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
 		t.Fatal(res.Err)
 	}
 
@@ -251,15 +275,7 @@ func TestMetaService_CreateRetentionPolicyIfNotExists(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	rpi := &meta.RetentionPolicyInfo{
-		Name:     "rp0",
-		ReplicaN: 1,
-		Duration: time.Hour,
-	}
-
-	// InfluxQL doesn't support IF NOT EXISTS yet so use the API.
-	rp, err := c.CreateRetentionPolicy("db0", rpi, true)
-
+	rp, err := c.RetentionPolicy("db0", "rp0")
 	if err != nil {
 		t.Fatal(err)
 	} else if rp.Name != "rp0" {
@@ -270,17 +286,22 @@ func TestMetaService_CreateRetentionPolicyIfNotExists(t *testing.T) {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
 	}
 
-	// Create the same policy with ifNotExists = true.  Shouldn't error.
-	rp, err = c.CreateRetentionPolicy("db0", rpi, true)
+	// Make sure default retention policy hasn't been changed.
+	if db.DefaultRetentionPolicy != "default" {
+		t.Fatalf("rp name wrong: %s", db.DefaultRetentionPolicy)
+	}
 
+	// Set the default retention policy to "rp0".
+	if err := c.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Make sure the default retention policy changed to "rp1".
+	db, err = c.Database("db0")
 	if err != nil {
 		t.Fatal(err)
-	} else if rp.Name != "rp0" {
-		t.Fatalf("rp name wrong: %s", rp.Name)
-	} else if rp.Duration != time.Hour {
-		t.Fatalf("rp duration wrong: %s", rp.Duration.String())
-	} else if rp.ReplicaN != 1 {
-		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
+	} else if db.DefaultRetentionPolicy != "rp0" {
+		t.Fatalf("rp name wrong: %s", db.DefaultRetentionPolicy)
 	}
 }
 
@@ -382,8 +403,6 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		}
 		defer s3.Close()
 
-		fmt.Println("ALL OPEN!")
-
 		c1 := meta.NewClient([]string{s1.URL()}, false)
 		if err := c1.Open(); err != nil {
 			t.Fatal(err.Error())
@@ -456,7 +475,7 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 
-	if _, err := c.CreateDatabase("foo", true); err != nil {
+	if _, err := c.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
 

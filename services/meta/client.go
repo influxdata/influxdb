@@ -28,6 +28,8 @@ const (
 	maxRetries = 10
 )
 
+// Client is used to execute commands on and read data from
+// a meta service cluster.
 type Client struct {
 	tls    bool
 	logger *log.Logger
@@ -41,6 +43,7 @@ type Client struct {
 	executor *StatementExecutor
 }
 
+// NewClient returns a new *Client.
 func NewClient(metaServers []string, tls bool) *Client {
 	client := &Client{
 		data:        &Data{},
@@ -52,6 +55,7 @@ func NewClient(metaServers []string, tls bool) *Client {
 	return client
 }
 
+// Open a connection to a meta service cluster.
 func (c *Client) Open() error {
 	c.changed = make(chan struct{})
 	c.closing = make(chan struct{})
@@ -62,6 +66,7 @@ func (c *Client) Open() error {
 	return nil
 }
 
+// Close the meta service cluster connection.
 func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -71,6 +76,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// ClusterID returns the ID of the cluster it's connected to.
 func (c *Client) ClusterID() (id uint64, err error) {
 	return 0, nil
 }
@@ -80,22 +86,26 @@ func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
 	return nil, nil
 }
 
+// DataNodes returns the data nodes' info.
 func (c *Client) DataNodes() ([]NodeInfo, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.data.DataNodes, nil
 }
 
+// DeleteDataNode deletes a data node from the cluster.
 func (c *Client) DeleteDataNode(nodeID uint64) error {
 	return nil
 }
 
+// MetaNodes returns the meta nodes' info.
 func (c *Client) MetaNodes() ([]NodeInfo, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.data.MetaNodes, nil
 }
 
+// MetaNodeByAddr returns the meta node's info.
 func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -132,10 +142,9 @@ func (c *Client) Databases() ([]DatabaseInfo, error) {
 }
 
 // CreateDatabase creates a database.
-func (c *Client) CreateDatabase(name string, ifNotExists bool) (*DatabaseInfo, error) {
+func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	cmd := &internal.CreateDatabaseCommand{
-		Name:        proto.String(name),
-		IfNotExists: proto.Bool(ifNotExists),
+		Name: proto.String(name),
 	}
 
 	err := c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
@@ -147,19 +156,18 @@ func (c *Client) CreateDatabase(name string, ifNotExists bool) (*DatabaseInfo, e
 }
 
 // CreateDatabaseWithRetentionPolicy creates a database with the specified retention policy.
-func (c *Client) CreateDatabaseWithRetentionPolicy(name string, ifNotExists bool, rpi *RetentionPolicyInfo) (*DatabaseInfo, error) {
+func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error) {
 	if rpi.Duration < MinRetentionPolicyDuration && rpi.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
-	if _, err := c.CreateDatabase(name, ifNotExists); err != nil {
+	if _, err := c.CreateDatabase(name); err != nil {
 		return nil, err
 	}
 
 	cmd := &internal.CreateRetentionPolicyCommand{
 		Database:        proto.String(name),
 		RetentionPolicy: rpi.marshal(),
-		IfNotExists:     proto.Bool(false),
 	}
 
 	if err := c.retryUntilExec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command, cmd); err != nil {
@@ -179,7 +187,7 @@ func (c *Client) DropDatabase(name string) error {
 }
 
 // CreateRetentionPolicy creates a retention policy on the specified database.
-func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo, ifNotExists bool) (*RetentionPolicyInfo, error) {
+func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
 	if rpi.Duration < MinRetentionPolicyDuration && rpi.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
@@ -187,7 +195,6 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo
 	cmd := &internal.CreateRetentionPolicyCommand{
 		Database:        proto.String(database),
 		RetentionPolicy: rpi.marshal(),
-		IfNotExists:     proto.Bool(ifNotExists),
 	}
 
 	if err := c.retryUntilExec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command, cmd); err != nil {
@@ -216,20 +223,26 @@ func (c *Client) VisitRetentionPolicies(f func(d DatabaseInfo, r RetentionPolicy
 }
 
 // DropRetentionPolicy drops a retention policy from a database.
-func (c *Client) DropRetentionPolicy(database, name string, ifExists bool) error {
+func (c *Client) DropRetentionPolicy(database, name string) error {
 	cmd := &internal.DropRetentionPolicyCommand{
 		Database: proto.String(database),
 		Name:     proto.String(name),
-		IfExists: proto.Bool(ifExists),
 	}
 
 	return c.retryUntilExec(internal.Command_DropRetentionPolicyCommand, internal.E_DropRetentionPolicyCommand_Command, cmd)
 }
 
+// SetDefaultRetentionPolicy sets a database's default retention policy.
 func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
-	return nil
+	cmd := &internal.SetDefaultRetentionPolicyCommand{
+		Database: proto.String(database),
+		Name:     proto.String(name),
+	}
+
+	return c.retryUntilExec(internal.Command_SetDefaultRetentionPolicyCommand, internal.E_SetDefaultRetentionPolicyCommand_Command, cmd)
 }
 
+// UpdateRetentionPolicy updates a retention policy.
 func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
 	return nil
 }
