@@ -35,13 +35,15 @@ type raftState struct {
 	raftStore *raftboltdb.BoltStore
 	raftLayer *raftLayer
 	ln        net.Listener
+	addr      string
 	logger    *log.Logger
 	path      string
 }
 
-func newRaftState(c *Config) *raftState {
+func newRaftState(c *Config, addr string) *raftState {
 	return &raftState{
 		config: c,
+		addr:   addr,
 	}
 }
 
@@ -65,7 +67,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	config.ShutdownOnRemove = false
 
 	// Build raft layer to multiplex listener.
-	r.raftLayer = newRaftLayer(r.ln)
+	r.raftLayer = newRaftLayer(r.addr, r.ln)
 
 	// Create a transport layer
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
@@ -94,19 +96,19 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 
 		// For single-node clusters, we can update the raft peers before we start the cluster
 		// just in case the hostname has changed.
-		if err := r.peerStore.SetPeers([]string{r.ln.Addr().String()}); err != nil {
+		if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
 			return err
 		}
-		peers = []string{r.ln.Addr().String()}
+		peers = []string{r.addr}
 	}
 
 	// If we have multiple nodes in the cluster, make sure our address is in the raft peers or
 	// we won't be able to boot into the cluster because the other peers will reject our new hostname.  This
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
-	if len(peers) > 0 && !raft.PeerContained(peers, r.ln.Addr().String()) {
-		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.ln.Addr().String(), r.path)
-		return fmt.Errorf("peers out of sync: %v not in %v", r.ln.Addr().String(), peers)
+	if len(peers) > 0 && !raft.PeerContained(peers, r.addr) {
+		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.addr, r.path)
+		return fmt.Errorf("peers out of sync: %v not in %v", r.addr, peers)
 	}
 
 	// Create the log store and stable store.
@@ -271,14 +273,28 @@ func (r *raftState) isLeader() bool {
 
 // raftLayer wraps the connection so it can be re-used for forwarding.
 type raftLayer struct {
+	addr   *raftLayerAddr
 	ln     net.Listener
 	conn   chan net.Conn
 	closed chan struct{}
 }
 
+type raftLayerAddr struct {
+	addr string
+}
+
+func (r *raftLayerAddr) Network() string {
+	return "tcp"
+}
+
+func (r *raftLayerAddr) String() string {
+	return r.addr
+}
+
 // newRaftLayer returns a new instance of raftLayer.
-func newRaftLayer(ln net.Listener) *raftLayer {
+func newRaftLayer(addr string, ln net.Listener) *raftLayer {
 	return &raftLayer{
+		addr:   &raftLayerAddr{addr},
 		ln:     ln,
 		conn:   make(chan net.Conn),
 		closed: make(chan struct{}),
@@ -286,7 +302,9 @@ func newRaftLayer(ln net.Listener) *raftLayer {
 }
 
 // Addr returns the local address for the layer.
-func (l *raftLayer) Addr() net.Addr { return l.ln.Addr() }
+func (l *raftLayer) Addr() net.Addr {
+	return l.addr
+}
 
 // Dial creates a new network connection.
 func (l *raftLayer) Dial(addr string, timeout time.Duration) (net.Conn, error) {

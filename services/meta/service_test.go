@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -566,6 +568,67 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 
 	if db, err := c2.Database("asdf"); db == nil || err != nil {
 		t.Fatalf("database bar wasn't created: %s", err.Error())
+	}
+}
+
+// Ensures that everything works after a host name change. This is
+// skipped by default. To enable add hosts foobar and asdf to your
+// /etc/hosts file and point those to 127.0.0.1
+func TestMetaService_NameChangeSingleNode(t *testing.T) {
+	t.Skip("not enabled")
+	t.Parallel()
+
+	cfg := newConfig()
+	defer os.RemoveAll(cfg.Dir)
+	cfg.BindAddress = "foobar:0"
+	cfg.HTTPBindAddress = "foobar:0"
+	s := newService(cfg)
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	if _, err := c.CreateDatabase("foo"); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	s.Close()
+	time.Sleep(time.Second)
+
+	cfg.BindAddress = "asdf" + ":" + strings.Split(s.RaftAddr(), ":")[1]
+	cfg.HTTPBindAddress = "asdf" + ":" + strings.Split(s.HTTPAddr(), ":")[1]
+	s = newService(cfg)
+	if err := s.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer s.Close()
+
+	c2 := meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c2.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c2.Close()
+
+	db, err := c2.Database("foo")
+	if db == nil || err != nil {
+		t.Fatal(err.Error())
+	}
+
+	nodes, err := c2.MetaNodes()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	exp := []meta.NodeInfo{{ID: 1, Host: cfg.HTTPBindAddress, TCPHost: cfg.BindAddress}}
+
+	time.Sleep(10 * time.Second)
+	if !reflect.DeepEqual(nodes, exp) {
+		t.Fatalf("nodes don't match: %v", nodes)
 	}
 }
 

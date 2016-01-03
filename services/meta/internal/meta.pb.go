@@ -49,6 +49,7 @@ It has these top-level messages:
 	DeleteMetaNodeCommand
 	DeleteDataNodeCommand
 	Response
+	SetMetaNodeCommand
 */
 package internal
 
@@ -91,6 +92,7 @@ const (
 	Command_UpdateDataNodeCommand            Command_Type = 26
 	Command_DeleteMetaNodeCommand            Command_Type = 27
 	Command_DeleteDataNodeCommand            Command_Type = 28
+	Command_SetMetaNodeCommand               Command_Type = 29
 )
 
 var Command_Type_name = map[int32]string{
@@ -121,6 +123,7 @@ var Command_Type_name = map[int32]string{
 	26: "UpdateDataNodeCommand",
 	27: "DeleteMetaNodeCommand",
 	28: "DeleteDataNodeCommand",
+	29: "SetMetaNodeCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -150,6 +153,7 @@ var Command_Type_value = map[string]int32{
 	"UpdateDataNodeCommand":            26,
 	"DeleteMetaNodeCommand":            27,
 	"DeleteDataNodeCommand":            28,
+	"SetMetaNodeCommand":               29,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1595,6 +1599,40 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
+// SetMetaNodeCommand is for the initial metanode in a cluster or
+// if the single host restarts and its hostname changes, this will update it
+type SetMetaNodeCommand struct {
+	HTTPAddr         *string `protobuf:"bytes,1,req,name=HTTPAddr" json:"HTTPAddr,omitempty"`
+	TCPAddr          *string `protobuf:"bytes,2,req,name=TCPAddr" json:"TCPAddr,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *SetMetaNodeCommand) Reset()         { *m = SetMetaNodeCommand{} }
+func (m *SetMetaNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*SetMetaNodeCommand) ProtoMessage()    {}
+
+func (m *SetMetaNodeCommand) GetHTTPAddr() string {
+	if m != nil && m.HTTPAddr != nil {
+		return *m.HTTPAddr
+	}
+	return ""
+}
+
+func (m *SetMetaNodeCommand) GetTCPAddr() string {
+	if m != nil && m.TCPAddr != nil {
+		return *m.TCPAddr
+	}
+	return ""
+}
+
+var E_SetMetaNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*SetMetaNodeCommand)(nil),
+	Field:         129,
+	Name:          "internal.SetMetaNodeCommand.command",
+	Tag:           "bytes,129,opt,name=command",
+}
+
 func init() {
 	proto.RegisterType((*Data)(nil), "internal.Data")
 	proto.RegisterType((*NodeInfo)(nil), "internal.NodeInfo")
@@ -1636,6 +1674,7 @@ func init() {
 	proto.RegisterType((*DeleteMetaNodeCommand)(nil), "internal.DeleteMetaNodeCommand")
 	proto.RegisterType((*DeleteDataNodeCommand)(nil), "internal.DeleteDataNodeCommand")
 	proto.RegisterType((*Response)(nil), "internal.Response")
+	proto.RegisterType((*SetMetaNodeCommand)(nil), "internal.SetMetaNodeCommand")
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
@@ -1664,4 +1703,5 @@ func init() {
 	proto.RegisterExtension(E_UpdateDataNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteMetaNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteDataNodeCommand_Command)
+	proto.RegisterExtension(E_SetMetaNodeCommand_Command)
 }
