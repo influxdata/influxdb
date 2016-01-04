@@ -2,14 +2,19 @@ package meta
 
 import (
 	"bytes"
+	crand "crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
@@ -26,6 +31,9 @@ const (
 	// maxRetries is the maximum number of attemps to make before returning
 	// a failure to the caller
 	maxRetries = 10
+
+	// SaltBytes is the number of bytes used for salts
+	SaltBytes = 32
 )
 
 // Client is used to execute commands on and read data from
@@ -41,6 +49,13 @@ type Client struct {
 	data        *Data
 
 	executor *StatementExecutor
+
+	// Authentication cache.
+	authCache map[string]authUser
+
+	// hashPassword generates a cryptographically secure hash for password.
+	// Returns an error if the password is invalid or a hash cannot be generated.
+	hashPassword HashPasswordFn
 }
 
 // NewClient returns a new *Client.
@@ -50,6 +65,10 @@ func NewClient(metaServers []string, tls bool) *Client {
 		metaServers: metaServers,
 		tls:         tls,
 		logger:      log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
+		authCache:   make(map[string]authUser, 0),
+		hashPassword: func(password string) ([]byte, error) {
+			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
+		},
 	}
 	client.executor = &StatementExecutor{Store: client}
 	return client
@@ -262,52 +281,208 @@ func (c *Client) WaitForLeader(timeout time.Duration) error {
 	return nil
 }
 
-func (c *Client) Users() (a []UserInfo, err error) {
-	return nil, nil
+func (c *Client) Users() []UserInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.data.Users == nil {
+		return []UserInfo{}
+	}
+	return c.data.Users
 }
 
 func (c *Client) User(name string) (*UserInfo, error) {
-	return nil, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, u := range c.data.Users {
+		if u.Name == name {
+			return &u, nil
+		}
+	}
+
+	return nil, ErrUserNotFound
+}
+
+// BcryptCost is the cost associated with generating password with Bcrypt.
+// This setting is lowered during testing to improve test suite performance.
+var BcryptCost = 10
+
+// HashPasswordFn represnets a password hashing function.
+type HashPasswordFn func(password string) ([]byte, error)
+
+// GetHashPasswordFn returns the current password hashing function.
+func (c *Client) GetHashPasswordFn() HashPasswordFn {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.hashPassword
+}
+
+// SetHashPasswordFn sets the password hashing function.
+func (c *Client) SetHashPasswordFn(fn HashPasswordFn) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.hashPassword = fn
+}
+
+// hashWithSalt returns a salted hash of password using salt
+func (c *Client) hashWithSalt(salt []byte, password string) ([]byte, error) {
+	hasher := sha256.New()
+	hasher.Write(append(salt, []byte(password)...))
+	return hasher.Sum(nil), nil
+}
+
+// saltedHash returns a salt and salted hash of password
+func (c *Client) saltedHash(password string) (salt, hash []byte, err error) {
+	salt = make([]byte, SaltBytes)
+	_, err = io.ReadFull(crand.Reader, salt)
+	if err != nil {
+		return
+	}
+
+	hash, err = c.hashWithSalt(salt, password)
+	return
 }
 
 func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error) {
-	return nil, nil
+	// Hash the password before serializing it.
+	hash, err := c.hashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := c.retryUntilExec(internal.Command_CreateUserCommand, internal.E_CreateUserCommand_Command,
+		&internal.CreateUserCommand{
+			Name:  proto.String(name),
+			Hash:  proto.String(string(hash)),
+			Admin: proto.Bool(admin),
+		},
+	); err != nil {
+		return nil, err
+	}
+	return c.User(name)
 }
 
 func (c *Client) UpdateUser(name, password string) error {
-	return nil
+	// Hash the password before serializing it.
+	hash, err := c.hashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	return c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
+		&internal.UpdateUserCommand{
+			Name: proto.String(name),
+			Hash: proto.String(string(hash)),
+		},
+	)
 }
 
 func (c *Client) DropUser(name string) error {
-	return nil
+	return c.retryUntilExec(internal.Command_DropUserCommand, internal.E_DropUserCommand_Command,
+		&internal.DropUserCommand{
+			Name: proto.String(name),
+		},
+	)
 }
 
 func (c *Client) SetPrivilege(username, database string, p influxql.Privilege) error {
-	return nil
+	return c.retryUntilExec(internal.Command_SetPrivilegeCommand, internal.E_SetPrivilegeCommand_Command,
+		&internal.SetPrivilegeCommand{
+			Username:  proto.String(username),
+			Database:  proto.String(database),
+			Privilege: proto.Int32(int32(p)),
+		},
+	)
 }
 
 func (c *Client) SetAdminPrivilege(username string, admin bool) error {
-	return nil
+	return c.retryUntilExec(internal.Command_SetAdminPrivilegeCommand, internal.E_SetAdminPrivilegeCommand_Command,
+		&internal.SetAdminPrivilegeCommand{
+			Username: proto.String(username),
+			Admin:    proto.Bool(admin),
+		},
+	)
 }
 
 func (c *Client) UserPrivileges(username string) (map[string]influxql.Privilege, error) {
-	return nil, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	p, err := c.data.UserPrivileges(username)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, error) {
-	return nil, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	p, err := c.data.UserPrivilege(username, database)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
-func (c *Client) AdminUserExists() (bool, error) {
-	return false, nil
+func (c *Client) AdminUserExists() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, u := range c.data.Users {
+		if u.Admin {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
-	return nil, nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Find user.
+	u := c.data.User(username)
+	if u == nil {
+		return nil, ErrUserNotFound
+	}
+
+	// Check the local auth cache first.
+	if au, ok := c.authCache[username]; ok {
+		// verify the password using the cached salt and hash
+		hashed, err := c.hashWithSalt(au.salt, password)
+		if err != nil {
+			return nil, err
+		}
+
+		if bytes.Equal(hashed, au.hash) {
+			return u, nil
+		}
+		return nil, ErrAuthenticate
+	}
+
+	// Compare password with user hash.
+	if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
+		return nil, ErrAuthenticate
+	}
+
+	// generate a salt and hash of the password for the cache
+	salt, hashed, err := c.saltedHash(password)
+	if err != nil {
+		return nil, err
+	}
+	c.authCache[username] = authUser{salt: salt, hash: hashed}
+
+	return u, nil
 }
 
-func (c *Client) UserCount() (int, error) {
-	return 0, nil
+func (c *Client) UserCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.data.Users)
 }
 
 func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
