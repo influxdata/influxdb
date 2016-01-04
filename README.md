@@ -1,4 +1,4 @@
-# InfluxDB [![Circle CI](https://circleci.com/gh/influxdb/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdb/influxdb/tree/master)
+# InfluxDB [![Circle CI](https://circleci.com/gh/influxdata/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb/tree/master)
 
 ## An Open-Source, Distributed, Time Series Database
 
@@ -28,7 +28,7 @@ You don't need to build the project to use it - you can use any of our
 [pre-built packages](https://influxdata.com/downloads/) to install InfluxDB. That's
 the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build.
 For those adventurous enough, you can
-[follow along on our docs](http://github.com/influxdb/influxdb/blob/master/CONTRIBUTING.md).
+[follow along on our docs](http://github.com/influxdata/influxdb/blob/master/CONTRIBUTING.md).
 
 ### Starting InfluxDB
 * `service influxdb start` if you have installed InfluxDB using an official Debian or RPM package.
