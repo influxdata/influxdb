@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb"
 )
@@ -24,6 +25,7 @@ type Service struct {
 	handler  *handler
 	ln       net.Listener
 	httpAddr string
+	raftAddr string
 	https    bool
 	cert     string
 	err      chan error
@@ -36,6 +38,7 @@ func NewService(c *Config, node *influxdb.Node) *Service {
 	s := &Service{
 		config:   c,
 		httpAddr: c.HTTPBindAddress,
+		raftAddr: c.BindAddress,
 		https:    c.HTTPSEnabled,
 		cert:     c.HTTPSCertificate,
 		err:      make(chan error),
@@ -77,11 +80,34 @@ func (s *Service) Open() error {
 		s.Logger.Println("Listening on HTTP:", listener.Addr().String())
 		s.ln = listener
 	}
-	s.httpAddr = s.ln.Addr().String()
+
+	// wait for the listeners to start
+	timeout := time.Now().Add(raftListenerStartupTimeout)
+	for {
+		if s.ln.Addr() != nil && s.RaftListener.Addr() != nil {
+			break
+		}
+
+		if time.Now().After(timeout) {
+			return fmt.Errorf("unable to open without http listener running")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	var err error
+	if autoAssignPort(s.httpAddr) {
+		s.httpAddr, err = combineHostAndAssignedPort(s.ln, s.httpAddr)
+	}
+	if autoAssignPort(s.raftAddr) {
+		s.raftAddr, err = combineHostAndAssignedPort(s.RaftListener, s.raftAddr)
+	}
+	if err != nil {
+		return err
+	}
 
 	// Open the store
-	s.store = newStore(s.config)
-	if err := s.store.open(s.ln.Addr().String(), s.RaftListener); err != nil {
+	s.store = newStore(s.config, s.httpAddr, s.raftAddr)
+	if err := s.store.open(s.RaftListener); err != nil {
 		return err
 	}
 
@@ -101,7 +127,7 @@ func (s *Service) serve() {
 	// See https://github.com/golang/go/issues/4373
 	err := http.Serve(s.ln, s.handler)
 	if err != nil && !strings.Contains(err.Error(), "closed") {
-		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
+		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.ln.Addr(), err)
 	}
 }
 
@@ -124,7 +150,7 @@ func (s *Service) HTTPAddr() string {
 
 // RaftAddr returns the bind address for the Raft TCP listener
 func (s *Service) RaftAddr() string {
-	return s.store.raftState.ln.Addr().String()
+	return s.raftAddr
 }
 
 // Err returns a channel for fatal errors that occur on the listener.
@@ -135,10 +161,19 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
-// Addr returns the listener's address. Returns nil if listener is closed.
-func (s *Service) Addr() net.Addr {
-	if s.ln != nil {
-		return s.ln.Addr()
+func autoAssignPort(addr string) bool {
+	_, p, _ := net.SplitHostPort(addr)
+	return p == "0"
+}
+
+func combineHostAndAssignedPort(ln net.Listener, autoAddr string) (string, error) {
+	host, _, err := net.SplitHostPort(autoAddr)
+	if err != nil {
+		return "", err
 	}
-	return nil
+	_, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(host, port), nil
 }

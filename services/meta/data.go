@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -136,6 +137,24 @@ func (data *Data) CreateMetaNode(httpAddr, tcpAddr string) error {
 		Host:    httpAddr,
 		TCPHost: tcpAddr,
 	})
+
+	return nil
+}
+
+// SetMetaNode will update the information for the single meta
+// node or create a new metanode. If there are more than 1 meta
+// nodes already, an error will be returned
+func (data *Data) SetMetaNode(httpAddr, tcpAddr string) error {
+	if len(data.MetaNodes) > 1 {
+		return fmt.Errorf("can't set meta node when there are more than 1 in the metastore")
+	}
+
+	if len(data.MetaNodes) == 0 {
+		return data.CreateMetaNode(httpAddr, tcpAddr)
+	}
+
+	data.MetaNodes[0].Host = httpAddr
+	data.MetaNodes[0].TCPHost = tcpAddr
 
 	return nil
 }
