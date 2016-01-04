@@ -48,7 +48,7 @@ var tsmSz uint64
 var parallel bool
 var disBack bool
 
-const maxTSMSz = 1 * 1024 * 1024 * 1024
+const maxTSMSz = 2 * 1000 * 1000 * 1000
 
 func init() {
 	flag.StringVar(&ds, "dbs", "", "Comma-delimited list of databases to convert. Default is to convert all databases.")
