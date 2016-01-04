@@ -339,19 +339,3 @@ func (s *store) setMetaNode(addr, raftAddr string) error {
 
 	return s.apply(b)
 }
-
-// RetentionPolicyUpdate represents retention policy fields to be updated.
-type RetentionPolicyUpdate struct {
-	Name     *string
-	Duration *time.Duration
-	ReplicaN *int
-}
-
-// SetName sets the RetentionPolicyUpdate.Name
-func (rpu *RetentionPolicyUpdate) SetName(v string) { rpu.Name = &v }
-
-// SetDuration sets the RetentionPolicyUpdate.Duration
-func (rpu *RetentionPolicyUpdate) SetDuration(v time.Duration) { rpu.Duration = &v }
-
-// SetReplicaN sets the RetentionPolicyUpdate.ReplicaN
-func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
