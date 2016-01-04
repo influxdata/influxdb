@@ -73,6 +73,7 @@ func NewDevEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engi
 	}
 
 	e := &DevEngine{
+		done:   make(chan struct{}),
 		path:   path,
 		logger: log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 
@@ -108,7 +109,6 @@ func (e *DevEngine) Format() tsdb.EngineFormat {
 
 // Open opens and initializes the engine.
 func (e *DevEngine) Open() error {
-	e.done = make(chan struct{})
 	e.Compactor.Cancel = e.done
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {
