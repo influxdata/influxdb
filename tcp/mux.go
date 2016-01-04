@@ -18,6 +18,7 @@ const (
 
 // Mux multiplexes a network connection.
 type Mux struct {
+	mu sync.RWMutex
 	ln net.Listener
 	m  map[byte]*listener
 
@@ -41,7 +42,9 @@ func NewMux() *Mux {
 
 // Serve handles connections from ln and multiplexes then across registered listener.
 func (mux *Mux) Serve(ln net.Listener) error {
+	mux.mu.Lock()
 	mux.ln = ln
+	mux.mu.Unlock()
 	for {
 		// Wait for the next connection.
 		// If it returns a temporary error then simply retry.
@@ -141,10 +144,18 @@ func (ln *listener) Close() error { return nil }
 
 // Addr returns the Addr of the listener
 func (ln *listener) Addr() net.Addr {
-	if ln.mux != nil && ln.mux.ln != nil {
-		return ln.mux.ln.Addr()
+	if ln.mux == nil {
+		return nil
 	}
-	return nil
+
+	ln.mux.mu.RLock()
+	defer ln.mux.mu.RUnlock()
+
+	if ln.mux.ln == nil {
+		return nil
+	}
+
+	return ln.mux.ln.Addr()
 }
 
 // Dial connects to a remote mux listener with a given header byte.
