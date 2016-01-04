@@ -45,6 +45,9 @@ type store struct {
 
 	// Authentication cache.
 	authCache map[string]authUser
+
+	raftAddr string
+	httpAddr string
 }
 
 type authUser struct {
@@ -53,7 +56,7 @@ type authUser struct {
 }
 
 // newStore will create a new metastore with the passed in config
-func newStore(c *Config) *store {
+func newStore(c *Config, httpAddr, raftAddr string) *store {
 	s := store{
 		data: &Data{
 			Index: 1,
@@ -62,6 +65,8 @@ func newStore(c *Config) *store {
 		dataChanged: make(chan struct{}),
 		path:        c.Dir,
 		config:      c,
+		httpAddr:    httpAddr,
+		raftAddr:    raftAddr,
 	}
 	if c.LoggingEnabled {
 		s.logger = log.New(os.Stderr, "[metastore] ", log.LstdFlags)
@@ -73,21 +78,8 @@ func newStore(c *Config) *store {
 }
 
 // open opens and initializes the raft store.
-func (s *store) open(addr string, raftln net.Listener) error {
+func (s *store) open(raftln net.Listener) error {
 	s.logger.Printf("Using data dir: %v", s.path)
-
-	// wait for the raft listener to start
-	timeout := time.Now().Add(raftListenerStartupTimeout)
-	for {
-		if raftln.Addr() != nil {
-			break
-		}
-
-		if time.Now().After(timeout) {
-			return fmt.Errorf("unable to open without raft listener running")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 
 	// See if this server needs to join the raft consensus group
 	var initializePeers []string
@@ -97,7 +89,7 @@ func (s *store) open(addr string, raftln net.Listener) error {
 		for _, n := range data.MetaNodes {
 			initializePeers = append(initializePeers, n.TCPHost)
 		}
-		initializePeers = append(initializePeers, raftln.Addr().String())
+		initializePeers = append(initializePeers, s.raftAddr)
 	}
 
 	if err := func() error {
@@ -132,7 +124,7 @@ func (s *store) open(addr string, raftln net.Listener) error {
 		}
 		defer c.Close()
 
-		if err := c.JoinMetaServer(addr, raftln.Addr().String()); err != nil {
+		if err := c.JoinMetaServer(s.httpAddr, s.raftAddr); err != nil {
 			return err
 		}
 	}
@@ -149,20 +141,23 @@ func (s *store) open(addr string, raftln net.Listener) error {
 		return err
 	}
 	if len(peers) <= 1 {
-		if err := s.createMetaNode(addr, raftln.Addr().String()); err != nil {
-			return err
+		// we have to loop here because if the hostname has changed
+		// raft will take a little bit to normalize so that this host
+		// will be marked as the leader
+		for {
+			err := s.setMetaNode(s.httpAddr, s.raftAddr)
+			if err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
-	}
-
-	// if we joined this server to the cluster, we need to add it as a metanode
-	if len(s.config.JoinPeers) > 0 {
 	}
 
 	return nil
 }
 
 func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
-	rs := newRaftState(s.config)
+	rs := newRaftState(s.config, s.raftAddr)
 	rs.logger = s.logger
 	rs.path = s.path
 
@@ -177,8 +172,15 @@ func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
 func (s *store) close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	close(s.closing)
-	return nil
+
+	select {
+	case <-s.closing:
+		// already closed
+		return nil
+	default:
+		close(s.closing)
+		return s.raftState.close()
+	}
 }
 
 func (s *store) snapshot() (*Data, error) {
@@ -295,6 +297,8 @@ func (s *store) leave(n *NodeInfo) error {
 	return s.raftState.removePeer(n.TCPHost)
 }
 
+// createMetaNode is used by the join command to create the metanode int
+// the metastore
 func (s *store) createMetaNode(addr, raftAddr string) error {
 	val := &internal.CreateMetaNodeCommand{
 		HTTPAddr: proto.String(addr),
@@ -303,6 +307,28 @@ func (s *store) createMetaNode(addr, raftAddr string) error {
 	t := internal.Command_CreateMetaNodeCommand
 	cmd := &internal.Command{Type: &t}
 	if err := proto.SetExtension(cmd, internal.E_CreateMetaNodeCommand_Command, val); err != nil {
+		panic(err)
+	}
+
+	b, err := proto.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+
+	return s.apply(b)
+}
+
+// setMetaNode is used when the raft group has only a single peer. It will
+// either create a metanode or update the information for the one metanode
+// that is there. It's used because hostnames can change
+func (s *store) setMetaNode(addr, raftAddr string) error {
+	val := &internal.SetMetaNodeCommand{
+		HTTPAddr: proto.String(addr),
+		TCPAddr:  proto.String(raftAddr),
+	}
+	t := internal.Command_SetMetaNodeCommand
+	cmd := &internal.Command{Type: &t}
+	if err := proto.SetExtension(cmd, internal.E_SetMetaNodeCommand_Command, val); err != nil {
 		panic(err)
 	}
 

@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -37,14 +38,20 @@ type handler struct {
 		apply(b []byte) error
 		join(n *NodeInfo) error
 	}
+	s *Service
+
+	mu      sync.RWMutex
+	closing chan struct{}
 }
 
 // newHandler returns a new instance of handler with routes.
-func newHandler(c *Config) *handler {
+func newHandler(c *Config, s *Service) *handler {
 	h := &handler{
+		s:              s,
 		config:         c,
 		logger:         log.New(os.Stderr, "[meta-http] ", log.LstdFlags),
 		loggingEnabled: c.LoggingEnabled,
+		closing:        make(chan struct{}),
 	}
 
 	return h
@@ -79,8 +86,36 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *handler) Close() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	select {
+	case <-h.closing:
+		// do nothing here
+	default:
+		close(h.closing)
+	}
+	return nil
+}
+
+func (h *handler) isClosed() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	select {
+	case <-h.closing:
+		return true
+	default:
+		return false
+	}
+}
+
 // serveExec executes the requested command.
 func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
+	if h.isClosed() {
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
+		return
+	}
+
 	// Read the command from the request body.
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -183,6 +218,11 @@ func validateCommand(b []byte) error {
 
 // serveSnapshot is a long polling http connection to server cache updates
 func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
+	if h.isClosed() {
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
+		return
+	}
+
 	// get the current index that client has
 	index, err := strconv.ParseUint(r.URL.Query().Get("index"), 10, 64)
 	if err != nil {
@@ -206,6 +246,9 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	case <-w.(http.CloseNotifier).CloseNotify():
 		// Client closed the connection so we're done.
+		return
+	case <-h.closing:
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
 		return
 	}
 }
