@@ -99,5 +99,8 @@ Examples:
 		os.Exit(0)
 	}
 
-	c.Run()
+	if err := c.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
 }

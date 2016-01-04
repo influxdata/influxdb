@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/cmd/influx/cli"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/peterh/liner"
 )
 
@@ -43,7 +45,13 @@ func TestRunCLI(t *testing.T) {
 	c := cli.New(CLIENT_VERSION)
 	c.Host = h
 	c.Port, _ = strconv.Atoi(p)
-	c.Run()
+	c.IgnoreSignals = true
+	go func() {
+		close(c.Quit)
+	}()
+	if err := c.Run(); err != nil {
+		t.Fatalf("Run failed with error: %s", err)
+	}
 }
 
 func TestRunCLI_ExecuteInsert(t *testing.T) {
@@ -58,7 +66,10 @@ func TestRunCLI_ExecuteInsert(t *testing.T) {
 	c.Port, _ = strconv.Atoi(p)
 	c.Precision = "ms"
 	c.Execute = "INSERT sensor,floor=1 value=2"
-	c.Run()
+	c.IgnoreSignals = true
+	if err := c.Run(); err != nil {
+		t.Fatalf("Run failed with error: %s", err)
+	}
 }
 
 func TestConnect(t *testing.T) {
@@ -260,7 +271,17 @@ func TestParseCommand_Quit(t *testing.T) {
 
 func TestParseCommand_Use(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{}
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	m := cli.CommandLine{Client: c}
+
 	tests := []struct {
 		cmd string
 	}{
@@ -273,12 +294,12 @@ func TestParseCommand_Use(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !c.ParseCommand(test.cmd) {
+		if !m.ParseCommand(test.cmd) {
 			t.Fatalf(`Command "use" failed for %q.`, test.cmd)
 		}
 
-		if c.Database != "db" {
-			t.Fatalf(`Command "use" changed database to %q. Expected db`, c.Database)
+		if m.Database != "db" {
+			t.Fatalf(`Command "use" changed database to %q. Expected db`, m.Database)
 		}
 	}
 }
@@ -473,6 +494,26 @@ func TestParseCommand_HistoryWithBlankCommand(t *testing.T) {
 func emptyTestServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Influxdb-Version", SERVER_VERSION)
-		return
+
+		switch r.URL.Path {
+		case "/query":
+			values := r.URL.Query()
+			parser := influxql.NewParser(bytes.NewBufferString(values.Get("q")))
+			q, err := parser.ParseQuery()
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			stmt := q.Statements[0]
+
+			switch stmt.(type) {
+			case *influxql.ShowDatabasesStatement:
+				io.WriteString(w, `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db"]]}]}]}`)
+			case *influxql.ShowDiagnosticsStatement:
+				io.WriteString(w, `{"results":[{}]}`)
+			}
+		case "/write":
+			w.WriteHeader(http.StatusOK)
+		}
 	}))
 }
