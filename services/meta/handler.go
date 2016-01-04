@@ -98,21 +98,21 @@ func (h *handler) Close() error {
 	return nil
 }
 
-func (h *handler) isClosed() error {
+func (h *handler) isClosed() bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	select {
 	case <-h.closing:
-		return fmt.Errorf("server closed")
+		return true
 	default:
-		return nil
+		return false
 	}
 }
 
 // serveExec executes the requested command.
 func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
-	if err := h.isClosed(); err != nil {
-		h.httpError(err, w, http.StatusInternalServerError)
+	if h.isClosed() {
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
 		return
 	}
 
@@ -218,8 +218,8 @@ func validateCommand(b []byte) error {
 
 // serveSnapshot is a long polling http connection to server cache updates
 func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
-	if err := h.isClosed(); err != nil {
-		h.httpError(err, w, http.StatusInternalServerError)
+	if h.isClosed() {
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
 		return
 	}
 
