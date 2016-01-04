@@ -607,7 +607,7 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		i++
 
 		// 2 byte count of index entries
-		count := btou16(b[i : i+indexCountSize])
+		count := int32(btou16(b[i : i+indexCountSize]))
 		i += indexCountSize
 
 		// Find the min time for the block
