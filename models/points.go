@@ -827,10 +827,21 @@ func scanLine(buf []byte, i int) (int, []byte) {
 	start := i
 	quoted := false
 	fields := false
+
+	// tracks how many '=' and commas we've seen
+	// this duplicates some of the functionality in scanFields
+	equals := 0
+	commas := 0
 	for {
 		// reached the end of buf?
 		if i >= len(buf) {
 			break
+		}
+
+		// skip past escaped characters
+		if buf[i] == '\\' {
+			i += 2
+			continue
 		}
 
 		if buf[i] == ' ' {
@@ -838,10 +849,20 @@ func scanLine(buf []byte, i int) (int, []byte) {
 		}
 
 		// If we see a double quote, makes sure it is not escaped
-		if fields && buf[i] == '"' && (i-1 > 0 && buf[i-1] != '\\') {
-			i++
-			quoted = !quoted
-			continue
+		if fields {
+			if !quoted && buf[i] == '=' {
+				i++
+				equals++
+				continue
+			} else if !quoted && buf[i] == ',' {
+				i++
+				commas++
+				continue
+			} else if buf[i] == '"' && equals > commas {
+				i++
+				quoted = !quoted
+				continue
+			}
 		}
 
 		if buf[i] == '\n' && !quoted {
