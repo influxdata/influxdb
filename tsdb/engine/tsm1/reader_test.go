@@ -739,6 +739,44 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	}
 }
 
+func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	for i := 0; i < 3280; i++ {
+		w.Write("cpu", []tsm1.Value{tsm1.NewValue(time.Unix(int64(i), 0), float64(i))})
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			MMAPFile: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+}
+
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 100000; i++ {
