@@ -106,8 +106,8 @@ If you wish to work with fork of InfluxDB, your own fork for example, you must s
 
 ```bash
     export GOPATH=$HOME/gocodez
-    mkdir -p $GOPATH/src/github.com/influxdb
-    cd $GOPATH/src/github.com/influxdb
+    mkdir -p $GOPATH/src/github.com/influxdata
+    cd $GOPATH/src/github.com/influxdata
     git clone git@github.com:<username>/influxdb
 ```
 
