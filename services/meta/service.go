@@ -94,11 +94,15 @@ func (s *Service) Open() error {
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	var err error
 	if autoAssignPort(s.httpAddr) {
-		s.httpAddr = combineHostAndAssignedPort(s.ln, s.httpAddr)
+		s.httpAddr, err = combineHostAndAssignedPort(s.ln, s.httpAddr)
 	}
 	if autoAssignPort(s.raftAddr) {
-		s.raftAddr = combineHostAndAssignedPort(s.RaftListener, s.raftAddr)
+		s.raftAddr, err = combineHostAndAssignedPort(s.RaftListener, s.raftAddr)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Open the store
@@ -158,10 +162,18 @@ func (s *Service) SetLogger(l *log.Logger) {
 }
 
 func autoAssignPort(addr string) bool {
-	return strings.Contains(addr, ":0")
+	_, p, _ := net.SplitHostPort(addr)
+	return p == "0"
 }
 
-func combineHostAndAssignedPort(ln net.Listener, autoAddr string) string {
-	boundParts := strings.Split(autoAddr, ":")
-	return fmt.Sprintf("%s:%d", boundParts[0], ln.Addr().(*net.TCPAddr).Port)
+func combineHostAndAssignedPort(ln net.Listener, autoAddr string) (string, error) {
+	host, _, err := net.SplitHostPort(autoAddr)
+	if err != nil {
+		return "", err
+	}
+	_, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(host, port), nil
 }
