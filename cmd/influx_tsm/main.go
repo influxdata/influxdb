@@ -33,12 +33,13 @@ const (
 var description = fmt.Sprintf(`
 Convert a database from b1 or bz1 format to tsm1 format.
 
-This tool will make backup any directory before conversion. It
-is up to the end-user to delete the backup on the disk. Backups are
-named by suffixing the database name with '.%s'. The backups will
-be ignored by the system since they are not registered with the cluster.
+This tool will backup any directory before conversion. It is up to the
+end-user to delete the backup on the disk, once the end-user is happy
+with the converted data. Backups are named by suffixing the database
+name with '.%s'. The backups will be ignored by the system since they
+are not registered with the cluster.
 
-To restore a backup, delete the tsm version, rename the backup and
+To restore a backup, delete the tsm1 version, rename the backup directory
 restart the node.`, backupExt)
 
 var dataPath string
@@ -47,10 +48,10 @@ var tsmSz uint64
 var parallel bool
 var disBack bool
 
-const maxTSMSz = 1 * 1024 * 1024 * 1024
+const maxTSMSz = 2 * 1000 * 1000 * 1000
 
 func init() {
-	flag.StringVar(&ds, "dbs", "", "Comma-delimited list of databases to convert. Default is to convert all")
+	flag.StringVar(&ds, "dbs", "", "Comma-delimited list of databases to convert. Default is to convert all databases.")
 	flag.Uint64Var(&tsmSz, "sz", maxTSMSz, "Maximum size of individual TSM files.")
 	flag.BoolVar(&parallel, "parallel", false, "Perform parallel conversion.")
 	flag.BoolVar(&disBack, "nobackup", false, "Disable database backups. Not recommended.")
