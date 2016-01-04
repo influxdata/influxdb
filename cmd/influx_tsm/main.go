@@ -33,10 +33,10 @@ const (
 var description = fmt.Sprintf(`
 Convert a database from b1 or bz1 format to tsm1 format.
 
-This tool will make backup any directory before conversion. It
-is up to the end-user to delete the backup on the disk. Backups are
-named by suffixing the database name with '.%s'. The backups will
-be ignored by the system since they are not registered with the cluster.
+This tool will backup any directory before conversion. It is up to the
+end-user to delete the backup on the disk. Backups are named by suffixing
+the database name with '.%s'. The backups will be ignored by the system
+since they are not registered with the cluster.
 
 To restore a backup, delete the tsm version, rename the backup and
 restart the node.`, backupExt)
