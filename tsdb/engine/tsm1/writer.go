@@ -159,6 +159,9 @@ type TSMIndex interface {
 	// Key returns the key in the index at the given postion.
 	Key(index int) (string, []*IndexEntry)
 
+	// KeyAt returns the key in the index at the given postion.
+	KeyAt(index int) string
+
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
 
@@ -340,6 +343,13 @@ func (d *directIndex) Key(idx int) (string, []*IndexEntry) {
 	return k, d.blocks[k].entries
 }
 
+func (d *directIndex) KeyAt(idx int) string {
+	if idx < 0 || idx >= len(d.blocks) {
+		return ""
+	}
+	return d.Keys()[idx]
+}
+
 func (d *directIndex) KeyCount() int {
 	return len(d.blocks)
 }
@@ -409,7 +419,7 @@ func (d *directIndex) Write(w io.Writer) error {
 			return fmt.Errorf("write: writer key length error: %v", err)
 		}
 
-		_, err = w.Write([]byte(key))
+		_, err = io.WriteString(w, key)
 		if err != nil {
 			return fmt.Errorf("write: writer key error: %v", err)
 		}

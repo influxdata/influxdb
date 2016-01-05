@@ -50,7 +50,7 @@ func (b *BlockIterator) PeekNext() string {
 	if len(b.entries) > 1 {
 		return b.key
 	} else if b.n-b.i > 1 {
-		key, _ := b.r.Key(b.i + 1)
+		key := b.r.KeyAt(b.i + 1)
 		return key
 	}
 	return ""
@@ -193,6 +193,10 @@ func (t *TSMReader) Key(index int) (string, []*IndexEntry) {
 	return t.index.Key(index)
 }
 
+func (t *TSMReader) KeyAt(idx int) string {
+	return t.index.KeyAt(idx)
+}
+
 func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -276,6 +280,10 @@ func (t *TSMReader) TimeRange() (time.Time, time.Time) {
 // KeyRange returns the min and max key across all keys in the file.
 func (t *TSMReader) KeyRange() (string, string) {
 	return t.index.KeyRange()
+}
+
+func (t *TSMReader) KeyCount() int {
+	return t.index.KeyCount()
 }
 
 func (t *TSMReader) Entries(key string) []*IndexEntry {
@@ -397,6 +405,10 @@ func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Ti
 	panic("unsupported operation")
 }
 
+func (d *indirectIndex) Write(w io.Writer) error {
+	panic("unsupported operation")
+}
+
 // search returns the index of i in offsets for where key is located.  If key is not
 // in the index, len(index) is returned.
 func (d *indirectIndex) search(key []byte) int {
@@ -505,6 +517,17 @@ func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
 	_, entries, _ := readEntries(d.b[int(d.offsets[idx])+n:])
 	return string(key), entries.entries
+}
+
+func (d *indirectIndex) KeyAt(idx int) string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if idx < 0 || idx >= len(d.offsets) {
+		return ""
+	}
+	_, key, _ := readKey(d.b[d.offsets[idx]:])
+	return string(key)
 }
 
 func (d *indirectIndex) KeyCount() int {
