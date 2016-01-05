@@ -27,6 +27,9 @@ const (
 
 	defaultBufLen = 1024 << 10 // 1MB (sized for batches of 5000 points)
 
+	// walEncodeBufSize is the size of the wal entry encoding buffer
+	walEncodeBufSize = 4 * 1024 * 1024
+
 	float64EntryType = 1
 	int64EntryType   = 2
 	boolEntryType    = 3
@@ -203,14 +206,17 @@ func (l *WAL) LastWriteTime() time.Time {
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// encode and compress the entry while we're not locked
-	bytes := make([]byte, defaultBufLen)
+	bytes := getBuf(walEncodeBufSize)
+	defer putBuf(bytes)
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
 		return -1, err
 	}
 
-	compressed := snappy.Encode(b, b)
+	encBuf := getBuf(snappy.MaxEncodedLen(len(b)))
+	defer putBuf(encBuf)
+	compressed := snappy.Encode(encBuf, b)
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -387,7 +393,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		n++
 
 		n += copy(dst[n:], u16tob(uint16(len(k))))
-		n += copy(dst[n:], []byte(k))
+		n += copy(dst[n:], k)
 
 		n += copy(dst[n:], u32tob(uint32(len(v))))
 
@@ -642,7 +648,15 @@ func (r *WALSegmentReader) Next() bool {
 	}
 	nReadOK += n
 
-	data, err := snappy.Decode(nil, b[:length])
+	decLen, err := snappy.DecodedLen(b[:length])
+	if err != nil {
+		r.err = err
+		return true
+	}
+	decBuf := getBuf(decLen)
+	defer putBuf(decBuf)
+
+	data, err := snappy.Decode(decBuf, b[:length])
 	if err != nil {
 		r.err = err
 		return true
