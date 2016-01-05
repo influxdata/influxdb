@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
@@ -188,8 +189,13 @@ func (cmd *Command) unpackShard(shardID string) error {
 		return fmt.Errorf("shard already present: %s", restorePath)
 	}
 
+	id, err := strconv.ParseUint(shardID, 10, 64)
+	if err != nil {
+		return err
+	}
+
 	// find the shard backup files
-	pat := filepath.Join(cmd.backupFilesPath, fmt.Sprintf(backup.BackupFilePattern, cmd.database, cmd.retention, shardID))
+	pat := filepath.Join(cmd.backupFilesPath, fmt.Sprintf(backup.BackupFilePattern, cmd.database, cmd.retention, id))
 	return cmd.unpackFiles(pat + ".*")
 }
 

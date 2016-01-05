@@ -33,8 +33,14 @@ type TSMReader struct {
 // BlockIterator allows iterating over each block in a TSM file in order.  It provides
 // raw access to the block bytes without decoding them.
 type BlockIterator struct {
-	r       *TSMReader
-	keys    []string
+	r *TSMReader
+
+	// i is the current key index
+	i int
+
+	// n is the total number of keys
+	n int
+
 	key     string
 	entries []*IndexEntry
 	err     error
@@ -43,14 +49,15 @@ type BlockIterator struct {
 func (b *BlockIterator) PeekNext() string {
 	if len(b.entries) > 1 {
 		return b.key
-	} else if len(b.keys) > 1 {
-		return b.keys[1]
+	} else if b.n-b.i > 1 {
+		key := b.r.KeyAt(b.i + 1)
+		return key
 	}
 	return ""
 }
 
 func (b *BlockIterator) Next() bool {
-	if len(b.keys) == 0 && len(b.entries) == 0 {
+	if b.n-b.i == 0 && len(b.entries) == 0 {
 		return false
 	}
 
@@ -61,10 +68,9 @@ func (b *BlockIterator) Next() bool {
 		}
 	}
 
-	if len(b.keys) > 0 {
-		b.key = b.keys[0]
-		b.keys = b.keys[1:]
-		b.entries = b.r.Entries(b.key)
+	if b.n-b.i > 0 {
+		b.key, b.entries = b.r.Key(b.i)
+		b.i++
 		return true
 	}
 
@@ -187,6 +193,10 @@ func (t *TSMReader) Key(index int) (string, []*IndexEntry) {
 	return t.index.Key(index)
 }
 
+func (t *TSMReader) KeyAt(idx int) string {
+	return t.index.KeyAt(idx)
+}
+
 func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -272,6 +282,10 @@ func (t *TSMReader) KeyRange() (string, string) {
 	return t.index.KeyRange()
 }
 
+func (t *TSMReader) KeyCount() int {
+	return t.index.KeyCount()
+}
+
 func (t *TSMReader) Entries(key string) []*IndexEntry {
 	return t.index.Entries(key)
 }
@@ -323,8 +337,8 @@ func (t *TSMReader) Stats() FileStat {
 
 func (t *TSMReader) BlockIterator() *BlockIterator {
 	return &BlockIterator{
-		r:    t,
-		keys: t.Keys(),
+		r: t,
+		n: t.index.KeyCount(),
 	}
 }
 
@@ -388,6 +402,10 @@ func NewIndirectIndex() TSMIndex {
 
 // Add records a new block entry for a key in the index.
 func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Time, offset int64, size uint32) {
+	panic("unsupported operation")
+}
+
+func (d *indirectIndex) Write(w io.Writer) error {
 	panic("unsupported operation")
 }
 
@@ -499,6 +517,17 @@ func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
 	_, entries, _ := readEntries(d.b[int(d.offsets[idx])+n:])
 	return string(key), entries.entries
+}
+
+func (d *indirectIndex) KeyAt(idx int) string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if idx < 0 || idx >= len(d.offsets) {
+		return ""
+	}
+	_, key, _ := readKey(d.b[d.offsets[idx]:])
+	return string(key)
 }
 
 func (d *indirectIndex) KeyCount() int {
@@ -974,6 +1003,30 @@ func (a *indexEntries) MarshalBinary() (b []byte, err error) {
 		b = append(b, u32tob(entry.Size)...)
 	}
 	return b, nil
+}
+
+func (a *indexEntries) Write(w io.Writer) error {
+	for _, entry := range a.entries {
+		_, err := w.Write(u64tob(uint64(entry.MinTime.UnixNano())))
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(u64tob(uint64(entry.MaxTime.UnixNano())))
+		if err != nil {
+			return err
+		}
+
+		_, err = w.Write(u64tob(uint64(entry.Offset)))
+		if err != nil {
+			return err
+		}
+
+		_, err = w.Write(u32tob(entry.Size))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func readKey(b []byte) (n int, key []byte, err error) {
