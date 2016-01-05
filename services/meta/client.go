@@ -98,6 +98,32 @@ func (c *Client) DataNodes() ([]NodeInfo, error) {
 	return c.data.DataNodes, nil
 }
 
+// CreateDataNode will create a new data node in the metastore
+func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
+	cmd := &internal.CreateDataNodeCommand{
+		HTTPAddr: proto.String(httpAddr),
+		TCPAddr:  proto.String(tcpAddr),
+	}
+
+	if err := c.retryUntilExec(internal.Command_CreateDataNodeCommand, internal.E_CreateDataNodeCommand_Command, cmd); err != nil {
+		return nil, err
+	}
+
+	return c.DataNodeByHTTPHost(httpAddr)
+}
+
+// DataNodeByHTTPHost returns the data node with the give http bind address
+func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
+	nodes, _ := c.DataNodes()
+	for _, n := range nodes {
+		if n.Host == httpAddr {
+			return &n, nil
+		}
+	}
+
+	return nil, ErrNodeNotFound
+}
+
 // DeleteDataNode deletes a data node from the cluster.
 func (c *Client) DeleteDataNode(nodeID uint64) error {
 	return nil
