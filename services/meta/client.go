@@ -596,19 +596,44 @@ func (c *Client) DeleteMetaNode(id uint64) error {
 }
 
 func (c *Client) CreateContinuousQuery(database, name, query string) error {
-	return nil
+	return c.retryUntilExec(internal.Command_CreateContinuousQueryCommand, internal.E_CreateContinuousQueryCommand_Command,
+		&internal.CreateContinuousQueryCommand{
+			Database: proto.String(database),
+			Name:     proto.String(name),
+			Query:    proto.String(query),
+		},
+	)
 }
 
 func (c *Client) DropContinuousQuery(database, name string) error {
-	return nil
+	return c.retryUntilExec(internal.Command_DropContinuousQueryCommand, internal.E_DropContinuousQueryCommand_Command,
+		&internal.DropContinuousQueryCommand{
+			Database: proto.String(database),
+			Name:     proto.String(name),
+		},
+	)
 }
 
 func (c *Client) CreateSubscription(database, rp, name, mode string, destinations []string) error {
-	return nil
+	return c.retryUntilExec(internal.Command_CreateSubscriptionCommand, internal.E_CreateSubscriptionCommand_Command,
+		&internal.CreateSubscriptionCommand{
+			Database:        proto.String(database),
+			RetentionPolicy: proto.String(rp),
+			Name:            proto.String(name),
+			Mode:            proto.String(mode),
+			Destinations:    destinations,
+		},
+	)
 }
 
 func (c *Client) DropSubscription(database, rp, name string) error {
-	return nil
+	return c.retryUntilExec(internal.Command_DropSubscriptionCommand, internal.E_DropSubscriptionCommand_Command,
+		&internal.DropSubscriptionCommand{
+			Database:        proto.String(database),
+			RetentionPolicy: proto.String(rp),
+			Name:            proto.String(name),
+		},
+	)
 }
 
 func (c *Client) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
