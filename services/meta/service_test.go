@@ -632,6 +632,39 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 	}
 }
 
+func TestMetaService_CreateDataNode(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	exp := &meta.NodeInfo{
+		ID:      2,
+		Host:    "foo:8180",
+		TCPHost: "bar:8281",
+	}
+
+	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !reflect.DeepEqual(n, exp) {
+		t.Fatalf("data node attributes wrong: %v", n)
+	}
+
+	nodes, err := c.DataNodes()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
+		t.Fatalf("nodes wrong: %v", nodes)
+	}
+}
+
 // newServiceAndClient returns new data directory, *Service, and *Client or panics.
 // Caller is responsible for deleting data dir and closing client.
 func newServiceAndClient() (string, *testService, *meta.Client) {

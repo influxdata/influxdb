@@ -84,6 +84,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyDeleteMetaNodeCommand(&cmd, s)
 		case internal.Command_SetMetaNodeCommand:
 			return fsm.applySetMetaNodeCommand(&cmd)
+		case internal.Command_CreateDataNodeCommand:
+			return fsm.applyCreateDataNodeCommand(&cmd)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -142,7 +144,7 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command, peers []strin
 		}
 	}
 
-	if err := other.CreateDataNode(v.GetHost()); err != nil {
+	if err := other.CreateDataNode(v.GetHost(), v.GetHost()); err != nil {
 		return err
 	}
 
@@ -512,6 +514,16 @@ func (fsm *storeFSM) applyDeleteMetaNodeCommand(cmd *internal.Command, s *store)
 	if err := other.DeleteMetaNode(v.GetID()); err != nil {
 		return err
 	}
+	fsm.data = other
+	return nil
+}
+
+func (fsm *storeFSM) applyCreateDataNodeCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_CreateDataNodeCommand_Command)
+	v := ext.(*internal.CreateDataNodeCommand)
+
+	other := fsm.data.Clone()
+	other.CreateDataNode(v.GetHTTPAddr(), v.GetTCPAddr())
 	fsm.data = other
 	return nil
 }

@@ -50,7 +50,7 @@ func (data *Data) DataNode(id uint64) *NodeInfo {
 }
 
 // CreateDataNode adds a node to the metadata.
-func (data *Data) CreateDataNode(host string) error {
+func (data *Data) CreateDataNode(host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.DataNodes {
 		if n.Host == host {
@@ -61,8 +61,9 @@ func (data *Data) CreateDataNode(host string) error {
 	// Append new node.
 	data.MaxNodeID++
 	data.DataNodes = append(data.DataNodes, NodeInfo{
-		ID:   data.MaxNodeID,
-		Host: host,
+		ID:      data.MaxNodeID,
+		Host:    host,
+		TCPHost: tcpHost,
 	})
 
 	return nil
