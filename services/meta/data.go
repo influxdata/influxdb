@@ -303,6 +303,22 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 	return nil
 }
 
+// RetentionPolicyUpdate represents retention policy fields to be updated.
+type RetentionPolicyUpdate struct {
+	Name     *string
+	Duration *time.Duration
+	ReplicaN *int
+}
+
+// SetName sets the RetentionPolicyUpdate.Name
+func (rpu *RetentionPolicyUpdate) SetName(v string) { rpu.Name = &v }
+
+// SetDuration sets the RetentionPolicyUpdate.Duration
+func (rpu *RetentionPolicyUpdate) SetDuration(v time.Duration) { rpu.Duration = &v }
+
+// SetReplicaN sets the RetentionPolicyUpdate.ReplicaN
+func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
+
 // UpdateRetentionPolicy updates an existing retention policy.
 func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
 	// Find database.

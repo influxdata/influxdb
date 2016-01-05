@@ -31,7 +31,7 @@ type StatementExecutor struct {
 		SetDefaultRetentionPolicy(database, name string) error
 		DropRetentionPolicy(database, name string) error
 
-		Users() ([]UserInfo, error)
+		Users() []UserInfo
 		CreateUser(name, password string, admin bool) (*UserInfo, error)
 		UpdateUser(name, password string) error
 		DropUser(name string) error
@@ -205,10 +205,7 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 }
 
 func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersStatement) *influxql.Result {
-	uis, err := e.Store.Users()
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
+	uis := e.Store.Users()
 
 	row := &models.Row{Columns: []string{"user", "admin"}}
 	for _, ui := range uis {

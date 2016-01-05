@@ -105,4 +105,7 @@ var (
 
 	// ErrUsernameRequired is returned when creating a user without a username.
 	ErrUsernameRequired = errors.New("username required")
+
+	// ErrAuthenticate is returned when authentication fails.
+	ErrAuthenticate = errors.New("authentication failed")
 )
