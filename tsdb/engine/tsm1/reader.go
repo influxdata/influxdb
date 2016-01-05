@@ -33,8 +33,14 @@ type TSMReader struct {
 // BlockIterator allows iterating over each block in a TSM file in order.  It provides
 // raw access to the block bytes without decoding them.
 type BlockIterator struct {
-	r       *TSMReader
-	keys    []string
+	r *TSMReader
+
+	// i is the current key index
+	i int
+
+	// n is the total number of keys
+	n int
+
 	key     string
 	entries []*IndexEntry
 	err     error
@@ -43,14 +49,15 @@ type BlockIterator struct {
 func (b *BlockIterator) PeekNext() string {
 	if len(b.entries) > 1 {
 		return b.key
-	} else if len(b.keys) > 1 {
-		return b.keys[1]
+	} else if b.n-b.i > 1 {
+		key, _ := b.r.Key(b.i + 1)
+		return key
 	}
 	return ""
 }
 
 func (b *BlockIterator) Next() bool {
-	if len(b.keys) == 0 && len(b.entries) == 0 {
+	if b.n-b.i == 0 && len(b.entries) == 0 {
 		return false
 	}
 
@@ -61,10 +68,9 @@ func (b *BlockIterator) Next() bool {
 		}
 	}
 
-	if len(b.keys) > 0 {
-		b.key = b.keys[0]
-		b.keys = b.keys[1:]
-		b.entries = b.r.Entries(b.key)
+	if b.n-b.i > 0 {
+		b.key, b.entries = b.r.Key(b.i)
+		b.i++
 		return true
 	}
 
@@ -323,8 +329,8 @@ func (t *TSMReader) Stats() FileStat {
 
 func (t *TSMReader) BlockIterator() *BlockIterator {
 	return &BlockIterator{
-		r:    t,
-		keys: t.Keys(),
+		r: t,
+		n: t.index.KeyCount(),
 	}
 }
 
