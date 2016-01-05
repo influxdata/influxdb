@@ -982,6 +982,30 @@ func (a *indexEntries) MarshalBinary() (b []byte, err error) {
 	return b, nil
 }
 
+func (a *indexEntries) Write(w io.Writer) error {
+	for _, entry := range a.entries {
+		_, err := w.Write(u64tob(uint64(entry.MinTime.UnixNano())))
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(u64tob(uint64(entry.MaxTime.UnixNano())))
+		if err != nil {
+			return err
+		}
+
+		_, err = w.Write(u64tob(uint64(entry.Offset)))
+		if err != nil {
+			return err
+		}
+
+		_, err = w.Write(u32tob(entry.Size))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func readKey(b []byte) (n int, key []byte, err error) {
 	// 2 byte size of key
 	n, size := 2, int(btou16(b[:2]))
