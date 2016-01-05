@@ -112,6 +112,9 @@ func (r *Reader) Open() error {
 		measurement := tsdb.MeasurementFromSeriesKey(s)
 		for _, f := range r.fields[tsdb.MeasurementFromSeriesKey(s)].Fields {
 			c := newCursor(r.tx, s, f.Name, r.codecs[measurement])
+			if c == nil {
+				continue
+			}
 			c.SeekTo(0)
 			r.cursors = append(r.cursors, c)
 		}
@@ -185,7 +188,6 @@ type cursor struct {
 
 // newCursor returns an instance of a bz1 cursor.
 func newCursor(tx *bolt.Tx, series string, field string, dec *tsdb.FieldCodec) *cursor {
-
 	// Retrieve points bucket. Ignore if there is no bucket.
 	b := tx.Bucket([]byte("points")).Bucket([]byte(series))
 	if b == nil {
