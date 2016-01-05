@@ -356,6 +356,182 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 	}
 }
 
+func TestMetaService_CreateUser(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create an admin user
+	if res := c.ExecuteStatement(mustParseStatement("CREATE USER fred WITH PASSWORD 'supersecure' WITH ALL PRIVILEGES")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Create a non-admin user
+	if res := c.ExecuteStatement(mustParseStatement("CREATE USER wilma WITH PASSWORD 'password'")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	u, err := c.User("fred")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp, got := "fred", u.Name; exp != got {
+		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
+	}
+	if !u.Admin {
+		t.Fatalf("expected user to be admin")
+	}
+
+	u, err = c.Authenticate("fred", "supersecure")
+	if u == nil || err != nil {
+		t.Fatalf("failed to authenticate")
+	}
+	if u.Name != "fred" {
+		t.Fatalf("failed to authenticate")
+	}
+
+	// Auth for bad password should fail
+	u, err = c.Authenticate("fred", "badpassword")
+	if u != nil || err != meta.ErrAuthenticate {
+		t.Fatalf("authentication should fail with %s", meta.ErrAuthenticate)
+	}
+
+	// Auth for no password should fail
+	u, err = c.Authenticate("fred", "")
+	if u != nil || err != meta.ErrAuthenticate {
+		t.Fatalf("authentication should fail with %s", meta.ErrAuthenticate)
+	}
+
+	// Auth for unkonwn user should fail
+	u, err = c.Authenticate("foo", "")
+	if u != nil || err != meta.ErrUserNotFound {
+		t.Fatalf("authentication should fail with %s", meta.ErrUserNotFound)
+	}
+
+	u, err = c.User("wilma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp, got := "wilma", u.Name; exp != got {
+		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
+	}
+	if u.Admin {
+		t.Fatalf("expected user not to be an admin")
+	}
+
+	if exp, got := 2, c.UserCount(); exp != got {
+		t.Fatalf("unexpected user count.  got: %d exp: %d", got, exp)
+	}
+
+	// Grant privilidges to a non-admin user
+	if res := c.ExecuteStatement(mustParseStatement("GRANT ALL PRIVILEGES TO wilma")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	u, err = c.User("wilma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp, got := "wilma", u.Name; exp != got {
+		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
+	}
+	if !u.Admin {
+		t.Fatalf("expected user to be an admin")
+	}
+
+	// Revoke privilidges from user
+	if res := c.ExecuteStatement(mustParseStatement("REVOKE ALL PRIVILEGES FROM wilma")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	u, err = c.User("wilma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp, got := "wilma", u.Name; exp != got {
+		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
+	}
+	if u.Admin {
+		t.Fatalf("expected user not to be an admin")
+	}
+
+	// Revoke privilidges from user
+	if res := c.ExecuteStatement(mustParseStatement("REVOKE ALL PRIVILEGES FROM wilma")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	u, err = c.User("wilma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp, got := "wilma", u.Name; exp != got {
+		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
+	}
+	if u.Admin {
+		t.Fatalf("expected user not to be an admin")
+	}
+
+	// Create a database to use for assiging privileges to.
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// Assign a single privilege at the database level
+	if res := c.ExecuteStatement(mustParseStatement("GRANT READ ON db0 TO wilma")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	p, err := c.UserPrivilege("wilma", "db0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p == nil {
+		t.Fatal("expected privilege but was nil")
+	}
+	if exp, got := influxql.ReadPrivilege, *p; exp != got {
+		t.Fatalf("unexpected privilege.  exp: %d, got: %d", exp, got)
+	}
+
+	// Remove a single privilege at the database level
+	if res := c.ExecuteStatement(mustParseStatement("REVOKE READ ON db0 FROM wilma")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	p, err = c.UserPrivilege("wilma", "db0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p == nil {
+		t.Fatal("expected privilege but was nil")
+	}
+	if exp, got := influxql.NoPrivileges, *p; exp != got {
+		t.Fatalf("unexpected privilege.  exp: %d, got: %d", exp, got)
+	}
+
+	// Drop a user
+	if res := c.ExecuteStatement(mustParseStatement("DROP USER wilma")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	u, err = c.User("wilma")
+	if err != meta.ErrUserNotFound {
+		t.Fatalf("user lookup should fail with %s", meta.ErrUserNotFound)
+	}
+
+	if exp, got := 1, c.UserCount(); exp != got {
+		t.Fatalf("unexpected user count.  got: %d exp: %d", got, exp)
+	}
+}
+
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
