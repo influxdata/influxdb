@@ -158,6 +158,7 @@ func main() {
 	conversionStart := time.Now()
 	if !disBack {
 		databases := tsdb.ShardInfos(shards).Databases()
+		fmt.Printf("Backing up %d databases...\n", len(databases))
 		if parallel {
 			pg = NewParallelGroup(len(databases))
 		}
