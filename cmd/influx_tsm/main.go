@@ -201,15 +201,16 @@ func main() {
 	pg.Wait()
 
 	// Dump stats.
-	fmt.Printf("\nSummary statistics\n=========================\n")
-	fmt.Printf("Databases converted:       %d\n", len(tsdb.ShardInfos(shards).Databases()))
-	fmt.Printf("Shards converted:          %d\n", len(shards))
-	fmt.Printf("TSM files created:         %d\n", TsmFilesCreated)
-	fmt.Printf("Points read:               %d\n", PointsRead)
-	fmt.Printf("Points written:            %d\n", PointsWritten)
-	fmt.Printf("NaN filtered:              %d\n", NanFiltered)
-	fmt.Printf("Inf filtered:              %d\n", InfFiltered)
-	fmt.Printf("Total conversion time:     %v\n", time.Now().Sub(conversionStart))
+	fmt.Printf("\nSummary statistics\n========================================\n")
+	fmt.Printf("Databases converted:              %d\n", len(tsdb.ShardInfos(shards).Databases()))
+	fmt.Printf("Shards converted:                 %d\n", len(shards))
+	fmt.Printf("TSM files created:                %d\n", TsmFilesCreated)
+	fmt.Printf("Points read:                      %d\n", PointsRead)
+	fmt.Printf("Points written:                   %d\n", PointsWritten)
+	fmt.Printf("NaN filtered:                     %d\n", NanFiltered)
+	fmt.Printf("Inf filtered:                     %d\n", InfFiltered)
+	fmt.Printf("Points without fields filtered:   %d\n", b1.NoFieldsFiltered+bz1.NoFieldsFiltered)
+	fmt.Printf("Total conversion time:            %v\n", time.Now().Sub(conversionStart))
 	fmt.Println()
 }
 

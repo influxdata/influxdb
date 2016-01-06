@@ -3,6 +3,7 @@ package b1
 import (
 	"encoding/binary"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -11,6 +12,8 @@ import (
 )
 
 const DefaultChunkSize = 1000
+
+var NoFieldsFiltered uint64
 
 // Reader is used to read all data from a b1 shard.
 type Reader struct {
@@ -98,6 +101,7 @@ func (r *Reader) Open() error {
 		measurement := tsdb.MeasurementFromSeriesKey(s)
 		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
 		if fields == nil {
+			atomic.AddUint64(&NoFieldsFiltered, 1)
 			continue
 		}
 		for _, f := range fields.Fields {
