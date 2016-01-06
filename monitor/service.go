@@ -90,17 +90,13 @@ type Monitor struct {
 
 	MetaClient interface {
 		ClusterID() (uint64, error)
-		WaitForLeader(d time.Duration) error
-		IsLeader() bool
-		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
-		CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+		CreateDatabase(name string) (*meta.DatabaseInfo, error)
+		CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 		SetDefaultRetentionPolicy(database, name string) error
 		DropRetentionPolicy(database, name string) error
 	}
 
-	Node interface {
-		ID() uint64
-	}
+	NodeID uint64
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -308,11 +304,11 @@ func (m *Monitor) Diagnostics() (map[string]*Diagnostic, error) {
 
 // createInternalStorage ensures the internal storage has been created.
 func (m *Monitor) createInternalStorage() {
-	if !m.MetaClient.IsLeader() || m.storeCreated {
+	if m.storeCreated {
 		return
 	}
 
-	if _, err := m.MetaClient.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
+	if _, err := m.MetaClient.CreateDatabase(m.storeDatabase); err != nil {
 		m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
 			m.storeDatabase, err.Error())
 		return
@@ -321,7 +317,7 @@ func (m *Monitor) createInternalStorage() {
 	rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
 	rpi.Duration = MonitorRetentionPolicyDuration
 	rpi.ReplicaN = 1
-	if _, err := m.MetaClient.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
+	if _, err := m.MetaClient.CreateRetentionPolicy(m.storeDatabase, rpi); err != nil {
 		m.Logger.Printf("failed to create retention policy '%s', failed to create internal storage: %s",
 			rpi.Name, err.Error())
 		return
@@ -349,18 +345,12 @@ func (m *Monitor) storeStatistics() {
 	m.Logger.Printf("Storing statistics in database '%s' retention policy '%s', at interval %s",
 		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
-	if err := m.MetaClient.WaitForLeader(leaderWaitTimeout); err != nil {
-		m.Logger.Printf("failed to detect a cluster leader, terminating storage: %s", err.Error())
-		return
-	}
-
 	// Get cluster-level metadata. Nothing different is going to happen if errors occur.
 	clusterID, _ := m.MetaClient.ClusterID()
-	nodeID := m.Node.ID()
 	hostname, _ := os.Hostname()
 	clusterTags := map[string]string{
 		"clusterID": fmt.Sprintf("%d", clusterID),
-		"nodeID":    fmt.Sprintf("%d", nodeID),
+		"nodeID":    fmt.Sprintf("%d", m.NodeID),
 		"hostname":  hostname,
 	}
 

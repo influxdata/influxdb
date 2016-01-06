@@ -39,8 +39,7 @@ type pointsWriter interface {
 
 // metaStore is an internal interface to make testing easier.
 type metaClient interface {
-	WaitForLeader(d time.Duration) error
-	CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 }
 
 // Service represents a UDP server which receives metrics in collectd's binary
@@ -92,12 +91,7 @@ func (s *Service) Open() error {
 		return fmt.Errorf("PointsWriter is nil")
 	}
 
-	if err := s.MetaClient.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.Logger.Printf("Failed to detect a cluster leader: %s", err.Error())
-		return err
-	}
-
-	if _, err := s.MetaClient.CreateDatabaseIfNotExists(s.Config.Database); err != nil {
+	if _, err := s.MetaClient.CreateDatabase(s.Config.Database); err != nil {
 		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
 		return err
 	}

@@ -41,9 +41,8 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
-	Enabled  bool   `toml:"enabled"`
-	Dir      string `toml:"dir"`
-	Hostname string `toml:"hostname"`
+	Enabled bool   `toml:"enabled"`
+	Dir     string `toml:"dir"`
 
 	// this is deprecated. Should use the address from run/config.go
 	BindAddress string `toml:"bind-address"`
@@ -70,7 +69,6 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		Enabled:              true, // enabled by default
-		Hostname:             DefaultHostname,
 		BindAddress:          DefaultRaftBindAddress,
 		HTTPBindAddress:      DefaultHTTPBindAddress,
 		RetentionAutoCreate:  true,

@@ -221,12 +221,8 @@ type testMetaStore struct {
 	//DatabaseFn func(name string) (*meta.DatabaseInfo, error)
 }
 
-func (ms *testMetaStore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+func (ms *testMetaStore) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	return ms.CreateDatabaseIfNotExistsFn(name)
-}
-
-func (ms *testMetaStore) WaitForLeader(d time.Duration) error {
-	return nil
 }
 
 func wait(c chan struct{}, d time.Duration) (err error) {
