@@ -1,11 +1,15 @@
 package client_test
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -554,5 +558,126 @@ func TestClient_ParseConnectionString_IPv6(t *testing.T) {
 	}
 	if u.Host != path {
 		t.Fatalf("ipv6 parse failed, expected %s, actual %s", path, u.Host)
+	}
+}
+
+func TestClient_CustomCertificates(t *testing.T) {
+	// generated with:
+	// openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes -config influx.cnf
+	// influx.cnf:
+	// [req]
+	// distinguished_name = req_distinguished_name
+	// x509_extensions = v3_req
+	// prompt = no
+	// [req_distinguished_name]
+	// C = US
+	// ST = CA
+	// L = San Francisco
+	// O = InfluxDB
+	// CN = github.com/influxdb
+	// [v3_req]
+	// keyUsage = keyEncipherment, dataEncipherment
+	// extendedKeyUsage = serverAuth
+	// subjectAltName = @alt_names
+	// [alt_names]
+	// IP.1 = 127.0.0.1
+	//
+	key := `
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDLswqKJLxfhBRi
+4qdj7+jpBxTAi4MewrcMPp+9YlbLke3F7w2DPrZVkYVeWmg8LyTPAigrXeadK6hv
+qjRr05a7sMc5+ynivGbWUySWT+u17V85x6VR5TMIkJEOqpiIU8aYk0l+3UcrzVjS
+1QZCUBoxVwAVaSR6AXTA8YrVXdk/AI3f22dYiBjFmV4LJJkGjTaCnlDKu54hMU1t
+WTyFcoY9TBzZ1XA+ng5RQ/QADeL2PYrTW4s/mLI3jfKKD53EI4uM2FjW37ZfuxTa
+mhCR7/lxM4COg9K70y5uebfqJvuoXAwXLOzVbdfF5b9fJFbL67kaK2tiMT3Wt39m
+hXzclLTDAgMBAAECggEAK8mpElkjRUUXPMqMQSdpYe5rv5g973bb8n3jyMpC7i/I
+dSwWM4hfmbVWfhnhHk7kErvb9raQxGiGJLrp2eP6Gw69RPGA54SodpoY21cCzHDi
+b4FDQH+MoOKyy/xQHb4kitfejK70ha320huI5OhjOQgCtJeNh8yYVIGX3pX2BVyu
+36UB9tfX1S5pbiHeih3vZGd322Muj/joNzIelnYRBnoO0xqvQ0S1Dk+dLCTHO0/m
+u9AZN8c2TsRWZpJPMWwBv8LuABbE0e66/TSsrfklAn86ELCo44lZURDE7uPZ4pIH
+FWtmf+nW5Hy6aPhy60E40MqotlejhWwB3ktY/m3JAQKBgQDuB4nhxzJA9lH9EaCt
+byvJ9wGVvI3k79hOwc/Z2R3dNe+Ma+TJy+aBppvsLF4qz83aWC+canyasbHcPNR/
+vXQGlsgKfucrmd1PfMV7uvOIkfOjK0E6mRC+jMuKtNTQrdtM1BU/Z7LY0iy0fNJ6
+aNqhFdlJmmk0g+4bR4SAWB6FkwKBgQDbE/7r1u+GdJk/mhdjTi1aegr9lXb0l7L6
+BCvOYhs/Z/pXfsaYPSXhgk2w+LiGk6BaEA2/4Sr0YS2MAAaIhBVeFBIXVpNrXB3K
+Yg1jOEeLQ3qoVBeJFhJNrN9ZQx33HANC1W/Y1apMwaYqCRUGVQkrdcsN2KNea1z0
+3qeYeCCSEQKBgCKZKeuNfrp+k1BLnaVYAW9r3ekb7SwXyMM53LJ3oqWiz10D2c+T
+OcAirYtYr59dcTiJlPIRcGcz6PxwQxsGOLU0eYM9CvEFfmutYS8o73ksbdOL2AFi
+elKYOIXC3yQuATBbq3L56b8mXaUmd5mfYBgGCv1t2ljtzFBext248UbNAoGBAIv1
+2V24YiwnH6THf/ucfVMZNx5Mt8OJivk5YvcmLDw05HWzc5LdNe89PP871z963u3K
+5c3ZP4UC9INFnOboY3JIJkqsr9/d6NZcECt8UBDDmoAhwSt+Y1EmiUZQn7s4NUkk
+bKE919/Ts6GVTc5O013lkkUVS0HOG4QBH1dEH6LRAoGAStl11WA9tuKXiBl5XG/C
+cq9mFPNJK3pEgd6YH874vEnYEEqENR4MFK3uWXus9Nm+VYxbUbPEzFF4kpsfukDg
+/JAVqY4lUam7g6fyyaoIIPQEp7jGjbsUf46IjnUjFcaojOugA3EAfn9awREUDuJZ
+cvh4WzEegcExTppINW1NB5E=
+-----END PRIVATE KEY-----
+`
+	cert := `
+-----BEGIN CERTIFICATE-----
+MIIDdjCCAl6gAwIBAgIJAMYGAwkxUV51MA0GCSqGSIb3DQEBCwUAMFgxCzAJBgNV
+BAYTAlVTMQswCQYDVQQIDAJDQTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzERMA8G
+A1UECgwISW5mbHV4REIxETAPBgNVBAMMCGluZmx1eGRiMB4XDTE1MTIyOTAxNTg1
+NloXDTI1MTIyNjAxNTg1NlowWDELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYw
+FAYDVQQHDA1TYW4gRnJhbmNpc2NvMREwDwYDVQQKDAhJbmZsdXhEQjERMA8GA1UE
+AwwIaW5mbHV4ZGIwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDLswqK
+JLxfhBRi4qdj7+jpBxTAi4MewrcMPp+9YlbLke3F7w2DPrZVkYVeWmg8LyTPAigr
+XeadK6hvqjRr05a7sMc5+ynivGbWUySWT+u17V85x6VR5TMIkJEOqpiIU8aYk0l+
+3UcrzVjS1QZCUBoxVwAVaSR6AXTA8YrVXdk/AI3f22dYiBjFmV4LJJkGjTaCnlDK
+u54hMU1tWTyFcoY9TBzZ1XA+ng5RQ/QADeL2PYrTW4s/mLI3jfKKD53EI4uM2FjW
+37ZfuxTamhCR7/lxM4COg9K70y5uebfqJvuoXAwXLOzVbdfF5b9fJFbL67kaK2ti
+MT3Wt39mhXzclLTDAgMBAAGjQzBBMAwGA1UdEwQFMAMBAf8wCwYDVR0PBAQDAgQw
+MBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1UdEQQIMAaHBH8AAAEwDQYJKoZIhvcN
+AQELBQADggEBAJxgHeduV9q2BuKnrt+sjXLGn/HwbMbgGbgFK6kUKJBWtv6Pa7JJ
+m4teDmTMWiaeB2g4N2bmaWTuEZzzShNKG5roFeWm1ilFMAyzkb+VifN4YuDKH62F
+3e259qsytiGbbJF3F//4sjfMw8qZVEPvspG1zKsASo0PpSOOUFmxcj0oMAXhnMrk
+rRcbk6fufhyq0iZGl8ZLKTCrkjk0b3qlNs6UaRD9/XBB59VlQ8I338sfjV06edwY
+jn5Amab0uyoFNEp70Y4WGxrxUTS1GAC1LCA13S7EnidD440UrnWALTarjmHAK6aW
+war3JNM1mGB3o2iAtuOJlFIKLpI1x+1e8pI=
+-----END CERTIFICATE-----
+`
+	cer, err := tls.X509KeyPair([]byte(cert), []byte(key))
+
+	if err != nil {
+		t.Fatalf("Received error: %v", err)
+	}
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	server.TLS = &tls.Config{Certificates: []tls.Certificate{cer}}
+	server.TLS.BuildNameToCertificate()
+	server.StartTLS()
+	defer server.Close()
+
+	certFile, _ := ioutil.TempFile("", "influx-cert-")
+	certFile.WriteString(cert)
+	certFile.Close()
+	defer os.Remove(certFile.Name())
+
+	u, _ := url.Parse(server.URL)
+
+	tests := []struct {
+		name      string
+		unsafeSsl bool
+		expected  error
+	}{
+		{name: "validate certificates", unsafeSsl: false, expected: errors.New("error")},
+		{name: "not validate certificates", unsafeSsl: true, expected: nil},
+	}
+
+	for _, test := range tests {
+		config := client.Config{URL: *u, UnsafeSsl: test.unsafeSsl}
+		c, err := client.NewClient(config)
+		if err != nil {
+			t.Fatalf("unexpected error. expected %v, actual %v", nil, err)
+		}
+		query := client.Query{}
+		_, err = c.Query(query)
+
+		if (test.expected == nil) != (err == nil) {
+			t.Fatalf("%s: expected %v. got %v. unsafeSsl: %v", test.name, test.expected, err, test.unsafeSsl)
+		}
 	}
 }
