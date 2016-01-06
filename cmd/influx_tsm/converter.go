@@ -27,7 +27,7 @@ type KeyIterator interface {
 type Converter struct {
 	path           string
 	maxTSMFileSize uint32
-	generation     int
+	sequence       int
 }
 
 // NewConverter returns a new instance of the Converter.
@@ -92,8 +92,8 @@ func (c *Converter) Process(iter KeyIterator) error {
 
 // nextTSMWriter returns the next TSMWriter for the Converter.
 func (c *Converter) nextTSMWriter() (tsm1.TSMWriter, error) {
-	c.generation++
-	fileName := filepath.Join(c.path, fmt.Sprintf("%09d-%09d.%s", c.generation, 0, tsm1.TSMFileExtension))
+	c.sequence++
+	fileName := filepath.Join(c.path, fmt.Sprintf("%09d-%09d.%s", 1, c.sequence, tsm1.TSMFileExtension))
 
 	fd, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
