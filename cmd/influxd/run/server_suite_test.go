@@ -54,16 +54,6 @@ func init() {
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"]]}]}]}`,
 			},
 			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
-				name:    "create database should error if it already exists",
-				command: `CREATE DATABASE db0_r`,
-				exp:     `{"results":[{"error":"database already exists"}]}`,
-			},
-			&Query{
 				name:    "create database should not error with existing database with IF NOT EXISTS",
 				command: `CREATE DATABASE IF NOT EXISTS db0`,
 				exp:     `{"results":[{}]}`,
@@ -333,11 +323,6 @@ func init() {
 				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
 				exp:     `{"results":[{}]}`,
 				once:    true,
-			},
-			&Query{
-				name:    "create retention policy should error if it already exists",
-				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy already exists"}]}`,
 			},
 			&Query{
 				name:    "show retention policy should succeed",

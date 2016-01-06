@@ -9,8 +9,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/influxdb/influxdb"
 )
 
 const (
@@ -21,7 +19,6 @@ type Service struct {
 	RaftListener net.Listener
 
 	config   *Config
-	node     *influxdb.Node
 	handler  *handler
 	ln       net.Listener
 	httpAddr string
@@ -34,7 +31,7 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c *Config, node *influxdb.Node) *Service {
+func NewService(c *Config) *Service {
 	s := &Service{
 		config:   c,
 		httpAddr: c.HTTPBindAddress,

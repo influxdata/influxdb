@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
@@ -18,12 +19,10 @@ import (
 type ShardMapper struct {
 	ForceRemoteMapping bool // All shards treated as remote. Useful for testing.
 
-	Node interface {
-		ID() uint64
-	}
+	Node *influxdb.Node
 
 	MetaClient interface {
-		Node(id uint64) (ni *meta.NodeInfo, err error)
+		DataNode(id uint64) (ni *meta.NodeInfo, err error)
 	}
 
 	TSDBStore interface {
@@ -45,7 +44,7 @@ func NewShardMapper(timeout time.Duration) *ShardMapper {
 // CreateMapper returns a Mapper for the given shard ID.
 func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
 	// Create a remote mapper if the local node doesn't own the shard.
-	if !sh.OwnedBy(s.Node.ID()) || s.ForceRemoteMapping {
+	if !sh.OwnedBy(s.Node.ID) || s.ForceRemoteMapping {
 		// Pick a node in a pseudo-random manner.
 		conn, err := s.dial(sh.Owners[rand.Intn(len(sh.Owners))].NodeID)
 		if err != nil {
@@ -66,7 +65,7 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, c
 }
 
 func (s *ShardMapper) dial(nodeID uint64) (net.Conn, error) {
-	ni, err := s.MetaClient.Node(nodeID)
+	ni, err := s.MetaClient.DataNode(nodeID)
 	if err != nil {
 		return nil, err
 	}

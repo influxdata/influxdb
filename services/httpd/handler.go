@@ -61,7 +61,7 @@ type Handler struct {
 		WaitForLeader(timeout time.Duration) error
 		Database(name string) (*meta.DatabaseInfo, error)
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
-		Users() ([]meta.UserInfo, error)
+		Users() []meta.UserInfo
 	}
 
 	QueryExecutor interface {
@@ -713,11 +713,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 		var user *meta.UserInfo
 
 		// Retrieve user list.
-		uis, err := h.MetaClient.Users()
-		if err != nil {
-			httpError(w, err.Error(), false, http.StatusInternalServerError)
-			return
-		}
+		uis := h.MetaClient.Users()
 
 		// TODO corylanou: never allow this in the future without users
 		if requireAuthentication && len(uis) > 0 {

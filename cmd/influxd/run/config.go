@@ -54,7 +54,7 @@ type Config struct {
 	Dir string `toml:"dir"`
 
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
-	BindAddress `toml:"bind-address"`
+	BindAddress string `toml:"bind-address"`
 
 	// Hostname is the resolvable name for other servers in
 	// the cluster to reach this server

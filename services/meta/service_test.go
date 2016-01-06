@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tcp"
@@ -202,8 +201,8 @@ func TestMetaService_DropDatabase(t *testing.T) {
 		t.Fatal(res.Err)
 	}
 
-	if _, err = c.Database("db0"); err == nil {
-		t.Fatal("expected an error")
+	if db, _ = c.Database("db0"); db != nil {
+		t.Fatal("expected database to not return: %v", db)
 	}
 }
 
@@ -290,21 +289,8 @@ func TestMetaService_SetDefaultRetentionPolicy(t *testing.T) {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
 	}
 
-	// Make sure default retention policy hasn't been changed.
-	if db.DefaultRetentionPolicy != "default" {
-		t.Fatalf("rp name wrong: %s", db.DefaultRetentionPolicy)
-	}
-
-	// Set the default retention policy to "rp0".
-	if err := c.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
-		t.Fatal(err)
-	}
-
-	// Make sure the default retention policy changed to "rp1".
-	db, err = c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db.DefaultRetentionPolicy != "rp0" {
+	// Make sure default retention policy is now rp0
+	if db.DefaultRetentionPolicy != "rp0" {
 		t.Fatalf("rp name wrong: %s", db.DefaultRetentionPolicy)
 	}
 }
@@ -1032,7 +1018,7 @@ func newService(cfg *meta.Config) *testService {
 	// Multiplex listener.
 	mux := tcp.NewMux()
 
-	s := meta.NewService(cfg, &influxdb.Node{})
+	s := meta.NewService(cfg)
 	s.RaftListener = mux.Listen(meta.MuxHeader)
 
 	go mux.Serve(ln)

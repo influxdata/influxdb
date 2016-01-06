@@ -23,10 +23,10 @@ type QueryExecutor struct {
 		Database(name string) (*meta.DatabaseInfo, error)
 		Databases() ([]meta.DatabaseInfo, error)
 		User(name string) (*meta.UserInfo, error)
-		AdminUserExists() (bool, error)
+		AdminUserExists() bool
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
-		UserCount() (int, error)
+		UserCount() int
 		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
 	}
@@ -78,7 +78,7 @@ func (q *QueryExecutor) SetLogger(l *log.Logger) {
 // a root user.
 func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, database string) error {
 	// Special case if no users exist.
-	if count, err := q.MetaClient.UserCount(); count == 0 && err == nil {
+	if count := q.MetaClient.UserCount(); count == 0 {
 		// Ensure there is at least one statement.
 		if len(query.Statements) > 0 {
 			// First statement in the query must create a user with admin privilege.

@@ -23,7 +23,7 @@ type ShardWriter struct {
 	timeout time.Duration
 
 	MetaClient interface {
-		Node(id uint64) (ni *meta.NodeInfo, err error)
+		DataNode(id uint64) (ni *meta.NodeInfo, err error)
 	}
 }
 
@@ -131,7 +131,7 @@ type connFactory struct {
 	}
 
 	metaClient interface {
-		Node(id uint64) (ni *meta.NodeInfo, err error)
+		DataNode(id uint64) (ni *meta.NodeInfo, err error)
 	}
 }
 
@@ -140,7 +140,7 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, errMaxConnectionsExceeded
 	}
 
-	ni, err := c.metaClient.Node(c.nodeID)
+	ni, err := c.metaClient.DataNode(c.nodeID)
 	if err != nil {
 		return nil, err
 	}

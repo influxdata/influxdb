@@ -88,9 +88,7 @@ type PointsWriter struct {
 	WriteTimeout time.Duration
 	Logger       *log.Logger
 
-	Node interface {
-		ID() uint64
-	}
+	Node *influxdb.Node
 
 	MetaClient interface {
 		Database(name string) (di *meta.DatabaseInfo, err error)
@@ -312,7 +310,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	for _, owner := range shard.Owners {
 		go func(shardID uint64, owner meta.ShardOwner, points []models.Point) {
-			if w.Node.ID() == owner.NodeID {
+			if w.Node.ID == owner.NodeID {
 				w.statMap.Add(statPointWriteReqLocal, int64(len(points)))
 
 				err := w.TSDBStore.WriteToShard(shardID, points)

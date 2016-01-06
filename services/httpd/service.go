@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb"
 )
@@ -95,6 +96,19 @@ func (s *Service) Open() error {
 
 		s.Logger.Println("Listening on HTTP:", listener.Addr().String())
 		s.ln = listener
+	}
+
+	// wait for the listeners to start
+	timeout := time.Now().Add(time.Second)
+	for {
+		if s.ln.Addr() != nil {
+			break
+		}
+
+		if time.Now().After(timeout) {
+			return fmt.Errorf("unable to open without http listener running")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Begin listening for requests in a separate goroutine.

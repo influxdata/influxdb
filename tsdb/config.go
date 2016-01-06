@@ -105,6 +105,7 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Engine:                 DefaultEngine,
+		Enabled:                true, // data node enabled by default
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
