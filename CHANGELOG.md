@@ -7,6 +7,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#5201](https://github.com/influxdb/influxdb/pull/5201): Allow max UDP buffer size to be configurable. Thanks @sebito91
 - [#5194](https://github.com/influxdb/influxdb/pull/5194): Custom continuous query options per query rather than per node.
 - [#5224](https://github.com/influxdb/influxdb/pull/5224): Online backup/incremental backup. Restore (for TSM).
+- [#5226](https://github.com/influxdata/influxdb/pull/5226): b*1 to tsm1 shard conversion tool.
 
 ### Bugfixes
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
