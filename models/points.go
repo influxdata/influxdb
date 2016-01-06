@@ -993,14 +993,18 @@ func unescapeMeasurement(in []byte) []byte {
 
 func escapeTag(in []byte) []byte {
 	for b, esc := range tagEscapeCodes {
-		in = bytes.Replace(in, []byte{b}, esc, -1)
+		if bytes.Contains(in, []byte{b}) {
+			in = bytes.Replace(in, []byte{b}, esc, -1)
+		}
 	}
 	return in
 }
 
 func unescapeTag(in []byte) []byte {
 	for b, esc := range tagEscapeCodes {
-		in = bytes.Replace(in, esc, []byte{b}, -1)
+		if bytes.Contains(in, []byte{b}) {
+			in = bytes.Replace(in, esc, []byte{b}, -1)
+		}
 	}
 	return in
 }

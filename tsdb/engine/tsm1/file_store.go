@@ -510,7 +510,7 @@ type location struct {
 	r     TSMFile
 	entry *IndexEntry
 
-	// Has this location been before
+	// Has this location been read before
 	read bool
 }
 
@@ -537,7 +537,6 @@ func (c *KeyCursor) init(t time.Time, ascending bool) {
 			}
 		}
 	}
-	c.buf = make([]Value, 1000)
 	c.ready = true
 }
 
