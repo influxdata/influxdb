@@ -96,7 +96,11 @@ func (r *Reader) Open() error {
 		}
 
 		measurement := tsdb.MeasurementFromSeriesKey(s)
-		for _, f := range r.fields[tsdb.MeasurementFromSeriesKey(s)].Fields {
+		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
+		if fields == nil {
+			continue
+		}
+		for _, f := range fields.Fields {
 			c := newCursor(r.tx, s, f.Name, r.codecs[measurement])
 			c.SeekTo(0)
 			r.cursors = append(r.cursors, c)
