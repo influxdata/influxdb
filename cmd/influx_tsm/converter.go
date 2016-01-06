@@ -45,21 +45,21 @@ func (c *Converter) Process(iter KeyIterator) error {
 		return err
 	}
 
-	w, err := c.nextTSMWriter()
-	if err != nil {
-		return err
-	}
-	atomic.AddUint64(&TsmFilesCreated, 1)
-	defer w.Close()
-
 	// Iterate until no more data remains.
+	var w tsm1.TSMWriter
 	for iter.Next() {
 		k, v, err := iter.Read()
 		if err != nil {
 			return err
 		}
-
 		scrubbed := scrubValues(v)
+
+		if w == nil {
+			w, err = c.nextTSMWriter()
+			if err != nil {
+				return err
+			}
+		}
 		if err := w.Write(k, scrubbed); err != nil {
 			return err
 		}
@@ -74,19 +74,19 @@ func (c *Converter) Process(iter KeyIterator) error {
 			if err := w.Close(); err != nil {
 				return err
 			}
-
-			w, err = c.nextTSMWriter()
-			if err != nil {
-				return err
-			}
-			atomic.AddUint64(&TsmFilesCreated, 1)
+			w = nil
 		}
 	}
 
-	// All done!
-	if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
-		return err
+	if w != nil {
+		if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
+			return err
+		}
+		if err := w.Close(); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -106,6 +106,7 @@ func (c *Converter) nextTSMWriter() (tsm1.TSMWriter, error) {
 		return nil, err
 	}
 
+	atomic.AddUint64(&TsmFilesCreated, 1)
 	return w, nil
 }
 
