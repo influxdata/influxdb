@@ -510,7 +510,7 @@ type location struct {
 	r     TSMFile
 	entry *IndexEntry
 
-	// Has this location been before
+	// Has this location been read before
 	read bool
 }
 
