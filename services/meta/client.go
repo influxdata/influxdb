@@ -515,8 +515,12 @@ func (c *Client) UserCount() int {
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
 // for the specified time range. Shard groups are sorted by start time.
 func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
+	c.mu.RLock()
+	data := c.data
+	c.mu.RUnlock()
+
 	// Find retention policy.
-	rpi, err := c.data.RetentionPolicy(database, policy)
+	rpi, err := data.RetentionPolicy(database, policy)
 	if err != nil {
 		return nil, err
 	} else if rpi == nil {
@@ -570,7 +574,11 @@ func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
 // for the corresponding time range arrives. Shard creation involves Raft consensus, and precreation
 // avoids taking the hit at write-time.
 func (c *Client) PrecreateShardGroups(from, to time.Time) error {
-	for _, di := range c.data.Databases {
+	c.mu.RLock()
+	data := c.data
+	c.mu.RUnlock()
+
+	for _, di := range data.Databases {
 		for _, rp := range di.RetentionPolicies {
 			if len(rp.ShardGroups) == 0 {
 				// No data was ever written to this group, or all groups have been deleted.
@@ -598,7 +606,11 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 
 // ShardOwner returns the owning shard group info for a specific shard.
 func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
-	for _, dbi := range c.data.Databases {
+	c.mu.RLock()
+	data := c.data
+	c.mu.RUnlock()
+
+	for _, dbi := range data.Databases {
 		for _, rpi := range dbi.RetentionPolicies {
 			for _, g := range rpi.ShardGroups {
 				if g.Deleted() {
