@@ -155,6 +155,7 @@ func main() {
 	fmt.Println("Conversion starting....")
 
 	// Backup each directory.
+	conversionStart := time.Now()
 	if !disBack {
 		databases := tsdb.ShardInfos(shards).Databases()
 		if parallel {
@@ -197,6 +198,18 @@ func main() {
 		}(si)
 	}
 	pg.Wait()
+
+	// Dump stats.
+	fmt.Printf("\nSummary statistics\n=========================\n")
+	fmt.Printf("Databases converted:       %d\n", len(tsdb.ShardInfos(shards).Databases()))
+	fmt.Printf("Shards converted:          %d\n", len(shards))
+	fmt.Printf("TSM files created:         %d\n", TsmFilesCreated)
+	fmt.Printf("Points read:               %d\n", PointsRead)
+	fmt.Printf("Points written:            %d\n", PointsWritten)
+	fmt.Printf("NaN filtered:              %d\n", NanFiltered)
+	fmt.Printf("Inf filtered:              %d\n", InfFiltered)
+	fmt.Printf("Total conversion time:     %v\n", time.Now().Sub(conversionStart))
+	fmt.Println()
 }
 
 // backupDatabase backs up the database at src.
