@@ -1,6 +1,7 @@
 package meta_test
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -532,6 +533,134 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 }
 
+func TestMetaService_ContinuousQueries(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// Create a CQ
+	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m) END")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	res := c.ExecuteStatement(mustParseStatement("SHOW CONTINUOUS QUERIES"))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	exp := `{"series":[{"name":"db0","columns":["name","query"],"values":[["cq0","CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m) END"]]}]}`
+	got := mustMarshalJSON(res)
+	if exp != got {
+		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	}
+
+	// Recreate an existing CQ
+	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m) END")); res.Err == nil {
+		t.Fatalf("expected error: got %v", res.Err)
+	}
+
+	// Create a few more CQ's
+	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq1 ON db0 BEGIN SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m) END")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT min(value) INTO foo_min FROM foo GROUP BY time(10m) END")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Drop a single CQ
+	if res := c.ExecuteStatement(mustParseStatement("DROP CONTINUOUS QUERY cq1 ON db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	res = c.ExecuteStatement(mustParseStatement("SHOW CONTINUOUS QUERIES"))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	exp = `{"series":[{"name":"db0","columns":["name","query"],"values":[["cq0","CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m) END"],["cq2","CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT min(value) INTO foo_min FROM foo GROUP BY time(10m) END"]]}]}`
+	got = mustMarshalJSON(res)
+	if exp != got {
+		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	}
+}
+
+func TestMetaService_Subscriptions(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// Create a subscription
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Re-create a subscription
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err == nil {
+		t.Fatal(res.Err)
+	}
+
+	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]]]}]}`
+	got := mustMarshalJSON(res)
+	if exp != got {
+		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	}
+
+	// Create a couple more subscriptions
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub2 ON db0."default" DESTINATIONS ALL 'udp://example.com:7070'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Re-create a subscription
+	if res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub1 ON db0."default"`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	exp = `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub2","ALL",["udp://example.com:7070"]]]}]}`
+	got = mustMarshalJSON(res)
+	if exp != got {
+		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	}
+}
+
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
@@ -917,4 +1046,12 @@ func mustParseStatement(s string) influxql.Statement {
 		panic(err)
 	}
 	return stmt
+}
+
+func mustMarshalJSON(v interface{}) string {
+	b, e := json.Marshal(v)
+	if e != nil {
+		panic(e)
+	}
+	return string(b)
 }
