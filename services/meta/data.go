@@ -1032,6 +1032,11 @@ func (rpi *RetentionPolicyInfo) marshal() *internal.RetentionPolicyInfo {
 		pb.ShardGroups[i] = sgi.marshal()
 	}
 
+	pb.Subscriptions = make([]*internal.SubscriptionInfo, len(rpi.Subscriptions))
+	for i, sub := range rpi.Subscriptions {
+		pb.Subscriptions[i] = sub.marshal()
+	}
+
 	return pb
 }
 
