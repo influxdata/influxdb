@@ -596,6 +596,71 @@ func TestMetaService_ContinuousQueries(t *testing.T) {
 	}
 }
 
+func TestMetaService_Subscriptions(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// Create a subscription
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Re-create a subscription
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err == nil {
+		t.Fatal(res.Err)
+	}
+
+	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]]]}]}`
+	got := mustMarshalJSON(res)
+	if exp != got {
+		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	}
+
+	// Create a couple more subscriptions
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub2 ON db0."default" DESTINATIONS ALL 'udp://example.com:7070'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Re-create a subscription
+	if res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub1 ON db0."default"`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	exp = `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub2","ALL",["udp://example.com:7070"]]]}]}`
+	got = mustMarshalJSON(res)
+	if exp != got {
+		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	}
+}
+
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
