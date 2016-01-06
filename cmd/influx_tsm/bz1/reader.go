@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -15,6 +16,8 @@ import (
 )
 
 const DefaultChunkSize = 1000
+
+var NoFieldsFiltered uint64
 
 // Reader is used to read all data from a bz1 shard.
 type Reader struct {
@@ -110,7 +113,12 @@ func (r *Reader) Open() error {
 		}
 
 		measurement := tsdb.MeasurementFromSeriesKey(s)
-		for _, f := range r.fields[tsdb.MeasurementFromSeriesKey(s)].Fields {
+		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
+		if fields == nil {
+			atomic.AddUint64(&NoFieldsFiltered, 1)
+			continue
+		}
+		for _, f := range fields.Fields {
 			c := newCursor(r.tx, s, f.Name, r.codecs[measurement])
 			if c == nil {
 				continue
