@@ -537,7 +537,6 @@ func (c *KeyCursor) init(t time.Time, ascending bool) {
 			}
 		}
 	}
-	c.buf = make([]Value, 1000)
 	c.ready = true
 }
 
