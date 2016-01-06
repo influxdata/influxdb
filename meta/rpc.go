@@ -12,7 +12,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
-	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdata/influxdb/meta/internal"
 )
 
 // Max size of a message before we treat the size as invalid

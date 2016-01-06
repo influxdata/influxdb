@@ -3,7 +3,7 @@ package cluster
 import (
 	"math/rand"
 
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdata/influxdb/meta"
 )
 
 // Balancer represents a load-balancing algorithm for a set of nodes

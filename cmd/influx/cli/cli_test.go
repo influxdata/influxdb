@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cmd/influx/cli"
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/cmd/influx/cli"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/peterh/liner"
 )
 

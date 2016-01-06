@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor.

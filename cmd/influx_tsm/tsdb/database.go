@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdb/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/pkg/slices"
 )
 
 const (

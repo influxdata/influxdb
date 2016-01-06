@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func TestTombstoner_Add(t *testing.T) {

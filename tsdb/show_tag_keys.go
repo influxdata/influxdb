@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 )
 
 // ShowTagKeysExecutor implements the Executor interface for a SHOW MEASUREMENTS statement.

@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/meta/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto
