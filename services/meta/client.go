@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -525,24 +526,111 @@ func (c *Client) UserCount() int {
 	return len(c.data.Users)
 }
 
+// ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
+// for the specified time range. Shard groups are sorted by start time.
 func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
-	return nil, nil
+	// Find retention policy.
+	rpi, err := c.data.RetentionPolicy(database, policy)
+	if err != nil {
+		return nil, err
+	} else if rpi == nil {
+		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
+	}
+	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	for _, g := range rpi.ShardGroups {
+		if g.Deleted() || !g.Overlaps(min, max) {
+			continue
+		}
+		groups = append(groups, g)
+	}
+	return groups, nil
 }
 
-func (c *Client) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
-	return nil, nil
+// CreateShardGroup creates a shard group on a database and policy for a given timestamp.
+func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	cmd := &internal.CreateShardGroupCommand{
+		Database:  proto.String(database),
+		Policy:    proto.String(policy),
+		Timestamp: proto.Int64(timestamp.UnixNano()),
+	}
+
+	if err := c.retryUntilExec(internal.Command_CreateShardGroupCommand, internal.E_CreateShardGroupCommand_Command, cmd); err != nil {
+		return nil, err
+	}
+
+	rpi, err := c.RetentionPolicy(database, policy)
+	if err != nil {
+		return nil, err
+	} else if rpi == nil {
+		return nil, errors.New("retention policy deleted after shard group created")
+	}
+
+	return rpi.ShardGroupByTimestamp(timestamp), nil
 }
 
+// DeleteShardGroup removes a shard group from a database and retention policy by id.
 func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
-	return nil
+	cmd := &internal.DeleteShardGroupCommand{
+		Database:     proto.String(database),
+		Policy:       proto.String(policy),
+		ShardGroupID: proto.Uint64(id),
+	}
+
+	return c.retryUntilExec(internal.Command_DeleteShardGroupCommand, internal.E_DeleteShardGroupCommand_Command, cmd)
 }
 
+// PrecreateShardGroups creates shard groups whose endtime is before the 'to' time passed in, but
+// is yet to expire before 'from'. This is to avoid the need for these shards to be created when data
+// for the corresponding time range arrives. Shard creation involves Raft consensus, and precreation
+// avoids taking the hit at write-time.
 func (c *Client) PrecreateShardGroups(from, to time.Time) error {
+	for _, di := range c.data.Databases {
+		for _, rp := range di.RetentionPolicies {
+			if len(rp.ShardGroups) == 0 {
+				// No data was ever written to this group, or all groups have been deleted.
+				continue
+			}
+			g := rp.ShardGroups[len(rp.ShardGroups)-1] // Get the last group in time.
+			if !g.Deleted() && g.EndTime.Before(to) && g.EndTime.After(from) {
+				// Group is not deleted, will end before the future time, but is still yet to expire.
+				// This last check is important, so the system doesn't create shards groups wholly
+				// in the past.
+
+				// Create successive shard group.
+				nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
+				if newGroup, err := c.CreateShardGroup(di.Name, rp.Name, nextShardGroupTime); err != nil {
+					c.logger.Printf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error())
+				} else {
+					c.logger.Printf("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name)
+				}
+			}
+		}
+		return nil
+	}
 	return nil
 }
 
-func (c *Client) ShardOwner(shardID uint64) (string, string, *ShardGroupInfo) {
-	return "", "", nil
+// ShardOwner returns the owning shard group info for a specific shard.
+func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
+	for _, dbi := range c.data.Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, g := range rpi.ShardGroups {
+				if g.Deleted() {
+					continue
+				}
+
+				for _, sh := range g.Shards {
+					if sh.ID == shardID {
+						database = dbi.Name
+						policy = rpi.Name
+						sgi = &g
+						return
+					}
+				}
+			}
+		}
+	}
+	return
 }
 
 // JoinMetaServer will add the passed in tcpAddr to the raft peers and add a MetaNode to

@@ -647,6 +647,72 @@ func TestMetaService_Subscriptions(t *testing.T) {
 	}
 }
 
+func TestMetaService_Shards(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	exp := &meta.NodeInfo{
+		ID:      2,
+		Host:    "foo:8180",
+		TCPHost: "bar:8281",
+	}
+
+	if _, err := c.CreateDataNode(exp.Host, exp.TCPHost); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test creating a shard group.
+	tmin := time.Now()
+	sg, err := c.CreateShardGroup("db0", "default", tmin)
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	// Test pre-creating shard groups.
+	dur := sg.EndTime.Sub(sg.StartTime) + time.Nanosecond
+	tmax := tmin.Add(dur)
+	if err := c.PrecreateShardGroups(tmin, tmax); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test finding shard groups by time range.
+	groups, err := c.ShardGroupsByTimeRange("db0", "default", tmin, tmax)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(groups) != 2 {
+		t.Fatalf("wrong number of shard groups: %d", len(groups))
+	}
+
+	// Test finding shard owner.
+	db, rp, owner := c.ShardOwner(groups[0].Shards[0].ID)
+	if db != "db0" {
+		t.Fatalf("wrong db name: %s", db)
+	} else if rp != "default" {
+		t.Fatalf("wrong rp name: %s", rp)
+	} else if owner.ID != groups[0].ID {
+		t.Fatalf("wrong owner: exp %d got %d", groups[0].ID, owner.ID)
+	}
+
+	// Test deleting a shard group.
+	if err := c.DeleteShardGroup("db0", "default", groups[0].ID); err != nil {
+		t.Fatal(err)
+	} else if groups, err = c.ShardGroupsByTimeRange("db0", "default", tmin, tmax); err != nil {
+		t.Fatal(err)
+	} else if len(groups) != 1 {
+		t.Fatalf("wrong number of shard groups after delete: %d", len(groups))
+	}
+}
+
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 

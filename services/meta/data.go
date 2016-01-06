@@ -425,7 +425,7 @@ func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.
 func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
 	// Ensure there are nodes in the metadata.
 	if len(data.DataNodes) == 0 {
-		return ErrNodesRequired
+		return nil
 	}
 
 	// Find retention policy.
