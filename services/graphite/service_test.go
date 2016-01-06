@@ -172,13 +172,9 @@ type DatabaseCreator struct {
 	Created bool
 }
 
-func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+func (d *DatabaseCreator) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	d.Created = true
 	return nil, nil
-}
-
-func (d *DatabaseCreator) WaitForLeader(t time.Duration) error {
-	return nil
 }
 
 // Test Helpers

@@ -516,7 +516,7 @@ func (t *testMetastore) Databases() ([]meta.DatabaseInfo, error) {
 
 func (t *testMetastore) User(name string) (*meta.UserInfo, error) { return nil, nil }
 
-func (t *testMetastore) AdminUserExists() (bool, error) { return false, nil }
+func (t *testMetastore) AdminUserExists() bool { return false }
 
 func (t *testMetastore) Authenticate(username, password string) (*meta.UserInfo, error) {
 	return nil, nil
@@ -541,8 +541,8 @@ func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.Retent
 	}, nil
 }
 
-func (t *testMetastore) UserCount() (int, error) {
-	return t.userCount, nil
+func (t *testMetastore) UserCount() int {
+	return t.userCount
 }
 
 func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {

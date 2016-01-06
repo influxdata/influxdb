@@ -267,7 +267,7 @@ func (n *NodeProcessor) Tail() string {
 
 // Active returns whether this node processor is for a currently active node.
 func (n *NodeProcessor) Active() (bool, error) {
-	nio, err := n.meta.Node(n.nodeID)
+	nio, err := n.meta.DataNode(n.nodeID)
 	if err != nil {
 		n.Logger.Printf("failed to determine if node %d is active: %s", n.nodeID, err.Error())
 		return false, err

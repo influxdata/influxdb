@@ -66,8 +66,7 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 	MetaClient interface {
-		WaitForLeader(d time.Duration) error
-		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 	}
 
 	// Points received over the telnet protocol are batched.
@@ -119,12 +118,7 @@ func (s *Service) Open() error {
 	tags := map[string]string{"bind": s.BindAddress}
 	s.statMap = influxdb.NewStatistics(key, "opentsdb", tags)
 
-	if err := s.MetaClient.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.Logger.Printf("Failed to detect a cluster leader: %s", err.Error())
-		return err
-	}
-
-	if _, err := s.MetaClient.CreateDatabaseIfNotExists(s.Database); err != nil {
+	if _, err := s.MetaClient.CreateDatabase(s.Database); err != nil {
 		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Database, err.Error())
 		return err
 	}

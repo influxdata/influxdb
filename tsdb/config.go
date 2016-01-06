@@ -117,6 +117,7 @@ func NewConfig() Config {
 	}
 
 	return Config{
+		Enabled:                true, // data node enabled by default
 		Engine:                 defaultEngine,
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),

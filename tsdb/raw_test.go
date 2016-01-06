@@ -1024,7 +1024,7 @@ func (t *testQEMetastore) Authenticate(username, password string) (*meta.UserInf
 func (t *testQEMetastore) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
 	return nil, nil
 }
-func (t *testQEMetastore) UserCount() (int, error) { return 0, nil }
+func (t *testQEMetastore) UserCount() int { return 0 }
 
 func (t *testQEMetastore) NodeID() uint64 { return nID }
 
