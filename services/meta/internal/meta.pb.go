@@ -174,19 +174,18 @@ func (x *Command_Type) UnmarshalJSON(data []byte) error {
 }
 
 type Data struct {
-	Term            *uint64         `protobuf:"varint,1,req,name=Term" json:"Term,omitempty"`
-	Index           *uint64         `protobuf:"varint,2,req,name=Index" json:"Index,omitempty"`
-	ClusterID       *uint64         `protobuf:"varint,3,req,name=ClusterID" json:"ClusterID,omitempty"`
-	Nodes           []*NodeInfo     `protobuf:"bytes,4,rep,name=Nodes" json:"Nodes,omitempty"`
-	Databases       []*DatabaseInfo `protobuf:"bytes,5,rep,name=Databases" json:"Databases,omitempty"`
-	Users           []*UserInfo     `protobuf:"bytes,6,rep,name=Users" json:"Users,omitempty"`
-	MaxNodeID       *uint64         `protobuf:"varint,7,req,name=MaxNodeID" json:"MaxNodeID,omitempty"`
-	MaxShardGroupID *uint64         `protobuf:"varint,8,req,name=MaxShardGroupID" json:"MaxShardGroupID,omitempty"`
-	MaxShardID      *uint64         `protobuf:"varint,9,req,name=MaxShardID" json:"MaxShardID,omitempty"`
-	// added for 0.10.0
-	DataNodes        []*NodeInfo `protobuf:"bytes,10,rep,name=DataNodes" json:"DataNodes,omitempty"`
-	MetaNodes        []*NodeInfo `protobuf:"bytes,11,rep,name=MetaNodes" json:"MetaNodes,omitempty"`
-	XXX_unrecognized []byte      `json:"-"`
+	Term             *uint64         `protobuf:"varint,1,req,name=Term" json:"Term,omitempty"`
+	Index            *uint64         `protobuf:"varint,2,req,name=Index" json:"Index,omitempty"`
+	ClusterID        *uint64         `protobuf:"varint,3,req,name=ClusterID" json:"ClusterID,omitempty"`
+	Nodes            []*NodeInfo     `protobuf:"bytes,4,rep,name=Nodes" json:"Nodes,omitempty"`
+	Databases        []*DatabaseInfo `protobuf:"bytes,5,rep,name=Databases" json:"Databases,omitempty"`
+	Users            []*UserInfo     `protobuf:"bytes,6,rep,name=Users" json:"Users,omitempty"`
+	MaxNodeID        *uint64         `protobuf:"varint,7,req,name=MaxNodeID" json:"MaxNodeID,omitempty"`
+	MaxShardGroupID  *uint64         `protobuf:"varint,8,req,name=MaxShardGroupID" json:"MaxShardGroupID,omitempty"`
+	MaxShardID       *uint64         `protobuf:"varint,9,req,name=MaxShardID" json:"MaxShardID,omitempty"`
+	DataNodes        []*NodeInfo     `protobuf:"bytes,10,rep,name=DataNodes" json:"DataNodes,omitempty"`
+	MetaNodes        []*NodeInfo     `protobuf:"bytes,11,rep,name=MetaNodes" json:"MetaNodes,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
 }
 
 func (m *Data) Reset()         { *m = Data{} }
@@ -645,8 +644,6 @@ func (m *Command) GetType() Command_Type {
 	return Command_CreateNodeCommand
 }
 
-// This isn't used in >= 0.10.0. Kept around for upgrade purposes. Instead
-// look at CreateDataNodeCommand and CreateMetaNodeCommand
 type CreateNodeCommand struct {
 	Host             *string `protobuf:"bytes,1,req,name=Host" json:"Host,omitempty"`
 	Rand             *uint64 `protobuf:"varint,2,req,name=Rand" json:"Rand,omitempty"`
@@ -1418,6 +1415,7 @@ var E_RemovePeerCommand_Command = &proto.ExtensionDesc{
 type CreateMetaNodeCommand struct {
 	HTTPAddr         *string `protobuf:"bytes,1,req,name=HTTPAddr" json:"HTTPAddr,omitempty"`
 	TCPAddr          *string `protobuf:"bytes,2,req,name=TCPAddr" json:"TCPAddr,omitempty"`
+	Rand             *uint64 `protobuf:"varint,3,req,name=Rand" json:"Rand,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1437,6 +1435,13 @@ func (m *CreateMetaNodeCommand) GetTCPAddr() string {
 		return *m.TCPAddr
 	}
 	return ""
+}
+
+func (m *CreateMetaNodeCommand) GetRand() uint64 {
+	if m != nil && m.Rand != nil {
+		return *m.Rand
+	}
+	return 0
 }
 
 var E_CreateMetaNodeCommand_Command = &proto.ExtensionDesc{
@@ -1599,11 +1604,10 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
-// SetMetaNodeCommand is for the initial metanode in a cluster or
-// if the single host restarts and its hostname changes, this will update it
 type SetMetaNodeCommand struct {
 	HTTPAddr         *string `protobuf:"bytes,1,req,name=HTTPAddr" json:"HTTPAddr,omitempty"`
 	TCPAddr          *string `protobuf:"bytes,2,req,name=TCPAddr" json:"TCPAddr,omitempty"`
+	Rand             *uint64 `protobuf:"varint,3,req,name=Rand" json:"Rand,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1623,6 +1627,13 @@ func (m *SetMetaNodeCommand) GetTCPAddr() string {
 		return *m.TCPAddr
 	}
 	return ""
+}
+
+func (m *SetMetaNodeCommand) GetRand() uint64 {
+	if m != nil && m.Rand != nil {
+		return *m.Rand
+	}
+	return 0
 }
 
 var E_SetMetaNodeCommand_Command = &proto.ExtensionDesc{
