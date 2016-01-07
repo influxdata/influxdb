@@ -16,6 +16,7 @@ var (
 	PointsWritten   uint64
 	PointsRead      uint64
 	TsmFilesCreated uint64
+	TsmBytesWritten int64
 )
 
 type KeyIterator interface {
@@ -71,6 +72,8 @@ func (c *Converter) Process(iter KeyIterator) error {
 			if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
 				return err
 			}
+			atomic.AddInt64(&TsmBytesWritten, int64(w.Size()))
+
 			if err := w.Close(); err != nil {
 				return err
 			}
@@ -82,6 +85,8 @@ func (c *Converter) Process(iter KeyIterator) error {
 		if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
 			return err
 		}
+		atomic.AddInt64(&TsmBytesWritten, int64(w.Size()))
+
 		if err := w.Close(); err != nil {
 			return err
 		}
