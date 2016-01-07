@@ -38,13 +38,18 @@ func NewNode(path string) (*Node, error) {
 
 // Save will save the node file to disk and replace the existing one if present
 func (n *Node) Save() error {
-	tmpFile := filepath.Join(n.path, nodeFile, "tmp")
+	file := filepath.Join(n.path, nodeFile)
+	tmpFile := file + "tmp"
 
-	f, err := os.Open(tmpFile)
+	f, err := os.Create(tmpFile)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	return json.NewEncoder(f).Encode(n)
+	if err := json.NewEncoder(f).Encode(n); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpFile, file)
 }

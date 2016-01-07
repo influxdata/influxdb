@@ -97,6 +97,8 @@ type Server struct {
 
 	// tcpAddr is the host:port combination for the TCP listener that services mux onto
 	tcpAddr string
+
+	config *Config
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -141,6 +143,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		httpAPIAddr: c.HTTPD.BindAddress,
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 		tcpAddr:     c.BindAddress,
+
+		config: c,
 	}
 
 	// before 0.10.0 the TCP bind address was in meta, get it from there
@@ -203,29 +207,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.Monitor.Branch = s.buildInfo.Branch
 		s.Monitor.BuildTime = s.buildInfo.Time
 		s.Monitor.PointsWriter = s.PointsWriter
-
-		// Append services.
-		s.appendClusterService(c.Cluster)
-		s.appendPrecreatorService(c.Precreator)
-		s.appendSnapshotterService()
-		s.appendCopierService()
-		s.appendAdminService(c.Admin)
-		s.appendContinuousQueryService(c.ContinuousQuery)
-		s.appendHTTPDService(c.HTTPD)
-		s.appendCollectdService(c.Collectd)
-		if err := s.appendOpenTSDBService(c.OpenTSDB); err != nil {
-			return nil, err
-		}
-		for _, g := range c.UDPs {
-			s.appendUDPService(g)
-		}
-		s.appendRetentionPolicyService(c.Retention)
-		for _, g := range c.Graphites {
-			if err := s.appendGraphiteService(g); err != nil {
-				return nil, err
-			}
-		}
-
 	}
 
 	return s, nil
@@ -400,6 +381,29 @@ func (s *Server) Open() error {
 			if err := s.initializeDataNode(); err != nil {
 				return err
 			}
+
+			// Append services.
+			s.appendClusterService(s.config.Cluster)
+			s.appendPrecreatorService(s.config.Precreator)
+			s.appendSnapshotterService()
+			s.appendCopierService()
+			s.appendAdminService(s.config.Admin)
+			s.appendContinuousQueryService(s.config.ContinuousQuery)
+			s.appendHTTPDService(s.config.HTTPD)
+			s.appendCollectdService(s.config.Collectd)
+			if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
+				return err
+			}
+			for _, g := range s.config.UDPs {
+				s.appendUDPService(g)
+			}
+			s.appendRetentionPolicyService(s.config.Retention)
+			for _, g := range s.config.Graphites {
+				if err := s.appendGraphiteService(g); err != nil {
+					return err
+				}
+			}
+
 			s.Subscriber.MetaClient = s.MetaClient
 			s.ShardMapper.MetaClient = s.MetaClient
 			s.QueryExecutor.MetaClient = s.MetaClient
@@ -623,7 +627,7 @@ func (s *Server) initializeDataNode() error {
 		return err
 	}
 	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
-	if err == nil {
+	if err != nil {
 		return err
 	}
 	s.Node.ID = n.ID
