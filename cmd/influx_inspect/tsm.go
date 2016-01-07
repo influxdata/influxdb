@@ -549,7 +549,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			buf := make([]byte, e.Size-4)
 			f.Read(buf)
 
-			blockSize += int64(len(buf)) + 4
+			blockSize += int64(e.Size)
 
 			blockType := buf[0]
 
@@ -584,7 +584,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			blockStats.size(len(buf))
 
 			if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
-				i += (4 + int64(e.Size))
+				i += blockSize
 				blockCount++
 				continue
 			}
@@ -601,7 +601,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 				fmt.Sprintf("%d/%d", len(ts), len(values)),
 			}, "\t"))
 
-			i += (4 + int64(e.Size))
+			i += blockSize
 			blockCount++
 		}
 	}
