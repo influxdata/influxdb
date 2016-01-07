@@ -40,7 +40,7 @@ type Service struct {
 	subs       map[subEntry]PointsWriter
 	MetaClient interface {
 		Databases() ([]meta.DatabaseInfo, error)
-		WaitForDataChanged() error
+		WaitForDataChanged() chan struct{}
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
 	Logger          *log.Logger
@@ -48,6 +48,7 @@ type Service struct {
 	points          chan *cluster.WritePointsRequest
 	wg              sync.WaitGroup
 	closed          bool
+	closing         chan struct{}
 	mu              sync.Mutex
 }
 
@@ -60,6 +61,7 @@ func NewService(c Config) *Service {
 		statMap:         influxdb.NewStatistics("subscriber", "subscriber", nil),
 		points:          make(chan *cluster.WritePointsRequest),
 		closed:          true,
+		closing:         make(chan struct{}),
 	}
 }
 
@@ -67,6 +69,8 @@ func NewService(c Config) *Service {
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	s.closing = make(chan struct{})
 
 	if s.MetaClient == nil {
 		panic("no meta store")
@@ -92,6 +96,13 @@ func (s *Service) Close() error {
 	defer s.mu.Unlock()
 	close(s.points)
 	s.closed = true
+	select {
+	case <-s.closing:
+		// do nothing
+	default:
+		close(s.closing)
+	}
+
 	s.wg.Wait()
 	s.Logger.Println("closed service")
 	return nil
@@ -104,20 +115,21 @@ func (s *Service) SetLogger(l *log.Logger) {
 
 func (s *Service) waitForMetaUpdates() {
 	for {
-		err := s.MetaClient.WaitForDataChanged()
-		if err != nil {
-			s.Logger.Printf("error while waiting for meta data changes, err: %v\n", err)
-			return
-		}
-		//Check that we haven't been closed before performing update.
-		s.mu.Lock()
-		if s.closed {
+		ch := s.MetaClient.WaitForDataChanged()
+		select {
+		case <-ch:
+			//Check that we haven't been closed before performing update.
+			s.mu.Lock()
+			if s.closed {
+				s.mu.Unlock()
+				s.Logger.Println("service closed not updating")
+				return
+			}
 			s.mu.Unlock()
-			s.Logger.Println("service closed not updating")
+			s.Update()
+		case <-s.closing:
 			return
 		}
-		s.mu.Unlock()
-		s.Update()
 	}
 
 }

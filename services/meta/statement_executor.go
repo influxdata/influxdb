@@ -125,6 +125,11 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDat
 }
 
 func (e *StatementExecutor) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement) *influxql.Result {
+	if q.IfExists {
+		if db, _ := e.Store.Database(q.Name); db == nil {
+			return &influxql.Result{}
+		}
+	}
 	return &influxql.Result{Err: e.Store.DropDatabase(q.Name)}
 }
 

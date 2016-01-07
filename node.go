@@ -21,8 +21,11 @@ func NewNode(path string) (*Node, error) {
 	}
 
 	f, err := os.Open(filepath.Join(path, nodeFile))
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
+		return n, nil
 	}
 	defer f.Close()
 

@@ -83,8 +83,7 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 	MetaClient interface {
-		WaitForLeader(d time.Duration) error
-		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 	}
 }
 
@@ -143,12 +142,7 @@ func (s *Service) Open() error {
 		s.Monitor.RegisterDiagnosticsClient(key, s)
 	}
 
-	if err := s.MetaClient.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
-		return err
-	}
-
-	if _, err := s.MetaClient.CreateDatabaseIfNotExists(s.database); err != nil {
+	if _, err := s.MetaClient.CreateDatabase(s.database); err != nil {
 		s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
 		return err
 	}

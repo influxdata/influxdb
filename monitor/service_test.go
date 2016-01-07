@@ -40,15 +40,13 @@ func Test_RegisterStats(t *testing.T) {
 type mockMetastore struct{}
 
 func (m *mockMetastore) ClusterID() (uint64, error)                            { return 1, nil }
-func (m *mockMetastore) NodeID() uint64                                        { return 2 }
-func (m *mockMetastore) WaitForLeader(d time.Duration) error                   { return nil }
 func (m *mockMetastore) IsLeader() bool                                        { return true }
 func (m *mockMetastore) SetDefaultRetentionPolicy(database, name string) error { return nil }
 func (m *mockMetastore) DropRetentionPolicy(database, name string) error       { return nil }
-func (m *mockMetastore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+func (m *mockMetastore) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	return nil, nil
 }
-func (m *mockMetastore) CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
+func (m *mockMetastore) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
 	return nil, nil
 }
 

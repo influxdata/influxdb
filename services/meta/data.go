@@ -287,11 +287,6 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 		return influxdb.ErrDatabaseNotFound(database)
 	}
 
-	// Prohibit dropping the default retention policy.
-	if di.DefaultRetentionPolicy == name {
-		return ErrRetentionPolicyDefault
-	}
-
 	// Remove from list.
 	for i := range di.RetentionPolicies {
 		if di.RetentionPolicies[i].Name == name {

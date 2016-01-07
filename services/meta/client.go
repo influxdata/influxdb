@@ -15,13 +15,11 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/services/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -179,7 +177,7 @@ func (c *Client) Database(name string) (*DatabaseInfo, error) {
 		}
 	}
 
-	return nil, influxdb.ErrDatabaseNotFound(name)
+	return nil, nil
 }
 
 // Databases returns a list of all database infos.
@@ -192,8 +190,12 @@ func (c *Client) Databases() ([]DatabaseInfo, error) {
 	return c.data.Databases, nil
 }
 
-// CreateDatabase creates a database.
+// CreateDatabase creates a database or returns it if it already exists
 func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
+	if db, _ := c.Database(name); db != nil {
+		return db, nil
+	}
+
 	cmd := &internal.CreateDatabaseCommand{
 		Name: proto.String(name),
 	}
@@ -216,12 +218,20 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPo
 		return nil, err
 	}
 
+	if err := c.DropRetentionPolicy(name, rpi.Name); err != nil {
+		return nil, err
+	}
+
 	cmd := &internal.CreateRetentionPolicyCommand{
 		Database:        proto.String(name),
 		RetentionPolicy: rpi.marshal(),
 	}
 
 	if err := c.retryUntilExec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command, cmd); err != nil {
+		return nil, err
+	}
+
+	if err := c.SetDefaultRetentionPolicy(name, rpi.Name); err != nil {
 		return nil, err
 	}
 
@@ -239,6 +249,10 @@ func (c *Client) DropDatabase(name string) error {
 
 // CreateRetentionPolicy creates a retention policy on the specified database.
 func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
+	if rp, _ := c.RetentionPolicy(database, rpi.Name); rp != nil {
+		return rp, nil
+	}
+
 	if rpi.Duration < MinRetentionPolicyDuration && rpi.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
