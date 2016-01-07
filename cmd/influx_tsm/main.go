@@ -215,6 +215,7 @@ func main() {
 	fmt.Printf("Disk usage pre-conversion (bytes):   %d\n", preSize)
 	fmt.Printf("Disk usage post-conversion (bytes):  %d\n", postSize)
 	fmt.Printf("Reduction factor:                    %d%%\n", (100*preSize-postSize)/preSize)
+	fmt.Printf("Bytes per TSM point:                 %.2f\n", float64(postSize)/float64(PointsWritten))
 	fmt.Printf("Total conversion time:               %v\n", time.Now().Sub(conversionStart))
 	fmt.Println()
 }
