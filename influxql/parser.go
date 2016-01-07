@@ -1532,11 +1532,9 @@ func (p *Parser) parseDropDatabaseStatement() (*DropDatabaseStatement, error) {
 
 	// Look for "IF EXISTS"
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == IF {
-		fmt.Println("GOT IF")
 		if err := p.parseTokens([]Token{EXISTS}); err != nil {
 			return nil, err
 		}
-		fmt.Println("EXISTS!")
 		stmt.IfExists = true
 	} else {
 		p.unscan()
