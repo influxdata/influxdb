@@ -954,11 +954,14 @@ func (s *SelectStatement) ColumnNames() []string {
 		case *Call:
 			if f.Name == "top" || f.Name == "bottom" {
 				if len(f.Args) == 2 {
-					columnNames = append(columnNames, f.Name)
+					columnNames = append(columnNames, field.Name())
 					continue
 				}
 				// We have a special case now where we have to add the column names for the fields TOP or BOTTOM asked for as well
-				columnNames = slices.Union(columnNames, f.Fields(), true)
+				names := f.Fields()
+				// Apply alias to first field name
+				names[0] = field.Name()
+				columnNames = slices.Union(columnNames, names, true)
 				continue
 			}
 			columnNames = append(columnNames, field.Name())
