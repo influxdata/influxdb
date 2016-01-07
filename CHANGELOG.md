@@ -10,6 +10,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#5226](https://github.com/influxdata/influxdb/pull/5226): b*1 to tsm1 shard conversion tool.
 
 ### Bugfixes
+- [#5129](https://github.com/influxdata/influxdb/pull/5129): Ensure precision flag is respected by CLI. Thanks @e-dard
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
 - [#4735](https://github.com/influxdb/influxdb/issues/4735): Fix panic when merging empty results.
 - [#5016](https://github.com/influxdb/influxdb/pull/5016): Don't panic if Meta data directory not writable. Thanks @oiooj
