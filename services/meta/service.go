@@ -130,14 +130,21 @@ func (s *Service) serve() {
 
 // Close closes the underlying listener.
 func (s *Service) Close() error {
+	if err := s.handler.Close(); err != nil {
+		return err
+	}
+
+	if err := s.store.close(); err != nil {
+		return err
+	}
+
 	if s.ln != nil {
 		if err := s.ln.Close(); err != nil {
 			return err
 		}
 	}
-	s.handler.Close()
 
-	return s.store.close()
+	return nil
 }
 
 // HTTPAddr returns the bind address for the HTTP API
