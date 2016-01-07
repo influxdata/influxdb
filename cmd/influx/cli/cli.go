@@ -103,6 +103,9 @@ func (c *CommandLine) Run() error {
 			c.Client.Addr())
 	}
 
+	// Modify precision.
+	c.SetPrecision(c.Precision)
+
 	if c.Execute == "" && !c.Import {
 		token, err := c.DatabaseToken()
 		if err != nil {
@@ -115,9 +118,6 @@ func (c *CommandLine) Run() error {
 	}
 
 	if c.Execute != "" {
-		// Modify precision before executing query
-		c.SetPrecision(c.Precision)
-
 		// Make the non-interactive mode send everything through the CLI's parser
 		// the same way the interactive mode works
 		lines := strings.Split(c.Execute, "\n")
@@ -728,7 +728,7 @@ func (c *CommandLine) help() {
 	fmt.Println(`Usage:
         connect <host:port>   connects to another node specified by host:port
         auth                  prompts for username and password
-        pretty                toggles pretty print for the json format	 
+        pretty                toggles pretty print for the json format
         use <db_name>         sets current database
         format <format>       specifies the format of the server responses: json, csv, or column
         precision <format>    specifies the format of the timestamp: rfc3339, h, m, s, ms, u or ns
