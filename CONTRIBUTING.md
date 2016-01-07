@@ -95,7 +95,7 @@ Setup the project structure and fetch the repo like so:
 ```bash
     mkdir $HOME/gocodez
     export GOPATH=$HOME/gocodez
-    go get github.com/influxdata/influxdb
+    go get github.com/influxdb/influxdb
 ```
 
 You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
@@ -106,8 +106,8 @@ If you wish to work with fork of InfluxDB, your own fork for example, you must s
 
 ```bash
     export GOPATH=$HOME/gocodez
-    mkdir -p $GOPATH/src/github.com/influxdata
-    cd $GOPATH/src/github.com/influxdata
+    mkdir -p $GOPATH/src/github.com/influxdb
+    cd $GOPATH/src/github.com/influxdb
     git clone git@github.com:<username>/influxdb
 ```
 
@@ -119,7 +119,7 @@ Build and Test
 Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
+cd $GOPATH/src/github.com/influxdb/influxdb
 go get -u -f -t ./...
 ```
 
@@ -146,7 +146,7 @@ package.sh -h
 To run the tests, execute the following command:
 
 ```bash
-cd $GOPATH/src/github.com/influxdata/influxdb
+cd $GOPATH/src/github.com/influxdb/influxdb
 go test -v ./...
 
 # run tests that match some pattern
@@ -192,7 +192,7 @@ Pre-commit checks
 
 We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
 ```bash
-    cd $GOPATH/src/github.com/influxdata/influxdb
+    cd $GOPATH/src/github.com/influxdb/influxdb
     cp .hooks/pre-commit .git/hooks/
 ```
 In case the commit is rejected because it's not formatted you can run
