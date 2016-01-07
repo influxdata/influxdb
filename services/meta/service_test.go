@@ -202,7 +202,7 @@ func TestMetaService_DropDatabase(t *testing.T) {
 	}
 
 	if db, _ = c.Database("db0"); db != nil {
-		t.Fatal("expected database to not return: %v", db)
+		t.Fatalf("expected database to not return: %v", db)
 	}
 }
 
@@ -862,6 +862,12 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 	defer c.Close()
 
+	// check to see we were assigned a valid clusterID
+	c1ID := c.ClusterID()
+	if c1ID == 0 {
+		t.Fatalf("invalid cluster id: %d", c1ID)
+	}
+
 	if _, err := c.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
@@ -914,6 +920,11 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c2.Close()
+
+	c2ID := c2.ClusterID()
+	if c1ID != c2ID {
+		t.Fatalf("invalid cluster id. got: %d, exp: %d", c2ID, c1ID)
+	}
 
 	if db, err := c2.Database("bar"); db == nil || err != nil {
 		t.Fatalf("database bar wasn't created: %s", err.Error())

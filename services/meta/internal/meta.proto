@@ -324,6 +324,7 @@ message CreateMetaNodeCommand {
     }
     required string HTTPAddr = 1;
     required string TCPAddr = 2;
+    required uint64 Rand = 3;
 }
 
 message CreateDataNodeCommand {
@@ -371,4 +372,5 @@ message SetMetaNodeCommand {
     }
     required string HTTPAddr = 1;
     required string TCPAddr = 2;
+    required uint64 Rand = 3;
 }

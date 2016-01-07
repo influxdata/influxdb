@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"sync"
@@ -303,6 +304,7 @@ func (s *store) createMetaNode(addr, raftAddr string) error {
 	val := &internal.CreateMetaNodeCommand{
 		HTTPAddr: proto.String(addr),
 		TCPAddr:  proto.String(raftAddr),
+		Rand:     proto.Uint64(uint64(rand.Int63())),
 	}
 	t := internal.Command_CreateMetaNodeCommand
 	cmd := &internal.Command{Type: &t}
@@ -325,6 +327,7 @@ func (s *store) setMetaNode(addr, raftAddr string) error {
 	val := &internal.SetMetaNodeCommand{
 		HTTPAddr: proto.String(addr),
 		TCPAddr:  proto.String(raftAddr),
+		Rand:     proto.Uint64(uint64(rand.Int63())),
 	}
 	t := internal.Command_SetMetaNodeCommand
 	cmd := &internal.Command{Type: &t}
