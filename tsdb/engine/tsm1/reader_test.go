@@ -777,6 +777,46 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 	defer r.Close()
 }
 
+func TestCompacted_NotFull(t *testing.T) {
+	var b bytes.Buffer
+	w, err := tsm1.NewTSMWriter(&b)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	if err := w.Write("cpu", values); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+
+	}
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	iter := r.BlockIterator()
+	if !iter.Next() {
+		t.Fatalf("expected next, got false")
+	}
+
+	_, _, _, block, err := iter.Read()
+	if err != nil {
+		t.Fatalf("unexpected error reading block: %v", err)
+	}
+
+	if got, exp := tsm1.BlockCount(block), 1; got != exp {
+		t.Fatalf("block count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 100000; i++ {

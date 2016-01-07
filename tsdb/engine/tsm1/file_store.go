@@ -69,6 +69,10 @@ type TSMFile interface {
 
 	// Stats returns summary information about the TSM file.
 	Stats() FileStat
+
+	// BlockIterator returns an iterator pointing to the first block in the file and
+	// allows sequential iteration to each every block.
+	BlockIterator() *BlockIterator
 }
 
 type FileStore struct {
@@ -407,6 +411,33 @@ func (f *FileStore) LastModified() time.Time {
 	defer f.mu.RUnlock()
 
 	return f.lastModified
+}
+
+// BlockCount returns number of values stored in the block at location idx
+// in the file at path.  If path does not match any file in the store, 0 is
+// returned.  If idx is out of range for the number of blocks in the file,
+// 0 is returned.
+func (f *FileStore) BlockCount(path string, idx int) int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	if idx < 0 {
+		return 0
+	}
+
+	for _, fd := range f.files {
+		if fd.Path() == path {
+			iter := fd.BlockIterator()
+			for i := 0; i < idx; i++ {
+				if !iter.Next() {
+					return 0
+				}
+			}
+			_, _, _, block, _ := iter.Read()
+			return BlockCount(block)
+		}
+	}
+	return 0
 }
 
 // locations returns the files and index blocks for a key and time.  ascending indicates

@@ -54,6 +54,7 @@ type DefaultPlanner struct {
 	FileStore interface {
 		Stats() []FileStat
 		LastModified() time.Time
+		BlockCount(path string, idx int) int
 	}
 
 	// CompactFullWriteColdDuration specifies the length of time after
@@ -202,7 +203,28 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
-		for _, group := range generations {
+		for i, group := range generations {
+			var skip bool
+
+			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
+			if group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+				skip = true
+			}
+
+			// We need to look at the level of the next file because it may need to be combined with this generation
+			// but won't get picked up on it's own if this generation is skipped.  This allows the most recently
+			// created files to get picked up by the full compaction planner and avoids having a few less optimally
+			// compressed files.
+			if i < len(generations)-1 {
+				if generations[i+1].level() <= 3 {
+					skip = false
+				}
+			}
+
+			if skip {
+				continue
+			}
+
 			for _, f := range group.files {
 				tsmFiles = append(tsmFiles, f.Path)
 			}
@@ -254,12 +276,13 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			continue
 		}
 
-		if g.size() > uint64(maxTSMFileSize) {
+		// Skip the file if it's over the max size and contains a full block
+		if g.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(g.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock {
 			start = i + 1
 		}
 
 		// This is an edge case that can happen after multiple compactions run.  The files at the beginning
-		// can become larger faster than thes ofter them.  We want to skip those really big ones and just
+		// can become larger faster than ones after them.  We want to skip those really big ones and just
 		// compact the smaller ones until they are closer in size.
 		if i > 0 {
 			if g.size()*2 < generations[i-1].size() {
@@ -287,7 +310,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 		startIndex := i
 
 		for j := i; j < i+step && j < len(generations); j++ {
-			lvl := generations[j].level()
+			gen := generations[j]
+			lvl := gen.level()
 
 			// Skip compacting this group if there happens to be any lower level files in the
 			// middle.  These will get picked up by the level compactors.
@@ -296,7 +320,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 				break
 			}
 
-			if generations[j].size() >= uint64(maxTSMFileSize) {
+			// Skip the file if it's over the max size and it contains a full block
+			if gen.size() >= uint64(maxTSMFileSize) && c.FileStore.BlockCount(gen.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !gen.hasTombstones() {
 				startIndex++
 				continue
 			}
