@@ -95,6 +95,15 @@ func (s ShardInfos) FilterFormat(fmt EngineFormat) ShardInfos {
 	return a
 }
 
+// Size returns the space on disk consumed by the shards.
+func (s ShardInfos) Size() int64 {
+	var sz int64
+	for _, si := range s {
+		sz += si.Size
+	}
+	return sz
+}
+
 // ExclusiveDatabases returns a copy of the ShardInfo, with shards associated
 // with the given databases present. If the given set is empty, all databases
 // are returned.
