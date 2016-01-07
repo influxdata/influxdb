@@ -584,6 +584,35 @@ func TestFileStore_Delete(t *testing.T) {
 	}
 }
 
+func TestFileStore_Stats(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// Create 3 TSM files...
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+	}
+
+	_, err := newFileDir(dir, data...)
+	if err != nil {
+		fatal(t, "creating test files", err)
+	}
+
+	fs := tsm1.NewFileStore(dir)
+	if err := fs.Open(); err != nil {
+		fatal(t, "opening file store", err)
+	}
+	defer fs.Close()
+
+	stats := fs.Stats()
+	if got, exp := len(stats), 3; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+
+}
+
 func newFileDir(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 

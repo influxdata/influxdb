@@ -902,6 +902,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		PathsFn: func() []tsm1.FileStat {
 			return testSet
 		},
+		blockCount: 1000,
 	}
 
 	cp := &tsm1.DefaultPlanner{
@@ -917,11 +918,11 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	// skip planning if all files are over the limit
 	over := []tsm1.FileStat{
 		tsm1.FileStat{
-			Path: "01-01.tsm1",
+			Path: "01-05.tsm1",
 			Size: 2049 * 1024 * 1024,
 		},
 		tsm1.FileStat{
-			Path: "02-02.tsm1",
+			Path: "02-05.tsm1",
 			Size: 2049 * 1024 * 1024,
 		},
 	}
@@ -930,6 +931,7 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		PathsFn: func() []tsm1.FileStat {
 			return over
 		},
+		blockCount: 1000,
 	}
 
 	cp.FileStore = overFs
@@ -946,6 +948,70 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	fs.lastModified = time.Now()
 
 	if exp, got := 4, len(cp.Plan(time.Now())[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Ensure that the planner will return files over the max file
+// size, but do not contain full blocks
+func TestDefaultPlanner_Plan_NotFullOverMaxsize(t *testing.T) {
+	testSet := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-05.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-05.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-05.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-04.tsm1",
+			Size: 256 * 1024 * 1024,
+		},
+	}
+
+	fs := &fakeFileStore{
+		PathsFn: func() []tsm1.FileStat {
+			return testSet
+		},
+		blockCount: 100,
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore:                    fs,
+		CompactFullWriteColdDuration: time.Nanosecond,
+	}
+
+	// first verify that our test set would return files
+	if exp, got := 4, len(cp.Plan(time.Now().Add(-time.Second))[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	// skip planning if all files are over the limit
+	over := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-05.tsm1",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-05.tsm1",
+			Size: 2049 * 1024 * 1024,
+		},
+	}
+
+	overFs := &fakeFileStore{
+		PathsFn: func() []tsm1.FileStat {
+			return over
+		},
+		blockCount: 100,
+	}
+
+	cp.FileStore = overFs
+	if exp, got := 1, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -1106,6 +1172,7 @@ func (w *fakeWAL) ClosedSegments() ([]string, error) {
 type fakeFileStore struct {
 	PathsFn      func() []tsm1.FileStat
 	lastModified time.Time
+	blockCount   int
 }
 
 func (w *fakeFileStore) Stats() []tsm1.FileStat {
@@ -1118,4 +1185,8 @@ func (w *fakeFileStore) NextGeneration() int {
 
 func (w *fakeFileStore) LastModified() time.Time {
 	return w.lastModified
+}
+
+func (w *fakeFileStore) BlockCount(path string, idx int) int {
+	return w.blockCount
 }
