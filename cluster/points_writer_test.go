@@ -415,7 +415,7 @@ func (m MetaStore) RetentionPolicy(database, name string) (*meta.RetentionPolicy
 	return m.RetentionPolicyFn(database, name)
 }
 
-func (m MetaStore) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
+func (m MetaStore) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	return m.CreateShardGroupIfNotExistsFn(database, policy, timestamp)
 }
 
