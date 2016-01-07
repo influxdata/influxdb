@@ -483,6 +483,12 @@ func (fsm *storeFSM) applyCreateMetaNodeCommand(cmd *internal.Command) interface
 
 	other := fsm.data.Clone()
 	other.CreateMetaNode(v.GetHTTPAddr(), v.GetTCPAddr())
+
+	// If the cluster ID hasn't been set then use the command's random number.
+	if other.ClusterID == 0 {
+		other.ClusterID = uint64(v.GetRand())
+	}
+
 	fsm.data = other
 	return nil
 }
@@ -493,6 +499,12 @@ func (fsm *storeFSM) applySetMetaNodeCommand(cmd *internal.Command) interface{} 
 
 	other := fsm.data.Clone()
 	other.SetMetaNode(v.GetHTTPAddr(), v.GetTCPAddr())
+
+	// If the cluster ID hasn't been set then use the command's random number.
+	if other.ClusterID == 0 {
+		other.ClusterID = uint64(v.GetRand())
+	}
+
 	fsm.data = other
 	return nil
 }
