@@ -8,10 +8,8 @@ import (
 	"unsafe"
 )
 
-const MAP_POPULATE = 0x8000
-
 func mmap(f *os.File, offset int64, length int) ([]byte, error) {
-	mmap, err := syscall.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED|MAP_POPULATE)
+	mmap, err := syscall.Mmap(int(f.Fd()), 0, length, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
 		return nil, err
 	}
