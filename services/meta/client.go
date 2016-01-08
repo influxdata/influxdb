@@ -101,6 +101,36 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// Ping will hit the ping endpoint for the metaservice and return nil if
+// it returns 200. If checkAllMetaServers is set to true, it will hit the
+// ping endpoint and tell it to verify the health of all metaservers in the
+// cluster
+func (c *Client) Ping(checkAllMetaServers bool) error {
+	c.mu.RLock()
+	server := c.metaServers[0]
+	c.mu.RUnlock()
+	url := c.url(server) + "/ping"
+	if checkAllMetaServers {
+		url = url + "?all=true"
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf(string(b))
+}
+
 func (c *Client) data() *Data {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -112,7 +142,7 @@ func (c *Client) ClusterID() uint64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.data.ClusterID
+	return c.cacheData.ClusterID
 }
 
 // Node returns a node by id.
@@ -341,11 +371,6 @@ func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPoli
 // IsLeader - should get rid of this
 func (c *Client) IsLeader() bool {
 	return false
-}
-
-// WaitForLeader - should get rid of this
-func (c *Client) WaitForLeader(timeout time.Duration) error {
-	return nil
 }
 
 func (c *Client) Users() []UserInfo {

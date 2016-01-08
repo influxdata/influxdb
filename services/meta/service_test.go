@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"reflect"
@@ -19,41 +17,6 @@ import (
 	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tcp"
 )
-
-// Test the ping endpoint.
-func TestMetaService_PingEndpoint(t *testing.T) {
-	t.Parallel()
-
-	cfg := newConfig()
-	defer os.RemoveAll(cfg.Dir)
-	s := newService(cfg)
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-
-	url, err := url.Parse(s.HTTPAddr())
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := http.Head("http://" + url.String() + "/ping")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.StatusCode)
-	}
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
 
 func TestMetaService_CreateDatabase(t *testing.T) {
 	t.Parallel()
@@ -1048,8 +1011,6 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	if err := c.Open(); err != nil {
 		t.Fatal(err.Error())
 	}
-	defer c.Close()
-
 	id := c.ClusterID()
 	if id == 0 {
 		t.Fatal("cluster ID can't be zero")
@@ -1072,6 +1033,52 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 		t.Fatal("cluster ID can't be zero")
 	} else if id_after != id {
 		t.Fatal("cluster id not the same: %d, %d", id_after, id)
+	}
+}
+
+func TestMetaService_Ping(t *testing.T) {
+	cfgs := make([]*meta.Config, 3)
+	srvs := make([]*testService, 3)
+	for i, _ := range cfgs {
+		c := newConfig()
+
+		cfgs[i] = c
+
+		if i > 0 {
+			c.JoinPeers = []string{srvs[0].HTTPAddr()}
+		}
+		srvs[i] = newService(c)
+		if err := srvs[i].Open(); err != nil {
+			t.Fatal(err.Error())
+		}
+		c.HTTPBindAddress = srvs[i].HTTPAddr()
+		c.BindAddress = srvs[i].RaftAddr()
+		c.JoinPeers = nil
+		defer srvs[i].Close()
+		defer os.RemoveAll(c.Dir)
+	}
+
+	c := meta.NewClient([]string{srvs[0].HTTPAddr(), srvs[1].HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	if err := c.Ping(false); err != nil {
+		t.Fatal(err.Error())
+	}
+	if err := c.Ping(true); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	srvs[1].Close()
+
+	if err := c.Ping(false); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if err := c.Ping(true); err == nil {
+		t.Fatal("expected error on ping")
 	}
 }
 
