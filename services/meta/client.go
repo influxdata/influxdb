@@ -101,6 +101,12 @@ func (c *Client) Close() error {
 	return nil
 }
 
+func (c *Client) Data() *Data {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.data
+}
+
 // ClusterID returns the ID of the cluster it's connected to.
 func (c *Client) ClusterID() uint64 {
 	c.mu.RLock()
@@ -314,7 +320,32 @@ func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
 
 // UpdateRetentionPolicy updates a retention policy.
 func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
-	return nil
+	var newName *string
+	if rpu.Name != nil {
+		newName = rpu.Name
+	}
+
+	var duration *int64
+	if rpu.Duration != nil {
+		value := int64(*rpu.Duration)
+		duration = &value
+	}
+
+	var replicaN *uint32
+	if rpu.ReplicaN != nil {
+		value := uint32(*rpu.ReplicaN)
+		replicaN = &value
+	}
+
+	cmd := &internal.UpdateRetentionPolicyCommand{
+		Database: proto.String(database),
+		Name:     proto.String(name),
+		NewName:  newName,
+		Duration: duration,
+		ReplicaN: replicaN,
+	}
+
+	return c.retryUntilExec(internal.Command_UpdateRetentionPolicyCommand, internal.E_UpdateRetentionPolicyCommand_Command, cmd)
 }
 
 // IsLeader - should get rid of this
@@ -557,6 +588,10 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	if sg, _ := c.Data().ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
+		return sg, nil
+	}
+
 	cmd := &internal.CreateShardGroupCommand{
 		Database:  proto.String(database),
 		Policy:    proto.String(policy),
@@ -864,7 +899,7 @@ func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.Extensi
 	if resp.StatusCode == http.StatusTemporaryRedirect {
 		return 0, errRedirect{host: resp.Header.Get("Location")}
 	} else if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected result:\n\texp: %d\n\tgot: %d\n", http.StatusOK, resp.StatusCode)
+		return 0, fmt.Errorf("meta service returned %s", resp.Status)
 	}
 
 	res := &internal.Response{}
@@ -879,7 +914,7 @@ func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.Extensi
 	}
 	es := res.GetError()
 	if es != "" {
-		return 0, fmt.Errorf("exec err: %s", es)
+		return 0, fmt.Errorf(es)
 	}
 
 	return res.GetIndex(), nil

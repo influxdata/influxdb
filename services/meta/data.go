@@ -438,7 +438,7 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	// Verify that shard group doesn't already exist for this timestamp.
 	if rpi.ShardGroupByTimestamp(timestamp) != nil {
-		return ErrShardGroupExists
+		return nil
 	}
 
 	// Require at least one replica but no more replicas than nodes.
