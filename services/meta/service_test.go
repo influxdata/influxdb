@@ -1033,6 +1033,48 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 	}
 }
 
+func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfig()
+	defer os.RemoveAll(cfg.Dir)
+	s := newService(cfg)
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	id := c.ClusterID()
+	if id == 0 {
+		t.Fatal("cluster ID can't be zero")
+	}
+
+	s.Close()
+	s = newService(cfg)
+	if err := s.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	c = meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	id_after := c.ClusterID()
+	if id_after == 0 {
+		t.Fatal("cluster ID can't be zero")
+	} else if id_after != id {
+		t.Fatal("cluster id not the same: %d, %d", id_after, id)
+	}
+}
+
 // newServiceAndClient returns new data directory, *Service, and *Client or panics.
 // Caller is responsible for deleting data dir and closing client.
 func newServiceAndClient() (string, *testService, *meta.Client) {
