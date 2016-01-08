@@ -24,6 +24,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#5178](https://github.com/influxdb/influxdb/pull/5178): SHOW FIELD shouldn't consider VALUES to be valid. Thanks @pires
 - [#5158](https://github.com/influxdb/influxdb/pull/5158): Fix panic when writing invalid input to the line protocol.
 - [#5264](https://github.com/influxdata/influxdb/pull/5264): Fix panic: runtime error: slice bounds out of range
+- [#5186](https://github.com/influxdata/influxdb/pull/5186): Fix database creation with retention statement parsing. Fixes [#5077](https://github.com/influxdb/influxdb/issues/5077). Thanks @pires
 
 ## v0.9.6 [2015-12-09]
 
