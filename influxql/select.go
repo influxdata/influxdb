@@ -23,7 +23,7 @@ func Select(stmt *SelectStatement, ic IteratorCreator) ([]Iterator, error) {
 		return nil, errors.New("cannot select fields when selecting multiple aggregates")
 	}
 
-	// Determine auxilary fields to be selected.
+	// Determine auxiliary fields to be selected.
 	opt.Aux = make([]string, 0, len(info.refs))
 	for ref := range info.refs {
 		opt.Aux = append(opt.Aux, ref.Val)
@@ -35,7 +35,36 @@ func Select(stmt *SelectStatement, ic IteratorCreator) ([]Iterator, error) {
 		return buildAuxIterators(stmt.Fields, ic, opt)
 	}
 
-	return buildExprIterators(stmt.Fields, ic, opt)
+	// Include auxiliary fields from top() and bottom()
+	extraFields := 0
+	for call := range info.calls {
+		if call.Name == "top" || call.Name == "bottom" {
+			for i := 1; i < len(call.Args)-1; i++ {
+				ref := call.Args[i].(*VarRef)
+				opt.Aux = append(opt.Aux, ref.Val)
+				extraFields++
+			}
+		}
+	}
+
+	fields := stmt.Fields
+	if extraFields > 0 {
+		// Rebuild the list of fields if any extra fields are being implicitly added
+		fields = make([]*Field, 0, len(stmt.Fields)+extraFields)
+		for _, f := range stmt.Fields {
+			fields = append(fields, f)
+			switch expr := f.Expr.(type) {
+			case *Call:
+				if expr.Name == "top" || expr.Name == "bottom" {
+					for i := 1; i < len(expr.Args)-1; i++ {
+						fields = append(fields, &Field{Expr: expr.Args[i]})
+					}
+				}
+			}
+		}
+	}
+
+	return buildExprIterators(fields, ic, opt)
 }
 
 // buildAuxIterators creates a set of iterators from a single combined auxilary iterator.
@@ -198,9 +227,53 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			}
 			return newSpreadIterator(input, opt), nil
 		case "top":
-			panic("FIXME: wrap top reduce slice iterator over raw iterator")
+			var tags []int
+			if len(expr.Args) < 2 {
+				return nil, fmt.Errorf("top() requires 2 or more arguments, got %d", len(expr.Args))
+			} else if len(expr.Args) > 2 {
+				// We need to find the indices of where the tag values are stored in Aux
+				// This section is O(n^2), but for what should be a low value.
+				for i := 1; i < len(expr.Args)-1; i++ {
+					ref := expr.Args[i].(*VarRef)
+					for index, name := range opt.Aux {
+						if name == ref.Val {
+							tags = append(tags, index)
+							break
+						}
+					}
+				}
+			}
+
+			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+			if err != nil {
+				return nil, err
+			}
+			n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
+			return newTopIterator(input, opt, n, tags), nil
 		case "bottom":
-			panic("FIXME: wrap bottom reduce slice iterator over raw iterator")
+			var tags []int
+			if len(expr.Args) < 2 {
+				return nil, fmt.Errorf("bottom() requires 2 or more arguments, got %d", len(expr.Args))
+			} else if len(expr.Args) > 2 {
+				// We need to find the indices of where the tag values are stored in Aux
+				// This section is O(n^2), but for what should be a low value.
+				for i := 1; i < len(expr.Args)-1; i++ {
+					ref := expr.Args[i].(*VarRef)
+					for index, name := range opt.Aux {
+						if name == ref.Val {
+							tags = append(tags, index)
+							break
+						}
+					}
+				}
+			}
+
+			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+			if err != nil {
+				return nil, err
+			}
+			n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
+			return newBottomIterator(input, opt, n, tags), nil
 		case "percentile":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {

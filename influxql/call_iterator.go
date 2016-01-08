@@ -1,6 +1,7 @@
 package influxql
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sort"
@@ -328,6 +329,136 @@ func floatSpreadReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 		max = math.Max(max, p.Value)
 	}
 	return []FloatPoint{{Time: opt.startTime, Value: max - min}}
+}
+
+// newTopIterator returns an iterator for operating on a top() call.
+func newTopIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatTopReduceSliceFunc(int(n.Val), tags)}
+	default:
+		panic(fmt.Sprintf("unsupported top iterator type: %T", input))
+	}
+}
+
+// newFloatTopReduceSliceFunc returns the bottom values within a window.
+func newFloatTopReduceSliceFunc(n int, tags []int) floatReduceSliceFunc {
+	return func(a []FloatPoint, opt *reduceOptions) []FloatPoint {
+		points := func() []FloatPoint {
+			// Filter by tags if they exist.
+			if tags != nil {
+				a = filterByUniqueTags(a, tags, func(cur, p *FloatPoint) bool {
+					return p.Value > cur.Value || (p.Value == cur.Value && p.Time < cur.Time)
+				})
+			}
+
+			// If we ask for more elements than exist, just return the sorted array.
+			if n > len(a) {
+				return a
+			}
+			offset := len(a) - n
+
+			// Sort by time so the later times are in front. The selector should
+			// return the older time in the results before including the newer time.
+			sort.Sort(sort.Reverse(floatPoints(a)))
+			// Perform a stable sort by value.
+			sort.Stable(floatPointsByValue(a))
+
+			points := make([]FloatPoint, 0, n)
+			for i := offset; i < len(a); i++ {
+				points = append(points, a[i])
+			}
+			return points
+		}()
+
+		sort.Sort(sort.Reverse(floatPointsByValue(points)))
+		if opt.startTime == MinTime && opt.endTime == MaxTime {
+			sort.Stable(floatPoints(points))
+		} else {
+			for i := range points {
+				points[i].Time = opt.startTime
+			}
+		}
+		return points
+	}
+}
+
+// newBottomIterator returns an iterator for operating on a bottom() call.
+func newBottomIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatBottomReduceSliceFunc(int(n.Val), tags)}
+	default:
+		panic(fmt.Sprintf("unsupported bottom iterator type: %T", input))
+	}
+}
+
+// newFloatBottomReduceSliceFunc returns the bottom values within a window.
+func newFloatBottomReduceSliceFunc(n int, tags []int) floatReduceSliceFunc {
+	return func(a []FloatPoint, opt *reduceOptions) []FloatPoint {
+		points := func() []FloatPoint {
+			// Filter by tags if they exist.
+			if tags != nil {
+				a = filterByUniqueTags(a, tags, func(cur, p *FloatPoint) bool {
+					return p.Value < cur.Value || (p.Value == cur.Value && p.Time < cur.Time)
+				})
+			}
+
+			// If we ask for more elements than exist, just return the sorted array.
+			if n > len(a) {
+				return a
+			}
+
+			// Perform a stable sort by value.
+			sort.Stable(floatPointsByValue(a))
+
+			points := make([]FloatPoint, 0, n)
+			for i := 0; i < n; i++ {
+				points = append(points, a[i])
+			}
+			return points
+		}()
+
+		sort.Sort(sort.Reverse(floatPointsByValue(points)))
+		if opt.startTime == MinTime && opt.endTime == MaxTime {
+			sort.Stable(floatPoints(points))
+		} else {
+			for i := range points {
+				points[i].Time = opt.startTime
+			}
+		}
+		return points
+	}
+}
+
+func filterByUniqueTags(a []FloatPoint, tags []int, cmpFunc func(cur, p *FloatPoint) bool) []FloatPoint {
+	pointMap := make(map[string]FloatPoint)
+	for _, p := range a {
+		keyBuf := bytes.NewBuffer(nil)
+		for i, index := range tags {
+			if i > 0 {
+				keyBuf.WriteString(",")
+			}
+			fmt.Fprintf(keyBuf, "%s", p.Aux[index])
+		}
+		key := keyBuf.String()
+
+		cur, ok := pointMap[key]
+		if ok {
+			if cmpFunc(&cur, &p) {
+				pointMap[key] = p
+			}
+		} else {
+			pointMap[key] = p
+		}
+	}
+
+	// Recreate the original array with our new filtered list.
+	points := make([]FloatPoint, 0, len(pointMap))
+	for _, p := range pointMap {
+		points = append(points, p)
+	}
+	return points
 }
 
 // newPercentileIterator returns an iterator for operating on a percentile() call.
