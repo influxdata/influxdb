@@ -341,11 +341,6 @@ func init() {
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
-				name:    "dropping default retention policy should not succeed",
-				command: `DROP RETENTION POLICY rp0 ON db0`,
-				exp:     `{"results":[{"error":"retention policy is default"}]}`,
-			},
-			&Query{
 				name:    "show retention policy should still show policy",
 				command: `SHOW RETENTION POLICIES ON db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
