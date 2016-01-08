@@ -37,6 +37,7 @@ type handler struct {
 		snapshot() (*Data, error)
 		apply(b []byte) error
 		join(n *NodeInfo) error
+		otherMetaServersHTTP() []string
 	}
 	s *Service
 
@@ -75,10 +76,13 @@ func (h *handler) WrapHandler(name string, hf http.HandlerFunc) http.Handler {
 // ServeHTTP responds to HTTP request to the handler.
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
-	case "HEAD":
-		h.WrapHandler("ping", h.servePing).ServeHTTP(w, r)
 	case "GET":
-		h.WrapHandler("snapshot", h.serveSnapshot).ServeHTTP(w, r)
+		switch r.URL.Path {
+		case "/ping":
+			h.WrapHandler("ping", h.servePing).ServeHTTP(w, r)
+		default:
+			h.WrapHandler("snapshot", h.serveSnapshot).ServeHTTP(w, r)
+		}
 	case "POST":
 		h.WrapHandler("execute", h.serveExec).ServeHTTP(w, r)
 	default:
@@ -253,9 +257,50 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// servePing returns a simple response to let the client know the server is running.
+// servePing will return if the server is up, or if specified will check the status
+// of the other metaservers as well
 func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("ACK"))
+	// if they're not asking to check all servers, just return who we think
+	// the leader is
+	if r.URL.Query().Get("all") == "" {
+		w.Write([]byte(h.store.leader()))
+		return
+	}
+
+	leader := h.store.leader()
+	healthy := true
+	for _, n := range h.store.otherMetaServersHTTP() {
+		scheme := "http://"
+		if h.config.HTTPSEnabled {
+			scheme = "https://"
+		}
+		url := scheme + n + "/ping"
+
+		resp, err := http.Get(url)
+		if err != nil {
+			healthy = false
+			break
+		}
+
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			healthy = false
+			break
+		}
+
+		if leader != string(b) {
+			healthy = false
+			break
+		}
+	}
+
+	if healthy {
+		w.Write([]byte(h.store.leader()))
+		return
+	}
+
+	h.httpError(fmt.Errorf("one or more metaservers not up"), w, http.StatusInternalServerError)
 }
 
 type gzipResponseWriter struct {

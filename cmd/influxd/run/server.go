@@ -520,11 +520,6 @@ func (s *Server) startServerReporting() {
 			return
 		default:
 		}
-		if err := s.MetaClient.WaitForLeader(30 * time.Second); err != nil {
-			log.Printf("no leader available for reporting: %s", err.Error())
-			time.Sleep(time.Second)
-			continue
-		}
 		s.reportServer()
 		<-time.After(24 * time.Hour)
 	}
@@ -552,7 +547,7 @@ func (s *Server) reportServer() {
 		numSeries += s
 	}
 
-	clusterID, err := s.MetaClient.ClusterID()
+	clusterID := s.MetaClient.ClusterID()
 	if err != nil {
 		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
 		return
