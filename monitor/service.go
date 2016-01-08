@@ -89,7 +89,7 @@ type Monitor struct {
 	storeInterval          time.Duration
 
 	MetaClient interface {
-		ClusterID() (uint64, error)
+		ClusterID() uint64
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 		CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 		SetDefaultRetentionPolicy(database, name string) error
@@ -346,7 +346,7 @@ func (m *Monitor) storeStatistics() {
 		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
 	// Get cluster-level metadata. Nothing different is going to happen if errors occur.
-	clusterID, _ := m.MetaClient.ClusterID()
+	clusterID := m.MetaClient.ClusterID()
 	hostname, _ := os.Hostname()
 	clusterTags := map[string]string{
 		"clusterID": fmt.Sprintf("%d", clusterID),
