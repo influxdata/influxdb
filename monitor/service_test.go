@@ -39,7 +39,7 @@ func Test_RegisterStats(t *testing.T) {
 
 type mockMetastore struct{}
 
-func (m *mockMetastore) ClusterID() (uint64, error)                            { return 1, nil }
+func (m *mockMetastore) ClusterID() uint64                                     { return 1, nil }
 func (m *mockMetastore) IsLeader() bool                                        { return true }
 func (m *mockMetastore) SetDefaultRetentionPolicy(database, name string) error { return nil }
 func (m *mockMetastore) DropRetentionPolicy(database, name string) error       { return nil }

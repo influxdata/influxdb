@@ -272,6 +272,21 @@ func (s *store) leaderHTTP() string {
 	return ""
 }
 
+// otherMetaServersHTTP will return the HTTP bind addresses of the other
+// meta servers in the cluster
+func (s *store) otherMetaServersHTTP() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var a []string
+	for _, n := range s.data.MetaNodes {
+		if n.TCPHost != s.raftAddr {
+			a = append(a, n.Host)
+		}
+	}
+	return a
+}
+
 // index returns the current store index.
 func (s *store) index() uint64 {
 	s.mu.RLock()
