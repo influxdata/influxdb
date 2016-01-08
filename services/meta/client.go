@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"sync"
@@ -107,8 +108,11 @@ func (c *Client) data() *Data {
 }
 
 // ClusterID returns the ID of the cluster it's connected to.
-func (c *Client) ClusterID() (id uint64, err error) {
-	return 0, nil
+func (c *Client) ClusterID() uint64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.data.ClusterID
 }
 
 // Node returns a node by id.
@@ -694,6 +698,7 @@ func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) error {
 	cmd := &internal.CreateMetaNodeCommand{
 		HTTPAddr: proto.String(httpAddr),
 		TCPAddr:  proto.String(tcpAddr),
+		Rand:     proto.Uint64(uint64(rand.Int63())),
 	}
 
 	return c.retryUntilExec(internal.Command_CreateMetaNodeCommand, internal.E_CreateMetaNodeCommand_Command, cmd)

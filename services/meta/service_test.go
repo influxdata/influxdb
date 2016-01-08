@@ -202,7 +202,7 @@ func TestMetaService_DropDatabase(t *testing.T) {
 	}
 
 	if db, _ = c.Database("db0"); db != nil {
-		t.Fatal("expected database to not return: %v", db)
+		t.Fatalf("expected database to not return: %v", db)
 	}
 }
 
@@ -862,6 +862,12 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 	defer c.Close()
 
+	// check to see we were assigned a valid clusterID
+	c1ID := c.ClusterID()
+	if c1ID == 0 {
+		t.Fatalf("invalid cluster id: %d", c1ID)
+	}
+
 	if _, err := c.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
@@ -914,6 +920,11 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c2.Close()
+
+	c2ID := c2.ClusterID()
+	if c1ID != c2ID {
+		t.Fatalf("invalid cluster id. got: %d, exp: %d", c2ID, c1ID)
+	}
 
 	if db, err := c2.Database("bar"); db == nil || err != nil {
 		t.Fatalf("database bar wasn't created: %s", err.Error())
@@ -1019,6 +1030,48 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 
 	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
 		t.Fatalf("nodes wrong: %v", nodes)
+	}
+}
+
+func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
+	t.Parallel()
+
+	cfg := newConfig()
+	defer os.RemoveAll(cfg.Dir)
+	s := newService(cfg)
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	id := c.ClusterID()
+	if id == 0 {
+		t.Fatal("cluster ID can't be zero")
+	}
+
+	s.Close()
+	s = newService(cfg)
+	if err := s.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+
+	c = meta.NewClient([]string{s.HTTPAddr()}, false)
+	if err := c.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c.Close()
+
+	id_after := c.ClusterID()
+	if id_after == 0 {
+		t.Fatal("cluster ID can't be zero")
+	} else if id_after != id {
+		t.Fatal("cluster id not the same: %d, %d", id_after, id)
 	}
 }
 
