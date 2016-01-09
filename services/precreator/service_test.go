@@ -50,10 +50,6 @@ type metaStore struct {
 	PrecreateShardGroupsFn func(now, cutoff time.Time) error
 }
 
-func (m metaStore) IsLeader() bool {
-	return true
-}
-
 func (m metaStore) PrecreateShardGroups(now, cutoff time.Time) error {
 	return m.PrecreateShardGroupsFn(now, cutoff)
 }

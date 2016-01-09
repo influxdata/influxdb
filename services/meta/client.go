@@ -147,7 +147,12 @@ func (c *Client) ClusterID() uint64 {
 
 // Node returns a node by id.
 func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
-	return nil, nil
+	for _, n := range c.data().DataNodes {
+		if n.ID == id {
+			return &n, nil
+		}
+	}
+	return nil, ErrNodeNotFound
 }
 
 // DataNodes returns the data nodes' info.
@@ -951,6 +956,11 @@ func (c *Client) getSnapshot(server string, index uint64) (*Data, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("meta server returned non-200: %s", resp.Status)
+	}
+
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
