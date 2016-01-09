@@ -182,8 +182,12 @@ func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
 }
 
 // DeleteDataNode deletes a data node from the cluster.
-func (c *Client) DeleteDataNode(nodeID uint64) error {
-	return nil
+func (c *Client) DeleteDataNode(id uint64) error {
+	cmd := &internal.DeleteDataNodeCommand{
+		ID: proto.Uint64(id),
+	}
+
+	return c.retryUntilExec(internal.Command_DeleteDataNodeCommand, internal.E_DeleteDataNodeCommand_Command, cmd)
 }
 
 // MetaNodes returns the meta nodes' info.
