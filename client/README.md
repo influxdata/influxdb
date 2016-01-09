@@ -66,17 +66,26 @@ const (
 
 func main() {
 	// Make client
-	c := client.NewHTTPClient(client.HTTPConfig{
+	c, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr: "http://localhost:8086",
 		Username: username,
 		Password: password,
 	})
+	
+	if err != nil {
+        	log.Println("Error: ", err)
+    	}
+
 
 	// Create a new point batch
-	bp := client.NewBatchPoints(client.BatchPointsConfig{
+	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  MyDB,
 		Precision: "s",
 	})
+	
+	if err != nil {
+        	log.Println("Error: ", err)
+    	}
 
 	// Create a point and add to batch
 	tags := map[string]string{"cpu": "cpu-total"}
@@ -85,7 +94,12 @@ func main() {
 		"system": 53.3,
 		"user":   46.6,
 	}
-	pt := client.NewPoint("cpu_usage", tags, fields, time.Now())
+	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
+	
+	if err != nil {
+        	log.Println("Error: ", err)
+    	}
+    	
 	bp.AddPoint(pt)
 
 	// Write the batch
