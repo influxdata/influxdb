@@ -996,6 +996,60 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 	}
 }
 
+func TestMetaService_DropDataNode(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	exp := &meta.NodeInfo{
+		ID:      2,
+		Host:    "foo:8180",
+		TCPHost: "bar:8281",
+	}
+
+	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !reflect.DeepEqual(n, exp) {
+		t.Fatalf("data node attributes wrong: %v", n)
+	}
+
+	nodes, err := c.DataNodes()
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
+		t.Fatalf("nodes wrong: %v", nodes)
+	}
+
+	if _, err := c.CreateDatabase("foo"); err != nil {
+		t.Fatal(err.Error())
+	}
+	sg, err := c.CreateShardGroup("foo", "default", time.Now())
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{2}}) {
+		t.Fatalf("expected owners to be [2]: %v", sg.Shards[0].Owners)
+	}
+
+	if res := c.ExecuteStatement(mustParseStatement("DROP DATA SERVER 2")); res.Err != nil {
+		t.Fatal(res.Err.Error())
+	}
+
+	rp, _ := c.RetentionPolicy("foo", "default")
+	if len(rp.ShardGroups[0].Shards[0].Owners) != 0 {
+		t.Fatalf("expected shard to have no owners: %v", rp.ShardGroups[0].Shards[0].Owners)
+	}
+}
+
 func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	t.Parallel()
 
