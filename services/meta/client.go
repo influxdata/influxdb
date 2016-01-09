@@ -322,11 +322,6 @@ func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInf
 	return db.RetentionPolicy(name), nil
 }
 
-// VisitRetentionPolicies executes the given function on all retention policies in all databases.
-func (c *Client) VisitRetentionPolicies(f func(d DatabaseInfo, r RetentionPolicyInfo)) {
-
-}
-
 // DropRetentionPolicy drops a retention policy from a database.
 func (c *Client) DropRetentionPolicy(database, name string) error {
 	cmd := &internal.DropRetentionPolicyCommand{
