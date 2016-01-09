@@ -35,6 +35,9 @@ const (
 	// DefaultRaftPromotionEnabled is the default for auto promoting a node to a raft node when needed
 	DefaultRaftPromotionEnabled = true
 
+	// DefaultLeaseDuration is the default duration for leases.
+	DefaultLeaseDuration = 60 * time.Second
+
 	// DefaultLoggingEnabled determines if log messages are printed for the meta service
 	DefaultLoggingEnabled = true
 )
@@ -63,6 +66,8 @@ type Config struct {
 	RaftPromotionEnabled bool          `toml:"raft-promotion-enabled"`
 	LoggingEnabled       bool          `toml:"logging-enabled"`
 	PprofEnabled         bool          `toml:"pprof-enabled"`
+
+	LeaseDuration toml.Duration `toml:"lease-duration"`
 }
 
 // NewConfig builds a new configuration with default values.
@@ -77,6 +82,7 @@ func NewConfig() *Config {
 		LeaderLeaseTimeout:   toml.Duration(DefaultLeaderLeaseTimeout),
 		CommitTimeout:        toml.Duration(DefaultCommitTimeout),
 		RaftPromotionEnabled: DefaultRaftPromotionEnabled,
+		LeaseDuration:        toml.Duration(DefaultLeaseDuration),
 		LoggingEnabled:       DefaultLoggingEnabled,
 	}
 }

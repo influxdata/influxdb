@@ -43,6 +43,7 @@ type handler struct {
 
 	mu      sync.RWMutex
 	closing chan struct{}
+	leases  *Leases
 }
 
 // newHandler returns a new instance of handler with routes.
@@ -53,6 +54,7 @@ func newHandler(c *Config, s *Service) *handler {
 		logger:         log.New(os.Stderr, "[meta-http] ", log.LstdFlags),
 		loggingEnabled: c.LoggingEnabled,
 		closing:        make(chan struct{}),
+		leases:         NewLeases(time.Duration(c.LeaseDuration)),
 	}
 
 	return h
@@ -80,6 +82,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ping":
 			h.WrapHandler("ping", h.servePing).ServeHTTP(w, r)
+		case "/lease":
+			h.WrapHandler("lease", h.serveLease).ServeHTTP(w, r)
 		default:
 			h.WrapHandler("snapshot", h.serveSnapshot).ServeHTTP(w, r)
 		}
@@ -303,6 +307,70 @@ func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 	h.httpError(fmt.Errorf("one or more metaservers not up"), w, http.StatusInternalServerError)
 }
 
+// serveLease
+func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
+	// Redirect to leader if necessary.
+	leader := h.store.leaderHTTP()
+	if leader != h.s.httpAddr {
+		if leader == "" {
+			// No cluster leader. Client will have to try again later.
+			h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
+			return
+		}
+		scheme := "http://"
+		if h.config.HTTPSEnabled {
+			scheme = "https://"
+		}
+
+		leader = scheme + leader + "/lease"
+		http.Redirect(w, r, leader, http.StatusTemporaryRedirect)
+		return
+	}
+
+	q := r.URL.Query()
+
+	// Get the requested lease name.
+	name := q.Get("name")
+	if name == "" {
+		http.Error(w, "lease name required", http.StatusBadRequest)
+		return
+	}
+	// Get the ID of the requesting node.
+	nodeIDStr := q.Get("nodeid")
+	if name == "" {
+		http.Error(w, "node ID required", http.StatusBadRequest)
+		return
+	}
+	// Convert node ID to an int.
+	nodeID, err := strconv.ParseUint(nodeIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid node ID", http.StatusBadRequest)
+		return
+	}
+
+	// Try to acquire the requested lease.
+	// Always returns a lease. err determins if we own it.
+	l, err := h.leases.Acquire(name, nodeID)
+	// Marshal the lease to JSON.
+	b, e := json.Marshal(l)
+	if e != nil {
+		h.httpError(e, w, http.StatusInternalServerError)
+		return
+	}
+	// Write HTTP status.
+	if err != nil {
+		// Another node owns the lease.
+		w.WriteHeader(http.StatusConflict)
+	} else {
+		// Lease successfully acquired.
+		w.WriteHeader(http.StatusOK)
+	}
+	// Write the lease data.
+	w.Header().Add("content-type", "application/json")
+	w.Write(b)
+	return
+}
+
 type gzipResponseWriter struct {
 	io.Writer
 	http.ResponseWriter
@@ -386,4 +454,48 @@ func (h *handler) httpError(err error, w http.ResponseWriter, status int) {
 		h.logger.Println(err)
 	}
 	http.Error(w, "", status)
+}
+
+type Lease struct {
+	Name       string    `json:"name"`
+	Expiration time.Time `json:"expiration"`
+	Owner      uint64    `json:"owner"`
+}
+
+type Leases struct {
+	mu sync.Mutex
+	m  map[string]*Lease
+	d  time.Duration
+}
+
+func NewLeases(d time.Duration) *Leases {
+	return &Leases{
+		m: make(map[string]*Lease),
+		d: d,
+	}
+}
+
+func (leases Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
+	leases.mu.Lock()
+	defer leases.mu.Unlock()
+
+	l, ok := leases.m[name]
+	if ok {
+		if time.Now().After(l.Expiration) || l.Owner == nodeID {
+			l.Expiration = time.Now().Add(leases.d)
+			l.Owner = nodeID
+			return l, nil
+		}
+		return l, errors.New("another node has the lease")
+	}
+
+	l = &Lease{
+		Name:       name,
+		Expiration: time.Now().Add(leases.d),
+		Owner:      nodeID,
+	}
+
+	leases.m[name] = l
+
+	return l, nil
 }
