@@ -815,7 +815,6 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 		if c.tsmPos >= len(c.tsmValues) {
 			c.tsmValues, _ = c.tsmKeyCursor.Next(c.ascending)
 			if len(c.tsmValues) == 0 {
-				c.tsmKeyCursor.Close()
 				return tsdb.EOF, nil
 			}
 			c.tsmPos = 0
@@ -826,7 +825,6 @@ func (c *devCursor) nextTSM() (int64, interface{}) {
 		if c.tsmPos < 0 {
 			c.tsmValues, _ = c.tsmKeyCursor.Next(c.ascending)
 			if len(c.tsmValues) == 0 {
-				c.tsmKeyCursor.Close()
 				return tsdb.EOF, nil
 			}
 			c.tsmPos = len(c.tsmValues) - 1
