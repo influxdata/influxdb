@@ -234,8 +234,11 @@ def upload_packages(packages, nightly=False):
     print ""
 
 def run_tests(race, parallel, timeout, no_vet):
-    get_command = "go get -d -t ./..."
     print "Retrieving Go dependencies...",
+    get_command = "go get -d -t ./..."
+    sys.stdout.flush()
+    run(get_command)
+    get_command = "go get golang.org/x/tools/cmd/vet"
     sys.stdout.flush()
     run(get_command)
     print "done."
@@ -254,7 +257,7 @@ def run_tests(race, parallel, timeout, no_vet):
         print err
         return False
     if not no_vet:
-        p = subprocess.Popen(["go", "tool", "vet", "-composites=false", "./"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(["go", "tool", "vet", "-composites=true", "./"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if len(out) > 0 or len(err) > 0:
             print "Go vet failed. Please run 'go vet ./...' and fix any errors."
@@ -493,7 +496,7 @@ def print_usage():
     print "\t --commit=<commit> \n\t\t- Use specific commit for build (currently a NOOP)."
     print "\t --branch=<branch> \n\t\t- Build from a specific branch (currently a NOOP)."
     print "\t --rc=<rc number> \n\t\t- Whether or not the build is a release candidate (affects version information)."
-    print "\t --iteration=<iteration number> \n\t\t- The iteration to display on the package output (defaults to 0 for RC's, and 1 otherwise)."    
+    print "\t --iteration=<iteration number> \n\t\t- The iteration to display on the package output (defaults to 0 for RC's, and 1 otherwise)."
     print "\t --race \n\t\t- Whether the produced build should have race detection enabled."
     print "\t --package \n\t\t- Whether the produced builds should be packaged for the target platform(s)."
     print "\t --nightly \n\t\t- Whether the produced build is a nightly (affects version information)."

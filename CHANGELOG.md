@@ -1,7 +1,5 @@
 ## v0.10.0 [unreleased]
 
-With this release InfluxDB is moving to Go 1.5.
-
 ### Features
 - [#5183](https://github.com/influxdb/influxdb/pull/5183): CLI confirms database exists when USE executed. Thanks @pires
 - [#5201](https://github.com/influxdb/influxdb/pull/5201): Allow max UDP buffer size to be configurable. Thanks @sebito91
