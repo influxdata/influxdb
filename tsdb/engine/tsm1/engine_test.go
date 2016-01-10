@@ -17,7 +17,7 @@ import (
 )
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_QueryCache_Ascending(t *testing.T) {
+func TestEngine_QueryCache_Ascending(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
@@ -32,7 +32,7 @@ func TestDevEngine_QueryCache_Ascending(t *testing.T) {
 	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions())
+	e := NewEngine(f.Name(), walPath, tsdb.NewEngineOptions())
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
@@ -41,7 +41,7 @@ func TestDevEngine_QueryCache_Ascending(t *testing.T) {
 	}
 
 	// Start a query transactions and get a cursor.
-	tx := devTx{engine: e.(*DevEngine)}
+	tx := tx{engine: e.(*Engine)}
 	ascCursor := tx.Cursor("cpu,host=A", []string{"value"}, nil, true)
 
 	k, v := ascCursor.SeekTo(1)
@@ -76,7 +76,7 @@ func TestDevEngine_QueryCache_Ascending(t *testing.T) {
 }
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_QueryTSM_Ascending(t *testing.T) {
+func TestEngine_QueryTSM_Ascending(t *testing.T) {
 	fs := NewFileStore("")
 
 	// Setup 3 files
@@ -133,7 +133,7 @@ func TestDevEngine_QueryTSM_Ascending(t *testing.T) {
 }
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_QueryCache_Descending(t *testing.T) {
+func TestEngine_QueryCache_Descending(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
@@ -148,7 +148,7 @@ func TestDevEngine_QueryCache_Descending(t *testing.T) {
 	p3 := parsePoint("cpu,host=A value=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions())
+	e := NewEngine(f.Name(), walPath, tsdb.NewEngineOptions())
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
@@ -157,7 +157,7 @@ func TestDevEngine_QueryCache_Descending(t *testing.T) {
 	}
 
 	// Start a query transactions and get a cursor.
-	tx := devTx{engine: e.(*DevEngine)}
+	tx := tx{engine: e.(*Engine)}
 	descCursor := tx.Cursor("cpu,host=A", []string{"value"}, nil, false)
 
 	k, v := descCursor.SeekTo(4000000000)
@@ -177,7 +177,7 @@ func TestDevEngine_QueryCache_Descending(t *testing.T) {
 }
 
 // Ensure an engine containing cached values responds correctly to queries.
-func TestDevEngine_QueryTSM_Descending(t *testing.T) {
+func TestEngine_QueryTSM_Descending(t *testing.T) {
 	fs := NewFileStore("")
 
 	// Setup 3 files
@@ -218,7 +218,7 @@ func TestDevEngine_QueryTSM_Descending(t *testing.T) {
 	}
 }
 
-func TestDevEngine_LoadMetadataIndex(t *testing.T) {
+func TestEngine_LoadMetadataIndex(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
@@ -232,7 +232,7 @@ func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 	p2 := parsePoint("cpu,host=B value=1.2 2000000000")
 
 	// Write those points to the engine.
-	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+	e := NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*Engine)
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
@@ -317,7 +317,7 @@ func TestDevEngine_LoadMetadataIndex(t *testing.T) {
 }
 
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
-func TestDevEngine_DeleteWALLoadMetadata(t *testing.T) {
+func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
@@ -331,7 +331,7 @@ func TestDevEngine_DeleteWALLoadMetadata(t *testing.T) {
 	p2 := parsePoint("cpu,host=B value=1.2 2000000000")
 
 	// Write those points to the engine.
-	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+	e := NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*Engine)
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
@@ -347,7 +347,7 @@ func TestDevEngine_DeleteWALLoadMetadata(t *testing.T) {
 		t.Fatalf("error closing: %s", err.Error())
 	}
 
-	e = NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+	e = NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*Engine)
 	if err := e.Open(); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
@@ -362,7 +362,7 @@ func TestDevEngine_DeleteWALLoadMetadata(t *testing.T) {
 }
 
 // Ensure that the engine will backup any TSM files created since the passed in time
-func TestDevEngine_Backup(t *testing.T) {
+func TestEngine_Backup(t *testing.T) {
 	// Generate temporary file.
 	f, _ := ioutil.TempFile("", "tsm")
 	f.Close()
@@ -377,7 +377,7 @@ func TestDevEngine_Backup(t *testing.T) {
 	p3 := parsePoint("cpu,host=C value=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := NewDevEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*DevEngine)
+	e := NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
