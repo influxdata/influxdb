@@ -3,8 +3,6 @@ package tsdb
 import (
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
@@ -12,7 +10,7 @@ import (
 
 const (
 	// DefaultEngine is the default engine for new shards
-	DefaultEngine = "bz1"
+	DefaultEngine = "tsm1"
 
 	// DefaultMaxWALSize is the default size of the WAL before it is flushed.
 	DefaultMaxWALSize = 100 * 1024 * 1024 // 100MB
@@ -104,14 +102,8 @@ type Config struct {
 }
 
 func NewConfig() Config {
-	defaultEngine := DefaultEngine
-	if engine := os.Getenv("INFLUXDB_DATA_ENGINE"); engine != "" {
-		log.Println("TSDB engine selected via environment variable:", engine)
-		defaultEngine = engine
-	}
-
 	return Config{
-		Engine:                 defaultEngine,
+		Engine:                 DefaultEngine,
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
 		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
