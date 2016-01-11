@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -37,12 +38,17 @@ const (
 	SaltBytes = 32
 )
 
+var (
+	// ErrServiceUnavailable is returned when the meta service is unavailable.
+	ErrServiceUnavailable = errors.New("meta service unavailable")
+)
+
 // Client is used to execute commands on and read data from
 // a meta service cluster.
 type Client struct {
 	tls    bool
 	logger *log.Logger
-	nodeID uint64
+	NodeID uint64
 
 	mu          sync.RWMutex
 	metaServers []string
@@ -61,9 +67,8 @@ type Client struct {
 }
 
 // NewClient returns a new *Client.
-func NewClient(nodeID uint64, metaServers []string, tls bool) *Client {
+func NewClient(metaServers []string, tls bool) *Client {
 	client := &Client{
-		nodeID:      nodeID,
 		cacheData:   &Data{},
 		metaServers: metaServers,
 		tls:         tls,
@@ -139,11 +144,24 @@ func (c *Client) Ping(checkAllMetaServers bool) error {
 // the "ContinuousQuery" lease. Only the node that acquires it will run CQs.
 // NOTE: Leases are not managed through the CP system and are not fully
 // consistent.  Any actions taken after acquiring a lease must be idempotent.
-func (c *Client) AcquireLease(name string) (*Lease, error) {
+func (c *Client) AcquireLease(name string) (l *Lease, err error) {
+	for n := 1; n < 11; n++ {
+		if l, err = c.acquireLease(name); err == ErrServiceUnavailable {
+			// exponential backoff
+			d := time.Duration(math.Pow(10, float64(n))) * time.Millisecond
+			time.Sleep(d)
+			continue
+		}
+		break
+	}
+	return
+}
+
+func (c *Client) acquireLease(name string) (*Lease, error) {
 	c.mu.RLock()
 	server := c.metaServers[0]
 	c.mu.RUnlock()
-	url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.nodeID)
+	url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.NodeID)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -155,6 +173,8 @@ func (c *Client) AcquireLease(name string) (*Lease, error) {
 	case http.StatusOK:
 	case http.StatusConflict:
 		err = errors.New("another node owns the lease")
+	case http.StatusServiceUnavailable:
+		return nil, ErrServiceUnavailable
 	case http.StatusBadRequest:
 		b, e := ioutil.ReadAll(resp.Body)
 		if e != nil {
@@ -226,7 +246,7 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		return nil, err
 	}
 
-	c.nodeID = n.ID
+	c.NodeID = n.ID
 
 	return n, nil
 }
@@ -796,7 +816,7 @@ func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		return nil, errors.New("new meta node not found")
 	}
 
-	c.nodeID = n.ID
+	c.NodeID = n.ID
 
 	return n, nil
 }
