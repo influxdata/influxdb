@@ -45,13 +45,6 @@ reporting-disabled = false
 [data]
   dir = "/var/lib/influxdb/data"
 
-  # Controls the storage engine used for new shards. Engines available are b1,
-  # bz1, and tsm1. b1 was the original default engine from 0.9.0 to 0.9.2. bz1
-  # has been the default engine since 0.9.3. tsm1 was introduced in 0.9.5 and is
-  # currently EXPERIMENTAL. Consequently, data written into the tsm1 engine may
-  # need to be wiped between upgrades.
-  # engine ="bz1"
-
   # The following WAL settings are for the b1 storage engine used in 0.9.2. They won't
   # apply to any new shards created after upgrading to a version > 0.9.3.
   max-wal-size = 104857600 # Maximum size the WAL can reach before a flush. Defaults to 100MB.
@@ -152,7 +145,7 @@ reporting-disabled = false
 ###
 
 [cluster]
-  shard-writer-timeout = "5s" # The time within which a remote shard must respond to a write request. 
+  shard-writer-timeout = "5s" # The time within which a remote shard must respond to a write request.
   write-timeout = "10s" # The time within which a write request must complete on the cluster.
 
 ###
@@ -330,7 +323,7 @@ reporting-disabled = false
   # batch-pending = 5 # number of batches that may be pending in memory
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
   # read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
- 
+
   # set the expected UDP payload size; lower values tend to yield better performance, default is max UDP size 65536
   # udp-payload-size = 65536
 
