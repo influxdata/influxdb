@@ -187,20 +187,17 @@ func (e *Engine) Close() error {
 func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 	e.measurementFields = measurementFields
 
+	start := time.Now()
 	keys := e.FileStore.Keys()
 
 	keysLoaded := make(map[string]bool)
 
-	for _, k := range keys {
-		typ, err := e.FileStore.Type(k)
-		if err != nil {
-			return err
-		}
+	for k, typ := range keys {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
 		if err != nil {
 			return err
@@ -214,8 +211,8 @@ func (e *Engine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, mea
 	}
 
 	// load metadata from the Cache
-	e.Cache.Lock() // shouldn't need the lock, but just to be safe
-	defer e.Cache.Unlock()
+	e.Cache.RLock() // shouldn't need the lock, but just to be safe
+	defer e.Cache.RUnlock()
 
 	for key, entry := range e.Cache.Store() {
 		if keysLoaded[key] {
@@ -224,7 +221,7 @@ func (e *Engine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, mea
 
 		fieldType, err := entry.values.InfluxQLType()
 		if err != nil {
-			log.Printf("error getting the data type of values for key %s: %s", key, err.Error())
+			e.logger.Printf("error getting the data type of values for key %s: %s", key, err.Error())
 			continue
 		}
 
@@ -233,6 +230,10 @@ func (e *Engine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, mea
 		}
 	}
 
+	// sh may be nil in tests
+	if sh != nil {
+		e.logger.Printf("%s database index loaded in %s", sh.Path(), time.Now().Sub(start))
+	}
 	return nil
 }
 
@@ -370,31 +371,32 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 
 	var deleteKeys []string
 	// go through the keys in the file store
-	for _, k := range e.FileStore.Keys() {
+	for k := range e.FileStore.Keys() {
 		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
 			deleteKeys = append(deleteKeys, k)
 		}
 	}
-	e.FileStore.Delete(deleteKeys)
+	if err := e.FileStore.Delete(deleteKeys); err != nil {
+		return err
+	}
 
 	// find the keys in the cache and remove them
 	walKeys := make([]string, 0)
-	e.Cache.Lock()
-	defer e.Cache.Unlock()
-
+	e.Cache.RLock()
 	s := e.Cache.Store()
 	for k, _ := range s {
 		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
 			walKeys = append(walKeys, k)
-			delete(s, k)
 		}
 	}
+	e.Cache.RUnlock()
+
+	e.Cache.Delete(walKeys)
 
 	// delete from the WAL
 	_, err := e.WAL.Delete(walKeys)
-
 	return err
 }
 

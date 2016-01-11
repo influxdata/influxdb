@@ -50,7 +50,7 @@ func (b *BlockIterator) PeekNext() string {
 	if len(b.entries) > 1 {
 		return b.key
 	} else if b.n-b.i > 1 {
-		key := b.r.KeyAt(b.i + 1)
+		key, _ := b.r.KeyAt(b.i + 1)
 		return key
 	}
 	return ""
@@ -197,7 +197,7 @@ func (t *TSMReader) Key(index int) (string, []IndexEntry) {
 	return t.index.Key(index)
 }
 
-func (t *TSMReader) KeyAt(idx int) string {
+func (t *TSMReader) KeyAt(idx int) (string, byte) {
 	return t.index.KeyAt(idx)
 }
 
@@ -557,15 +557,15 @@ func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
 	return string(key), entries.entries
 }
 
-func (d *indirectIndex) KeyAt(idx int) string {
+func (d *indirectIndex) KeyAt(idx int) (string, byte) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	if idx < 0 || idx >= len(d.offsets) {
-		return ""
+		return "", 0
 	}
-	_, key, _ := readKey(d.b[d.offsets[idx]:])
-	return string(key)
+	n, key, _ := readKey(d.b[d.offsets[idx]:])
+	return string(key), d.b[d.offsets[idx]+int32(n)]
 }
 
 func (d *indirectIndex) KeyCount() int {

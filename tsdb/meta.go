@@ -96,6 +96,8 @@ func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries in
 
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
 func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	// if there is a measurement for this id, it's already been added
 	ss := d.series[series.Key]
 	if ss != nil {
@@ -103,7 +105,7 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	}
 
 	// get or create the measurement index
-	m := d.CreateMeasurementIndexIfNotExists(measurementName)
+	m := d.createMeasurementIndexIfNotExists(measurementName)
 
 	// set the in memory ID for query processing on this shard
 	series.id = d.lastID + 1
@@ -121,6 +123,13 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
 func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.createMeasurementIndexIfNotExists(name)
+}
+
+// createMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
+func (d *DatabaseIndex) createMeasurementIndexIfNotExists(name string) *Measurement {
 	name = escape.UnescapeString(name)
 	m := d.measurements[name]
 	if m == nil {
@@ -1293,6 +1302,10 @@ func NewSeries(key string, tags map[string]string) *Series {
 		Tags:     tags,
 		shardIDs: make(map[uint64]bool),
 	}
+}
+
+func (s *Series) AssignShard(shardID uint64) {
+	s.shardIDs[shardID] = true
 }
 
 // MarshalBinary encodes the object to a binary format.

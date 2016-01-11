@@ -162,7 +162,7 @@ type TSMIndex interface {
 	Key(index int) (string, []IndexEntry)
 
 	// KeyAt returns the key in the index at the given postion.
-	KeyAt(index int) string
+	KeyAt(index int) (string, byte)
 
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
@@ -367,11 +367,14 @@ func (d *directIndex) Key(idx int) (string, []IndexEntry) {
 	return k, d.blocks[k].entries
 }
 
-func (d *directIndex) KeyAt(idx int) string {
+func (d *directIndex) KeyAt(idx int) (string, byte) {
 	if idx < 0 || idx >= len(d.blocks) {
-		return ""
+		return "", 0
 	}
-	return d.Keys()[idx]
+	key := d.Keys()[idx]
+	entries := d.blocks[key]
+	return key, entries.Type
+
 }
 
 func (d *directIndex) KeyCount() int {
