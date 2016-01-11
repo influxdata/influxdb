@@ -85,7 +85,7 @@ func (s *store) open(raftln net.Listener) error {
 	// See if this server needs to join the raft consensus group
 	var initializePeers []string
 	if len(s.config.JoinPeers) > 0 {
-		c := NewClient(0, s.config.JoinPeers, s.config.HTTPSEnabled)
+		c := NewClient(s.config.JoinPeers, s.config.HTTPSEnabled)
 		data := c.retryUntilSnapshot(0)
 		for _, n := range data.MetaNodes {
 			initializePeers = append(initializePeers, n.TCPHost)
@@ -119,7 +119,7 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	if len(s.config.JoinPeers) > 0 {
-		c := NewClient(0, s.config.JoinPeers, s.config.HTTPSEnabled)
+		c := NewClient(s.config.JoinPeers, s.config.HTTPSEnabled)
 		if err := c.Open(); err != nil {
 			return err
 		}
