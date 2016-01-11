@@ -965,7 +965,10 @@ func (m *RawMapper) NextChunk() (interface{}, error) {
 			Tags:  cursor.Tags(),
 		})
 
+		// Exit if we have reached the chunk size or if we hit the LIMIT clause.
 		if len(output.Values) == m.ChunkSize {
+			return output, nil
+		} else if m.stmt.Limit > 0 && len(output.Values) >= (m.stmt.Limit+m.stmt.Offset) {
 			return output, nil
 		}
 	}
