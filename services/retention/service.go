@@ -12,7 +12,7 @@ import (
 // Service represents the retention policy enforcement service.
 type Service struct {
 	MetaClient interface {
-		Databases() ([]*meta.DatabaseInfo, error)
+		Databases() ([]meta.DatabaseInfo, error)
 		DeleteShardGroup(database, policy string, id uint64) error
 	}
 	TSDBStore interface {
