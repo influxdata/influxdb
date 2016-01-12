@@ -166,6 +166,8 @@ func queryDB(clnt client.Client, cmd string) (res []client.Result, err error) {
 			return res, response.Error()
 		}
 		res = response.Results
+	} else {
+		return res, err
 	}
 	return res, nil
 }
