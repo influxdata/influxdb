@@ -1018,7 +1018,7 @@ func escapeStringField(in string) string {
 		if i >= len(in) {
 			break
 		}
-		// escape double-quotes
+		// escape backslash
 		if in[i] == '\\' {
 			out = append(out, '\\')
 			out = append(out, '\\')

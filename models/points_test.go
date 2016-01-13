@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -113,26 +114,44 @@ func BenchmarkParsePointsTagsUnSorted10(b *testing.B) {
 }
 
 func test(t *testing.T, line string, point models.Point) {
+	var reportLineNo = func(method func(string, ...interface{}), format string, args ...interface{}) {
+		var prefix = ``
+		_, file, line, ok := runtime.Caller(3 /* select stack frame that called test */)
+
+		if ok {
+			prefix = fmt.Sprintf(`At %s:%d: `, file, line)
+		}
+		method(prefix+format, args...)
+	}
+
+	var reportFatal = func(format string, args ...interface{}) {
+		reportLineNo(t.Fatalf, format, args...)
+	}
+
+	var reportError = func(format string, args ...interface{}) {
+		reportLineNo(t.Errorf, format, args...)
+	}
+
 	pts, err := models.ParsePointsWithPrecision([]byte(line), time.Unix(0, 0), "n")
 	if err != nil {
-		t.Fatalf(`ParsePoints("%s") mismatch. got %v, exp nil`, line, err)
+		reportFatal(`ParsePoints("%s") mismatch. got %v, exp nil`, line, err)
 	}
 
 	if exp := 1; len(pts) != exp {
-		t.Fatalf(`ParsePoints("%s") len mismatch. got %d, exp %d`, line, len(pts), exp)
+		reportFatal(`ParsePoints("%s") len mismatch. got %d, exp %d`, line, len(pts), exp)
 	}
 
 	if exp := point.Key(); !bytes.Equal(pts[0].Key(), exp) {
-		t.Errorf("ParsePoints(\"%s\") key mismatch.\ngot %v\nexp %v", line, string(pts[0].Key()), string(exp))
+		reportFatal("ParsePoints(\"%s\") key mismatch.\ngot %v\nexp %v", line, string(pts[0].Key()), string(exp))
 	}
 
 	if exp := len(point.Tags()); len(pts[0].Tags()) != exp {
-		t.Errorf(`ParsePoints("%s") tags mismatch. got %v, exp %v`, line, pts[0].Tags(), exp)
+		reportError(`ParsePoints("%s") tags mismatch. got %v, exp %v`, line, pts[0].Tags(), exp)
 	}
 
 	for tag, value := range point.Tags() {
 		if pts[0].Tags()[tag] != value {
-			t.Errorf(`ParsePoints("%s") tags mismatch. got %v, exp %v`, line, pts[0].Tags()[tag], value)
+			reportError(`ParsePoints("%s") tags mismatch. got %v, exp %v`, line, pts[0].Tags()[tag], value)
 		}
 	}
 
@@ -143,19 +162,19 @@ func test(t *testing.T, line string, point models.Point) {
 		if ok && math.IsNaN(expfval) {
 			gotfval, ok := value.(float64)
 			if ok && !math.IsNaN(gotfval) {
-				t.Errorf(`ParsePoints("%s") field '%s' mismatch. exp NaN`, line, name)
+				reportError(`ParsePoints("%s") field '%s' mismatch. exp NaN`, line, name)
 			}
 		} else if !reflect.DeepEqual(pts[0].Fields()[name], value) {
-			t.Errorf(`ParsePoints("%s") field '%s' mismatch. got %v, exp %v`, line, name, pts[0].Fields()[name], value)
+			reportError(`ParsePoints("%s") field '%s' mismatch. got %v, exp %v`, line, name, pts[0].Fields()[name], value)
 		}
 	}
 
 	if !pts[0].Time().Equal(point.Time()) {
-		t.Errorf(`ParsePoints("%s") time mismatch. got %v, exp %v`, line, pts[0].Time(), point.Time())
+		reportError(`ParsePoints("%s") time mismatch. got %v, exp %v`, line, pts[0].Time(), point.Time())
 	}
 
 	if !strings.HasPrefix(pts[0].String(), line) {
-		t.Errorf("ParsePoints string mismatch.\ngot: %v\nexp: %v", pts[0].String(), line)
+		reportError("ParsePoints string mismatch.\ngot: %v\nexp: %v", pts[0].String(), line)
 	}
 }
 
