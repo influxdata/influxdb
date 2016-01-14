@@ -7,14 +7,15 @@ import (
 // Token is a lexical token of the InfluxQL language.
 type Token int
 
+// These are a comprehensive list of InfluxQL language tokens.
 const (
-	// Special tokens
+	// ILLEGAL Token, EOF, WS are Special IQL tokens.
 	ILLEGAL Token = iota
 	EOF
 	WS
 
-	literal_beg
-	// Literals
+	literalBeg
+	// IDENT and the following are IQL Literal tokens.
 	IDENT        // main
 	NUMBER       // 12345.67
 	DURATION_VAL // 13h
