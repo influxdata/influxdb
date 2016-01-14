@@ -176,6 +176,7 @@ func (s *Scanner) scanString() (tok Token, pos Pos, lit string) {
 	return STRING, pos, lit
 }
 
+// ScanRegex consumes a token to find escapes
 func (s *Scanner) ScanRegex() (tok Token, pos Pos, lit string) {
 	_, pos = s.r.curr()
 
@@ -444,6 +445,7 @@ func (r *reader) curr() (ch rune, pos Pos) {
 // eof is a marker code point to signify that the reader can't read any more.
 const eof = rune(0)
 
+// ScanDelimited reads a delimited set of runes
 func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune, escapesPassThru bool) ([]byte, error) {
 	// Scan start delimiter.
 	if ch, _, err := r.ReadRune(); err != nil {
