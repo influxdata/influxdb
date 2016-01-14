@@ -519,7 +519,7 @@ func (p *Parser) parseUInt64() (uint64, error) {
 // This function assumes the DURATION token has already been consumed.
 func (p *Parser) parseDuration() (time.Duration, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != DURATION_VAL && tok != INF {
+	if tok != DURATIONVAL && tok != INF {
 		return 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
 	}
 
@@ -1509,7 +1509,7 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		stmt.RetentionPolicyDuration = rpDuration
 
 		// Look for "REPLICATION"
-		var rpReplication int = 1 // default is 1
+		var rpReplication = 1 // default is 1
 		if err := p.parseTokens([]Token{REPLICATION}); err != nil {
 			p.unscan()
 		} else {
@@ -2331,7 +2331,7 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		return &NumberLiteral{Val: v}, nil
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
-	case DURATION_VAL:
+	case DURATIONVAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
@@ -2422,7 +2422,7 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 	var interval time.Duration
 	if p.parseTokenMaybe(EVERY) {
 		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok != DURATION_VAL {
+		if tok != DURATIONVAL {
 			return 0, 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
 		}
 
@@ -2436,7 +2436,7 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 	var maxDuration time.Duration
 	if p.parseTokenMaybe(FOR) {
 		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok != DURATION_VAL {
+		if tok != DURATIONVAL {
 			return 0, 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
 		}
 
