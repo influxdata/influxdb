@@ -22,8 +22,8 @@ func (t *TagSet) AddFilter(key string, filter Expr) {
 	t.Filters = append(t.Filters, filter)
 }
 
-// Rows represents a list of rows that can be sorted consistently by name/tag.
 // Result represents a resultset returned from a single statement.
+// Rows represents a list of rows that can be sorted consistently by name/tag.
 type Result struct {
 	// StatementID is just the statement's position in the query. It's used
 	// to combine statement results if they're being buffered in memory.
@@ -67,6 +67,8 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// GetProcessor is a Method that returns processor type and index
+// based on the type of expression.
 func GetProcessor(expr Expr, startIndex int) (Processor, int) {
 	switch expr := expr.(type) {
 	case *VarRef:
@@ -91,6 +93,7 @@ func GetProcessor(expr Expr, startIndex int) (Processor, int) {
 	panic("unreachable")
 }
 
+// Processor is a prcessor type returned by GetProcessor
 type Processor func(values []interface{}) interface{}
 
 func newEchoProcessor(index int) Processor {
