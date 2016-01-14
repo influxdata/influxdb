@@ -698,6 +698,7 @@ func (s *AlterRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
+// FillOption represents represents different options for aggregare windows.
 type FillOption int
 
 const (
