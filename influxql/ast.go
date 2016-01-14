@@ -698,7 +698,7 @@ func (s *AlterRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
-// FillOption represents represents different options for aggregare windows.
+// FillOption represents different options for aggregare windows.
 type FillOption int
 
 const (
@@ -1314,6 +1314,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	return nil
 }
 
+// HasDistinct is an exported method that checks if a select statment contains DISTINCT
 func (s *SelectStatement) HasDistinct() bool {
 	// determine if we have a call named distinct
 	for _, f := range s.Fields {
@@ -1351,6 +1352,7 @@ func (s *SelectStatement) validateDistinct() error {
 	return nil
 }
 
+// HasCountDistinct is an exported method that checks if a select statment contains COUNT and DISTINCT
 func (s *SelectStatement) HasCountDistinct() bool {
 	for _, f := range s.Fields {
 		if c, ok := f.Expr.(*Call); ok {
@@ -1447,7 +1449,7 @@ func (s *SelectStatement) validateDerivative() error {
 	return nil
 }
 
-// GroupByIterval extracts the time interval, if specified.
+// GroupByInterval extracts the time interval, if specified.
 func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	// return if we've already pulled it out
 	if s.groupByInterval != 0 {
@@ -2112,7 +2114,7 @@ func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivilege
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
-// ShowStats statement displays statistics for a given module.
+// ShowStatsStatement displays statistics for a given module.
 type ShowStatsStatement struct {
 	// Module
 	Module string
@@ -2508,9 +2510,9 @@ func (f *Field) String() string {
 }
 
 // Sort Interface for Fields
-func (f Fields) Len() int           { return len(f) }
-func (f Fields) Less(i, j int) bool { return f[i].Name() < f[j].Name() }
-func (f Fields) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
+func (a Fields) Len() int           { return len(a) }
+func (a Fields) Less(i, j int) bool { return a[i].Name() < a[j].Name() }
+func (a Fields) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // Dimensions represents a list of dimensions.
 type Dimensions []*Dimension
@@ -2944,7 +2946,7 @@ func TimeRange(expr Expr) (min, max time.Time) {
 	return
 }
 
-// TimeRange returns the minimum and maximum times, as epoch nano, specified by
+// TimeRangeAsEpochNano returns the minimum and maximum times, as epoch nano, specified by
 // and expression. If there is no lower bound, the start of the epoch is returned
 // for minimum. If there is no higher bound, now is returned for maximum.
 func TimeRangeAsEpochNano(expr Expr) (min, max int64) {
@@ -3571,11 +3573,12 @@ type Valuer interface {
 	Value(key string) (interface{}, bool)
 }
 
-// nowValuer returns only the value for "now()".
+// NowValuer returns only the value for "now()".
 type NowValuer struct {
 	Now time.Time
 }
 
+// Value is a method that returns the value and existence flag for a given key.
 func (v *NowValuer) Value(key string) (interface{}, bool) {
 	if key == "now()" {
 		return v.Now, true
