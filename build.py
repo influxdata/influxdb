@@ -409,7 +409,7 @@ def generate_md5_from_file(path):
             m.update(chunk)
     return m.hexdigest()
 
-def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
+def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iteration=1):
     outfiles = []
     tmp_build_dir = create_temp_dir()
     try:
@@ -452,6 +452,8 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                         current_location = os.path.join(current_location, name + '.tar.gz')
                     if rc is not None:
                         package_iteration = "0.rc{}".format(rc)
+                    if pkg_arch is not None:
+                        a = pkg_arch
                     fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
                         fpm_common_args,
                         name,
@@ -493,6 +495,7 @@ def print_usage():
     print "\t --goarm=<arm version> \n\t\t- Build for specified ARM version (when building for ARM). Default value is: 6"
     print "\t --platform=<platform> \n\t\t- Build for specified platform. Acceptable values: linux, windows, darwin, or all"
     print "\t --version=<version> \n\t\t- Version information to apply to build metadata. If not specified, will be pulled from repo tag."
+    print "\t --pkgarch=<package-arch> \n\t\t- Package architecture if different from <arch>"
     print "\t --commit=<commit> \n\t\t- Use specific commit for build (currently a NOOP)."
     print "\t --branch=<branch> \n\t\t- Build from a specific branch (currently a NOOP)."
     print "\t --rc=<rc number> \n\t\t- Whether or not the build is a release candidate (affects version information)."
@@ -516,6 +519,7 @@ def main():
     commit = None
     target_platform = None
     target_arch = None
+    package_arch = None
     nightly = False
     race = False
     branch = None
@@ -551,6 +555,9 @@ def main():
         elif '--version' in arg:
             # Version to assign to this build (0.9.5, etc)
             version = arg.split("=")[1]
+        elif '--pkgarch' in arg:
+            # Package architecture if different from <arch> (armhf, etc)
+            package_arch = arg.split("=")[1]
         elif '--rc' in arg:
             # Signifies that this is a release candidate build.
             rc = arg.split("=")[1]
@@ -672,7 +679,7 @@ def main():
         if not check_path_for("fpm"):
             print "!! Cannot package without command 'fpm'. Stopping."
             return 1
-        packages = build_packages(build_output, version, nightly=nightly, rc=rc, iteration=iteration)
+        packages = build_packages(build_output, version, package_arch, nightly=nightly, rc=rc, iteration=iteration)
         # TODO(rossmcdonald): Add nice output for print_package_summary()
         # print_package_summary(packages)
         # Optionally upload to S3
