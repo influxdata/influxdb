@@ -1487,7 +1487,7 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		stmt.RetentionPolicyDuration = rpDuration
 
 		// Look for "REPLICATION"
-		var rpReplication int = 1 // default is 1
+		var rpReplication = 1 // default is 1
 		if err := p.parseTokens([]Token{REPLICATION}); err != nil {
 			p.unscan()
 		} else {
@@ -1499,7 +1499,7 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		stmt.RetentionPolicyReplication = rpReplication
 
 		// Look for "NAME"
-		var rpName string = "default" // default is default
+		var rpName = "default" // default is default
 		if err := p.parseTokens([]Token{NAME}); err == nil {
 			rpName, err = p.parseIdent()
 			if err != nil {
