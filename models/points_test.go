@@ -253,6 +253,7 @@ func TestParsePointMissingTagValue(t *testing.T) {
 	examples := []string{
 		`cpu,host`,
 		`cpu,host,`,
+		`cpu,host=`,
 		`cpu,host value=1i`,
 		`cpu,host=serverA,region value=1i`,
 		`cpu,host=serverA,region= value=1i`,
