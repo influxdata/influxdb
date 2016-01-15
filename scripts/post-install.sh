@@ -53,7 +53,7 @@ if [[ -f /etc/redhat-release ]]; then
 	install_init
 	install_chkconfig
     fi
-elif [[ -f /etc/lsb-release ]]; then
+elif [[ -f /etc/debian_version ]]; then
     # Debian/Ubuntu logic
     which systemctl &>/dev/null
     if [[ $? -eq 0 ]]; then
