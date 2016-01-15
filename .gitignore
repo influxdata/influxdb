@@ -13,6 +13,9 @@ TAGS
 /query/a.out*
 .DS_Store
 
+# Eclipse project file
+.project
+
 # ignore generated files.
 cmd/influxd/version.go
 
