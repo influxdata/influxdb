@@ -72,7 +72,7 @@ func (s *Service) deleteShardGroups() {
 		case <-ticker.C:
 			dbs, err := s.MetaClient.Databases()
 			if err != nil {
-				log.Println("error getting databases: %s", err.Error())
+				s.logger.Printf("error getting databases: %s", err.Error())
 				continue
 			}
 
@@ -113,7 +113,7 @@ func (s *Service) deleteShards() {
 			deletedShardIDs := make(map[uint64]deletionInfo, 0)
 			dbs, err := s.MetaClient.Databases()
 			if err != nil {
-				s.logger.Println("error getting databases: %s", err.Error())
+				s.logger.Printf("error getting databases: %s", err.Error())
 			}
 			for _, d := range dbs {
 				for _, r := range d.RetentionPolicies {
