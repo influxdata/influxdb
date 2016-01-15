@@ -24,8 +24,8 @@ var _ = fmt.Errorf
 var _ = math.Inf
 
 type Request struct {
-	ShardID          *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	ShardID         *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
 func (m *Request) Reset()         { *m = Request{} }
@@ -40,8 +40,8 @@ func (m *Request) GetShardID() uint64 {
 }
 
 type Response struct {
-	Error            *string `protobuf:"bytes,1,opt,name=Error" json:"Error,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Error           *string `protobuf:"bytes,1,opt,name=Error" json:"Error,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
 func (m *Response) Reset()         { *m = Response{} }

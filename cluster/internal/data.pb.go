@@ -26,9 +26,9 @@ var _ = fmt.Errorf
 var _ = math.Inf
 
 type WriteShardRequest struct {
-	ShardID          *uint64  `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	Points           [][]byte `protobuf:"bytes,2,rep,name=Points" json:"Points,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	ShardID         *uint64  `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
+	Points          [][]byte `protobuf:"bytes,2,rep,name=Points" json:"Points,omitempty"`
+	XXXUnrecognized []byte   `json:"-"`
 }
 
 func (m *WriteShardRequest) Reset()         { *m = WriteShardRequest{} }
@@ -50,9 +50,9 @@ func (m *WriteShardRequest) GetPoints() [][]byte {
 }
 
 type WriteShardResponse struct {
-	Code             *int32  `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Code            *int32  `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
+	Message         *string `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
 func (m *WriteShardResponse) Reset()         { *m = WriteShardResponse{} }
@@ -74,10 +74,10 @@ func (m *WriteShardResponse) GetMessage() string {
 }
 
 type MapShardRequest struct {
-	ShardID          *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	Query            *string `protobuf:"bytes,2,req,name=Query" json:"Query,omitempty"`
-	ChunkSize        *int32  `protobuf:"varint,3,req,name=ChunkSize" json:"ChunkSize,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	ShardID         *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
+	Query           *string `protobuf:"bytes,2,req,name=Query" json:"Query,omitempty"`
+	ChunkSize       *int32  `protobuf:"varint,3,req,name=ChunkSize" json:"ChunkSize,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
 func (m *MapShardRequest) Reset()         { *m = MapShardRequest{} }
@@ -106,12 +106,12 @@ func (m *MapShardRequest) GetChunkSize() int32 {
 }
 
 type MapShardResponse struct {
-	Code             *int32   `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string  `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
-	Data             []byte   `protobuf:"bytes,3,opt,name=Data" json:"Data,omitempty"`
-	TagSets          []string `protobuf:"bytes,4,rep,name=TagSets" json:"TagSets,omitempty"`
-	Fields           []string `protobuf:"bytes,5,rep,name=Fields" json:"Fields,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Code            *int32   `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
+	Message         *string  `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
+	Data            []byte   `protobuf:"bytes,3,opt,name=Data" json:"Data,omitempty"`
+	TagSets         []string `protobuf:"bytes,4,rep,name=TagSets" json:"TagSets,omitempty"`
+	Fields          []string `protobuf:"bytes,5,rep,name=Fields" json:"Fields,omitempty"`
+	XXXUnrecognized []byte   `json:"-"`
 }
 
 func (m *MapShardResponse) Reset()         { *m = MapShardResponse{} }

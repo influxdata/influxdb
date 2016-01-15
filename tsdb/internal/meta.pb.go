@@ -25,16 +25,21 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
+// Series is a top level protobuf message.
 type Series struct {
-	Key              *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
-	Tags             []*Tag  `protobuf:"bytes,2,rep,name=Tags" json:"Tags,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Key             *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
+	Tags            []*Tag  `protobuf:"bytes,2,rep,name=Tags" json:"Tags,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
+// Reset method restores a protobuf struct to its zero state.
 func (m *Series) Reset()         { *m = Series{} }
 func (m *Series) String() string { return proto.CompactTextString(m) }
-func (*Series) ProtoMessage()    {}
 
+// ProtoMessage is implemented by generated protocol buffer messages.
+func (*Series) ProtoMessage() {}
+
+// GetKey returns the protobuf message key.
 func (m *Series) GetKey() string {
 	if m != nil && m.Key != nil {
 		return *m.Key
@@ -42,6 +47,7 @@ func (m *Series) GetKey() string {
 	return ""
 }
 
+// GetTags method returns the protobuf message tags
 func (m *Series) GetTags() []*Tag {
 	if m != nil {
 		return m.Tags
@@ -50,9 +56,9 @@ func (m *Series) GetTags() []*Tag {
 }
 
 type Tag struct {
-	Key              *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
-	Value            *string `protobuf:"bytes,2,req,name=Value" json:"Value,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	Key             *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
+	Value           *string `protobuf:"bytes,2,req,name=Value" json:"Value,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
 func (m *Tag) Reset()         { *m = Tag{} }
@@ -74,8 +80,8 @@ func (m *Tag) GetValue() string {
 }
 
 type MeasurementFields struct {
-	Fields           []*Field `protobuf:"bytes,1,rep,name=Fields" json:"Fields,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Fields          []*Field `protobuf:"bytes,1,rep,name=Fields" json:"Fields,omitempty"`
+	XXXUnrecognized []byte   `json:"-"`
 }
 
 func (m *MeasurementFields) Reset()         { *m = MeasurementFields{} }
@@ -90,10 +96,10 @@ func (m *MeasurementFields) GetFields() []*Field {
 }
 
 type Field struct {
-	ID               *int32  `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
-	Name             *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
-	Type             *int32  `protobuf:"varint,3,req,name=Type" json:"Type,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	ID              *int32  `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Name            *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
+	Type            *int32  `protobuf:"varint,3,req,name=Type" json:"Type,omitempty"`
+	XXXUnrecognized []byte  `json:"-"`
 }
 
 func (m *Field) Reset()         { *m = Field{} }
