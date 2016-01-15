@@ -1087,7 +1087,7 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	if id_after == 0 {
 		t.Fatal("cluster ID can't be zero")
 	} else if id_after != id {
-		t.Fatal("cluster id not the same: %d, %d", id_after, id)
+		t.Fatalf("cluster id not the same: %d, %d", id_after, id)
 	}
 }
 
