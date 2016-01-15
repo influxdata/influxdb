@@ -110,6 +110,21 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	}
 }
 
+// parseNotExists parses an InfluxDB checks whether next tokens in the string
+// are "IF NOT EXISTS".
+func (p *Parser) parseIfNotExists() (bool, error) {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == IF {
+		if err := p.parseTokens([]Token{NOT, EXISTS}); err != nil {
+			return false, err
+		}
+		return true, nil
+	} else {
+		p.unscan()
+		return false, nil
+	}
+
+}
+
 // parseShowStatement parses a string and returns a list statement.
 // This function assumes the SHOW token has already been consumed.
 func (p *Parser) parseShowStatement() (Statement, error) {
@@ -1467,14 +1482,11 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 	stmt := &CreateDatabaseStatement{}
 
 	// Look for "IF NOT EXISTS"
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == IF {
-		if err := p.parseTokens([]Token{NOT, EXISTS}); err != nil {
-			return nil, err
-		}
-		stmt.IfNotExists = true
-	} else {
-		p.unscan()
+	ifNotExists, err := p.parseIfNotExists()
+	if err != nil {
+		return nil, err
 	}
+	stmt.IfNotExists = ifNotExists
 
 	// Parse the name of the database to be created.
 	lit, err := p.parseIdent()
@@ -1628,6 +1640,13 @@ func (p *Parser) parseDropRetentionPolicyStatement() (*DropRetentionPolicyStatem
 // This function assumes the "CREATE USER" tokens have already been consumed.
 func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	stmt := &CreateUserStatement{}
+
+	// Look for "IF NOT EXISTS"
+	ifNotExists, err := p.parseIfNotExists()
+	if err != nil {
+		return nil, err
+	}
+	stmt.IfNotExists = ifNotExists
 
 	// Parse name of the user to be created.
 	ident, err := p.parseIdent()

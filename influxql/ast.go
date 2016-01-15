@@ -470,12 +470,18 @@ type CreateUserStatement struct {
 
 	// User's admin privilege.
 	Admin bool
+
+	// Whether to return without error if the user already exists.
+	IfNotExists bool
 }
 
 // String returns a string representation of the create user statement.
 func (s *CreateUserStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE USER ")
+	if s.IfNotExists {
+		_, _ = buf.WriteString("IF NOT EXISTS ")
+	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	_, _ = buf.WriteString(" WITH PASSWORD ")
 	_, _ = buf.WriteString("[REDACTED]")
