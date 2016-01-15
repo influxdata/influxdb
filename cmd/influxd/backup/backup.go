@@ -118,6 +118,8 @@ func (cmd *Command) parseFlags(args []string) (retentionPolicy, shardID string, 
 	}
 	cmd.path = fs.Arg(0)
 
+	err = os.MkdirAll(cmd.path, 0700)
+
 	return
 }
 
