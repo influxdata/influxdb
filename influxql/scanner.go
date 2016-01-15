@@ -256,7 +256,7 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 		// If the next rune is a duration unit (u,µ,ms,s) then return a duration token
 		if ch0, _ := s.r.read(); ch0 == 'u' || ch0 == 'µ' || ch0 == 's' || ch0 == 'h' || ch0 == 'd' || ch0 == 'w' {
 			_, _ = buf.WriteRune(ch0)
-			return DURATION_VAL, pos, buf.String()
+			return DURATIONVAL, pos, buf.String()
 		} else if ch0 == 'm' {
 			_, _ = buf.WriteRune(ch0)
 			if ch1, _ := s.r.read(); ch1 == 's' {
@@ -264,7 +264,7 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 			} else {
 				s.r.unread()
 			}
-			return DURATION_VAL, pos, buf.String()
+			return DURATIONVAL, pos, buf.String()
 		}
 		s.r.unread()
 	}

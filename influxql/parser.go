@@ -510,7 +510,7 @@ func (p *Parser) parseUInt64() (uint64, error) {
 // This function assumes the DURATION token has already been consumed.
 func (p *Parser) parseDuration() (time.Duration, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != DURATION_VAL && tok != INF {
+	if tok != DURATIONVAL && tok != INF {
 		return 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
 	}
 
@@ -2307,7 +2307,7 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		return &NumberLiteral{Val: v}, nil
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
-	case DURATION_VAL:
+	case DURATIONVAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
 	case MUL:

@@ -95,14 +95,14 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `10.3s`, tok: influxql.NUMBER, lit: `10.3`},
 
 		// Durations
-		{s: `10u`, tok: influxql.DURATION_VAL, lit: `10u`},
-		{s: `10µ`, tok: influxql.DURATION_VAL, lit: `10µ`},
-		{s: `10ms`, tok: influxql.DURATION_VAL, lit: `10ms`},
-		{s: `-1s`, tok: influxql.DURATION_VAL, lit: `-1s`},
-		{s: `10m`, tok: influxql.DURATION_VAL, lit: `10m`},
-		{s: `10h`, tok: influxql.DURATION_VAL, lit: `10h`},
-		{s: `10d`, tok: influxql.DURATION_VAL, lit: `10d`},
-		{s: `10w`, tok: influxql.DURATION_VAL, lit: `10w`},
+		{s: `10u`, tok: influxql.DURATIONVAL, lit: `10u`},
+		{s: `10µ`, tok: influxql.DURATIONVAL, lit: `10µ`},
+		{s: `10ms`, tok: influxql.DURATIONVAL, lit: `10ms`},
+		{s: `-1s`, tok: influxql.DURATIONVAL, lit: `-1s`},
+		{s: `10m`, tok: influxql.DURATIONVAL, lit: `10m`},
+		{s: `10h`, tok: influxql.DURATIONVAL, lit: `10h`},
+		{s: `10d`, tok: influxql.DURATIONVAL, lit: `10d`},
+		{s: `10w`, tok: influxql.DURATIONVAL, lit: `10w`},
 		{s: `10x`, tok: influxql.NUMBER, lit: `10`}, // non-duration unit
 
 		// Keywords

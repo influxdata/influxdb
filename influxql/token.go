@@ -16,20 +16,20 @@ const (
 
 	literalBeg
 	// IDENT and the following are IQL Literal tokens.
-	IDENT        // main
-	NUMBER       // 12345.67
-	DURATION_VAL // 13h
-	STRING       // "abc"
-	BADSTRING    // "abc
-	BADESCAPE    // \q
-	TRUE         // true
-	FALSE        // false
-	REGEX        // Regular expressions
-	BADREGEX     // `.*
-	literal_end
+	IDENT       // main
+	NUMBER      // 12345.67
+	DURATIONVAL // 13h
+	STRING      // "abc"
+	BADSTRING   // "abc
+	BADESCAPE   // \q
+	TRUE        // true
+	FALSE       // false
+	REGEX       // Regular expressions
+	BADREGEX    // `.*
+	literalEnd
 
-	operator_beg
-	// Operators
+	operatorBeg
+	// ADD and other Operators
 	ADD // +
 	SUB // -
 	MUL // *
@@ -46,7 +46,7 @@ const (
 	LTE      // <=
 	GT       // >
 	GTE      // >=
-	operator_end
+	operatorEnd
 
 	LPAREN    // (
 	RPAREN    // )
@@ -55,8 +55,8 @@ const (
 	SEMICOLON // ;
 	DOT       // .
 
-	keyword_beg
-	// Keywords
+	keywordBeg
+	// ALL and other Keywords
 	ALL
 	ALTER
 	ANY
@@ -134,7 +134,7 @@ const (
 	WHERE
 	WITH
 	WRITE
-	keyword_end
+	keywordEnd
 )
 
 var tokens = [...]string{
@@ -142,15 +142,15 @@ var tokens = [...]string{
 	EOF:     "EOF",
 	WS:      "WS",
 
-	IDENT:        "IDENT",
-	NUMBER:       "NUMBER",
-	DURATION_VAL: "DURATION_VAL",
-	STRING:       "STRING",
-	BADSTRING:    "BADSTRING",
-	BADESCAPE:    "BADESCAPE",
-	TRUE:         "TRUE",
-	FALSE:        "FALSE",
-	REGEX:        "REGEX",
+	IDENT:       "IDENT",
+	NUMBER:      "NUMBER",
+	DURATIONVAL: "DURATIONVAL",
+	STRING:      "STRING",
+	BADSTRING:   "BADSTRING",
+	BADESCAPE:   "BADESCAPE",
+	TRUE:        "TRUE",
+	FALSE:       "FALSE",
+	REGEX:       "REGEX",
 
 	ADD: "+",
 	SUB: "-",
@@ -259,7 +259,7 @@ var keywords map[string]Token
 
 func init() {
 	keywords = make(map[string]Token)
-	for tok := keyword_beg + 1; tok < keyword_end; tok++ {
+	for tok := keywordBeg + 1; tok < keywordEnd; tok++ {
 		keywords[strings.ToLower(tokens[tok])] = tok
 	}
 	for _, tok := range []Token{AND, OR} {
@@ -295,7 +295,7 @@ func (tok Token) Precedence() int {
 }
 
 // isOperator returns true for operator tokens.
-func (tok Token) isOperator() bool { return tok > operator_beg && tok < operator_end }
+func (tok Token) isOperator() bool { return tok > operatorBeg && tok < operatorEnd }
 
 // tokstr returns a literal if provided, otherwise returns the token string.
 func tokstr(tok Token, lit string) string {
