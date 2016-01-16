@@ -24,6 +24,7 @@
 - [#5264](https://github.com/influxdata/influxdb/pull/5264): Fix panic: runtime error: slice bounds out of range
 - [#5186](https://github.com/influxdata/influxdb/pull/5186): Fix database creation with retention statement parsing. Fixes [#5077](https://github.com/influxdb/influxdb/issues/5077). Thanks @pires
 - [#5193](https://github.com/influxdata/influxdb/issues/5193): Missing data a minute before current time. Comes back later.
+- [#5350](https://github.com/influxdata/influxdb/issues/5350): 'influxd backup' should create backup directory
 
 ## v0.9.6 [2015-12-09]
 
