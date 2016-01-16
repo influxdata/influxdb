@@ -10,28 +10,27 @@ import (
 )
 
 var (
-	// Maximum time that can be represented via int64 nanoseconds since the epoch.
+	// MaxNanoTime is the maximum time that can be represented via int64 nanoseconds since the epoch.
 	MaxNanoTime = time.Unix(0, math.MaxInt64).UTC()
-	// Minumum time that can be represented via int64 nanoseconds since the epoch.
+	// MinNanoTime is the minumum time that can be represented via int64 nanoseconds since the epoch.
 	MinNanoTime = time.Unix(0, math.MinInt64).UTC()
 
-	// The time is out of the representable range using int64 nanoseconds since the epoch.
+	// ErrTimeOutOfRange gets returned when time is out of the representable range using int64 nanoseconds since the epoch.
 	ErrTimeOutOfRange = fmt.Errorf("time outside range %s - %s", MinNanoTime, MaxNanoTime)
 )
 
-// Safely calculate the time given. Will return error if the time is outside the
+// SafeCalcTime safely calculates the time given. Will return error if the time is outside the
 // supported range.
 func SafeCalcTime(timestamp int64, precision string) (time.Time, error) {
 	mult := GetPrecisionMultiplier(precision)
 	if t, ok := safeSignedMult(timestamp, mult); ok {
 		return time.Unix(0, t).UTC(), nil
-	} else {
-		return time.Time{}, ErrTimeOutOfRange
 	}
 
+	return time.Time{}, ErrTimeOutOfRange
 }
 
-// Check that a time is within the safe range.
+// CheckTime checks that a time is within the safe range.
 func CheckTime(t time.Time) error {
 	if t.Before(MinNanoTime) || t.After(MaxNanoTime) {
 		return ErrTimeOutOfRange
