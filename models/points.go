@@ -876,8 +876,10 @@ func scanLine(buf []byte, i int) (int, []byte) {
 }
 
 // scanTo returns the end position in buf and the next consecutive block
-// of bytes, starting from i and ending with stop byte.  If there are leading
-// spaces or escaped chars, they are skipped.
+// of bytes, starting from i and ending with stop byte, where stop byte
+// has not been escaped.
+//
+// If there are leading spaces, they are skipped.
 func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 	start := i
 	for {
@@ -886,13 +888,8 @@ func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 			break
 		}
 
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
-
 		// reached end of block?
-		if buf[i] == stop {
+		if buf[i] == stop && buf[i-1] != '\\' {
 			break
 		}
 		i++
@@ -935,12 +932,7 @@ func scanTagValue(buf []byte, i int) (int, []byte) {
 			break
 		}
 
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
-
-		if buf[i] == ',' {
+		if buf[i] == ',' && buf[i-1] != '\\' {
 			break
 		}
 		i++
