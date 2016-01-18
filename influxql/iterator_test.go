@@ -54,37 +54,6 @@ func TestMergeIterator(t *testing.T) {
 	}
 }
 
-// Ensure that a set of iterators can be combined together and output synced iterators.
-func TestJoin(t *testing.T) {
-	inputs := []influxql.Iterator{
-		&FloatIterator{Points: []influxql.FloatPoint{
-			{Time: 0, Value: 1},
-			{Time: 1, Value: 2},
-		}},
-		&FloatIterator{Points: []influxql.FloatPoint{
-			{Time: 1, Value: 4},
-			{Time: 4, Value: 5},
-		}},
-	}
-
-	if a := Iterators(influxql.Join(inputs)).ReadAll(); !deep.Equal(a, [][]influxql.Point{
-		{
-			&influxql.FloatPoint{Time: 0, Value: 1},
-			&influxql.FloatPoint{Time: 0, Value: math.NaN()},
-		},
-		{
-			&influxql.FloatPoint{Time: 1, Value: 2},
-			&influxql.FloatPoint{Time: 1, Value: 4},
-		},
-		{
-			&influxql.FloatPoint{Time: 4, Value: math.NaN()},
-			&influxql.FloatPoint{Time: 4, Value: 5},
-		},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
 // Ensure auxilary iterators can be created for auxilary fields.
 func TestFloatAuxIterator(t *testing.T) {
 	itr := influxql.NewAuxIterator(
@@ -142,32 +111,6 @@ func TestLimitIterator(t *testing.T) {
 		{&influxql.FloatPoint{Time: 2, Value: 2}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
-func BenchmarkJoin(b *testing.B) {
-	// Generate inputs.
-	rand := rand.New(rand.NewSource(0))
-	inputs := make([]influxql.Iterator, 10)
-	for i := range inputs {
-		inputs[i] = GenerateFloatIterator(rand, b.N/len(inputs))
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	// Join inputs together and continuously read all outputs until a nil is returned.
-	outputs := influxql.Join(inputs)
-	for {
-		var done bool
-		for _, output := range outputs {
-			if v := output.(influxql.FloatIterator).Next(); v == nil {
-				done = true
-			}
-		}
-
-		if done {
-			break
-		}
 	}
 }
 

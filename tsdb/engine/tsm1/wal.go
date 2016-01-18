@@ -31,7 +31,7 @@ const (
 	walEncodeBufSize = 4 * 1024 * 1024
 
 	float64EntryType = 1
-	int64EntryType   = 2
+	integerEntryType = 2
 	booleanEntryType = 3
 	stringEntryType  = 4
 )
@@ -382,7 +382,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		case float64:
 			dst[n] = float64EntryType
 		case int64:
-			dst[n] = int64EntryType
+			dst[n] = integerEntryType
 		case bool:
 			dst[n] = booleanEntryType
 		case string:
@@ -451,8 +451,8 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		switch typ {
 		case float64EntryType:
 			values = getFloat64Values(nvals)
-		case int64EntryType:
-			values = getInt64Values(nvals)
+		case integerEntryType:
+			values = getIntegerValues(nvals)
 		case booleanEntryType:
 			values = getBooleanValues(nvals)
 		case stringEntryType:
@@ -473,10 +473,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 					fv.unixnano = un
 					fv.value = v
 				}
-			case int64EntryType:
+			case integerEntryType:
 				v := int64(btou64(b[i : i+8]))
 				i += 8
-				if fv, ok := values[j].(*Int64Value); ok {
+				if fv, ok := values[j].(*IntegerValue); ok {
 					fv.unixnano = un
 					fv.value = v
 				}

@@ -4,8 +4,6 @@ import (
 	"sort"
 )
 
-//go:generate tmpl -data=[{"Name":"Float","name":"float","Type":"float64","Nil":"math.NaN()"},{"Name":"String","name":"string","Type":"string","Nil":"\"\""},{"Name":"Boolean","name":"boolean","Type":"bool","Nil":"false"}] point.gen.go.tmpl
-
 // ZeroTime is the Unix nanosecond timestamp for time.Time{}.
 const ZeroTime = int64(-6795364578871345152)
 

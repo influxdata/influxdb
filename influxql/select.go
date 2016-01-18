@@ -132,22 +132,24 @@ func buildExprIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) 
 			input = itr
 		}
 
+		if input == nil || !hasAuxFields {
+			return nil
+		}
+
 		// Build the aux iterators. Previous validation should ensure that only one
 		// call was present so we build an AuxIterator from that input.
-		if hasAuxFields {
-			aitr := NewAuxIterator(input, opt)
-			for i, f := range fields {
-				if itrs[i] != nil {
-					itrs[i] = aitr
-					continue
-				}
-
-				itr, err := buildExprIterator(f.Expr, aitr, opt)
-				if err != nil {
-					return err
-				}
-				itrs[i] = itr
+		aitr := NewAuxIterator(input, opt)
+		for i, f := range fields {
+			if itrs[i] != nil {
+				itrs[i] = aitr
+				continue
 			}
+
+			itr, err := buildExprIterator(f.Expr, aitr, opt)
+			if err != nil {
+				return err
+			}
+			itrs[i] = itr
 		}
 		return nil
 
@@ -155,9 +157,6 @@ func buildExprIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) 
 		Iterators(Iterators(itrs).filterNonNil()).Close()
 		return nil, err
 	}
-
-	// Join iterators together on time.
-	itrs = Join(itrs)
 
 	// If there is a limit or offset then apply it.
 	if opt.Limit > 0 || opt.Offset > 0 {
@@ -355,6 +354,25 @@ func buildRHSTransformIterator(lhs Iterator, rhs Literal, op Token, ic IteratorC
 				return p
 			},
 		}, nil
+	case func(int64, int64) int64:
+		input, ok := lhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected rhs to be IntegerIterator, got %T", rhs)
+		}
+		lit, ok := rhs.(*NumberLiteral)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be NumberLiteral, got %T", lhs)
+		}
+		return &integerTransformIterator{
+			input: input,
+			fn: func(p *IntegerPoint) *IntegerPoint {
+				if p == nil {
+					return nil
+				}
+				p.Value = fn(p.Value, int64(lit.Val))
+				return p
+			},
+		}, nil
 	case func(float64, float64) bool:
 		input, ok := lhs.(FloatIterator)
 		if !ok {
@@ -379,8 +397,32 @@ func buildRHSTransformIterator(lhs Iterator, rhs Literal, op Token, ic IteratorC
 				}
 			},
 		}, nil
+	case func(int64, int64) bool:
+		input, ok := lhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be IntegerIterator, got %T", lhs)
+		}
+		lit, ok := rhs.(*NumberLiteral)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be NumberLiteral, got %T", rhs)
+		}
+		return &integerBoolTransformIterator{
+			input: input,
+			fn: func(p *IntegerPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+				return &BooleanPoint{
+					Name:  p.Name,
+					Tags:  p.Tags,
+					Time:  p.Time,
+					Value: fn(p.Value, int64(lit.Val)),
+					Aux:   p.Aux,
+				}
+			},
+		}, nil
 	}
-	return nil, fmt.Errorf("unable to construct transform iterator from %T and %T", lhs, rhs)
+	return nil, fmt.Errorf("unable to construct rhs transform iterator from %T and %T", lhs, rhs)
 }
 
 func buildLHSTransformIterator(lhs Literal, rhs Iterator, op Token, ic IteratorCreator, opt IteratorOptions) (Iterator, error) {
@@ -402,6 +444,25 @@ func buildLHSTransformIterator(lhs Literal, rhs Iterator, op Token, ic IteratorC
 					return nil
 				}
 				p.Value = fn(lit.Val, p.Value)
+				return p
+			},
+		}, nil
+	case func(int64, int64) int64:
+		lit, ok := lhs.(*NumberLiteral)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be NumberLiteral, got %T", lhs)
+		}
+		input, ok := rhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected rhs to be IntegerIterator, got %T", rhs)
+		}
+		return &integerTransformIterator{
+			input: input,
+			fn: func(p *IntegerPoint) *IntegerPoint {
+				if p == nil {
+					return nil
+				}
+				p.Value = fn(int64(lit.Val), p.Value)
 				return p
 			},
 		}, nil
@@ -429,8 +490,32 @@ func buildLHSTransformIterator(lhs Literal, rhs Iterator, op Token, ic IteratorC
 				}
 			},
 		}, nil
+	case func(int64, int64) bool:
+		lit, ok := lhs.(*NumberLiteral)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be NumberLiteral, got %T", lhs)
+		}
+		input, ok := rhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be IntegerIterator, got %T", rhs)
+		}
+		return &integerBoolTransformIterator{
+			input: input,
+			fn: func(p *IntegerPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+				return &BooleanPoint{
+					Name:  p.Name,
+					Tags:  p.Tags,
+					Time:  p.Time,
+					Value: fn(int64(lit.Val), p.Value),
+					Aux:   p.Aux,
+				}
+			},
+		}, nil
 	}
-	return nil, fmt.Errorf("unable to construct transform iterator from %T and %T", lhs, rhs)
+	return nil, fmt.Errorf("unable to construct lhs transform iterator from %T and %T", lhs, rhs)
 }
 
 func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCreator, opt IteratorOptions) (Iterator, error) {
@@ -448,6 +533,29 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		return &floatTransformIterator{
 			input: left,
 			fn: func(p *FloatPoint) *FloatPoint {
+				if p == nil {
+					return nil
+				}
+				p2 := right.Next()
+				if p2 == nil {
+					return nil
+				}
+				p.Value = fn(p.Value, p2.Value)
+				return p
+			},
+		}, nil
+	case func(int64, int64) int64:
+		left, ok := lhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be IntegerIterator, got %T", lhs)
+		}
+		right, ok := rhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be IntegerIterator, got %T", rhs)
+		}
+		return &integerTransformIterator{
+			input: left,
+			fn: func(p *IntegerPoint) *IntegerPoint {
 				if p == nil {
 					return nil
 				}
@@ -487,6 +595,34 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 				}
 			},
 		}, nil
+	case func(int64, int64) bool:
+		left, ok := lhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be IntegerIterator, got %T", lhs)
+		}
+		right, ok := rhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch, expected lhs to be IntegerIterator, got %T", rhs)
+		}
+		return &integerBoolTransformIterator{
+			input: left,
+			fn: func(p *IntegerPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+				p2 := right.Next()
+				if p2 == nil {
+					return nil
+				}
+				return &BooleanPoint{
+					Name:  p.Name,
+					Tags:  p.Tags,
+					Time:  p.Time,
+					Value: fn(p.Value, p2.Value),
+					Aux:   p.Aux,
+				}
+			},
+		}, nil
 	}
 	return nil, fmt.Errorf("unable to construct transform iterator from %T and %T", lhs, rhs)
 }
@@ -495,6 +631,8 @@ func iteratorDataType(itr Iterator) DataType {
 	switch itr.(type) {
 	case FloatIterator:
 		return Float
+	case IntegerIterator:
+		return Integer
 	case StringIterator:
 		return String
 	case BooleanIterator:
@@ -505,53 +643,74 @@ func iteratorDataType(itr Iterator) DataType {
 }
 
 func binaryExprFunc(typ DataType, op Token) interface{} {
+	var fn interface{}
 	switch typ {
 	case Float:
-		switch op {
-		case ADD:
-			return func(lhs, rhs float64) float64 {
-				return lhs + rhs
+		fn = floatBinaryExprFunc(op)
+	case Integer:
+		fn = integerBinaryExprFunc(op)
+	}
+	return fn
+}
+
+func floatBinaryExprFunc(op Token) interface{} {
+	switch op {
+	case ADD:
+		return func(lhs, rhs float64) float64 { return lhs + rhs }
+	case SUB:
+		return func(lhs, rhs float64) float64 { return lhs - rhs }
+	case MUL:
+		return func(lhs, rhs float64) float64 { return lhs * rhs }
+	case DIV:
+		return func(lhs, rhs float64) float64 {
+			if rhs == 0 {
+				return float64(0)
 			}
-		case SUB:
-			return func(lhs, rhs float64) float64 {
-				return lhs - rhs
-			}
-		case MUL:
-			return func(lhs, rhs float64) float64 {
-				return lhs * rhs
-			}
-		case DIV:
-			return func(lhs, rhs float64) float64 {
-				if rhs == 0 {
-					return float64(0)
-				}
-				return lhs / rhs
-			}
-		case EQ:
-			return func(lhs, rhs float64) bool {
-				return lhs == rhs
-			}
-		case NEQ:
-			return func(lhs, rhs float64) bool {
-				return lhs != rhs
-			}
-		case LT:
-			return func(lhs, rhs float64) bool {
-				return lhs < rhs
-			}
-		case LTE:
-			return func(lhs, rhs float64) bool {
-				return lhs <= rhs
-			}
-		case GT:
-			return func(lhs, rhs float64) bool {
-				return lhs > rhs
-			}
-		case GTE:
-			return func(lhs, rhs float64) bool {
-				return lhs >= rhs
-			}
+			return lhs / rhs
 		}
+	case EQ:
+		return func(lhs, rhs float64) bool { return lhs == rhs }
+	case NEQ:
+		return func(lhs, rhs float64) bool { return lhs != rhs }
+	case LT:
+		return func(lhs, rhs float64) bool { return lhs < rhs }
+	case LTE:
+		return func(lhs, rhs float64) bool { return lhs <= rhs }
+	case GT:
+		return func(lhs, rhs float64) bool { return lhs > rhs }
+	case GTE:
+		return func(lhs, rhs float64) bool { return lhs >= rhs }
+	}
+	return nil
+}
+
+func integerBinaryExprFunc(op Token) interface{} {
+	switch op {
+	case ADD:
+		return func(lhs, rhs int64) int64 { return lhs + rhs }
+	case SUB:
+		return func(lhs, rhs int64) int64 { return lhs - rhs }
+	case MUL:
+		return func(lhs, rhs int64) int64 { return lhs * rhs }
+	case DIV:
+		return func(lhs, rhs int64) int64 {
+			if rhs == 0 {
+				return int64(0)
+			}
+			return lhs / rhs
+		}
+	case EQ:
+		return func(lhs, rhs int64) bool { return lhs == rhs }
+	case NEQ:
+		return func(lhs, rhs int64) bool { return lhs != rhs }
+	case LT:
+		return func(lhs, rhs int64) bool { return lhs < rhs }
+	case LTE:
+		return func(lhs, rhs int64) bool { return lhs <= rhs }
+	case GT:
+		return func(lhs, rhs int64) bool { return lhs > rhs }
+	case GTE:
+		return func(lhs, rhs int64) bool { return lhs >= rhs }
 	}
 	return nil
 }

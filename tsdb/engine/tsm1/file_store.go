@@ -23,6 +23,7 @@ type TSMFile interface {
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
 	ReadFloatBlockAt(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
+	ReadIntegerBlockAt(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error)
 	ReadStringBlockAt(entry *IndexEntry, values []StringValue) ([]StringValue, error)
 	ReadBooleanBlockAt(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
 
@@ -756,6 +757,50 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 	}
 
 	return FloatValues(values).Deduplicate(), err
+}
+
+// ReadIntegerBlock reads the next block as a set of integer values.
+func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error) {
+	// No matching blocks to decode
+	if len(c.current) == 0 {
+		return nil, nil
+	}
+
+	// First block is the oldest block containing the points we're search for.
+	first := c.current[0]
+	values, err := first.r.ReadIntegerBlockAt(first.entry, buf[:0])
+	first.read = true
+
+	// Only one block with this key and time range so return it
+	if len(c.current) == 1 {
+		return values, err
+	}
+
+	// Otherwise, search the remaining blocks that overlap and append their values so we can
+	// dedup them.
+	for i := 1; i < len(c.current); i++ {
+		cur := c.current[i]
+		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
+			c.pos++
+			v, err := cur.r.ReadIntegerBlockAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, v...)
+		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+			cur.read = true
+			c.pos--
+
+			v, err := cur.r.ReadIntegerBlockAt(cur.entry, nil)
+			if err != nil {
+				return nil, err
+			}
+			values = append(v, values...)
+		}
+	}
+
+	return IntegerValues(values).Deduplicate(), err
 }
 
 // ReadStringBlock reads the next block as a set of string values.

@@ -97,6 +97,7 @@ type blockAccessor interface {
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
 	readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
+	readIntegerBlock(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error)
 	readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error)
 	readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
 	readBytes(entry *IndexEntry, buf []byte) ([]byte, error)
@@ -211,6 +212,12 @@ func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, vals []FloatValue) ([]Fl
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.accessor.readFloatBlock(entry, vals)
+}
+
+func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, vals []IntegerValue) ([]IntegerValue, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.accessor.readIntegerBlock(entry, vals)
 }
 
 func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, vals []StringValue) ([]StringValue, error) {
@@ -806,6 +813,21 @@ func (f *fileAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([
 	return values, nil
 }
 
+func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error) {
+	b, err := f.readBytes(entry, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Validate checksum
+	values, err = DecodeIntegerBlock(b, values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
 func (f *fileAccessor) readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error) {
 	b, err := f.readBytes(entry, nil)
 	if err != nil {
@@ -994,6 +1016,23 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([
 	//TODO: Validate checksum
 	var err error
 	values, err = DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		return nil, ErrTSMClosed
+	}
+	//TODO: Validate checksum
+	var err error
+	values, err = DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
 	if err != nil {
 		return nil, err
 	}

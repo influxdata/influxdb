@@ -14,8 +14,8 @@ const (
 	// BlockFloat64 designates a block encodes float64 values
 	BlockFloat64 = byte(0)
 
-	// BlockInt64 designates a block encodes int64 values
-	BlockInt64 = byte(1)
+	// BlockInteger designates a block encodes int64 values
+	BlockInteger = byte(1)
 
 	// BlockBoolean designates a block encodes boolean values
 	BlockBoolean = byte(2)
@@ -40,7 +40,7 @@ func NewValue(t time.Time, value interface{}) Value {
 	un := t.UnixNano()
 	switch v := value.(type) {
 	case int64:
-		return &Int64Value{unixnano: un, value: v}
+		return &IntegerValue{unixnano: un, value: v}
 	case float64:
 		return &FloatValue{unixnano: un, value: v}
 	case bool:
@@ -92,7 +92,7 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 	case float64:
 		return encodeFloatBlock(buf, a)
 	case int64:
-		return encodeInt64Block(buf, a)
+		return encodeIntegerBlock(buf, a)
 	case bool:
 		return encodeBooleanBlock(buf, a)
 	case string:
@@ -127,7 +127,7 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 func BlockType(block []byte) (byte, error) {
 	blockType := block[0]
 	switch blockType {
-	case BlockFloat64, BlockInt64, BlockBoolean, BlockString:
+	case BlockFloat64, BlockInteger, BlockBoolean, BlockString:
 		return blockType, nil
 	default:
 		return 0, fmt.Errorf("unknown block type: %d", blockType)
@@ -165,8 +165,8 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals[i] = &decoded[i]
 		}
 		return vals[:len(decoded)], err
-	case BlockInt64:
-		decoded, err := DecodeInt64Block(block, nil)
+	case BlockInteger:
+		decoded, err := DecodeIntegerBlock(block, nil)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -479,34 +479,34 @@ func (a BooleanValues) Len() int           { return len(a) }
 func (a BooleanValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a BooleanValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
 
-type Int64Value struct {
+type IntegerValue struct {
 	unixnano int64
 	value    int64
 }
 
-func (v *Int64Value) Time() time.Time {
+func (v *IntegerValue) Time() time.Time {
 	return time.Unix(0, v.unixnano)
 }
 
-func (v *Int64Value) Value() interface{} {
+func (v *IntegerValue) Value() interface{} {
 	return v.value
 }
 
-func (v *Int64Value) UnixNano() int64 {
+func (v *IntegerValue) UnixNano() int64 {
 	return v.unixnano
 }
 
-func (v *Int64Value) Size() int {
+func (v *IntegerValue) Size() int {
 	return 16
 }
 
-func (f *Int64Value) String() string {
+func (f *IntegerValue) String() string {
 	return fmt.Sprintf("%v %v", f.Time(), f.Value())
 }
 
-func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
+func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
-	vEnc := NewInt64Encoder()
+	vEnc := NewIntegerEncoder()
 	for _, v := range values {
 		tsEnc.Write(v.Time())
 		vEnc.Write(v.Value().(int64))
@@ -524,14 +524,14 @@ func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes
-	block := packBlockHeader(BlockInt64)
+	block := packBlockHeader(BlockInteger)
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
+func DecodeIntegerBlock(block []byte, a []IntegerValue) ([]IntegerValue, error) {
 	blockType := block[0]
-	if blockType != BlockInt64 {
-		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInt64, blockType)
+	if blockType != BlockInteger {
+		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInteger, blockType)
 	}
 
 	block = block[1:]
@@ -541,7 +541,7 @@ func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
 
 	// Setup our timestamp and value decoders
 	tsDec := NewTimeDecoder(tb)
-	vDec := NewInt64Decoder(vb)
+	vDec := NewIntegerDecoder(vb)
 
 	// Decode both a timestamp and value
 	i := 0
@@ -552,7 +552,7 @@ func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
 			a[i].unixnano = ts.UnixNano()
 			a[i].value = v
 		} else {
-			a = append(a, Int64Value{ts.UnixNano(), v})
+			a = append(a, IntegerValue{ts.UnixNano(), v})
 		}
 		i++
 	}
@@ -568,6 +568,31 @@ func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
 
 	return a[:i], nil
 }
+
+// IntegerValues represents a slice of integer values.
+type IntegerValues []IntegerValue
+
+// Deduplicate returns a new slice with any values that have the same timestamp removed.
+// The Value that appears last in the slice is the one that is kept.
+func (a IntegerValues) Deduplicate() IntegerValues {
+	m := make(map[int64]IntegerValue)
+	for _, val := range a {
+		m[val.UnixNano()] = val
+	}
+
+	other := make(IntegerValues, 0, len(m))
+	for _, val := range m {
+		other = append(other, val)
+	}
+
+	sort.Sort(other)
+	return other
+}
+
+// Sort methods
+func (a IntegerValues) Len() int           { return len(a) }
+func (a IntegerValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a IntegerValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
 
 type StringValue struct {
 	unixnano int64

@@ -3061,13 +3061,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "max - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:10Z",40],["2000-01-01T00:00:40Z",50],["2000-01-01T00:01:10Z",90]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",90]]}]}]}`,
 		},
 		&Query{
 			name:    "max - time and tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, tx, max(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","max"],"values":[["2000-01-01T00:00:10Z",50,40],["2000-01-01T00:00:40Z",70,50],["2000-01-01T00:01:10Z",10,90]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","max"],"values":[["2000-01-01T00:00:00Z",50,40],["2000-01-01T00:00:30Z",70,50],["2000-01-01T00:01:00Z",10,90]]}]}]}`,
 		},
 		&Query{
 			name:    "min - baseline 30s",
@@ -3085,13 +3085,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "min - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:30Z",40],["2000-01-01T00:01:20Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:30Z",40],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "min - time and tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, tx, min(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","min"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:20Z",4,5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","min"],"values":[["2000-01-01T00:00:00Z",20,10],["2000-01-01T00:00:30Z",60,40],["2000-01-01T00:01:00Z",4,5]]}]}]}`,
 		},
 		&Query{
 			name:    "max,min - baseline 30s",
@@ -3139,13 +3139,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "last - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, last(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","last"],"values":[["2000-01-01T00:00:20Z",40],["2000-01-01T00:00:50Z",50],["2000-01-01T00:01:20Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "last - time and tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, tx, last(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","last"],"values":[["2000-01-01T00:00:20Z",55,40],["2000-01-01T00:00:50Z",40,50],["2000-01-01T00:01:20Z",4,5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","tx","last"],"values":[["2000-01-01T00:00:00Z",55,40],["2000-01-01T00:00:30Z",40,50],["2000-01-01T00:01:00Z",4,5]]}]}]}`,
 		},
 		&Query{
 			name:    "count - baseline 30s",
@@ -3169,7 +3169,7 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "distinct - baseline 30s",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",[10,40]],["2000-01-01T00:00:30Z",[40,50]],["2000-01-01T00:01:00Z",[5,70,90]]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:10Z",40],["2000-01-01T00:00:30Z",40],["2000-01-01T00:00:40Z",50],["2000-01-01T00:01:00Z",70],["2000-01-01T00:01:10Z",90],["2000-01-01T00:01:20Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct - time",

@@ -286,7 +286,7 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 	}
 
 	// Generate a row emitter from the iterator set.
-	em := influxql.NewEmitter(itrs)
+	em := influxql.NewEmitter(itrs, stmt.TimeAscending())
 	em.Columns = stmt.ColumnNames()
 
 	// Wrap emitter in an adapter to conform to the Executor interface.

@@ -2,7 +2,6 @@ package influxql
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/influxdb/influxdb/models"
@@ -10,7 +9,9 @@ import (
 
 // Emitter groups values together by name,
 type Emitter struct {
-	itrs []Iterator
+	buf       []Point
+	itrs      []Iterator
+	ascending bool
 
 	tags Tags
 	row  *models.Row
@@ -20,10 +21,11 @@ type Emitter struct {
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
-// Iterators are joined together by the emitter.
-func NewEmitter(itrs []Iterator) *Emitter {
+func NewEmitter(itrs []Iterator, ascending bool) *Emitter {
 	return &Emitter{
-		itrs: Join(itrs),
+		buf:       make([]Point, len(itrs)),
+		itrs:      itrs,
+		ascending: ascending,
 	}
 }
 
@@ -40,11 +42,18 @@ func (e *Emitter) Emit() *models.Row {
 	}
 
 	// Continually read from iterators until they are exhausted.
-	// Top-level iterators will return an equal number of items.
 	for {
-		// Read next set of values from all iterators.
+		// Fill buffer. Return row if no more points remain.
+		t, name, tags := e.loadBuf()
+		if t == ZeroTime {
+			row := e.row
+			e.row = nil
+			return row
+		}
+
+		// Read next set of values from all iterators at a given time/name/tags.
 		// If no values are returned then return row.
-		name, tags, values := e.read()
+		values := e.readAt(t, name, tags)
 		if values == nil {
 			row := e.row
 			e.row = nil
@@ -66,6 +75,47 @@ func (e *Emitter) Emit() *models.Row {
 	}
 }
 
+// loadBuf reads in points into empty buffer slots.
+// Returns the next time/name/tags to emit for.
+func (e *Emitter) loadBuf() (t int64, name string, tags Tags) {
+	t = ZeroTime
+
+	for i := range e.itrs {
+		// Load buffer, if empty.
+		if e.buf[i] == nil {
+			e.buf[i] = e.readIterator(e.itrs[i])
+		}
+
+		// Skip if buffer is empty.
+		p := e.buf[i]
+		if p == nil {
+			continue
+		}
+		itrTime, itrName, itrTags := p.time(), p.name(), p.tags()
+
+		// Initialize range values if not set.
+		if t == ZeroTime {
+			t, name, tags = itrTime, itrName, itrTags
+			continue
+		}
+
+		// Update range values if lower and emitter is in time ascending order.
+		if e.ascending {
+			if (itrTime < t) || (itrTime == t && itrName < name) || (itrTime == t && itrName == name && itrTags.ID() < tags.ID()) {
+				t, name, tags = itrTime, itrName, itrTags
+			}
+			continue
+		}
+
+		// Update range values if higher and emitter is in time descending order.
+		if (itrTime > t) || (itrTime == t && itrName > name) || (itrTime == t && itrName == name && itrTags.ID() > tags.ID()) {
+			t, name, tags = itrTime, itrName, itrTags
+		}
+	}
+
+	return
+}
+
 // createRow creates a new row attached to the emitter.
 func (e *Emitter) createRow(name string, tags Tags, values []interface{}) {
 	e.tags = tags
@@ -77,45 +127,48 @@ func (e *Emitter) createRow(name string, tags Tags, values []interface{}) {
 	}
 }
 
-// read returns the next slice of values from the iterators.
+// readAt returns the next slice of values from the iterators at time/name/tags.
 // Returns nil values once the iterators are exhausted.
-func (e *Emitter) read() (name string, tags Tags, values []interface{}) {
-	values = make([]interface{}, len(e.itrs)+1)
+func (e *Emitter) readAt(t int64, name string, tags Tags) []interface{} {
+	values := make([]interface{}, len(e.itrs)+1)
+	values[0] = time.Unix(0, t).UTC()
 
-	for i, itr := range e.itrs {
-		// Read iterator's point. Exit if any iterator returns nil.
-		p := e.readIterator(itr)
+	for i, p := range e.buf {
+		// Skip if buffer is empty.
 		if p == nil {
-			return "", Tags{}, nil
+			values[i+1] = nil
+			continue
 		}
 
-		// Use the first iterator to populate name, tags, and timestamp.
-		if i == 0 {
-			name, tags = p.name(), p.tags()
-			values[0] = time.Unix(0, p.time()).UTC()
+		// Skip point if it doesn't match time/name/tags.
+		pTags := p.tags()
+		if p.time() != t || p.name() != name || !pTags.Equals(&tags) {
+			values[i+1] = nil
+			continue
 		}
 
-		// Set value.
-		// Replace non-JSON encodable values with nil.
-		switch p := p.(type) {
-		case *FloatPoint:
-			if math.IsNaN(p.Value) {
-				values[i+1] = nil
-			} else {
-				values[i+1] = p.Value
-			}
-		default:
-			values[i+1] = p.value()
-		}
+		// Read point value.
+		values[i+1] = p.value()
+
+		// Clear buffer.
+		e.buf[i] = nil
 	}
 
-	return
+	return values
 }
 
 // readIterator reads the next point from itr.
 func (e *Emitter) readIterator(itr Iterator) Point {
+	if itr == nil {
+		return nil
+	}
+
 	switch itr := itr.(type) {
 	case FloatIterator:
+		if p := itr.Next(); p != nil {
+			return p
+		}
+	case IntegerIterator:
 		if p := itr.Next(); p != nil {
 			return p
 		}

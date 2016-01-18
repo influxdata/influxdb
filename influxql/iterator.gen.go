@@ -748,6 +748,743 @@ func (itr *floatBoolTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type floatBoolTransformFunc func(p *FloatPoint) *BooleanPoint
 
+// IntegerIterator represents a stream of integer points.
+type IntegerIterator interface {
+	Iterator
+	Next() *IntegerPoint
+}
+
+// IntegerIterators represents a list of integer iterators.
+type IntegerIterators []IntegerIterator
+
+// Close closes all iterators.
+func (a IntegerIterators) Close() error {
+	for _, itr := range a {
+		itr.Close()
+	}
+	return nil
+}
+
+// newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
+// Panic if any iterator in itrs is not a IntegerIterator.
+func newIntegerIterators(itrs []Iterator) []IntegerIterator {
+	a := make([]IntegerIterator, len(itrs))
+	for i, itr := range itrs {
+		a[i] = itr.(IntegerIterator)
+	}
+	return a
+}
+
+// bufIntegerIterator represents a buffered IntegerIterator.
+type bufIntegerIterator struct {
+	itr IntegerIterator
+	buf *IntegerPoint
+}
+
+// newBufIntegerIterator returns a buffered IntegerIterator.
+func newBufIntegerIterator(itr IntegerIterator) *bufIntegerIterator {
+	return &bufIntegerIterator{
+		itr: itr,
+	}
+}
+
+// Close closes the underlying iterator.
+func (itr *bufIntegerIterator) Close() error { return itr.itr.Close() }
+
+// peek returns the next point without removing it from the iterator.
+func (itr *bufIntegerIterator) peek() *IntegerPoint {
+	p := itr.Next()
+	itr.unread(p)
+	return p
+}
+
+// peekTime returns the time of the next point.
+// Returns zero time if no more points available.
+func (itr *bufIntegerIterator) peekTime() int64 {
+	p := itr.peek()
+	if p == nil {
+		return ZeroTime
+	}
+	return p.Time
+}
+
+// Next returns the current buffer, if exists, or calls the underlying iterator.
+func (itr *bufIntegerIterator) Next() *IntegerPoint {
+	if itr.buf != nil {
+		buf := itr.buf
+		itr.buf = nil
+		return buf
+	}
+	return itr.itr.Next()
+}
+
+// NextInWindow returns the next value if it is between [startTime, endTime).
+// If the next value is outside the range then it is moved to the buffer.
+func (itr *bufIntegerIterator) NextInWindow(startTime, endTime int64) *IntegerPoint {
+	v := itr.Next()
+	if v == nil {
+		return nil
+	} else if v.Time < startTime || v.Time >= endTime {
+		itr.unread(v)
+		return nil
+	}
+	return v
+}
+
+// unread sets v to the buffer. It is read on the next call to Next().
+func (itr *bufIntegerIterator) unread(v *IntegerPoint) { itr.buf = v }
+
+// integerMergeIterator represents an iterator that combines multiple integer iterators.
+type integerMergeIterator struct {
+	inputs []IntegerIterator
+	heap   *integerMergeHeap
+
+	// Current iterator and window.
+	curr   *integerMergeHeapItem
+	window struct {
+		startTime int64
+		endTime   int64
+	}
+}
+
+// newIntegerMergeIterator returns a new instance of integerMergeIterator.
+func newIntegerMergeIterator(inputs []IntegerIterator, opt IteratorOptions) *integerMergeIterator {
+	itr := &integerMergeIterator{
+		inputs: inputs,
+		heap: &integerMergeHeap{
+			items: make([]*integerMergeHeapItem, 0, len(inputs)),
+			opt:   opt,
+		},
+	}
+
+	// Initialize heap items.
+	for _, input := range inputs {
+		// Wrap in buffer, ignore any inputs without anymore points.
+		bufInput := newBufIntegerIterator(input)
+		if bufInput.peek() == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap.items = append(itr.heap.items, &integerMergeHeapItem{itr: bufInput})
+	}
+	heap.Init(itr.heap)
+
+	return itr
+}
+
+// Close closes the underlying iterators.
+func (itr *integerMergeIterator) Close() error {
+	for _, input := range itr.inputs {
+		return input.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *integerMergeIterator) Next() *IntegerPoint {
+	for {
+		// Retrieve the next iterator if we don't have one.
+		if itr.curr == nil {
+			if len(itr.heap.items) == 0 {
+				return nil
+			}
+			itr.curr = heap.Pop(itr.heap).(*integerMergeHeapItem)
+
+			// Read point and set current window.
+			p := itr.curr.itr.Next()
+			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
+			return p
+		}
+
+		// Read the next point from the current iterator.
+		p := itr.curr.itr.Next()
+
+		// If there are no more points then remove iterator from heap and find next.
+		if p == nil {
+			itr.curr = nil
+			continue
+		}
+
+		// If it's outside our window then push iterator back on the heap and find new iterator.
+		if (itr.heap.opt.Ascending && p.Time >= itr.window.endTime) || (!itr.heap.opt.Ascending && p.Time < itr.window.startTime) {
+			itr.curr.itr.unread(p)
+			heap.Push(itr.heap, itr.curr)
+			itr.curr = nil
+			continue
+		}
+
+		return p
+	}
+}
+
+// integerMergeHeap represents a heap of integerMergeHeapItems.
+// Items are sorted by their next window and then by name/tags.
+type integerMergeHeap struct {
+	opt   IteratorOptions
+	items []*integerMergeHeapItem
+}
+
+func (h integerMergeHeap) Len() int      { return len(h.items) }
+func (h integerMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h integerMergeHeap) Less(i, j int) bool {
+	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+	xt, _ := h.opt.Window(x.Time)
+	yt, _ := h.opt.Window(y.Time)
+
+	if h.opt.Ascending {
+		if xt != yt {
+			return xt < yt
+		} else if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if x.Tags.ID() != y.Tags.ID() {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if xt != yt {
+		return xt > yt
+	} else if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if x.Tags.ID() != y.Tags.ID() {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *integerMergeHeap) Push(x interface{}) {
+	h.items = append(h.items, x.(*integerMergeHeapItem))
+}
+
+func (h *integerMergeHeap) Pop() interface{} {
+	old := h.items
+	n := len(old)
+	item := old[n-1]
+	h.items = old[0 : n-1]
+	return item
+}
+
+type integerMergeHeapItem struct {
+	itr *bufIntegerIterator
+}
+
+// integerSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type integerSortedMergeIterator struct {
+	inputs []IntegerIterator
+	opt    IteratorOptions
+	heap   integerSortedMergeHeap
+}
+
+// newIntegerSortedMergeIterator returns an instance of integerSortedMergeIterator.
+func newIntegerSortedMergeIterator(inputs []IntegerIterator, opt IteratorOptions) Iterator {
+	itr := &integerSortedMergeIterator{
+		inputs: inputs,
+		heap:   make(integerSortedMergeHeap, 0, len(inputs)),
+		opt:    opt,
+	}
+
+	// Initialize heap.
+	for _, input := range inputs {
+		// Read next point.
+		p := input.Next()
+		if p == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap = append(itr.heap, &integerSortedMergeHeapItem{point: p, itr: input, ascending: opt.Ascending})
+	}
+	heap.Init(&itr.heap)
+
+	return itr
+}
+
+// Close closes the underlying iterators.
+func (itr *integerSortedMergeIterator) Close() error {
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	return nil
+}
+
+// Next returns the next points from the iterator.
+func (itr *integerSortedMergeIterator) Next() *IntegerPoint { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *integerSortedMergeIterator) pop() *IntegerPoint {
+	if len(itr.heap) == 0 {
+		return nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(&itr.heap).(*integerSortedMergeHeapItem)
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point = item.itr.Next(); item.point != nil {
+		heap.Push(&itr.heap, item)
+	}
+
+	return p
+}
+
+// integerSortedMergeHeap represents a heap of integerSortedMergeHeapItems.
+type integerSortedMergeHeap []*integerSortedMergeHeapItem
+
+func (h integerSortedMergeHeap) Len() int      { return len(h) }
+func (h integerSortedMergeHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h integerSortedMergeHeap) Less(i, j int) bool {
+	x, y := h[i].point, h[j].point
+
+	if h[i].ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if !x.Tags.Equals(&y.Tags) {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if !x.Tags.Equals(&y.Tags) {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *integerSortedMergeHeap) Push(x interface{}) {
+	*h = append(*h, x.(*integerSortedMergeHeapItem))
+}
+
+func (h *integerSortedMergeHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+
+type integerSortedMergeHeapItem struct {
+	point     *IntegerPoint
+	itr       IntegerIterator
+	ascending bool
+}
+
+// integerLimitIterator represents an iterator that limits points per group.
+type integerLimitIterator struct {
+	input IntegerIterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// newIntegerLimitIterator returns a new instance of integerLimitIterator.
+func newIntegerLimitIterator(input IntegerIterator, opt IteratorOptions) *integerLimitIterator {
+	return &integerLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Close closes the underlying iterators.
+func (itr *integerLimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *integerLimitIterator) Next() *IntegerPoint {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			continue
+		}
+
+		return p
+	}
+}
+
+// integerJoinIterator represents a join iterator that processes integer values.
+type integerJoinIterator struct {
+	input IntegerIterator
+	buf   *IntegerPoint      // next value from input
+	c     chan *IntegerPoint // streaming output channel
+	once  sync.Once
+}
+
+// newIntegerJoinIterator returns a new join iterator that wraps input.
+func newIntegerJoinIterator(input IntegerIterator) *integerJoinIterator {
+	return &integerJoinIterator{
+		input: input,
+		c:     make(chan *IntegerPoint, 1),
+	}
+}
+
+// Close close the iterator.
+func (itr *integerJoinIterator) Close() error {
+	itr.once.Do(func() { close(itr.c) })
+	return nil
+}
+
+// Next returns the next point from the streaming channel.
+func (itr *integerJoinIterator) Next() *IntegerPoint { return <-itr.c }
+
+// loadBuf reads the next value from the input into the buffer.
+func (itr *integerJoinIterator) loadBuf() (t int64, name string, tags Tags) {
+	if itr.buf != nil {
+		return itr.buf.Time, itr.buf.Name, itr.buf.Tags
+	}
+
+	itr.buf = itr.input.Next()
+	if itr.buf == nil {
+		return ZeroTime, "", Tags{}
+	}
+	return itr.buf.Time, itr.buf.Name, itr.buf.Tags
+}
+
+// emitAt emits the buffered point if its timestamp equals t.
+// Otherwise it emits a null value with the timestamp t.
+func (itr *integerJoinIterator) emitAt(t int64, name string, tags Tags) {
+	var v *IntegerPoint
+	if itr.buf == nil || itr.buf.Time != t || itr.buf.Name != name || !itr.buf.Tags.Equals(&tags) {
+		v = &IntegerPoint{Name: name, Tags: tags, Time: t, Value: 0}
+	} else {
+		v, itr.buf = itr.buf, nil
+	}
+	itr.c <- v
+}
+
+// integerAuxIterator represents a integer implementation of AuxIterator.
+type integerAuxIterator struct {
+	input  *bufIntegerIterator
+	output chan *IntegerPoint
+	fields auxIteratorFields
+}
+
+func newIntegerAuxIterator(input IntegerIterator, opt IteratorOptions) *integerAuxIterator {
+	itr := &integerAuxIterator{
+		input:  newBufIntegerIterator(input),
+		output: make(chan *IntegerPoint, 1),
+		fields: newAuxIteratorFields(opt),
+	}
+
+	// Initialize auxilary fields.
+	if p := itr.input.Next(); p != nil {
+		itr.output <- p
+		itr.fields.init(p)
+	}
+
+	go itr.stream()
+	return itr
+}
+
+func (itr *integerAuxIterator) Close() error                  { return itr.input.Close() }
+func (itr *integerAuxIterator) Next() *IntegerPoint           { return <-itr.output }
+func (itr *integerAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
+
+func (itr *integerAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, error) {
+	expr := opt.Expr
+	if expr == nil {
+		panic("unable to create an iterator with no expression from an aux iterator")
+	}
+
+	switch expr := expr.(type) {
+	case *VarRef:
+		return itr.fields.iterator(expr.Val), nil
+	default:
+		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
+	}
+}
+
+func (itr *integerAuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
+	panic("not implemented")
+}
+
+func (itr *integerAuxIterator) stream() {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			break
+		}
+
+		// Send point to output and to each field iterator.
+		itr.output <- p
+		itr.fields.send(p)
+	}
+
+	close(itr.output)
+	itr.fields.close()
+}
+
+// integerChanIterator represents a new instance of integerChanIterator.
+type integerChanIterator struct {
+	c    chan *IntegerPoint
+	once sync.Once
+}
+
+func (itr *integerChanIterator) Close() error {
+	itr.once.Do(func() { close(itr.c) })
+	return nil
+}
+
+func (itr *integerChanIterator) Next() *IntegerPoint { return <-itr.c }
+
+// integerReduceIterator executes a reducer for every interval and buffers the result.
+type integerReduceIterator struct {
+	input  *bufIntegerIterator
+	fn     integerReduceFunc
+	opt    IteratorOptions
+	points []*IntegerPoint
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerReduceIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerReduceIterator) Next() *IntegerPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *integerReduceIterator) reduce() []*IntegerPoint {
+	// Calculate next window.
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	var reduceOptions = reduceOptions{
+		startTime: startTime,
+		endTime:   endTime,
+	}
+
+	// Create points by tags.
+	m := make(map[string]*IntegerPoint)
+	for {
+		// Read next point.
+		curr := itr.input.NextInWindow(startTime, endTime)
+		if curr == nil {
+			break
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		// Pass previous and current points to reducer.
+		prev := m[tags.ID()]
+		t, v, aux := itr.fn(prev, curr, &reduceOptions)
+		if t == ZeroTime {
+			continue
+		}
+
+		// If previous value didn't exist, create it and copy values.
+		if prev == nil {
+			prev = &IntegerPoint{Name: curr.Name, Tags: tags}
+			m[tags.ID()] = prev
+		}
+		prev.Time = t
+		prev.Value = v
+		prev.Aux = aux
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	a := make([]*IntegerPoint, len(m))
+	for i, k := range keys {
+		a[i] = m[k]
+	}
+
+	return a
+}
+
+// integerReduceFunc is the function called by a IntegerPoint reducer.
+type integerReduceFunc func(prev, curr *IntegerPoint, opt *reduceOptions) (t int64, v int64, aux []interface{})
+
+// integerReduceSliceIterator executes a reducer on all points in a window and buffers the result.
+type integerReduceSliceIterator struct {
+	input  *bufIntegerIterator
+	fn     integerReduceSliceFunc
+	opt    IteratorOptions
+	points []IntegerPoint
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerReduceSliceIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerReduceSliceIterator) Next() *IntegerPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return &p
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *integerReduceSliceIterator) reduce() []IntegerPoint {
+	// Calculate next window.
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	var reduceOptions = reduceOptions{
+		startTime: startTime,
+		endTime:   endTime,
+	}
+
+	// Group points by name and tagset.
+	groups := make(map[string]struct {
+		name   string
+		tags   Tags
+		points []IntegerPoint
+	})
+	for {
+		// Read next point.
+		p := itr.input.NextInWindow(startTime, endTime)
+		if p == nil {
+			break
+		}
+		tags := p.Tags.Subset(itr.opt.Dimensions)
+
+		// Append point to dimension.
+		id := tags.ID()
+		g := groups[id]
+		g.name = p.Name
+		g.tags = tags
+		g.points = append(g.points, *p)
+		groups[id] = g
+	}
+
+	// Reduce each set into a set of values.
+	results := make(map[string][]IntegerPoint)
+	for key, g := range groups {
+		a := itr.fn(g.points, &reduceOptions)
+		if len(a) == 0 {
+			continue
+		}
+
+		// Update name and tags for each returned point.
+		for i := range a {
+			a[i].Name = g.name
+			a[i].Tags = g.tags
+		}
+		results[key] = a
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(results))
+	for k := range results {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	// Reverse order points within each key.
+	a := make([]IntegerPoint, 0, len(results))
+	for _, k := range keys {
+		for i := len(results[k]) - 1; i >= 0; i-- {
+			a = append(a, results[k][i])
+		}
+	}
+
+	return a
+}
+
+// integerReduceSliceFunc is the function called by a IntegerPoint slice reducer.
+type integerReduceSliceFunc func(a []IntegerPoint, opt *reduceOptions) []IntegerPoint
+
+// integerReduceIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type integerTransformIterator struct {
+	input IntegerIterator
+	fn    integerTransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerTransformIterator) Next() *IntegerPoint {
+	p := itr.input.Next()
+	if p != nil {
+		p = itr.fn(p)
+	}
+	return p
+}
+
+// integerTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type integerTransformFunc func(p *IntegerPoint) *IntegerPoint
+
+// integerReduceIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type integerBoolTransformIterator struct {
+	input IntegerIterator
+	fn    integerBoolTransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerBoolTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerBoolTransformIterator) Next() *BooleanPoint {
+	p := itr.input.Next()
+	if p != nil {
+		return itr.fn(p)
+	}
+	return nil
+}
+
+// integerBoolTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type integerBoolTransformFunc func(p *IntegerPoint) *BooleanPoint
+
 // StringIterator represents a stream of string points.
 type StringIterator interface {
 	Iterator

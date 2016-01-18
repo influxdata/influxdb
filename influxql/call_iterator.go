@@ -60,6 +60,8 @@ func newCountIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatCountReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerCountReduce}
 	default:
 		panic(fmt.Sprintf("unsupported count iterator type: %T", input))
 	}
@@ -73,11 +75,21 @@ func floatCountReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float6
 	return prev.Time, prev.Value + 1, nil
 }
 
+// integerCountReduce returns the count of points.
+func integerCountReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	if prev == nil {
+		return opt.startTime, 1, nil
+	}
+	return prev.Time, prev.Value + 1, nil
+}
+
 // newMinIterator returns an iterator for operating on a min() call.
 func newMinIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMinReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMinReduce}
 	default:
 		panic(fmt.Sprintf("unsupported min iterator type: %T", input))
 	}
@@ -91,11 +103,21 @@ func floatMinReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64,
 	return prev.Time, prev.Value, prev.Aux
 }
 
+// integerMinReduce returns the minimum value between prev & curr.
+func integerMinReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	if prev == nil || curr.Value < prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
+		return opt.startTime, curr.Value, curr.Aux
+	}
+	return prev.Time, prev.Value, prev.Aux
+}
+
 // newMaxIterator returns an iterator for operating on a max() call.
 func newMaxIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMaxReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMaxReduce}
 	default:
 		panic(fmt.Sprintf("unsupported max iterator type: %T", input))
 	}
@@ -109,11 +131,21 @@ func floatMaxReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64,
 	return prev.Time, prev.Value, prev.Aux
 }
 
+// integerMaxReduce returns the maximum value between prev & curr.
+func integerMaxReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	if prev == nil || curr.Value > prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
+		return opt.startTime, curr.Value, curr.Aux
+	}
+	return prev.Time, prev.Value, prev.Aux
+}
+
 // newSumIterator returns an iterator for operating on a sum() call.
 func newSumIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSumReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSumReduce}
 	default:
 		panic(fmt.Sprintf("unsupported sum iterator type: %T", input))
 	}
@@ -127,11 +159,21 @@ func floatSumReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64,
 	return opt.startTime, prev.Value + curr.Value, nil
 }
 
+// integerSumReduce returns the sum prev value & curr value.
+func integerSumReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	if prev == nil {
+		return opt.startTime, curr.Value, nil
+	}
+	return opt.startTime, prev.Value + curr.Value, nil
+}
+
 // newFirstIterator returns an iterator for operating on a first() call.
 func newFirstIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatFirstReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerFirstReduce}
 	default:
 		panic(fmt.Sprintf("unsupported first iterator type: %T", input))
 	}
@@ -142,7 +184,15 @@ func floatFirstReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float6
 	if prev == nil || curr.Time < prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
 		return opt.startTime, curr.Value, curr.Aux
 	}
-	return prev.Time, prev.Value, prev.Aux
+	return opt.startTime, prev.Value, prev.Aux
+}
+
+// integerFirstReduce returns the first point sorted by time.
+func integerFirstReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	if prev == nil || curr.Time < prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
+		return opt.startTime, curr.Value, curr.Aux
+	}
+	return opt.startTime, prev.Value, prev.Aux
 }
 
 // newLastIterator returns an iterator for operating on a last() call.
@@ -150,6 +200,8 @@ func newLastIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatLastReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerLastReduce}
 	default:
 		panic(fmt.Sprintf("unsupported last iterator type: %T", input))
 	}
@@ -160,7 +212,15 @@ func floatLastReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64
 	if prev == nil || curr.Time > prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
 		return opt.startTime, curr.Value, curr.Aux
 	}
-	return prev.Time, prev.Value, prev.Aux
+	return opt.startTime, prev.Value, prev.Aux
+}
+
+// integerLastReduce returns the last point sorted by time.
+func integerLastReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	if prev == nil || curr.Time > prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
+		return opt.startTime, curr.Value, curr.Aux
+	}
+	return opt.startTime, prev.Value, prev.Aux
 }
 
 // newDistinctIterator returns an iterator for operating on a distinct() call.
@@ -168,6 +228,8 @@ func newDistinctIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatDistinctReduceSlice}
+	case IntegerIterator:
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerDistinctReduceSlice}
 	case StringIterator:
 		return &stringReduceSliceIterator{input: newBufStringIterator(input), opt: opt, fn: stringDistinctReduceSlice}
 	default:
@@ -189,6 +251,23 @@ func floatDistinctReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 		points = append(points, FloatPoint{Time: p.Time, Value: p.Value})
 	}
 	sort.Sort(floatPoints(points))
+	return points
+}
+
+// integerDistinctReduceSlice returns the distinct value within a window.
+func integerDistinctReduceSlice(a []IntegerPoint, opt *reduceOptions) []IntegerPoint {
+	m := make(map[int64]IntegerPoint)
+	for _, p := range a {
+		if _, ok := m[p.Value]; !ok {
+			m[p.Value] = p
+		}
+	}
+
+	points := make([]IntegerPoint, 0, len(m))
+	for _, p := range m {
+		points = append(points, IntegerPoint{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort(integerPoints(points))
 	return points
 }
 
@@ -214,6 +293,8 @@ func newMeanIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMeanReduceSlice}
+	case IntegerIterator:
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMeanReduceSlice}
 	default:
 		panic(fmt.Sprintf("unsupported mean iterator type: %T", input))
 	}
@@ -233,11 +314,24 @@ func floatMeanReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 	return []FloatPoint{{Time: opt.startTime, Value: mean}}
 }
 
+// integerMeanReduceSlice returns the mean value within a window.
+func integerMeanReduceSlice(a []IntegerPoint, opt *reduceOptions) []FloatPoint {
+	var mean float64
+	var count int
+	for _, p := range a {
+		count++
+		mean += (float64(p.Value) - mean) / float64(count)
+	}
+	return []FloatPoint{{Time: opt.startTime, Value: mean}}
+}
+
 // newMedianIterator returns an iterator for operating on a median() call.
 func newMedianIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMedianReduceSlice}
+	case IntegerIterator:
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMedianReduceSlice}
 	default:
 		panic(fmt.Sprintf("unsupported median iterator type: %T", input))
 	}
@@ -261,11 +355,31 @@ func floatMedianReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 	return []FloatPoint{{Time: opt.startTime, Value: a[len(a)/2].Value}}
 }
 
+// integerMedianReduceSlice returns the median value within a window.
+func integerMedianReduceSlice(a []IntegerPoint, opt *reduceOptions) []FloatPoint {
+	if len(a) == 1 {
+		return []FloatPoint{{Time: opt.startTime, Value: float64(a[0].Value)}}
+	}
+
+	// OPTIMIZE(benbjohnson): Use getSortedRange() from v0.9.5.1.
+
+	// Return the middle value from the points.
+	// If there are an even number of points then return the mean of the two middle points.
+	sort.Sort(integerPointsByValue(a))
+	if len(a)%2 == 0 {
+		lo, hi := a[len(a)/2-1], a[(len(a)/2)]
+		return []FloatPoint{{Time: opt.startTime, Value: float64(lo.Value) + float64(hi.Value-lo.Value)/2}}
+	}
+	return []FloatPoint{{Time: opt.startTime, Value: float64(a[len(a)/2].Value)}}
+}
+
 // newStddevIterator returns an iterator for operating on a stddev() call.
 func newStddevIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatStddevReduceSlice}
+	case IntegerIterator:
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerStddevReduceSlice}
 	case StringIterator:
 		return &stringReduceSliceIterator{input: newBufStringIterator(input), opt: opt, fn: stringStddevReduceSlice}
 	default:
@@ -305,6 +419,32 @@ func floatStddevReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 	}}
 }
 
+// integerStddevReduceSlice returns the stddev value within a window.
+func integerStddevReduceSlice(a []IntegerPoint, opt *reduceOptions) []FloatPoint {
+	// If there is only one point then return NaN.
+	if len(a) < 2 {
+		return []FloatPoint{{Time: opt.startTime, Value: math.NaN()}}
+	}
+
+	// Calculate the mean.
+	var mean float64
+	var count int
+	for _, p := range a {
+		count++
+		mean += (float64(p.Value) - mean) / float64(count)
+	}
+
+	// Calculate the variance.
+	var variance float64
+	for _, p := range a {
+		variance += math.Pow(float64(p.Value)-mean, 2)
+	}
+	return []FloatPoint{{
+		Time:  opt.startTime,
+		Value: math.Sqrt(variance / float64(count-1)),
+	}}
+}
+
 // stringStddevReduceSlice always returns "".
 func stringStddevReduceSlice(a []StringPoint, opt *reduceOptions) []StringPoint {
 	return []StringPoint{{Time: opt.startTime, Value: ""}}
@@ -315,6 +455,8 @@ func newSpreadIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSpreadReduceSlice}
+	case IntegerIterator:
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSpreadReduceSlice}
 	default:
 		panic(fmt.Sprintf("unsupported spread iterator type: %T", input))
 	}
@@ -329,6 +471,21 @@ func floatSpreadReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 		max = math.Max(max, p.Value)
 	}
 	return []FloatPoint{{Time: opt.startTime, Value: max - min}}
+}
+
+// integerSpreadReduceSlice returns the spread value within a window.
+func integerSpreadReduceSlice(a []IntegerPoint, opt *reduceOptions) []IntegerPoint {
+	// Find min & max values.
+	min, max := a[0].Value, a[0].Value
+	for _, p := range a[1:] {
+		if p.Value < min {
+			min = p.Value
+		}
+		if p.Value > max {
+			max = p.Value
+		}
+	}
+	return []IntegerPoint{{Time: opt.startTime, Value: max - min}}
 }
 
 // newTopIterator returns an iterator for operating on a top() call.
@@ -466,6 +623,8 @@ func newPercentileIterator(input Iterator, opt IteratorOptions, percentile float
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatPercentileReduceSliceFunc(percentile)}
+	case IntegerIterator:
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerPercentileReduceSliceFunc(percentile)}
 	default:
 		panic(fmt.Sprintf("unsupported percentile iterator type: %T", input))
 	}
@@ -482,6 +641,20 @@ func newFloatPercentileReduceSliceFunc(percentile float64) floatReduceSliceFunc 
 		}
 
 		return []FloatPoint{{Time: opt.startTime, Value: a[i].Value}}
+	}
+}
+
+// newIntegerPercentileReduceSliceFunc returns the percentile value within a window.
+func newIntegerPercentileReduceSliceFunc(percentile float64) integerReduceSliceFunc {
+	return func(a []IntegerPoint, opt *reduceOptions) []IntegerPoint {
+		sort.Sort(integerPointsByValue(a))
+		i := int(math.Floor(float64(len(a))*percentile/100.0+0.5)) - 1
+
+		if i < 0 || i >= len(a) {
+			return nil
+		}
+
+		return []IntegerPoint{{Time: opt.startTime, Value: a[i].Value}}
 	}
 }
 

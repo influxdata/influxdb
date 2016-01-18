@@ -23,7 +23,7 @@ func TestEmitter_Emit(t *testing.T) {
 			{Name: "cpu", Tags: ParseTags("region=north"), Time: 0, Value: 4},
 			{Name: "mem", Time: 4, Value: 5},
 		}},
-	})
+	}, true)
 	e.Columns = []string{"col1", "col2"}
 
 	// Verify the cpu region=west is emitted first.

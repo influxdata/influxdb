@@ -3,10 +3,9 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
-
-//go:generate tmpl -data=[{"Name":"Float","name":"float","Type":"float64","Nil":"math.NaN()"},{"Name":"String","name":"string","Type":"string","Nil":"\"\""},{"Name":"Boolean","name":"boolean","Type":"bool","Nil":"false"}] iterator.gen.go.tmpl
 
 // ErrUnknownCall is returned when operating on an unknown function call.
 var ErrUnknownCall = errors.New("unknown call")
@@ -61,6 +60,12 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	switch input := inputs[0].(type) {
 	case FloatIterator:
 		return newFloatMergeIterator(newFloatIterators(inputs), opt)
+	case IntegerIterator:
+		return newIntegerMergeIterator(newIntegerIterators(inputs), opt)
+	case StringIterator:
+		return newStringMergeIterator(newStringIterators(inputs), opt)
+	case BooleanIterator:
+		return newBooleanMergeIterator(newBooleanIterators(inputs), opt)
 	default:
 		panic(fmt.Sprintf("unsupported merge iterator type: %T", input))
 	}
@@ -76,6 +81,12 @@ func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	switch input := inputs[0].(type) {
 	case FloatIterator:
 		return newFloatSortedMergeIterator(newFloatIterators(inputs), opt)
+	case IntegerIterator:
+		return newIntegerSortedMergeIterator(newIntegerIterators(inputs), opt)
+	case StringIterator:
+		return newStringSortedMergeIterator(newStringIterators(inputs), opt)
+	case BooleanIterator:
+		return newBooleanSortedMergeIterator(newBooleanIterators(inputs), opt)
 	default:
 		panic(fmt.Sprintf("unsupported sorted merge iterator type: %T", input))
 	}
@@ -86,85 +97,15 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return newFloatLimitIterator(input, opt)
+	case IntegerIterator:
+		return newIntegerLimitIterator(input, opt)
+	case StringIterator:
+		return newStringLimitIterator(input, opt)
+	case BooleanIterator:
+		return newBooleanLimitIterator(input, opt)
 	default:
 		panic(fmt.Sprintf("unsupported limit iterator type: %T", input))
 	}
-}
-
-// Join combines inputs based on timestamp and returns new iterators.
-// The output iterators guarantee that one value will be output for every timestamp.
-func Join(inputs []Iterator) (outputs []Iterator) {
-	if len(inputs) == 0 {
-		return inputs
-	}
-
-	itrs := make([]joinIterator, len(inputs))
-	for i, input := range inputs {
-		switch input := input.(type) {
-		case FloatIterator:
-			itrs[i] = newFloatJoinIterator(input)
-		case StringIterator:
-			itrs[i] = newStringJoinIterator(input)
-		case BooleanIterator:
-			itrs[i] = newBooleanJoinIterator(input)
-		default:
-			panic(fmt.Sprintf("unsupported join iterator type: %T", input))
-		}
-	}
-
-	// Begin joining goroutine.
-	go join(itrs)
-
-	return joinIterators(itrs).iterators()
-}
-
-// join runs in a separate goroutine to join input values on timestamp.
-func join(itrs []joinIterator) {
-	for {
-		// Find min timestamp and associated name & tags.
-		var name string
-		var tags Tags
-		min := ZeroTime
-		for _, itr := range itrs {
-			bufTime, bufName, bufTags := itr.loadBuf()
-			if bufTime != ZeroTime && (min == ZeroTime || bufTime < min) {
-				min, name, tags = bufTime, bufName, bufTags
-			}
-		}
-
-		// Exit when no more values are available.
-		if min == ZeroTime {
-			break
-		}
-
-		// Emit value on every output.
-		for _, itr := range itrs {
-			itr.emitAt(min, name, tags)
-		}
-	}
-
-	// Close all iterators.
-	for _, itr := range itrs {
-		itr.Close()
-	}
-}
-
-// joinIterator represents output iterator used by join().
-type joinIterator interface {
-	Iterator
-	loadBuf() (t int64, name string, tags Tags)
-	emitAt(t int64, name string, tags Tags)
-}
-
-type joinIterators []joinIterator
-
-// iterators returns itrs as a list of generic iterators.
-func (itrs joinIterators) iterators() []Iterator {
-	a := make([]Iterator, len(itrs))
-	for i, itr := range itrs {
-		a[i] = itr
-	}
-	return a
 }
 
 // AuxIterator represents an iterator that can split off separate auxilary iterators.
@@ -181,6 +122,8 @@ func NewAuxIterator(input Iterator, opt IteratorOptions) AuxIterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return newFloatAuxIterator(input, opt)
+	case IntegerIterator:
+		return newIntegerAuxIterator(input, opt)
 	case StringIterator:
 		return newStringAuxIterator(input, opt)
 	case BooleanIterator:
@@ -236,6 +179,14 @@ func (a auxIteratorFields) init(p Point) {
 				Time:  p.time(),
 				Value: v,
 			}
+		case int64:
+			f.typ = Integer
+			f.initial = &IntegerPoint{
+				Name:  p.name(),
+				Tags:  tags,
+				Time:  p.time(),
+				Value: v,
+			}
 		case string:
 			f.typ = String
 			f.initial = &StringPoint{
@@ -276,6 +227,11 @@ func (a auxIteratorFields) iterator(name string) Iterator {
 			itr.c <- f.initial.(*FloatPoint)
 			f.itrs = append(f.itrs, itr)
 			return itr
+		case Integer:
+			itr := &integerChanIterator{c: make(chan *IntegerPoint, 1)}
+			itr.c <- f.initial.(*IntegerPoint)
+			f.itrs = append(f.itrs, itr)
+			return itr
 		case String:
 			itr := &stringChanIterator{c: make(chan *StringPoint, 1)}
 			itr.c <- f.initial.(*StringPoint)
@@ -314,6 +270,14 @@ func (a auxIteratorFields) send(p Point) {
 					Time:  p.time(),
 					Value: v,
 				}
+			case *integerChanIterator:
+				v, _ := v.(int64)
+				itr.c <- &IntegerPoint{
+					Name:  p.name(),
+					Tags:  tags,
+					Time:  p.time(),
+					Value: v,
+				}
 			case *stringChanIterator:
 				v, _ := v.(string)
 				itr.c <- &StringPoint{
@@ -345,7 +309,15 @@ func drainIterator(itr Iterator) {
 			if p := itr.Next(); p == nil {
 				return
 			}
+		case IntegerIterator:
+			if p := itr.Next(); p == nil {
+				return
+			}
 		case StringIterator:
+			if p := itr.Next(); p == nil {
+				return
+			}
+		case BooleanIterator:
 			if p := itr.Next(); p == nil {
 				return
 			}
@@ -516,10 +488,6 @@ func (v *selectInfo) Visit(n Node) Visitor {
 	return v
 }
 
-// ErrNotImplemented is returned by IteratorCreator implementations when the
-// requested expression cannot be implemented as an iterator.
-var ErrNotImplemented = errors.New("not implemented")
-
 // Interval represents a repeating interval for a query.
 type Interval struct {
 	Duration time.Duration
@@ -539,3 +507,102 @@ type nilFloatIterator struct{}
 
 func (*nilFloatIterator) Close() error      { return nil }
 func (*nilFloatIterator) Next() *FloatPoint { return nil }
+
+// integerReduceSliceFloatIterator executes a reducer on all points in a window and buffers the result.
+// This iterator receives an integer iterator but produces a float iterator.
+type integerReduceSliceFloatIterator struct {
+	input  *bufIntegerIterator
+	fn     integerReduceSliceFloatFunc
+	opt    IteratorOptions
+	points []FloatPoint
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerReduceSliceFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerReduceSliceFloatIterator) Next() *FloatPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return &p
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *integerReduceSliceFloatIterator) reduce() []FloatPoint {
+	// Calculate next window.
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	var reduceOptions = reduceOptions{
+		startTime: startTime,
+		endTime:   endTime,
+	}
+
+	// Group points by name and tagset.
+	groups := make(map[string]struct {
+		name   string
+		tags   Tags
+		points []IntegerPoint
+	})
+	for {
+		// Read next point.
+		p := itr.input.NextInWindow(startTime, endTime)
+		if p == nil {
+			break
+		}
+		tags := p.Tags.Subset(itr.opt.Dimensions)
+
+		// Append point to dimension.
+		id := tags.ID()
+		g := groups[id]
+		g.name = p.Name
+		g.tags = tags
+		g.points = append(g.points, *p)
+		groups[id] = g
+	}
+
+	// Reduce each set into a set of values.
+	results := make(map[string][]FloatPoint)
+	for key, g := range groups {
+		a := itr.fn(g.points, &reduceOptions)
+		if len(a) == 0 {
+			continue
+		}
+
+		// Update name and tags for each returned point.
+		for i := range a {
+			a[i].Name = g.name
+			a[i].Tags = g.tags
+		}
+		results[key] = a
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(results))
+	for k := range results {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	// Reverse order points within each key.
+	a := make([]FloatPoint, 0, len(results))
+	for _, k := range keys {
+		for i := len(results[k]) - 1; i >= 0; i-- {
+			a = append(a, results[k][i])
+		}
+	}
+
+	return a
+}
+
+// integerReduceSliceFloatFunc is the function called by a IntegerPoint slice reducer that emits FloatPoint.
+type integerReduceSliceFloatFunc func(a []IntegerPoint, opt *reduceOptions) []FloatPoint

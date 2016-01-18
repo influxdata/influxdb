@@ -50,6 +50,53 @@ func (a floatPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value
 
 func (a floatPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
+// IntegerPoint represents a point with a int64 value.
+type IntegerPoint struct {
+	Name string
+	Tags Tags
+
+	Time  int64
+	Value int64
+	Aux   []interface{}
+}
+
+func (v *IntegerPoint) name() string       { return v.Name }
+func (v *IntegerPoint) tags() Tags         { return v.Tags }
+func (v *IntegerPoint) time() int64        { return v.Time }
+func (v *IntegerPoint) value() interface{} { return v.Value }
+func (v *IntegerPoint) aux() []interface{} { return v.Aux }
+
+// Clone returns a copy of v.
+func (v *IntegerPoint) Clone() *IntegerPoint {
+	if v == nil {
+		return nil
+	}
+
+	other := *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+
+	return &other
+}
+
+// integerPoints represents a slice of points sortable by value.
+type integerPoints []IntegerPoint
+
+func (a integerPoints) Len() int           { return len(a) }
+func (a integerPoints) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a integerPoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// integerPointsByValue represents a slice of points sortable by value.
+type integerPointsByValue []IntegerPoint
+
+func (a integerPointsByValue) Len() int { return len(a) }
+
+func (a integerPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value }
+
+func (a integerPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
 // StringPoint represents a point with a string value.
 type StringPoint struct {
 	Name string

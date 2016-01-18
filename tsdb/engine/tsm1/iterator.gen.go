@@ -422,6 +422,334 @@ func (c *floatLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, 
 func (c *floatLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
 func (c *floatLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
 
+type integerIterator struct {
+	cur   integerCursor
+	aux   []cursorAt
+	conds struct {
+		names []string
+		curs  []*bufCursor
+	}
+	opt influxql.IteratorOptions
+
+	m     map[string]interface{} // map used for condition evaluation
+	point influxql.IntegerPoint  // reusable buffer
+}
+
+func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur integerCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *integerIterator {
+	itr := &integerIterator{
+		cur: cur,
+		aux: aux,
+		opt: opt,
+		point: influxql.IntegerPoint{
+			Name: name,
+			Tags: tags,
+		},
+	}
+
+	if len(aux) > 0 {
+		itr.point.Aux = make([]interface{}, len(aux))
+	}
+
+	if opt.Condition != nil {
+		itr.m = make(map[string]interface{}, len(aux)+len(conds))
+	}
+	itr.conds.names = condNames
+	itr.conds.curs = conds
+
+	return itr
+}
+
+// Next returns the next point from the iterator.
+func (itr *integerIterator) Next() *influxql.IntegerPoint {
+	for {
+		seek := tsdb.EOF
+
+		if itr.cur != nil {
+			// Read from the main cursor if we have one.
+			itr.point.Time, itr.point.Value = itr.cur.nextInteger()
+			seek = itr.point.Time
+		} else {
+			// Otherwise find lowest aux timestamp.
+			for i := range itr.aux {
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
+					seek = k
+				}
+			}
+			itr.point.Time = seek
+		}
+
+		// Exit if we have no more points or we are outside our time range.
+		if itr.point.Time == tsdb.EOF {
+			return nil
+		} else if itr.opt.Ascending && itr.point.Time > itr.opt.EndTime {
+			return nil
+		} else if !itr.opt.Ascending && itr.point.Time < itr.opt.StartTime {
+			return nil
+		}
+
+		// Read from each auxiliary cursor.
+		for i := range itr.opt.Aux {
+			itr.point.Aux[i] = itr.aux[i].nextAt(seek)
+		}
+
+		// Read from condition field cursors.
+		for i := range itr.conds.curs {
+			itr.m[itr.conds.names[i]] = itr.conds.curs[i].nextAt(seek)
+		}
+
+		// Evaluate condition, if one exists. Retry if it fails.
+		if itr.opt.Condition != nil && !influxql.EvalBool(itr.opt.Condition, itr.m) {
+			continue
+		}
+
+		return &itr.point
+	}
+}
+
+// Close closes the iterator.
+func (itr *integerIterator) Close() error { return nil }
+
+// integerCursor represents an object for iterating over a single integer field.
+type integerCursor interface {
+	cursor
+	nextInteger() (t int64, v int64)
+}
+
+func newIntegerCursor(seek int64, ascending bool, cacheValues Values, tsmKeyCursor *KeyCursor) integerCursor {
+	if ascending {
+		return newIntegerAscendingCursor(seek, cacheValues, tsmKeyCursor)
+	}
+	return newIntegerDescendingCursor(seek, cacheValues, tsmKeyCursor)
+}
+
+type integerAscendingCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		buf       []IntegerValue
+		values    []IntegerValue
+		pos       int
+		keyCursor *KeyCursor
+	}
+}
+
+func newIntegerAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *integerAscendingCursor {
+	c := &integerAscendingCursor{}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].Time().UnixNano() >= seek
+	})
+
+	c.tsm.keyCursor = tsmKeyCursor
+	c.tsm.buf = make([]IntegerValue, 10)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].Time().UnixNano() >= seek
+	})
+
+	return c
+}
+
+// peekCache returns the current time/value from the cache.
+func (c *integerAscendingCursor) peekCache() (t int64, v int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return tsdb.EOF, 0
+	}
+
+	item := c.cache.values[c.cache.pos]
+	return item.UnixNano(), item.Value().(int64)
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *integerAscendingCursor) peekTSM() (t int64, v int64) {
+	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
+		c.tsm.keyCursor.Close()
+		return tsdb.EOF, 0
+	}
+
+	item := c.tsm.values[c.tsm.pos]
+	return item.Time().UnixNano(), item.Value().(int64)
+}
+
+// next returns the next key/value for the cursor.
+func (c *integerAscendingCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *integerAscendingCursor) nextInteger() (int64, int64) {
+	ckey, cvalue := c.peekCache()
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if ckey == tsdb.EOF && tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Both cache and tsm files have the same key, cache takes precedence.
+	if ckey == tkey {
+		c.nextCache()
+		c.nextTSM()
+		return tkey, tvalue
+	}
+
+	// Buffered cache key precedes that in TSM file.
+	if ckey != tsdb.EOF && (ckey < tkey || tkey == tsdb.EOF) {
+		c.nextCache()
+		return ckey, cvalue
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextCache returns the next value from the cache.
+func (c *integerAscendingCursor) nextCache() {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	c.cache.pos++
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *integerAscendingCursor) nextTSM() {
+	c.tsm.pos++
+	if c.tsm.pos >= len(c.tsm.values) {
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+type integerDescendingCursor struct {
+	cache struct {
+		values Values
+		pos    int
+	}
+
+	tsm struct {
+		buf       []IntegerValue
+		values    []IntegerValue
+		pos       int
+		keyCursor *KeyCursor
+	}
+}
+
+func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCursor) *integerDescendingCursor {
+	c := &integerDescendingCursor{}
+
+	c.cache.values = cacheValues
+	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
+		return c.cache.values[i].Time().UnixNano() >= seek
+	})
+	if t, _ := c.peekCache(); t != seek {
+		c.cache.pos--
+	}
+
+	c.tsm.keyCursor = tsmKeyCursor
+	c.tsm.buf = make([]IntegerValue, 1000)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].Time().UnixNano() >= seek
+	})
+	if t, _ := c.peekTSM(); t != seek {
+		c.tsm.pos--
+	}
+
+	return c
+}
+
+// peekCache returns the current time/value from the cache.
+func (c *integerDescendingCursor) peekCache() (t int64, v int64) {
+	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) {
+		return tsdb.EOF, 0
+	}
+
+	item := c.cache.values[c.cache.pos]
+	return item.UnixNano(), item.Value().(int64)
+}
+
+// peekTSM returns the current time/value from tsm.
+func (c *integerDescendingCursor) peekTSM() (t int64, v int64) {
+	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
+		c.tsm.keyCursor.Close()
+		return tsdb.EOF, 0
+	}
+
+	item := c.tsm.values[c.tsm.pos]
+	return item.Time().UnixNano(), item.Value().(int64)
+}
+
+// next returns the next key/value for the cursor.
+func (c *integerDescendingCursor) next() (int64, interface{}) { return c.nextInteger() }
+
+// nextInteger returns the next key/value for the cursor.
+func (c *integerDescendingCursor) nextInteger() (int64, int64) {
+	ckey, cvalue := c.peekCache()
+	tkey, tvalue := c.peekTSM()
+
+	// No more data in cache or in TSM files.
+	if ckey == tsdb.EOF && tkey == tsdb.EOF {
+		return tsdb.EOF, 0
+	}
+
+	// Both cache and tsm files have the same key, cache takes precedence.
+	if ckey == tkey {
+		c.nextCache()
+		c.nextTSM()
+		return tkey, tvalue
+	}
+
+	// Buffered cache key precedes that in TSM file.
+	if ckey != tsdb.EOF && (ckey > tkey || tkey == tsdb.EOF) {
+		c.nextCache()
+		return ckey, cvalue
+	}
+
+	// Buffered TSM key precedes that in cache.
+	c.nextTSM()
+	return tkey, tvalue
+}
+
+// nextCache returns the next value from the cache.
+func (c *integerDescendingCursor) nextCache() {
+	if c.cache.pos < 0 {
+		return
+	}
+	c.cache.pos--
+}
+
+// nextTSM returns the next value from the TSM files.
+func (c *integerDescendingCursor) nextTSM() {
+	c.tsm.pos--
+	if c.tsm.pos < 0 {
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+// integerLiteralCursor represents a cursor that always returns a single value.
+// It doesn't not have a time value so it can only be used with nextAt().
+type integerLiteralCursor struct {
+	value int64
+}
+
+func (c *integerLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *integerLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
+func (c *integerLiteralCursor) nextAt(seek int64) interface{}  { return c.value }
+
 type stringIterator struct {
 	cur   stringCursor
 	aux   []cursorAt
