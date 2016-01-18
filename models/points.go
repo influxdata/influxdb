@@ -455,7 +455,7 @@ func scanTagsKey(buf []byte, i int) (int, error) {
 // scanTagsValue scans each character in a tag value.
 func scanTagsValue(buf []byte, i int) (int, int, error) {
 	// Tag value cannot be empty.
-	if buf[i] == ',' || buf[i] == ' ' {
+	if i >= len(buf) || buf[i] == ',' || buf[i] == ' ' {
 		// cpu,tag={',', ' '}
 		return -1, i, fmt.Errorf("missing tag value")
 	}
