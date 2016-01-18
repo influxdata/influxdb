@@ -302,6 +302,11 @@ func (p *Point) Name() string {
 	return p.pt.Name()
 }
 
+// AddTag adds or replaces a tag value for the point
+func (p *Point) AddTag(key, value string) {
+	p.pt.AddTag(key, value)
+}
+
 // Name returns the tags associated with the point
 func (p *Point) Tags() map[string]string {
 	return p.pt.Tags()
