@@ -34,8 +34,8 @@ type Service struct {
 func NewService(c *Config) *Service {
 	s := &Service{
 		config:   c,
-		httpAddr: c.HTTPBindAddress,
-		raftAddr: c.BindAddress,
+		httpAddr: c.DefaultedHTTPBindAddress(),
+		raftAddr: c.DefaultedBindAddress(),
 		https:    c.HTTPSEnabled,
 		cert:     c.HTTPSCertificate,
 		err:      make(chan error),
