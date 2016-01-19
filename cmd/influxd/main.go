@@ -14,7 +14,6 @@ import (
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/cmd/influxd/help"
-	"github.com/influxdb/influxdb/cmd/influxd/restore"
 	"github.com/influxdb/influxdb/cmd/influxd/run"
 )
 
@@ -118,11 +117,6 @@ func (m *Main) Run(args ...string) error {
 		name := backup.NewCommand()
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("backup: %s", err)
-		}
-	case "restore":
-		name := restore.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("restore: %s", err)
 		}
 	case "config":
 		if err := run.NewPrintConfigCommand().Run(args...); err != nil {
