@@ -417,9 +417,9 @@ func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err err
 	if err != nil {
 		return opt, err
 	}
-	// Set duration to entire span if no interval is specified.
-	if interval <= 0 {
-		interval = time.Duration(opt.EndTime - opt.StartTime)
+	// Set duration to zero if a negative interval has been used.
+	if interval < 0 {
+		interval = 0
 	}
 	opt.Interval.Duration = interval
 
