@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 func NewNodes() []meta.NodeInfo {
