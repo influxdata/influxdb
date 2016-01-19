@@ -41,6 +41,9 @@ const (
 var (
 	// ErrServiceUnavailable is returned when the meta service is unavailable.
 	ErrServiceUnavailable = errors.New("meta service unavailable")
+
+	// ErrService is returned when the meta service returns an error.
+	ErrService = errors.New("meta service error")
 )
 
 // Client is used to execute commands on and read data from
@@ -146,7 +149,7 @@ func (c *Client) Ping(checkAllMetaServers bool) error {
 // consistent.  Any actions taken after acquiring a lease must be idempotent.
 func (c *Client) AcquireLease(name string) (l *Lease, err error) {
 	for n := 1; n < 11; n++ {
-		if l, err = c.acquireLease(name); err == ErrServiceUnavailable {
+		if l, err = c.acquireLease(name); err == ErrServiceUnavailable || err == ErrService {
 			// exponential backoff
 			d := time.Duration(math.Pow(10, float64(n))) * time.Millisecond
 			time.Sleep(d)
