@@ -140,7 +140,7 @@ func newFirstIterator(input Iterator, opt IteratorOptions) Iterator {
 // floatFirstReduce returns the first point sorted by time.
 func floatFirstReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
 	if prev == nil || curr.Time < prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
-		return curr.Time, curr.Value, curr.Aux
+		return opt.startTime, curr.Value, curr.Aux
 	}
 	return prev.Time, prev.Value, prev.Aux
 }
@@ -158,7 +158,7 @@ func newLastIterator(input Iterator, opt IteratorOptions) Iterator {
 // floatLastReduce returns the last point sorted by time.
 func floatLastReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
 	if prev == nil || curr.Time > prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
-		return curr.Time, curr.Value, curr.Aux
+		return opt.startTime, curr.Value, curr.Aux
 	}
 	return prev.Time, prev.Value, prev.Aux
 }

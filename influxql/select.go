@@ -282,7 +282,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			percentile := expr.Args[1].(*NumberLiteral).Val
 			return newPercentileIterator(input, opt, percentile), nil
 		case "derivative", "non_negative_derivative":
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+			input, err := buildExprIterator(expr.Args[0], ic, opt)
 			if err != nil {
 				return nil, err
 			}
@@ -290,6 +290,8 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			interval := opt.DerivativeInterval()
 			isNonNegative := (expr.Name == "non_negative_derivative")
 
+			// Derivatives do not use GROUP BY intervals, so clear this option.
+			opt.Interval = Interval{}
 			return newDerivativeIterator(input, opt, interval, isNonNegative), nil
 		default:
 			panic(fmt.Sprintf("unsupported call: %s", expr.Name))
