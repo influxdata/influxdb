@@ -6,15 +6,17 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/snapshotter"
+	"github.com/influxdb/influxdb/tcp"
 )
 
 const (
@@ -146,7 +148,8 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 		Since:           since,
 	}
 
-	return cmd.downloadAndVerify(req, shardArchivePath)
+	// TODO: verify shard backup data
+	return cmd.downloadAndVerify(req, shardArchivePath, nil)
 }
 
 // backupDatabase will request the database information from the server and then backup the metastore and
@@ -221,7 +224,18 @@ func (cmd *Command) backupMetastore() error {
 		Type: snapshotter.RequestMetastoreBackup,
 	}
 
-	return cmd.downloadAndVerify(req, metastoreArchivePath)
+	return cmd.downloadAndVerify(req, metastoreArchivePath, func(file string) error {
+		var data meta.Data
+		binData, err := ioutil.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		if data.UnmarshalBinary(binData) != nil {
+			cmd.Logger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
+			return errors.New("invalid metadata received")
+		}
+		return nil
+	})
 }
 
 // nextPath returns the next file to write to.
@@ -239,10 +253,19 @@ func (cmd *Command) nextPath(path string) (string, error) {
 
 // downloadAndVerify will download either the metastore or shard to a temp file and then
 // rename it to a good backup file name after complete
-func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string) error {
+func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, validator func(string) error) error {
 	tmppath := path + Suffix
 	if err := cmd.download(req, tmppath); err != nil {
 		return err
+	}
+
+	if validator != nil {
+		if err := validator(tmppath); err != nil {
+			if rmErr := os.Remove(tmppath); rmErr != nil {
+				cmd.Logger.Printf("Error cleaning up temporary file: %v", rmErr)
+			}
+			return err
+		}
 	}
 
 	// Rename temporary file to final path.
@@ -250,7 +273,6 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string) err
 		return fmt.Errorf("rename: %s", err)
 	}
 
-	// TODO: Check file integrity.
 	return nil
 }
 
@@ -264,25 +286,20 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 	defer f.Close()
 
 	// Connect to snapshotter service.
-	conn, err := net.Dial("tcp", cmd.host)
+	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	// Send snapshotter marker byte
-	if _, err := conn.Write([]byte{snapshotter.MuxHeader}); err != nil {
-		return fmt.Errorf("write snapshot header byte: %s", err)
-	}
-
 	// Write the request
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return fmt.Errorf("encode snapshot manifest: %s", err)
+		return fmt.Errorf("encode snapshot request: %s", err)
 	}
 
 	// Read snapshot from the connection
 	if _, err := io.Copy(f, conn); err != nil {
-		return fmt.Errorf("copy snapshot to file: %s", err)
+		return fmt.Errorf("copy backup to file: %s", err)
 	}
 
 	return nil
@@ -291,20 +308,15 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 // requestInfo will request the database or retention policy information from the host
 func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Response, error) {
 	// Connect to snapshotter service.
-	conn, err := net.Dial("tcp", cmd.host)
+	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
-	// Send snapshotter marker byte
-	if _, err := conn.Write([]byte{snapshotter.MuxHeader}); err != nil {
-		return nil, fmt.Errorf("write snapshot header byte: %s", err)
-	}
-
 	// Write the request
 	if err := json.NewEncoder(conn).Encode(request); err != nil {
-		return nil, fmt.Errorf("encode snapshot manifest: %s", err)
+		return nil, fmt.Errorf("encode snapshot request: %s", err)
 	}
 
 	// Read the response
