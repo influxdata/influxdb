@@ -96,8 +96,8 @@ func main() {
 	pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
 	
 	if err != nil {
-        	log.Println("Error: ", err)
-    	}
+	    log.Fatalln("Error: ", err)
+	}
     	
 	bp.AddPoint(pt)
 
