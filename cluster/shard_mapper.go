@@ -69,7 +69,7 @@ func (s *ShardMapper) dial(nodeID uint64) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.Dial("tcp", ni.Host)
+	conn, err := net.Dial("tcp", ni.TCPHost)
 	if err != nil {
 		return nil, err
 	}
