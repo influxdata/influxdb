@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -37,11 +38,20 @@ const (
 	SaltBytes = 32
 )
 
+var (
+	// ErrServiceUnavailable is returned when the meta service is unavailable.
+	ErrServiceUnavailable = errors.New("meta service unavailable")
+
+	// ErrService is returned when the meta service returns an error.
+	ErrService = errors.New("meta service error")
+)
+
 // Client is used to execute commands on and read data from
 // a meta service cluster.
 type Client struct {
 	tls    bool
 	logger *log.Logger
+	NodeID uint64
 
 	mu          sync.RWMutex
 	metaServers []string
@@ -131,6 +141,69 @@ func (c *Client) Ping(checkAllMetaServers bool) error {
 	return fmt.Errorf(string(b))
 }
 
+// AcquireLease attempts to acquire the specified lease.
+// A lease is a logical concept that can be used by anything that needs to limit
+// execution to a single node.  E.g., the CQ service on all nodes may ask for
+// the "ContinuousQuery" lease. Only the node that acquires it will run CQs.
+// NOTE: Leases are not managed through the CP system and are not fully
+// consistent.  Any actions taken after acquiring a lease must be idempotent.
+func (c *Client) AcquireLease(name string) (l *Lease, err error) {
+	for n := 1; n < 11; n++ {
+		if l, err = c.acquireLease(name); err == ErrServiceUnavailable || err == ErrService {
+			// exponential backoff
+			d := time.Duration(math.Pow(10, float64(n))) * time.Millisecond
+			time.Sleep(d)
+			continue
+		}
+		break
+	}
+	return
+}
+
+func (c *Client) acquireLease(name string) (*Lease, error) {
+	c.mu.RLock()
+	server := c.metaServers[0]
+	c.mu.RUnlock()
+	url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.NodeID)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusConflict:
+		err = errors.New("another node owns the lease")
+	case http.StatusServiceUnavailable:
+		return nil, ErrServiceUnavailable
+	case http.StatusBadRequest:
+		b, e := ioutil.ReadAll(resp.Body)
+		if e != nil {
+			return nil, e
+		}
+		return nil, fmt.Errorf("meta service: %s", string(b))
+	case http.StatusInternalServerError:
+		return nil, errors.New("meta service internal error")
+	default:
+		return nil, errors.New("unrecognized meta service error")
+	}
+
+	// Read lease JSON from response body.
+	b, e := ioutil.ReadAll(resp.Body)
+	if e != nil {
+		return nil, e
+	}
+	// Unmarshal JSON into a Lease.
+	l := &Lease{}
+	if e = json.Unmarshal(b, l); e != nil {
+		return nil, e
+	}
+
+	return l, err
+}
+
 func (c *Client) data() *Data {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -171,7 +244,14 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		return nil, err
 	}
 
-	return c.DataNodeByHTTPHost(httpAddr)
+	n, err := c.DataNodeByHTTPHost(httpAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	c.NodeID = n.ID
+
+	return n, nil
 }
 
 // DataNodeByHTTPHost returns the data node with the give http bind address
@@ -723,14 +803,25 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
 	}
 }
 
-func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) error {
+func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	cmd := &internal.CreateMetaNodeCommand{
 		HTTPAddr: proto.String(httpAddr),
 		TCPAddr:  proto.String(tcpAddr),
 		Rand:     proto.Uint64(uint64(rand.Int63())),
 	}
 
-	return c.retryUntilExec(internal.Command_CreateMetaNodeCommand, internal.E_CreateMetaNodeCommand_Command, cmd)
+	if err := c.retryUntilExec(internal.Command_CreateMetaNodeCommand, internal.E_CreateMetaNodeCommand_Command, cmd); err != nil {
+		return nil, err
+	}
+
+	n := c.MetaNodeByAddr(httpAddr)
+	if n == nil {
+		return nil, errors.New("new meta node not found")
+	}
+
+	c.NodeID = n.ID
+
+	return n, nil
 }
 
 func (c *Client) DeleteMetaNode(id uint64) error {

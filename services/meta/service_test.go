@@ -16,6 +16,7 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tcp"
+	"github.com/influxdb/influxdb/toml"
 )
 
 func TestMetaService_CreateDatabase(t *testing.T) {
@@ -1136,6 +1137,60 @@ func TestMetaService_Ping(t *testing.T) {
 	}
 }
 
+func TestMetaService_AcquireLease(t *testing.T) {
+	t.Parallel()
+
+	d, s, c1 := newServiceAndClient()
+	c2 := newClient(s)
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c1.Close()
+	defer c2.Close()
+
+	n1, err := c1.CreateDataNode("foo1:8180", "bar1:8281")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	n2, err := c2.CreateDataNode("foo2:8180", "bar2:8281")
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	// Client 1 acquires a lease.  Should succeed.
+	l, err := c1.AcquireLease("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if l == nil {
+		t.Fatal("expected *Lease")
+	} else if l.Name != "foo" {
+		t.Fatalf("lease name wrong: %s", l.Name)
+	} else if l.Owner != n1.ID {
+		t.Fatalf("owner ID wrong. exp %d got %d", n1.ID, l.Owner)
+	}
+
+	// Client 2 attempts to acquire the same lease.  Should fail.
+	l, err = c2.AcquireLease("foo")
+	if err == nil {
+		t.Fatal("expected to fail because another node owns the lease")
+	}
+
+	// Wait for Client 1's lease to expire.
+	time.Sleep(1 * time.Second)
+
+	// Client 2 retries to acquire the lease.  Should succeed this time.
+	l, err = c2.AcquireLease("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if l == nil {
+		t.Fatal("expected *Lease")
+	} else if l.Name != "foo" {
+		t.Fatalf("lease name wrong: %s", l.Name)
+	} else if l.Owner != n2.ID {
+		t.Fatalf("owner ID wrong. exp %d got %d", n2.ID, l.Owner)
+	}
+}
+
 // newServiceAndClient returns new data directory, *Service, and *Client or panics.
 // Caller is responsible for deleting data dir and closing client.
 func newServiceAndClient() (string, *testService, *meta.Client) {
@@ -1145,12 +1200,17 @@ func newServiceAndClient() (string, *testService, *meta.Client) {
 		panic(err)
 	}
 
+	c := newClient(s)
+
+	return cfg.Dir, s, c
+}
+
+func newClient(s *testService) *meta.Client {
 	c := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
 		panic(err)
 	}
-
-	return cfg.Dir, s, c
+	return c
 }
 
 func newConfig() *meta.Config {
@@ -1158,6 +1218,7 @@ func newConfig() *meta.Config {
 	cfg.BindAddress = "127.0.0.1:0"
 	cfg.HTTPBindAddress = "127.0.0.1:0"
 	cfg.Dir = testTempDir(2)
+	cfg.LeaseDuration = toml.Duration(1 * time.Second)
 	return cfg
 }
 
