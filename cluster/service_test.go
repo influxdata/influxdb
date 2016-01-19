@@ -7,20 +7,20 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-type metaStore struct {
+type metaClient struct {
 	host string
 }
 
-func (m *metaStore) Node(nodeID uint64) (*meta.NodeInfo, error) {
+func (m *metaClient) DataNode(nodeID uint64) (*meta.NodeInfo, error) {
 	return &meta.NodeInfo{
-		ID:   nodeID,
-		Host: m.host,
+		ID:      nodeID,
+		TCPHost: m.host,
 	}, nil
 }
 

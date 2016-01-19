@@ -23,7 +23,7 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 	defer ts.Close()
 
 	w := cluster.NewShardWriter(time.Minute)
-	w.MetaStore = &metaStore{host: ts.ln.Addr().String()}
+	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 
 	// Build a single point.
 	now := time.Now()
@@ -70,7 +70,7 @@ func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 	defer ts.Close()
 
 	w := cluster.NewShardWriter(time.Minute)
-	w.MetaStore = &metaStore{host: ts.ln.Addr().String()}
+	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 
 	// Build a single point.
 	now := time.Now()
@@ -119,7 +119,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 	defer ts.Close()
 
 	w := cluster.NewShardWriter(time.Minute)
-	w.MetaStore = &metaStore{host: ts.ln.Addr().String()}
+	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
 	shardID := uint64(1)
@@ -147,7 +147,7 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	defer ts.Close()
 
 	w := cluster.NewShardWriter(time.Nanosecond)
-	w.MetaStore = &metaStore{host: ts.ln.Addr().String()}
+	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
 	shardID := uint64(1)
@@ -170,7 +170,7 @@ func TestShardWriter_Write_ErrReadTimeout(t *testing.T) {
 	}
 
 	w := cluster.NewShardWriter(time.Millisecond)
-	w.MetaStore = &metaStore{host: ln.Addr().String()}
+	w.MetaClient = &metaClient{host: ln.Addr().String()}
 	now := time.Now()
 
 	shardID := uint64(1)
