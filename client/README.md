@@ -73,10 +73,9 @@ func main() {
 	})
 	
 	if err != nil {
-        	log.Println("Error: ", err)
-    	}
-
-
+	    log.Fatalln("Error: ", err)
+	}
+	
 	// Create a new point batch
 	bp, err := client.NewBatchPoints(client.BatchPointsConfig{
 		Database:  MyDB,
@@ -84,8 +83,8 @@ func main() {
 	})
 	
 	if err != nil {
-        	log.Println("Error: ", err)
-    	}
+	    log.Fatalln("Error: ", err)
+	}
 
 	// Create a point and add to batch
 	tags := map[string]string{"cpu": "cpu-total"}
