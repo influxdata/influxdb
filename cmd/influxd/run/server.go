@@ -125,6 +125,20 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		return nil, fmt.Errorf("must run as either meta node or data node or both")
 	}
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine hostname: %v", err)
+	}
+
+	httpBindAddress, err := defaultHost(hostname, c.HTTPD.BindAddress)
+	if err != nil {
+		return nil, err
+	}
+	tcpBindAddress, err := defaultHost(hostname, bind)
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
@@ -140,17 +154,11 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		joinPeers:         c.Meta.JoinPeers,
 		metaUseTLS:        c.Meta.HTTPSEnabled,
 
-		httpAPIAddr: c.HTTPD.BindAddress,
+		httpAPIAddr: httpBindAddress,
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
-		tcpAddr:     c.BindAddress,
+		tcpAddr:     tcpBindAddress,
 
 		config: c,
-	}
-
-	// before 0.10.0 the TCP bind address was in meta, get it from there
-	// if they don't have it at the top level
-	if s.tcpAddr == "" {
-		s.tcpAddr = c.Meta.BindAddress
 	}
 
 	if c.Meta.Enabled {
@@ -716,6 +724,18 @@ func stopProfile() {
 		prof.mem.Close()
 		log.Println("mem profile stopped")
 	}
+}
+
+func defaultHost(hostname, addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+
+	if host == "" {
+		return net.JoinHostPort(hostname, port), nil
+	}
+	return addr, nil
 }
 
 type tcpaddr struct{ host string }
