@@ -95,12 +95,12 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	s := NewTestService(t)
-	ms := NewMetaStore(t)
-	ms.CreateDatabase("db", "")
-	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
-	s.MetaStore = ms
+	mc := NewMetaClient(t)
+	mc.CreateDatabase("db", "")
+	mc.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
+	s.MetaClient = mc
 
-	db, err := s.MetaStore.Database("db")
+	db, err := s.MetaClient.Database("db")
 	if err != nil {
 		t.Fatal(err)
 	}
