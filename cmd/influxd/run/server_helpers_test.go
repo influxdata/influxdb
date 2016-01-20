@@ -96,7 +96,9 @@ func OpenDefaultServer(c *run.Config, joinURLs string) *Server {
 
 // Close shuts down the server and removes all temporary paths.
 func (s *Server) Close() {
-	s.Server.Close()
+	if err := s.Server.Close(); err != nil {
+		panic(err.Error())
+	}
 	os.RemoveAll(s.Config.Meta.Dir)
 	os.RemoveAll(s.Config.Data.Dir)
 	os.RemoveAll(s.Config.HintedHandoff.Dir)
