@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -141,6 +143,7 @@ func (cmd *Command) unpackMeta() error {
 	// Copy meta config and remove peers so it starts in single mode.
 	c := cmd.MetaConfig
 	c.JoinPeers = nil
+	c.LoggingEnabled = false
 
 	// Initialize meta store.
 	store := meta.NewService(c)
@@ -156,13 +159,21 @@ func (cmd *Command) unpackMeta() error {
 	select {
 	case err := <-store.Err():
 		return err
+	default:
 	}
 
+	client := meta.NewClient([]string{store.HTTPAddr()}, false)
+	client.SetLogger(log.New(ioutil.Discard, "", 0))
+	if err := client.Open(); err != nil {
+		return err
+	}
+	defer client.Close()
+
 	// Force set the full metadata.
-	// FIXME (jwilder): needs re-base w/ master
-	// if err := store.SetData(&data); err != nil {
-	// 	return fmt.Errorf("set data: %s", err)
-	// }
+	if err := client.SetData(&data); err != nil {
+		return fmt.Errorf("set data: %s", err)
+	}
+	return nil
 }
 
 // unpackShard will look for all backup files in the path matching this shard ID
@@ -328,4 +339,4 @@ func (ln *nopListener) Close() error {
 	return nil
 }
 
-func (ln *nopListener) Addr() net.Addr { return nil }
+func (ln *nopListener) Addr() net.Addr { return &net.TCPAddr{} }

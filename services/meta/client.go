@@ -877,6 +877,14 @@ func (c *Client) DropSubscription(database, rp, name string) error {
 	)
 }
 
+func (c *Client) SetData(data *Data) error {
+	return c.retryUntilExec(internal.Command_SetDataCommand, internal.E_SetDataCommand_Command,
+		&internal.SetDataCommand{
+			Data: data.marshal(),
+		},
+	)
+}
+
 func (c *Client) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	return c.executor.ExecuteStatement(stmt)
 }
@@ -890,7 +898,15 @@ func (c *Client) WaitForDataChanged() chan struct{} {
 }
 
 func (c *Client) MarshalBinary() ([]byte, error) {
-	return nil, nil
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.cacheData.MarshalBinary()
+}
+
+func (c *Client) SetLogger(l *log.Logger) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logger = l
 }
 
 func (c *Client) index() uint64 {
