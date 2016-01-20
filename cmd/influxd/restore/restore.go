@@ -176,7 +176,6 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 	// if err := store.SetData(&data); err != nil {
 	// 	return fmt.Errorf("set data: %s", err)
 	// }
-	return fmt.Errorf("FIXME: not implemented")
 }
 
 func (cmd *Command) unpackData(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
