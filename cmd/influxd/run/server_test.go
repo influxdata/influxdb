@@ -4573,7 +4573,6 @@ func TestServer_Query_Chunk(t *testing.T) {
 			t.Error(query.failureMessage())
 		}
 	}
-
 }
 
 func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {

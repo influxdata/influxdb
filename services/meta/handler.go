@@ -475,7 +475,7 @@ func NewLeases(d time.Duration) *Leases {
 	}
 }
 
-func (leases Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
+func (leases *Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
 	leases.mu.Lock()
 	defer leases.mu.Unlock()
 
