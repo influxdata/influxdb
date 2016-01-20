@@ -3,6 +3,7 @@ package meta
 import (
 	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -39,8 +40,13 @@ func NewService(c *Config) *Service {
 		https:    c.HTTPSEnabled,
 		cert:     c.HTTPSCertificate,
 		err:      make(chan error),
-		Logger:   log.New(os.Stderr, "[meta] ", log.LstdFlags),
 	}
+	if c.LoggingEnabled {
+		s.Logger = log.New(os.Stderr, "[meta] ", log.LstdFlags)
+	} else {
+		s.Logger = log.New(ioutil.Discard, "", 0)
+	}
+
 	return s
 }
 

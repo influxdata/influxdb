@@ -281,7 +281,6 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 
 // download downloads a snapshot of either the metastore or a shard from a host to a given path.
 func (cmd *Command) download(req *snapshotter.Request, path string) error {
-	// FIXME This needs to use the meta client now to download the snapshot
 	// Create local file to write to.
 	f, err := os.Create(path)
 	if err != nil {
