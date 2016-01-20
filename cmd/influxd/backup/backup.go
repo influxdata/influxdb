@@ -281,6 +281,14 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 
 // download downloads a snapshot of either the metastore or a shard from a host to a given path.
 func (cmd *Command) download(req *snapshotter.Request, path string) error {
+	// FIXME This needs to use the meta client now to download the snapshot
+	// Create local file to write to.
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("open temp file: %s", err)
+	}
+	defer f.Close()
+
 	// Connect to snapshotter service.
 	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
 	if err != nil {
