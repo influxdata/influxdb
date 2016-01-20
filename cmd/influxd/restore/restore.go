@@ -15,6 +15,7 @@ import (
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -138,26 +139,13 @@ func (cmd *Command) unpackMeta() error {
 		return fmt.Errorf("unmarshal: %s", err)
 	}
 
+	// Copy meta config and remove peers so it starts in single mode.
+	c := config.Meta
+	c.JoinPeers = nil
+
 	// Initialize meta store.
-	store := meta.NewStore(cmd.MetaConfig)
+	store := meta.NewService(config.Meta)
 	store.RaftListener = newNopListener()
-	store.ExecListener = newNopListener()
-	store.RPCListener = newNopListener()
-
-	// Determine advertised address.
-	_, port, err := net.SplitHostPort(cmd.MetaConfig.BindAddress)
-	if err != nil {
-		return fmt.Errorf("split bind address: %s", err)
-	}
-	hostport := net.JoinHostPort(cmd.MetaConfig.Hostname, port)
-
-	// Resolve address.
-	addr, err := net.ResolveTCPAddr("tcp", hostport)
-	if err != nil {
-		return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
-	}
-	store.Addr = addr
-	store.RemoteAddr = addr
 
 	// Open the meta store.
 	if err := store.Open(); err != nil {
@@ -167,17 +155,16 @@ func (cmd *Command) unpackMeta() error {
 
 	// Wait for the store to be ready or error.
 	select {
-	case <-store.Ready():
 	case err := <-store.Err():
 		return err
 	}
 
 	// Force set the full metadata.
-	if err := store.SetData(&data); err != nil {
-		return fmt.Errorf("set data: %s", err)
-	}
-
-	return nil
+	// FIXME (jwilder): needs re-base w/ master
+	// if err := store.SetData(&data); err != nil {
+	// 	return fmt.Errorf("set data: %s", err)
+	// }
+	return fmt.Errorf("FIXME: not implemented")
 }
 
 // unpackShard will look for all backup files in the path matching this shard ID
