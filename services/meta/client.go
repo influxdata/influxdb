@@ -51,7 +51,7 @@ var (
 type Client struct {
 	tls    bool
 	logger *log.Logger
-	NodeID uint64
+	nodeID uint64
 
 	mu          sync.RWMutex
 	metaServers []string
@@ -115,6 +115,9 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// GetNodeID returns the client's node ID.
+func (c *Client) NodeID() uint64 { return c.nodeID }
+
 // Ping will hit the ping endpoint for the metaservice and return nil if
 // it returns 200. If checkAllMetaServers is set to true, it will hit the
 // ping endpoint and tell it to verify the health of all metaservers in the
@@ -168,7 +171,7 @@ func (c *Client) acquireLease(name string) (*Lease, error) {
 	c.mu.RLock()
 	server := c.metaServers[0]
 	c.mu.RUnlock()
-	url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.NodeID)
+	url := fmt.Sprintf("%s/lease?name=%s&nodeid=%d", c.url(server), name, c.nodeID)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -253,7 +256,7 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		return nil, err
 	}
 
-	c.NodeID = n.ID
+	c.nodeID = n.ID
 
 	return n, nil
 }
@@ -823,7 +826,7 @@ func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		return nil, errors.New("new meta node not found")
 	}
 
-	c.NodeID = n.ID
+	c.nodeID = n.ID
 
 	return n, nil
 }

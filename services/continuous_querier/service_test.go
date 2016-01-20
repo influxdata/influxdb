@@ -294,24 +294,35 @@ func NewTestService(t *testing.T) *Service {
 type MetaClient struct {
 	mu            sync.RWMutex
 	Leader        bool
+	AllowLease    bool
 	DatabaseInfos []meta.DatabaseInfo
 	Err           error
 	t             *testing.T
+	nodeID        uint64
 }
 
 // NewMetaClient returns a *MetaClient.
 func NewMetaClient(t *testing.T) *MetaClient {
 	return &MetaClient{
-		Leader: true,
-		t:      t,
+		Leader:     true,
+		AllowLease: true,
+		t:          t,
+		nodeID:     1,
 	}
 }
 
-// IsLeader returns true if the node is the cluster leader.
-func (ms *MetaClient) IsLeader() bool {
-	ms.mu.RLock()
-	defer ms.mu.RUnlock()
-	return ms.Leader
+// NodeID returns the client's node ID.
+func (ms *MetaClient) NodeID() uint64 { return ms.nodeID }
+
+// AcquireLease attempts to acquire the specified lease.
+func (ms *MetaClient) AcquireLease(name string) (l *meta.Lease, err error) {
+	if ms.Leader {
+		if ms.AllowLease {
+			return &meta.Lease{Name: name}, nil
+		}
+		return nil, errors.New("another node owns the lease")
+	}
+	return nil, meta.ErrServiceUnavailable
 }
 
 // Databases returns a list of database info about each database in the cluster.

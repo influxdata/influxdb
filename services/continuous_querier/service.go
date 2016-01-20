@@ -41,11 +41,12 @@ type queryExecutor interface {
 	ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
 }
 
-// metaStore is an internal interface to make testing easier.
-type metaStore interface {
-	IsLeader() bool
+// metaClient is an internal interface to make testing easier.
+type metaClient interface {
+	AcquireLease(name string) (l *meta.Lease, err error)
 	Databases() ([]meta.DatabaseInfo, error)
 	Database(name string) (*meta.DatabaseInfo, error)
+	NodeID() uint64
 }
 
 // RunRequest is a request to run one or more CQs.
@@ -72,7 +73,7 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 
 // Service manages continuous query execution.
 type Service struct {
-	MetaClient    metaStore
+	MetaClient    metaClient
 	QueryExecutor queryExecutor
 	Config        *Config
 	RunInterval   time.Duration
@@ -183,6 +184,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 
 // backgroundLoop runs on a go routine and periodically executes CQs.
 func (s *Service) backgroundLoop() {
+	leaseName := "continuous_querier"
 	defer s.wg.Done()
 	for {
 		select {
@@ -190,12 +192,12 @@ func (s *Service) backgroundLoop() {
 			s.Logger.Println("continuous query service terminating")
 			return
 		case req := <-s.RunCh:
-			if s.MetaClient.IsLeader() {
+			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
 				s.Logger.Printf("running continuous queries by request for time: %v", req.Now)
 				s.runContinuousQueries(req)
 			}
 		case <-time.After(s.RunInterval):
-			if s.MetaClient.IsLeader() {
+			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
 				s.runContinuousQueries(&RunRequest{Now: time.Now()})
 			}
 		}
