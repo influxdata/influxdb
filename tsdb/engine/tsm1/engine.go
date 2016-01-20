@@ -678,8 +678,8 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 	if err := func() error {
 		mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
 
-		// Retrieve non-time field names from condition.
-		conditionFields := influxql.ExprNames(opt.Condition)
+		// Retrieve non-time names from condition (includes tags).
+		conditionNames := influxql.ExprNames(opt.Condition)
 
 		for _, mm := range mms {
 			// Determine tagsets for this measurement based on dimensions and filters.
@@ -690,6 +690,14 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 
 			// Calculate tag sets and apply SLIMIT/SOFFSET.
 			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+
+			// Filter the names from condition to only fields from the measurement.
+			conditionFields := make([]string, 0, len(conditionNames))
+			for _, f := range conditionNames {
+				if mm.HasField(f) {
+					conditionFields = append(conditionFields, f)
+				}
+			}
 
 			for _, t := range tagSets {
 				for i, seriesKey := range t.SeriesKeys {
