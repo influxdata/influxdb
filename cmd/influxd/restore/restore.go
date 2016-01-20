@@ -14,8 +14,8 @@ import (
 	"sync"
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdb/influxdb/snapshot"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -127,8 +127,7 @@ func (cmd *Command) ensureStopped() error {
 
 // unpackMeta reads the metadata from the backup directory and initializes a raft
 // cluster and replaces the root metadata.
-func (cmd *Command) unpackMeta() error {
-	fmt.Fprintf(cmd.Stdout, "Restoring metastore to %v\n", cmd.metadir)
+func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
 	// find the meta file
 	metaFiles, err := filepath.Glob(filepath.Join(cmd.backupFilesPath, backup.Metafile+".*"))
 	if err != nil {
