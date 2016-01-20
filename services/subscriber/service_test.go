@@ -6,20 +6,20 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/subscriber"
 )
 
-type MetaStore struct {
+type MetaClient struct {
 	DatabasesFn          func() ([]meta.DatabaseInfo, error)
-	WaitForDataChangedFn func() error
+	WaitForDataChangedFn func() chan struct{}
 }
 
-func (m MetaStore) Databases() ([]meta.DatabaseInfo, error) {
+func (m MetaClient) Databases() ([]meta.DatabaseInfo, error) {
 	return m.DatabasesFn()
 }
 
-func (m MetaStore) WaitForDataChanged() error {
+func (m MetaClient) WaitForDataChanged() chan struct{} {
 	return m.WaitForDataChangedFn()
 }
 
@@ -32,11 +32,10 @@ func (s Subscription) WritePoints(p *cluster.WritePointsRequest) error {
 }
 
 func TestService_IgnoreNonMatch(t *testing.T) {
-	dataChanged := make(chan bool)
-	ms := MetaStore{}
-	ms.WaitForDataChangedFn = func() error {
-		<-dataChanged
-		return nil
+	dataChanged := make(chan struct{})
+	ms := MetaClient{}
+	ms.WaitForDataChangedFn = func() chan struct{} {
+		return dataChanged
 	}
 	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
 		return []meta.DatabaseInfo{
@@ -67,13 +66,13 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())
-	s.MetaStore = ms
+	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	s.Open()
 	defer s.Close()
 
 	// Signal that data has changed
-	dataChanged <- true
+	dataChanged <- struct{}{}
 
 	for _, expURLStr := range []string{"udp://h0:9093", "udp://h1:9093"} {
 		var u url.URL
@@ -108,11 +107,10 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 }
 
 func TestService_ModeALL(t *testing.T) {
-	dataChanged := make(chan bool)
-	ms := MetaStore{}
-	ms.WaitForDataChangedFn = func() error {
-		<-dataChanged
-		return nil
+	dataChanged := make(chan struct{})
+	ms := MetaClient{}
+	ms.WaitForDataChangedFn = func() chan struct{} {
+		return dataChanged
 	}
 	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
 		return []meta.DatabaseInfo{
@@ -143,13 +141,13 @@ func TestService_ModeALL(t *testing.T) {
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())
-	s.MetaStore = ms
+	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	s.Open()
 	defer s.Close()
 
 	// Signal that data has changed
-	dataChanged <- true
+	dataChanged <- struct{}{}
 
 	for _, expURLStr := range []string{"udp://h0:9093", "udp://h1:9093"} {
 		var u url.URL
@@ -187,11 +185,10 @@ func TestService_ModeALL(t *testing.T) {
 }
 
 func TestService_ModeANY(t *testing.T) {
-	dataChanged := make(chan bool)
-	ms := MetaStore{}
-	ms.WaitForDataChangedFn = func() error {
-		<-dataChanged
-		return nil
+	dataChanged := make(chan struct{})
+	ms := MetaClient{}
+	ms.WaitForDataChangedFn = func() chan struct{} {
+		return dataChanged
 	}
 	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
 		return []meta.DatabaseInfo{
@@ -222,13 +219,13 @@ func TestService_ModeANY(t *testing.T) {
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())
-	s.MetaStore = ms
+	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	s.Open()
 	defer s.Close()
 
 	// Signal that data has changed
-	dataChanged <- true
+	dataChanged <- struct{}{}
 
 	for _, expURLStr := range []string{"udp://h0:9093", "udp://h1:9093"} {
 		var u url.URL
@@ -270,11 +267,10 @@ func TestService_ModeANY(t *testing.T) {
 }
 
 func TestService_Multiple(t *testing.T) {
-	dataChanged := make(chan bool)
-	ms := MetaStore{}
-	ms.WaitForDataChangedFn = func() error {
-		<-dataChanged
-		return nil
+	dataChanged := make(chan struct{})
+	ms := MetaClient{}
+	ms.WaitForDataChangedFn = func() chan struct{} {
+		return dataChanged
 	}
 	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
 		return []meta.DatabaseInfo{
@@ -311,13 +307,13 @@ func TestService_Multiple(t *testing.T) {
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())
-	s.MetaStore = ms
+	s.MetaClient = ms
 	s.NewPointsWriter = newPointsWriter
 	s.Open()
 	defer s.Close()
 
 	// Signal that data has changed
-	dataChanged <- true
+	dataChanged <- struct{}{}
 
 	for _, expURLStr := range []string{"udp://h0:9093", "udp://h1:9093", "udp://h2:9093", "udp://h3:9093"} {
 		var u url.URL
@@ -389,11 +385,10 @@ func TestService_Multiple(t *testing.T) {
 }
 
 func TestService_WaitForDataChanged(t *testing.T) {
-	dataChanged := make(chan bool)
-	ms := MetaStore{}
-	ms.WaitForDataChangedFn = func() error {
-		<-dataChanged
-		return nil
+	dataChanged := make(chan struct{}, 1)
+	ms := MetaClient{}
+	ms.WaitForDataChangedFn = func() chan struct{} {
+		return dataChanged
 	}
 	calls := make(chan bool, 2)
 	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
@@ -402,7 +397,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())
-	s.MetaStore = ms
+	s.MetaClient = ms
 	// Explicitly closed below for testing
 	s.Open()
 
@@ -420,7 +415,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 	}
 
 	// Signal that data has changed
-	dataChanged <- true
+	dataChanged <- struct{}{}
 
 	// Should be called once more after data changed
 	select {
@@ -437,7 +432,7 @@ func TestService_WaitForDataChanged(t *testing.T) {
 
 	//Close service ensure not called
 	s.Close()
-	dataChanged <- true
+	dataChanged <- struct{}{}
 	select {
 	case <-calls:
 		t.Fatal("unexpected call")

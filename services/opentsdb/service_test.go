@@ -13,8 +13,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/opentsdb"
 )
 
@@ -137,7 +137,7 @@ func NewService(database string) *Service {
 	})
 	s := &Service{Service: srv}
 	s.Service.PointsWriter = &s.PointsWriter
-	s.Service.MetaStore = &DatabaseCreator{}
+	s.Service.MetaClient = &DatabaseCreator{}
 
 	if !testing.Verbose() {
 		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)

@@ -16,9 +16,9 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -423,7 +423,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
-	MetaStore     HandlerMetaStore
+	MetaClient    HandlerMetaStore
 	QueryExecutor HandlerQueryExecutor
 	TSDBStore     HandlerTSDBStore
 }
@@ -434,26 +434,26 @@ func NewHandler(requireAuthentication bool) *Handler {
 	h := &Handler{
 		Handler: httpd.NewHandler(requireAuthentication, true, false, statMap),
 	}
-	h.Handler.MetaStore = &h.MetaStore
+	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = &h.QueryExecutor
 	h.Handler.Version = "0.0.0"
 	return h
 }
 
-// HandlerMetaStore is a mock implementation of Handler.MetaStore.
+// HandlerMetaStore is a mock implementation of Handler.MetaClient.
 type HandlerMetaStore struct {
 	PingFn         func(d time.Duration) error
 	DatabaseFn     func(name string) (*meta.DatabaseInfo, error)
 	AuthenticateFn func(username, password string) (ui *meta.UserInfo, err error)
-	UsersFn        func() ([]meta.UserInfo, error)
+	UsersFn        func() []meta.UserInfo
 }
 
-func (s *HandlerMetaStore) Ping(d time.Duration) error {
+func (s *HandlerMetaStore) Ping(b bool) error {
 	if s.PingFn == nil {
 		// Default behaviour is to assume there is a leader.
 		return nil
 	}
-	return s.Ping(d)
+	return s.Ping(b)
 }
 
 func (s *HandlerMetaStore) Database(name string) (*meta.DatabaseInfo, error) {
@@ -464,7 +464,7 @@ func (s *HandlerMetaStore) Authenticate(username, password string) (ui *meta.Use
 	return s.AuthenticateFn(username, password)
 }
 
-func (s *HandlerMetaStore) Users() ([]meta.UserInfo, error) {
+func (s *HandlerMetaStore) Users() []meta.UserInfo {
 	return s.UsersFn()
 }
 

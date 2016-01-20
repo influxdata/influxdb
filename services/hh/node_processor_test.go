@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 type fakeShardWriter struct {

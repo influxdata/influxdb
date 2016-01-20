@@ -11,8 +11,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -24,10 +24,10 @@ var nID = uint64(42)
 
 // Simple test to ensure data can be read from two shards.
 func TestWritePointsAndExecuteTwoShards(t *testing.T) {
-	// Create the mock planner and its metastore
+	// Create the mock planner and its MetaClient
 	store, query_executor := testStoreAndQueryExecutor()
 	defer os.RemoveAll(store.Path())
-	query_executor.MetaStore = &testQEMetastore{
+	query_executor.MetaClient = &testQEMetaClient{
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
 				{
@@ -155,10 +155,10 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 
 // Test that executor correctly orders data across shards.
 func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
-	// Create the mock planner and its metastore
+	// Create the mock planner and its MetaClient
 	store, query_executor := testStoreAndQueryExecutor()
 	defer os.RemoveAll(store.Path())
-	query_executor.MetaStore = &testQEMetastore{
+	query_executor.MetaClient = &testQEMetaClient{
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
 				{
@@ -331,10 +331,10 @@ func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
 // Test that executor correctly orders data across shards when the tagsets
 // are not presented in alphabetically order across shards.
 func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
-	// Create the mock planner and its metastore
+	// Create the mock planner and its MetaClient
 	store, query_executor := testStoreAndQueryExecutor()
 	defer os.RemoveAll(store.Path())
-	query_executor.MetaStore = &testQEMetastore{
+	query_executor.MetaClient = &testQEMetaClient{
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
 				{
@@ -1006,27 +1006,31 @@ func TestRawQueryDerivative_Process_Bool(t *testing.T) {
 	}
 }
 
-type testQEMetastore struct {
+type testQEMetaClient struct {
 	sgFunc func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 }
 
-func (t *testQEMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+func (t *testQEMetaClient) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 	return t.sgFunc(database, policy, min, max)
 }
 
-func (t *testQEMetastore) Database(name string) (*meta.DatabaseInfo, error) { return nil, nil }
-func (t *testQEMetastore) Databases() ([]meta.DatabaseInfo, error)          { return nil, nil }
-func (t *testQEMetastore) User(name string) (*meta.UserInfo, error)         { return nil, nil }
-func (t *testQEMetastore) AdminUserExists() (bool, error)                   { return false, nil }
-func (t *testQEMetastore) Authenticate(username, password string) (*meta.UserInfo, error) {
+func (t *testQEMetaClient) Database(name string) (*meta.DatabaseInfo, error) { return nil, nil }
+func (t *testQEMetaClient) Databases() ([]meta.DatabaseInfo, error)          { return nil, nil }
+func (t *testQEMetaClient) User(name string) (*meta.UserInfo, error)         { return nil, nil }
+func (t *testQEMetaClient) AdminUserExists() bool                            { return false }
+func (t *testQEMetaClient) Authenticate(username, password string) (*meta.UserInfo, error) {
 	return nil, nil
 }
-func (t *testQEMetastore) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
+func (t *testQEMetaClient) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
 	return nil, nil
 }
-func (t *testQEMetastore) UserCount() int { return 0 }
+func (t *testQEMetaClient) UserCount() int { return 0 }
 
-func (t *testQEMetastore) NodeID() uint64 { return nID }
+func (t *testQEMetaClient) NodeID() uint64 { return nID }
+
+func (t *testQEMetaClient) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
+	return &influxql.Result{}
+}
 
 func testStore() *tsdb.Store {
 	path, _ := ioutil.TempDir("", "")
