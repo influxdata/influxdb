@@ -25,21 +25,21 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// Series is a top level protobuf message.
+// Series is a protobuf message type as set in internal/meta.proto
 type Series struct {
 	Key             *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
 	Tags            []*Tag  `protobuf:"bytes,2,rep,name=Tags" json:"Tags,omitempty"`
 	XXXUnrecognized []byte  `json:"-"`
 }
 
-// Reset method restores a protobuf struct to its zero state.
+// Reset *Series method restores the Series protobuf message to its zero state.
 func (m *Series) Reset()         { *m = Series{} }
 func (m *Series) String() string { return proto.CompactTextString(m) }
 
-// ProtoMessage is implemented by generated protocol buffer messages.
+// ProtoMessage *Series is implemented by generated Series protobuf messages.
 func (*Series) ProtoMessage() {}
 
-// GetKey returns the protobuf message key.
+// GetKey *Series returns the protobuf Series message key.
 func (m *Series) GetKey() string {
 	if m != nil && m.Key != nil {
 		return *m.Key
@@ -47,7 +47,7 @@ func (m *Series) GetKey() string {
 	return ""
 }
 
-// GetTags method returns the protobuf message tags
+// GetTags *Series method returns the protobuf Series message tags
 func (m *Series) GetTags() []*Tag {
 	if m != nil {
 		return m.Tags
@@ -55,16 +55,21 @@ func (m *Series) GetTags() []*Tag {
 	return nil
 }
 
+// Tag is a protobuf message type as set in internal/meta.proto.
 type Tag struct {
 	Key             *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
 	Value           *string `protobuf:"bytes,2,req,name=Value" json:"Value,omitempty"`
 	XXXUnrecognized []byte  `json:"-"`
 }
 
+// Reset *Tag method restores the Tag protobuf message to its zero state.
 func (m *Tag) Reset()         { *m = Tag{} }
 func (m *Tag) String() string { return proto.CompactTextString(m) }
-func (*Tag) ProtoMessage()    {}
 
+// ProtoMessage *Tag is implemented by generated Tag protobuf messages.
+func (*Tag) ProtoMessage() {}
+
+// GetKey *Tag returns the protobuf Tag message key.
 func (m *Tag) GetKey() string {
 	if m != nil && m.Key != nil {
 		return *m.Key
@@ -72,6 +77,7 @@ func (m *Tag) GetKey() string {
 	return ""
 }
 
+// GetValue *Tag returns the protobuf Tag Value.
 func (m *Tag) GetValue() string {
 	if m != nil && m.Value != nil {
 		return *m.Value
@@ -79,15 +85,20 @@ func (m *Tag) GetValue() string {
 	return ""
 }
 
+// MeasurementFields is a protobuf message type as set in internal/meta.proto.
 type MeasurementFields struct {
 	Fields          []*Field `protobuf:"bytes,1,rep,name=Fields" json:"Fields,omitempty"`
 	XXXUnrecognized []byte   `json:"-"`
 }
 
+// Reset *MeasurementFields restores the MeasurementFields protobuf message to its zero state.
 func (m *MeasurementFields) Reset()         { *m = MeasurementFields{} }
 func (m *MeasurementFields) String() string { return proto.CompactTextString(m) }
-func (*MeasurementFields) ProtoMessage()    {}
 
+// ProtoMessage *MeasurementFields is implemented by generated MeasurementFields protobuf messages.
+func (*MeasurementFields) ProtoMessage() {}
+
+// GetFields *MeasurementFields returns the protobuf MeasurementFields fields.
 func (m *MeasurementFields) GetFields() []*Field {
 	if m != nil {
 		return m.Fields
@@ -95,6 +106,7 @@ func (m *MeasurementFields) GetFields() []*Field {
 	return nil
 }
 
+// Field is a protobuf message type as set in internal/meta.proto
 type Field struct {
 	ID              *int32  `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
 	Name            *string `protobuf:"bytes,2,req,name=Name" json:"Name,omitempty"`
@@ -102,10 +114,14 @@ type Field struct {
 	XXXUnrecognized []byte  `json:"-"`
 }
 
+// Reset *Field restores the Field protobuf message to its zero state.
 func (m *Field) Reset()         { *m = Field{} }
 func (m *Field) String() string { return proto.CompactTextString(m) }
-func (*Field) ProtoMessage()    {}
 
+// ProtoMessage *Field is implemented by generated Field protobuf messages.
+func (*Field) ProtoMessage() {}
+
+// GetID *Field returns the protobuf Field message ID.
 func (m *Field) GetID() int32 {
 	if m != nil && m.ID != nil {
 		return *m.ID
@@ -113,6 +129,7 @@ func (m *Field) GetID() int32 {
 	return 0
 }
 
+// GetName *Field returns the protobuf Field message Name.
 func (m *Field) GetName() string {
 	if m != nil && m.Name != nil {
 		return *m.Name
@@ -120,6 +137,7 @@ func (m *Field) GetName() string {
 	return ""
 }
 
+// GetType *Field returns the protobuf Field message Type.
 func (m *Field) GetType() int32 {
 	if m != nil && m.Type != nil {
 		return *m.Type
