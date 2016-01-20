@@ -5,7 +5,7 @@
 - [#5201](https://github.com/influxdb/influxdb/pull/5201): Allow max UDP buffer size to be configurable. Thanks @sebito91
 - [#5194](https://github.com/influxdb/influxdb/pull/5194): Custom continuous query options per query rather than per node.
 - [#5224](https://github.com/influxdb/influxdb/pull/5224): Online backup/incremental backup. Restore (for TSM).
-- [#5226](https://github.com/influxdata/influxdb/pull/5226): b*1 to tsm1 shard conversion tool.
+- [#5226](https://github.com/influxdata/influxdb/pull/5226): b\*1 to tsm1 shard conversion tool.
 
 ### Bugfixes
 - [#5129](https://github.com/influxdata/influxdb/pull/5129): Ensure precision flag is respected by CLI. Thanks @e-dard
@@ -27,6 +27,7 @@
 - [#5350](https://github.com/influxdata/influxdb/issues/5350): 'influxd backup' should create backup directory
 - [#5262](https://github.com/influxdata/influxdb/issues/5262): Fix a panic when a tag value was empty.
 - [#5382](https://github.com/influxdata/influxdb/pull/5382): Fixes some escaping bugs with tag keys and values.
+- [#5349](https://github.com/influxdata/influxdb/issues/5349): Validate metadata blob for 'influxd backup'
 
 ## v0.9.6 [2015-12-09]
 
