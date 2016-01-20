@@ -164,7 +164,6 @@ func (cmd *Command) unpackMeta() error {
 	// if err := store.SetData(&data); err != nil {
 	// 	return fmt.Errorf("set data: %s", err)
 	// }
-	return fmt.Errorf("FIXME: not implemented")
 }
 
 // unpackShard will look for all backup files in the path matching this shard ID
