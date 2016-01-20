@@ -15,7 +15,6 @@ import (
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/snapshot"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -112,7 +111,7 @@ func (cmd *Command) parseFlags(args []string) error {
 
 // unpackMeta reads the metadata from the backup directory and initializes a raft
 // cluster and replaces the root metadata.
-func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
+func (cmd *Command) unpackMeta() error {
 	// find the meta file
 	metaFiles, err := filepath.Glob(filepath.Join(cmd.backupFilesPath, backup.Metafile+".*"))
 	if err != nil {
@@ -140,11 +139,11 @@ func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, confi
 	}
 
 	// Copy meta config and remove peers so it starts in single mode.
-	c := config.Meta
+	c := cmd.MetaConfig
 	c.JoinPeers = nil
 
 	// Initialize meta store.
-	store := meta.NewService(config.Meta)
+	store := meta.NewService(c)
 	store.RaftListener = newNopListener()
 
 	// Open the meta store.
