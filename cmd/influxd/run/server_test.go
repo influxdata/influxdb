@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdata/influxdb/cluster"
 )
 
 // Ensure that HTTP responses include the InfluxDB version.

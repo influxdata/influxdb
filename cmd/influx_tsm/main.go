@@ -14,9 +14,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/influxdb/influxdb/cmd/influx_tsm/b1"
-	"github.com/influxdb/influxdb/cmd/influx_tsm/bz1"
-	"github.com/influxdb/influxdb/cmd/influx_tsm/tsdb"
+	"github.com/influxdata/influxdb/cmd/influx_tsm/b1"
+	"github.com/influxdata/influxdb/cmd/influx_tsm/bz1"
+	"github.com/influxdata/influxdb/cmd/influx_tsm/tsdb"
 )
 
 type ShardReader interface {

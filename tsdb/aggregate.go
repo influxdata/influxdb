@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/slices"
 )
 
 // AggregateExecutor represents a mapper for execute aggregate SELECT statements.

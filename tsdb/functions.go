@@ -16,7 +16,7 @@ import (
 	"sort"
 
 	// "github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // MapInput represents a collection of values to be processed by the mapper.

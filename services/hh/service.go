@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/monitor"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/meta"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor"
 )
 
 // ErrHintedHandoffDisabled is returned when attempting to use a

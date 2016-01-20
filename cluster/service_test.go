@@ -5,12 +5,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/tcp"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/meta"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tcp"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 type metaStore struct {

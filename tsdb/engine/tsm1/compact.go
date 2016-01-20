@@ -20,7 +20,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const maxTSMFileSize = uint32(2048 * 1024 * 1024) // 2GB
