@@ -38,6 +38,7 @@ type Command struct {
 
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
+	Stdout io.Writer
 
 	host     string
 	path     string
@@ -48,6 +49,7 @@ type Command struct {
 func NewCommand() *Command {
 	return &Command{
 		Stderr: os.Stderr,
+		Stdout: os.Stdout,
 	}
 }
 
@@ -55,7 +57,6 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
 	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
-	cmd.Logger.Printf("influxdb backup")
 
 	// Parse command line arguments.
 	retentionPolicy, shardID, since, err := cmd.parseFlags(args)
@@ -79,6 +80,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if err != nil {
+		cmd.Logger.Printf("backup failed: %v", err)
 		return err
 	}
 
@@ -114,7 +116,7 @@ func (cmd *Command) parseFlags(args []string) (retentionPolicy, shardID string, 
 
 	// Ensure that only one arg is specified.
 	if fs.NArg() == 0 {
-		return "", "", time.Unix(0, 0), errors.New("backup path required")
+		return "", "", time.Unix(0, 0), errors.New("backup destination path required")
 	} else if fs.NArg() != 1 {
 		return "", "", time.Unix(0, 0), errors.New("only one backup path allowed")
 	}
@@ -138,7 +140,8 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 		return err
 	}
 
-	cmd.Logger.Printf("backing up to %s since %s", shardArchivePath, since)
+	cmd.Logger.Printf("backing up db=%v rp=%v shard=%v to %s since %s",
+		cmd.database, retentionPolicy, shardID, shardArchivePath, since)
 
 	req := &snapshotter.Request{
 		Type:            snapshotter.RequestShardBackup,
@@ -155,7 +158,7 @@ func (cmd *Command) backupShard(retentionPolicy string, shardID string, since ti
 // backupDatabase will request the database information from the server and then backup the metastore and
 // every shard in every retention policy in the database. Each shard will be written to a separate tar.
 func (cmd *Command) backupDatabase(since time.Time) error {
-	cmd.Logger.Printf("backing up database %s since %s", cmd.database, since)
+	cmd.Logger.Printf("backing up db=%s since %s", cmd.database, since)
 
 	req := &snapshotter.Request{
 		Type:     snapshotter.RequestDatabaseInfo,
@@ -173,7 +176,7 @@ func (cmd *Command) backupDatabase(since time.Time) error {
 // backupRetentionPolicy will request the retention policy information from the server and then backup
 // the metastore and every shard in the retention policy. Each shard will be written to a separate tar.
 func (cmd *Command) backupRetentionPolicy(retentionPolicy string, since time.Time) error {
-	cmd.Logger.Printf("backing up retention policy %s since %s", retentionPolicy, since)
+	cmd.Logger.Printf("backing up rp=%s since %s", retentionPolicy, since)
 
 	req := &snapshotter.Request{
 		Type:            snapshotter.RequestRetentionPolicyInfo,
@@ -278,19 +281,19 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 
 // download downloads a snapshot of either the metastore or a shard from a host to a given path.
 func (cmd *Command) download(req *snapshotter.Request, path string) error {
-	// Create local file to write to.
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("open temp file: %s", err)
-	}
-	defer f.Close()
-
 	// Connect to snapshotter service.
 	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
+	// Create local file to write to.
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("open temp file: %s", err)
+	}
+	defer f.Close()
 
 	// Write the request
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
@@ -330,23 +333,23 @@ func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Resp
 
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
-	fmt.Fprintf(cmd.Stderr, `usage: influxd backup [flags] PATH
+	fmt.Fprintf(cmd.Stdout, `usage: influxd backup [flags] PATH
 
-backup downloads a snapshot of a data node and saves it to disk.
+Backup downloads a snapshot of a data node and saves it to disk.
 
-        -host <host:port>
-                          The host to connect to snapshot.
-                          Defaults to 127.0.0.1:8088.
-        -database <name>
-                          The database to backup.
-        -retention <name>
-                          Optional. The retention policy to backup.
-        -shard <id>
-                          Optional. The shard id to backup.
-                          If specified, retention is required.
-        -since <2015-12-24T08:12:23>
-                          Optional. Do an incremental backup since the
-                          passed in RFC3339 formatted time.
+Options:
+  -host <host:port>
+        The host to connect to snapshot. Defaults to 127.0.0.1:8088.
+  -database <name>
+        The database to backup.
+  -retention <name>
+        Optional. The retention policy to backup.
+  -shard <id>
+        Optional. The shard id to backup. If specified, retention is required.
+  -since <2015-12-24T08:12:23>
+        Optional. Do an incremental backup since the passed in RFC3339
+        formatted time.
+
 `)
 }
 
