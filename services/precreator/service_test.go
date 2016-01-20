@@ -17,7 +17,7 @@ func Test_ShardPrecreation(t *testing.T) {
 	// A test metastaore which returns 2 shard groups, only 1 of which requires a successor.
 	var wg sync.WaitGroup
 	wg.Add(1)
-	ms := metaStore{
+	ms := metaClient{
 		PrecreateShardGroupsFn: func(v, u time.Time) error {
 			wg.Done()
 			if u != now.Add(advancePeriod) {
@@ -34,22 +34,22 @@ func Test_ShardPrecreation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create shard precreation service: %s", err.Error())
 	}
-	srv.MetaStore = ms
+	srv.MetaClient = ms
 
 	err = srv.precreate(now)
 	if err != nil {
 		t.Fatalf("failed to precreate shards: %s", err.Error())
 	}
 
-	wg.Wait() // Ensure metastore test function is called.
+	wg.Wait() // Ensure metaClient test function is called.
 	return
 }
 
 // PointsWriter represents a mock impl of PointsWriter.
-type metaStore struct {
+type metaClient struct {
 	PrecreateShardGroupsFn func(now, cutoff time.Time) error
 }
 
-func (m metaStore) PrecreateShardGroups(now, cutoff time.Time) error {
+func (m metaClient) PrecreateShardGroups(now, cutoff time.Time) error {
 	return m.PrecreateShardGroupsFn(now, cutoff)
 }
