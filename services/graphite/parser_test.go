@@ -61,6 +61,13 @@ func TestTemplateApply(t *testing.T) {
 			tags:        map[string]string{"hostname": "server01", "region": "us-west"},
 		},
 		{
+			test:        "metric with multiple tags",
+			input:       "server01.example.org.cpu.us-west",
+			template:    "hostname.hostname.hostname.measurement.region",
+			measurement: "cpu",
+			tags:        map[string]string{"hostname": "server01.example.org", "region": "us-west"},
+		},
+		{
 			test: "no metric",
 			tags: make(map[string]string),
 			err:  `no measurement specified for template. ""`,

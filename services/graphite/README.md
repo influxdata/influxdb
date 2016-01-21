@@ -31,14 +31,14 @@ The special value _measurement_ is used to define the measurement name.  It can 
 * Template: `.host.resource.measurement*`
 * Output:  _measurement_ =`loadavg.10` _tags_ =`host=localhost resource=cpu`
 
-### Multiple Measurement Matching
+### Multiple Measurement & Tags Matching
 
-The _measurement_ can be specified multiple times in a template to provide more control over the measurement name.  Multiple values
-will be joined together using the _Separator_ config variable.  By default, this value is `.`.
+The _measurement_ can be specified multiple times in a template to provide more control over the measurement name. Tags can also be
+matched multiple times. Multiple values will be joined together using the _Separator_ config variable.  By default, this value is `.`.
 
-`servers.localhost.cpu.cpu0.user`
-* Template: `.host.measurement.cpu.measurement`
-* Output: _measurement_ = `cpu.user` _tags_ = `host=localhost cpu=cpu0`
+`servers.localhost.localdomain.cpu.cpu0.user`
+* Template: `.host.host.measurement.cpu.measurement`
+* Output: _measurement_ = `cpu.user` _tags_ = `host=localhost.localdomain cpu=cpu0`
 
 Since '.' requires queries on measurements to be double-quoted, you may want to set this to `_` to simplify querying parsed metrics.
 
