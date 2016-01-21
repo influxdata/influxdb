@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/tcp"
 )
@@ -294,13 +294,6 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 		return err
 	}
 	defer conn.Close()
-
-	// Create local file to write to.
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("open temp file: %s", err)
-	}
-	defer f.Close()
 
 	// Write the request
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
