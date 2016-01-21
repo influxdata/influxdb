@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -48,6 +50,11 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
+	if err := cmd.ensureStopped(); err != nil {
+		fmt.Fprintln(cmd.Stderr, "influxd cannot be running during a restore.  Please stop any running instances and try again.")
+		return err
+	}
+
 	if cmd.metadir != "" {
 		if err := cmd.unpackMeta(); err != nil {
 			return err
@@ -58,9 +65,10 @@ func (cmd *Command) Run(args ...string) error {
 		return cmd.unpackShard(cmd.shard)
 	} else if cmd.retention != "" {
 		return cmd.unpackRetention()
+	} else if cmd.datadir != "" {
+		return cmd.unpackDatabase()
 	}
-
-	return cmd.unpackDatabase()
+	return nil
 }
 
 // parseFlags parses and validates the command line arguments.
@@ -71,7 +79,7 @@ func (cmd *Command) parseFlags(args []string) error {
 	fs.StringVar(&cmd.database, "database", "", "")
 	fs.StringVar(&cmd.retention, "retention", "", "")
 	fs.StringVar(&cmd.shard, "shard", "", "")
-	fs.SetOutput(cmd.Stderr)
+	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -88,41 +96,55 @@ func (cmd *Command) parseFlags(args []string) error {
 
 	// validate the arguments
 	if cmd.metadir == "" && cmd.database == "" {
-		return fmt.Errorf("either a metadir or database are required to restore")
+		return fmt.Errorf("-metadir or -database are required to restore")
 	}
 
-	if cmd.datadir == "" {
-		return fmt.Errorf("datadir is required to restore")
+	if cmd.database != "" && cmd.datadir == "" {
+		return fmt.Errorf("-datadir is required to restore")
 	}
 
 	if cmd.shard != "" {
 		if cmd.database == "" {
-			return fmt.Errorf("database is required to restore shard")
+			return fmt.Errorf("-database is required to restore shard")
 		}
 		if cmd.retention == "" {
-			return fmt.Errorf("retention is required to restore shard")
+			return fmt.Errorf("-retention is required to restore shard")
 		}
 	} else if cmd.retention != "" && cmd.database == "" {
-		return fmt.Errorf("database is required to restore retention policy")
+		return fmt.Errorf("-database is required to restore retention policy")
 	}
 
+	return nil
+}
+
+func (cmd *Command) ensureStopped() error {
+	ln, err := net.Listen("tcp", cmd.MetaConfig.BindAddress)
+	if err != nil {
+		return fmt.Errorf("influxd running on %s: aborting.", cmd.MetaConfig.BindAddress)
+	}
+	defer ln.Close()
 	return nil
 }
 
 // unpackMeta reads the metadata from the backup directory and initializes a raft
 // cluster and replaces the root metadata.
 func (cmd *Command) unpackMeta() error {
+	fmt.Fprintf(cmd.Stdout, "Restoring metastore to %v\n", cmd.metadir)
 	// find the meta file
 	metaFiles, err := filepath.Glob(filepath.Join(cmd.backupFilesPath, backup.Metafile+".*"))
 	if err != nil {
 		return err
 	}
+
 	if len(metaFiles) == 0 {
 		return fmt.Errorf("no metastore backups in %s", cmd.backupFilesPath)
 	}
 
+	latest := metaFiles[len(metaFiles)-1]
+
+	fmt.Fprintf(cmd.Stdout, "Using metastore snapshot: %v\n", latest)
 	// Read the metastore backup
-	f, err := os.Open(metaFiles[len(metaFiles)-1])
+	f, err := os.Open(latest)
 	if err != nil {
 		return err
 	}
@@ -143,6 +165,7 @@ func (cmd *Command) unpackMeta() error {
 	store.RaftListener = newNopListener()
 	store.ExecListener = newNopListener()
 	store.RPCListener = newNopListener()
+	store.Logger = log.New(ioutil.Discard, "", 0)
 
 	// Determine advertised address.
 	_, port, err := net.SplitHostPort(cmd.MetaConfig.BindAddress)
@@ -176,6 +199,8 @@ func (cmd *Command) unpackMeta() error {
 	if err := store.SetData(&data); err != nil {
 		return fmt.Errorf("set data: %s", err)
 	}
+
+	fmt.Fprintln(cmd.Stdout, "Metastore restore successful")
 
 	return nil
 }
@@ -276,7 +301,7 @@ func (cmd *Command) unpackTar(tarFile string) error {
 // unpackFile will copy the current file from the tar archive to the data dir
 func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
 	fn := filepath.Join(cmd.datadir, fileName)
-	fmt.Printf("unpacking %s", fn)
+	fmt.Printf("unpacking %s\n", fn)
 
 	if err := os.MkdirAll(filepath.Dir(fn), 0777); err != nil {
 		return fmt.Errorf("error making restore dir: %s", err.Error())
@@ -297,21 +322,28 @@ func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
 
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
-	fmt.Fprintf(cmd.Stderr, `usage: influxd restore [flags] PATH
+	fmt.Fprintf(cmd.Stdout, `usage: influxd restore [flags] PATH
 
-restore uses backups from the PATH to restore the metastore, databases, retention policies, or specific shards. The InfluxDB process must not be running during restore.
+Restore uses backups from the PATH to restore the metastore, databases,
+retention policies, or specific shards. The InfluxDB process must not be
+running during restore.
 
-        -metadir <path>
-                    	Optional. If set the metastore will be recovered to the given path.
-        -datadir <path>
-        				Optional. If set the restore process will recover the specified
-        				database, retention policy or shard to the given directory.
-       	-database <name>
-       					Optional. Required if no metadir given. Will restore the database TSM files.
-       	-retention <name>
-       					Optional. If given, database is required. Will restore the retention policy's TSM files.
-       	-shard <id>
-       					Optional. If given, database and retention are required. Will restore the shard's TSM files.
+Options:
+  -metadir <path>
+        Optional. If set the metastore will be recovered to the given path.
+  -datadir <path>
+        Optional. If set the restore process will recover the specified
+        database, retention policy or shard to the given directory.
+  -database <name>
+        Optional. Required if no metadir given. Will restore the database
+        TSM files.
+  -retention <name>
+        Optional. If given, database is required. Will restore the retention policy's
+        TSM files.
+  -shard <id>
+    Optional. If given, database and retention are required. Will restore the shard's
+    TSM files.
+
 `)
 }
 
