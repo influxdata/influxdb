@@ -4,6 +4,7 @@
 
 - [#5541](https://github.com/influxdata/influxdb/pull/5541): Support for adding custom TLS Config for HTTP client.
 - [#4299](https://github.com/influxdata/influxdb/pull/4299): Reject uint64 Client.Point.Field values. Thanks @arussellsaw
+- [#5550](https://github.com/influxdata/influxdb/pull/5550): Enabled golint for tsdb/engine/wal.
 
 ### Bugfixes
 

@@ -67,7 +67,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	// ensure that we can close and re-open the log with points getting to the index
 	log.Close()
 
-	points := make([]map[string][][]byte, 0)
+	var points []map[string][][]byte
 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 		points = append(points, pointsByKey)
 		return nil
@@ -169,7 +169,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 	f.Sync()
 	log.Close()
 
-	points := make([]map[string][][]byte, 0)
+	var points []map[string][][]byte
 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 		points = append(points, pointsByKey)
 		return nil
@@ -248,7 +248,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 
 	log.Close()
 
-	points := make([]map[string][][]byte, 0)
+	var points []map[string][][]byte
 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 		points = append(points, pointsByKey)
 		return nil
@@ -290,7 +290,7 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	defer log.Close()
 	defer os.RemoveAll(log.path)
 
-	points := make([]map[string][][]byte, 0)
+	var points []map[string][][]byte
 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 		points = append(points, pointsByKey)
 		return nil

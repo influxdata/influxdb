@@ -1,5 +1,5 @@
 /*
-Package WAL implements a write ahead log optimized for write throughput
+Package wal implements a write ahead log optimized for write throughput
 that can be put in front of the database index.
 
 The WAL is broken into different partitions. The default number of
@@ -120,6 +120,7 @@ var (
 	CompactSequence = []byte{0xFF, 0xFF}
 )
 
+// Log represnts an active Write-Ahead-logging object.
 type Log struct {
 	path string
 
@@ -182,6 +183,7 @@ type IndexWriter interface {
 	WriteIndex(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 }
 
+// NewLog creates a new Log object with certain default values.
 func NewLog(path string) *Log {
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
 	// should be done before any data could arrive for the service.
@@ -243,6 +245,7 @@ func (l *Log) Open() error {
 	return nil
 }
 
+// DiskSize will return the current size of a Log file.
 func (l *Log) DiskSize() (int64, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -261,6 +264,7 @@ func (l *Log) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascen
 	return l.partition.cursor(series, fields, dec, ascending)
 }
 
+// WritePoints will write data points to the WAL.
 func (l *Log) WritePoints(points []models.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
 	l.statMap.Add(statPointsWriteReq, 1)
 	l.statMap.Add(statPointsWrite, int64(len(points)))
@@ -284,7 +288,7 @@ func (l *Log) Flush() error {
 	return l.partition.flushAndCompact(idleFlush)
 }
 
-// LoadMetadatIndex loads the new series and fields files into memory and flushes them to the BoltDB index. This function
+// LoadMetadataIndex loads the new series and fields files into memory and flushes them to the BoltDB index. This function
 // should be called before making a call to Open()
 func (l *Log) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
 	metaFiles, err := l.metadataFiles()
@@ -293,7 +297,7 @@ func (l *Log) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map
 	}
 
 	measurementFieldsToSave := make(map[string]*tsdb.MeasurementFields)
-	seriesToCreate := make([]*tsdb.SeriesCreate, 0)
+	var seriesToCreate []*tsdb.SeriesCreate
 
 	// read all the metafiles off disk
 	for _, fn := range metaFiles {
@@ -308,7 +312,7 @@ func (l *Log) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map
 				measurementFieldsToSave[k] = mf
 
 				m := index.CreateMeasurementIndexIfNotExists(string(k))
-				for name, _ := range mf.Fields {
+				for name := range mf.Fields {
 					m.SetFieldName(name)
 				}
 				mf.Codec = tsdb.NewFieldCodec(mf.Fields)
@@ -364,7 +368,7 @@ func (l *Log) readMetadataFile(fileName string) ([]*seriesAndFields, error) {
 		return nil, err
 	}
 
-	a := make([]*seriesAndFields, 0)
+	var a []*seriesAndFields
 
 	length := make([]byte, 8)
 	for {
@@ -658,7 +662,7 @@ func (l *Log) flushMetadata() error {
 	}
 
 	measurements := make(map[string]*tsdb.MeasurementFields)
-	series := make([]*tsdb.SeriesCreate, 0)
+	var series []*tsdb.SeriesCreate
 
 	// read all the measurement fields and series from the metafiles
 	for _, fn := range files {
@@ -753,6 +757,7 @@ type Partition struct {
 
 const partitionBufLen = 16 << 10 // 16kb
 
+// NewPartition creates a new Partition on which to store the WAL.
 func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64, readySeriesSize int,
 	flushColdInterval time.Duration, index IndexWriter, statMap *expvar.Map) (*Partition, error) {
 
@@ -880,7 +885,7 @@ func (p *Partition) Write(points []models.Point) error {
 
 // newSegmentFile will close the current segment file and open a new one, updating bookkeeping info on the partition
 func (p *Partition) newSegmentFile() error {
-	p.currentSegmentID += 1
+	p.currentSegmentID++
 	if p.currentSegmentFile != nil {
 		if err := p.currentSegmentFile.Close(); err != nil {
 			return err
@@ -977,7 +982,7 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 			}
 		}
 		p.currentSegmentFile = nil
-		p.currentSegmentID += 1
+		p.currentSegmentID++
 		p.currentSegmentSize = 0
 	} else {
 		// roll over a new segment file so we can compact all the old ones
@@ -1555,7 +1560,7 @@ func unmarshalWALEntry(v []byte) (bytesRead int, key []byte, timestamp int64, da
 	return
 }
 
-// marshalCacheEntry encodes the timestamp and data to a single byte slice.
+// MarshalEntry encodes the timestamp and data to a single byte slice.
 //
 // The format of the byte slice is:
 //
@@ -1569,7 +1574,7 @@ func MarshalEntry(timestamp int64, data []byte) []byte {
 	return buf
 }
 
-// unmarshalCacheEntry returns the timestamp and data from an encoded byte slice.
+// UnmarshalEntry returns the timestamp and data from an encoded byte slice.
 func UnmarshalEntry(buf []byte) (timestamp int64, data []byte) {
 	timestamp = int64(binary.BigEndian.Uint64(buf[0:8]))
 	data = buf[8:]
