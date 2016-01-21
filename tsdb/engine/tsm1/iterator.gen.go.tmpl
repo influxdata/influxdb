@@ -142,7 +142,7 @@ func (itr *{{.name}}Iterator) Next() *influxql.{{.Name}}Point {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); seek == tsdb.EOF || k < seek {
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
 					seek = k
 				}
 			}

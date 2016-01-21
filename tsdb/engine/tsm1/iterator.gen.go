@@ -143,7 +143,7 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); seek == tsdb.EOF || k < seek {
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
 					seek = k
 				}
 			}
@@ -471,7 +471,7 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); seek == tsdb.EOF || k < seek {
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
 					seek = k
 				}
 			}
@@ -799,7 +799,7 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); seek == tsdb.EOF || k < seek {
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
 					seek = k
 				}
 			}
