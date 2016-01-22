@@ -128,9 +128,7 @@ func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMe
 // Close closes the underlying iterators.
 func (itr *floatMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		if err := input.Close(); err != nil {
-			return err
-		}
+		input.Close()
 	}
 	return nil
 }
@@ -187,24 +185,9 @@ func (h floatMergeHeap) Less(i, j int) bool {
 	yt, _ := h.opt.Window(y.Time)
 
 	if h.opt.Ascending {
-		if xt != yt {
-			return xt < yt
-		} else if x.Name != y.Name {
-			return x.Name < y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() < y.Tags.ID()
-		}
-		return x.Time < y.Time
+		return xt < yt
 	}
-
-	if xt != yt {
-		return xt > yt
-	} else if x.Name != y.Name {
-		return x.Name > y.Name
-	} else if x.Tags.ID() != y.Tags.ID() {
-		return x.Tags.ID() > y.Tags.ID()
-	}
-	return x.Time > y.Time
+	return xt > yt
 }
 
 func (h *floatMergeHeap) Push(x interface{}) {
@@ -856,9 +839,7 @@ func newIntegerMergeIterator(inputs []IntegerIterator, opt IteratorOptions) *int
 // Close closes the underlying iterators.
 func (itr *integerMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		if err := input.Close(); err != nil {
-			return err
-		}
+		input.Close()
 	}
 	return nil
 }
@@ -915,24 +896,9 @@ func (h integerMergeHeap) Less(i, j int) bool {
 	yt, _ := h.opt.Window(y.Time)
 
 	if h.opt.Ascending {
-		if xt != yt {
-			return xt < yt
-		} else if x.Name != y.Name {
-			return x.Name < y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() < y.Tags.ID()
-		}
-		return x.Time < y.Time
+		return xt < yt
 	}
-
-	if xt != yt {
-		return xt > yt
-	} else if x.Name != y.Name {
-		return x.Name > y.Name
-	} else if x.Tags.ID() != y.Tags.ID() {
-		return x.Tags.ID() > y.Tags.ID()
-	}
-	return x.Time > y.Time
+	return xt > yt
 }
 
 func (h *integerMergeHeap) Push(x interface{}) {
@@ -1584,9 +1550,7 @@ func newStringMergeIterator(inputs []StringIterator, opt IteratorOptions) *strin
 // Close closes the underlying iterators.
 func (itr *stringMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		if err := input.Close(); err != nil {
-			return err
-		}
+		input.Close()
 	}
 	return nil
 }
@@ -1643,24 +1607,9 @@ func (h stringMergeHeap) Less(i, j int) bool {
 	yt, _ := h.opt.Window(y.Time)
 
 	if h.opt.Ascending {
-		if xt != yt {
-			return xt < yt
-		} else if x.Name != y.Name {
-			return x.Name < y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() < y.Tags.ID()
-		}
-		return x.Time < y.Time
+		return xt < yt
 	}
-
-	if xt != yt {
-		return xt > yt
-	} else if x.Name != y.Name {
-		return x.Name > y.Name
-	} else if x.Tags.ID() != y.Tags.ID() {
-		return x.Tags.ID() > y.Tags.ID()
-	}
-	return x.Time > y.Time
+	return xt > yt
 }
 
 func (h *stringMergeHeap) Push(x interface{}) {
@@ -2312,9 +2261,7 @@ func newBooleanMergeIterator(inputs []BooleanIterator, opt IteratorOptions) *boo
 // Close closes the underlying iterators.
 func (itr *booleanMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		if err := input.Close(); err != nil {
-			return err
-		}
+		input.Close()
 	}
 	return nil
 }
@@ -2371,24 +2318,9 @@ func (h booleanMergeHeap) Less(i, j int) bool {
 	yt, _ := h.opt.Window(y.Time)
 
 	if h.opt.Ascending {
-		if xt != yt {
-			return xt < yt
-		} else if x.Name != y.Name {
-			return x.Name < y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() < y.Tags.ID()
-		}
-		return x.Time < y.Time
+		return xt < yt
 	}
-
-	if xt != yt {
-		return xt > yt
-	} else if x.Name != y.Name {
-		return x.Name > y.Name
-	} else if x.Tags.ID() != y.Tags.ID() {
-		return x.Tags.ID() > y.Tags.ID()
-	}
-	return x.Time > y.Time
+	return xt > yt
 }
 
 func (h *booleanMergeHeap) Push(x interface{}) {

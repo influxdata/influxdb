@@ -151,7 +151,7 @@ func (itr *{{.name}}MergeIterator) Next() *{{.Name}}Point {
 
 		// Read the next point from the current iterator.
 		p := itr.curr.itr.Next()
-		
+
 		// If there are no more points then remove iterator from heap and find next.
 		if p == nil {
 			itr.curr = nil
@@ -185,24 +185,9 @@ func (h {{.name}}MergeHeap) Less(i, j int) bool {
 	yt, _ := h.opt.Window(y.Time)
 
 	if h.opt.Ascending {
-		if xt != yt {
-			return xt < yt
-		} else if x.Name != y.Name {
-			return x.Name < y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() < y.Tags.ID()
-		}
-		return x.Time < y.Time
+		return xt < yt
 	}
-
-	if xt != yt {
-		return xt > yt
-	} else if x.Name != y.Name {
-		return x.Name > y.Name
-	} else if x.Tags.ID() != y.Tags.ID() {
-		return x.Tags.ID() > y.Tags.ID()
-	} 
-	return x.Time > y.Time
+	return xt > yt
 }
 
 
