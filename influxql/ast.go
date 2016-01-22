@@ -2019,6 +2019,23 @@ func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivilege
 	return ep
 }
 
+func (s *CreateContinuousQueryStatement) validate() error {
+	interval, err := s.Source.GroupByInterval()
+	if err != nil {
+		return err
+	}
+
+	if s.ResampleFor != 0 {
+		if s.ResampleEvery != 0 && s.ResampleEvery > interval {
+			interval = s.ResampleEvery
+		}
+		if interval > s.ResampleFor {
+			return fmt.Errorf("FOR duration must be >= GROUP BY time duration: must be a minimum of %s, got %s", FormatDuration(interval), FormatDuration(s.ResampleFor))
+		}
+	}
+	return nil
+}
+
 // DropContinuousQueryStatement represents a command for removing a continuous query.
 type DropContinuousQueryStatement struct {
 	Name     string

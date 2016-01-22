@@ -1443,6 +1443,10 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 		return nil, newParseError(tokstr(tok, lit), []string{"END"}, pos)
 	}
 
+	if err := stmt.validate(); err != nil {
+		return nil, err
+	}
+
 	return stmt, nil
 }
 

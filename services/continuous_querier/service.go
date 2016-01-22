@@ -283,8 +283,16 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	resampleFor := interval
 	if cq.Resample.For != 0 {
 		resampleFor = cq.Resample.For
+	} else if interval < resampleEvery {
+		resampleFor = resampleEvery
 	}
 	oldestTime := nextRun.Add(-resampleFor)
+
+	// If the resample interval is greater than the interval of the query, use the
+	// query interval instead.
+	if interval < resampleEvery {
+		resampleEvery = interval
+	}
 
 	// Calculate and set the time range for the query. Go from most recent to least.
 	startTime := now.Add(-resampleEvery).Truncate(interval)
