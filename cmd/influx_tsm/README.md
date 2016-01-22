@@ -49,3 +49,22 @@ Note that the tool first lists the shards that will be converted, before asking 
 
 ## Rolling back a conversion
 If you wish to rollback a conversion check the databases in your _data_ directory. For every backed-up database remove the non-backed up version and then rename the backup so that it no longer has the extention `.bak`. Then restart your InfluxDB system.
+
+
+## How to avoid downtime when up upgrading shards
+
+### Identify non tsm1 shards
+Non tsm shards will be files of the form `data/<database>/<retention_policy>/<shard_id>`.
+
+Tsm shards will be files of the form `data/<database>/<retention_policy>/<shard_id>/<file>.tsm`.
+
+### Determine which bz/bz1 shards are cold
+Check `show shards` to see the start and end date for shards.
+
+If the date range for the shards does not span the current time and those shards are not actively being queried, then a shard is said to be "cold". Otherwise, a shard is said to be "hot".
+
+### Convert cold shards
+1. Copy each of the "cold" shards you'd like to convert to a new directory of the form `data/<database>/<retention_policy>/<shard_id>`.
+2. Run the `influx_tsm` tool on the directory `influx_tsm -parallel data/`
+3. Remove the old cold shards from the original directory.
+4. Move the new cold shards to the original directory.
