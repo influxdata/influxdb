@@ -171,6 +171,67 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	}
 }
 
+func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
+	s := NewTestService(t)
+	ms := NewMetaStore(t)
+	ms.CreateDatabase("db", "")
+	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 1m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(30s) END`)
+	s.MetaStore = ms
+
+	// Set RunInterval high so we can trigger using Run method.
+	s.RunInterval = 10 * time.Minute
+
+	done := make(chan struct{})
+	expectCallCnt := 0
+	callCnt := 0
+
+	// Set a callback for ExecuteQuery.
+	qe := s.QueryExecutor.(*QueryExecutor)
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
+		callCnt++
+		if callCnt >= expectCallCnt {
+			done <- struct{}{}
+		}
+		dummych := make(chan *influxql.Result, 1)
+		dummych <- &influxql.Result{}
+		return dummych, nil
+	}
+
+	s.Open()
+	defer s.Close()
+
+	// Set the 'now' time to the start of a 10 minute interval. Then trigger a run.
+	// This should trigger two queries (one for the current time interval, one for the previous)
+	// since the default FOR interval should be EVERY, not the GROUP BY interval.
+	now := time.Now().Truncate(10 * time.Minute)
+	expectCallCnt += 2
+	s.RunCh <- &RunRequest{Now: now}
+
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	// Trigger 30 seconds later. Nothing should run.
+	s.RunCh <- &RunRequest{Now: now.Add(30 * time.Second)}
+
+	if err := wait(done, 100*time.Millisecond); err == nil {
+		t.Fatal("too many queries")
+	}
+
+	// Run again 1 minute later. Another two queries should run.
+	expectCallCnt += 2
+	s.RunCh <- &RunRequest{Now: now.Add(time.Minute)}
+
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+
+	// No overflow should be sent.
+	if err := wait(done, 100*time.Millisecond); err == nil {
+		t.Error("too many queries executed")
+	}
+}
+
 // Test service when not the cluster leader (CQs shouldn't run).
 func TestContinuousQueryService_NotLeader(t *testing.T) {
 	s := NewTestService(t)
