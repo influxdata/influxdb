@@ -16,17 +16,6 @@ type {{.Name}}Iterator interface {
 	Next() *{{.Name}}Point
 }
 
-// {{.Name}}Iterators represents a list of {{.name}} iterators.
-type {{.Name}}Iterators []{{.Name}}Iterator
-
-// Close closes all iterators.
-func (a {{.Name}}Iterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
-	}
-	return nil
-}
-
 // new{{.Name}}Iterators converts a slice of Iterator to a slice of {{.Name}}Iterator.
 // Panic if any iterator in itrs is not a {{.Name}}Iterator.
 func new{{.Name}}Iterators(itrs []Iterator) []{{.Name}}Iterator {
@@ -137,9 +126,9 @@ func new{{.Name}}MergeIterator(inputs []{{.Name}}Iterator, opt IteratorOptions) 
 }
 
 // Close closes the underlying iterators.
-func (itr *{{.name}}MergeIterator) Close() error { 
+func (itr *{{.name}}MergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		return input.Close()
+		input.Close()
 	}
 	return nil
 }

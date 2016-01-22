@@ -18,24 +18,28 @@ import (
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
 func TestMergeIterator_Float(t *testing.T) {
 	test := TestFloatIterator{
-		Iterator: influxql.NewMergeIterator([]influxql.Iterator{
-			&FloatIterator{Points: []influxql.FloatPoint{
+		Inputs: []*FloatIterator{
+			{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
 			}},
-			&FloatIterator{Points: []influxql.FloatPoint{
+			{Points: []influxql.FloatPoint{
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
 			}},
-		}, influxql.IteratorOptions{
-			Interval: influxql.Interval{
-				Duration: 10 * time.Nanosecond,
-			},
-			Ascending: true,
-		}),
+			{Points: []influxql.FloatPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
 		Points: []influxql.FloatPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
@@ -52,24 +56,28 @@ func TestMergeIterator_Float(t *testing.T) {
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
 func TestMergeIterator_Integer(t *testing.T) {
 	test := TestIntegerIterator{
-		Iterator: influxql.NewMergeIterator([]influxql.Iterator{
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+		Inputs: []*IntegerIterator{
+			{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
 			}},
-			&IntegerIterator{Points: []influxql.IntegerPoint{
+			{Points: []influxql.IntegerPoint{
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
 			}},
-		}, influxql.IteratorOptions{
-			Interval: influxql.Interval{
-				Duration: 10 * time.Nanosecond,
-			},
-			Ascending: true,
-		}),
+			{Points: []influxql.IntegerPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
 		Points: []influxql.IntegerPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
@@ -86,24 +94,28 @@ func TestMergeIterator_Integer(t *testing.T) {
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
 func TestMergeIterator_String(t *testing.T) {
 	test := TestStringIterator{
-		Iterator: influxql.NewMergeIterator([]influxql.Iterator{
-			&StringIterator{Points: []influxql.StringPoint{
+		Inputs: []*StringIterator{
+			{Points: []influxql.StringPoint{
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: "b"},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: "c"},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: "d"},
 			}},
-			&StringIterator{Points: []influxql.StringPoint{
+			{Points: []influxql.StringPoint{
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: "e"},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: "f"},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: "g"},
 			}},
-		}, influxql.IteratorOptions{
-			Interval: influxql.Interval{
-				Duration: 10 * time.Nanosecond,
-			},
-			Ascending: true,
-		}),
+			{Points: []influxql.StringPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
 		Points: []influxql.StringPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: "b"},
@@ -120,24 +132,28 @@ func TestMergeIterator_String(t *testing.T) {
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
 func TestMergeIterator_Boolean(t *testing.T) {
 	test := TestBooleanIterator{
-		Iterator: influxql.NewMergeIterator([]influxql.Iterator{
-			&BooleanIterator{Points: []influxql.BooleanPoint{
+		Inputs: []*BooleanIterator{
+			{Points: []influxql.BooleanPoint{
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: true},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: false},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: true},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: false},
 			}},
-			&BooleanIterator{Points: []influxql.BooleanPoint{
+			{Points: []influxql.BooleanPoint{
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: true},
 				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: false},
 				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: true},
 			}},
-		}, influxql.IteratorOptions{
-			Interval: influxql.Interval{
-				Duration: 10 * time.Nanosecond,
-			},
-			Ascending: true,
-		}),
+			{Points: []influxql.BooleanPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
 		Points: []influxql.BooleanPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: true},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: false},
@@ -156,6 +172,159 @@ func TestMergeIterator_Nil(t *testing.T) {
 	if p := itr.Next(); p != nil {
 		t.Fatalf("unexpected point: %#v", p)
 	}
+}
+
+// Ensure that a set of iterators can be merged together, sorted by name/tag.
+func TestSortedMergeIterator_Float(t *testing.T) {
+	test := TestFloatIterator{
+		Inputs: []*FloatIterator{
+			{Points: []influxql.FloatPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			}},
+			{Points: []influxql.FloatPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			}},
+			{Points: []influxql.FloatPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewSortedMergeIterator(itrs,
+				influxql.IteratorOptions{
+					Interval: influxql.Interval{
+						Duration: 10 * time.Nanosecond,
+					},
+					Ascending: true,
+				})
+		},
+		Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+		},
+	}
+	test.run(t)
+}
+
+// Ensure that a set of iterators can be merged together, sorted by name/tag.
+func TestSortedMergeIterator_Integer(t *testing.T) {
+	test := TestIntegerIterator{
+		Inputs: []*IntegerIterator{
+			{Points: []influxql.IntegerPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			}},
+			{Points: []influxql.IntegerPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+			}},
+			{Points: []influxql.IntegerPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewSortedMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
+		Points: []influxql.IntegerPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+		},
+	}
+	test.run(t)
+}
+
+// Ensure that a set of iterators can be merged together, sorted by name/tag.
+func TestSortedMergeIterator_String(t *testing.T) {
+	test := TestStringIterator{
+		Inputs: []*StringIterator{
+			{Points: []influxql.StringPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: "c"},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: "d"},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: "b"},
+			}},
+			{Points: []influxql.StringPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: "g"},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: "e"},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: "f"},
+			}},
+			{Points: []influxql.StringPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewSortedMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
+		Points: []influxql.StringPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: "c"},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: "g"},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: "d"},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: "b"},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: "e"},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: "f"},
+		},
+	}
+	test.run(t)
+}
+
+// Ensure that a set of iterators can be merged together, sorted by name/tag.
+func TestSortedMergeIterator_Boolean(t *testing.T) {
+	test := TestBooleanIterator{
+		Inputs: []*BooleanIterator{
+			{Points: []influxql.BooleanPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: true},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: true},
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: false},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: false},
+			}},
+			{Points: []influxql.BooleanPoint{
+				{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: true},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: true},
+				{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: false},
+			}},
+			{Points: []influxql.BooleanPoint{}},
+		},
+		IteratorFn: func(itrs []influxql.Iterator) influxql.Iterator {
+			return influxql.NewSortedMergeIterator(itrs, influxql.IteratorOptions{
+				Interval: influxql.Interval{
+					Duration: 10 * time.Nanosecond,
+				},
+				Ascending: true,
+			})
+		},
+		Points: []influxql.BooleanPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: true},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: true},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: true},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: false},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: false},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: true},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: false},
+		},
+	}
+	test.run(t)
 }
 
 func TestSortedMergeIterator(t *testing.T) {

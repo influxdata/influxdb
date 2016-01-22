@@ -17,17 +17,6 @@ type FloatIterator interface {
 	Next() *FloatPoint
 }
 
-// FloatIterators represents a list of float iterators.
-type FloatIterators []FloatIterator
-
-// Close closes all iterators.
-func (a FloatIterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
-	}
-	return nil
-}
-
 // newFloatIterators converts a slice of Iterator to a slice of FloatIterator.
 // Panic if any iterator in itrs is not a FloatIterator.
 func newFloatIterators(itrs []Iterator) []FloatIterator {
@@ -139,7 +128,9 @@ func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMe
 // Close closes the underlying iterators.
 func (itr *floatMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		return input.Close()
+		if err := input.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -754,17 +745,6 @@ type IntegerIterator interface {
 	Next() *IntegerPoint
 }
 
-// IntegerIterators represents a list of integer iterators.
-type IntegerIterators []IntegerIterator
-
-// Close closes all iterators.
-func (a IntegerIterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
-	}
-	return nil
-}
-
 // newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
 // Panic if any iterator in itrs is not a IntegerIterator.
 func newIntegerIterators(itrs []Iterator) []IntegerIterator {
@@ -876,7 +856,9 @@ func newIntegerMergeIterator(inputs []IntegerIterator, opt IteratorOptions) *int
 // Close closes the underlying iterators.
 func (itr *integerMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		return input.Close()
+		if err := input.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1491,17 +1473,6 @@ type StringIterator interface {
 	Next() *StringPoint
 }
 
-// StringIterators represents a list of string iterators.
-type StringIterators []StringIterator
-
-// Close closes all iterators.
-func (a StringIterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
-	}
-	return nil
-}
-
 // newStringIterators converts a slice of Iterator to a slice of StringIterator.
 // Panic if any iterator in itrs is not a StringIterator.
 func newStringIterators(itrs []Iterator) []StringIterator {
@@ -1613,7 +1584,9 @@ func newStringMergeIterator(inputs []StringIterator, opt IteratorOptions) *strin
 // Close closes the underlying iterators.
 func (itr *stringMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		return input.Close()
+		if err := input.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -2228,17 +2201,6 @@ type BooleanIterator interface {
 	Next() *BooleanPoint
 }
 
-// BooleanIterators represents a list of boolean iterators.
-type BooleanIterators []BooleanIterator
-
-// Close closes all iterators.
-func (a BooleanIterators) Close() error {
-	for _, itr := range a {
-		itr.Close()
-	}
-	return nil
-}
-
 // newBooleanIterators converts a slice of Iterator to a slice of BooleanIterator.
 // Panic if any iterator in itrs is not a BooleanIterator.
 func newBooleanIterators(itrs []Iterator) []BooleanIterator {
@@ -2350,7 +2312,9 @@ func newBooleanMergeIterator(inputs []BooleanIterator, opt IteratorOptions) *boo
 // Close closes the underlying iterators.
 func (itr *booleanMergeIterator) Close() error {
 	for _, input := range itr.inputs {
-		return input.Close()
+		if err := input.Close(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

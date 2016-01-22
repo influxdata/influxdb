@@ -14,14 +14,15 @@ import (
 // Test implementation of influxql.FloatIterator
 type FloatIterator struct {
 	Points []influxql.FloatPoint
+	Closed bool
 }
 
 // Close is a no-op.
-func (itr *FloatIterator) Close() error { return nil }
+func (itr *FloatIterator) Close() error { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *FloatIterator) Next() *influxql.FloatPoint {
-	if len(itr.Points) == 0 {
+	if len(itr.Points) == 0 || itr.Closed {
 		return nil
 	}
 
@@ -31,34 +32,46 @@ func (itr *FloatIterator) Next() *influxql.FloatPoint {
 }
 
 type TestFloatIterator struct {
-	Iterator influxql.Iterator
-	Points   []influxql.FloatPoint
+	Inputs     []*FloatIterator
+	IteratorFn func(itrs []influxql.Iterator) influxql.Iterator
+	Points     []influxql.FloatPoint
 }
 
 func (ti *TestFloatIterator) run(t *testing.T) {
-	itr := ti.Iterator.(influxql.FloatIterator)
+	itrs := make([]influxql.Iterator, 0, len(ti.Inputs))
+	for _, itr := range ti.Inputs {
+		itrs = append(itrs, influxql.Iterator(itr))
+	}
 
+	itr := ti.IteratorFn(itrs).(influxql.FloatIterator)
 	points := make([]influxql.FloatPoint, 0, len(ti.Points))
 	for p := itr.Next(); p != nil; p = itr.Next() {
 		points = append(points, *p)
 	}
+	itr.Close()
 
 	if !deep.Equal(ti.Points, points) {
-		t.Fatalf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+		t.Errorf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+	}
+	for i, itr := range ti.Inputs {
+		if !itr.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
 	}
 }
 
 // Test implementation of influxql.IntegerIterator
 type IntegerIterator struct {
 	Points []influxql.IntegerPoint
+	Closed bool
 }
 
 // Close is a no-op.
-func (itr *IntegerIterator) Close() error { return nil }
+func (itr *IntegerIterator) Close() error { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *IntegerIterator) Next() *influxql.IntegerPoint {
-	if len(itr.Points) == 0 {
+	if len(itr.Points) == 0 || itr.Closed {
 		return nil
 	}
 
@@ -68,34 +81,46 @@ func (itr *IntegerIterator) Next() *influxql.IntegerPoint {
 }
 
 type TestIntegerIterator struct {
-	Iterator influxql.Iterator
-	Points   []influxql.IntegerPoint
+	Inputs     []*IntegerIterator
+	IteratorFn func(itrs []influxql.Iterator) influxql.Iterator
+	Points     []influxql.IntegerPoint
 }
 
 func (ti *TestIntegerIterator) run(t *testing.T) {
-	itr := ti.Iterator.(influxql.IntegerIterator)
+	itrs := make([]influxql.Iterator, 0, len(ti.Inputs))
+	for _, itr := range ti.Inputs {
+		itrs = append(itrs, influxql.Iterator(itr))
+	}
 
+	itr := ti.IteratorFn(itrs).(influxql.IntegerIterator)
 	points := make([]influxql.IntegerPoint, 0, len(ti.Points))
 	for p := itr.Next(); p != nil; p = itr.Next() {
 		points = append(points, *p)
 	}
+	itr.Close()
 
 	if !deep.Equal(ti.Points, points) {
-		t.Fatalf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+		t.Errorf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+	}
+	for i, itr := range ti.Inputs {
+		if !itr.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
 	}
 }
 
 // Test implementation of influxql.StringIterator
 type StringIterator struct {
 	Points []influxql.StringPoint
+	Closed bool
 }
 
 // Close is a no-op.
-func (itr *StringIterator) Close() error { return nil }
+func (itr *StringIterator) Close() error { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *StringIterator) Next() *influxql.StringPoint {
-	if len(itr.Points) == 0 {
+	if len(itr.Points) == 0 || itr.Closed {
 		return nil
 	}
 
@@ -105,34 +130,46 @@ func (itr *StringIterator) Next() *influxql.StringPoint {
 }
 
 type TestStringIterator struct {
-	Iterator influxql.Iterator
-	Points   []influxql.StringPoint
+	Inputs     []*StringIterator
+	IteratorFn func(itrs []influxql.Iterator) influxql.Iterator
+	Points     []influxql.StringPoint
 }
 
 func (ti *TestStringIterator) run(t *testing.T) {
-	itr := ti.Iterator.(influxql.StringIterator)
+	itrs := make([]influxql.Iterator, 0, len(ti.Inputs))
+	for _, itr := range ti.Inputs {
+		itrs = append(itrs, influxql.Iterator(itr))
+	}
 
+	itr := ti.IteratorFn(itrs).(influxql.StringIterator)
 	points := make([]influxql.StringPoint, 0, len(ti.Points))
 	for p := itr.Next(); p != nil; p = itr.Next() {
 		points = append(points, *p)
 	}
+	itr.Close()
 
 	if !deep.Equal(ti.Points, points) {
-		t.Fatalf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+		t.Errorf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+	}
+	for i, itr := range ti.Inputs {
+		if !itr.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
 	}
 }
 
 // Test implementation of influxql.BooleanIterator
 type BooleanIterator struct {
 	Points []influxql.BooleanPoint
+	Closed bool
 }
 
 // Close is a no-op.
-func (itr *BooleanIterator) Close() error { return nil }
+func (itr *BooleanIterator) Close() error { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *BooleanIterator) Next() *influxql.BooleanPoint {
-	if len(itr.Points) == 0 {
+	if len(itr.Points) == 0 || itr.Closed {
 		return nil
 	}
 
@@ -142,19 +179,30 @@ func (itr *BooleanIterator) Next() *influxql.BooleanPoint {
 }
 
 type TestBooleanIterator struct {
-	Iterator influxql.Iterator
-	Points   []influxql.BooleanPoint
+	Inputs     []*BooleanIterator
+	IteratorFn func(itrs []influxql.Iterator) influxql.Iterator
+	Points     []influxql.BooleanPoint
 }
 
 func (ti *TestBooleanIterator) run(t *testing.T) {
-	itr := ti.Iterator.(influxql.BooleanIterator)
+	itrs := make([]influxql.Iterator, 0, len(ti.Inputs))
+	for _, itr := range ti.Inputs {
+		itrs = append(itrs, influxql.Iterator(itr))
+	}
 
+	itr := ti.IteratorFn(itrs).(influxql.BooleanIterator)
 	points := make([]influxql.BooleanPoint, 0, len(ti.Points))
 	for p := itr.Next(); p != nil; p = itr.Next() {
 		points = append(points, *p)
 	}
+	itr.Close()
 
 	if !deep.Equal(ti.Points, points) {
-		t.Fatalf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+		t.Errorf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+	}
+	for i, itr := range ti.Inputs {
+		if !itr.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
 	}
 }

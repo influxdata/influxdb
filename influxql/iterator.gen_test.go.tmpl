@@ -13,14 +13,15 @@ import (
 // Test implementation of influxql.{{.Name}}Iterator
 type {{.Name}}Iterator struct {
 	Points []influxql.{{.Name}}Point
+	Closed bool
 }
 
 // Close is a no-op.
-func (itr *{{.Name}}Iterator) Close() error { return nil }
+func (itr *{{.Name}}Iterator) Close() error { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *{{.Name}}Iterator) Next() *influxql.{{.Name}}Point {
-	if len(itr.Points) == 0 {
+	if len(itr.Points) == 0 || itr.Closed {
 		return nil
 	}
 
@@ -30,20 +31,31 @@ func (itr *{{.Name}}Iterator) Next() *influxql.{{.Name}}Point {
 }
 
 type Test{{.Name}}Iterator struct {
-	Iterator influxql.Iterator
-	Points   []influxql.{{.Name}}Point
+	Inputs     []*{{.Name}}Iterator
+	IteratorFn func(itrs []influxql.Iterator) influxql.Iterator
+	Points     []influxql.{{.Name}}Point
 }
 
 func (ti *Test{{.Name}}Iterator) run(t *testing.T) {
-	itr := ti.Iterator.(influxql.{{.Name}}Iterator)
+	itrs := make([]influxql.Iterator, 0, len(ti.Inputs))
+	for _, itr := range ti.Inputs {
+		itrs = append(itrs, influxql.Iterator(itr))
+	}
 
+	itr := ti.IteratorFn(itrs).(influxql.{{.Name}}Iterator)
 	points := make([]influxql.{{.Name}}Point, 0, len(ti.Points))
 	for p := itr.Next(); p != nil; p = itr.Next() {
 		points = append(points, *p)
 	}
+	itr.Close()
 
 	if !deep.Equal(ti.Points, points) {
-		t.Fatalf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+		t.Errorf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+	}
+	for i, itr := range ti.Inputs {
+		if !itr.Closed {
+			t.Errorf("iterator %d not closed", i)
+		}
 	}
 }
 {{end}}
