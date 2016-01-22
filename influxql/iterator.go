@@ -49,6 +49,10 @@ func (a Iterators) filterNonNil() []Iterator {
 }
 
 // NewMergeIterator returns an iterator to merge itrs into one.
+// Inputs must either be merge iterators or only contain a single name/tag in
+// sorted order. The iterator will output all points by window, name/tag, then
+// time. This iterator is useful when you need all of the points for an
+// interval.
 func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	inputs = Iterators(inputs).filterNonNil()
 	if len(inputs) == 0 {
@@ -72,6 +76,10 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 }
 
 // NewSortedMergeIterator returns an iterator to merge itrs into one.
+// Inputs must either be sorted merge iterators or only contain a single
+// name/tag in sorted order. The iterator will output all points by name/tag,
+// then time. This iterator is useful when you need all points for a name/tag
+// to be in order.
 func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	inputs = Iterators(inputs).filterNonNil()
 	if len(inputs) == 0 {
@@ -437,9 +445,13 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 		return opt.StartTime, opt.EndTime
 	}
 
+	// Subtract the offset to the time so we calculate the correct base interval.
+	t -= int64(opt.Interval.Offset)
+
 	// Truncate time by duration.
 	t -= t % int64(opt.Interval.Duration)
 
+	// Apply the offset.
 	start = t + int64(opt.Interval.Offset)
 	end = start + int64(opt.Interval.Duration)
 	return
@@ -454,7 +466,7 @@ func (opt IteratorOptions) DerivativeInterval() Interval {
 
 	// Otherwise use the group by interval, if specified.
 	if opt.Interval.Duration > 0 {
-		return opt.Interval
+		return Interval{Duration: opt.Interval.Duration}
 	}
 
 	return Interval{Duration: time.Second}

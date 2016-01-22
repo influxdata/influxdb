@@ -54,6 +54,60 @@ func TestMergeIterator(t *testing.T) {
 	}
 }
 
+func TestMergeIterator_Nil(t *testing.T) {
+	itr := influxql.NewMergeIterator([]influxql.Iterator{nil}, influxql.IteratorOptions{}).(influxql.FloatIterator)
+	if p := itr.Next(); p != nil {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+}
+
+func TestSortedMergeIterator(t *testing.T) {
+	itr := influxql.NewSortedMergeIterator([]influxql.Iterator{
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
+		}},
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
+			{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
+		}},
+	}, influxql.IteratorOptions{
+		Interval: influxql.Interval{
+			Duration: 10 * time.Nanosecond,
+		},
+		Ascending: true,
+	}).(influxql.FloatIterator)
+
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}) {
+		t.Fatalf("unexpected point: %#v", p)
+	} else if p = itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}) {
+		t.Fatalf("unexpected point: %#v", p)
+	} else if p = itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}) {
+		t.Fatalf("unexpected point: %#v", p)
+	} else if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+	if p := itr.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}) {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+}
+
+func TestSortedMergeIterator_Nil(t *testing.T) {
+	itr := influxql.NewSortedMergeIterator([]influxql.Iterator{nil}, influxql.IteratorOptions{}).(influxql.FloatIterator)
+	if p := itr.Next(); p != nil {
+		t.Fatalf("unexpected point: %#v", p)
+	}
+}
+
 // Ensure auxilary iterators can be created for auxilary fields.
 func TestFloatAuxIterator(t *testing.T) {
 	itr := influxql.NewAuxIterator(
@@ -208,4 +262,142 @@ func GenerateFloatIterator(rand *rand.Rand, valueN int) *FloatIterator {
 	}
 
 	return itr
+}
+
+func TestIteratorOptions_Window_Interval(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		Interval: influxql.Interval{
+			Duration: 10,
+		},
+	}
+
+	start, end := opt.Window(4)
+	if start != 0 {
+		t.Errorf("expected start to be 0, got %d", start)
+	}
+	if end != 10 {
+		t.Errorf("expected end to be 10, got %d", end)
+	}
+}
+
+func TestIteratorOptions_Window_Offset(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		Interval: influxql.Interval{
+			Duration: 10,
+			Offset:   8,
+		},
+	}
+
+	start, end := opt.Window(14)
+	if start != 8 {
+		t.Errorf("expected start to be 8, got %d", start)
+	}
+	if end != 18 {
+		t.Errorf("expected end to be 18, got %d", end)
+	}
+}
+
+func TestIteratorOptions_Window_Default(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		StartTime: 0,
+		EndTime:   60,
+	}
+
+	start, end := opt.Window(34)
+	if start != 0 {
+		t.Errorf("expected start to be 0, got %d", start)
+	}
+	if end != 60 {
+		t.Errorf("expected end to be 60, got %d", end)
+	}
+}
+
+func TestIteratorOptions_SeekTime_Ascending(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		StartTime: 30,
+		EndTime:   60,
+		Ascending: true,
+	}
+
+	time := opt.SeekTime()
+	if time != 30 {
+		t.Errorf("expected time to be 30, got %d", time)
+	}
+}
+
+func TestIteratorOptions_SeekTime_Descending(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		StartTime: 30,
+		EndTime:   60,
+		Ascending: false,
+	}
+
+	time := opt.SeekTime()
+	if time != 60 {
+		t.Errorf("expected time to be 60, got %d", time)
+	}
+}
+
+func TestIteratorOptions_MergeSorted(t *testing.T) {
+	opt := influxql.IteratorOptions{}
+	sorted := opt.MergeSorted()
+	if !sorted {
+		t.Error("expected no expression to be sorted, got unsorted")
+	}
+
+	opt.Expr = &influxql.VarRef{}
+	sorted = opt.MergeSorted()
+	if !sorted {
+		t.Error("expected expression with varref to be sorted, got unsorted")
+	}
+
+	opt.Expr = &influxql.Call{}
+	sorted = opt.MergeSorted()
+	if sorted {
+		t.Error("expected expression without varref to be unsorted, got sorted")
+	}
+}
+
+func TestIteratorOptions_DerivativeInterval_Default(t *testing.T) {
+	opt := influxql.IteratorOptions{}
+	expected := influxql.Interval{Duration: time.Second}
+	actual := opt.DerivativeInterval()
+	if actual != expected {
+		t.Errorf("expected derivative interval to be %v, got %v", expected, actual)
+	}
+}
+
+func TestIteratorOptions_DerivativeInterval_GroupBy(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		Interval: influxql.Interval{
+			Duration: 10,
+			Offset:   2,
+		},
+	}
+	expected := influxql.Interval{Duration: 10}
+	actual := opt.DerivativeInterval()
+	if actual != expected {
+		t.Errorf("expected derivative interval to be %v, got %v", expected, actual)
+	}
+}
+
+func TestIteratorOptions_DerivativeInterval_Call(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		Expr: &influxql.Call{
+			Name: "mean",
+			Args: []influxql.Expr{
+				&influxql.VarRef{Val: "value"},
+				&influxql.DurationLiteral{Val: 2 * time.Second},
+			},
+		},
+		Interval: influxql.Interval{
+			Duration: 10,
+			Offset:   2,
+		},
+	}
+	expected := influxql.Interval{Duration: 2 * time.Second}
+	actual := opt.DerivativeInterval()
+	if actual != expected {
+		t.Errorf("expected derivative interval to be %v, got %v", expected, actual)
+	}
 }
