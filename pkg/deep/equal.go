@@ -140,6 +140,8 @@ func deepValueEqual(v1, v2 reflect.Value, visited map[visit]bool, depth int) boo
 			return true
 		}
 		return f1 == f2
+	case reflect.Bool:
+		return v1.Bool() == v2.Bool()
 	default:
 		panic(fmt.Sprintf("cannot compare type: %s", v1.Kind().String()))
 	}

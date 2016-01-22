@@ -1,0 +1,49 @@
+package influxql_test
+
+import (
+	"testing"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/pkg/deep"
+)
+
+{{range .}}
+
+// Test implementation of influxql.{{.Name}}Iterator
+type {{.Name}}Iterator struct {
+	Points []influxql.{{.Name}}Point
+}
+
+// Close is a no-op.
+func (itr *{{.Name}}Iterator) Close() error { return nil }
+
+// Next returns the next value and shifts it off the beginning of the points slice.
+func (itr *{{.Name}}Iterator) Next() *influxql.{{.Name}}Point {
+	if len(itr.Points) == 0 {
+		return nil
+	}
+
+	v := &itr.Points[0]
+	itr.Points = itr.Points[1:]
+	return v
+}
+
+type Test{{.Name}}Iterator struct {
+	Iterator influxql.Iterator
+	Points   []influxql.{{.Name}}Point
+}
+
+func (ti *Test{{.Name}}Iterator) run(t *testing.T) {
+	itr := ti.Iterator.(influxql.{{.Name}}Iterator)
+
+	points := make([]influxql.{{.Name}}Point, 0, len(ti.Points))
+	for p := itr.Next(); p != nil; p = itr.Next() {
+		points = append(points, *p)
+	}
+
+	if !deep.Equal(ti.Points, points) {
+		t.Fatalf("unexpected points: %s %s", spew.Sdump(points), spew.Sdump(ti.Points))
+	}
+}
+{{end}}
