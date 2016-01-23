@@ -570,6 +570,11 @@ func (itr *floatReduceIterator) reduce() []*FloatPoint {
 		a[i] = m[k]
 	}
 
+	// Set the time on each point to the beginning of the interval.
+	for _, p := range a {
+		p.Time = startTime
+	}
+
 	return a
 }
 
@@ -1279,6 +1284,11 @@ func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 	a := make([]*IntegerPoint, len(m))
 	for i, k := range keys {
 		a[i] = m[k]
+	}
+
+	// Set the time on each point to the beginning of the interval.
+	for _, p := range a {
+		p.Time = startTime
 	}
 
 	return a
@@ -1992,6 +2002,11 @@ func (itr *stringReduceIterator) reduce() []*StringPoint {
 		a[i] = m[k]
 	}
 
+	// Set the time on each point to the beginning of the interval.
+	for _, p := range a {
+		p.Time = startTime
+	}
+
 	return a
 }
 
@@ -2701,6 +2716,11 @@ func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 	a := make([]*BooleanPoint, len(m))
 	for i, k := range keys {
 		a[i] = m[k]
+	}
+
+	// Set the time on each point to the beginning of the interval.
+	for _, p := range a {
+		p.Time = startTime
 	}
 
 	return a

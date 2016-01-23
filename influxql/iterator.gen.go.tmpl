@@ -572,6 +572,11 @@ func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
 		a[i] = m[k]
 	}
 
+	// Set the time on each point to the beginning of the interval.
+	for _, p := range a {
+		p.Time = startTime
+	}
+
 	return a
 }
 
