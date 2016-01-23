@@ -76,7 +76,7 @@ func TestSelect_Distinct(t *testing.T) {
 }
 
 // Ensure a SELECT mean() query can be executed.
-func TestSelect_Mean(t *testing.T) {
+func TestSelect_Mean_Float(t *testing.T) {
 	var ic IteratorCreator
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 		return &FloatIterator{Points: []influxql.FloatPoint{
@@ -99,19 +99,62 @@ func TestSelect_Mean(t *testing.T) {
 	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
 	if err != nil {
 		t.Fatal(err)
-	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2}},
-	}) {
+	} else if len(itrs) != 1 {
+		t.Fatalf("expected 1 iterator, got %d", len(itrs))
+	}
+
+	if a, ok := CompareFloatIterator(itrs[0], []influxql.FloatPoint{
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2},
+	}); !ok {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure a SELECT mean() query can be executed.
+func TestSelect_Mean_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(itrs) != 1 {
+		t.Fatalf("expected 1 iterator, got %d", len(itrs))
+	}
+
+	if a, ok := CompareFloatIterator(itrs[0], []influxql.FloatPoint{
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2},
+	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
 
 // Ensure a SELECT median() query can be executed.
-func TestSelect_Median(t *testing.T) {
+func TestSelect_Median_Float(t *testing.T) {
 	var ic IteratorCreator
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 		return &FloatIterator{Points: []influxql.FloatPoint{
@@ -134,13 +177,56 @@ func TestSelect_Median(t *testing.T) {
 	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
 	if err != nil {
 		t.Fatal(err)
-	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
-	}) {
+	} else if len(itrs) != 1 {
+		t.Fatalf("expected 1 iterator, got %d", len(itrs))
+	}
+
+	if a, ok := CompareFloatIterator(itrs[0], []influxql.FloatPoint{
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3},
+	}); !ok {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure a SELECT median() query can be executed.
+func TestSelect_Median_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: 20},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: 10},
+			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: 19},
+			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
+			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
+			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
+
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: 1},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: 2},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 3},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
+			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(itrs) != 1 {
+		t.Fatalf("expected 1 iterator, got %d", len(itrs))
+	}
+
+	if a, ok := CompareFloatIterator(itrs[0], []influxql.FloatPoint{
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 19.5},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 10},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2.5},
+		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 100},
+		{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3},
+	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
