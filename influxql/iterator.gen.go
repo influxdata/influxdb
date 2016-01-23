@@ -6,7 +6,6 @@ package influxql
 import (
 	"container/heap"
 	"fmt"
-	"math"
 	"sort"
 	"sync"
 )
@@ -365,56 +364,6 @@ func (itr *floatLimitIterator) Next() *FloatPoint {
 
 		return p
 	}
-}
-
-// floatJoinIterator represents a join iterator that processes float values.
-type floatJoinIterator struct {
-	input FloatIterator
-	buf   *FloatPoint      // next value from input
-	c     chan *FloatPoint // streaming output channel
-	once  sync.Once
-}
-
-// newFloatJoinIterator returns a new join iterator that wraps input.
-func newFloatJoinIterator(input FloatIterator) *floatJoinIterator {
-	return &floatJoinIterator{
-		input: input,
-		c:     make(chan *FloatPoint, 1),
-	}
-}
-
-// Close close the iterator.
-func (itr *floatJoinIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
-	return nil
-}
-
-// Next returns the next point from the streaming channel.
-func (itr *floatJoinIterator) Next() *FloatPoint { return <-itr.c }
-
-// loadBuf reads the next value from the input into the buffer.
-func (itr *floatJoinIterator) loadBuf() (t int64, name string, tags Tags) {
-	if itr.buf != nil {
-		return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-	}
-
-	itr.buf = itr.input.Next()
-	if itr.buf == nil {
-		return ZeroTime, "", Tags{}
-	}
-	return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-}
-
-// emitAt emits the buffered point if its timestamp equals t.
-// Otherwise it emits a null value with the timestamp t.
-func (itr *floatJoinIterator) emitAt(t int64, name string, tags Tags) {
-	var v *FloatPoint
-	if itr.buf == nil || itr.buf.Time != t || itr.buf.Name != name || !itr.buf.Tags.Equals(&tags) {
-		v = &FloatPoint{Name: name, Tags: tags, Time: t, Value: math.NaN()}
-	} else {
-		v, itr.buf = itr.buf, nil
-	}
-	itr.c <- v
 }
 
 // floatAuxIterator represents a float implementation of AuxIterator.
@@ -1083,56 +1032,6 @@ func (itr *integerLimitIterator) Next() *IntegerPoint {
 	}
 }
 
-// integerJoinIterator represents a join iterator that processes integer values.
-type integerJoinIterator struct {
-	input IntegerIterator
-	buf   *IntegerPoint      // next value from input
-	c     chan *IntegerPoint // streaming output channel
-	once  sync.Once
-}
-
-// newIntegerJoinIterator returns a new join iterator that wraps input.
-func newIntegerJoinIterator(input IntegerIterator) *integerJoinIterator {
-	return &integerJoinIterator{
-		input: input,
-		c:     make(chan *IntegerPoint, 1),
-	}
-}
-
-// Close close the iterator.
-func (itr *integerJoinIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
-	return nil
-}
-
-// Next returns the next point from the streaming channel.
-func (itr *integerJoinIterator) Next() *IntegerPoint { return <-itr.c }
-
-// loadBuf reads the next value from the input into the buffer.
-func (itr *integerJoinIterator) loadBuf() (t int64, name string, tags Tags) {
-	if itr.buf != nil {
-		return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-	}
-
-	itr.buf = itr.input.Next()
-	if itr.buf == nil {
-		return ZeroTime, "", Tags{}
-	}
-	return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-}
-
-// emitAt emits the buffered point if its timestamp equals t.
-// Otherwise it emits a null value with the timestamp t.
-func (itr *integerJoinIterator) emitAt(t int64, name string, tags Tags) {
-	var v *IntegerPoint
-	if itr.buf == nil || itr.buf.Time != t || itr.buf.Name != name || !itr.buf.Tags.Equals(&tags) {
-		v = &IntegerPoint{Name: name, Tags: tags, Time: t, Value: 0}
-	} else {
-		v, itr.buf = itr.buf, nil
-	}
-	itr.c <- v
-}
-
 // integerAuxIterator represents a integer implementation of AuxIterator.
 type integerAuxIterator struct {
 	input  *bufIntegerIterator
@@ -1799,56 +1698,6 @@ func (itr *stringLimitIterator) Next() *StringPoint {
 	}
 }
 
-// stringJoinIterator represents a join iterator that processes string values.
-type stringJoinIterator struct {
-	input StringIterator
-	buf   *StringPoint      // next value from input
-	c     chan *StringPoint // streaming output channel
-	once  sync.Once
-}
-
-// newStringJoinIterator returns a new join iterator that wraps input.
-func newStringJoinIterator(input StringIterator) *stringJoinIterator {
-	return &stringJoinIterator{
-		input: input,
-		c:     make(chan *StringPoint, 1),
-	}
-}
-
-// Close close the iterator.
-func (itr *stringJoinIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
-	return nil
-}
-
-// Next returns the next point from the streaming channel.
-func (itr *stringJoinIterator) Next() *StringPoint { return <-itr.c }
-
-// loadBuf reads the next value from the input into the buffer.
-func (itr *stringJoinIterator) loadBuf() (t int64, name string, tags Tags) {
-	if itr.buf != nil {
-		return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-	}
-
-	itr.buf = itr.input.Next()
-	if itr.buf == nil {
-		return ZeroTime, "", Tags{}
-	}
-	return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-}
-
-// emitAt emits the buffered point if its timestamp equals t.
-// Otherwise it emits a null value with the timestamp t.
-func (itr *stringJoinIterator) emitAt(t int64, name string, tags Tags) {
-	var v *StringPoint
-	if itr.buf == nil || itr.buf.Time != t || itr.buf.Name != name || !itr.buf.Tags.Equals(&tags) {
-		v = &StringPoint{Name: name, Tags: tags, Time: t, Value: ""}
-	} else {
-		v, itr.buf = itr.buf, nil
-	}
-	itr.c <- v
-}
-
 // stringAuxIterator represents a string implementation of AuxIterator.
 type stringAuxIterator struct {
 	input  *bufStringIterator
@@ -2513,56 +2362,6 @@ func (itr *booleanLimitIterator) Next() *BooleanPoint {
 
 		return p
 	}
-}
-
-// booleanJoinIterator represents a join iterator that processes boolean values.
-type booleanJoinIterator struct {
-	input BooleanIterator
-	buf   *BooleanPoint      // next value from input
-	c     chan *BooleanPoint // streaming output channel
-	once  sync.Once
-}
-
-// newBooleanJoinIterator returns a new join iterator that wraps input.
-func newBooleanJoinIterator(input BooleanIterator) *booleanJoinIterator {
-	return &booleanJoinIterator{
-		input: input,
-		c:     make(chan *BooleanPoint, 1),
-	}
-}
-
-// Close close the iterator.
-func (itr *booleanJoinIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
-	return nil
-}
-
-// Next returns the next point from the streaming channel.
-func (itr *booleanJoinIterator) Next() *BooleanPoint { return <-itr.c }
-
-// loadBuf reads the next value from the input into the buffer.
-func (itr *booleanJoinIterator) loadBuf() (t int64, name string, tags Tags) {
-	if itr.buf != nil {
-		return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-	}
-
-	itr.buf = itr.input.Next()
-	if itr.buf == nil {
-		return ZeroTime, "", Tags{}
-	}
-	return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-}
-
-// emitAt emits the buffered point if its timestamp equals t.
-// Otherwise it emits a null value with the timestamp t.
-func (itr *booleanJoinIterator) emitAt(t int64, name string, tags Tags) {
-	var v *BooleanPoint
-	if itr.buf == nil || itr.buf.Time != t || itr.buf.Name != name || !itr.buf.Tags.Equals(&tags) {
-		v = &BooleanPoint{Name: name, Tags: tags, Time: t, Value: false}
-	} else {
-		v, itr.buf = itr.buf, nil
-	}
-	itr.c <- v
 }
 
 // booleanAuxIterator represents a boolean implementation of AuxIterator.

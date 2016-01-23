@@ -3,7 +3,6 @@ package influxql
 import (
 	"container/heap"
 	"fmt"
-	"math"
 	"sort"
 	"sync"
 )
@@ -367,56 +366,6 @@ func (itr *{{.name}}LimitIterator) Next() *{{.Name}}Point {
 
 		return p
 	}
-}
-
-// {{.name}}JoinIterator represents a join iterator that processes {{.name}} values.
-type {{.name}}JoinIterator struct {
-	input {{.Name}}Iterator
-	buf   *{{.Name}}Point      // next value from input
-	c     chan *{{.Name}}Point // streaming output channel
-	once  sync.Once
-}
-
-// new{{.Name}}JoinIterator returns a new join iterator that wraps input.
-func new{{.Name}}JoinIterator(input {{.Name}}Iterator) *{{.name}}JoinIterator {
-	return &{{.name}}JoinIterator{
-		input: input,
-		c:     make(chan *{{.Name}}Point, 1),
-	}
-}
-
-// Close close the iterator.
-func (itr *{{.name}}JoinIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
-	return nil
-}
-
-// Next returns the next point from the streaming channel.
-func (itr *{{.name}}JoinIterator) Next() *{{.Name}}Point { return <-itr.c }
-
-// loadBuf reads the next value from the input into the buffer.
-func (itr *{{.name}}JoinIterator) loadBuf() (t int64, name string, tags Tags) {
-	if itr.buf != nil {
-		return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-	}
-
-	itr.buf = itr.input.Next()
-	if itr.buf == nil {
-		return ZeroTime, "", Tags{}
-	}
-	return itr.buf.Time, itr.buf.Name, itr.buf.Tags
-}
-
-// emitAt emits the buffered point if its timestamp equals t.
-// Otherwise it emits a null value with the timestamp t.
-func (itr *{{.name}}JoinIterator) emitAt(t int64, name string, tags Tags) {
-	var v *{{.Name}}Point
-	if itr.buf == nil || itr.buf.Time != t || itr.buf.Name != name || !itr.buf.Tags.Equals(&tags) {
-		v = &{{.Name}}Point{Name: name, Tags: tags, Time: t, Value: {{.Nil}}}
-	} else {
-		v, itr.buf = itr.buf, nil
-	}
-	itr.c <- v
 }
 
 // {{.name}}AuxIterator represents a {{.name}} implementation of AuxIterator.
