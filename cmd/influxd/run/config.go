@@ -28,6 +28,15 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+const (
+	// DefaultBindAddress is the default address for raft, cluster, snapshot, etc..
+	DefaultBindAddress = ":8088"
+
+	// DefaultHostname is the default hostname used if we are unable to determine
+	// the hostname from the system
+	DefaultHostname = "localhost"
+)
+
 // Config represents the configuration format for the influxd binary.
 type Config struct {
 	Meta       *meta.Config      `toml:"meta"`
@@ -55,10 +64,6 @@ type Config struct {
 
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
 	BindAddress string `toml:"bind-address"`
-
-	// Hostname is the resolvable name for other servers in
-	// the cluster to reach this server
-	Hostname string `toml:"hostname"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -79,6 +84,7 @@ func NewConfig() *Config {
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
 	c.HintedHandoff = hh.NewConfig()
+	c.BindAddress = DefaultBindAddress
 
 	return c
 }

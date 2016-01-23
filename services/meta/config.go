@@ -3,7 +3,6 @@ package meta
 import (
 	"errors"
 	"net"
-	"os"
 	"time"
 
 	"github.com/influxdb/influxdb/toml"
@@ -49,10 +48,6 @@ type Config struct {
 	Enabled bool   `toml:"enabled"`
 	Dir     string `toml:"dir"`
 
-	// hostname used if bind addresses do not specify an IP or hostname.  We look
-	// this up once to avoid resolving it too frequently.
-	hostname string
-
 	// this is deprecated. Should use the address from run/config.go
 	BindAddress string `toml:"bind-address"`
 
@@ -78,16 +73,7 @@ type Config struct {
 
 // NewConfig builds a new configuration with default values.
 func NewConfig() *Config {
-	// Lookup our hostname and fall back to our default "localhost" if that
-	// fails for any reason.  The hostname needs to be resolvable by remote
-	// cluster nodes.
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = DefaultHostname
-	}
-
 	return &Config{
-		hostname:             hostname,
 		Enabled:              true, // enabled by default
 		BindAddress:          DefaultRaftBindAddress,
 		HTTPBindAddress:      DefaultHTTPBindAddress,
@@ -116,7 +102,7 @@ func (c *Config) defaultHost(addr string) string {
 	}
 
 	if host == "" {
-		return net.JoinHostPort(c.hostname, port)
+		return net.JoinHostPort(DefaultHostname, port)
 	}
 	return addr
 }

@@ -109,6 +109,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	if dir == "" {
 		dir = c.Meta.Dir
 	}
+
+	// load the node information
 	node, err := influxdb.NewNode(dir)
 	if err != nil {
 		return nil, err
@@ -117,7 +119,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// In 0.10.0 bind-address got moved to the top level. Check
 	// The old location to keep things backwards compatible
 	bind := c.BindAddress
-	if bind == "" {
+	if c.Meta.BindAddress != "" {
 		bind = c.Meta.BindAddress
 	}
 
@@ -125,16 +127,11 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		return nil, fmt.Errorf("must run as either meta node or data node or both")
 	}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine hostname: %v", err)
-	}
-
-	httpBindAddress, err := defaultHost(hostname, c.HTTPD.BindAddress)
+	httpBindAddress, err := defaultHost(DefaultHostname, c.HTTPD.BindAddress)
 	if err != nil {
 		return nil, err
 	}
-	tcpBindAddress, err := defaultHost(hostname, bind)
+	tcpBindAddress, err := defaultHost(DefaultHostname, bind)
 	if err != nil {
 		return nil, err
 	}
