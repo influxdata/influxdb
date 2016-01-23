@@ -22,9 +22,9 @@ import (
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/continuous_querier"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/uuid"
 )
 
@@ -57,11 +57,11 @@ type Handler struct {
 	requireAuthentication bool
 	Version               string
 
-	MetaStore interface {
-		WaitForLeader(timeout time.Duration) error
+	MetaClient interface {
 		Database(name string) (*meta.DatabaseInfo, error)
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
-		Users() ([]meta.UserInfo, error)
+		Users() []meta.UserInfo
+		Ping(checkAllMetaServers bool) error
 	}
 
 	QueryExecutor interface {
@@ -414,7 +414,7 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 		return
 	}
 
-	if di, err := h.MetaStore.Database(bp.Database); err != nil {
+	if di, err := h.MetaClient.Database(bp.Database); err != nil {
 		resultError(w, influxql.Result{Err: fmt.Errorf("metastore database error: %s", err)}, http.StatusInternalServerError)
 		return
 	} else if di == nil {
@@ -501,7 +501,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		return
 	}
 
-	if di, err := h.MetaStore.Database(database); err != nil {
+	if di, err := h.MetaClient.Database(database); err != nil {
 		resultError(w, influxql.Result{Err: fmt.Errorf("metastore database error: %s", err)}, http.StatusInternalServerError)
 		return
 	} else if di == nil {
@@ -566,22 +566,13 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	wfl := q.Get("wait_for_leader")
+	h.statMap.Add(statPingRequest, 1)
 
-	if wfl != "" {
-		d, err := time.ParseDuration(wfl)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if err := h.MetaStore.WaitForLeader(d); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
+	if err := h.MetaClient.Ping(false); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
 	}
 
-	h.statMap.Add(statPingRequest, 1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -713,11 +704,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 		var user *meta.UserInfo
 
 		// Retrieve user list.
-		uis, err := h.MetaStore.Users()
-		if err != nil {
-			httpError(w, err.Error(), false, http.StatusInternalServerError)
-			return
-		}
+		uis := h.MetaClient.Users()
 
 		// TODO corylanou: never allow this in the future without users
 		if requireAuthentication && len(uis) > 0 {
@@ -733,7 +720,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 				return
 			}
 
-			user, err = h.MetaStore.Authenticate(username, password)
+			user, err = h.MetaClient.Authenticate(username, password)
 			if err != nil {
 				h.statMap.Add(statAuthFail, 1)
 				httpError(w, err.Error(), false, http.StatusUnauthorized)

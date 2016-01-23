@@ -35,7 +35,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		if err := s.CreateDatabaseAndRetentionPolicy(db, newRetentionPolicyInfo(rp, 1, 0)); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.MetaStore.SetDefaultRetentionPolicy(db, rp); err != nil {
+		if err := s.MetaClient.SetDefaultRetentionPolicy(db, rp); err != nil {
 			t.Fatal(err)
 		}
 

@@ -13,8 +13,8 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 const leaderWaitTimeout = 30 * time.Second
@@ -88,16 +88,15 @@ type Monitor struct {
 	storeAddress           string
 	storeInterval          time.Duration
 
-	MetaStore interface {
-		ClusterID() (uint64, error)
-		NodeID() uint64
-		WaitForLeader(d time.Duration) error
-		IsLeader() bool
-		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
-		CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+	MetaClient interface {
+		ClusterID() uint64
+		CreateDatabase(name string) (*meta.DatabaseInfo, error)
+		CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 		SetDefaultRetentionPolicy(database, name string) error
 		DropRetentionPolicy(database, name string) error
 	}
+
+	NodeID uint64
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -305,11 +304,11 @@ func (m *Monitor) Diagnostics() (map[string]*Diagnostic, error) {
 
 // createInternalStorage ensures the internal storage has been created.
 func (m *Monitor) createInternalStorage() {
-	if !m.MetaStore.IsLeader() || m.storeCreated {
+	if m.storeCreated {
 		return
 	}
 
-	if _, err := m.MetaStore.CreateDatabaseIfNotExists(m.storeDatabase); err != nil {
+	if _, err := m.MetaClient.CreateDatabase(m.storeDatabase); err != nil {
 		m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
 			m.storeDatabase, err.Error())
 		return
@@ -318,19 +317,19 @@ func (m *Monitor) createInternalStorage() {
 	rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
 	rpi.Duration = MonitorRetentionPolicyDuration
 	rpi.ReplicaN = 1
-	if _, err := m.MetaStore.CreateRetentionPolicyIfNotExists(m.storeDatabase, rpi); err != nil {
+	if _, err := m.MetaClient.CreateRetentionPolicy(m.storeDatabase, rpi); err != nil {
 		m.Logger.Printf("failed to create retention policy '%s', failed to create internal storage: %s",
 			rpi.Name, err.Error())
 		return
 	}
 
-	if err := m.MetaStore.SetDefaultRetentionPolicy(m.storeDatabase, rpi.Name); err != nil {
+	if err := m.MetaClient.SetDefaultRetentionPolicy(m.storeDatabase, rpi.Name); err != nil {
 		m.Logger.Printf("failed to set default retention policy on '%s', failed to create internal storage: %s",
 			m.storeDatabase, err.Error())
 		return
 	}
 
-	err := m.MetaStore.DropRetentionPolicy(m.storeDatabase, "default")
+	err := m.MetaClient.DropRetentionPolicy(m.storeDatabase, "default")
 	if err != nil && err.Error() != influxdb.ErrRetentionPolicyNotFound("default").Error() {
 		m.Logger.Printf("failed to delete retention policy 'default', failed to created internal storage: %s", err.Error())
 		return
@@ -346,18 +345,12 @@ func (m *Monitor) storeStatistics() {
 	m.Logger.Printf("Storing statistics in database '%s' retention policy '%s', at interval %s",
 		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
-	if err := m.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
-		m.Logger.Printf("failed to detect a cluster leader, terminating storage: %s", err.Error())
-		return
-	}
-
 	// Get cluster-level metadata. Nothing different is going to happen if errors occur.
-	clusterID, _ := m.MetaStore.ClusterID()
-	nodeID := m.MetaStore.NodeID()
+	clusterID := m.MetaClient.ClusterID()
 	hostname, _ := os.Hostname()
 	clusterTags := map[string]string{
 		"clusterID": fmt.Sprintf("%d", clusterID),
-		"nodeID":    fmt.Sprintf("%d", nodeID),
+		"nodeID":    fmt.Sprintf("%d", m.NodeID),
 		"hostname":  hostname,
 	}
 

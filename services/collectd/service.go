@@ -12,8 +12,8 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
@@ -38,16 +38,15 @@ type pointsWriter interface {
 }
 
 // metaStore is an internal interface to make testing easier.
-type metaStore interface {
-	WaitForLeader(d time.Duration) error
-	CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+type metaClient interface {
+	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 }
 
 // Service represents a UDP server which receives metrics in collectd's binary
 // protocol and stores them in InfluxDB.
 type Service struct {
 	Config       *Config
-	MetaStore    metaStore
+	MetaClient   metaClient
 	PointsWriter pointsWriter
 	Logger       *log.Logger
 
@@ -92,12 +91,7 @@ func (s *Service) Open() error {
 		return fmt.Errorf("PointsWriter is nil")
 	}
 
-	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.Logger.Printf("Failed to detect a cluster leader: %s", err.Error())
-		return err
-	}
-
-	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Config.Database); err != nil {
+	if _, err := s.MetaClient.CreateDatabase(s.Config.Database); err != nil {
 		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
 		return err
 	}

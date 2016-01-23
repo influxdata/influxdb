@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // QueryExecutor executes every statement in an influxdb Query. It is responsible for
@@ -19,20 +19,15 @@ import (
 // in a running process
 type QueryExecutor struct {
 	// The meta store for accessing and updating cluster and schema data.
-	MetaStore interface {
+	MetaClient interface {
 		Database(name string) (*meta.DatabaseInfo, error)
 		Databases() ([]meta.DatabaseInfo, error)
 		User(name string) (*meta.UserInfo, error)
-		AdminUserExists() (bool, error)
+		AdminUserExists() bool
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
-		UserCount() (int, error)
+		UserCount() int
 		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-		NodeID() uint64
-	}
-
-	// Executes statements relating to meta data.
-	MetaStatementExecutor interface {
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
 	}
 
@@ -83,7 +78,7 @@ func (q *QueryExecutor) SetLogger(l *log.Logger) {
 // a root user.
 func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, database string) error {
 	// Special case if no users exist.
-	if count, err := q.MetaStore.UserCount(); count == 0 && err == nil {
+	if count := q.MetaClient.UserCount(); count == 0 {
 		// Ensure there is at least one statement.
 		if len(query.Statements) > 0 {
 			// First statement in the query must create a user with admin privilege.
@@ -206,7 +201,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				res = q.MonitorStatementExecutor.ExecuteStatement(stmt)
 			default:
 				// Delegate all other meta statements to a separate executor. They don't hit tsdb storage.
-				res = q.MetaStatementExecutor.ExecuteStatement(stmt)
+				res = q.MetaClient.ExecuteStatement(stmt)
 			}
 
 			if res != nil {
@@ -258,7 +253,7 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 
 		// Build the set of target shards. Using shard IDs as keys ensures each shard ID
 		// occurs only once.
-		shardGroups, err := q.MetaStore.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
+		shardGroups, err := q.MetaClient.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +361,7 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 // executeDropDatabaseStatement closes all local shards for the database and removes the directory. It then calls to the metastore to remove the database from there.
 // TODO: make this work in a cluster/distributed
 func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) *influxql.Result {
-	dbi, err := q.MetaStore.Database(stmt.Name)
+	dbi, err := q.MetaClient.Database(stmt.Name)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	} else if dbi == nil {
@@ -387,7 +382,7 @@ func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 
 	// Remove database from meta-store first so that in-flight writes can complete without error, but new ones will
 	// be rejected.
-	res := q.MetaStatementExecutor.ExecuteStatement(stmt)
+	res := q.MetaClient.ExecuteStatement(stmt)
 
 	// Remove the database from the local store
 	err = q.Store.DeleteDatabase(stmt.Name, shardIDs)
@@ -632,7 +627,7 @@ func (q *QueryExecutor) PlanShowMeasurements(stmt *influxql.ShowMeasurementsStat
 	}
 
 	// Get the database info.
-	di, err := q.MetaStore.Database(database)
+	di, err := q.MetaClient.Database(database)
 	if err != nil {
 		return nil, err
 	} else if di == nil {
@@ -668,7 +663,7 @@ func (q *QueryExecutor) PlanShowTagKeys(stmt *influxql.ShowTagKeysStatement, dat
 	}
 
 	// Get the database info.
-	di, err := q.MetaStore.Database(database)
+	di, err := q.MetaClient.Database(database)
 	if err != nil {
 		return nil, err
 	} else if di == nil {
@@ -993,7 +988,7 @@ func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDat
 	}
 
 	// Find database.
-	di, err := q.MetaStore.Database(m.Database)
+	di, err := q.MetaClient.Database(m.Database)
 	if err != nil {
 		return err
 	} else if di == nil {

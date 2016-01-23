@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -88,11 +88,12 @@ type PointsWriter struct {
 	WriteTimeout time.Duration
 	Logger       *log.Logger
 
-	MetaStore interface {
-		NodeID() uint64
+	Node *influxdb.Node
+
+	MetaClient interface {
 		Database(name string) (di *meta.DatabaseInfo, err error)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
-		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+		CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
 	}
 
@@ -187,7 +188,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	// holds the start time ranges for required shard groups
 	timeRanges := map[time.Time]*meta.ShardGroupInfo{}
 
-	rp, err := w.MetaStore.RetentionPolicy(wp.Database, wp.RetentionPolicy)
+	rp, err := w.MetaClient.RetentionPolicy(wp.Database, wp.RetentionPolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +202,7 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 
 	// holds all the shard groups and shards that are required for writes
 	for t := range timeRanges {
-		sg, err := w.MetaStore.CreateShardGroupIfNotExists(wp.Database, wp.RetentionPolicy, t)
+		sg, err := w.MetaClient.CreateShardGroup(wp.Database, wp.RetentionPolicy, t)
 		if err != nil {
 			return nil, err
 		}
@@ -235,7 +236,7 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 	w.statMap.Add(statPointWriteReq, int64(len(p.Points)))
 
 	if p.RetentionPolicy == "" {
-		db, err := w.MetaStore.Database(p.Database)
+		db, err := w.MetaClient.Database(p.Database)
 		if err != nil {
 			return err
 		} else if db == nil {
@@ -309,7 +310,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	for _, owner := range shard.Owners {
 		go func(shardID uint64, owner meta.ShardOwner, points []models.Point) {
-			if w.MetaStore.NodeID() == owner.NodeID {
+			if w.Node.ID == owner.NodeID {
 				w.statMap.Add(statPointWriteReqLocal, int64(len(points)))
 
 				err := w.TSDBStore.WriteToShard(shardID, points)

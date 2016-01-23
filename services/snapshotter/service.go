@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -24,7 +24,7 @@ type Service struct {
 	wg  sync.WaitGroup
 	err chan error
 
-	MetaStore interface {
+	MetaClient interface {
 		encoding.BinaryMarshaler
 		Database(name string) (*meta.DatabaseInfo, error)
 	}
@@ -110,7 +110,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 		}
 	case RequestMetastoreBackup:
 		// Retrieve and serialize the current meta data.
-		buf, err := s.MetaStore.MarshalBinary()
+		buf, err := s.MetaClient.MarshalBinary()
 		if err != nil {
 			return fmt.Errorf("marshal meta: %s", err)
 		}
@@ -132,7 +132,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 // this server into the connection
 func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 	res := Response{}
-	db, err := s.MetaStore.Database(database)
+	db, err := s.MetaClient.Database(database)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 // this server into the connection
 func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPolicy string) error {
 	res := Response{}
-	db, err := s.MetaStore.Database(database)
+	db, err := s.MetaClient.Database(database)
 	if err != nil {
 		return err
 	}

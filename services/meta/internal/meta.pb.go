@@ -43,15 +43,13 @@ It has these top-level messages:
 	CreateSubscriptionCommand
 	DropSubscriptionCommand
 	RemovePeerCommand
+	CreateMetaNodeCommand
+	CreateDataNodeCommand
+	UpdateDataNodeCommand
+	DeleteMetaNodeCommand
+	DeleteDataNodeCommand
 	Response
-	ResponseHeader
-	ErrorResponse
-	FetchDataRequest
-	FetchDataResponse
-	JoinRequest
-	JoinResponse
-	PromoteRaftRequest
-	PromoteRaftResponse
+	SetMetaNodeCommand
 */
 package internal
 
@@ -63,45 +61,6 @@ import math "math"
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
-
-type RPCType int32
-
-const (
-	RPCType_Error       RPCType = 1
-	RPCType_FetchData   RPCType = 2
-	RPCType_Join        RPCType = 3
-	RPCType_PromoteRaft RPCType = 4
-)
-
-var RPCType_name = map[int32]string{
-	1: "Error",
-	2: "FetchData",
-	3: "Join",
-	4: "PromoteRaft",
-}
-var RPCType_value = map[string]int32{
-	"Error":       1,
-	"FetchData":   2,
-	"Join":        3,
-	"PromoteRaft": 4,
-}
-
-func (x RPCType) Enum() *RPCType {
-	p := new(RPCType)
-	*p = x
-	return p
-}
-func (x RPCType) String() string {
-	return proto.EnumName(RPCType_name, int32(x))
-}
-func (x *RPCType) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(RPCType_value, data, "RPCType")
-	if err != nil {
-		return err
-	}
-	*x = RPCType(value)
-	return nil
-}
 
 type Command_Type int32
 
@@ -128,6 +87,12 @@ const (
 	Command_CreateSubscriptionCommand        Command_Type = 21
 	Command_DropSubscriptionCommand          Command_Type = 22
 	Command_RemovePeerCommand                Command_Type = 23
+	Command_CreateMetaNodeCommand            Command_Type = 24
+	Command_CreateDataNodeCommand            Command_Type = 25
+	Command_UpdateDataNodeCommand            Command_Type = 26
+	Command_DeleteMetaNodeCommand            Command_Type = 27
+	Command_DeleteDataNodeCommand            Command_Type = 28
+	Command_SetMetaNodeCommand               Command_Type = 29
 )
 
 var Command_Type_name = map[int32]string{
@@ -153,6 +118,12 @@ var Command_Type_name = map[int32]string{
 	21: "CreateSubscriptionCommand",
 	22: "DropSubscriptionCommand",
 	23: "RemovePeerCommand",
+	24: "CreateMetaNodeCommand",
+	25: "CreateDataNodeCommand",
+	26: "UpdateDataNodeCommand",
+	27: "DeleteMetaNodeCommand",
+	28: "DeleteDataNodeCommand",
+	29: "SetMetaNodeCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -177,6 +148,12 @@ var Command_Type_value = map[string]int32{
 	"CreateSubscriptionCommand":        21,
 	"DropSubscriptionCommand":          22,
 	"RemovePeerCommand":                23,
+	"CreateMetaNodeCommand":            24,
+	"CreateDataNodeCommand":            25,
+	"UpdateDataNodeCommand":            26,
+	"DeleteMetaNodeCommand":            27,
+	"DeleteDataNodeCommand":            28,
+	"SetMetaNodeCommand":               29,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -206,6 +183,8 @@ type Data struct {
 	MaxNodeID        *uint64         `protobuf:"varint,7,req,name=MaxNodeID" json:"MaxNodeID,omitempty"`
 	MaxShardGroupID  *uint64         `protobuf:"varint,8,req,name=MaxShardGroupID" json:"MaxShardGroupID,omitempty"`
 	MaxShardID       *uint64         `protobuf:"varint,9,req,name=MaxShardID" json:"MaxShardID,omitempty"`
+	DataNodes        []*NodeInfo     `protobuf:"bytes,10,rep,name=DataNodes" json:"DataNodes,omitempty"`
+	MetaNodes        []*NodeInfo     `protobuf:"bytes,11,rep,name=MetaNodes" json:"MetaNodes,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
@@ -276,9 +255,24 @@ func (m *Data) GetMaxShardID() uint64 {
 	return 0
 }
 
+func (m *Data) GetDataNodes() []*NodeInfo {
+	if m != nil {
+		return m.DataNodes
+	}
+	return nil
+}
+
+func (m *Data) GetMetaNodes() []*NodeInfo {
+	if m != nil {
+		return m.MetaNodes
+	}
+	return nil
+}
+
 type NodeInfo struct {
 	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
 	Host             *string `protobuf:"bytes,2,req,name=Host" json:"Host,omitempty"`
+	TCPHost          *string `protobuf:"bytes,3,opt,name=TCPHost" json:"TCPHost,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -296,6 +290,13 @@ func (m *NodeInfo) GetID() uint64 {
 func (m *NodeInfo) GetHost() string {
 	if m != nil && m.Host != nil {
 		return *m.Host
+	}
+	return ""
+}
+
+func (m *NodeInfo) GetTCPHost() string {
+	if m != nil && m.TCPHost != nil {
+		return *m.TCPHost
 	}
 	return ""
 }
@@ -1380,7 +1381,7 @@ var E_DropSubscriptionCommand_Command = &proto.ExtensionDesc{
 }
 
 type RemovePeerCommand struct {
-	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	ID               *uint64 `protobuf:"varint,1,opt,name=ID" json:"ID,omitempty"`
 	Addr             *string `protobuf:"bytes,2,req,name=Addr" json:"Addr,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
@@ -1409,6 +1410,166 @@ var E_RemovePeerCommand_Command = &proto.ExtensionDesc{
 	Field:         123,
 	Name:          "internal.RemovePeerCommand.command",
 	Tag:           "bytes,123,opt,name=command",
+}
+
+type CreateMetaNodeCommand struct {
+	HTTPAddr         *string `protobuf:"bytes,1,req,name=HTTPAddr" json:"HTTPAddr,omitempty"`
+	TCPAddr          *string `protobuf:"bytes,2,req,name=TCPAddr" json:"TCPAddr,omitempty"`
+	Rand             *uint64 `protobuf:"varint,3,req,name=Rand" json:"Rand,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *CreateMetaNodeCommand) Reset()         { *m = CreateMetaNodeCommand{} }
+func (m *CreateMetaNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*CreateMetaNodeCommand) ProtoMessage()    {}
+
+func (m *CreateMetaNodeCommand) GetHTTPAddr() string {
+	if m != nil && m.HTTPAddr != nil {
+		return *m.HTTPAddr
+	}
+	return ""
+}
+
+func (m *CreateMetaNodeCommand) GetTCPAddr() string {
+	if m != nil && m.TCPAddr != nil {
+		return *m.TCPAddr
+	}
+	return ""
+}
+
+func (m *CreateMetaNodeCommand) GetRand() uint64 {
+	if m != nil && m.Rand != nil {
+		return *m.Rand
+	}
+	return 0
+}
+
+var E_CreateMetaNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*CreateMetaNodeCommand)(nil),
+	Field:         124,
+	Name:          "internal.CreateMetaNodeCommand.command",
+	Tag:           "bytes,124,opt,name=command",
+}
+
+type CreateDataNodeCommand struct {
+	HTTPAddr         *string `protobuf:"bytes,1,req,name=HTTPAddr" json:"HTTPAddr,omitempty"`
+	TCPAddr          *string `protobuf:"bytes,2,req,name=TCPAddr" json:"TCPAddr,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *CreateDataNodeCommand) Reset()         { *m = CreateDataNodeCommand{} }
+func (m *CreateDataNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*CreateDataNodeCommand) ProtoMessage()    {}
+
+func (m *CreateDataNodeCommand) GetHTTPAddr() string {
+	if m != nil && m.HTTPAddr != nil {
+		return *m.HTTPAddr
+	}
+	return ""
+}
+
+func (m *CreateDataNodeCommand) GetTCPAddr() string {
+	if m != nil && m.TCPAddr != nil {
+		return *m.TCPAddr
+	}
+	return ""
+}
+
+var E_CreateDataNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*CreateDataNodeCommand)(nil),
+	Field:         125,
+	Name:          "internal.CreateDataNodeCommand.command",
+	Tag:           "bytes,125,opt,name=command",
+}
+
+type UpdateDataNodeCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	Host             *string `protobuf:"bytes,2,req,name=Host" json:"Host,omitempty"`
+	TCPHost          *string `protobuf:"bytes,3,req,name=TCPHost" json:"TCPHost,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *UpdateDataNodeCommand) Reset()         { *m = UpdateDataNodeCommand{} }
+func (m *UpdateDataNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*UpdateDataNodeCommand) ProtoMessage()    {}
+
+func (m *UpdateDataNodeCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+func (m *UpdateDataNodeCommand) GetHost() string {
+	if m != nil && m.Host != nil {
+		return *m.Host
+	}
+	return ""
+}
+
+func (m *UpdateDataNodeCommand) GetTCPHost() string {
+	if m != nil && m.TCPHost != nil {
+		return *m.TCPHost
+	}
+	return ""
+}
+
+var E_UpdateDataNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*UpdateDataNodeCommand)(nil),
+	Field:         126,
+	Name:          "internal.UpdateDataNodeCommand.command",
+	Tag:           "bytes,126,opt,name=command",
+}
+
+type DeleteMetaNodeCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DeleteMetaNodeCommand) Reset()         { *m = DeleteMetaNodeCommand{} }
+func (m *DeleteMetaNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*DeleteMetaNodeCommand) ProtoMessage()    {}
+
+func (m *DeleteMetaNodeCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+var E_DeleteMetaNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DeleteMetaNodeCommand)(nil),
+	Field:         127,
+	Name:          "internal.DeleteMetaNodeCommand.command",
+	Tag:           "bytes,127,opt,name=command",
+}
+
+type DeleteDataNodeCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DeleteDataNodeCommand) Reset()         { *m = DeleteDataNodeCommand{} }
+func (m *DeleteDataNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*DeleteDataNodeCommand) ProtoMessage()    {}
+
+func (m *DeleteDataNodeCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+var E_DeleteDataNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DeleteDataNodeCommand)(nil),
+	Field:         128,
+	Name:          "internal.DeleteDataNodeCommand.command",
+	Tag:           "bytes,128,opt,name=command",
 }
 
 type Response struct {
@@ -1443,226 +1604,88 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
-type ResponseHeader struct {
-	OK               *bool   `protobuf:"varint,1,req,name=OK" json:"OK,omitempty"`
-	Error            *string `protobuf:"bytes,2,opt,name=Error" json:"Error,omitempty"`
+type SetMetaNodeCommand struct {
+	HTTPAddr         *string `protobuf:"bytes,1,req,name=HTTPAddr" json:"HTTPAddr,omitempty"`
+	TCPAddr          *string `protobuf:"bytes,2,req,name=TCPAddr" json:"TCPAddr,omitempty"`
+	Rand             *uint64 `protobuf:"varint,3,req,name=Rand" json:"Rand,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ResponseHeader) Reset()         { *m = ResponseHeader{} }
-func (m *ResponseHeader) String() string { return proto.CompactTextString(m) }
-func (*ResponseHeader) ProtoMessage()    {}
+func (m *SetMetaNodeCommand) Reset()         { *m = SetMetaNodeCommand{} }
+func (m *SetMetaNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*SetMetaNodeCommand) ProtoMessage()    {}
 
-func (m *ResponseHeader) GetOK() bool {
-	if m != nil && m.OK != nil {
-		return *m.OK
-	}
-	return false
-}
-
-func (m *ResponseHeader) GetError() string {
-	if m != nil && m.Error != nil {
-		return *m.Error
+func (m *SetMetaNodeCommand) GetHTTPAddr() string {
+	if m != nil && m.HTTPAddr != nil {
+		return *m.HTTPAddr
 	}
 	return ""
 }
 
-type ErrorResponse struct {
-	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
-	XXX_unrecognized []byte          `json:"-"`
-}
-
-func (m *ErrorResponse) Reset()         { *m = ErrorResponse{} }
-func (m *ErrorResponse) String() string { return proto.CompactTextString(m) }
-func (*ErrorResponse) ProtoMessage()    {}
-
-func (m *ErrorResponse) GetHeader() *ResponseHeader {
-	if m != nil {
-		return m.Header
-	}
-	return nil
-}
-
-type FetchDataRequest struct {
-	Index            *uint64 `protobuf:"varint,1,req,name=Index" json:"Index,omitempty"`
-	Term             *uint64 `protobuf:"varint,2,req,name=Term" json:"Term,omitempty"`
-	Blocking         *bool   `protobuf:"varint,3,opt,name=Blocking,def=0" json:"Blocking,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *FetchDataRequest) Reset()         { *m = FetchDataRequest{} }
-func (m *FetchDataRequest) String() string { return proto.CompactTextString(m) }
-func (*FetchDataRequest) ProtoMessage()    {}
-
-const Default_FetchDataRequest_Blocking bool = false
-
-func (m *FetchDataRequest) GetIndex() uint64 {
-	if m != nil && m.Index != nil {
-		return *m.Index
-	}
-	return 0
-}
-
-func (m *FetchDataRequest) GetTerm() uint64 {
-	if m != nil && m.Term != nil {
-		return *m.Term
-	}
-	return 0
-}
-
-func (m *FetchDataRequest) GetBlocking() bool {
-	if m != nil && m.Blocking != nil {
-		return *m.Blocking
-	}
-	return Default_FetchDataRequest_Blocking
-}
-
-type FetchDataResponse struct {
-	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
-	Index            *uint64         `protobuf:"varint,2,req,name=Index" json:"Index,omitempty"`
-	Term             *uint64         `protobuf:"varint,3,req,name=Term" json:"Term,omitempty"`
-	Data             []byte          `protobuf:"bytes,4,opt,name=Data" json:"Data,omitempty"`
-	XXX_unrecognized []byte          `json:"-"`
-}
-
-func (m *FetchDataResponse) Reset()         { *m = FetchDataResponse{} }
-func (m *FetchDataResponse) String() string { return proto.CompactTextString(m) }
-func (*FetchDataResponse) ProtoMessage()    {}
-
-func (m *FetchDataResponse) GetHeader() *ResponseHeader {
-	if m != nil {
-		return m.Header
-	}
-	return nil
-}
-
-func (m *FetchDataResponse) GetIndex() uint64 {
-	if m != nil && m.Index != nil {
-		return *m.Index
-	}
-	return 0
-}
-
-func (m *FetchDataResponse) GetTerm() uint64 {
-	if m != nil && m.Term != nil {
-		return *m.Term
-	}
-	return 0
-}
-
-func (m *FetchDataResponse) GetData() []byte {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
-type JoinRequest struct {
-	Addr             *string `protobuf:"bytes,1,req,name=Addr" json:"Addr,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *JoinRequest) Reset()         { *m = JoinRequest{} }
-func (m *JoinRequest) String() string { return proto.CompactTextString(m) }
-func (*JoinRequest) ProtoMessage()    {}
-
-func (m *JoinRequest) GetAddr() string {
-	if m != nil && m.Addr != nil {
-		return *m.Addr
+func (m *SetMetaNodeCommand) GetTCPAddr() string {
+	if m != nil && m.TCPAddr != nil {
+		return *m.TCPAddr
 	}
 	return ""
 }
 
-type JoinResponse struct {
-	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
-	EnableRaft       *bool           `protobuf:"varint,2,opt,name=EnableRaft" json:"EnableRaft,omitempty"`
-	RaftNodes        []string        `protobuf:"bytes,3,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
-	NodeID           *uint64         `protobuf:"varint,4,opt,name=NodeID" json:"NodeID,omitempty"`
-	XXX_unrecognized []byte          `json:"-"`
-}
-
-func (m *JoinResponse) Reset()         { *m = JoinResponse{} }
-func (m *JoinResponse) String() string { return proto.CompactTextString(m) }
-func (*JoinResponse) ProtoMessage()    {}
-
-func (m *JoinResponse) GetHeader() *ResponseHeader {
-	if m != nil {
-		return m.Header
-	}
-	return nil
-}
-
-func (m *JoinResponse) GetEnableRaft() bool {
-	if m != nil && m.EnableRaft != nil {
-		return *m.EnableRaft
-	}
-	return false
-}
-
-func (m *JoinResponse) GetRaftNodes() []string {
-	if m != nil {
-		return m.RaftNodes
-	}
-	return nil
-}
-
-func (m *JoinResponse) GetNodeID() uint64 {
-	if m != nil && m.NodeID != nil {
-		return *m.NodeID
+func (m *SetMetaNodeCommand) GetRand() uint64 {
+	if m != nil && m.Rand != nil {
+		return *m.Rand
 	}
 	return 0
 }
 
-type PromoteRaftRequest struct {
-	Addr             *string  `protobuf:"bytes,1,req,name=Addr" json:"Addr,omitempty"`
-	RaftNodes        []string `protobuf:"bytes,2,rep,name=RaftNodes" json:"RaftNodes,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
-}
-
-func (m *PromoteRaftRequest) Reset()         { *m = PromoteRaftRequest{} }
-func (m *PromoteRaftRequest) String() string { return proto.CompactTextString(m) }
-func (*PromoteRaftRequest) ProtoMessage()    {}
-
-func (m *PromoteRaftRequest) GetAddr() string {
-	if m != nil && m.Addr != nil {
-		return *m.Addr
-	}
-	return ""
-}
-
-func (m *PromoteRaftRequest) GetRaftNodes() []string {
-	if m != nil {
-		return m.RaftNodes
-	}
-	return nil
-}
-
-type PromoteRaftResponse struct {
-	Header           *ResponseHeader `protobuf:"bytes,1,req,name=Header" json:"Header,omitempty"`
-	Success          *bool           `protobuf:"varint,2,opt,name=Success" json:"Success,omitempty"`
-	XXX_unrecognized []byte          `json:"-"`
-}
-
-func (m *PromoteRaftResponse) Reset()         { *m = PromoteRaftResponse{} }
-func (m *PromoteRaftResponse) String() string { return proto.CompactTextString(m) }
-func (*PromoteRaftResponse) ProtoMessage()    {}
-
-func (m *PromoteRaftResponse) GetHeader() *ResponseHeader {
-	if m != nil {
-		return m.Header
-	}
-	return nil
-}
-
-func (m *PromoteRaftResponse) GetSuccess() bool {
-	if m != nil && m.Success != nil {
-		return *m.Success
-	}
-	return false
+var E_SetMetaNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*SetMetaNodeCommand)(nil),
+	Field:         129,
+	Name:          "internal.SetMetaNodeCommand.command",
+	Tag:           "bytes,129,opt,name=command",
 }
 
 func init() {
-	proto.RegisterEnum("internal.RPCType", RPCType_name, RPCType_value)
+	proto.RegisterType((*Data)(nil), "internal.Data")
+	proto.RegisterType((*NodeInfo)(nil), "internal.NodeInfo")
+	proto.RegisterType((*DatabaseInfo)(nil), "internal.DatabaseInfo")
+	proto.RegisterType((*RetentionPolicyInfo)(nil), "internal.RetentionPolicyInfo")
+	proto.RegisterType((*ShardGroupInfo)(nil), "internal.ShardGroupInfo")
+	proto.RegisterType((*ShardInfo)(nil), "internal.ShardInfo")
+	proto.RegisterType((*SubscriptionInfo)(nil), "internal.SubscriptionInfo")
+	proto.RegisterType((*ShardOwner)(nil), "internal.ShardOwner")
+	proto.RegisterType((*ContinuousQueryInfo)(nil), "internal.ContinuousQueryInfo")
+	proto.RegisterType((*UserInfo)(nil), "internal.UserInfo")
+	proto.RegisterType((*UserPrivilege)(nil), "internal.UserPrivilege")
+	proto.RegisterType((*Command)(nil), "internal.Command")
+	proto.RegisterType((*CreateNodeCommand)(nil), "internal.CreateNodeCommand")
+	proto.RegisterType((*DeleteNodeCommand)(nil), "internal.DeleteNodeCommand")
+	proto.RegisterType((*CreateDatabaseCommand)(nil), "internal.CreateDatabaseCommand")
+	proto.RegisterType((*DropDatabaseCommand)(nil), "internal.DropDatabaseCommand")
+	proto.RegisterType((*CreateRetentionPolicyCommand)(nil), "internal.CreateRetentionPolicyCommand")
+	proto.RegisterType((*DropRetentionPolicyCommand)(nil), "internal.DropRetentionPolicyCommand")
+	proto.RegisterType((*SetDefaultRetentionPolicyCommand)(nil), "internal.SetDefaultRetentionPolicyCommand")
+	proto.RegisterType((*UpdateRetentionPolicyCommand)(nil), "internal.UpdateRetentionPolicyCommand")
+	proto.RegisterType((*CreateShardGroupCommand)(nil), "internal.CreateShardGroupCommand")
+	proto.RegisterType((*DeleteShardGroupCommand)(nil), "internal.DeleteShardGroupCommand")
+	proto.RegisterType((*CreateContinuousQueryCommand)(nil), "internal.CreateContinuousQueryCommand")
+	proto.RegisterType((*DropContinuousQueryCommand)(nil), "internal.DropContinuousQueryCommand")
+	proto.RegisterType((*CreateUserCommand)(nil), "internal.CreateUserCommand")
+	proto.RegisterType((*DropUserCommand)(nil), "internal.DropUserCommand")
+	proto.RegisterType((*UpdateUserCommand)(nil), "internal.UpdateUserCommand")
+	proto.RegisterType((*SetPrivilegeCommand)(nil), "internal.SetPrivilegeCommand")
+	proto.RegisterType((*SetDataCommand)(nil), "internal.SetDataCommand")
+	proto.RegisterType((*SetAdminPrivilegeCommand)(nil), "internal.SetAdminPrivilegeCommand")
+	proto.RegisterType((*UpdateNodeCommand)(nil), "internal.UpdateNodeCommand")
+	proto.RegisterType((*CreateSubscriptionCommand)(nil), "internal.CreateSubscriptionCommand")
+	proto.RegisterType((*DropSubscriptionCommand)(nil), "internal.DropSubscriptionCommand")
+	proto.RegisterType((*RemovePeerCommand)(nil), "internal.RemovePeerCommand")
+	proto.RegisterType((*CreateMetaNodeCommand)(nil), "internal.CreateMetaNodeCommand")
+	proto.RegisterType((*CreateDataNodeCommand)(nil), "internal.CreateDataNodeCommand")
+	proto.RegisterType((*UpdateDataNodeCommand)(nil), "internal.UpdateDataNodeCommand")
+	proto.RegisterType((*DeleteMetaNodeCommand)(nil), "internal.DeleteMetaNodeCommand")
+	proto.RegisterType((*DeleteDataNodeCommand)(nil), "internal.DeleteDataNodeCommand")
+	proto.RegisterType((*Response)(nil), "internal.Response")
+	proto.RegisterType((*SetMetaNodeCommand)(nil), "internal.SetMetaNodeCommand")
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
@@ -1686,4 +1709,10 @@ func init() {
 	proto.RegisterExtension(E_CreateSubscriptionCommand_Command)
 	proto.RegisterExtension(E_DropSubscriptionCommand_Command)
 	proto.RegisterExtension(E_RemovePeerCommand_Command)
+	proto.RegisterExtension(E_CreateMetaNodeCommand_Command)
+	proto.RegisterExtension(E_CreateDataNodeCommand_Command)
+	proto.RegisterExtension(E_UpdateDataNodeCommand_Command)
+	proto.RegisterExtension(E_DeleteMetaNodeCommand_Command)
+	proto.RegisterExtension(E_DeleteDataNodeCommand_Command)
+	proto.RegisterExtension(E_SetMetaNodeCommand_Command)
 }

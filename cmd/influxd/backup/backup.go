@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/tcp"
 )
@@ -281,19 +281,19 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 
 // download downloads a snapshot of either the metastore or a shard from a host to a given path.
 func (cmd *Command) download(req *snapshotter.Request, path string) error {
-	// Connect to snapshotter service.
-	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
 	// Create local file to write to.
 	f, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("open temp file: %s", err)
 	}
 	defer f.Close()
+
+	// Connect to snapshotter service.
+	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
 
 	// Write the request
 	if err := json.NewEncoder(conn).Encode(req); err != nil {

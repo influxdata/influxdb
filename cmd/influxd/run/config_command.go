@@ -30,7 +30,6 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	configPath := fs.String("config", "", "")
-	hostname := fs.String("hostname", "", "")
 	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, printConfigUsage) }
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -45,11 +44,6 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 	// Apply any environment variables on top of the parsed config
 	if err := config.ApplyEnvOverrides(); err != nil {
 		return fmt.Errorf("apply env config: %v", err)
-	}
-
-	// Override config properties.
-	if *hostname != "" {
-		config.Meta.Hostname = *hostname
 	}
 
 	// Validate the configuration.

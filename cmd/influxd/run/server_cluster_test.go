@@ -97,7 +97,7 @@ func TestCluster_Query_DropAndRecreateDatabase(t *testing.T) {
 	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -140,7 +140,7 @@ func TestCluster_Query_DropDatabaseIsolated(t *testing.T) {
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp1", 1, 0)); err != nil {
@@ -186,7 +186,7 @@ func TestCluster_Query_DropAndRecreateSeries(t *testing.T) {
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -255,7 +255,7 @@ func TestCluster_Query_DropSeriesFromRegex(t *testing.T) {
 	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicyInfo(test.retentionPolicy(), 1, 0)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -301,7 +301,7 @@ func TestCluster_RetentionPolicyCommands(t *testing.T) {
 	test := tests.load(t, "retention_policy_commands")
 
 	s := c.Servers[0]
-	if _, err := s.MetaStore.CreateDatabase(test.database()); err != nil {
+	if _, err := s.MetaClient.CreateDatabase(test.database()); err != nil {
 		t.Fatal(err)
 	}
 

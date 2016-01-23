@@ -12,7 +12,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -41,11 +41,12 @@ type queryExecutor interface {
 	ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
 }
 
-// metaStore is an internal interface to make testing easier.
-type metaStore interface {
-	IsLeader() bool
+// metaClient is an internal interface to make testing easier.
+type metaClient interface {
+	AcquireLease(name string) (l *meta.Lease, err error)
 	Databases() ([]meta.DatabaseInfo, error)
 	Database(name string) (*meta.DatabaseInfo, error)
+	NodeID() uint64
 }
 
 // RunRequest is a request to run one or more CQs.
@@ -72,7 +73,7 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 
 // Service manages continuous query execution.
 type Service struct {
-	MetaStore     metaStore
+	MetaClient    metaClient
 	QueryExecutor queryExecutor
 	Config        *Config
 	RunInterval   time.Duration
@@ -111,7 +112,7 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	assert(s.MetaStore != nil, "MetaStore is nil")
+	assert(s.MetaClient != nil, "MetaClient is nil")
 	assert(s.QueryExecutor != nil, "QueryExecutor is nil")
 
 	s.stop = make(chan struct{})
@@ -144,7 +145,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 
 	if database != "" {
 		// Find the requested database.
-		db, err := s.MetaStore.Database(database)
+		db, err := s.MetaClient.Database(database)
 		if err != nil {
 			return err
 		} else if db == nil {
@@ -154,7 +155,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 	} else {
 		// Get all databases.
 		var err error
-		dbs, err = s.MetaStore.Databases()
+		dbs, err = s.MetaClient.Databases()
 		if err != nil {
 			return err
 		}
@@ -183,6 +184,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 
 // backgroundLoop runs on a go routine and periodically executes CQs.
 func (s *Service) backgroundLoop() {
+	leaseName := "continuous_querier"
 	defer s.wg.Done()
 	for {
 		select {
@@ -190,22 +192,45 @@ func (s *Service) backgroundLoop() {
 			s.Logger.Println("continuous query service terminating")
 			return
 		case req := <-s.RunCh:
-			if s.MetaStore.IsLeader() {
+			if !s.hasContinuousQueries() {
+				continue
+			}
+			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
 				s.Logger.Printf("running continuous queries by request for time: %v", req.Now)
 				s.runContinuousQueries(req)
 			}
 		case <-time.After(s.RunInterval):
-			if s.MetaStore.IsLeader() {
+			if !s.hasContinuousQueries() {
+				continue
+			}
+			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
 				s.runContinuousQueries(&RunRequest{Now: time.Now()})
 			}
 		}
 	}
 }
 
+// hasContinuousQueries returns true if any CQs exist.
+func (s *Service) hasContinuousQueries() bool {
+	// Get list of all databases.
+	dbs, err := s.MetaClient.Databases()
+	if err != nil {
+		s.Logger.Println("error getting databases")
+		return false
+	}
+	// Loop through all databases executing CQs.
+	for _, db := range dbs {
+		if len(db.ContinuousQueries) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // runContinuousQueries gets CQs from the meta store and runs them.
 func (s *Service) runContinuousQueries(req *RunRequest) {
 	// Get list of all databases.
-	dbs, err := s.MetaStore.Databases()
+	dbs, err := s.MetaClient.Databases()
 	if err != nil {
 		s.Logger.Println("error getting databases")
 		return

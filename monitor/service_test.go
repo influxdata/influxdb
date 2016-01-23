@@ -3,11 +3,10 @@ package monitor
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // Test that a registered stats client results in the correct SHOW STATS output.
@@ -37,24 +36,22 @@ func Test_RegisterStats(t *testing.T) {
 	}
 }
 
-type mockMetastore struct{}
+type mockMetaClient struct{}
 
-func (m *mockMetastore) ClusterID() (uint64, error)                            { return 1, nil }
-func (m *mockMetastore) NodeID() uint64                                        { return 2 }
-func (m *mockMetastore) WaitForLeader(d time.Duration) error                   { return nil }
-func (m *mockMetastore) IsLeader() bool                                        { return true }
-func (m *mockMetastore) SetDefaultRetentionPolicy(database, name string) error { return nil }
-func (m *mockMetastore) DropRetentionPolicy(database, name string) error       { return nil }
-func (m *mockMetastore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+func (m *mockMetaClient) ClusterID() uint64                                     { return 1 }
+func (m *mockMetaClient) IsLeader() bool                                        { return true }
+func (m *mockMetaClient) SetDefaultRetentionPolicy(database, name string) error { return nil }
+func (m *mockMetaClient) DropRetentionPolicy(database, name string) error       { return nil }
+func (m *mockMetaClient) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	return nil, nil
 }
-func (m *mockMetastore) CreateRetentionPolicyIfNotExists(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
+func (m *mockMetaClient) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
 	return nil, nil
 }
 
 func openMonitor(t *testing.T) *Monitor {
 	monitor := New(NewConfig())
-	monitor.MetaStore = &mockMetastore{}
+	monitor.MetaClient = &mockMetaClient{}
 	err := monitor.Open()
 	if err != nil {
 		t.Fatalf("failed to open monitor: %s", err.Error())

@@ -16,7 +16,7 @@ import (
 	"sync"
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -129,7 +129,6 @@ func (cmd *Command) ensureStopped() error {
 // unpackMeta reads the metadata from the backup directory and initializes a raft
 // cluster and replaces the root metadata.
 func (cmd *Command) unpackMeta() error {
-	fmt.Fprintf(cmd.Stdout, "Restoring metastore to %v\n", cmd.metadir)
 	// find the meta file
 	metaFiles, err := filepath.Glob(filepath.Join(cmd.backupFilesPath, backup.Metafile+".*"))
 	if err != nil {
@@ -160,27 +159,14 @@ func (cmd *Command) unpackMeta() error {
 		return fmt.Errorf("unmarshal: %s", err)
 	}
 
+	// Copy meta config and remove peers so it starts in single mode.
+	c := cmd.MetaConfig
+	c.JoinPeers = nil
+	c.LoggingEnabled = false
+
 	// Initialize meta store.
-	store := meta.NewStore(cmd.MetaConfig)
+	store := meta.NewService(c)
 	store.RaftListener = newNopListener()
-	store.ExecListener = newNopListener()
-	store.RPCListener = newNopListener()
-	store.Logger = log.New(ioutil.Discard, "", 0)
-
-	// Determine advertised address.
-	_, port, err := net.SplitHostPort(cmd.MetaConfig.BindAddress)
-	if err != nil {
-		return fmt.Errorf("split bind address: %s", err)
-	}
-	hostport := net.JoinHostPort(cmd.MetaConfig.Hostname, port)
-
-	// Resolve address.
-	addr, err := net.ResolveTCPAddr("tcp", hostport)
-	if err != nil {
-		return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
-	}
-	store.Addr = addr
-	store.RemoteAddr = addr
 
 	// Open the meta store.
 	if err := store.Open(); err != nil {
@@ -190,18 +176,22 @@ func (cmd *Command) unpackMeta() error {
 
 	// Wait for the store to be ready or error.
 	select {
-	case <-store.Ready():
 	case err := <-store.Err():
 		return err
+	default:
 	}
+
+	client := meta.NewClient([]string{store.HTTPAddr()}, false)
+	client.SetLogger(log.New(ioutil.Discard, "", 0))
+	if err := client.Open(); err != nil {
+		return err
+	}
+	defer client.Close()
 
 	// Force set the full metadata.
-	if err := store.SetData(&data); err != nil {
+	if err := client.SetData(&data); err != nil {
 		return fmt.Errorf("set data: %s", err)
 	}
-
-	fmt.Fprintln(cmd.Stdout, "Metastore restore successful")
-
 	return nil
 }
 
@@ -375,4 +365,4 @@ func (ln *nopListener) Close() error {
 	return nil
 }
 
-func (ln *nopListener) Addr() net.Addr { return nil }
+func (ln *nopListener) Addr() net.Addr { return &net.TCPAddr{} }

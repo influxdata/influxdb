@@ -11,8 +11,8 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 var (
@@ -95,12 +95,12 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	s := NewTestService(t)
-	ms := NewMetaStore(t)
-	ms.CreateDatabase("db", "")
-	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
-	s.MetaStore = ms
+	mc := NewMetaClient(t)
+	mc.CreateDatabase("db", "")
+	mc.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
+	s.MetaClient = mc
 
-	db, err := s.MetaStore.Database("db")
+	db, err := s.MetaClient.Database("db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	s := NewTestService(t)
 	// Set RunInterval high so we can test triggering with the RunCh below.
 	s.RunInterval = 10 * time.Second
-	s.MetaStore.(*MetaStore).Leader = false
+	s.MetaClient.(*MetaClient).Leader = false
 
 	done := make(chan struct{})
 	qe := s.QueryExecutor.(*QueryExecutor)
@@ -258,11 +258,11 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 }
 
 // Test service behavior when meta store fails to get databases.
-func TestContinuousQueryService_MetaStoreFailsToGetDatabases(t *testing.T) {
+func TestContinuousQueryService_MetaClientFailsToGetDatabases(t *testing.T) {
 	s := NewTestService(t)
 	// Set RunInterval high so we can test triggering with the RunCh below.
 	s.RunInterval = 10 * time.Second
-	s.MetaStore.(*MetaStore).Err = errExpected
+	s.MetaClient.(*MetaClient).Err = errExpected
 
 	done := make(chan struct{})
 	qe := s.QueryExecutor.(*QueryExecutor)
@@ -285,7 +285,7 @@ func TestContinuousQueryService_MetaStoreFailsToGetDatabases(t *testing.T) {
 // Test ExecuteContinuousQuery with invalid queries.
 func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	s := NewTestService(t)
-	dbis, _ := s.MetaStore.Databases()
+	dbis, _ := s.MetaClient.Databases()
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
@@ -316,7 +316,7 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	qe := s.QueryExecutor.(*QueryExecutor)
 	qe.Err = errExpected
 
-	dbis, _ := s.MetaStore.Databases()
+	dbis, _ := s.MetaClient.Databases()
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
@@ -330,8 +330,8 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 // NewTestService returns a new *Service with default mock object members.
 func NewTestService(t *testing.T) *Service {
 	s := NewService(NewConfig())
-	ms := NewMetaStore(t)
-	s.MetaStore = ms
+	ms := NewMetaClient(t)
+	s.MetaClient = ms
 	s.QueryExecutor = NewQueryExecutor(t)
 	s.RunInterval = time.Millisecond
 
@@ -351,45 +351,56 @@ func NewTestService(t *testing.T) *Service {
 	return s
 }
 
-// MetaStore is a mock meta store.
-type MetaStore struct {
+// MetaClient is a mock meta store.
+type MetaClient struct {
 	mu            sync.RWMutex
 	Leader        bool
+	AllowLease    bool
 	DatabaseInfos []meta.DatabaseInfo
 	Err           error
 	t             *testing.T
+	nodeID        uint64
 }
 
-// NewMetaStore returns a *MetaStore.
-func NewMetaStore(t *testing.T) *MetaStore {
-	return &MetaStore{
-		Leader: true,
-		t:      t,
+// NewMetaClient returns a *MetaClient.
+func NewMetaClient(t *testing.T) *MetaClient {
+	return &MetaClient{
+		Leader:     true,
+		AllowLease: true,
+		t:          t,
+		nodeID:     1,
 	}
 }
 
-// IsLeader returns true if the node is the cluster leader.
-func (ms *MetaStore) IsLeader() bool {
-	ms.mu.RLock()
-	defer ms.mu.RUnlock()
-	return ms.Leader
+// NodeID returns the client's node ID.
+func (ms *MetaClient) NodeID() uint64 { return ms.nodeID }
+
+// AcquireLease attempts to acquire the specified lease.
+func (ms *MetaClient) AcquireLease(name string) (l *meta.Lease, err error) {
+	if ms.Leader {
+		if ms.AllowLease {
+			return &meta.Lease{Name: name}, nil
+		}
+		return nil, errors.New("another node owns the lease")
+	}
+	return nil, meta.ErrServiceUnavailable
 }
 
 // Databases returns a list of database info about each database in the cluster.
-func (ms *MetaStore) Databases() ([]meta.DatabaseInfo, error) {
+func (ms *MetaClient) Databases() ([]meta.DatabaseInfo, error) {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 	return ms.DatabaseInfos, ms.Err
 }
 
 // Database returns a single database by name.
-func (ms *MetaStore) Database(name string) (*meta.DatabaseInfo, error) {
+func (ms *MetaClient) Database(name string) (*meta.DatabaseInfo, error) {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 	return ms.database(name)
 }
 
-func (ms *MetaStore) database(name string) (*meta.DatabaseInfo, error) {
+func (ms *MetaClient) database(name string) (*meta.DatabaseInfo, error) {
 	if ms.Err != nil {
 		return nil, ms.Err
 	}
@@ -402,7 +413,7 @@ func (ms *MetaStore) database(name string) (*meta.DatabaseInfo, error) {
 }
 
 // CreateDatabase adds a new database to the meta store.
-func (ms *MetaStore) CreateDatabase(name, defaultRetentionPolicy string) error {
+func (ms *MetaClient) CreateDatabase(name, defaultRetentionPolicy string) error {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
 	if ms.Err != nil {
@@ -426,7 +437,7 @@ func (ms *MetaStore) CreateDatabase(name, defaultRetentionPolicy string) error {
 }
 
 // CreateContinuousQuery adds a CQ to the meta store.
-func (ms *MetaStore) CreateContinuousQuery(database, name, query string) error {
+func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
 	if ms.Err != nil {

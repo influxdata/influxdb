@@ -5,13 +5,13 @@ import (
 	"log"
 	"net"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/pprof"
-	"strings"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
@@ -20,6 +20,7 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
@@ -50,11 +51,14 @@ type Server struct {
 	err     chan error
 	closing chan struct{}
 
-	Hostname    string
 	BindAddress string
 	Listener    net.Listener
 
-	MetaStore     *meta.Store
+	Node *influxdb.Node
+
+	MetaClient  *meta.Client
+	MetaService *meta.Service
+
 	TSDBStore     *tsdb.Store
 	QueryExecutor *tsdb.QueryExecutor
 	PointsWriter  *cluster.PointsWriter
@@ -78,102 +82,136 @@ type Server struct {
 	// Profiling
 	CPUProfile string
 	MemProfile string
+
+	// joinPeers are the metaservers specified at run time to join this server to
+	joinPeers []string
+
+	// metaUseTLS specifies if we should use a TLS connection to the meta servers
+	metaUseTLS bool
+
+	// httpAPIAddr is the host:port combination for the main HTTP API for querying and writing data
+	httpAPIAddr string
+
+	// httpUseTLS specifies if we should use a TLS connection to the http servers
+	httpUseTLS bool
+
+	// tcpAddr is the host:port combination for the TCP listener that services mux onto
+	tcpAddr string
+
+	config *Config
 }
 
 // NewServer returns a new instance of Server built from a config.
 func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
-	// Construct base meta store and data store.
-	tsdbStore := tsdb.NewStore(c.Data.Dir)
-	tsdbStore.EngineOptions.Config = c.Data
+	// load the node information. Before 0.10 this was in the meta directory,
+	// so use that if the top level directory isn't specified
+	dir := c.Dir
+	if dir == "" {
+		dir = c.Meta.Dir
+	}
+
+	// load the node information
+	node, err := influxdb.NewNode(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	// In 0.10.0 bind-address got moved to the top level. Check
+	// The old location to keep things backwards compatible
+	bind := c.BindAddress
+	if c.Meta.BindAddress != "" {
+		bind = c.Meta.BindAddress
+	}
+
+	if !c.Data.Enabled && !c.Meta.Enabled {
+		return nil, fmt.Errorf("must run as either meta node or data node or both")
+	}
+
+	httpBindAddress, err := defaultHost(DefaultHostname, c.HTTPD.BindAddress)
+	if err != nil {
+		return nil, err
+	}
+	tcpBindAddress, err := defaultHost(DefaultHostname, bind)
+	if err != nil {
+		return nil, err
+	}
 
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
 		closing:   make(chan struct{}),
 
-		Hostname:    c.Meta.Hostname,
-		BindAddress: c.Meta.BindAddress,
+		BindAddress: bind,
 
-		MetaStore: meta.NewStore(c.Meta),
-		TSDBStore: tsdbStore,
+		Node: node,
 
 		Monitor: monitor.New(c.Monitor),
 
 		reportingDisabled: c.ReportingDisabled,
+		joinPeers:         c.Meta.JoinPeers,
+		metaUseTLS:        c.Meta.HTTPSEnabled,
+
+		httpAPIAddr: httpBindAddress,
+		httpUseTLS:  c.HTTPD.HTTPSEnabled,
+		tcpAddr:     tcpBindAddress,
+
+		config: c,
 	}
 
-	// Copy TSDB configuration.
-	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
-	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
-	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
-
-	// Set the shard mapper
-	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
-	s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
-	s.ShardMapper.MetaStore = s.MetaStore
-	s.ShardMapper.TSDBStore = s.TSDBStore
-
-	// Initialize query executor.
-	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
-	s.QueryExecutor.MetaStore = s.MetaStore
-	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
-	s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
-	s.QueryExecutor.ShardMapper = s.ShardMapper
-	s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
-
-	// Set the shard writer
-	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
-	s.ShardWriter.MetaStore = s.MetaStore
-
-	// Create the hinted handoff service
-	s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaStore)
-	s.HintedHandoff.Monitor = s.Monitor
-
-	// Create the Subscriber service
-	s.Subscriber = subscriber.NewService(c.Subscriber)
-	s.Subscriber.MetaStore = s.MetaStore
-
-	// Initialize points writer.
-	s.PointsWriter = cluster.NewPointsWriter()
-	s.PointsWriter.WriteTimeout = time.Duration(c.Cluster.WriteTimeout)
-	s.PointsWriter.MetaStore = s.MetaStore
-	s.PointsWriter.TSDBStore = s.TSDBStore
-	s.PointsWriter.ShardWriter = s.ShardWriter
-	s.PointsWriter.HintedHandoff = s.HintedHandoff
-	s.PointsWriter.Subscriber = s.Subscriber
-
-	// needed for executing INTO queries.
-	s.QueryExecutor.IntoWriter = s.PointsWriter
-
-	// Initialize the monitor
-	s.Monitor.Version = s.buildInfo.Version
-	s.Monitor.Commit = s.buildInfo.Commit
-	s.Monitor.Branch = s.buildInfo.Branch
-	s.Monitor.BuildTime = s.buildInfo.Time
-	s.Monitor.MetaStore = s.MetaStore
-	s.Monitor.PointsWriter = s.PointsWriter
-
-	// Append services.
-	s.appendClusterService(c.Cluster)
-	s.appendPrecreatorService(c.Precreator)
-	s.appendSnapshotterService()
-	s.appendCopierService()
-	s.appendAdminService(c.Admin)
-	s.appendContinuousQueryService(c.ContinuousQuery)
-	s.appendHTTPDService(c.HTTPD)
-	s.appendCollectdService(c.Collectd)
-	if err := s.appendOpenTSDBService(c.OpenTSDB); err != nil {
-		return nil, err
+	if c.Meta.Enabled {
+		s.MetaService = meta.NewService(c.Meta)
 	}
-	for _, g := range c.UDPs {
-		s.appendUDPService(g)
-	}
-	s.appendRetentionPolicyService(c.Retention)
-	for _, g := range c.Graphites {
-		if err := s.appendGraphiteService(g); err != nil {
-			return nil, err
-		}
+
+	if c.Data.Enabled {
+		s.TSDBStore = tsdb.NewStore(c.Data.Dir)
+		s.TSDBStore.EngineOptions.Config = c.Data
+
+		// Copy TSDB configuration.
+		s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
+		s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
+		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
+
+		// Set the shard mapper
+		s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
+		s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
+		s.ShardMapper.TSDBStore = s.TSDBStore
+		s.ShardMapper.Node = node
+
+		// Initialize query executor.
+		s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
+		s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
+		s.QueryExecutor.ShardMapper = s.ShardMapper
+		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
+
+		// Set the shard writer
+		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
+
+		// Create the hinted handoff service
+		s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaClient)
+		s.HintedHandoff.Monitor = s.Monitor
+
+		// Create the Subscriber service
+		s.Subscriber = subscriber.NewService(c.Subscriber)
+
+		// Initialize points writer.
+		s.PointsWriter = cluster.NewPointsWriter()
+		s.PointsWriter.WriteTimeout = time.Duration(c.Cluster.WriteTimeout)
+		s.PointsWriter.TSDBStore = s.TSDBStore
+		s.PointsWriter.ShardWriter = s.ShardWriter
+		s.PointsWriter.HintedHandoff = s.HintedHandoff
+		s.PointsWriter.Subscriber = s.Subscriber
+		s.PointsWriter.Node = s.Node
+
+		// needed for executing INTO queries.
+		s.QueryExecutor.IntoWriter = s.PointsWriter
+
+		// Initialize the monitor
+		s.Monitor.Version = s.buildInfo.Version
+		s.Monitor.Commit = s.buildInfo.Commit
+		s.Monitor.Branch = s.buildInfo.Branch
+		s.Monitor.BuildTime = s.buildInfo.Time
+		s.Monitor.PointsWriter = s.PointsWriter
 	}
 
 	return s, nil
@@ -182,7 +220,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
 	srv.TSDBStore = s.TSDBStore
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	s.Services = append(s.Services, srv)
 	s.ClusterService = srv
 }
@@ -190,7 +228,7 @@ func (s *Server) appendClusterService(c cluster.Config) {
 func (s *Server) appendSnapshotterService() {
 	srv := snapshotter.NewService()
 	srv.TSDBStore = s.TSDBStore
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	s.Services = append(s.Services, srv)
 	s.SnapshotterService = srv
 }
@@ -207,7 +245,7 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 		return
 	}
 	srv := retention.NewService(c)
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	srv.TSDBStore = s.TSDBStore
 	s.Services = append(s.Services, srv)
 }
@@ -225,7 +263,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 		return
 	}
 	srv := httpd.NewService(c)
-	srv.Handler.MetaStore = s.MetaStore
+	srv.Handler.MetaClient = s.MetaClient
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
@@ -245,7 +283,7 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 		return
 	}
 	srv := collectd.NewService(c)
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
@@ -259,7 +297,7 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 		return err
 	}
 	srv.PointsWriter = s.PointsWriter
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -274,7 +312,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 	}
 
 	srv.PointsWriter = s.PointsWriter
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 	return nil
@@ -289,7 +327,7 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 		return err
 	}
 
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	s.Services = append(s.Services, srv)
 	return nil
 }
@@ -300,7 +338,7 @@ func (s *Server) appendUDPService(c udp.Config) {
 	}
 	srv := udp.NewService(c)
 	srv.PointsWriter = s.PointsWriter
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	s.Services = append(s.Services, srv)
 }
 
@@ -309,7 +347,7 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 		return
 	}
 	srv := continuous_querier.NewService(c)
-	srv.MetaStore = s.MetaStore
+	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
 	s.Services = append(s.Services, srv)
 }
@@ -323,19 +361,6 @@ func (s *Server) Open() error {
 		// Start profiling, if set.
 		startProfile(s.CPUProfile, s.MemProfile)
 
-		host, port, err := s.hostAddr()
-		if err != nil {
-			return err
-		}
-
-		hostport := net.JoinHostPort(host, port)
-		addr, err := net.ResolveTCPAddr("tcp", hostport)
-		if err != nil {
-			return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
-		}
-		s.MetaStore.Addr = addr
-		s.MetaStore.RemoteAddr = &tcpaddr{hostport}
-
 		// Open shared TCP connection.
 		ln, err := net.Listen("tcp", s.BindAddress)
 		if err != nil {
@@ -343,60 +368,89 @@ func (s *Server) Open() error {
 		}
 		s.Listener = ln
 
-		// The port 0 is used, we need to retrieve the port assigned by the kernel
-		if strings.HasSuffix(s.BindAddress, ":0") {
-			s.MetaStore.Addr = ln.Addr()
-			s.MetaStore.RemoteAddr = ln.Addr()
-		}
-
 		// Multiplex listener.
 		mux := tcp.NewMux()
-		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
-		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
-		s.MetaStore.RPCListener = mux.Listen(meta.MuxRPCHeader)
-
-		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
-		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
-		s.CopierService.Listener = mux.Listen(copier.MuxHeader)
 		go mux.Serve(ln)
 
-		// Open meta store.
-		if err := s.MetaStore.Open(); err != nil {
-			return fmt.Errorf("open meta store: %s", err)
-		}
-		go s.monitorErrorChan(s.MetaStore.Err())
+		if s.MetaService != nil {
+			s.MetaService.RaftListener = mux.Listen(meta.MuxHeader)
 
-		// Wait for the store to initialize.
-		<-s.MetaStore.Ready()
-
-		// Open TSDB store.
-		if err := s.TSDBStore.Open(); err != nil {
-			return fmt.Errorf("open tsdb store: %s", err)
+			// Open meta service.
+			if err := s.MetaService.Open(); err != nil {
+				return fmt.Errorf("open meta service: %s", err)
+			}
+			go s.monitorErrorChan(s.MetaService.Err())
 		}
 
-		// Open the hinted handoff service
-		if err := s.HintedHandoff.Open(); err != nil {
-			return fmt.Errorf("open hinted handoff: %s", err)
-		}
+		if s.TSDBStore != nil {
+			if err := s.initializeDataNode(); err != nil {
+				return err
+			}
 
-		// Open the subcriber service
-		if err := s.Subscriber.Open(); err != nil {
-			return fmt.Errorf("open subscriber: %s", err)
-		}
+			// Append services.
+			s.appendClusterService(s.config.Cluster)
+			s.appendPrecreatorService(s.config.Precreator)
+			s.appendSnapshotterService()
+			s.appendCopierService()
+			s.appendAdminService(s.config.Admin)
+			s.appendContinuousQueryService(s.config.ContinuousQuery)
+			s.appendHTTPDService(s.config.HTTPD)
+			s.appendCollectdService(s.config.Collectd)
+			if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
+				return err
+			}
+			for _, g := range s.config.UDPs {
+				s.appendUDPService(g)
+			}
+			s.appendRetentionPolicyService(s.config.Retention)
+			for _, g := range s.config.Graphites {
+				if err := s.appendGraphiteService(g); err != nil {
+					return err
+				}
+			}
 
-		// Open the points writer service
-		if err := s.PointsWriter.Open(); err != nil {
-			return fmt.Errorf("open points writer: %s", err)
-		}
+			s.Subscriber.MetaClient = s.MetaClient
+			s.ShardMapper.MetaClient = s.MetaClient
+			s.QueryExecutor.MetaClient = s.MetaClient
+			s.ShardWriter.MetaClient = s.MetaClient
+			s.HintedHandoff.MetaClient = s.MetaClient
+			s.Subscriber.MetaClient = s.MetaClient
+			s.PointsWriter.MetaClient = s.MetaClient
+			s.Monitor.MetaClient = s.MetaClient
 
-		// Open the monitor service
-		if err := s.Monitor.Open(); err != nil {
-			return fmt.Errorf("open monitor: %v", err)
-		}
+			s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
+			s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
+			s.CopierService.Listener = mux.Listen(copier.MuxHeader)
 
-		for _, service := range s.Services {
-			if err := service.Open(); err != nil {
-				return fmt.Errorf("open service: %s", err)
+			// Open TSDB store.
+			if err := s.TSDBStore.Open(); err != nil {
+				return fmt.Errorf("open tsdb store: %s", err)
+			}
+
+			// Open the hinted handoff service
+			if err := s.HintedHandoff.Open(); err != nil {
+				return fmt.Errorf("open hinted handoff: %s", err)
+			}
+
+			// Open the subcriber service
+			if err := s.Subscriber.Open(); err != nil {
+				return fmt.Errorf("open subscriber: %s", err)
+			}
+
+			// Open the points writer service
+			if err := s.PointsWriter.Open(); err != nil {
+				return fmt.Errorf("open points writer: %s", err)
+			}
+
+			// Open the monitor service
+			if err := s.Monitor.Open(); err != nil {
+				return fmt.Errorf("open monitor: %v", err)
+			}
+
+			for _, service := range s.Services {
+				if err := service.Open(); err != nil {
+					return fmt.Errorf("open service: %s", err)
+				}
 			}
 		}
 
@@ -408,7 +462,6 @@ func (s *Server) Open() error {
 		return nil
 
 	}(); err != nil {
-		s.Close()
 		return err
 	}
 
@@ -452,8 +505,12 @@ func (s *Server) Close() error {
 	}
 
 	// Finally close the meta-store since everything else depends on it
-	if s.MetaStore != nil {
-		s.MetaStore.Close()
+	if s.MetaService != nil {
+		s.MetaService.Close()
+	}
+
+	if s.MetaClient != nil {
+		s.MetaClient.Close()
 	}
 
 	close(s.closing)
@@ -468,11 +525,6 @@ func (s *Server) startServerReporting() {
 			return
 		default:
 		}
-		if err := s.MetaStore.WaitForLeader(30 * time.Second); err != nil {
-			log.Printf("no leader available for reporting: %s", err.Error())
-			time.Sleep(time.Second)
-			continue
-		}
 		s.reportServer()
 		<-time.After(24 * time.Hour)
 	}
@@ -480,7 +532,7 @@ func (s *Server) startServerReporting() {
 
 // reportServer reports anonymous statistics about the system.
 func (s *Server) reportServer() {
-	dis, err := s.MetaStore.Databases()
+	dis, err := s.MetaClient.Databases()
 	if err != nil {
 		log.Printf("failed to retrieve databases for reporting: %s", err.Error())
 		return
@@ -500,7 +552,7 @@ func (s *Server) reportServer() {
 		numSeries += s
 	}
 
-	clusterID, err := s.MetaStore.ClusterID()
+	clusterID := s.MetaClient.ClusterID()
 	if err != nil {
 		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
 		return
@@ -515,7 +567,7 @@ func (s *Server) reportServer() {
 					"os":               runtime.GOOS,
 					"arch":             runtime.GOARCH,
 					"version":          s.buildInfo.Version,
-					"server_id":        fmt.Sprintf("%v", s.MetaStore.NodeID()),
+					"server_id":        fmt.Sprintf("%v", s.Node.ID),
 					"cluster_id":       fmt.Sprintf("%v", clusterID),
 					"num_series":       numSeries,
 					"num_measurements": numMeasurements,
@@ -545,33 +597,80 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 	}
 }
 
-// hostAddr returns the host and port that remote nodes will use to reach this
-// node.
-func (s *Server) hostAddr() (string, string, error) {
-	// Resolve host to address.
-	_, port, err := net.SplitHostPort(s.BindAddress)
+// initializeDataNode will set the MetaClient and join the node to the cluster if needed
+func (s *Server) initializeDataNode() error {
+	// if the node ID is > 0 then we just need to initialize the metaclient
+	if s.Node.ID > 0 {
+		s.MetaClient = meta.NewClient(s.Node.MetaServers, s.metaUseTLS)
+		if err := s.MetaClient.Open(); err != nil {
+			return err
+		}
+
+		go s.updateMetaNodeInformation()
+
+		return nil
+	}
+
+	// It's the first time starting up and we need to either join
+	// the cluster or initialize this node as the first member
+	if len(s.joinPeers) == 0 {
+		// start up a new single node cluster
+		if s.MetaService == nil {
+			return fmt.Errorf("server not set to join existing cluster must run also as a meta node")
+		}
+		s.MetaClient = meta.NewClient([]string{s.MetaService.HTTPAddr()}, s.metaUseTLS)
+	} else {
+		// join this data node to the cluster
+		s.MetaClient = meta.NewClient(s.joinPeers, s.metaUseTLS)
+	}
+	if err := s.MetaClient.Open(); err != nil {
+		return err
+	}
+	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 	if err != nil {
-		return "", "", fmt.Errorf("split bind address: %s", err)
+		return err
+	}
+	s.Node.ID = n.ID
+	metaNodes, err := s.MetaClient.MetaNodes()
+	if err != nil {
+		return err
+	}
+	for _, n := range metaNodes {
+		s.Node.MetaServers = append(s.Node.MetaServers, n.Host)
+	}
+	if err := s.Node.Save(); err != nil {
+		return err
 	}
 
-	host := s.Hostname
+	go s.updateMetaNodeInformation()
 
-	// See if we might have a port that will override the BindAddress port
-	if host != "" && host[len(host)-1] >= '0' && host[len(host)-1] <= '9' && strings.Contains(host, ":") {
-		hostArg, portArg, err := net.SplitHostPort(s.Hostname)
-		if err != nil {
-			return "", "", err
-		}
+	return nil
+}
 
-		if hostArg != "" {
-			host = hostArg
-		}
-
-		if portArg != "" {
-			port = portArg
+// updateMetaNodeInformation will continuously run and save the node.json file
+// if the list of metaservers in the cluster changes
+func (s *Server) updateMetaNodeInformation() {
+	for {
+		c := s.MetaClient.WaitForDataChanged()
+		select {
+		case <-c:
+			nodes, _ := s.MetaClient.MetaNodes()
+			var nodeAddrs []string
+			for _, n := range nodes {
+				nodeAddrs = append(nodeAddrs, n.Host)
+			}
+			if !reflect.DeepEqual(nodeAddrs, s.Node.MetaServers) {
+				s.Node.MetaServers = nodeAddrs
+				if err := s.Node.Save(); err != nil {
+					log.Printf("error saving node information: %s\n", err.Error())
+				} else {
+					log.Printf("updated node metaservers with: %v\n", s.Node.MetaServers)
+				}
+			}
+		case <-s.closing:
+			return
 		}
 	}
-	return host, port, nil
 }
 
 // Service represents a service attached to the server.
@@ -622,6 +721,18 @@ func stopProfile() {
 		prof.mem.Close()
 		log.Println("mem profile stopped")
 	}
+}
+
+func defaultHost(hostname, addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+
+	if host == "" {
+		return net.JoinHostPort(hostname, port), nil
+	}
+	return addr, nil
 }
 
 type tcpaddr struct{ host string }

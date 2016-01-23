@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -348,12 +348,12 @@ func TestDropDatabase(t *testing.T) {
 	}
 
 	var name string
-	me := &metaExec{fn: func(stmt influxql.Statement) *influxql.Result {
-		name = stmt.(*influxql.DropDatabaseStatement).Name
-		return &influxql.Result{}
-	}}
-	executor.MetaStatementExecutor = me
-
+	executor.MetaClient = &testMetaClient{
+		ExecuteStatemenFn: func(stmt influxql.Statement) *influxql.Result {
+			name = stmt.(*influxql.DropDatabaseStatement).Name
+			return &influxql.Result{}
+		},
+	}
 	// verify the database is there on disk
 	dbPath := filepath.Join(store.Path(), "foo")
 	if _, err := os.Stat(dbPath); err != nil {
@@ -412,8 +412,8 @@ func TestQueryNoData(t *testing.T) {
 func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {
 	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
-	ms := &testMetastore{userCount: 0}
-	executor.MetaStore = ms
+	ms := &testMetaClient{userCount: 0}
+	executor.MetaClient = ms
 
 	if err := executor.Authorize(nil, mustParseQuery("create user foo with password 'asdf' with all privileges"), ""); err != nil {
 		t.Fatalf("should have authenticated if no users and attempting to create a user but got error: %s", err.Error())
@@ -456,7 +456,7 @@ func testStoreAndExecutor(storePath string) (*tsdb.Store, *tsdb.QueryExecutor) {
 	store.CreateShard(database, retentionPolicy, shardID)
 
 	executor := tsdb.NewQueryExecutor(store)
-	executor.MetaStore = &testMetastore{}
+	executor.MetaClient = &testMetaClient{}
 	executor.ShardMapper = &testShardMapper{store: store}
 
 	return store, executor
@@ -480,11 +480,12 @@ func executeAndGetJSON(query string, executor *tsdb.QueryExecutor) string {
 	return string(b)
 }
 
-type testMetastore struct {
-	userCount int
+type testMetaClient struct {
+	userCount         int
+	ExecuteStatemenFn func(stmt influxql.Statement) *influxql.Result
 }
 
-func (t *testMetastore) Database(name string) (*meta.DatabaseInfo, error) {
+func (t *testMetaClient) Database(name string) (*meta.DatabaseInfo, error) {
 	return &meta.DatabaseInfo{
 		Name: name,
 		DefaultRetentionPolicy: "foo",
@@ -509,20 +510,20 @@ func (t *testMetastore) Database(name string) (*meta.DatabaseInfo, error) {
 	}, nil
 }
 
-func (t *testMetastore) Databases() ([]meta.DatabaseInfo, error) {
+func (t *testMetaClient) Databases() ([]meta.DatabaseInfo, error) {
 	db, _ := t.Database("foo")
 	return []meta.DatabaseInfo{*db}, nil
 }
 
-func (t *testMetastore) User(name string) (*meta.UserInfo, error) { return nil, nil }
+func (t *testMetaClient) User(name string) (*meta.UserInfo, error) { return nil, nil }
 
-func (t *testMetastore) AdminUserExists() (bool, error) { return false, nil }
+func (t *testMetaClient) AdminUserExists() bool { return false }
 
-func (t *testMetastore) Authenticate(username, password string) (*meta.UserInfo, error) {
+func (t *testMetaClient) Authenticate(username, password string) (*meta.UserInfo, error) {
 	return nil, nil
 }
 
-func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
+func (t *testMetaClient) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
 	return &meta.RetentionPolicyInfo{
 		Name: "bar",
 		ShardGroups: []meta.ShardGroupInfo{
@@ -541,11 +542,11 @@ func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.Retent
 	}, nil
 }
 
-func (t *testMetastore) UserCount() (int, error) {
-	return t.userCount, nil
+func (t *testMetaClient) UserCount() int {
+	return t.userCount
 }
 
-func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+func (t *testMetaClient) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 	return []meta.ShardGroupInfo{
 		{
 			ID:        sgID,
@@ -561,8 +562,15 @@ func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max
 	}, nil
 }
 
-func (t *testMetastore) NodeID() uint64 {
+func (t *testMetaClient) NodeID() uint64 {
 	return 1
+}
+
+func (t *testMetaClient) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
+	if t.ExecuteStatemenFn != nil {
+		return t.ExecuteStatemenFn(stmt)
+	}
+	return &influxql.Result{}
 }
 
 type testShardMapper struct {

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 type fakeShardWriter struct {
@@ -23,7 +23,7 @@ type fakeMetaStore struct {
 	NodeFn func(nodeID uint64) (*meta.NodeInfo, error)
 }
 
-func (f *fakeMetaStore) Node(nodeID uint64) (*meta.NodeInfo, error) {
+func (f *fakeMetaStore) DataNode(nodeID uint64) (*meta.NodeInfo, error) {
 	return f.NodeFn(nodeID)
 }
 

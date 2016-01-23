@@ -20,8 +20,8 @@ import (
 
 	"github.com/influxdb/influxdb/client/v2"
 	"github.com/influxdb/influxdb/cmd/influxd/run"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/toml"
 )
 
@@ -45,15 +45,13 @@ func NewServer(c *run.Config) *Server {
 		Server: srv,
 		Config: c,
 	}
-	s.TSDBStore.EngineOptions.Config = c.Data
-	configureLogging(&s)
 	return &s
 }
 
 // OpenServer opens a test server.
 func OpenServer(c *run.Config, joinURLs string) *Server {
 	if len(joinURLs) > 0 {
-		c.Meta.Peers = strings.Split(joinURLs, ",")
+		c.Meta.JoinPeers = strings.Split(joinURLs, ",")
 	}
 	s := NewServer(c)
 	configureLogging(s)
@@ -70,15 +68,16 @@ func OpenServerWithVersion(c *run.Config, version string) *Server {
 		Commit:  "",
 		Branch:  "",
 	}
+	fmt.Println(">>> ", c.Data.Enabled)
 	srv, _ := run.NewServer(c, buildInfo)
 	s := Server{
 		Server: srv,
 		Config: c,
 	}
-	configureLogging(&s)
 	if err := s.Open(); err != nil {
 		panic(err.Error())
 	}
+	configureLogging(&s)
 
 	return &s
 }
@@ -89,7 +88,7 @@ func OpenDefaultServer(c *run.Config, joinURLs string) *Server {
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
 		panic(err)
 	}
-	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
 		panic(err)
 	}
 	return s
@@ -97,7 +96,9 @@ func OpenDefaultServer(c *run.Config, joinURLs string) *Server {
 
 // Close shuts down the server and removes all temporary paths.
 func (s *Server) Close() {
-	s.Server.Close()
+	if err := s.Server.Close(); err != nil {
+		panic(err.Error())
+	}
 	os.RemoveAll(s.Config.Meta.Dir)
 	os.RemoveAll(s.Config.Data.Dir)
 	os.RemoveAll(s.Config.HintedHandoff.Dir)
@@ -115,9 +116,9 @@ func (s *Server) URL() string {
 
 // CreateDatabaseAndRetentionPolicy will create the database and retention policy.
 func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicyInfo) error {
-	if _, err := s.MetaStore.CreateDatabaseIfNotExists(db); err != nil {
+	if _, err := s.MetaClient.CreateDatabase(db); err != nil {
 		return err
-	} else if _, err := s.MetaStore.CreateRetentionPolicyIfNotExists(db, rp); err != nil {
+	} else if _, err := s.MetaClient.CreateRetentionPolicy(db, rp); err != nil {
 		return err
 	}
 	return nil
@@ -218,6 +219,7 @@ func NewConfig() *run.Config {
 	c.Cluster.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = "127.0.0.1:0"
+	c.Meta.HTTPBindAddress = "127.0.0.1:0"
 	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
 	c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
 	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
@@ -451,7 +453,7 @@ func writeTestData(s *Server, t *Test) error {
 		if err := s.CreateDatabaseAndRetentionPolicy(w.db, newRetentionPolicyInfo(w.rp, 1, 0)); err != nil {
 			return err
 		}
-		if err := s.MetaStore.SetDefaultRetentionPolicy(w.db, w.rp); err != nil {
+		if err := s.MetaClient.SetDefaultRetentionPolicy(w.db, w.rp); err != nil {
 			return err
 		}
 
@@ -492,10 +494,10 @@ type Cluster struct {
 func NewCluster(size int) (*Cluster, error) {
 	c := Cluster{}
 	c.Servers = append(c.Servers, OpenServer(NewConfig(), ""))
-	raftURL := c.Servers[0].MetaStore.Addr.String()
+	metaServiceAddr := c.Servers[0].Node.MetaServers[0]
 
 	for i := 1; i < size; i++ {
-		c.Servers = append(c.Servers, OpenServer(NewConfig(), raftURL))
+		c.Servers = append(c.Servers, OpenServer(NewConfig(), metaServiceAddr))
 	}
 
 	for _, s := range c.Servers {
@@ -519,36 +521,16 @@ func verifyCluster(c *Cluster, size int) error {
 		return e
 	}
 
-	var leaderCount int
-	var raftCount int
-
-	for _, result := range cl.Results {
-		for _, series := range result.Series {
-			for i, value := range series.Values {
-				addr := c.Servers[i].MetaStore.Addr.String()
-				if value[0].(float64) != float64(i+1) {
-					return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
-				}
-				if value[1].(string) != addr {
-					return fmt.Errorf("expected addr %s, got %v", addr, value[1])
-				}
-				if value[2].(bool) {
-					raftCount++
-				}
-				if value[3].(bool) {
-					leaderCount++
-				}
-			}
+	// grab only the meta nodes series
+	series := cl.Results[0].Series[0]
+	for i, value := range series.Values {
+		addr := c.Servers[i].Node.MetaServers[i]
+		if value[0].(float64) != float64(i+1) {
+			return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
 		}
-	}
-	if leaderCount != 1 {
-		return fmt.Errorf("expected 1 leader, got %d", leaderCount)
-	}
-	if size < 3 && raftCount != size {
-		return fmt.Errorf("expected %d raft nodes, got %d", size, raftCount)
-	}
-	if size >= 3 && raftCount != 3 {
-		return fmt.Errorf("expected 3 raft nodes, got %d", raftCount)
+		if value[1].(string) != addr {
+			return fmt.Errorf("expected addr %s, got %v", addr, value[1])
+		}
 	}
 
 	return nil
@@ -588,12 +570,12 @@ func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluste
 	cb(0, config)
 
 	c.Servers = append(c.Servers, OpenServer(config, ""))
-	raftURL := c.Servers[0].MetaStore.Addr.String()
+	metaServiceAddr := c.Servers[0].Node.MetaServers[0]
 
 	for i := 1; i < size; i++ {
 		config := NewConfig()
 		cb(i, config)
-		c.Servers = append(c.Servers, OpenServer(config, raftURL))
+		c.Servers = append(c.Servers, OpenServer(config, metaServiceAddr))
 	}
 
 	for _, s := range c.Servers {

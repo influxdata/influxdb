@@ -17,8 +17,7 @@ type Service struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	MetaStore interface {
-		IsLeader() bool
+	MetaClient interface {
 		PrecreateShardGroups(now, cutoff time.Time) error
 	}
 }
@@ -75,12 +74,6 @@ func (s *Service) runPrecreation() {
 	for {
 		select {
 		case <-time.After(s.checkInterval):
-			// Only run this on the leader, but always allow the loop to check
-			// as the leader can change.
-			if !s.MetaStore.IsLeader() {
-				continue
-			}
-
 			if err := s.precreate(time.Now().UTC()); err != nil {
 				s.Logger.Printf("failed to precreate shards: %s", err.Error())
 			}
@@ -94,7 +87,7 @@ func (s *Service) runPrecreation() {
 // precreate performs actual resource precreation.
 func (s *Service) precreate(now time.Time) error {
 	cutoff := now.Add(s.advancePeriod).UTC()
-	if err := s.MetaStore.PrecreateShardGroups(now, cutoff); err != nil {
+	if err := s.MetaClient.PrecreateShardGroups(now, cutoff); err != nil {
 		return err
 	}
 	return nil

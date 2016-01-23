@@ -14,25 +14,24 @@ import (
 // StatementExecutor translates InfluxQL queries to meta store methods.
 type StatementExecutor struct {
 	Store interface {
-		Node(id uint64) (ni *NodeInfo, err error)
-		Nodes() ([]NodeInfo, error)
-		Peers() ([]string, error)
-		Leader() string
+		DataNode(id uint64) (ni *NodeInfo, err error)
+		DataNodes() ([]NodeInfo, error)
+		MetaNodes() ([]NodeInfo, error)
+		DeleteDataNode(nodeID uint64) error
+		DeleteMetaNode(nodeID uint64) error
 
-		DeleteNode(nodeID uint64, force bool) error
 		Database(name string) (*DatabaseInfo, error)
 		Databases() ([]DatabaseInfo, error)
 		CreateDatabase(name string) (*DatabaseInfo, error)
 		CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPolicyInfo) (*DatabaseInfo, error)
 		DropDatabase(name string) error
 
-		DefaultRetentionPolicy(database string) (*RetentionPolicyInfo, error)
 		CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error)
 		UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error
 		SetDefaultRetentionPolicy(database, name string) error
 		DropRetentionPolicy(database, name string) error
 
-		Users() ([]UserInfo, error)
+		Users() []UserInfo
 		CreateUser(name, password string, admin bool) (*UserInfo, error)
 		UpdateUser(name, password string) error
 		DropUser(name string) error
@@ -121,14 +120,16 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDat
 	} else {
 		_, err = e.Store.CreateDatabase(q.Name)
 	}
-	if err == ErrDatabaseExists && q.IfNotExists {
-		err = nil
-	}
 
 	return &influxql.Result{Err: err}
 }
 
 func (e *StatementExecutor) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement) *influxql.Result {
+	if q.IfExists {
+		if db, _ := e.Store.Database(q.Name); db == nil {
+			return &influxql.Result{}
+		}
+	}
 	return &influxql.Result{Err: e.Store.DropDatabase(q.Name)}
 }
 
@@ -159,35 +160,39 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 }
 
 func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersStatement) *influxql.Result {
-	nis, err := e.Store.Nodes()
+	nis, err := e.Store.DataNodes()
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
 
-	peers, err := e.Store.Peers()
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
-
-	leader := e.Store.Leader()
-
-	row := &models.Row{Columns: []string{"id", "cluster_addr", "raft", "raft-leader"}}
+	dataNodes := &models.Row{Columns: []string{"id", "http_addr", "tcp_addr"}}
+	dataNodes.Name = "data_nodes"
 	for _, ni := range nis {
-		row.Values = append(row.Values, []interface{}{ni.ID, ni.Host, contains(peers, ni.Host), leader == ni.Host})
+		dataNodes.Values = append(dataNodes.Values, []interface{}{ni.ID, ni.Host, ni.TCPHost})
 	}
-	return &influxql.Result{Series: []*models.Row{row}}
+
+	nis, err = e.Store.MetaNodes()
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	metaNodes := &models.Row{Columns: []string{"id", "http_addr", "tcp_addr"}}
+	metaNodes.Name = "meta_nodes"
+	for _, ni := range nis {
+		metaNodes.Values = append(metaNodes.Values, []interface{}{ni.ID, ni.Host, ni.TCPHost})
+	}
+
+	return &influxql.Result{Series: []*models.Row{dataNodes, metaNodes}}
 }
 
 func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerStatement) *influxql.Result {
-	ni, err := e.Store.Node(q.NodeID)
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
-	if ni == nil {
-		return &influxql.Result{Err: ErrNodeNotFound}
+	var err error
+	if q.Meta {
+		err = e.Store.DeleteMetaNode(q.NodeID)
+	} else {
+		err = e.Store.DeleteDataNode(q.NodeID)
 	}
 
-	err = e.Store.DeleteNode(q.NodeID, q.Force)
 	return &influxql.Result{Err: err}
 }
 
@@ -205,10 +210,7 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 }
 
 func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersStatement) *influxql.Result {
-	uis, err := e.Store.Users()
-	if err != nil {
-		return &influxql.Result{Err: err}
-	}
+	uis := e.Store.Users()
 
 	row := &models.Row{Columns: []string{"user", "admin"}}
 	for _, ui := range uis {

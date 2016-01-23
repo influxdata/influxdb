@@ -1,13 +1,14 @@
 package meta
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta/internal"
+	"github.com/influxdb/influxdb/services/meta/internal"
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto
@@ -28,7 +29,8 @@ type Data struct {
 	Term      uint64 // associated raft term
 	Index     uint64 // associated raft index
 	ClusterID uint64
-	Nodes     []NodeInfo
+	MetaNodes []NodeInfo
+	DataNodes []NodeInfo
 	Databases []DatabaseInfo
 	Users     []UserInfo
 
@@ -37,77 +39,41 @@ type Data struct {
 	MaxShardID      uint64
 }
 
-// Node returns a node by id.
-func (data *Data) Node(id uint64) *NodeInfo {
-	for i := range data.Nodes {
-		if data.Nodes[i].ID == id {
-			return &data.Nodes[i]
+// DataNode returns a node by id.
+func (data *Data) DataNode(id uint64) *NodeInfo {
+	for i := range data.DataNodes {
+		if data.DataNodes[i].ID == id {
+			return &data.DataNodes[i]
 		}
 	}
 	return nil
 }
 
-// NodeByHost returns a node by hostname.
-func (data *Data) NodeByHost(host string) *NodeInfo {
-	for i := range data.Nodes {
-		if data.Nodes[i].Host == host {
-			return &data.Nodes[i]
-		}
-	}
-	return nil
-}
-
-// CreateNode adds a node to the metadata.
-func (data *Data) CreateNode(host string) error {
+// CreateDataNode adds a node to the metadata.
+func (data *Data) CreateDataNode(host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
-	if data.NodeByHost(host) != nil {
-		return ErrNodeExists
+	for _, n := range data.DataNodes {
+		if n.Host == host {
+			return ErrNodeExists
+		}
 	}
 
 	// Append new node.
 	data.MaxNodeID++
-	data.Nodes = append(data.Nodes, NodeInfo{
-		ID:   data.MaxNodeID,
-		Host: host,
+	data.DataNodes = append(data.DataNodes, NodeInfo{
+		ID:      data.MaxNodeID,
+		Host:    host,
+		TCPHost: tcpHost,
 	})
 
 	return nil
 }
 
 // DeleteNode removes a node from the metadata.
-func (data *Data) DeleteNode(id uint64, force bool) error {
+func (data *Data) DeleteDataNode(id uint64) error {
 	// Node has to be larger than 0 to be real
 	if id == 0 {
 		return ErrNodeIDRequired
-	}
-	// Is this a valid node?
-	nodeInfo := data.Node(id)
-	if nodeInfo == nil {
-		return ErrNodeNotFound
-	}
-
-	// Am I the only node?  If so, nothing to do
-	if len(data.Nodes) == 1 {
-		return ErrNodeUnableToDropFinalNode
-	}
-
-	// Determine if there are any any non-replicated nodes and force was not specified
-	if !force {
-		for _, d := range data.Databases {
-			for _, rp := range d.RetentionPolicies {
-				// ignore replicated retention policies
-				if rp.ReplicaN > 1 {
-					continue
-				}
-				for _, sg := range rp.ShardGroups {
-					for _, s := range sg.Shards {
-						if s.OwnedBy(id) && len(s.Owners) == 1 {
-							return ErrShardNotReplicated
-						}
-					}
-				}
-			}
-		}
 	}
 
 	// Remove node id from all shard infos
@@ -131,14 +97,89 @@ func (data *Data) DeleteNode(id uint64, force bool) error {
 
 	// Remove this node from the in memory nodes
 	var nodes []NodeInfo
-	for _, n := range data.Nodes {
+	for _, n := range data.DataNodes {
 		if n.ID == id {
 			continue
 		}
 		nodes = append(nodes, n)
 	}
-	data.Nodes = nodes
 
+	if len(nodes) == len(data.DataNodes) {
+		return ErrNodeNotFound
+	}
+
+	data.DataNodes = nodes
+	return nil
+}
+
+// MetaNode returns a node by id.
+func (data *Data) MetaNode(id uint64) *NodeInfo {
+	for i := range data.MetaNodes {
+		if data.MetaNodes[i].ID == id {
+			return &data.MetaNodes[i]
+		}
+	}
+	return nil
+}
+
+// CreateMetaNode will add a new meta node to the metastore
+func (data *Data) CreateMetaNode(httpAddr, tcpAddr string) error {
+	// Ensure a node with the same host doesn't already exist.
+	for _, n := range data.MetaNodes {
+		if n.Host == httpAddr {
+			return ErrNodeExists
+		}
+	}
+
+	// Append new node.
+	data.MaxNodeID++
+	data.MetaNodes = append(data.MetaNodes, NodeInfo{
+		ID:      data.MaxNodeID,
+		Host:    httpAddr,
+		TCPHost: tcpAddr,
+	})
+
+	return nil
+}
+
+// SetMetaNode will update the information for the single meta
+// node or create a new metanode. If there are more than 1 meta
+// nodes already, an error will be returned
+func (data *Data) SetMetaNode(httpAddr, tcpAddr string) error {
+	if len(data.MetaNodes) > 1 {
+		return fmt.Errorf("can't set meta node when there are more than 1 in the metastore")
+	}
+
+	if len(data.MetaNodes) == 0 {
+		return data.CreateMetaNode(httpAddr, tcpAddr)
+	}
+
+	data.MetaNodes[0].Host = httpAddr
+	data.MetaNodes[0].TCPHost = tcpAddr
+
+	return nil
+}
+
+// DeleteMetaNode will remove the meta node from the store
+func (data *Data) DeleteMetaNode(id uint64) error {
+	// Node has to be larger than 0 to be real
+	if id == 0 {
+		return ErrNodeIDRequired
+	}
+
+	var nodes []NodeInfo
+	for _, n := range data.MetaNodes {
+		if n.ID == id {
+			continue
+		}
+		nodes = append(nodes, n)
+	}
+
+	if len(nodes) == len(data.MetaNodes) {
+		return ErrNodeNotFound
+	}
+
+	data.MetaNodes = nodes
 	return nil
 }
 
@@ -152,13 +193,25 @@ func (data *Data) Database(name string) *DatabaseInfo {
 	return nil
 }
 
+// CloneDatabases returns a copy of the databases.
+func (data *Data) CloneDatabases() []DatabaseInfo {
+	if data.Databases == nil {
+		return nil
+	}
+	dbs := make([]DatabaseInfo, len(data.Databases))
+	for i := range data.Databases {
+		dbs[i] = data.Databases[i].clone()
+	}
+	return dbs
+}
+
 // CreateDatabase creates a new database.
 // Returns an error if name is blank or if a database with the same name already exists.
 func (data *Data) CreateDatabase(name string) error {
 	if name == "" {
 		return ErrDatabaseNameRequired
 	} else if data.Database(name) != nil {
-		return ErrDatabaseExists
+		return nil
 	}
 
 	// Append new node.
@@ -207,8 +260,12 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	di := data.Database(database)
 	if di == nil {
 		return influxdb.ErrDatabaseNotFound(database)
-	} else if di.RetentionPolicy(rpi.Name) != nil {
-		return ErrRetentionPolicyExists
+	} else if rp := di.RetentionPolicy(rpi.Name); rp != nil {
+		// RP with that name already exists.  Make sure they're the same.
+		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration {
+			return ErrRetentionPolicyExists
+		}
+		return nil
 	}
 
 	// Append new policy.
@@ -230,20 +287,32 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 		return influxdb.ErrDatabaseNotFound(database)
 	}
 
-	// Prohibit dropping the default retention policy.
-	if di.DefaultRetentionPolicy == name {
-		return ErrRetentionPolicyDefault
-	}
-
 	// Remove from list.
 	for i := range di.RetentionPolicies {
 		if di.RetentionPolicies[i].Name == name {
 			di.RetentionPolicies = append(di.RetentionPolicies[:i], di.RetentionPolicies[i+1:]...)
-			return nil
+			break
 		}
 	}
-	return influxdb.ErrRetentionPolicyNotFound(name)
+
+	return nil
 }
+
+// RetentionPolicyUpdate represents retention policy fields to be updated.
+type RetentionPolicyUpdate struct {
+	Name     *string
+	Duration *time.Duration
+	ReplicaN *int
+}
+
+// SetName sets the RetentionPolicyUpdate.Name
+func (rpu *RetentionPolicyUpdate) SetName(v string) { rpu.Name = &v }
+
+// SetDuration sets the RetentionPolicyUpdate.Duration
+func (rpu *RetentionPolicyUpdate) SetDuration(v time.Duration) { rpu.Duration = &v }
+
+// SetReplicaN sets the RetentionPolicyUpdate.ReplicaN
+func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
 
 // UpdateRetentionPolicy updates an existing retention policy.
 func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
@@ -355,8 +424,8 @@ func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
 	// Ensure there are nodes in the metadata.
-	if len(data.Nodes) == 0 {
-		return ErrNodesRequired
+	if len(data.DataNodes) == 0 {
+		return nil
 	}
 
 	// Find retention policy.
@@ -369,21 +438,21 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	// Verify that shard group doesn't already exist for this timestamp.
 	if rpi.ShardGroupByTimestamp(timestamp) != nil {
-		return ErrShardGroupExists
+		return nil
 	}
 
 	// Require at least one replica but no more replicas than nodes.
 	replicaN := rpi.ReplicaN
 	if replicaN == 0 {
 		replicaN = 1
-	} else if replicaN > len(data.Nodes) {
-		replicaN = len(data.Nodes)
+	} else if replicaN > len(data.DataNodes) {
+		replicaN = len(data.DataNodes)
 	}
 
 	// Determine shard count by node count divided by replication factor.
 	// This will ensure nodes will get distributed across nodes evenly and
 	// replicated the correct number of times.
-	shardN := len(data.Nodes) / replicaN
+	shardN := len(data.DataNodes) / replicaN
 
 	// Create the shard group.
 	data.MaxShardGroupID++
@@ -401,11 +470,11 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	// Assign data nodes to shards via round robin.
 	// Start from a repeatably "random" place in the node list.
-	nodeIndex := int(data.Index % uint64(len(data.Nodes)))
+	nodeIndex := int(data.Index % uint64(len(data.DataNodes)))
 	for i := range sgi.Shards {
 		si := &sgi.Shards[i]
 		for j := 0; j < replicaN; j++ {
-			nodeID := data.Nodes[nodeIndex%len(data.Nodes)].ID
+			nodeID := data.DataNodes[nodeIndex%len(data.DataNodes)].ID
 			si.Owners = append(si.Owners, ShardOwner{NodeID: nodeID})
 			nodeIndex++
 		}
@@ -632,10 +701,17 @@ func (data *Data) Clone() *Data {
 	other := *data
 
 	// Copy nodes.
-	if data.Nodes != nil {
-		other.Nodes = make([]NodeInfo, len(data.Nodes))
-		for i := range data.Nodes {
-			other.Nodes[i] = data.Nodes[i].clone()
+	if data.DataNodes != nil {
+		other.DataNodes = make([]NodeInfo, len(data.DataNodes))
+		for i := range data.DataNodes {
+			other.DataNodes[i] = data.DataNodes[i].clone()
+		}
+	}
+
+	if data.MetaNodes != nil {
+		other.MetaNodes = make([]NodeInfo, len(data.MetaNodes))
+		for i := range data.MetaNodes {
+			other.MetaNodes[i] = data.MetaNodes[i].clone()
 		}
 	}
 
@@ -670,9 +746,14 @@ func (data *Data) marshal() *internal.Data {
 		MaxShardID:      proto.Uint64(data.MaxShardID),
 	}
 
-	pb.Nodes = make([]*internal.NodeInfo, len(data.Nodes))
-	for i := range data.Nodes {
-		pb.Nodes[i] = data.Nodes[i].marshal()
+	pb.DataNodes = make([]*internal.NodeInfo, len(data.DataNodes))
+	for i := range data.DataNodes {
+		pb.DataNodes[i] = data.DataNodes[i].marshal()
+	}
+
+	pb.MetaNodes = make([]*internal.NodeInfo, len(data.MetaNodes))
+	for i := range data.MetaNodes {
+		pb.MetaNodes[i] = data.MetaNodes[i].marshal()
 	}
 
 	pb.Databases = make([]*internal.DatabaseInfo, len(data.Databases))
@@ -698,9 +779,22 @@ func (data *Data) unmarshal(pb *internal.Data) {
 	data.MaxShardGroupID = pb.GetMaxShardGroupID()
 	data.MaxShardID = pb.GetMaxShardID()
 
-	data.Nodes = make([]NodeInfo, len(pb.GetNodes()))
-	for i, x := range pb.GetNodes() {
-		data.Nodes[i].unmarshal(x)
+	// TODO: Nodes is deprecated. This is being left here to make migration from 0.9.x to 0.10.0 possible
+	if len(pb.GetNodes()) > 0 {
+		data.DataNodes = make([]NodeInfo, len(pb.GetNodes()))
+		for i, x := range pb.GetNodes() {
+			data.DataNodes[i].unmarshal(x)
+		}
+	} else {
+		data.DataNodes = make([]NodeInfo, len(pb.GetDataNodes()))
+		for i, x := range pb.GetDataNodes() {
+			data.DataNodes[i].unmarshal(x)
+		}
+	}
+
+	data.MetaNodes = make([]NodeInfo, len(pb.GetMetaNodes()))
+	for i, x := range pb.GetMetaNodes() {
+		data.MetaNodes[i].unmarshal(x)
 	}
 
 	data.Databases = make([]DatabaseInfo, len(pb.GetDatabases()))
@@ -731,8 +825,9 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 
 // NodeInfo represents information about a single node in the cluster.
 type NodeInfo struct {
-	ID   uint64
-	Host string
+	ID      uint64
+	Host    string
+	TCPHost string
 }
 
 // clone returns a deep copy of ni.
@@ -743,6 +838,7 @@ func (ni NodeInfo) marshal() *internal.NodeInfo {
 	pb := &internal.NodeInfo{}
 	pb.ID = proto.Uint64(ni.ID)
 	pb.Host = proto.String(ni.Host)
+	pb.TCPHost = proto.String(ni.TCPHost)
 	return pb
 }
 
@@ -750,6 +846,7 @@ func (ni NodeInfo) marshal() *internal.NodeInfo {
 func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
 	ni.ID = pb.GetID()
 	ni.Host = pb.GetHost()
+	ni.TCPHost = pb.GetTCPHost()
 }
 
 // NodeInfos is a slice of NodeInfo used for sorting
@@ -928,6 +1025,11 @@ func (rpi *RetentionPolicyInfo) marshal() *internal.RetentionPolicyInfo {
 	pb.ShardGroups = make([]*internal.ShardGroupInfo, len(rpi.ShardGroups))
 	for i, sgi := range rpi.ShardGroups {
 		pb.ShardGroups[i] = sgi.marshal()
+	}
+
+	pb.Subscriptions = make([]*internal.SubscriptionInfo, len(rpi.Subscriptions))
+	for i, sub := range rpi.Subscriptions {
+		pb.Subscriptions[i] = sub.marshal()
 	}
 
 	return pb

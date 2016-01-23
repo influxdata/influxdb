@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/graphite"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/toml"
 )
 
@@ -58,7 +58,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	}
 	service.PointsWriter = &pointsWriter
 	dbCreator := DatabaseCreator{}
-	service.MetaStore = &dbCreator
+	service.MetaClient = &dbCreator
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
@@ -131,7 +131,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 	}
 	service.PointsWriter = &pointsWriter
 	dbCreator := DatabaseCreator{}
-	service.MetaStore = &dbCreator
+	service.MetaClient = &dbCreator
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
@@ -172,13 +172,9 @@ type DatabaseCreator struct {
 	Created bool
 }
 
-func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+func (d *DatabaseCreator) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	d.Created = true
 	return nil, nil
-}
-
-func (d *DatabaseCreator) WaitForLeader(t time.Duration) error {
-	return nil
 }
 
 // Test Helpers

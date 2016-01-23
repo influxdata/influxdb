@@ -1884,18 +1884,21 @@ func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 type DropServerStatement struct {
 	// ID of the node to be dropped.
 	NodeID uint64
-	// Force will force the server to drop even it it means losing data
-	Force bool
+
+	// Meta indicates if the server being dropped is a meta or data node
+	Meta bool
 }
 
 // String returns a string representation of the drop series statement.
 func (s *DropServerStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("DROP SERVER ")
-	_, _ = buf.WriteString(strconv.FormatUint(s.NodeID, 10))
-	if s.Force {
-		_, _ = buf.WriteString(" FORCE")
+	_, _ = buf.WriteString("DROP ")
+	if s.Meta {
+		_, _ = buf.WriteString(" META SERVER ")
+	} else {
+		_, _ = buf.WriteString(" DATA SERVER ")
 	}
+	_, _ = buf.WriteString(strconv.FormatUint(s.NodeID, 10))
 	return buf.String()
 }
 

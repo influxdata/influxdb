@@ -18,11 +18,16 @@ message Data {
 	required uint64 MaxNodeID = 7;
 	required uint64 MaxShardGroupID = 8;
 	required uint64 MaxShardID = 9;
+
+    // added for 0.10.0
+    repeated NodeInfo DataNodes = 10;
+    repeated NodeInfo MetaNodes = 11;
 }
 
 message NodeInfo {
 	required uint64 ID = 1;
 	required string Host = 2;
+    optional string TCPHost = 3;
 }
 
 message DatabaseInfo {
@@ -115,11 +120,19 @@ message Command {
 		CreateSubscriptionCommand        = 21;
 		DropSubscriptionCommand          = 22;
 		RemovePeerCommand                = 23;
+        CreateMetaNodeCommand            = 24;
+        CreateDataNodeCommand            = 25;
+        UpdateDataNodeCommand            = 26;
+        DeleteMetaNodeCommand            = 27;
+        DeleteDataNodeCommand            = 28;
+        SetMetaNodeCommand               = 29;
     }
 
     required Type type = 1;
 }
 
+// This isn't used in >= 0.10.0. Kept around for upgrade purposes. Instead
+// look at CreateDataNodeCommand and CreateMetaNodeCommand
 message CreateNodeCommand {
     extend Command {
         optional CreateNodeCommand command = 101;
@@ -301,8 +314,48 @@ message RemovePeerCommand {
     extend Command {
         optional RemovePeerCommand command = 123;
     }
-	required uint64 ID = 1;
+	optional uint64 ID = 1;
 	required string Addr = 2;
+}
+
+message CreateMetaNodeCommand {
+    extend Command {
+        optional CreateMetaNodeCommand command = 124;
+    }
+    required string HTTPAddr = 1;
+    required string TCPAddr = 2;
+    required uint64 Rand = 3;
+}
+
+message CreateDataNodeCommand {
+    extend Command {
+        optional CreateDataNodeCommand command = 125;
+    }
+    required string HTTPAddr = 1;
+    required string TCPAddr = 2;
+}
+
+message UpdateDataNodeCommand {
+    extend Command {
+        optional UpdateDataNodeCommand command = 126;
+    }
+    required uint64 ID = 1;
+    required string Host = 2;
+    required string TCPHost = 3;
+}
+
+message DeleteMetaNodeCommand {
+    extend Command {
+        optional DeleteMetaNodeCommand command = 127;
+    }
+    required uint64 ID = 1;
+}
+
+message DeleteDataNodeCommand {
+    extend Command {
+        optional DeleteDataNodeCommand command = 128;
+    }
+    required uint64 ID = 1;    
 }
 
 message Response {
@@ -311,67 +364,13 @@ message Response {
 	optional uint64 Index = 3;
 }
 
-
-//========================================================================
-//
-// RPC - higher-level cluster communication operations
-//
-//========================================================================
-
-enum RPCType {
-    Error = 1;
-    FetchData = 2;
-    Join = 3;
-    PromoteRaft = 4;
-}
-
-message ResponseHeader {
-    required bool OK = 1;
-    optional string Error = 2;
-}
-
-message ErrorResponse {
-    required ResponseHeader Header = 1;
-}
-
-message FetchDataRequest {
-    required uint64 Index = 1;
-    required uint64 Term = 2;
-    optional bool Blocking = 3 [default = false];
-}
-
-message FetchDataResponse {
-    required ResponseHeader Header = 1;
-    required uint64 Index = 2;
-    required uint64 Term = 3;
-    optional bytes Data = 4;
-}
-
-message JoinRequest {
-    required string Addr = 1;
-}
-
-message JoinResponse {
-    required ResponseHeader Header = 1;
-
-    // Indicates that this node should take part in the raft cluster.
-    optional bool EnableRaft = 2;
-
-    // The addresses of raft peers to use if joining as a raft member. If not joining
-    // as a raft member, these are the nodes running raft.
-    repeated string RaftNodes = 3;
-
-    // The node ID assigned to the requesting node.
-    optional uint64 NodeID = 4;
-}
-
-message PromoteRaftRequest {
-    required string Addr = 1;
-    repeated string RaftNodes = 2;
-}
-
-message PromoteRaftResponse {
-    required ResponseHeader Header = 1;
-
-    optional bool Success = 2;
+// SetMetaNodeCommand is for the initial metanode in a cluster or
+// if the single host restarts and its hostname changes, this will update it
+message SetMetaNodeCommand {
+    extend Command {
+        optional SetMetaNodeCommand command = 129;
+    }
+    required string HTTPAddr = 1;
+    required string TCPAddr = 2;
+    required uint64 Rand = 3;
 }

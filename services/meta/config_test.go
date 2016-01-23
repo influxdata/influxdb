@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c meta.Config
 	if _, err := toml.Decode(`
+enabled = false
 dir = "/tmp/foo"
 election-timeout = "10s"
 heartbeat-timeout = "20s"
@@ -24,7 +25,9 @@ logging-enabled = false
 	}
 
 	// Validate configuration.
-	if c.Dir != "/tmp/foo" {
+	if c.Enabled == true {
+		t.Fatalf("unexpected enabled: %v", c.Enabled)
+	} else if c.Dir != "/tmp/foo" {
 		t.Fatalf("unexpected dir: %s", c.Dir)
 	} else if time.Duration(c.ElectionTimeout) != 10*time.Second {
 		t.Fatalf("unexpected election timeout: %v", c.ElectionTimeout)

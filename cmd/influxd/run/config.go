@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/monitor"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
@@ -20,12 +19,22 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
 	"github.com/influxdb/influxdb/services/subscriber"
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tsdb"
+)
+
+const (
+	// DefaultBindAddress is the default address for raft, cluster, snapshot, etc..
+	DefaultBindAddress = ":8088"
+
+	// DefaultHostname is the default hostname used if we are unable to determine
+	// the hostname from the system
+	DefaultHostname = "localhost"
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -45,13 +54,16 @@ type Config struct {
 	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
 	UDPs       []udp.Config      `toml:"udp"`
 
-	// Snapshot SnapshotConfig `toml:"snapshot"`
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
-
-	HintedHandoff hh.Config `toml:"hinted-handoff"`
+	HintedHandoff   hh.Config                 `toml:"hinted-handoff"`
 
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
+
+	Dir string `toml:"dir"`
+
+	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
+	BindAddress string `toml:"bind-address"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -72,6 +84,7 @@ func NewConfig() *Config {
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
 	c.HintedHandoff = hh.NewConfig()
+	c.BindAddress = DefaultBindAddress
 
 	return c
 }
@@ -104,21 +117,26 @@ func NewDemoConfig() (*Config, error) {
 
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
-	if c.Meta.Dir == "" {
-		return errors.New("Meta.Dir must be specified")
-	} else if c.HintedHandoff.Enabled && c.HintedHandoff.Dir == "" {
-		return errors.New("HintedHandoff.Dir must be specified")
+	if !c.Meta.Enabled && !c.Data.Enabled {
+		return errors.New("either Meta, Data, or both must be enabled")
 	}
-
+	if err := c.Meta.Validate(); err != nil {
+		return err
+	}
 	if err := c.Data.Validate(); err != nil {
 		return err
 	}
-
-	for _, g := range c.Graphites {
-		if err := g.Validate(); err != nil {
-			return fmt.Errorf("invalid graphite config: %v", err)
+	if c.Data.Enabled {
+		if err := c.HintedHandoff.Validate(); err != nil {
+			return err
+		}
+		for _, g := range c.Graphites {
+			if err := g.Validate(); err != nil {
+				return fmt.Errorf("invalid graphite config: %v", err)
+			}
 		}
 	}
+
 	return nil
 }
 

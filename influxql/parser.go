@@ -220,8 +220,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
-	} else if tok == SERVER {
-		return p.parseDropServerStatement()
+	} else if tok == META || tok == DATA {
+		return p.parseDropServerStatement(tok)
 	} else if tok == SUBSCRIPTION {
 		return p.parseDropSubscriptionStatement()
 	}
@@ -1308,21 +1308,23 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 }
 
 // parseDropServerStatement parses a string and returns a DropServerStatement.
-// This function assumes the "DROP SERVER" tokens have already been consumed.
-func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
+// This function assumes the "DROP <META|DATA>" tokens have already been consumed.
+func (p *Parser) parseDropServerStatement(tok Token) (*DropServerStatement, error) {
+	// Parse the SERVER token
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SERVER {
+		return nil, newParseError(tokstr(tok, lit), []string{"SERVER"}, pos)
+	}
+
 	s := &DropServerStatement{}
 	var err error
+
+	if tok == META {
+		s.Meta = true
+	}
 
 	// Parse the server's ID.
 	if s.NodeID, err = p.parseUInt64(); err != nil {
 		return nil, err
-	}
-
-	// Parse optional FORCE token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == FORCE {
-		s.Force = true
-	} else if tok != EOF && tok != SEMICOLON {
-		return nil, newParseError(tokstr(tok, lit), []string{"FORCE"}, pos)
 	}
 
 	return s, nil

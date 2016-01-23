@@ -94,13 +94,8 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 
-	// Override config hostname if specified in the command line args.
-	if options.Hostname != "" {
-		config.Meta.Hostname = options.Hostname
-	}
-
 	if options.Join != "" {
-		config.Meta.Peers = strings.Split(options.Join, ",")
+		config.Meta.JoinPeers = strings.Split(options.Join, ",")
 	}
 
 	// Validate the configuration.
@@ -160,7 +155,6 @@ func (cmd *Command) ParseFlags(args ...string) (Options, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.StringVar(&options.ConfigPath, "config", "", "")
 	fs.StringVar(&options.PIDFile, "pidfile", "", "")
-	fs.StringVar(&options.Hostname, "hostname", "", "")
 	fs.StringVar(&options.Join, "join", "", "")
 	fs.StringVar(&options.CPUProfile, "cpuprofile", "", "")
 	fs.StringVar(&options.MemProfile, "memprofile", "", "")
@@ -220,12 +214,8 @@ then a new cluster will be initialized unless the -join argument is used.
         -config <path>
                           Set the path to the configuration file.
 
-        -hostname <name>
-                          Override the hostname, the 'hostname' configuration
-                          option will be overridden.
-
-        -join <url>
-                          Joins the server to an existing cluster.
+        -join <host:port>
+                          Joins the server to an existing cluster. Should be the HTTP bind address of an existing meta server
 
         -pidfile <path>
                           Write process ID to a file.
@@ -241,7 +231,6 @@ then a new cluster will be initialized unless the -join argument is used.
 type Options struct {
 	ConfigPath string
 	PIDFile    string
-	Hostname   string
 	Join       string
 	CPUProfile string
 	MemProfile string
