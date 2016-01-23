@@ -17,10 +17,37 @@ func TestInspectDataType(t *testing.T) {
 		typ influxql.DataType
 	}{
 		{float64(100), influxql.Float},
+		{int64(100), influxql.Integer},
+		{int32(100), influxql.Integer},
+		{100, influxql.Integer},
+		{true, influxql.Boolean},
+		{"string", influxql.String},
+		{time.Now(), influxql.Time},
+		{time.Second, influxql.Duration},
+		{nil, influxql.Unknown},
 	} {
 		if typ := influxql.InspectDataType(tt.v); tt.typ != typ {
 			t.Errorf("%d. %v (%s): unexpected type: %s", i, tt.v, tt.typ, typ)
 			continue
+		}
+	}
+}
+
+func TestDataType_String(t *testing.T) {
+	for i, tt := range []struct {
+		typ influxql.DataType
+		v   string
+	}{
+		{influxql.Float, "float"},
+		{influxql.Integer, "integer"},
+		{influxql.Boolean, "boolean"},
+		{influxql.String, "string"},
+		{influxql.Time, "time"},
+		{influxql.Duration, "duration"},
+		{influxql.Unknown, "unknown"},
+	} {
+		if v := tt.typ.String(); tt.v != v {
+			t.Errorf("%d. %v (%s): unexpected string: %s", i, tt.typ, tt.v, v)
 		}
 	}
 }
