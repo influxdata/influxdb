@@ -120,7 +120,7 @@ func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
 	t := &TSMReader{}
 	if opt.Reader != nil {
 		// Seek to the end of the file to determine the size
-		size, err := opt.Reader.Seek(2, 0)
+		size, err := opt.Reader.Seek(0, os.SEEK_END)
 		if err != nil {
 			return nil, err
 		}
