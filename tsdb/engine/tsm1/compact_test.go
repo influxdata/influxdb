@@ -433,7 +433,9 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	}
 
 	r1 := MustTSMReader(dir, 1, points1)
-	r1.Delete([]string{"cpu,host=A#!~#value"})
+	if e := r1.Delete([]string{"cpu,host=A#!~#value"}); nil != e {
+		t.Fatal(e)
+	}
 
 	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
 	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
