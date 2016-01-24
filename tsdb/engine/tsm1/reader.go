@@ -774,16 +774,15 @@ func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// TODO: remove this allocation
-	if b == nil {
-		b = make([]byte, entry.Size)
-	}
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
 	}
 
-	if int(entry.Size) > len(b) {
+	// TODO: remove this allocation
+	if b == nil {
+		b = make([]byte, entry.Size)
+	} else if int(entry.Size) > len(b) {
 		b = make([]byte, entry.Size)
 	}
 
