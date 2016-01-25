@@ -177,39 +177,33 @@ func (a auxIteratorFields) init(p Point) {
 		tags := p.tags()
 		tags = tags.Subset(f.opt.Dimensions)
 
+		// Initialize first point based off value received.
+		// Primitive pointers represent nil values.
 		switch v := v.(type) {
 		case float64:
 			f.typ = Float
-			f.initial = &FloatPoint{
-				Name:  p.name(),
-				Tags:  tags,
-				Time:  p.time(),
-				Value: v,
-			}
+			f.initial = &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+		case *float64:
+			f.typ = Float
+			f.initial = &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 		case int64:
 			f.typ = Integer
-			f.initial = &IntegerPoint{
-				Name:  p.name(),
-				Tags:  tags,
-				Time:  p.time(),
-				Value: v,
-			}
+			f.initial = &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+		case *int64:
+			f.typ = Integer
+			f.initial = &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 		case string:
 			f.typ = String
-			f.initial = &StringPoint{
-				Name:  p.name(),
-				Tags:  tags,
-				Time:  p.time(),
-				Value: v,
-			}
+			f.initial = &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+		case *string:
+			f.typ = String
+			f.initial = &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 		case bool:
 			f.typ = Boolean
-			f.initial = &BooleanPoint{
-				Name:  p.name(),
-				Tags:  tags,
-				Time:  p.time(),
-				Value: v,
-			}
+			f.initial = &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+		case *bool:
+			f.typ = Boolean
+			f.initial = &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 		default:
 			panic(fmt.Sprintf("invalid aux value type: %T", v))
 		}
@@ -267,39 +261,36 @@ func (a auxIteratorFields) send(p Point) {
 		tags = tags.Subset(f.opt.Dimensions)
 
 		// Send new point for each aux iterator.
+		// Primitive pointers represent nil values.
 		for _, itr := range f.itrs {
 			switch itr := itr.(type) {
 			case *floatChanIterator:
-				v, _ := v.(float64)
-				itr.c <- &FloatPoint{
-					Name:  p.name(),
-					Tags:  tags,
-					Time:  p.time(),
-					Value: v,
+				switch v := v.(type) {
+				case float64:
+					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+				default:
+					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 				}
 			case *integerChanIterator:
-				v, _ := v.(int64)
-				itr.c <- &IntegerPoint{
-					Name:  p.name(),
-					Tags:  tags,
-					Time:  p.time(),
-					Value: v,
+				switch v := v.(type) {
+				case int64:
+					itr.c <- &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+				default:
+					itr.c <- &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 				}
 			case *stringChanIterator:
-				v, _ := v.(string)
-				itr.c <- &StringPoint{
-					Name:  p.name(),
-					Tags:  tags,
-					Time:  p.time(),
-					Value: v,
+				switch v := v.(type) {
+				case string:
+					itr.c <- &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+				default:
+					itr.c <- &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 				}
 			case *booleanChanIterator:
-				v, _ := v.(bool)
-				itr.c <- &BooleanPoint{
-					Name:  p.name(),
-					Tags:  tags,
-					Time:  p.time(),
-					Value: v,
+				switch v := v.(type) {
+				case bool:
+					itr.c <- &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+				default:
+					itr.c <- &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 				}
 			default:
 				panic(fmt.Sprintf("invalid aux itr type: %T", itr))

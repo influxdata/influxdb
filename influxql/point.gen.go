@@ -9,14 +9,21 @@ type FloatPoint struct {
 	Tags Tags
 
 	Time  int64
+	Nil   bool
 	Value float64
 	Aux   []interface{}
 }
 
-func (v *FloatPoint) name() string       { return v.Name }
-func (v *FloatPoint) tags() Tags         { return v.Tags }
-func (v *FloatPoint) time() int64        { return v.Time }
-func (v *FloatPoint) value() interface{} { return v.Value }
+func (v *FloatPoint) name() string { return v.Name }
+func (v *FloatPoint) tags() Tags   { return v.Tags }
+func (v *FloatPoint) time() int64  { return v.Time }
+func (v *FloatPoint) nil() bool    { return v.Nil }
+func (v *FloatPoint) value() interface{} {
+	if v.Nil {
+		return nil
+	}
+	return v.Value
+}
 func (v *FloatPoint) aux() []interface{} { return v.Aux }
 
 // Clone returns a copy of v.
@@ -56,14 +63,21 @@ type IntegerPoint struct {
 	Tags Tags
 
 	Time  int64
+	Nil   bool
 	Value int64
 	Aux   []interface{}
 }
 
-func (v *IntegerPoint) name() string       { return v.Name }
-func (v *IntegerPoint) tags() Tags         { return v.Tags }
-func (v *IntegerPoint) time() int64        { return v.Time }
-func (v *IntegerPoint) value() interface{} { return v.Value }
+func (v *IntegerPoint) name() string { return v.Name }
+func (v *IntegerPoint) tags() Tags   { return v.Tags }
+func (v *IntegerPoint) time() int64  { return v.Time }
+func (v *IntegerPoint) nil() bool    { return v.Nil }
+func (v *IntegerPoint) value() interface{} {
+	if v.Nil {
+		return nil
+	}
+	return v.Value
+}
 func (v *IntegerPoint) aux() []interface{} { return v.Aux }
 
 // Clone returns a copy of v.
@@ -103,14 +117,21 @@ type StringPoint struct {
 	Tags Tags
 
 	Time  int64
+	Nil   bool
 	Value string
 	Aux   []interface{}
 }
 
-func (v *StringPoint) name() string       { return v.Name }
-func (v *StringPoint) tags() Tags         { return v.Tags }
-func (v *StringPoint) time() int64        { return v.Time }
-func (v *StringPoint) value() interface{} { return v.Value }
+func (v *StringPoint) name() string { return v.Name }
+func (v *StringPoint) tags() Tags   { return v.Tags }
+func (v *StringPoint) time() int64  { return v.Time }
+func (v *StringPoint) nil() bool    { return v.Nil }
+func (v *StringPoint) value() interface{} {
+	if v.Nil {
+		return nil
+	}
+	return v.Value
+}
 func (v *StringPoint) aux() []interface{} { return v.Aux }
 
 // Clone returns a copy of v.
@@ -150,14 +171,21 @@ type BooleanPoint struct {
 	Tags Tags
 
 	Time  int64
+	Nil   bool
 	Value bool
 	Aux   []interface{}
 }
 
-func (v *BooleanPoint) name() string       { return v.Name }
-func (v *BooleanPoint) tags() Tags         { return v.Tags }
-func (v *BooleanPoint) time() int64        { return v.Time }
-func (v *BooleanPoint) value() interface{} { return v.Value }
+func (v *BooleanPoint) name() string { return v.Name }
+func (v *BooleanPoint) tags() Tags   { return v.Tags }
+func (v *BooleanPoint) time() int64  { return v.Time }
+func (v *BooleanPoint) nil() bool    { return v.Nil }
+func (v *BooleanPoint) value() interface{} {
+	if v.Nil {
+		return nil
+	}
+	return v.Value
+}
 func (v *BooleanPoint) aux() []interface{} { return v.Aux }
 
 // Clone returns a copy of v.

@@ -489,6 +489,8 @@ func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
 		curr := itr.input.NextInWindow(startTime, endTime)
 		if curr == nil {
 			break
+		} else if curr.Nil {
+			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
 
@@ -581,6 +583,8 @@ func (itr *{{.name}}ReduceSliceIterator) reduce() []{{.Name}}Point {
 		p := itr.input.NextInWindow(startTime, endTime)
 		if p == nil {
 			break
+		} else if p.Nil {
+			continue
 		}
 		tags := p.Tags.Subset(itr.opt.Dimensions)
 

@@ -8,6 +8,7 @@ type {{.Name}}Point struct {
 	Tags Tags
 
 	Time  int64
+	Nil   bool
 	Value {{.Type}}
 	Aux   []interface{}
 }
@@ -15,7 +16,13 @@ type {{.Name}}Point struct {
 func (v *{{.Name}}Point) name() string       { return v.Name }
 func (v *{{.Name}}Point) tags() Tags         { return v.Tags }
 func (v *{{.Name}}Point) time() int64        { return v.Time }
-func (v *{{.Name}}Point) value() interface{} { return v.Value }
+func (v *{{.Name}}Point) nil() bool          { return v.Nil }
+func (v *{{.Name}}Point) value() interface{} { 
+	if v.Nil {
+		return nil
+	}
+	return v.Value 
+}
 func (v *{{.Name}}Point) aux() []interface{} { return v.Aux }
 
 // Clone returns a copy of v.

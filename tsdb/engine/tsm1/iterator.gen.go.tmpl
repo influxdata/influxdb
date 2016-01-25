@@ -76,14 +76,15 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 		c.unread(k, v)
 
 		// Return "nil" value for type.
-		// TODO: Update this to return a typed nil, e.g. (*float64)(nil).
 		switch c.cur.(type) {
 			case floatCursor:
-				return math.NaN()
+				return (*float64)(nil)
+			case integerCursor:
+				return (*int64)(nil)
 			case stringCursor:
-				return ""
+				return (*string)(nil)
 			case booleanCursor:
-				return false
+				return (*bool)(nil)
 			default:
 				panic("unreachable")
 		}
