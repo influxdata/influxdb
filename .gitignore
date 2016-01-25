@@ -77,3 +77,6 @@ integration/migration_data/
 
 // Ingnore SourceGraph directory
 .srclib-store/
+
+# Ignore window file
+*.exe
