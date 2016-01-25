@@ -734,11 +734,19 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	if len(opt.Aux) > 0 {
 		aux = make([]cursorAt, len(opt.Aux))
 		for i := range aux {
+			// Create cursor from field.
 			cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
 			if cur != nil {
 				aux[i] = newBufCursor(cur)
+				continue
+			}
+
+			// If field doesn't exist, use the tag value.
+			// However, if the tag value is blank then return a null.
+			if v := tags.Value(opt.Aux[i]); v == "" {
+				aux[i] = &stringNilLiteralCursor{}
 			} else {
-				aux[i] = &stringLiteralCursor{value: tags.Value(opt.Aux[i])}
+				aux[i] = &stringLiteralCursor{value: v}
 			}
 		}
 	}

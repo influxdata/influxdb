@@ -64,7 +64,7 @@ func Select(stmt *SelectStatement, ic IteratorCreator) ([]Iterator, error) {
 		}
 	}
 
-	return buildExprIterators(fields, ic, opt)
+	return buildFieldIterators(fields, ic, opt)
 }
 
 // buildAuxIterators creates a set of iterators from a single combined auxilary iterator.
@@ -107,19 +107,20 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 	return itrs, nil
 }
 
-// buildExprIterators creates an iterator for each field expression.
-func buildExprIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) ([]Iterator, error) {
+// buildFieldIterators creates an iterator for each field expression.
+func buildFieldIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) ([]Iterator, error) {
 	// Create iterators from fields against the iterator creator.
 	itrs := make([]Iterator, len(fields))
 
 	if err := func() error {
 		hasAuxFields := false
+
 		var input Iterator
 		for i, f := range fields {
 			// Build iterators for calls first and save the iterator.
 			// We do this so we can keep the ordering provided by the user, but
 			// still build the Call's iterator first.
-			if _, ok := f.Expr.(*Call); !ok {
+			if ContainsVarRef(f.Expr) {
 				hasAuxFields = true
 				continue
 			}

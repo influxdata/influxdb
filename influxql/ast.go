@@ -3698,3 +3698,24 @@ func (v *NowValuer) Value(key string) (interface{}, bool) {
 	}
 	return nil, false
 }
+
+// ContainsVarRef returns true if expr is a VarRef or contains one.
+func ContainsVarRef(expr Expr) bool {
+	var v containsVarRefVisitor
+	Walk(&v, expr)
+	return v.contains
+}
+
+type containsVarRefVisitor struct {
+	contains bool
+}
+
+func (v containsVarRefVisitor) Visit(n Node) Visitor {
+	switch n.(type) {
+	case *Call:
+		return nil
+	case *VarRef:
+		v.contains = true
+	}
+	return v
+}
