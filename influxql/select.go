@@ -225,7 +225,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			default:
 				itr, err = ic.CreateIterator(opt)
 			}
-		case "min", "max", "sum", "first", "last":
+		case "min", "max", "sum", "first", "last", "diff":
 			itr, err = ic.CreateIterator(opt)
 		case "distinct":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)

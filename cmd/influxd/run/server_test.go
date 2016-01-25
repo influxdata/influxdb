@@ -2288,6 +2288,12 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
+			name:    "diff - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DIFF(value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","diff"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
+		},
+		&Query{
 			name:    "spread - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT SPREAD(value) FROM intmany`,
@@ -2660,6 +2666,12 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM floatmany`,
 			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "diff - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DIFF(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","diff"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - float",

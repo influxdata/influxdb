@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/pkg/deep"
 )
@@ -371,6 +372,66 @@ func TestCallIterator_Last_Integer(t *testing.T) {
 		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
 		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
 		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+	}); !ok {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a float iterator can be created for a diff() call.
+func TestCallIterator_Diff_Float(t *testing.T) {
+	itr := influxql.NewCallIterator(
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 6, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`diff("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
+		{Time: 0, Value: -5, Tags: ParseTags("host=hostA")},
+		{Time: 0, Value: 0, Tags: ParseTags("host=hostB")},
+		{Time: 5, Value: 0, Tags: ParseTags("host=hostA")},
+		{Time: 20, Value: 0, Tags: ParseTags("host=hostB")},
+	}); !ok {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that an integer iterator can be created for a diff() call.
+func TestCallIterator_Diff_Integer(t *testing.T) {
+	itr := influxql.NewCallIterator(
+		&IntegerIterator{Points: []influxql.IntegerPoint{
+			{Time: 1, Value: 11, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: 10, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: 15, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: 10, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 6, Value: 20, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`diff("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
+		{Time: 0, Value: -25, Tags: ParseTags("host=hostA")},
+		{Time: 0, Value: 0, Tags: ParseTags("host=hostB")},
+		{Time: 5, Value: 0, Tags: ParseTags("host=hostA")},
+		{Time: 20, Value: 0, Tags: ParseTags("host=hostB")},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}

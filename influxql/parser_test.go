@@ -111,13 +111,14 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY DESC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
+			s: fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x, diff(field4) FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY DESC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
 					{Expr: &influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
 					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field2"}}}},
 					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field3"}}}, Alias: "field_x"},
+					{Expr: &influxql.Call{Name: "diff", Args: []influxql.Expr{&influxql.VarRef{Val: "field4"}}}},
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				Condition: &influxql.BinaryExpr{
@@ -378,12 +379,13 @@ func TestParser_ParseStatement(t *testing.T) {
 		},
 
 		{
-			s: `select count(distinct field3), sum(field4) from metrics`,
+			s: `select count(distinct field3), sum(field4), diff(field5) from metrics`,
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
 					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Distinct{Val: "field3"}}}},
 					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field4"}}}},
+					{Expr: &influxql.Call{Name: "diff", Args: []influxql.Expr{&influxql.VarRef{Val: "field5"}}}},
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "metrics"}},
 			},

@@ -1251,12 +1251,12 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 			numAggregates++
 		}
 	}
-	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST (selector functions) it is ok to ask for fields and tags
+	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST, DIFF (selector functions) it is ok to ask for fields and tags
 	// but only if one function is specified.  Combining multiple functions and fields and tags is not currently supported
 	onlySelectors := true
 	for k := range calls {
 		switch k {
-		case "top", "bottom", "max", "min", "first", "last":
+		case "top", "bottom", "max", "min", "first", "last", "diff":
 		default:
 			onlySelectors = false
 			break
@@ -2797,7 +2797,7 @@ func (c *Call) Fields() []string {
 			}
 		}
 		return keys
-	case "min", "max", "first", "last", "sum", "mean":
+	case "min", "max", "first", "last", "sum", "mean", "diff":
 		// maintain the order the user specified in the query
 		keyMap := make(map[string]struct{})
 		keys := []string{}
