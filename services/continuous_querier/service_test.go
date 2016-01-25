@@ -173,10 +173,10 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	s := NewTestService(t)
-	ms := NewMetaStore(t)
+	ms := NewMetaClient(t)
 	ms.CreateDatabase("db", "")
 	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 1m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(30s) END`)
-	s.MetaStore = ms
+	s.MetaClient = ms
 
 	// Set RunInterval high so we can trigger using Run method.
 	s.RunInterval = 10 * time.Minute

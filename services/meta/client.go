@@ -398,9 +398,6 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo
 
 // RetentionPolicy returns the requested retention policy info.
 func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInfo, err error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
 	db, err := c.Database(database)
 	if err != nil {
 		return nil, err
