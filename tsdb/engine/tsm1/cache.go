@@ -141,13 +141,15 @@ func (c *Cache) Snapshot() *Cache {
 	c.snapshots = append(c.snapshots, snapshot)
 	c.snapshotsSize += snapshot.size
 
-	// sort the snapshot before returning it. The compactor and any queries
-	// coming in while it writes will need the values sorted
-	for _, e := range snapshot.store {
+	return snapshot
+}
+
+// Deduplicate sorts the snapshot before returning it. The compactor and any queries
+// coming in while it writes will need the values sorted
+func (c *Cache) Deduplicate() {
+	for _, e := range c.store {
 		e.deduplicate()
 	}
-
-	return snapshot
 }
 
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and
