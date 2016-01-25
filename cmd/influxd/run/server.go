@@ -111,9 +111,11 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	}
 
 	// load the node information
-	node, err := influxdb.NewNode(dir)
+	node, err := influxdb.LoadNode(dir, c.Meta.HTTPBindAddress)
 	if err != nil {
-		return nil, err
+		if !os.IsNotExist(err) {
+			return nil, err
+		}
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check

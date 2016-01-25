@@ -69,6 +69,26 @@ func (data *Data) CreateDataNode(host, tcpHost string) error {
 	return nil
 }
 
+// setDataNode adds a data node with a pre-specified nodeID.
+// this should only be used when the cluster is upgrading from 0.9 to 0.10
+func (data *Data) setDataNode(nodeID uint64, host, tcpHost string) error {
+	// Ensure a node with the same host doesn't already exist.
+	for _, n := range data.DataNodes {
+		if n.Host == host {
+			return ErrNodeExists
+		}
+	}
+
+	// Append new node.
+	data.DataNodes = append(data.DataNodes, NodeInfo{
+		ID:      nodeID,
+		Host:    host,
+		TCPHost: tcpHost,
+	})
+
+	return nil
+}
+
 // DeleteNode removes a node from the metadata.
 func (data *Data) DeleteDataNode(id uint64) error {
 	// Node has to be larger than 0 to be real
