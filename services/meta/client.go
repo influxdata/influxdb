@@ -827,13 +827,23 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
 			continue
 		}
 		resp.Body.Close()
+
+		// Successfully joined
+		if resp.StatusCode == http.StatusOK {
+			return nil
+		}
+
+		// We tried to join a meta node that was not the leader, rety at the node
+		// they think is the leader.
 		if resp.StatusCode == http.StatusTemporaryRedirect {
 			redirectServer = resp.Header.Get("Location")
 			continue
 		}
 
-		return nil
+		// Something failed, try the next node
+		currentServer++
 	}
+	return nil
 }
 
 func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
@@ -1107,6 +1117,43 @@ func (c *Client) getSnapshot(server string, index uint64) (*Data, error) {
 	}
 
 	return data, nil
+}
+
+// peers returns the TCPHost addresses of all the metaservers
+func (c *Client) peers() []string {
+	distinct := map[string]struct{}{}
+
+	// query each server and keep track of who their peers are
+	for _, server := range c.metaServers {
+		url := c.url(server) + "/peers"
+		resp, err := http.Get(url)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		// This meta-server might not be ready to answer, continue on
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
+
+		dec := json.NewDecoder(resp.Body)
+		var peers []string
+		if err := dec.Decode(&peers); err != nil {
+			continue
+		}
+
+		for _, p := range peers {
+			distinct[p] = struct{}{}
+		}
+	}
+
+	// Return the unique set of peer addresses
+	var peers []string
+	for k := range distinct {
+		peers = append(peers, k)
+	}
+	return peers
 }
 
 func (c *Client) url(server string) string {

@@ -110,9 +110,6 @@ func (s *Service) Open() error {
 
 	// Open the store
 	s.store = newStore(s.config, s.httpAddr, s.raftAddr)
-	if err := s.store.open(s.RaftListener); err != nil {
-		return err
-	}
 
 	handler := newHandler(s.config, s)
 	handler.logger = s.Logger
@@ -121,6 +118,11 @@ func (s *Service) Open() error {
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serve()
+
+	if err := s.store.open(s.RaftListener); err != nil {
+		return err
+	}
+
 	return nil
 }
 

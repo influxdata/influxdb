@@ -88,7 +88,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	}
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	if len(peers) <= 1 {
+	if len(initializePeers) <= 1 {
 		config.EnableSingleNode = true
 
 		// Ensure we can always become the leader
@@ -96,9 +96,12 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 
 		// For single-node clusters, we can update the raft peers before we start the cluster
 		// just in case the hostname has changed.
-		if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
-			return err
+		if !raft.PeerContained(peers, r.addr) {
+			if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
+				return err
+			}
 		}
+
 		peers = []string{r.addr}
 	}
 
@@ -184,7 +187,7 @@ func (r *raftState) close() error {
 
 // apply applies a serialized command to the raft log.
 func (r *raftState) apply(b []byte) error {
-	// Apply to raft log.
+	// Apply to raft log.`
 	f := r.raft.Apply(b, 0)
 	if err := f.Error(); err != nil {
 		return err
@@ -214,15 +217,6 @@ func (r *raftState) snapshot() error {
 
 // addPeer adds addr to the list of peers in the cluster.
 func (r *raftState) addPeer(addr string) error {
-	// peers, err := r.peerStore.Peers()
-	// if err != nil {
-	// 	return err
-	// }
-	// peers = append(peers, addr)
-	// if fut := r.raft.SetPeers(peers); fut.Error() != nil {
-	// 	return fut.Error()
-	// }
-
 	peers, err := r.peerStore.Peers()
 	if err != nil {
 		return err

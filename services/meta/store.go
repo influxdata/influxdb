@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/services/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -74,16 +75,28 @@ func newStore(c *Config, httpAddr, raftAddr string) *store {
 func (s *store) open(raftln net.Listener) error {
 	s.logger.Printf("Using data dir: %v", s.path)
 
-	// See if this server needs to join the raft consensus group
-	var initializePeers []string
-	if len(s.config.JoinPeers) > 0 {
-		c := NewClient(s.config.JoinPeers, s.config.HTTPSEnabled)
-		data := c.retryUntilSnapshot(0)
-		for _, n := range data.MetaNodes {
-			initializePeers = append(initializePeers, n.TCPHost)
-		}
-		initializePeers = append(initializePeers, s.raftAddr)
+	joinPeers, err := s.filterAddr(s.config.JoinPeers, s.httpAddr)
+	if err != nil {
+		return err
 	}
+	joinPeers = s.config.JoinPeers
+
+	var initializePeers []string
+	if len(joinPeers) > 0 {
+		c := NewClient(joinPeers, s.config.HTTPSEnabled)
+		for {
+			peers := c.peers()
+			spew.Dump(peers)
+			if len(s.config.JoinPeers)-len(peers) == 0 {
+				initializePeers = peers
+				break
+			}
+
+			s.logger.Printf("Waiting for %d join peers", len(s.config.JoinPeers)-len(peers))
+			time.Sleep(time.Second)
+		}
+	}
+	initializePeers = append(initializePeers, s.raftAddr)
 
 	if err := func() error {
 		s.mu.Lock()
@@ -110,8 +123,14 @@ func (s *store) open(raftln net.Listener) error {
 		return err
 	}
 
-	if len(s.config.JoinPeers) > 0 {
-		c := NewClient(s.config.JoinPeers, s.config.HTTPSEnabled)
+	// Wait for a leader to be elected so we know the raft log is loaded
+	// and up to date
+	if err := s.waitForLeader(0); err != nil {
+		return err
+	}
+
+	if len(joinPeers) > 0 {
+		c := NewClient(joinPeers, s.config.HTTPSEnabled)
 		if err := c.Open(); err != nil {
 			return err
 		}
@@ -120,12 +139,6 @@ func (s *store) open(raftln net.Listener) error {
 		if err := c.JoinMetaServer(s.httpAddr, s.raftAddr); err != nil {
 			return err
 		}
-	}
-
-	// Wait for a leader to be elected so we know the raft log is loaded
-	// and up to date
-	if err := s.waitForLeader(0); err != nil {
-		return err
 	}
 
 	// Make sure this server is in the list of metanodes
@@ -147,6 +160,50 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	return nil
+}
+
+// peers returns the raft peers known to this store
+func (s *store) peers() []string {
+	if s.raftState == nil {
+		return []string{s.raftAddr}
+	}
+	peers, err := s.raftState.peers()
+	if err != nil {
+		return []string{s.raftAddr}
+	}
+	return peers
+}
+
+func (s *store) filterAddr(addrs []string, filter string) ([]string, error) {
+	host, port, err := net.SplitHostPort(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	ip, err := net.ResolveIPAddr("ip", host)
+	if err != nil {
+		return nil, err
+	}
+
+	var joinPeers []string
+	for _, addr := range addrs {
+		joinHost, joinPort, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		joinIp, err := net.ResolveIPAddr("ip", joinHost)
+		if err != nil {
+			return nil, err
+		}
+
+		// Don't allow joining ourselves
+		if ip.String() == joinIp.String() && port == joinPort {
+			continue
+		}
+		joinPeers = append(joinPeers, addr)
+	}
+	return joinPeers, nil
 }
 
 func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
@@ -288,6 +345,9 @@ func (s *store) index() uint64 {
 
 // apply applies a command to raft.
 func (s *store) apply(b []byte) error {
+	if s.raftState == nil {
+		return fmt.Errorf("store not open")
+	}
 	return s.raftState.apply(b)
 }
 
