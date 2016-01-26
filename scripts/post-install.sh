@@ -63,4 +63,11 @@ elif [[ -f /etc/debian_version ]]; then
 	install_init
 	install_update_rcd
     fi
+elif [[ -f /etc/os-release ]]; then
+    source /etc/os-release
+    if [[ $ID = "amzn" ]]; then
+	# Amazon Linux logic
+	install_init
+	install_chkconfig
+    fi
 fi

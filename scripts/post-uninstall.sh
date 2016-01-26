@@ -43,4 +43,14 @@ elif [[ -f /etc/lsb-release ]]; then
 	    disable_update_rcd
 	fi
     fi
+elif [[ -f /etc/os-release ]]; then
+    source /etc/os-release
+    if [[ $ID = "amzn" ]]; then
+	# Amazon Linux logic
+	if [[ "$1" = "0" ]]; then
+	    # InfluxDB is no longer installed, remove from init system
+	    rm -f /etc/default/influxdb
+	    disable_chkconfig
+	fi
+    fi
 fi
