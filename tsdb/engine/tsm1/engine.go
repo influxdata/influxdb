@@ -411,6 +411,11 @@ func (e *Engine) WriteSnapshot() error {
 		return err
 	}
 
+	// The snapshotted cache may have duplicate points and unsorted data.  We need to deduplicate
+	// it before writing the snapshot.  This can be very expensive so it's done while we are not
+	// holding the engine write lock.
+	snapshot.Deduplicate()
+
 	return e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
 }
 

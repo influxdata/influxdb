@@ -103,24 +103,26 @@ func (c *Cache) Write(key string, values []Value) error {
 // WriteMulti writes the map of keys and associated values to the cache. This function is goroutine-safe.
 // It returns an error if the cache has exceeded its max size.
 func (c *Cache) WriteMulti(values map[string][]Value) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	totalSz := 0
 	for _, v := range values {
 		totalSz += Values(v).Size()
 	}
 
 	// Enough room in the cache?
+	c.mu.RLock()
 	newSize := c.size + uint64(totalSz)
 	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
+		c.mu.RUnlock()
 		return ErrCacheMemoryExceeded
 	}
+	c.mu.RUnlock()
 
+	c.mu.Lock()
 	for k, v := range values {
 		c.write(k, v)
 	}
 	c.size = newSize
+	c.mu.Unlock()
 
 	return nil
 }
@@ -141,13 +143,15 @@ func (c *Cache) Snapshot() *Cache {
 	c.snapshots = append(c.snapshots, snapshot)
 	c.snapshotsSize += snapshot.size
 
-	// sort the snapshot before returning it. The compactor and any queries
-	// coming in while it writes will need the values sorted
-	for _, e := range snapshot.store {
+	return snapshot
+}
+
+// Deduplicate sorts the snapshot before returning it. The compactor and any queries
+// coming in while it writes will need the values sorted
+func (c *Cache) Deduplicate() {
+	for _, e := range c.store {
 		e.deduplicate()
 	}
-
-	return snapshot
 }
 
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and
