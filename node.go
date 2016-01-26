@@ -41,6 +41,14 @@ func LoadNode(path, addr string) (*Node, error) {
 	return n, nil
 }
 
+// NewNode will return a new node
+func NewNode(path, addr string) *Node {
+	return &Node{
+		path:        path,
+		MetaServers: []string{addr},
+	}
+}
+
 // Save will save the node file to disk and replace the existing one if present
 func (n *Node) Save() error {
 	file := filepath.Join(n.path, nodeFile)

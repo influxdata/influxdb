@@ -115,6 +115,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
+		} else {
+			node = influxdb.NewNode(dir, c.Meta.HTTPBindAddress)
 		}
 	}
 
@@ -604,7 +606,7 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 // initializeDataNode will set the MetaClient and join the node to the cluster if needed
 func (s *Server) initializeDataNode() error {
 	// if the node ID is > 0 then we just need to initialize the metaclient
-	if s.Node.ID > 0 {
+	if s.Node != nil && s.Node.ID > 0 {
 		s.MetaClient = meta.NewClient(s.Node.MetaServers, s.metaUseTLS)
 		if err := s.MetaClient.Open(); err != nil {
 			return err

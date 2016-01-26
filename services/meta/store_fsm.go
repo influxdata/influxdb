@@ -153,6 +153,10 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command, peers []strin
 		if err := other.setDataNode(metaNode.ID, v.GetHost(), v.GetHost()); err != nil {
 			return err
 		}
+	} else {
+		if err := other.CreateDataNode(v.GetHost(), v.GetHost()); err != nil {
+			return err
+		}
 	}
 
 	// If the cluster ID hasn't been set then use the command's random number.
