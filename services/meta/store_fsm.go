@@ -546,7 +546,17 @@ func (fsm *storeFSM) applyCreateDataNodeCommand(cmd *internal.Command) interface
 	v := ext.(*internal.CreateDataNodeCommand)
 
 	other := fsm.data.Clone()
-	other.CreateDataNode(v.GetHTTPAddr(), v.GetTCPAddr())
+
+	// Get the only meta node
+	if len(other.MetaNodes) == 1 {
+		metaNode := other.MetaNodes[0]
+
+		if err := other.setDataNode(metaNode.ID, v.GetHTTPAddr(), v.GetTCPAddr()); err != nil {
+			return err
+		}
+	} else {
+		other.CreateDataNode(v.GetHTTPAddr(), v.GetTCPAddr())
+	}
 	fsm.data = other
 	return nil
 }
