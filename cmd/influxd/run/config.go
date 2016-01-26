@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/opentsdb"
 	"github.com/influxdata/influxdb/services/precreator"
+	"github.com/influxdata/influxdb/services/registration"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
@@ -39,11 +40,12 @@ const (
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
-	Meta       *meta.Config      `toml:"meta"`
-	Data       tsdb.Config       `toml:"data"`
-	Cluster    cluster.Config    `toml:"cluster"`
-	Retention  retention.Config  `toml:"retention"`
-	Precreator precreator.Config `toml:"shard-precreation"`
+	Meta         *meta.Config        `toml:"meta"`
+	Data         tsdb.Config         `toml:"data"`
+	Cluster      cluster.Config      `toml:"cluster"`
+	Retention    retention.Config    `toml:"retention"`
+	Registration registration.Config `toml:"registration"`
+	Precreator   precreator.Config   `toml:"shard-precreation"`
 
 	Admin      admin.Config      `toml:"admin"`
 	Monitor    monitor.Config    `toml:"monitor"`
@@ -70,6 +72,7 @@ func NewConfig() *Config {
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
 	c.Cluster = cluster.NewConfig()
+	c.Registration = registration.NewConfig()
 	c.Precreator = precreator.NewConfig()
 
 	c.Admin = admin.NewConfig()
