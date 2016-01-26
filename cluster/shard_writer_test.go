@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/toml"
 )
 
 // Ensure the shard writer can successful write a single request.
@@ -22,7 +23,7 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Minute)
+	w := cluster.NewShardWriter(time.Minute, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 
 	// Build a single point.
@@ -69,7 +70,7 @@ func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Minute)
+	w := cluster.NewShardWriter(time.Minute, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 
 	// Build a single point.
@@ -118,7 +119,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Minute)
+	w := cluster.NewShardWriter(time.Minute, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
@@ -146,7 +147,7 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Nanosecond)
+	w := cluster.NewShardWriter(time.Nanosecond, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
@@ -169,7 +170,7 @@ func TestShardWriter_Write_ErrReadTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := cluster.NewShardWriter(time.Millisecond)
+	w := cluster.NewShardWriter(time.Millisecond, 1)
 	w.MetaClient = &metaClient{host: ln.Addr().String()}
 	now := time.Now()
 
@@ -182,5 +183,37 @@ func TestShardWriter_Write_ErrReadTimeout(t *testing.T) {
 
 	if err := w.WriteShard(shardID, ownerID, points); err == nil || !strings.Contains(err.Error(), "i/o timeout") {
 		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure the shard writer returns an error when we can't get a connection.
+func TestShardWriter_Write_PoolMax(t *testing.T) {
+	ts := newTestWriteService(writeShardSlow)
+	s := cluster.NewService(cluster.Config{
+		ShardWriterTimeout: toml.Duration(100 * time.Millisecond),
+	})
+	s.Listener = ts.muxln
+	s.TSDBStore = ts
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	defer ts.Close()
+
+	w := cluster.NewShardWriter(100*time.Millisecond, 1)
+	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
+	now := time.Now()
+
+	shardID := uint64(1)
+	ownerID := uint64(2)
+	var points []models.Point
+	points = append(points, models.MustNewPoint(
+		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
+
+	go w.WriteShard(shardID, ownerID, points)
+	time.Sleep(time.Millisecond)
+	if err := w.WriteShard(shardID, ownerID, points); err == nil || err.Error() != "timed out waiting for free connection" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

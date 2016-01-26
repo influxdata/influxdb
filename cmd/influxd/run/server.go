@@ -185,7 +185,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
 
 		// Set the shard writer
-		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
+		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout),
+			c.Cluster.MaxRemoteWriteConnections)
 
 		// Create the hinted handoff service
 		s.HintedHandoff = hh.NewService(c.HintedHandoff, s.ShardWriter, s.MetaClient)

@@ -7,7 +7,6 @@ import (
 
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/meta"
-	"gopkg.in/fatih/pool.v2"
 )
 
 const (
@@ -19,8 +18,9 @@ const (
 
 // ShardWriter writes a set of points to a shard.
 type ShardWriter struct {
-	pool    *clientPool
-	timeout time.Duration
+	pool           *clientPool
+	timeout        time.Duration
+	maxConnections int
 
 	MetaClient interface {
 		DataNode(id uint64) (ni *meta.NodeInfo, err error)
@@ -28,10 +28,11 @@ type ShardWriter struct {
 }
 
 // NewShardWriter returns a new instance of ShardWriter.
-func NewShardWriter(timeout time.Duration) *ShardWriter {
+func NewShardWriter(timeout time.Duration, maxConnections int) *ShardWriter {
 	return &ShardWriter{
-		pool:    newClientPool(),
-		timeout: timeout,
+		pool:           newClientPool(),
+		timeout:        timeout,
+		maxConnections: maxConnections,
 	}
 }
 
@@ -42,7 +43,7 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point)
 		return err
 	}
 
-	conn, ok := c.(*pool.PoolConn)
+	conn, ok := c.(*pooledConn)
 	if !ok {
 		panic("wrong connection type")
 	}
@@ -96,7 +97,7 @@ func (w *ShardWriter) dial(nodeID uint64) (net.Conn, error) {
 		factory := &connFactory{nodeID: nodeID, clientPool: w.pool, timeout: w.timeout}
 		factory.metaClient = w.MetaClient
 
-		p, err := pool.NewChannelPool(1, 3, factory.dial)
+		p, err := NewBoundedPool(1, w.maxConnections, w.timeout, factory.dial)
 		if err != nil {
 			return nil, err
 		}
