@@ -2,14 +2,18 @@ package influxdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 )
 
-const nodeFile = "node.json"
-const oldNodeFile = "id"
+const (
+	nodeFile      = "node.json"
+	oldNodeFile   = "id"
+	peersFilename = "peers.json"
+)
 
 type Node struct {
 	path        string
@@ -79,6 +83,19 @@ func upgradeNodeFile(path, addr string) error {
 	// We shouldn't have an empty ID file, but if we do, ignore it
 	if len(b) == 0 {
 		return nil
+	}
+
+	peers := []string{}
+	pb, err := ioutil.ReadFile(filepath.Join(path, peersFilename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	err = json.Unmarshal(pb, &peers)
+	if len(peers) > 1 {
+		return fmt.Errorf("to upgrade a cluster, please contact support at influxdata")
 	}
 
 	n := &Node{
