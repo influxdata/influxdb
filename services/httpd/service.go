@@ -21,6 +21,7 @@ const (
 	statQueryRequest                 = "queryReq"          // Number of query requests served
 	statWriteRequest                 = "writeReq"          // Number of write requests serverd
 	statPingRequest                  = "pingReq"           // Number of ping requests served
+	statStatusRequest                = "statusReq"         // Number of status requests served
 	statWriteRequestBytesReceived    = "writeReqBytes"     // Sum of all bytes in write requests
 	statQueryRequestBytesTransmitted = "queryRespBytes"    // Sum of all bytes returned in query reponses
 	statPointsWrittenOK              = "pointsWrittenOK"   // Number of points written OK
