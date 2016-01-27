@@ -305,6 +305,7 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 }
 
 // Ensure the handler handles ping requests correctly.
+// TODO: This should be expanded to verify the MetaClient check in servePing is working correctly
 func TestHandler_Ping(t *testing.T) {
 	h := NewHandler(false)
 	w := httptest.NewRecorder()
@@ -313,6 +314,20 @@ func TestHandler_Ping(t *testing.T) {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}
 	h.ServeHTTP(w, MustNewRequest("HEAD", "/ping", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the handler handles status requests correctly.
+func TestHandler_Status(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("GET", "/status", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	h.ServeHTTP(w, MustNewRequest("HEAD", "/status", nil))
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", w.Code)
 	}

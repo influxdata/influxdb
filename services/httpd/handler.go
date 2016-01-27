@@ -117,6 +117,14 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
 		},
+		route{ // Ping w/ status
+			"status",
+			"GET", "/status", true, true, h.serveStatus,
+		},
+		route{ // Ping w/ status
+			"status-head",
+			"HEAD", "/status", true, true, h.serveStatus,
+		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
 			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
@@ -566,6 +574,12 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	h.statMap.Add(statPingRequest, 1)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveStatus returns a simple response to let the client know the whole cluster is running.
+func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 	h.statMap.Add(statPingRequest, 1)
 
 	if err := h.MetaClient.Ping(false); err != nil {
