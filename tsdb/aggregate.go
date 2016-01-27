@@ -800,19 +800,16 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 		Value: make([]interface{}, len(m.mapFuncs)),
 	}
 
-	for i := range m.mapFuncs {
-		// Build a map input from the cursor.
-		input := &MapInput{
-			TMin:  -1,
-			Items: readMapItems(cursorSet.Cursors, m.fieldNames[i], qmin, qmin, qmax),
-		}
+	// Build a map input from the cursor.
+	inputs := readMapInputs(cursorSet.Cursors, m.fieldNames, qmin, qmin, qmax)
 
+	for i := range m.mapFuncs {
 		if len(m.stmt.Dimensions) > 0 && !m.stmt.HasTimeFieldSpecified() {
-			input.TMin = tmin
+			inputs[i].TMin = tmin
 		}
 
 		// Execute the map function which walks the entire interval, and aggregates the result.
-		value := m.mapFuncs[i](input)
+		value := m.mapFuncs[i](&inputs[i])
 		if value == nil {
 			continue
 		}
@@ -823,25 +820,26 @@ func (m *AggregateMapper) NextChunk() (interface{}, error) {
 	return output, nil
 }
 
-func readMapItems(cursors []*TagsCursor, field string, seek, tmin, tmax int64) []MapItem {
-	var items []MapItem
+func readMapInputs(cursors []*TagsCursor, fieldNames []string, seek, tmin, tmax int64) []MapInput {
+	inputs := make([]MapInput, len(fieldNames))
+	for i := range inputs {
+		inputs[i].TMin = -1
+	}
 
 	for _, c := range cursors {
-		seeked := false
-
 		for {
 			var timestamp int64
 			var value interface{}
 
-			if !seeked {
+			if !c.Seeked() {
 				timestamp, value = c.SeekTo(seek)
-				seeked = true
 			} else {
 				timestamp, value = c.Next()
 			}
 
 			// We're done if the point is outside the query's time range [tmin:tmax).
 			if timestamp != tmin && (timestamp < tmin || timestamp >= tmax) {
+				c.Unread(timestamp, value)
 				break
 			}
 
@@ -856,39 +854,46 @@ func readMapItems(cursors []*TagsCursor, field string, seek, tmin, tmax int64) [
 				continue
 			}
 
-			// Filter value.
-			if c.filter != nil {
-				// Convert value to a map for filter evaluation.
-				m, ok := value.(map[string]interface{})
-				if !ok {
-					m = map[string]interface{}{field: value}
+			for i, field := range fieldNames {
+				fieldValue := value
+
+				// Filter value.
+				if c.filter != nil {
+					// Convert value to a map for filter evaluation.
+					m, ok := fieldValue.(map[string]interface{})
+					if !ok {
+						m = map[string]interface{}{field: fieldValue}
+					}
+
+					// If filter fails then skip to the next value.
+					if !influxql.EvalBool(c.filter, m) {
+						continue
+					}
 				}
 
-				// If filter fails then skip to the next value.
-				if !influxql.EvalBool(c.filter, m) {
+				// Filter out single field, if specified.
+				if m, ok := fieldValue.(map[string]interface{}); ok {
+					fieldValue = m[field]
+				}
+				if fieldValue == nil {
 					continue
 				}
-			}
 
-			// Filter out single field, if specified.
-			if m, ok := value.(map[string]interface{}); ok {
-				value = m[field]
+				inputs[i].Items = append(inputs[i].Items, MapItem{
+					Timestamp: timestamp,
+					Value:     fieldValue,
+					Fields:    fields,
+					Tags:      c.tags,
+				})
 			}
-			if value == nil {
-				continue
-			}
-
-			items = append(items, MapItem{
-				Timestamp: timestamp,
-				Value:     value,
-				Fields:    fields,
-				Tags:      c.tags,
-			})
 		}
 	}
-	sort.Sort(MapItems(items))
 
-	return items
+	for _, input := range inputs {
+		sort.Sort(MapItems(input.Items))
+	}
+
+	return inputs
 }
 
 // nextInterval returns the next interval for which to return data.

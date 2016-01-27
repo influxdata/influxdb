@@ -161,7 +161,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = decoded[i]
+			vals[i] = &decoded[i]
 		}
 		return vals[:len(decoded)], err
 	case BlockInt64:
@@ -170,7 +170,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = decoded[i]
+			vals[i] = &decoded[i]
 		}
 		return vals[:len(decoded)], err
 
@@ -180,7 +180,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = decoded[i]
+			vals[i] = &decoded[i]
 		}
 		return vals[:len(decoded)], err
 
@@ -190,7 +190,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = decoded[i]
+			vals[i] = &decoded[i]
 		}
 		return vals[:len(decoded)], err
 
@@ -202,7 +202,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 // Deduplicate returns a new Values slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a Values) Deduplicate() Values {
-	m := make(map[int64]Value)
+	m := make(map[int64]Value, len(a))
 	for _, val := range a {
 		m[val.UnixNano()] = val
 	}
@@ -285,7 +285,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func DecodeFloatBlock(block []byte, a []*FloatValue) ([]*FloatValue, error) {
+func DecodeFloatBlock(block []byte, a []FloatValue) ([]FloatValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockFloat64 {
@@ -307,11 +307,11 @@ func DecodeFloatBlock(block []byte, a []*FloatValue) ([]*FloatValue, error) {
 	for dec.Next() && iter.Next() {
 		ts := dec.Read()
 		v := iter.Values()
-		if i < len(a) && a[i] != nil {
+		if i < len(a) {
 			a[i].time = ts
 			a[i].value = v
 		} else {
-			a = append(a, &FloatValue{ts, v})
+			a = append(a, FloatValue{ts, v})
 		}
 		i++
 	}
@@ -390,7 +390,7 @@ func encodeBoolBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func DecodeBoolBlock(block []byte, a []*BoolValue) ([]*BoolValue, error) {
+func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockBool {
@@ -409,11 +409,11 @@ func DecodeBoolBlock(block []byte, a []*BoolValue) ([]*BoolValue, error) {
 	for dec.Next() && vdec.Next() {
 		ts := dec.Read()
 		v := vdec.Read()
-		if i < len(a) && a[i] != nil {
+		if i < len(a) {
 			a[i].time = ts
 			a[i].value = v
 		} else {
-			a = append(a, &BoolValue{ts, v})
+			a = append(a, BoolValue{ts, v})
 		}
 		i++
 	}
@@ -479,7 +479,7 @@ func encodeInt64Block(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeInt64Block(block []byte, a []*Int64Value) ([]*Int64Value, error) {
+func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
 	blockType := block[0]
 	if blockType != BlockInt64 {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInt64, blockType)
@@ -499,11 +499,11 @@ func DecodeInt64Block(block []byte, a []*Int64Value) ([]*Int64Value, error) {
 	for tsDec.Next() && vDec.Next() {
 		ts := tsDec.Read()
 		v := vDec.Read()
-		if i < len(a) && a[i] != nil {
+		if i < len(a) {
 			a[i].time = ts
 			a[i].value = v
 		} else {
-			a = append(a, &Int64Value{ts, v})
+			a = append(a, Int64Value{ts, v})
 		}
 		i++
 	}
@@ -569,7 +569,7 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeStringBlock(block []byte, a []*StringValue) ([]*StringValue, error) {
+func DecodeStringBlock(block []byte, a []StringValue) ([]StringValue, error) {
 	blockType := block[0]
 	if blockType != BlockString {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
@@ -592,11 +592,11 @@ func DecodeStringBlock(block []byte, a []*StringValue) ([]*StringValue, error) {
 	for tsDec.Next() && vDec.Next() {
 		ts := tsDec.Read()
 		v := vDec.Read()
-		if i < len(a) && a[i] != nil {
+		if i < len(a) {
 			a[i].time = ts
 			a[i].value = v
 		} else {
-			a = append(a, &StringValue{ts, v})
+			a = append(a, StringValue{ts, v})
 		}
 		i++
 	}

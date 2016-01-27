@@ -341,8 +341,8 @@ type TagsCursor struct {
 	filter influxql.Expr
 	tags   map[string]string
 
-	seek int64
-	buf  struct {
+	seeked bool
+	buf    struct {
 		key   int64
 		value interface{}
 	}
@@ -350,42 +350,37 @@ type TagsCursor struct {
 
 // NewTagsCursor returns a new instance of a series cursor.
 func NewTagsCursor(c Cursor, filter influxql.Expr, tags map[string]string) *TagsCursor {
-	return &TagsCursor{
+	cur := &TagsCursor{
 		cursor: c,
 		filter: filter,
 		tags:   tags,
-		seek:   EOF,
 	}
+	cur.buf.key = EOF
+	return cur
 }
+
+// Seeked returns true if SeekTo() has been called.
+func (c *TagsCursor) Seeked() bool { return c.seeked }
 
 // Seek positions returning the key and value at that key.
 func (c *TagsCursor) SeekTo(seek int64) (int64, interface{}) {
-	// We've seeked on this cursor. This seek is after that previous cached seek
-	// and the result it gave was after the key for this seek.
-	//
-	// In this case, any seek would just return what we got before, so there's
-	// no point in reseeking.
-	if c.seek != -1 && c.seek < seek && (c.buf.key == EOF || c.buf.key >= seek) {
-		return c.buf.key, c.buf.value
-	}
-
-	// Seek to key/value in underlying cursor.
-	key, value := c.cursor.SeekTo(seek)
-
-	// Save the seek to the buffer.
-	c.seek = seek
-	c.buf.key, c.buf.value = key, value
-	return key, value
+	c.seeked = true
+	return c.cursor.SeekTo(seek)
 }
 
 // Next returns the next timestamp and value from the cursor.
 func (c *TagsCursor) Next() (int64, interface{}) {
-	// Invalidate the seek.
-	c.seek = -1
-	c.buf.key, c.buf.value = 0, nil
-
-	// Return next key/value.
+	if c.buf.key != EOF {
+		key, value := c.buf.key, c.buf.value
+		c.buf.key, c.buf.value = EOF, nil
+		return key, value
+	}
 	return c.cursor.Next()
+}
+
+// Unread pushes a timestamp and value back onto the cursor buffer.
+func (c *TagsCursor) Unread(key int64, value interface{}) {
+	c.buf.key, c.buf.value = key, value
 }
 
 // TagSetCursors represents a sortable slice of TagSetCursors.
