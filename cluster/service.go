@@ -188,7 +188,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 
 	points := req.Points()
 	s.statMap.Add(writeShardPointsReq, int64(len(points)))
-	err := s.TSDBStore.WriteToShard(req.ShardID(), req.Points())
+	err := s.TSDBStore.WriteToShard(req.ShardID(), points)
 
 	// We may have received a write for a shard that we don't have locally because the
 	// sending node may have just created the shard (via the metastore) and the write
@@ -211,7 +211,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 		if err != nil {
 			return err
 		}
-		return s.TSDBStore.WriteToShard(req.ShardID(), req.Points())
+		return s.TSDBStore.WriteToShard(req.ShardID(), points)
 	}
 
 	if err != nil {
