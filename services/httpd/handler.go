@@ -580,7 +580,7 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 
 // serveStatus returns a simple response to let the client know the whole cluster is running.
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
-	h.statMap.Add(statPingRequest, 1)
+	h.statMap.Add(statStatusRequest, 1)
 
 	if err := h.MetaClient.Ping(false); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
