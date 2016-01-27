@@ -26,17 +26,19 @@ func newEntry() *entry {
 func (e *entry) add(values []Value) {
 	// if there are existing values make sure they're all less than the first of
 	// the new values being added
-	l := len(e.values)
-	if l != 0 {
+	if len(e.values) == 0 {
+		e.values = values
+	} else {
+		l := len(e.values)
 		lastValTime := e.values[l-1].UnixNano()
 		if lastValTime >= values[0].UnixNano() {
 			e.needSort = true
 		}
+		e.values = append(e.values, values...)
 	}
-	e.values = append(e.values, values...)
 
 	// if there's only one value, we know it's sorted
-	if len(values) <= 1 {
+	if len(values) <= 1 || e.needSort {
 		return
 	}
 

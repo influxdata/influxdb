@@ -155,7 +155,14 @@ func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp t
 // AddPoints adds a new time series point
 func (w *WriteShardRequest) AddPoints(points []models.Point) {
 	for _, p := range points {
-		w.pb.Points = append(w.pb.Points, []byte(p.String()))
+		b, err := p.MarshalBinary()
+		if err != nil {
+			// A error here means that we create a point higher in the stack that we could
+			// not marshal to a byte slice.  If that happens, the endpoint that created that
+			// point needs to be fixed.
+			panic(fmt.Sprintf("failed to marshal point: `%v`: %v", p, err))
+		}
+		w.pb.Points = append(w.pb.Points, b)
 	}
 }
 
@@ -175,14 +182,15 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 func (w *WriteShardRequest) unmarshalPoints() []models.Point {
 	points := make([]models.Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
-		pt, err := models.ParsePoints(p)
+		pt, err := models.NewPointFromBytes(p)
 		if err != nil {
-			// A error here means that one node parsed the point correctly but sent an
-			// unparseable version to another node.  We could log and drop the point and allow
-			// anti-entropy to resolve the discrepancy but this shouldn't ever happen.
+			// A error here means that one node created a valid point and sent us an
+			// unparseable version.  We could log and drop the point and allow
+			// anti-entropy to resolve the discrepancy, but this shouldn't ever happen.
 			panic(fmt.Sprintf("failed to parse point: `%v`: %v", string(p), err))
 		}
-		points[i] = pt[0]
+
+		points[i] = pt
 	}
 	return points
 }
