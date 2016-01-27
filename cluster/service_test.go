@@ -87,6 +87,11 @@ func writeShardFail(shardID uint64, points []models.Point) error {
 	return fmt.Errorf("failed to write")
 }
 
+func writeShardSlow(shardID uint64, points []models.Point) error {
+	time.Sleep(1 * time.Second)
+	return nil
+}
+
 var responses = make(chan *serviceResponse, 1024)
 
 func (testService) ResponseN(n int) ([]*serviceResponse, error) {

@@ -334,6 +334,10 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 				// The remote write failed so queue it via hinted handoff
 				w.statMap.Add(statWritePointReqHH, int64(len(points)))
 				hherr := w.HintedHandoff.WriteShard(shardID, owner.NodeID, points)
+				if hherr != nil {
+					ch <- &AsyncWriteResult{owner, hherr}
+					return
+				}
 
 				// If the write consistency level is ANY, then a successful hinted handoff can
 				// be considered a successful write so send nil to the response channel
