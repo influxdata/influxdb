@@ -140,7 +140,7 @@ func main() {
 	fmt.Printf("\nFound %d shards that will be converted.\n", len(shards))
 	if len(shards) == 0 {
 		fmt.Println("Nothing to do.")
-		os.Exit(0)
+		return
 	}
 
 	// Display list of convertible shards.
@@ -158,13 +158,11 @@ func main() {
 	liner := bufio.NewReader(os.Stdin)
 	yn, err := liner.ReadString('\n')
 	if err != nil {
-		log.Printf("failed to read response: %v", err)
-		os.Exit(1)
+		log.Fatalf("failed to read response: %v", err)
 	}
 	yn = strings.TrimRight(strings.ToLower(yn), "\n")
 	if yn != "y" {
-		fmt.Println("Conversion aborted.")
-		os.Exit(1)
+		log.Fatal("Conversion aborted.")
 	}
 	fmt.Println("Conversion starting....")
 
@@ -188,8 +186,7 @@ func main() {
 				log.Printf("Backup of databse '%v' started", db)
 				err := backupDatabase(filepath.Join(opts.DataPath, db))
 				if err != nil {
-					log.Printf("Backup of database %v failed: %v\n", db, err)
-					os.Exit(1)
+					log.Fatalf("Backup of database %v failed: %v\n", db, err)
 				}
 				log.Printf("Database %v backed up (%v)\n", db, time.Now().Sub(start))
 			})
@@ -208,8 +205,7 @@ func main() {
 			start := time.Now()
 			log.Printf("Starting conversion of shard: %v", si.FullPath(opts.DataPath))
 			if err := convertShard(si); err != nil {
-				log.Printf("Failed to convert %v: %v\n", si.FullPath(opts.DataPath), err)
-				os.Exit(1)
+				log.Fatalf("Failed to convert %v: %v\n", si.FullPath(opts.DataPath), err)
 			}
 			log.Printf("Conversion of %v successful (%v)\n", si.FullPath(opts.DataPath), time.Since(start))
 		})
