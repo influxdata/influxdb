@@ -54,7 +54,7 @@ type CommandLine struct {
 	Quit             chan struct{}
 	IgnoreSignals    bool // Ignore signals normally caught by this process (used primarily for testing)
 	osSignals        chan os.Signal
-	historyFile      *os.File
+	historyFilePath  string
 }
 
 // New returns an instance of CommandLine
@@ -160,14 +160,13 @@ func (c *CommandLine) Run() error {
 
 	c.Version()
 
-	var historyFilePath string
 	usr, err := user.Current()
 	// Only load/write history if we can get the user
 	if err == nil {
-		historyFilePath = filepath.Join(usr.HomeDir, ".influx_history")
-		if c.historyFile, err = os.OpenFile(historyFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0640); err == nil {
-			defer c.historyFile.Close()
-			c.Line.ReadHistory(c.historyFile)
+		c.historyFilePath = filepath.Join(usr.HomeDir, ".influx_history")
+		if historyFile, err := os.Open(c.historyFilePath); err == nil {
+			c.Line.ReadHistory(historyFile)
+			historyFile.Close()
 		}
 	}
 
@@ -189,10 +188,7 @@ func (c *CommandLine) Run() error {
 			}
 			if c.ParseCommand(l) {
 				c.Line.AppendHistory(l)
-				_, err := c.Line.WriteHistory(c.historyFile)
-				if err != nil {
-					fmt.Printf("There was an error writing history file: %s\n", err)
-				}
+				c.saveHistory()
 			}
 		}
 	}
@@ -754,6 +750,15 @@ func (c *CommandLine) history() {
 	fmt.Print(buf.String())
 }
 
+func (c *CommandLine) saveHistory() {
+	if historyFile, err := os.Create(c.historyFilePath); err != nil {
+		fmt.Printf("There was an error writing history file: %s\n", err)
+	} else {
+		c.Line.WriteHistory(historyFile)
+		historyFile.Close()
+	}
+}
+
 func (c *CommandLine) gopher() {
 	fmt.Println(`
                                           .-::-::://:-::-    .:/++/'
@@ -818,10 +823,7 @@ func (c *CommandLine) Version() {
 
 func (c *CommandLine) exit() {
 	// write to history file
-	_, err := c.Line.WriteHistory(c.historyFile)
-	if err != nil {
-		fmt.Printf("There was an error writing history file: %s\n", err)
-	}
+	c.saveHistory()
 	// release line resources
 	c.Line.Close()
 	c.Line = nil
