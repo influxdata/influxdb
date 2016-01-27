@@ -7,6 +7,7 @@
 - [#5224](https://github.com/influxdb/influxdb/pull/5224): Online backup/incremental backup. Restore (for TSM).
 - [#5226](https://github.com/influxdata/influxdb/pull/5226): b\*1 to tsm1 shard conversion tool.
 - [#5459](https://github.com/influxdata/influxdb/pull/5459): Create `/status` endpoint for health checks.
+- [#5460](https://github.com/influxdata/influxdb/pull/5460): Prevent exponential growth in CLU history. Thanks @sczk!
 
 ### Bugfixes
 - [#5129](https://github.com/influxdata/influxdb/pull/5129): Ensure precision flag is respected by CLI. Thanks @e-dard
