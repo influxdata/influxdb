@@ -5,18 +5,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
-)
-
-var (
-	NanFiltered     uint64
-	InfFiltered     uint64
-	PointsWritten   uint64
-	PointsRead      uint64
-	TsmFilesCreated uint64
-	TsmBytesWritten int64
 )
 
 type KeyIterator interface {
@@ -29,13 +19,15 @@ type Converter struct {
 	path           string
 	maxTSMFileSize uint32
 	sequence       int
+	tracker        *tracker
 }
 
 // NewConverter returns a new instance of the Converter.
-func NewConverter(path string, sz uint32) *Converter {
+func NewConverter(path string, sz uint32, t *tracker) *Converter {
 	return &Converter{
 		path:           path,
 		maxTSMFileSize: sz,
+		tracker:        t,
 	}
 }
 
@@ -53,7 +45,7 @@ func (c *Converter) Process(iter KeyIterator) error {
 		if err != nil {
 			return err
 		}
-		scrubbed := scrubValues(v)
+		scrubbed := c.scrubValues(v)
 
 		if w == nil {
 			w, err = c.nextTSMWriter()
@@ -64,15 +56,17 @@ func (c *Converter) Process(iter KeyIterator) error {
 		if err := w.Write(k, scrubbed); err != nil {
 			return err
 		}
-		atomic.AddUint64(&PointsRead, uint64(len(v)))
-		atomic.AddUint64(&PointsWritten, uint64(len(scrubbed)))
+
+		c.tracker.AddPointsRead(len(v))
+		c.tracker.AddPointsWritten(len(scrubbed))
 
 		// If we have a max file size configured and we're over it, start a new TSM file.
 		if w.Size() > c.maxTSMFileSize {
 			if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
 				return err
 			}
-			atomic.AddInt64(&TsmBytesWritten, int64(w.Size()))
+
+			c.tracker.AddTSMBytes(w.Size())
 
 			if err := w.Close(); err != nil {
 				return err
@@ -85,7 +79,7 @@ func (c *Converter) Process(iter KeyIterator) error {
 		if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
 			return err
 		}
-		atomic.AddInt64(&TsmBytesWritten, int64(w.Size()))
+		c.tracker.AddTSMBytes(w.Size())
 
 		if err := w.Close(); err != nil {
 			return err
@@ -111,14 +105,14 @@ func (c *Converter) nextTSMWriter() (tsm1.TSMWriter, error) {
 		return nil, err
 	}
 
-	atomic.AddUint64(&TsmFilesCreated, 1)
+	c.tracker.IncrTSMFileCount()
 	return w, nil
 }
 
 // scrubValues takes a slice and removes float64 NaN and Inf. If neither is
 // present in the slice, the original slice is returned. This is to avoid
 // copying slices unnecessarily.
-func scrubValues(values []tsm1.Value) []tsm1.Value {
+func (c *Converter) scrubValues(values []tsm1.Value) []tsm1.Value {
 	var scrubbed []tsm1.Value
 
 	if values == nil {
@@ -130,11 +124,11 @@ func scrubValues(values []tsm1.Value) []tsm1.Value {
 			var filter bool
 			if math.IsNaN(f) {
 				filter = true
-				atomic.AddUint64(&NanFiltered, 1)
+				c.tracker.IncrNaN()
 			}
 			if math.IsInf(f, 0) {
 				filter = true
-				atomic.AddUint64(&InfFiltered, 1)
+				c.tracker.IncrInf()
 			}
 
 			if filter {

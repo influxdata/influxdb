@@ -13,9 +13,11 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"text/tabwriter"
 	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/influxdb/influxdb/cmd/influx_tsm/b1"
 	"github.com/influxdb/influxdb/cmd/influx_tsm/bz1"
@@ -48,11 +50,12 @@ restart the node.`, backupExt)
 type options struct {
 	DataPath       string
 	DBs            []string
+	DebugAddr      string
 	TSMSize        uint64
 	Parallel       bool
 	SkipBackup     bool
 	UpdateInterval time.Duration
-	Quiet          bool
+	// Quiet          bool
 }
 
 func (o *options) Parse() error {
@@ -64,7 +67,8 @@ func (o *options) Parse() error {
 	fs.Uint64Var(&opts.TSMSize, "sz", maxTSMSz, "Maximum size of individual TSM files.")
 	fs.BoolVar(&opts.Parallel, "parallel", false, "Perform parallel conversion. (up to GOMAXPROCS shards at once)")
 	fs.BoolVar(&opts.SkipBackup, "nobackup", false, "Disable database backups. Not recommended.")
-	fs.BoolVar(&opts.Quiet, "quiet", false, "Suppresses the regular status updates.")
+	// fs.BoolVar(&opts.Quiet, "quiet", false, "Suppresses the regular status updates.")
+	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])
@@ -92,12 +96,19 @@ func (o *options) Parse() error {
 		o.DBs = nil
 	}
 
+	if o.DebugAddr != "" {
+		log.Printf("Starting debugging server on http://%v", o.DebugAddr)
+		go func() {
+			log.Fatal(http.ListenAndServe(o.DebugAddr, nil))
+		}()
+	}
+
 	return nil
 }
 
 var opts options
 
-const maxTSMSz = 2 * 1000 * 1000 * 1000
+const maxTSMSz = 2 * 1024 * 1024 * 1024
 
 func init() {
 	log.SetOutput(os.Stderr)
@@ -166,72 +177,13 @@ func main() {
 	}
 	fmt.Println("Conversion starting....")
 
-	// GOMAXPROCS(0) just queires the current value
-	pg := NewParallelGroup(runtime.GOMAXPROCS(0))
-	var wg sync.WaitGroup
+	tr := newTracker(shards, opts)
 
-	conversionStart := time.Now()
-
-	// Backup each directory.
-	if !opts.SkipBackup {
-		databases := shards.Databases()
-		fmt.Printf("Backing up %d databases...\n", len(databases))
-		wg.Add(len(databases))
-		for i := range databases {
-			db := databases[i]
-			go pg.Do(func() {
-				defer wg.Done()
-
-				start := time.Now()
-				log.Printf("Backup of databse '%v' started", db)
-				err := backupDatabase(filepath.Join(opts.DataPath, db))
-				if err != nil {
-					log.Fatalf("Backup of database %v failed: %v\n", db, err)
-				}
-				log.Printf("Database %v backed up (%v)\n", db, time.Now().Sub(start))
-			})
-		}
-		wg.Wait()
-	} else {
-		fmt.Println("Database backup disabled.")
+	if err := tr.Run(); err != nil {
+		log.Fatalf("Error occurred preventing completion: %v\n", err)
 	}
 
-	wg.Add(len(shards))
-	for i := range shards {
-		si := shards[i]
-		go pg.Do(func() {
-			defer wg.Done()
-
-			start := time.Now()
-			log.Printf("Starting conversion of shard: %v", si.FullPath(opts.DataPath))
-			if err := convertShard(si); err != nil {
-				log.Fatalf("Failed to convert %v: %v\n", si.FullPath(opts.DataPath), err)
-			}
-			log.Printf("Conversion of %v successful (%v)\n", si.FullPath(opts.DataPath), time.Since(start))
-		})
-	}
-	wg.Wait()
-
-	// Dump stats.
-	preSize := shards.Size()
-	postSize := TsmBytesWritten
-	totalTime := time.Since(conversionStart)
-
-	fmt.Printf("\nSummary statistics\n========================================\n")
-	fmt.Printf("Databases converted:                 %d\n", len(shards.Databases()))
-	fmt.Printf("Shards converted:                    %d\n", len(shards))
-	fmt.Printf("TSM files created:                   %d\n", TsmFilesCreated)
-	fmt.Printf("Points read:                         %d\n", PointsRead)
-	fmt.Printf("Points written:                      %d\n", PointsWritten)
-	fmt.Printf("NaN filtered:                        %d\n", NanFiltered)
-	fmt.Printf("Inf filtered:                        %d\n", InfFiltered)
-	fmt.Printf("Points without fields filtered:      %d\n", b1.NoFieldsFiltered+bz1.NoFieldsFiltered)
-	fmt.Printf("Disk usage pre-conversion (bytes):   %d\n", preSize)
-	fmt.Printf("Disk usage post-conversion (bytes):  %d\n", postSize)
-	fmt.Printf("Reduction factor:                    %d%%\n", 100*(preSize-postSize)/preSize)
-	fmt.Printf("Bytes per TSM point:                 %.2f\n", float64(postSize)/float64(PointsWritten))
-	fmt.Printf("Total conversion time:               %v\n", totalTime)
-	fmt.Println()
+	tr.PrintStats()
 }
 
 func collectShards(dbs []os.FileInfo) tsdb.ShardInfos {
@@ -273,40 +225,72 @@ func copyDir(dest, src string) error {
 		// Strip the src from the path and replace with dest.
 		toPath := strings.Replace(path, src, dest, 1)
 
-		// Copy it.
 		if info.IsDir() {
-			if err := os.MkdirAll(toPath, info.Mode()); err != nil {
+			return os.MkdirAll(toPath, info.Mode())
+		}
+
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		srcInfo, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+
+		// TODO(jlegasse): this just appends to the current backup file, if it exists
+		out, err := os.OpenFile(toPath, os.O_CREATE|os.O_WRONLY, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		dstInfo, err := os.Stat(toPath)
+		if err != nil {
+			return err
+		}
+
+		if dstInfo.Size() == srcInfo.Size() {
+			log.Printf("Backup file already found for %v with correct size, skipping.", path)
+			return nil
+		}
+
+		if dstInfo.Size() > srcInfo.Size() {
+			log.Printf("Invalid backup file found for %v, replacing with good copy.", path)
+			if err := out.Truncate(0); err != nil {
 				return err
 			}
-		} else {
-			err := func() error {
-				in, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-				defer in.Close()
-
-				out, err := os.OpenFile(toPath, os.O_CREATE|os.O_WRONLY, info.Mode())
-				if err != nil {
-					return err
-				}
-				defer out.Close()
-
-				_, err = io.Copy(out, in)
-				return err
-			}()
-			if err != nil {
+			if _, err := out.Seek(0, os.SEEK_SET); err != nil {
 				return err
 			}
 		}
-		return nil
+
+		if dstInfo.Size() > 0 {
+			log.Printf("Resuming backup of file %v, starting at %v bytes", path, dstInfo.Size())
+		}
+
+		off, err := out.Seek(0, os.SEEK_END)
+		if err != nil {
+			return err
+		}
+		if _, err := in.Seek(off, os.SEEK_SET); err != nil {
+			return err
+		}
+
+		log.Printf("Backing up file %v", path)
+
+		_, err = io.Copy(out, in)
+
+		return err
 	}
 
 	return filepath.Walk(src, copyFile)
 }
 
 // convertShard converts the shard in-place.
-func convertShard(si *tsdb.ShardInfo) error {
+func convertShard(si *tsdb.ShardInfo, tr *tracker) error {
 	src := si.FullPath(opts.DataPath)
 	dst := fmt.Sprintf("%v.%v", src, tsmExt)
 
@@ -325,7 +309,7 @@ func convertShard(si *tsdb.ShardInfo) error {
 	if err := reader.Open(); err != nil {
 		return fmt.Errorf("Failed to open %v for conversion: %v", src, err)
 	}
-	converter := NewConverter(dst, uint32(opts.TSMSize))
+	converter := NewConverter(dst, uint32(opts.TSMSize), tr)
 
 	// Perform the conversion.
 	if err := converter.Process(reader); err != nil {
