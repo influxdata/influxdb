@@ -310,6 +310,10 @@ func (s *Store) loadIndexes() error {
 			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
 			continue
 		}
+		if strings.HasSuffix(db.Name(), ".bak") {
+			s.Logger.Printf("Skipping backup directory: %s", db.Name())
+			continue
+		}
 		s.databaseIndexes[db.Name()] = NewDatabaseIndex()
 	}
 	return nil
