@@ -973,7 +973,7 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 	defer c.Close()
 
 	exp := &meta.NodeInfo{
-		ID:      2,
+		ID:      1,
 		Host:    "foo:8180",
 		TCPHost: "bar:8281",
 	}
@@ -1006,7 +1006,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 	defer c.Close()
 
 	exp := &meta.NodeInfo{
-		ID:      2,
+		ID:      1,
 		Host:    "foo:8180",
 		TCPHost: "bar:8281",
 	}
@@ -1037,11 +1037,11 @@ func TestMetaService_DropDataNode(t *testing.T) {
 		t.Fatal(err.Error())
 	}
 
-	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{2}}) {
-		t.Fatalf("expected owners to be [2]: %v", sg.Shards[0].Owners)
+	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{1}}) {
+		t.Fatalf("expected owners to be [1]: %v", sg.Shards[0].Owners)
 	}
 
-	if res := c.ExecuteStatement(mustParseStatement("DROP DATA SERVER 2")); res.Err != nil {
+	if res := c.ExecuteStatement(mustParseStatement("DROP DATA SERVER 1")); res.Err != nil {
 		t.Fatal(res.Err.Error())
 	}
 
@@ -1169,6 +1169,7 @@ func TestMetaService_AcquireLease(t *testing.T) {
 		t.Fatalf("owner ID wrong. exp %d got %d", n1.ID, l.Owner)
 	}
 
+	t.Logf("c1: %d, c2: %d", c1.NodeID(), c2.NodeID())
 	// Client 2 attempts to acquire the same lease.  Should fail.
 	l, err = c2.AcquireLease("foo")
 	if err == nil {

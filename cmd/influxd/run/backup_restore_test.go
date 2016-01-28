@@ -18,6 +18,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	config.Data.Dir, _ = ioutil.TempDir("", "data_backup")
 	config.Meta.Dir, _ = ioutil.TempDir("", "meta_backup")
 	config.Meta.BindAddress = freePort()
+	config.Meta.HTTPBindAddress = freePort()
 
 	backupDir, _ := ioutil.TempDir("", "backup")
 	defer os.RemoveAll(backupDir)
@@ -81,9 +82,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	if _, err := os.Stat(nodePath); err != nil || os.IsNotExist(err) {
 		t.Fatalf("node.json should exist")
 	}
-	// Need to remove the restored node.json because the metaservers it points to are to the ephemeral ports
-	// of itself.  Opening the server below will hang indefinitely if we try to use them.
-	os.RemoveAll(nodePath)
 
 	// now open it up and verify we're good
 	s := OpenServer(config, "")
