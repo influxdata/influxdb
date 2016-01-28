@@ -2,11 +2,18 @@ package influxdb
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
-const nodeFile = "node.json"
+const (
+	nodeFile      = "node.json"
+	oldNodeFile   = "id"
+	peersFilename = "peers.json"
+)
 
 type Node struct {
 	path        string
@@ -14,18 +21,20 @@ type Node struct {
 	MetaServers []string
 }
 
-// NewNode will load the node information from disk if present
-func NewNode(path string) (*Node, error) {
+// LoadNode will load the node information from disk if present
+func LoadNode(path, addr string) (*Node, error) {
+	// Always check to see if we are upgrading first
+	if err := upgradeNodeFile(path, addr); err != nil {
+		return nil, err
+	}
+
 	n := &Node{
 		path: path,
 	}
 
 	f, err := os.Open(filepath.Join(path, nodeFile))
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
-		return n, nil
+		return nil, err
 	}
 	defer f.Close()
 
@@ -34,6 +43,14 @@ func NewNode(path string) (*Node, error) {
 	}
 
 	return n, nil
+}
+
+// NewNode will return a new node
+func NewNode(path, addr string) *Node {
+	return &Node{
+		path:        path,
+		MetaServers: []string{addr},
+	}
 }
 
 // Save will save the node file to disk and replace the existing one if present
@@ -52,4 +69,47 @@ func (n *Node) Save() error {
 	}
 
 	return os.Rename(tmpFile, file)
+}
+
+func upgradeNodeFile(path, addr string) error {
+	oldFile := filepath.Join(path, oldNodeFile)
+	b, err := ioutil.ReadFile(oldFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	// We shouldn't have an empty ID file, but if we do, ignore it
+	if len(b) == 0 {
+		return nil
+	}
+
+	peers := []string{}
+	pb, err := ioutil.ReadFile(filepath.Join(path, peersFilename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	err = json.Unmarshal(pb, &peers)
+	if len(peers) > 1 {
+		return fmt.Errorf("to upgrade a cluster, please contact support at influxdata")
+	}
+
+	n := &Node{
+		path:        path,
+		MetaServers: []string{addr},
+	}
+	if n.ID, err = strconv.ParseUint(string(b), 10, 64); err != nil {
+		return err
+	}
+	if err := n.Save(); err != nil {
+		return err
+	}
+	if err := os.Remove(oldFile); err != nil {
+		return err
+	}
+	return nil
 }

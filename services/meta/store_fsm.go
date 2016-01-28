@@ -146,8 +146,17 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command, peers []strin
 		}
 	}
 
-	if err := other.CreateDataNode(v.GetHost(), v.GetHost()); err != nil {
-		return err
+	// Get the only meta node
+	if len(other.MetaNodes) == 1 {
+		metaNode := other.MetaNodes[0]
+
+		if err := other.setDataNode(metaNode.ID, v.GetHost(), v.GetHost()); err != nil {
+			return err
+		}
+	} else {
+		if err := other.CreateDataNode(v.GetHost(), v.GetHost()); err != nil {
+			return err
+		}
 	}
 
 	// If the cluster ID hasn't been set then use the command's random number.
@@ -537,7 +546,17 @@ func (fsm *storeFSM) applyCreateDataNodeCommand(cmd *internal.Command) interface
 	v := ext.(*internal.CreateDataNodeCommand)
 
 	other := fsm.data.Clone()
-	other.CreateDataNode(v.GetHTTPAddr(), v.GetTCPAddr())
+
+	// Get the only meta node
+	if len(other.MetaNodes) == 1 && len(other.DataNodes) == 0 {
+		metaNode := other.MetaNodes[0]
+
+		if err := other.setDataNode(metaNode.ID, v.GetHTTPAddr(), v.GetTCPAddr()); err != nil {
+			return err
+		}
+	} else {
+		other.CreateDataNode(v.GetHTTPAddr(), v.GetTCPAddr())
+	}
 	fsm.data = other
 	return nil
 }
