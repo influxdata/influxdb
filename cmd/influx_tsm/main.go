@@ -108,7 +108,7 @@ func (o *options) Parse() error {
 
 var opts options
 
-const maxTSMSz = 2 * 1024 * 1024 * 1024
+const maxTSMSz uint64 = 2 * 1024 * 1024 * 1024
 
 func init() {
 	log.SetOutput(os.Stderr)
@@ -240,7 +240,6 @@ func copyDir(dest, src string) error {
 			return err
 		}
 
-		// TODO(jlegasse): this just appends to the current backup file, if it exists
 		out, err := os.OpenFile(toPath, os.O_CREATE|os.O_WRONLY, info.Mode())
 		if err != nil {
 			return err

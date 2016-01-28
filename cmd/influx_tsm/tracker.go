@@ -16,13 +16,13 @@ import (
 
 // tracker will orchestrate and track the conversions of non-TSM shards to TSM
 type tracker struct {
+	stats Stats
+
 	shards tsdb.ShardInfos
 	opts   options
 
 	pg ParallelGroup
 	wg sync.WaitGroup
-
-	stats Stats
 }
 
 type Stats struct {
