@@ -3,6 +3,7 @@ package restore
 import (
 	"archive/tar"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdb/influxdb/services/snapshotter"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -153,9 +155,30 @@ func (cmd *Command) unpackMeta() error {
 		return fmt.Errorf("copy: %s", err)
 	}
 
+	b := buf.Bytes()
+	var i int
+
+	// Make sure the file is actually a meta store backup file
+	magic := btou64(b[:8])
+	if magic != snapshotter.BackupMagicHeader {
+		return fmt.Errorf("invalid metadata file")
+	}
+	i += 8
+
+	// Size of the meta store bytes
+	length := int(btou64(b[i : i+8]))
+	i += 8
+	metaBytes := b[i : i+length]
+	i += int(length)
+
+	// Size of the node.json bytes
+	length = int(btou64(b[i : i+8]))
+	i += 8
+	nodeBytes := b[i:]
+
 	// Unpack into metadata.
 	var data meta.Data
-	if err := data.UnmarshalBinary(buf.Bytes()); err != nil {
+	if err := data.UnmarshalBinary(metaBytes); err != nil {
 		return fmt.Errorf("unmarshal: %s", err)
 	}
 
@@ -163,6 +186,16 @@ func (cmd *Command) unpackMeta() error {
 	c := cmd.MetaConfig
 	c.JoinPeers = nil
 	c.LoggingEnabled = false
+
+	// Create the meta dir
+	if os.MkdirAll(c.Dir, 0700); err != nil {
+		return err
+	}
+
+	// Write node.json back to meta dir
+	if err := ioutil.WriteFile(filepath.Join(c.Dir, "node.json"), nodeBytes, 0655); err != nil {
+		return err
+	}
 
 	// Initialize meta store.
 	store := meta.NewService(c)
@@ -366,3 +399,14 @@ func (ln *nopListener) Close() error {
 }
 
 func (ln *nopListener) Addr() net.Addr { return &net.TCPAddr{} }
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func btou64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}

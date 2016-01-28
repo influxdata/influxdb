@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/tcp"
 )
@@ -228,15 +228,17 @@ func (cmd *Command) backupMetastore() error {
 	}
 
 	return cmd.downloadAndVerify(req, metastoreArchivePath, func(file string) error {
-		var data meta.Data
 		binData, err := ioutil.ReadFile(file)
 		if err != nil {
 			return err
 		}
-		if data.UnmarshalBinary(binData) != nil {
+
+		magic := btou64(binData[:8])
+		if magic != snapshotter.BackupMagicHeader {
 			cmd.Logger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
 			return errors.New("invalid metadata received")
 		}
+
 		return nil
 	})
 }
@@ -362,4 +364,8 @@ func retentionAndShardFromPath(path string) (retention, shard string, err error)
 	}
 
 	return a[1], a[2], nil
+}
+
+func btou64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
 }

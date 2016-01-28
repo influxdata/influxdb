@@ -1,7 +1,9 @@
 package snapshotter
 
 import (
+	"bytes"
 	"encoding"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,13 +18,21 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-// MuxHeader is the header byte used for the TCP muxer.
-const MuxHeader = 3
+const (
+	// MuxHeader is the header byte used for the TCP muxer.
+	MuxHeader = 3
+
+	// BackupMagicHeader is the first 8 bytes used to identify and validate
+	// a metastore backup file
+	BackupMagicHeader = 0x59590101
+)
 
 // Service manages the listener for the snapshot endpoint.
 type Service struct {
 	wg  sync.WaitGroup
 	err chan error
+
+	Node *influxdb.Node
 
 	MetaClient interface {
 		encoding.BinaryMarshaler
@@ -109,12 +119,7 @@ func (s *Service) handleConn(conn net.Conn) error {
 			return err
 		}
 	case RequestMetastoreBackup:
-		// Retrieve and serialize the current meta data.
-		buf, err := s.MetaClient.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("marshal meta: %s", err)
-		}
-		if _, err := conn.Write(buf); err != nil {
+		if err := s.writeMetaStore(conn); err != nil {
 			return err
 		}
 	case RequestDatabaseInfo:
@@ -125,6 +130,41 @@ func (s *Service) handleConn(conn net.Conn) error {
 		return fmt.Errorf("request type unknown: %v", r.Type)
 	}
 
+	return nil
+}
+
+func (s *Service) writeMetaStore(conn net.Conn) error {
+	// Retrieve and serialize the current meta data.
+	buf, err := s.MetaClient.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("marshal meta: %s", err)
+	}
+
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	if err := enc.Encode(s.Node); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(u64tob(BackupMagicHeader)); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(u64tob(uint64(len(buf)))); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(buf); err != nil {
+		return err
+	}
+
+	if _, err := conn.Write(u64tob(uint64(b.Len()))); err != nil {
+		return err
+	}
+
+	if _, err := b.WriteTo(conn); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -246,4 +286,15 @@ type Request struct {
 // that are in the requested database or retention policy
 type Response struct {
 	Paths []string
+}
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+func btou64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
 }

@@ -230,6 +230,7 @@ func (s *Server) appendSnapshotterService() {
 	srv := snapshotter.NewService()
 	srv.TSDBStore = s.TSDBStore
 	srv.MetaClient = s.MetaClient
+	srv.Node = s.Node
 	s.Services = append(s.Services, srv)
 	s.SnapshotterService = srv
 }

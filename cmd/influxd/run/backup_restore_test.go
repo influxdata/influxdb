@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -74,6 +75,15 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	if err := cmd.Run("-metadir", config.Meta.Dir, "-datadir", config.Data.Dir, "-database", "mydb", backupDir); err != nil {
 		t.Fatalf("error restoring: %s", err.Error())
 	}
+
+	// Make sure node.json was restored
+	nodePath := filepath.Join(config.Meta.Dir, "node.json")
+	if _, err := os.Stat(nodePath); err != nil || os.IsNotExist(err) {
+		t.Fatalf("node.json should exist")
+	}
+	// Need to remove the restored node.json because the metaservers it points to are to the ephemeral ports
+	// of itself.  Opening the server below will hang indefinitely if we try to use them.
+	os.RemoveAll(nodePath)
 
 	// now open it up and verify we're good
 	s := OpenServer(config, "")
