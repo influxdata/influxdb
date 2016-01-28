@@ -31,24 +31,23 @@ type ShardReader interface {
 }
 
 const (
-	backupExt = "bak"
-	tsmExt    = "tsm"
+	tsmExt = "tsm"
 )
 
-var description = fmt.Sprintf(`
+var description = `
 Convert a database from b1 or bz1 format to tsm1 format.
 
-This tool will backup any directory before conversion. It is up to the
-end-user to delete the backup on the disk, once the end-user is happy
-with the converted data. Backups are named by suffixing the database
-name with '.%v'. The backups will be ignored by the system since they
-are not registered with the cluster.
+This tool will backup the directories before conversion (if not disabled).
+The backed-up files must be removed manually, generally after starting up the
+node again to make sure all of data has been converted correctly.
 
-To restore a backup, delete the tsm1 version, rename the backup directory
-restart the node.`, backupExt)
+To restore a backup:
+  Shut down the node, remove the converted directory, and 
+  copy the backed-up directory to the original location.`
 
 type options struct {
 	DataPath       string
+	BackupPath     string
 	DBs            []string
 	DebugAddr      string
 	TSMSize        uint64
@@ -67,12 +66,13 @@ func (o *options) Parse() error {
 	fs.Uint64Var(&opts.TSMSize, "sz", maxTSMSz, "Maximum size of individual TSM files.")
 	fs.BoolVar(&opts.Parallel, "parallel", false, "Perform parallel conversion. (up to GOMAXPROCS shards at once)")
 	fs.BoolVar(&opts.SkipBackup, "nobackup", false, "Disable database backups. Not recommended.")
+	fs.StringVar(&opts.BackupPath, "backup", "", "The location to backup up the current databases. Must not be within the data directoryi.")
 	// fs.BoolVar(&opts.Quiet, "quiet", false, "Suppresses the regular status updates.")
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "%v\n\n", description)
+		fmt.Fprintf(os.Stderr, "%v\n\nOptions:\n", description)
 		fs.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\n")
 	}
@@ -84,7 +84,13 @@ func (o *options) Parse() error {
 	if len(fs.Args()) < 1 {
 		return errors.New("no data directory specified")
 	}
-	o.DataPath = fs.Args()[0]
+	var err error
+	if o.DataPath, err = filepath.Abs(fs.Args()[0]); err != nil {
+		return err
+	}
+	if o.DataPath, err = filepath.EvalSymlinks(filepath.Clean(o.DataPath)); err != nil {
+		return err
+	}
 
 	if o.TSMSize > maxTSMSz {
 		return fmt.Errorf("bad TSM file size, maximum TSM file size is %d", maxTSMSz)
@@ -94,6 +100,26 @@ func (o *options) Parse() error {
 	o.DBs = strings.Split(dbs, ",")
 	if len(o.DBs) == 1 && o.DBs[0] == "" {
 		o.DBs = nil
+	}
+
+	if !o.SkipBackup {
+		if o.BackupPath == "" {
+			return errors.New("either -nobackup or -backup DIR must be set")
+		}
+		if o.BackupPath, err = filepath.Abs(o.BackupPath); err != nil {
+			return err
+		}
+		if o.BackupPath, err = filepath.EvalSymlinks(filepath.Clean(o.BackupPath)); err != nil {
+			if os.IsNotExist(err) {
+				return errors.New("backup directory must already exist")
+			}
+			return err
+		}
+
+		if strings.HasPrefix(o.BackupPath, o.DataPath) {
+			fmt.Println(o.BackupPath, o.DataPath)
+			return errors.New("backup directory cannot be contained within data directory.")
+		}
 	}
 
 	if o.DebugAddr != "" {
@@ -136,12 +162,18 @@ func main() {
 		}
 	}
 
+	var badUser string
+	if opts.SkipBackup {
+		badUser = "(NOT RECOMMENDED)"
+	}
+
 	// Dump summary of what is about to happen.
 	fmt.Println("b1 and bz1 shard conversion.")
 	fmt.Println("-----------------------------------")
 	fmt.Println("Data directory is:       ", opts.DataPath)
+	fmt.Println("Backup directory is:     ", opts.BackupPath)
 	fmt.Println("Databases specified:     ", allDBs(opts.DBs))
-	fmt.Println("Database backups enabled:", yesno(!opts.SkipBackup))
+	fmt.Println("Database backups enabled:", yesno(!opts.SkipBackup), badUser)
 	fmt.Println("Parallel mode enabled:   ", yesno(opts.Parallel), runtime.GOMAXPROCS(0))
 	fmt.Println()
 
@@ -190,11 +222,6 @@ func collectShards(dbs []os.FileInfo) tsdb.ShardInfos {
 	// Get the list of shards for conversion.
 	var shards tsdb.ShardInfos
 	for _, db := range dbs {
-		if strings.HasSuffix(db.Name(), backupExt) {
-			log.Printf("Skipping %v as it looks like a backup.\n", db.Name())
-			continue
-		}
-
 		d := tsdb.NewDatabase(filepath.Join(opts.DataPath, db.Name()))
 		shs, err := d.Shards()
 		if err != nil {
@@ -212,18 +239,11 @@ func collectShards(dbs []os.FileInfo) tsdb.ShardInfos {
 	return shards
 }
 
-// backupDatabase backs up the database at src.
-func backupDatabase(src string) error {
-	dest := filepath.Join(src + "." + backupExt)
-	return copyDir(dest, src)
-}
-
-// copyDir copies the directory at src to dest. If dest does not exist it
-// will be created. It is up to the caller to ensure the paths don't overlap.
-func copyDir(dest, src string) error {
+// backupDatabase backs up the database named db
+func backupDatabase(db string) error {
 	copyFile := func(path string, info os.FileInfo, err error) error {
-		// Strip the src from the path and replace with dest.
-		toPath := strings.Replace(path, src, dest, 1)
+		// Strip the DataPath from the path and replace with BackupPath.
+		toPath := strings.Replace(path, opts.DataPath, opts.BackupPath, 1)
 
 		if info.IsDir() {
 			return os.MkdirAll(toPath, info.Mode())
@@ -285,7 +305,7 @@ func copyDir(dest, src string) error {
 		return err
 	}
 
-	return filepath.Walk(src, copyFile)
+	return filepath.Walk(filepath.Join(opts.DataPath, db), copyFile)
 }
 
 // convertShard converts the shard in-place.

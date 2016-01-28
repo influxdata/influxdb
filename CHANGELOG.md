@@ -30,6 +30,7 @@
 - [#5262](https://github.com/influxdata/influxdb/issues/5262): Fix a panic when a tag value was empty.
 - [#5382](https://github.com/influxdata/influxdb/pull/5382): Fixes some escaping bugs with tag keys and values.
 - [#5349](https://github.com/influxdata/influxdb/issues/5349): Validate metadata blob for 'influxd backup'
+- [#5469](https://github.com/influxdata/influxdb/issues/5469): Conversion from bz1 to tsm doesn't work as described
 
 ## v0.9.6 [2015-12-09]
 
