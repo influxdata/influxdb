@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -66,7 +65,7 @@ func (t *tracker) Run() error {
 
 				start := time.Now()
 				log.Printf("Backup of databse '%v' started", db)
-				err := backupDatabase(filepath.Join(opts.DataPath, db))
+				err := backupDatabase(db)
 				if err != nil {
 					log.Fatalf("Backup of database %v failed: %v\n", db, err)
 				}
