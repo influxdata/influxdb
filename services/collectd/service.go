@@ -299,7 +299,7 @@ func (s *Service) UnmarshalCollectd(packet *gollectd.Packet) []models.Point {
 		p, err := models.NewPoint(name, tags, fields, timestamp)
 		// Drop invalid points
 		if err != nil {
-			s.Logger.Printf("Dropping point %v: %v", p.Name, err)
+			s.Logger.Printf("Dropping point %v: %v", name, err)
 			s.statMap.Add(statDroppedPointsInvalid, 1)
 			continue
 		}
