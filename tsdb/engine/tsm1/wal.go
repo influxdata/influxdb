@@ -493,6 +493,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				}
 			case stringEntryType:
 				length := int(btou32(b[i : i+4]))
+				if i+length > int(uint32(len(b))) {
+					return fmt.Errorf("corrupted write wall entry")
+				}
+
 				i += 4
 				v := string(b[i : i+length])
 				i += length
