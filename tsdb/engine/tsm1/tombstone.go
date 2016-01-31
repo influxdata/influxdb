@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 )
@@ -79,8 +78,6 @@ func (t *Tombstoner) TombstoneFiles() []FileStat {
 	return nil
 }
 
-var is_windows = "windows" == runtime.GOOS
-
 func (t *Tombstoner) writeTombstone(tombstones []string) error {
 	tmp, err := ioutil.TempFile(filepath.Dir(t.Path), "tombstone")
 	if err != nil {
@@ -104,17 +101,7 @@ func (t *Tombstoner) writeTombstone(tombstones []string) error {
 		return err
 	}
 
-	if is_windows { // sync is unnecessary.
-		return nil
-	}
-
-	// fsync the dir to flush the rename
-	dir, err := os.OpenFile(filepath.Dir(t.tombstonePath()), os.O_RDONLY, os.ModeDir)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	return syncDir(filepath.Dir(t.tombstonePath()))
 }
 
 func (t *Tombstoner) readTombstone() ([]string, error) {
