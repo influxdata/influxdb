@@ -198,6 +198,37 @@ func TestClient_UserAgent(t *testing.T) {
 	}
 }
 
+func TestClient_CustomHTTPClient(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept-Encoding")
+		if accept == "gzip" {
+			t.Errorf("unexpected client error.  expected %v, actual %v", nil, accept)
+		}
+		var data Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{
+		Addr: ts.URL,
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				DisableCompression: true,
+			},
+		},
+	}
+
+	c, _ := NewHTTPClient(config)
+	defer c.Close()
+
+	query := Query{}
+	_, err := c.Query(query)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
 func TestClient_PointString(t *testing.T) {
 	const shortForm = "2006-Jan-02"
 	time1, _ := time.Parse(shortForm, "2013-Feb-03")

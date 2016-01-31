@@ -41,6 +41,10 @@ type HTTPConfig struct {
 	// InsecureSkipVerify gets passed to the http client, if true, it will
 	// skip https certificate verification. Defaults to false
 	InsecureSkipVerify bool
+
+	// HTTPClient is the optional option http client. If not set, Timeout
+	// and InsecureSkipVerify will be used.
+	HTTPClient *http.Client
 }
 
 type UDPConfig struct {
@@ -95,20 +99,24 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 		return nil, errors.New(m)
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: conf.InsecureSkipVerify,
-		},
-	}
-	return &client{
-		url:       u,
-		username:  conf.Username,
-		password:  conf.Password,
-		useragent: conf.UserAgent,
-		httpClient: &http.Client{
+	if conf.HTTPClient == nil {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: conf.InsecureSkipVerify,
+			},
+		}
+		conf.HTTPClient = &http.Client{
 			Timeout:   conf.Timeout,
 			Transport: tr,
-		},
+		}
+	}
+
+	return &client{
+		url:        u,
+		username:   conf.Username,
+		password:   conf.Password,
+		useragent:  conf.UserAgent,
+		httpClient: conf.HTTPClient,
 	}, nil
 }
 
