@@ -30,7 +30,7 @@ import (
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
-	"github.com/influxdb/usage-client/v1"
+	client "github.com/influxdb/usage-client/v1"
 	// Initialize the engine packages
 	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
@@ -123,8 +123,13 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
+	nodeAddr, err := meta.DefaultHost(DefaultHostname, c.Meta.HTTPBindAddress)
+	if err != nil {
+		return nil, err
+	}
+
 	// load the node information
-	metaAddresses := []string{c.Meta.HTTPBindAddress}
+	metaAddresses := []string{nodeAddr}
 	if !c.Meta.Enabled {
 		metaAddresses = c.Meta.JoinPeers
 	}
@@ -149,11 +154,11 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		return nil, fmt.Errorf("must run as either meta node or data node or both")
 	}
 
-	httpBindAddress, err := defaultHost(DefaultHostname, c.HTTPD.BindAddress)
+	httpBindAddress, err := meta.DefaultHost(DefaultHostname, c.HTTPD.BindAddress)
 	if err != nil {
 		return nil, err
 	}
-	tcpBindAddress, err := defaultHost(DefaultHostname, bind)
+	tcpBindAddress, err := meta.DefaultHost(DefaultHostname, bind)
 	if err != nil {
 		return nil, err
 	}
@@ -746,18 +751,6 @@ func stopProfile() {
 		prof.mem.Close()
 		log.Println("mem profile stopped")
 	}
-}
-
-func defaultHost(hostname, addr string) (string, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", err
-	}
-
-	if host == "" {
-		return net.JoinHostPort(hostname, port), nil
-	}
-	return addr, nil
 }
 
 type tcpaddr struct{ host string }

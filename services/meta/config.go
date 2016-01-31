@@ -96,15 +96,11 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) defaultHost(addr string) string {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
+	address, err := DefaultHost(DefaultHostname, addr)
+	if nil != err {
+		panic(err)
 	}
-
-	if host == "" {
-		return net.JoinHostPort(DefaultHostname, port)
-	}
-	return addr
+	return address
 }
 
 // DefaultedBindAddress returns the BindAddress normalized with the
@@ -119,4 +115,16 @@ func (c *Config) DefaultedBindAddress() string {
 // the HTTPBindAddress already has a hostname, HTTPBindAddress is returned.
 func (c *Config) DefaultedHTTPBindAddress() string {
 	return c.defaultHost(c.HTTPBindAddress)
+}
+
+func DefaultHost(hostname, addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		return net.JoinHostPort(hostname, port), nil
+	}
+	return addr, nil
 }
