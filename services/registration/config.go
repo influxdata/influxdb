@@ -16,6 +16,7 @@ type Config struct {
 	Enabled       bool            `toml:"enabled"`
 	Token         string          `toml:"token"`
 	StatsInterval config.Duration `toml:"stats-interval"`
+	AdminPort     uint16          `toml:"admin-port"`
 	Hosts         []*client.Host  `toml:"hosts"`
 }
 
@@ -24,5 +25,6 @@ func NewConfig() Config {
 	return Config{
 		Enabled:       false,
 		StatsInterval: config.Duration(defaultStatsInterval),
+		AdminPort:     8090,
 	}
 }

@@ -3,11 +3,14 @@ package registration
 import (
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/influxdata/enterprise-client/v2"
+	"github.com/influxdata/enterprise-client/v2/admin"
 	"github.com/influxdb/influxdb/monitor"
 )
 
@@ -28,6 +31,10 @@ type Service struct {
 	version       string
 	mu            sync.Mutex
 	lastContact   time.Time
+	adminPort     string
+
+	token     string
+	secretKey string
 
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -44,6 +51,7 @@ func NewService(c Config, version string) (*Service, error) {
 		version:       version,
 		done:          make(chan struct{}),
 		logger:        log.New(os.Stderr, "[registration] ", log.LstdFlags),
+		adminPort:     fmt.Sprintf(":%d", c.AdminPort),
 	}, nil
 }
 
@@ -63,8 +71,9 @@ func (s *Service) Open() error {
 		s.Monitor.RegisterDiagnosticsClient("registration", s)
 	}
 
-	s.wg.Add(1)
+	s.wg.Add(2)
 	go s.reportStats()
+	go s.launchAdminInterface()
 
 	return nil
 }
@@ -129,7 +138,10 @@ func (s *Service) registerServer() error {
 			return
 		}
 		for _, host := range cl.Hosts {
-			s.logger.Printf("Successful registration for host at %s. Token: %s, Secret: %s", host.URL, host.Token, host.SecretKey)
+			if host.Primary {
+				s.token = host.Token
+				s.secretKey = host.SecretKey
+			}
 		}
 		s.hosts = cl.Hosts
 		s.updateLastContact(time.Now().UTC())
@@ -186,6 +198,33 @@ func (s *Service) reportStats() {
 		case <-s.done:
 			return
 		}
+	}
+}
+
+func (s *Service) launchAdminInterface() {
+	defer s.wg.Done()
+
+	srv := &http.Server{
+		Addr:         s.adminPort,
+		Handler:      admin.App(s.token, []byte(s.secretKey)),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
+
+	l, err := net.Listen("tcp", s.adminPort)
+	if err != nil {
+		s.logger.Printf("Unable to bind enterprise admin interface to port %s\n", s.adminPort)
+		return
+	}
+
+	s.logger.Printf("Starting enterprise admin interface on port %s\n", s.adminPort)
+	go srv.Serve(l)
+	select {
+	case <-s.done:
+		s.logger.Println("Shutting down enterprise admin interface...")
+		l.Close()
+		return
+		break
 	}
 }
 

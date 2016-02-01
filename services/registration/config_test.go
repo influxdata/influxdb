@@ -11,11 +11,14 @@ import (
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c registration.Config
-	if _, err := config.Decode(`
+	if err := config.Decode(`
 enabled = true
-url = "a.b.c"
-token = "1234"
 stats-interval = "1s"
+admin-port = 4815
+
+[[hosts]]
+url = "a.b.c"
+primary = true
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -23,11 +26,13 @@ stats-interval = "1s"
 	// Validate configuration.
 	if c.Enabled != true {
 		t.Fatalf("unexpected enabled state: %v", c.Enabled)
-	} else if c.URL != "a.b.c" {
-		t.Fatalf("unexpected Enterprise URL: %s", c.URL)
-	} else if c.Token != "1234" {
-		t.Fatalf("unexpected Enterprise URL: %s", c.URL)
+	} else if c.Hosts[0].URL != "a.b.c" {
+		t.Fatalf("unexpected Enterprise URL: %s", c.Hosts[0].URL)
 	} else if time.Duration(c.StatsInterval) != time.Second {
 		t.Fatalf("unexpected stats interval: %v", c.StatsInterval)
+	} else if c.Hosts[0].Primary != true {
+		t.Fatalf("unexpected Enterprise host primary state: %s", c.Hosts[0].Primary)
+	} else if c.AdminPort != 4815 {
+		t.Fatalf("unexpected Enterprise admin interface port: %s", c.AdminPort)
 	}
 }
