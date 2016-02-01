@@ -10,7 +10,6 @@ import (
 )
 
 func TestCluster_CreateDatabase(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
 	c, err := NewClusterWithDefaults(5)
@@ -21,7 +20,6 @@ func TestCluster_CreateDatabase(t *testing.T) {
 }
 
 func TestCluster_Write(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
 	c, err := NewClusterWithDefaults(5)
@@ -34,7 +32,8 @@ func TestCluster_Write(t *testing.T) {
 		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 	}
 
-	_, err = c.Servers[0].Write("db0", "default", strings.Join(writes, "\n"), nil)
+	resp, err := c.Servers[0].Write("db0", "default", strings.Join(writes, "\n"), nil)
+	t.Log(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +50,6 @@ func TestCluster_Write(t *testing.T) {
 }
 
 func TestCluster_DatabaseCommands(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
@@ -83,7 +81,6 @@ func TestCluster_DatabaseCommands(t *testing.T) {
 }
 
 func TestCluster_Query_DropAndRecreateDatabase(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
@@ -126,7 +123,6 @@ func TestCluster_Query_DropAndRecreateDatabase(t *testing.T) {
 }
 
 func TestCluster_Query_DropDatabaseIsolated(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
@@ -172,8 +168,8 @@ func TestCluster_Query_DropDatabaseIsolated(t *testing.T) {
 }
 
 func TestCluster_Query_DropAndRecreateSeries(t *testing.T) {
-	t.Parallel()
 	t.Skip()
+	t.Parallel()
 	c, err := NewCluster(5)
 	if err != nil {
 		t.Fatalf("error creating cluster: %s", err)
@@ -284,7 +280,6 @@ func TestCluster_Query_DropSeriesFromRegex(t *testing.T) {
 }
 
 func TestCluster_RetentionPolicyCommands(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 
 	configFunc := func(index int, config *run.Config) {

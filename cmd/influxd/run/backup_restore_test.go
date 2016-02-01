@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -97,10 +96,4 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	if res != expected {
 		t.Fatalf("query results wrong:\n\texp: %s\n\tgot: %s", expected, res)
 	}
-}
-
-func freePort() string {
-	l, _ := net.Listen("tcp", "")
-	defer l.Close()
-	return l.Addr().String()
 }
