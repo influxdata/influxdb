@@ -1028,7 +1028,7 @@ func TestGreaterThan(t *testing.T) {
 	} {
 		got := greaterThan(tt.a, tt.b)
 		if got != tt.expected {
-			t.Errorf("greaterThan failed for %#T(%[1]v) > %#T(%[2]v), got %v, expected %v.", tt.a, tt.b, got, tt.expected)
+			t.Errorf("greaterThan failed for %T(%[1]v) > %T(%[2]v), got %v, expected %v.", tt.a, tt.b, got, tt.expected)
 		}
 	}
 
