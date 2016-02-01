@@ -466,6 +466,24 @@ func (itrs Iterators) Next() []influxql.Point {
 				return nil
 			}
 			a[i] = fp
+		case influxql.IntegerIterator:
+			ip := itr.Next()
+			if ip == nil {
+				return nil
+			}
+			a[i] = ip
+		case influxql.StringIterator:
+			sp := itr.Next()
+			if sp == nil {
+				return nil
+			}
+			a[i] = sp
+		case influxql.BooleanIterator:
+			bp := itr.Next()
+			if bp == nil {
+				return nil
+			}
+			a[i] = bp
 		default:
 			panic(fmt.Sprintf("iterator type not supported: %T", itr))
 		}
