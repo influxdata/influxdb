@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb"
 )
 
 const logo = `
@@ -94,8 +95,13 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 
-	if options.Join != "" {
-		config.Meta.JoinPeers = strings.Split(options.Join, ",")
+	// If we have a node ID, ignore the join argument
+	// We are not using the reference to this node var, just checking
+	// to see if we have a node ID on disk
+	if node, _ := influxdb.LoadNode(config.Meta.Dir, config.Meta.HTTPBindAddress); node == nil || node.ID == 0 {
+		if options.Join != "" {
+			config.Meta.JoinPeers = strings.Split(options.Join, ",")
+		}
 	}
 
 	// Validate the configuration.
