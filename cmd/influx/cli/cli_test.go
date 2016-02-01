@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/influxdb/influxdb/client"
@@ -69,26 +70,6 @@ func TestRunCLI_ExecuteInsert(t *testing.T) {
 	c.IgnoreSignals = true
 	if err := c.Run(); err != nil {
 		t.Fatalf("Run failed with error: %s", err)
-	}
-}
-
-func TestConnect(t *testing.T) {
-	t.Parallel()
-	ts := emptyTestServer()
-	defer ts.Close()
-
-	u, _ := url.Parse(ts.URL)
-	cmd := "connect " + u.Host
-	c := cli.CommandLine{}
-
-	// assert connection is established
-	if err := c.Connect(cmd); err != nil {
-		t.Fatalf("There was an error while connecting to %s: %s", u.Path, err)
-	}
-
-	// assert server version is populated
-	if c.ServerVersion != SERVER_VERSION {
-		t.Fatalf("Server version is %s but should be %s.", c.ServerVersion, SERVER_VERSION)
 	}
 }
 
@@ -179,35 +160,46 @@ func TestSetWriteConsistency(t *testing.T) {
 
 func TestParseCommand_CommandsExist(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{}
+	c, err := client.NewClient(client.Config{})
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	m := cli.CommandLine{Client: c, Line: liner.NewLiner()}
 	tests := []struct {
 		cmd string
 	}{
 		{cmd: "gopher"},
-		{cmd: "connect"},
+		{cmd: "auth"},
 		{cmd: "help"},
-		{cmd: "pretty"},
-		{cmd: "use"},
+		{cmd: "format"},
+		{cmd: "precision"},
+		{cmd: "settings"},
 	}
 	for _, test := range tests {
-		if !c.ParseCommand(test.cmd) {
-			t.Fatalf(`Command failed for %q.`, test.cmd)
+		if err := m.ParseCommand(test.cmd); err != nil {
+			t.Fatalf(`Got error %v for command %q, expected nil`, err, test.cmd)
 		}
 	}
 }
 
-func TestParseCommand_BlankCommand(t *testing.T) {
+func TestParseCommand_Connect(t *testing.T) {
 	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	cmd := "connect " + u.Host
 	c := cli.CommandLine{}
-	tests := []struct {
-		cmd string
-	}{
-		{cmd: ""}, // test that a blank command doesn't work
+
+	// assert connection is established
+	if err := c.ParseCommand(cmd); err != nil {
+		t.Fatalf("There was an error while connecting to %s: %s", u.Path, err)
 	}
-	for _, test := range tests {
-		if c.ParseCommand(test.cmd) {
-			t.Fatalf(`Command failed for %q.`, test.cmd)
-		}
+
+	// assert server version is populated
+	if c.ServerVersion != SERVER_VERSION {
+		t.Fatalf("Server version is %s but should be %s.", c.ServerVersion, SERVER_VERSION)
 	}
 }
 
@@ -294,8 +286,8 @@ func TestParseCommand_Use(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !m.ParseCommand(test.cmd) {
-			t.Fatalf(`Command "use" failed for %q.`, test.cmd)
+		if err := m.ParseCommand(test.cmd); err != nil {
+			t.Fatalf(`Got error %v for command %q, expected nil.`, err, test.cmd)
 		}
 
 		if m.Database != "db" {
@@ -319,8 +311,8 @@ func TestParseCommand_Consistency(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !c.ParseCommand(test.cmd) {
-			t.Fatalf(`Command "consistency" failed for %q.`, test.cmd)
+		if err := c.ParseCommand(test.cmd); err != nil {
+			t.Fatalf(`Got error %v for command %q, expected nil.`, err, test.cmd)
 		}
 
 		if c.WriteConsistency != "one" {
@@ -356,8 +348,8 @@ func TestParseCommand_Insert(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !m.ParseCommand(test.cmd) {
-			t.Fatalf(`Command "insert" failed for %q.`, test.cmd)
+		if err := m.ParseCommand(test.cmd); err != nil {
+			t.Fatalf(`Got error %v for command %q, expected nil.`, err, test.cmd)
 		}
 	}
 }
@@ -411,8 +403,8 @@ func TestParseCommand_InsertInto(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !m.ParseCommand(test.cmd) {
-			t.Fatalf(`Command "insert into" failed for %q.`, test.cmd)
+		if err := m.ParseCommand(test.cmd); err != nil {
+			t.Fatalf(`Got error %v for command %q, expected nil.`, err, test.cmd)
 		}
 		if m.Database != test.db {
 			t.Fatalf(`Command "insert into" db parsing failed, expected: %q, actual: %q`, test.db, m.Database)
@@ -441,8 +433,8 @@ func TestParseCommand_History(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if !c.ParseCommand(test.cmd) {
-			t.Fatalf(`Command "history" failed for %q.`, test.cmd)
+		if err := c.ParseCommand(test.cmd); err != nil {
+			t.Fatalf(`Got error %v for command %q, expected nil.`, err, test.cmd)
 		}
 	}
 
@@ -464,18 +456,21 @@ func TestParseCommand_HistoryWithBlankCommand(t *testing.T) {
 
 	tests := []struct {
 		cmd string
+		err error
 	}{
 		{cmd: "history"},
 		{cmd: " history"},
 		{cmd: "history "},
-		{cmd: "History "},
-		{cmd: ""},  // shouldn't be persisted in history
-		{cmd: " "}, // shouldn't be persisted in history
+		{cmd: "", err: cli.ErrBlankCommand},      // shouldn't be persisted in history
+		{cmd: " ", err: cli.ErrBlankCommand},     // shouldn't be persisted in history
+		{cmd: "     ", err: cli.ErrBlankCommand}, // shouldn't be persisted in history
 	}
 
-	// don't validate because blank commands are never executed
+	// a blank command will return cli.ErrBlankCommand.
 	for _, test := range tests {
-		c.ParseCommand(test.cmd)
+		if err := c.ParseCommand(test.cmd); err != test.err {
+			t.Errorf(`Got error %v for command %q, expected %v`, err, test.cmd, test.err)
+		}
 	}
 
 	// buf shall not contain empty commands
@@ -483,7 +478,7 @@ func TestParseCommand_HistoryWithBlankCommand(t *testing.T) {
 	c.Line.WriteHistory(&buf)
 	scanner := bufio.NewScanner(&buf)
 	for scanner.Scan() {
-		if scanner.Text() == "" || scanner.Text() == " " {
+		if strings.TrimSpace(scanner.Text()) == "" {
 			t.Fatal("Empty commands should not be persisted in history.")
 		}
 	}
