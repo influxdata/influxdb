@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -991,4 +992,44 @@ func TestInitializeUnmarshallerTopBottom(t *testing.T) {
 			t.Errorf("Wrong output. \nexp\n %v\ngot\n %v", spew.Sdump(test.output), spew.Sdump(output))
 		}
 	}
+}
+
+func TestGreaterThan(t *testing.T) {
+
+	for _, tt := range []struct {
+		a, b     interface{}
+		expected bool
+	}{
+		// a = int, b = float
+		{int64(1), float64(2), false},
+		{int64(2), float64(1), true},
+		// a = float, b = int
+		{float64(1), int64(2), false},
+		{float64(2), int64(1), true},
+		// float > float
+		{float64(1), float64(2), false},
+		{float64(2), float64(1), true},
+		// int > int
+		{int64(1), int64(2), false},
+		{int64(2), int64(1), true},
+		// precision at high end of int64 range
+		{int64(math.MaxInt64), int64(math.MaxInt64 - 1), true},
+		{int64(math.MaxInt64 - 1), int64(math.MaxInt64), false},
+		// precision at low end of int64 range
+		{int64(math.MinInt64 + 1), int64(math.MinInt64), true},
+		{int64(math.MinInt64), int64(math.MinInt64 + 1), false},
+		// loss of precision
+		{float64(math.MaxInt64 + 255), int64(math.MaxInt64), false},
+		// smallest float64 delta
+		{math.SmallestNonzeroFloat64, int64(0), true},
+		// comparison at the far reaches of the float64 range
+		{float64(math.MaxFloat64), math.Nextafter(math.MaxFloat64, math.Inf(-1)), true},
+		{math.Nextafter(-math.MaxFloat64, math.Inf(1)), float64(-math.MaxFloat64), true},
+	} {
+		got := greaterThan(tt.a, tt.b)
+		if got != tt.expected {
+			t.Errorf("greaterThan failed for %#T(%[1]v) > %#T(%[2]v), got %v, expected %v.", tt.a, tt.b, got, tt.expected)
+		}
+	}
+
 }
