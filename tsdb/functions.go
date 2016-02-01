@@ -1718,28 +1718,28 @@ func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func greaterThan(a, b interface{}) bool {
-	switch t := a.(type) {
+	switch a := a.(type) {
 	case int64:
-		switch bb := b.(type) {
+		switch b := b.(type) {
 		case int64:
-			return t > bb
+			return a > b
 		case float64:
-			return float64(t) > bb
+			return float64(a) > b
 		}
 	case float64:
-		switch bb := b.(type) {
+		switch b := b.(type) {
 		case int64:
-			return t > float64(bb)
+			return a > float64(b)
 		case float64:
-			return t > bb
+			return a > b
 		}
 	case string:
-		switch bb := b.(type) {
+		switch b := b.(type) {
 		case string:
-			return t > bb
+			return a > b
 		}
 	case bool:
-		return t == true
+		return a == true
 	}
 	return false
 }
