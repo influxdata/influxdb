@@ -33,6 +33,7 @@
 - [#5469](https://github.com/influxdata/influxdb/issues/5469): Conversion from bz1 to tsm doesn't work as described
 - [#5449](https://github.com/influxdata/influxdb/issues/5449): panic when dropping collectd points
 - [#5455](https://github.com/influxdata/influxdb/issues/5455): panic: runtime error: slice bounds out of range when loading corrupted wal segment
+- [#5478](https://github.com/influxdata/influxdb/issues/5478): panic: interface conversion: interface is float64, not int64
 
 ## v0.9.6 [2015-12-09]
 

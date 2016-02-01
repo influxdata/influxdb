@@ -1720,11 +1720,24 @@ func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func greaterThan(a, b interface{}) bool {
 	switch t := a.(type) {
 	case int64:
-		return t > b.(int64)
+		switch bb := b.(type) {
+		case int64:
+			return t > bb
+		case float64:
+			return float64(t) > bb
+		}
 	case float64:
-		return t > b.(float64)
+		switch bb := b.(type) {
+		case int64:
+			return t > float64(bb)
+		case float64:
+			return t > bb
+		}
 	case string:
-		return t > b.(string)
+		switch bb := b.(type) {
+		case string:
+			return t > bb
+		}
 	case bool:
 		return t == true
 	}
