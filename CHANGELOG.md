@@ -59,6 +59,7 @@
 - [#5924](https://github.com/influxdata/influxdb/issues/5924): Missing data after using influx\_tsm
 - [#5937](https://github.com/influxdata/influxdb/pull/5937): Rewrite SHOW SERIES to use query engine
 - [#5949](https://github.com/influxdata/influxdb/issues/5949): Return error message when improper types are used in SELECT
+- [#5244](https://github.com/influxdata/influxdb/issues/5244): panic: ensure it's safe to close engine multiple times.
 
 ## v0.10.2 [2016-03-03]
 ### Bugfixes
@@ -125,7 +126,7 @@ This release also changes how clusters are setup. The config file has changed so
 - [#5478](https://github.com/influxdata/influxdb/issues/5478): panic: interface conversion: interface is float64, not int64
 - [#5475](https://github.com/influxdata/influxdb/issues/5475): Ensure appropriate exit code returned for non-interactive use of CLI.
 - [#5479](https://github.com/influxdata/influxdb/issues/5479): Bringing up a node as a meta only node causes panic
-- [#5504](https://github.com/influxdata/influxdb/issues/5475): create retention policy on unexistant DB crash InfluxDB
+- [#5504](https://github.com/influxdata/influxdb/issues/5504): create retention policy on unexistant DB crash InfluxDB
 - [#5505](https://github.com/influxdata/influxdb/issues/5505): Clear authCache in meta.Client when password changes.
 
 ## v0.9.6 [2015-12-09]
