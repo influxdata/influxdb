@@ -8,9 +8,6 @@
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
-# directory where server ID and cluster metaservers information will be kept
-dir = "/var/lib/influxdb"
-
 # we'll try to get the hostname automatically, but if it the os returns something
 # that isn't resolvable by other servers in the cluster, use this option to
 # manually set the hostname

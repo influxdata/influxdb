@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"runtime/pprof"
@@ -103,20 +104,37 @@ type Server struct {
 
 // NewServer returns a new instance of Server built from a config.
 func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
-	// load the node information. Before 0.10 this was in the meta directory,
-	// so use that if the top level directory isn't specified
-	dir := c.Dir
-	if dir == "" {
-		dir = c.Meta.Dir
+	// We need to ensure that a meta directory always exists even if
+	// we don't start the meta store.  node.json is always stored under
+	// the meta directory.
+	if err := os.MkdirAll(c.Meta.Dir, 0777); err != nil {
+		return nil, fmt.Errorf("mkdir all: %s", err)
+	}
+
+	// 0.10-rc1 and prior would sometimes put the node.json at the root
+	// dir which breaks backup/restore and restarting nodes.  This moves
+	// the file from the root so it's always under the meta dir.
+	oldPath := filepath.Join(filepath.Dir(c.Meta.Dir), "node.json")
+	newPath := filepath.Join(c.Meta.Dir, "node.json")
+
+	if _, err := os.Stat(oldPath); err == nil {
+		if err := os.Rename(oldPath, newPath); err != nil {
+			return nil, err
+		}
 	}
 
 	// load the node information
-	node, err := influxdb.LoadNode(dir, c.Meta.HTTPBindAddress)
+	metaAddresses := []string{c.Meta.HTTPBindAddress}
+	if !c.Meta.Enabled {
+		metaAddresses = c.Meta.JoinPeers
+	}
+
+	node, err := influxdb.LoadNode(c.Meta.Dir, metaAddresses)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		} else {
-			node = influxdb.NewNode(dir, c.Meta.HTTPBindAddress)
+			node = influxdb.NewNode(c.Meta.Dir, metaAddresses)
 		}
 	}
 
@@ -642,8 +660,9 @@ func (s *Server) initializeDataNode() error {
 		return err
 	}
 	for _, n := range metaNodes {
-		s.Node.MetaServers = append(s.Node.MetaServers, n.Host)
+		s.Node.AddMetaServers([]string{n.Host})
 	}
+
 	if err := s.Node.Save(); err != nil {
 		return err
 	}

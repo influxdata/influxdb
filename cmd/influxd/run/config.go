@@ -60,8 +60,6 @@ type Config struct {
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
 
-	Dir string `toml:"dir"`
-
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
 	BindAddress string `toml:"bind-address"`
 }
