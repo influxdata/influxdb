@@ -3378,51 +3378,16 @@ func TestServer_Query_TopInt(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T01:00:00Z",7],["2000-01-01T02:00:00Z",9]]}]}]}`,
 		},
 		&Query{
-			name:    "top - cpu - time specified - hourly",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT time, TOP(value, 1) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:20Z",4],["2000-01-01T01:00:10Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
-		},
-		&Query{
-			name:    "top - cpu - time specified - hourly - epoch ms",
-			params:  url.Values{"db": []string{"db0"}, "epoch": []string{"ms"}},
-			command: `SELECT time, TOP(value, 1) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
-			exp: fmt.Sprintf(
-				`{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[[%d,4],[%d,7],[%d,9]]}]}]}`,
-				mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()/int64(time.Millisecond),
-				mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:10Z").UnixNano()/int64(time.Millisecond),
-				mustParseTime(time.RFC3339Nano, "2000-01-01T02:00:10Z").UnixNano()/int64(time.Millisecond),
-			),
-		},
-		&Query{
-			name:    "top - cpu - time specified (not first) - hourly",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 1), time FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:20Z",4],["2000-01-01T01:00:10Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
-		},
-		&Query{
 			name:    "top - cpu - 2 values hourly",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, 2) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T00:00:00Z",3],["2000-01-01T01:00:00Z",7],["2000-01-01T01:00:00Z",6],["2000-01-01T02:00:00Z",9],["2000-01-01T02:00:00Z",7]]}]}]}`,
 		},
 		&Query{
-			name:    "top - cpu - time specified -  2 values hourly",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 2), time FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:10Z",3],["2000-01-01T00:00:20Z",4],["2000-01-01T01:00:10Z",7],["2000-01-01T01:00:20Z",6],["2000-01-01T02:00:00Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
-		},
-		&Query{
 			name:    "top - cpu - 3 values hourly - validates that a bucket can have less than limit if no values exist in that time bucket",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT TOP(value, 3) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:00Z",4],["2000-01-01T00:00:00Z",3],["2000-01-01T00:00:00Z",2],["2000-01-01T01:00:00Z",7],["2000-01-01T01:00:00Z",6],["2000-01-01T01:00:00Z",5],["2000-01-01T02:00:00Z",9],["2000-01-01T02:00:00Z",7]]}]}]}`,
-		},
-		&Query{
-			name:    "top - cpu - time specified - 3 values hourly - validates that a bucket can have less than limit if no values exist in that time bucket",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT TOP(value, 3), time FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:10Z' group by time(1h)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","top"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",3],["2000-01-01T00:00:20Z",4],["2000-01-01T01:00:00Z",5],["2000-01-01T01:00:10Z",7],["2000-01-01T01:00:20Z",6],["2000-01-01T02:00:00Z",7],["2000-01-01T02:00:10Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "top - memory - 2 values, two tags",

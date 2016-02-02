@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/pkg/deep"
 )
@@ -21,17 +22,8 @@ func TestPoint_Clone_Float(t *testing.T) {
 	if p == c {
 		t.Errorf("clone has the same address as the original: %v == %v", p, c)
 	}
-	if p.Name != c.Name {
-		t.Errorf("mismatched name: %v != %v", p.Name, c.Name)
-	}
-	if !deep.Equal(p.Tags, c.Tags) {
-		t.Errorf("mismatched tags: %v != %v", p.Tags.ID(), c.Tags.ID())
-	}
-	if p.Time != c.Time {
-		t.Errorf("mismatched time: %v != %v", p.Time, c.Time)
-	}
-	if p.Value != c.Value {
-		t.Errorf("mismatched value: %v != %v", p.Value, c.Value)
+	if !deep.Equal(p, c) {
+		t.Errorf("mismatched point: %s", spew.Sdump(c))
 	}
 	if &p.Aux[0] == &c.Aux[0] {
 		t.Errorf("aux values share the same address: %v == %v", p.Aux, c.Aux)
@@ -52,17 +44,8 @@ func TestPoint_Clone_Integer(t *testing.T) {
 	if p == c {
 		t.Errorf("clone has the same address as the original: %v == %v", p, c)
 	}
-	if p.Name != c.Name {
-		t.Errorf("mismatched name: %v != %v", p.Name, c.Name)
-	}
-	if !deep.Equal(p.Tags, c.Tags) {
-		t.Errorf("mismatched tags: %v != %v", p.Tags.ID(), c.Tags.ID())
-	}
-	if p.Time != c.Time {
-		t.Errorf("mismatched time: %v != %v", p.Time, c.Time)
-	}
-	if p.Value != c.Value {
-		t.Errorf("mismatched value: %v != %v", p.Value, c.Value)
+	if !deep.Equal(p, c) {
+		t.Errorf("mismatched point: %s", spew.Sdump(c))
 	}
 	if &p.Aux[0] == &c.Aux[0] {
 		t.Errorf("aux values share the same address: %v == %v", p.Aux, c.Aux)
@@ -83,17 +66,8 @@ func TestPoint_Clone_String(t *testing.T) {
 	if p == c {
 		t.Errorf("clone has the same address as the original: %v == %v", p, c)
 	}
-	if p.Name != c.Name {
-		t.Errorf("mismatched name: %v != %v", p.Name, c.Name)
-	}
-	if !deep.Equal(p.Tags, c.Tags) {
-		t.Errorf("mismatched tags: %v != %v", p.Tags.ID(), c.Tags.ID())
-	}
-	if p.Time != c.Time {
-		t.Errorf("mismatched time: %v != %v", p.Time, c.Time)
-	}
-	if p.Value != c.Value {
-		t.Errorf("mismatched value: %v != %v", p.Value, c.Value)
+	if !deep.Equal(p, c) {
+		t.Errorf("mismatched point: %s", spew.Sdump(c))
 	}
 	if &p.Aux[0] == &c.Aux[0] {
 		t.Errorf("aux values share the same address: %v == %v", p.Aux, c.Aux)
@@ -114,17 +88,8 @@ func TestPoint_Clone_Boolean(t *testing.T) {
 	if p == c {
 		t.Errorf("clone has the same address as the original: %v == %v", p, c)
 	}
-	if p.Name != c.Name {
-		t.Errorf("mismatched name: %v != %v", p.Name, c.Name)
-	}
-	if !deep.Equal(p.Tags, c.Tags) {
-		t.Errorf("mismatched tags: %v != %v", p.Tags.ID(), c.Tags.ID())
-	}
-	if p.Time != c.Time {
-		t.Errorf("mismatched time: %v != %v", p.Time, c.Time)
-	}
-	if p.Value != c.Value {
-		t.Errorf("mismatched value: %v != %v", p.Value, c.Value)
+	if !deep.Equal(p, c) {
+		t.Errorf("mismatched point: %s", spew.Sdump(c))
 	}
 	if &p.Aux[0] == &c.Aux[0] {
 		t.Errorf("aux values share the same address: %v == %v", p.Aux, c.Aux)

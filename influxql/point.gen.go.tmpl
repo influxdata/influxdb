@@ -58,4 +58,31 @@ func (a {{.name}}PointsByValue) Less(i, j int) bool { return a[i].Value < a[j].V
 {{end}}
 func (a {{.name}}PointsByValue) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+// {{.name}}PointByFunc represents a slice of points sortable by a function.
+type {{.name}}PointsByFunc struct {
+	points []{{.Name}}Point
+	cmp    func(a, b *{{.Name}}Point) bool
+}
+
+func (a *{{.name}}PointsByFunc) Len() int           { return len(a.points) }
+func (a *{{.name}}PointsByFunc) Less(i, j int) bool { return a.cmp(&a.points[i], &a.points[j]) }
+func (a *{{.name}}PointsByFunc) Swap(i, j int)      { a.points[i], a.points[j] = a.points[j], a.points[i] }
+
+func (a *{{.name}}PointsByFunc) Push(x interface{}) {
+	a.points = append(a.points, x.({{.Name}}Point))
+}
+
+func (a *{{.name}}PointsByFunc) Pop() interface{} {
+	p := a.points[len(a.points)-1]
+	a.points = a.points[:len(a.points)-1]
+	return p
+}
+
+func {{.name}}PointsSortBy(points []{{.Name}}Point, cmp func(a, b *{{.Name}}Point) bool) *{{.name}}PointsByFunc {
+	return &{{.name}}PointsByFunc{
+		points: points,
+		cmp: cmp,
+	}
+}
+
 {{end}}

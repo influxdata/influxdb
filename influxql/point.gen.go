@@ -57,6 +57,33 @@ func (a floatPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value
 
 func (a floatPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
+// floatPointByFunc represents a slice of points sortable by a function.
+type floatPointsByFunc struct {
+	points []FloatPoint
+	cmp    func(a, b *FloatPoint) bool
+}
+
+func (a *floatPointsByFunc) Len() int           { return len(a.points) }
+func (a *floatPointsByFunc) Less(i, j int) bool { return a.cmp(&a.points[i], &a.points[j]) }
+func (a *floatPointsByFunc) Swap(i, j int)      { a.points[i], a.points[j] = a.points[j], a.points[i] }
+
+func (a *floatPointsByFunc) Push(x interface{}) {
+	a.points = append(a.points, x.(FloatPoint))
+}
+
+func (a *floatPointsByFunc) Pop() interface{} {
+	p := a.points[len(a.points)-1]
+	a.points = a.points[:len(a.points)-1]
+	return p
+}
+
+func floatPointsSortBy(points []FloatPoint, cmp func(a, b *FloatPoint) bool) *floatPointsByFunc {
+	return &floatPointsByFunc{
+		points: points,
+		cmp:    cmp,
+	}
+}
+
 // IntegerPoint represents a point with a int64 value.
 type IntegerPoint struct {
 	Name string
@@ -110,6 +137,33 @@ func (a integerPointsByValue) Len() int { return len(a) }
 func (a integerPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value }
 
 func (a integerPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// integerPointByFunc represents a slice of points sortable by a function.
+type integerPointsByFunc struct {
+	points []IntegerPoint
+	cmp    func(a, b *IntegerPoint) bool
+}
+
+func (a *integerPointsByFunc) Len() int           { return len(a.points) }
+func (a *integerPointsByFunc) Less(i, j int) bool { return a.cmp(&a.points[i], &a.points[j]) }
+func (a *integerPointsByFunc) Swap(i, j int)      { a.points[i], a.points[j] = a.points[j], a.points[i] }
+
+func (a *integerPointsByFunc) Push(x interface{}) {
+	a.points = append(a.points, x.(IntegerPoint))
+}
+
+func (a *integerPointsByFunc) Pop() interface{} {
+	p := a.points[len(a.points)-1]
+	a.points = a.points[:len(a.points)-1]
+	return p
+}
+
+func integerPointsSortBy(points []IntegerPoint, cmp func(a, b *IntegerPoint) bool) *integerPointsByFunc {
+	return &integerPointsByFunc{
+		points: points,
+		cmp:    cmp,
+	}
+}
 
 // StringPoint represents a point with a string value.
 type StringPoint struct {
@@ -165,6 +219,33 @@ func (a stringPointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Valu
 
 func (a stringPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
+// stringPointByFunc represents a slice of points sortable by a function.
+type stringPointsByFunc struct {
+	points []StringPoint
+	cmp    func(a, b *StringPoint) bool
+}
+
+func (a *stringPointsByFunc) Len() int           { return len(a.points) }
+func (a *stringPointsByFunc) Less(i, j int) bool { return a.cmp(&a.points[i], &a.points[j]) }
+func (a *stringPointsByFunc) Swap(i, j int)      { a.points[i], a.points[j] = a.points[j], a.points[i] }
+
+func (a *stringPointsByFunc) Push(x interface{}) {
+	a.points = append(a.points, x.(StringPoint))
+}
+
+func (a *stringPointsByFunc) Pop() interface{} {
+	p := a.points[len(a.points)-1]
+	a.points = a.points[:len(a.points)-1]
+	return p
+}
+
+func stringPointsSortBy(points []StringPoint, cmp func(a, b *StringPoint) bool) *stringPointsByFunc {
+	return &stringPointsByFunc{
+		points: points,
+		cmp:    cmp,
+	}
+}
+
 // BooleanPoint represents a point with a bool value.
 type BooleanPoint struct {
 	Name string
@@ -218,3 +299,30 @@ func (a booleanPointsByValue) Len() int { return len(a) }
 func (a booleanPointsByValue) Less(i, j int) bool { return !a[i].Value }
 
 func (a booleanPointsByValue) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// booleanPointByFunc represents a slice of points sortable by a function.
+type booleanPointsByFunc struct {
+	points []BooleanPoint
+	cmp    func(a, b *BooleanPoint) bool
+}
+
+func (a *booleanPointsByFunc) Len() int           { return len(a.points) }
+func (a *booleanPointsByFunc) Less(i, j int) bool { return a.cmp(&a.points[i], &a.points[j]) }
+func (a *booleanPointsByFunc) Swap(i, j int)      { a.points[i], a.points[j] = a.points[j], a.points[i] }
+
+func (a *booleanPointsByFunc) Push(x interface{}) {
+	a.points = append(a.points, x.(BooleanPoint))
+}
+
+func (a *booleanPointsByFunc) Pop() interface{} {
+	p := a.points[len(a.points)-1]
+	a.points = a.points[:len(a.points)-1]
+	return p
+}
+
+func booleanPointsSortBy(points []BooleanPoint, cmp func(a, b *BooleanPoint) bool) *booleanPointsByFunc {
+	return &booleanPointsByFunc{
+		points: points,
+		cmp:    cmp,
+	}
+}
