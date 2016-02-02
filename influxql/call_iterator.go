@@ -389,9 +389,9 @@ func newStddevIterator(input Iterator, opt IteratorOptions) Iterator {
 
 // floatStddevReduceSlice returns the stddev value within a window.
 func floatStddevReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
-	// If there is only one point then return NaN.
+	// If there is only one point then return 0.
 	if len(a) < 2 {
-		return []FloatPoint{{Time: opt.startTime, Value: math.NaN()}}
+		return []FloatPoint{{Time: opt.startTime, Nil: true}}
 	}
 
 	// Calculate the mean.
@@ -421,9 +421,9 @@ func floatStddevReduceSlice(a []FloatPoint, opt *reduceOptions) []FloatPoint {
 
 // integerStddevReduceSlice returns the stddev value within a window.
 func integerStddevReduceSlice(a []IntegerPoint, opt *reduceOptions) []FloatPoint {
-	// If there is only one point then return NaN.
+	// If there is only one point then return 0.
 	if len(a) < 2 {
-		return []FloatPoint{{Time: opt.startTime, Value: math.NaN()}}
+		return []FloatPoint{{Time: opt.startTime, Nil: true}}
 	}
 
 	// Calculate the mean.
@@ -637,7 +637,7 @@ func newFloatPercentileReduceSliceFunc(percentile float64) floatReduceSliceFunc 
 		i := int(math.Floor(float64(len(a))*percentile/100.0+0.5)) - 1
 
 		if i < 0 || i >= len(a) {
-			return []FloatPoint{{Time: opt.startTime, Value: math.NaN()}}
+			return []FloatPoint{{Time: opt.startTime, Nil: true}}
 		}
 
 		return []FloatPoint{{Time: opt.startTime, Value: a[i].Value}}
@@ -676,7 +676,7 @@ func newFloatDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) fl
 		if len(a) == 0 {
 			return a
 		} else if len(a) == 1 {
-			return []FloatPoint{{Time: a[0].Time, Value: 0}}
+			return []FloatPoint{{Time: a[0].Time, Nil: true}}
 		}
 
 		if prev.Time == -1 {

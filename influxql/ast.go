@@ -3051,8 +3051,8 @@ func TimeRange(expr Expr) (min, max time.Time) {
 				if min.IsZero() || value.After(min) {
 					min = value
 				}
-				if max.IsZero() || value.Before(max) {
-					max = value
+				if max.IsZero() || value.Add(1*time.Nanosecond).Before(max) {
+					max = value.Add(1 * time.Nanosecond)
 				}
 			}
 		}
@@ -3710,7 +3710,7 @@ type containsVarRefVisitor struct {
 	contains bool
 }
 
-func (v containsVarRefVisitor) Visit(n Node) Visitor {
+func (v *containsVarRefVisitor) Visit(n Node) Visitor {
 	switch n.(type) {
 	case *Call:
 		return nil

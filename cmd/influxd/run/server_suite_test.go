@@ -119,6 +119,46 @@ func init() {
 		},
 	}
 
+	tests["drop_and_recreate_database"] = Test{
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
+		queries: []*Query{
+			&Query{
+				name:    "Drop database after data write",
+				command: `DROP DATABASE db0`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "Recreate database",
+				command: `CREATE DATABASE db0`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "Recreate retention policy",
+				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 365d REPLICATION 1 DEFAULT`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "Show measurements after recreate",
+				command: `SHOW MEASUREMENTS`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Query data after recreate",
+				command: `SELECT * FROM cpu`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+		},
+	}
+
 	tests["drop_database_isolated"] = Test{
 		db: "db0",
 		rp: "rp0",

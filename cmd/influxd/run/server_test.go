@@ -2284,19 +2284,19 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 			name:    "first - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "first - int - epoch ms",
 			params:  url.Values{"db": []string{"db0"}, "epoch": []string{"ms"}},
 			command: `SELECT FIRST(value) FROM intmany`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[[%d,2]]}]}]}`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()/int64(time.Millisecond)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[[%d,2]]}]}]}`, mustParseTime(time.RFC3339Nano, "1970-01-01T00:00:00Z").UnixNano()/int64(time.Millisecond)),
 		},
 		&Query{
 			name:    "last - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - int",
@@ -2664,13 +2664,13 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 			name:    "first - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT FIRST(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		&Query{
 			name:    "last - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["2000-01-01T00:01:10Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "spread - float",
@@ -3530,14 +3530,14 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 			name:    "last from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT last(value) FROM "series"`,
-			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["2000-01-01T00:00:00Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"series","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 			repeat:  100,
 		},
 		&Query{
 			name:    "first from multiple series with identical timestamp",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT first(value) FROM "series"`,
-			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"series","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
 			repeat:  100,
 		},
 	}...)
@@ -3822,13 +3822,13 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			name:    "wildcard and field in select",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT value, * FROM wildcard`,
-			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","region","value","valx"],"values":[["2000-01-01T00:00:00Z","us-east",10,null],["2000-01-01T00:00:10Z","us-east",null,20],["2000-01-01T00:00:20Z","us-east",30,40]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","value","region","value","valx"],"values":[["2000-01-01T00:00:00Z",10,"us-east",10,null],["2000-01-01T00:00:10Z",null,"us-east",null,20],["2000-01-01T00:00:20Z",30,"us-east",30,40]]}]}]}`,
 		},
 		&Query{
 			name:    "field and wildcard in select",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT value, * FROM wildcard`,
-			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","region","value","valx"],"values":[["2000-01-01T00:00:00Z","us-east",10,null],["2000-01-01T00:00:10Z","us-east",null,20],["2000-01-01T00:00:20Z","us-east",30,40]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","value","region","value","valx"],"values":[["2000-01-01T00:00:00Z",10,"us-east",10,null],["2000-01-01T00:00:10Z",null,"us-east",null,20],["2000-01-01T00:00:20Z",30,"us-east",30,40]]}]}]}`,
 		},
 		&Query{
 			name:    "field and wildcard in group by",
@@ -3927,13 +3927,6 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT host, cpu, region, value  FROM wildcard`,
 			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","host","cpu","region","value"],"values":[["2000-01-01T00:00:00Z","A",80,"us-east",10],["2000-01-01T00:00:10Z","B",90,"us-east",20],["2000-01-01T00:00:20Z","B",70,"us-west",30],["2000-01-01T00:00:30Z","A",60,"us-east",40]]}]}]}`,
-		},
-
-		&Query{
-			name:    "only tags, no fields",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT host, region FROM wildcard`,
-			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 
 		&Query{
