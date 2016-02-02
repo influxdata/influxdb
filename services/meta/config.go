@@ -89,7 +89,7 @@ func NewConfig() *Config {
 }
 
 func (c *Config) Validate() error {
-	if c.Enabled && c.Dir == "" {
+	if c.Dir == "" {
 		return errors.New("Meta.Dir must be specified")
 	}
 	return nil
