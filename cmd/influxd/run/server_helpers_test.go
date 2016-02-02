@@ -245,10 +245,10 @@ func NewConfig() *run.Config {
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = freePort()
 	c.Meta.HTTPBindAddress = freePort()
-	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
+	//c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
+	//c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
+	//c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
+	//c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
 	c.BindAddress = freePort()
 
 	if !testing.Verbose() {
