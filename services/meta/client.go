@@ -553,12 +553,20 @@ func (c *Client) UpdateUser(name, password string) error {
 		return err
 	}
 
-	return c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
+	err = c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
 		&internal.UpdateUserCommand{
 			Name: proto.String(name),
 			Hash: proto.String(string(hash)),
 		},
 	)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err == nil {
+		delete(c.authCache, name)
+	}
+
+	return err
 }
 
 func (c *Client) DropUser(name string) error {

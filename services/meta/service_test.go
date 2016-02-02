@@ -356,6 +356,26 @@ func TestMetaService_CreateUser(t *testing.T) {
 		t.Fatalf("authentication should fail with %s", meta.ErrAuthenticate)
 	}
 
+	// Change password should succeed.
+	if res := c.ExecuteStatement(mustParseStatement("SET PASSWORD FOR fred = 'moresupersecure'")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// Auth for old password should fail
+	u, err = c.Authenticate("fred", "supersecure")
+	if u != nil || err != meta.ErrAuthenticate {
+		t.Fatalf("authentication should fail with %s", meta.ErrAuthenticate)
+	}
+
+	// Auth for new password should succeed.
+	u, err = c.Authenticate("fred", "moresupersecure")
+	if u == nil || err != nil {
+		t.Fatalf("failed to authenticate")
+	}
+	if u.Name != "fred" {
+		t.Fatalf("failed to authenticate")
+	}
+
 	// Auth for unkonwn user should fail
 	u, err = c.Authenticate("foo", "")
 	if u != nil || err != meta.ErrUserNotFound {
