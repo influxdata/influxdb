@@ -14,6 +14,23 @@ reporting-disabled = false
 # hostname = "localhost"
 
 ###
+### [enterprise]
+###
+### Controls parameters related to connecting to the Enterprise Manager.
+###
+[enterprise]
+  # Controls whether this node should connect to an Enterprise Manager
+  enabled = true
+
+  # The port where the admin interface for the enterprise manager will be made available
+  admin-port = 8090
+
+  # An array of Enterprise Manager hosts. Exactly one must be the primary host.
+  [[enterprise.hosts]]
+  url = "http://localhost:3000" # The URL for the Enterprise Manager
+  primary = true # This host will be the primary node
+
+###
 ### [meta]
 ###
 ### Controls the parameters for the Raft consensus group that stores metadata

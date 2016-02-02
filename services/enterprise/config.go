@@ -1,4 +1,4 @@
-package registration
+package enterprise
 
 import (
 	"time"
@@ -11,7 +11,7 @@ const (
 	defaultStatsInterval = time.Minute
 )
 
-// Config represents the configuration for the registration service.
+// Config represents the configuration for the enterprise service.
 type Config struct {
 	Enabled       bool            `toml:"enabled"`
 	Token         string          `toml:"token"`

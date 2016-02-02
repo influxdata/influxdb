@@ -1,16 +1,16 @@
-package registration_test
+package enterprise_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/influxdata/config"
-	"github.com/influxdb/influxdb/services/registration"
+	"github.com/influxdb/influxdb/services/enterprise"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c registration.Config
+	var c enterprise.Config
 	if err := config.Decode(`
 enabled = true
 stats-interval = "1s"

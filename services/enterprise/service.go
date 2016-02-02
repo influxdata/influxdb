@@ -1,4 +1,4 @@
-package registration
+package enterprise
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 	"github.com/influxdb/influxdb/monitor"
 )
 
-// Service represents the registration service.
+// Service represents the enterprise service.
 type Service struct {
 	MetaStore interface {
 		ClusterID() uint64
@@ -42,7 +42,7 @@ type Service struct {
 	logger *log.Logger
 }
 
-// NewService returns a configured registration service.
+// NewService returns a configured enterprise service.
 func NewService(c Config, version string) (*Service, error) {
 	return &Service{
 		enabled:       c.Enabled,
@@ -50,7 +50,7 @@ func NewService(c Config, version string) (*Service, error) {
 		statsInterval: time.Duration(c.StatsInterval),
 		version:       version,
 		done:          make(chan struct{}),
-		logger:        log.New(os.Stderr, "[registration] ", log.LstdFlags),
+		logger:        log.New(os.Stderr, "[enterprise] ", log.LstdFlags),
 		adminPort:     fmt.Sprintf(":%d", c.AdminPort),
 	}, nil
 }
@@ -61,14 +61,14 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	s.logger.Println("Starting registration service")
+	s.logger.Println("Starting enterprise service")
 	if err := s.registerServer(); err != nil {
 		return err
 	}
 
 	// Register diagnostics if a Monitor service is available.
 	if s.Monitor != nil {
-		s.Monitor.RegisterDiagnosticsClient("registration", s)
+		s.Monitor.RegisterDiagnosticsClient("enterprise", s)
 	}
 
 	s.wg.Add(2)
@@ -80,7 +80,7 @@ func (s *Service) Open() error {
 
 // Close stops stats reporting to enterprise
 func (s *Service) Close() error {
-	s.logger.Println("registration service terminating")
+	s.logger.Println("enterprise service terminating")
 	close(s.done)
 	s.wg.Wait()
 	return nil
