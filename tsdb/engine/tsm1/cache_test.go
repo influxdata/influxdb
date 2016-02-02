@@ -359,3 +359,13 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 
 	return entry.Type(), snappy.Encode(b, b)
 }
+
+func BenchmarkCacheFloatEntries(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		cache := NewCache(10000)
+		for j := 0; j < 10000; j++ {
+			v := NewValue(time.Unix(1, 0), float64(j))
+			cache.Write("test", []Value{v})
+		}
+	}
+}
