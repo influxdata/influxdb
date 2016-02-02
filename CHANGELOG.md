@@ -36,6 +36,7 @@
 - [#5478](https://github.com/influxdata/influxdb/issues/5478): panic: interface conversion: interface is float64, not int64
 - [#5475](https://github.com/influxdata/influxdb/issues/5475): Ensure appropriate exit code returned for non-interactive use of CLI.
 - [#5479](https://github.com/influxdata/influxdb/issues/5479): Bringing up a node as a meta only node causes panic
+- [#5504](https://github.com/influxdata/influxdb/issues/5475): create retention policy on unexistant DB crash InfluxDB
 
 ## v0.9.6 [2015-12-09]
 

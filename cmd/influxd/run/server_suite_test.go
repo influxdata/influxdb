@@ -378,6 +378,12 @@ func init() {
 				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
 				exp:     `{"results":[{"error":"database not found: mydatabase"}]}`,
 			},
+			&Query{
+				name:    "Ensure retention policy for non existing db is not created",
+				command: `CREATE RETENTION POLICY rp0 ON nodb DURATION 1h REPLICATION 1`,
+				exp:     `{"results":[{"error":"database not found: nodb"}]}`,
+				once:    true,
+			},
 		},
 	}
 

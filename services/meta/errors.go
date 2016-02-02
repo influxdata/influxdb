@@ -39,6 +39,9 @@ var (
 	// ErrDatabaseExists is returned when creating an already existing database.
 	ErrDatabaseExists = errors.New("database already exists")
 
+	// ErrDatabaseNotExists is returned when operating on a not existing database.
+	ErrDatabaseNotExists = errors.New("database does not exist")
+
 	// ErrDatabaseNameRequired is returned when creating a database without a name.
 	ErrDatabaseNameRequired = errors.New("database name required")
 )
