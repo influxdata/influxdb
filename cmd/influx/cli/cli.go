@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -27,6 +28,9 @@ import (
 const (
 	noTokenMsg = "Visit https://enterprise.influxdata.com to register for updates, InfluxDB server management, and monitoring.\n"
 )
+
+// ErrBlankCommand is returned when a parsed command is empty.
+var ErrBlankCommand = errors.New("empty input")
 
 // CommandLine holds CLI configuration and state
 type CommandLine struct {
@@ -122,7 +126,9 @@ func (c *CommandLine) Run() error {
 		// the same way the interactive mode works
 		lines := strings.Split(c.Execute, "\n")
 		for _, line := range lines {
-			c.ParseCommand(line)
+			if err := c.ParseCommand(line); err != nil {
+				return err
+			}
 		}
 
 		c.Line.Close()
@@ -186,7 +192,7 @@ func (c *CommandLine) Run() error {
 			} else if e != nil {
 				break
 			}
-			if c.ParseCommand(l) {
+			if err := c.ParseCommand(l); err != ErrBlankCommand {
 				c.Line.AppendHistory(l)
 				c.saveHistory()
 			}
@@ -195,7 +201,7 @@ func (c *CommandLine) Run() error {
 }
 
 // ParseCommand parses an instruction and calls related method, if any
-func (c *CommandLine) ParseCommand(cmd string) bool {
+func (c *CommandLine) ParseCommand(cmd string) error {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 	tokens := strings.Fields(lcmd)
 
@@ -207,7 +213,7 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		case "gopher":
 			c.gopher()
 		case "connect":
-			c.Connect(cmd)
+			return c.Connect(cmd)
 		case "auth":
 			c.SetAuth(cmd)
 		case "help":
@@ -232,14 +238,14 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		case "use":
 			c.use(cmd)
 		case "insert":
-			c.Insert(cmd)
+			return c.Insert(cmd)
 		default:
-			c.ExecuteQuery(cmd)
+			return c.ExecuteQuery(cmd)
 		}
 
-		return true
+		return nil
 	}
-	return false
+	return ErrBlankCommand
 }
 
 // Connect connects client to a server
