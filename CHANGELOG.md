@@ -38,6 +38,7 @@
 - [#5479](https://github.com/influxdata/influxdb/issues/5479): Bringing up a node as a meta only node causes panic
 - [#5504](https://github.com/influxdata/influxdb/issues/5475): create retention policy on unexistant DB crash InfluxDB
 - [#5505](https://github.com/influxdata/influxdb/issues/5505): Clear authCache in meta.Client when password changes.
+- [#5244](https://github.com/influxdata/influxdb/issues/5244): panic: ensure it's safe to close engine multiple times.
 
 ## v0.9.6 [2015-12-09]
 

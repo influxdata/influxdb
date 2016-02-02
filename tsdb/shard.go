@@ -146,10 +146,15 @@ func (s *Shard) Close() error {
 }
 
 func (s *Shard) close() error {
-	if s.engine != nil {
-		return s.engine.Close()
+	if s.engine == nil {
+		return nil
 	}
-	return nil
+
+	err := s.engine.Close()
+	if err == nil {
+		s.engine = nil
+	}
+	return err
 }
 
 // DiskSize returns the size on disk of this shard
