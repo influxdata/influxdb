@@ -35,6 +35,7 @@
 - [#5455](https://github.com/influxdata/influxdb/issues/5455): panic: runtime error: slice bounds out of range when loading corrupted wal segment
 - [#5478](https://github.com/influxdata/influxdb/issues/5478): panic: interface conversion: interface is float64, not int64
 - [#5475](https://github.com/influxdata/influxdb/issues/5475): Ensure appropriate exit code returned for non-interactive use of CLI.
+- [#5479](https://github.com/influxdata/influxdb/issues/5479): Bringing up a node as a meta only node causes panic
 
 ## v0.9.6 [2015-12-09]
 
