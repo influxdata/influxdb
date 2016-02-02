@@ -305,6 +305,8 @@ func (c *Client) Database(name string) (*DatabaseInfo, error) {
 		}
 	}
 
+	// Can't throw ErrDatabaseNotExists here since it would require some major
+	// work around catching the error when needed. Should be revisited.
 	return nil, nil
 }
 
@@ -401,6 +403,11 @@ func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInf
 	db, err := c.Database(database)
 	if err != nil {
 		return nil, err
+	}
+
+	// TODO: This should not be handled here
+	if db == nil {
+		return nil, ErrDatabaseNotExists
 	}
 
 	return db.RetentionPolicy(name), nil
