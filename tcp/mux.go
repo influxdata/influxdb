@@ -95,7 +95,9 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	}
 
 	// Retrieve handler based on first byte.
+	mux.mu.RLock()
 	handler := mux.m[typ[0]]
+	mux.mu.RUnlock()
 	if handler == nil {
 		conn.Close()
 		mux.Logger.Printf("tcp.Mux: handler not registered: %d", typ[0])
@@ -109,6 +111,8 @@ func (mux *Mux) handleConn(conn net.Conn) {
 // Listen returns a listener identified by header.
 // Any connection accepted by mux is multiplexed based on the initial header byte.
 func (mux *Mux) Listen(header byte) net.Listener {
+	mux.mu.Lock()
+	defer mux.mu.Unlock()
 	// Ensure two listeners are not created for the same header byte.
 	if _, ok := mux.m[header]; ok {
 		panic(fmt.Sprintf("listener already registered under header byte: %d", header))
