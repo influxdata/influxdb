@@ -32,6 +32,9 @@ PARALLELISM=${PARALLELISM-1}
 # Set default timeout
 TIMEOUT=${TIMEOUT-480s}
 
+# Default to deleteing the container
+DOCKER_RM=${DOCKER_RM-true}
+
 # Update this value if you add a new test environment.
 ENV_COUNT=6
 
@@ -69,7 +72,7 @@ function run_test_docker {
     echo "Running test in docker $name with args $@"
 
     docker run \
-         --rm \
+         --rm=$DOCKER_RM \
          -v "$DIR:/root/go/src/github.com/influxdb/influxdb" \
          -e "INFLUXDB_DATA_ENGINE=$INFLUXDB_DATA_ENGINE" \
          -e "GORACE=$GORACE" \
