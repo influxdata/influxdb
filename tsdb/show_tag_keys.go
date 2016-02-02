@@ -46,7 +46,7 @@ func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Ro
 
 		// Create a map of measurement to tags keys.
 		set := map[string]map[string]struct{}{}
-		// Iterate through mappers collecting measurement names.
+		// Iterate through mappers collecting tag keys.
 		for _, m := range e.mappers {
 			// Read all data from the mapper.
 			for {
@@ -59,7 +59,7 @@ func (e *ShowTagKeysExecutor) Execute(closing <-chan struct{}) <-chan *models.Ro
 					break
 				}
 
-				// Convert the mapper chunk to an array of measurements with tag keys.
+				// Convert the mapper chunk to measurement and its tag keys.
 				mtks, ok := c.(MeasurementsTagKeys)
 				if !ok {
 					out <- &models.Row{Err: fmt.Errorf("show tag keys mapper returned invalid type: %T", c)}
@@ -301,20 +301,20 @@ func (m *ShowTagKeysMapper) nextChunk() (interface{}, error) {
 		return nil, nil
 	}
 	// Allocate array to hold measurement names.
-	mtks := make(MeasurementsTagKeys, 0)
+	mstks := make(MeasurementsTagKeys, 0)
 	// Get the next chunk of tag keys.
 	for n := range ch {
-		mtks = append(mtks, n)
-		if mtks.Size() >= m.chunkSize {
+		mstks = append(mstks, n)
+		if mstks.Size() >= m.chunkSize {
 			break
 		}
 	}
-	// See if we've read all the names.
-	if len(mtks) == 0 {
+	// See if we've read all the keys.
+	if len(mstks) == 0 {
 		return nil, nil
 	}
 
-	return mtks, nil
+	return mstks, nil
 }
 
 // Close closes the mapper.
