@@ -418,7 +418,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 }
 
 // DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
-func (s *Store) DeleteSeries(database string, sources influxql.Sources, condition influxql.Expr) error {
+func (s *Store) DeleteSeries(database string, seriesKeys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -431,7 +431,7 @@ func (s *Store) DeleteSeries(database string, sources influxql.Sources, conditio
 		if sh.index != db {
 			continue
 		}
-		if err := sh.DeleteSeries(sources, condition); err != nil {
+		if err := sh.DeleteSeries(seriesKeys); err != nil {
 			return err
 		}
 	}

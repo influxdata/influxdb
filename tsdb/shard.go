@@ -263,9 +263,8 @@ func (s *Shard) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(sources influxql.Sources, condition influxql.Expr) error {
-	panic("FIXME: implement delete series")
-	//return s.engine.DeleteSeries(sources, condition)
+func (s *Shard) DeleteSeries(seriesKeys []string) error {
+	return s.engine.DeleteSeries(seriesKeys)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
