@@ -41,7 +41,7 @@ func NewValue(t time.Time, value interface{}) Value {
 	case int64:
 		return &Int64Value{time: t, value: v}
 	case float64:
-		return &FloatValue{time: t, value: v}
+		return &FloatValue{unixnano: t.UnixNano(), value: v}
 	case bool:
 		return &BoolValue{time: t, value: v}
 	case string:
@@ -222,16 +222,16 @@ func (a Values) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a Values) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
 
 type FloatValue struct {
-	time  time.Time
-	value float64
+	unixnano int64
+	value    float64
 }
 
 func (f *FloatValue) Time() time.Time {
-	return f.time
+	return time.Unix(0, f.unixnano)
 }
 
 func (f *FloatValue) UnixNano() int64 {
-	return f.time.UnixNano()
+	return f.unixnano
 }
 
 func (f *FloatValue) Value() interface{} {
@@ -308,10 +308,10 @@ func DecodeFloatBlock(block []byte, a []FloatValue) ([]FloatValue, error) {
 		ts := dec.Read()
 		v := iter.Values()
 		if i < len(a) {
-			a[i].time = ts
+			a[i].unixnano = ts.UnixNano()
 			a[i].value = v
 		} else {
-			a = append(a, FloatValue{ts, v})
+			a = append(a, FloatValue{ts.UnixNano(), v})
 		}
 		i++
 	}
