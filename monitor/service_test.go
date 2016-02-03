@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // Test that a registered stats client results in the correct SHOW STATS output.

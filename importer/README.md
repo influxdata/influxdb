@@ -15,7 +15,7 @@ http://get.influxdb.org.s3.amazonaws.com/influxdb-0.8.9-1.x86_64.rpm
 
 `0.8.9` exports raw data to a flat file that includes two sections, `DDL` and `DML`.  You can choose to export them independently (see below).
 
-The `DDL` section contains the sql commands to create databases and retention policies.  the `DML` section is [line protocol](https://github.com/influxdb/influxdb/blob/master/tsdb/README.md) and can be directly posted to the [http endpoint](https://influxdb.com/docs/v0.9/guides/writing_data.html) in `0.9`.  Remember that batching is important and we don't recommend batch sizes over 5k.
+The `DDL` section contains the sql commands to create databases and retention policies.  the `DML` section is [line protocol](https://github.com/influxdata/influxdb/blob/master/tsdb/README.md) and can be directly posted to the [http endpoint](https://influxdb.com/docs/v0.9/guides/writing_data.html) in `0.9`.  Remember that batching is important and we don't recommend batch sizes over 5k.
 
 You need to specify a database and shard group when you export.
 

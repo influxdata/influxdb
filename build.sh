@@ -16,7 +16,7 @@ docker run --rm \
     -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
     -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
     -v $HOME/.aws.conf:/root/.aws.conf \
-    -v $DIR:/root/go/src/github.com/influxdb/influxdb \
+    -v $DIR:/root/go/src/github.com/influxdata/influxdb \
     influxdb-builder \
     "$@"
 

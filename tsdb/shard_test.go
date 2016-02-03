@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/tsdb"
-	"github.com/influxdb/influxdb/tsdb/engine/b1"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/engine/b1"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
