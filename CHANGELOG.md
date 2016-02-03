@@ -63,7 +63,7 @@ This release also changes how clusters are setup. The config file has changed so
 - [#5479](https://github.com/influxdata/influxdb/issues/5479): Bringing up a node as a meta only node causes panic
 - [#5504](https://github.com/influxdata/influxdb/issues/5475): create retention policy on unexistant DB crash InfluxDB
 - [#5505](https://github.com/influxdata/influxdb/issues/5505): Clear authCache in meta.Client when password changes.
-
+- [#5535](https://github.com/influxdata/influxdb/pull/5535): Update README for referring to Collectd
 ## v0.9.6 [2015-12-09]
 
 ### Release Notes
