@@ -16,11 +16,21 @@ type {{.Name}}Iterator interface {
 }
 
 // new{{.Name}}Iterators converts a slice of Iterator to a slice of {{.Name}}Iterator.
-// Panic if any iterator in itrs is not a {{.Name}}Iterator.
+// Drop and closes any iterator in itrs that is not a {{.Name}}Iterator and cannot
+// be cast to a {{.Name}}Iterator.
 func new{{.Name}}Iterators(itrs []Iterator) []{{.Name}}Iterator {
-	a := make([]{{.Name}}Iterator, len(itrs))
-	for i, itr := range itrs {
-		a[i] = itr.({{.Name}}Iterator)
+	a := make([]{{.Name}}Iterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case {{.Name}}Iterator:
+			a = append(a, itr)
+{{if eq .Name "Float"}}
+		case IntegerIterator:
+			a = append(a, &integerFloatCastIterator{input: itr})
+{{end}}
+		default:
+			itr.Close()
+		}
 	}
 	return a
 }

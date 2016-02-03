@@ -47,6 +47,53 @@ func (a Iterators) filterNonNil() []Iterator {
 	return other
 }
 
+// castType determines what type to cast the set of iterators to.
+// An iterator type is chosen using this hierarchy:
+//   float > integer > string > boolean
+func (a Iterators) castType() DataType {
+	if len(a) == 0 {
+		return Unknown
+	}
+
+	typ := DataType(Boolean)
+	for _, input := range a {
+		switch input.(type) {
+		case FloatIterator:
+			// Once a float iterator is found, short circuit the end.
+			return Float
+		case IntegerIterator:
+			if typ > Integer {
+				typ = Integer
+			}
+		case StringIterator:
+			if typ > String {
+				typ = String
+			}
+		case BooleanIterator:
+			// Boolean is the lowest type.
+		}
+	}
+	return typ
+}
+
+// cast casts an array of iterators to a single type.
+// Iterators that are not compatible or cannot be cast to the
+// chosen iterator type are closed and dropped.
+func (a Iterators) cast() interface{} {
+	typ := a.castType()
+	switch typ {
+	case Float:
+		return newFloatIterators(a)
+	case Integer:
+		return newIntegerIterators(a)
+	case String:
+		return newStringIterators(a)
+	case Boolean:
+		return newBooleanIterators(a)
+	}
+	return a
+}
+
 // NewMergeIterator returns an iterator to merge itrs into one.
 // Inputs must either be merge iterators or only contain a single name/tag in
 // sorted order. The iterator will output all points by window, name/tag, then
@@ -60,17 +107,17 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 
 	// Aggregate functions can use a more relaxed sorting so that points
 	// within a window are grouped. This is much more efficient.
-	switch input := inputs[0].(type) {
-	case FloatIterator:
-		return newFloatMergeIterator(newFloatIterators(inputs), opt)
-	case IntegerIterator:
-		return newIntegerMergeIterator(newIntegerIterators(inputs), opt)
-	case StringIterator:
-		return newStringMergeIterator(newStringIterators(inputs), opt)
-	case BooleanIterator:
-		return newBooleanMergeIterator(newBooleanIterators(inputs), opt)
+	switch inputs := Iterators(inputs).cast().(type) {
+	case []FloatIterator:
+		return newFloatMergeIterator(inputs, opt)
+	case []IntegerIterator:
+		return newIntegerMergeIterator(inputs, opt)
+	case []StringIterator:
+		return newStringMergeIterator(inputs, opt)
+	case []BooleanIterator:
+		return newBooleanMergeIterator(inputs, opt)
 	default:
-		panic(fmt.Sprintf("unsupported merge iterator type: %T", input))
+		panic(fmt.Sprintf("unsupported merge iterator type: %T", inputs))
 	}
 }
 
@@ -85,17 +132,17 @@ func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return &nilFloatIterator{}
 	}
 
-	switch input := inputs[0].(type) {
-	case FloatIterator:
-		return newFloatSortedMergeIterator(newFloatIterators(inputs), opt)
-	case IntegerIterator:
-		return newIntegerSortedMergeIterator(newIntegerIterators(inputs), opt)
-	case StringIterator:
-		return newStringSortedMergeIterator(newStringIterators(inputs), opt)
-	case BooleanIterator:
-		return newBooleanSortedMergeIterator(newBooleanIterators(inputs), opt)
+	switch inputs := Iterators(inputs).cast().(type) {
+	case []FloatIterator:
+		return newFloatSortedMergeIterator(inputs, opt)
+	case []IntegerIterator:
+		return newIntegerSortedMergeIterator(inputs, opt)
+	case []StringIterator:
+		return newStringSortedMergeIterator(inputs, opt)
+	case []BooleanIterator:
+		return newBooleanSortedMergeIterator(inputs, opt)
 	default:
-		panic(fmt.Sprintf("unsupported sorted merge iterator type: %T", input))
+		panic(fmt.Sprintf("unsupported sorted merge iterator type: %T", inputs))
 	}
 }
 
@@ -509,3 +556,24 @@ type nilFloatIterator struct{}
 
 func (*nilFloatIterator) Close() error      { return nil }
 func (*nilFloatIterator) Next() *FloatPoint { return nil }
+
+type integerFloatCastIterator struct {
+	input IntegerIterator
+}
+
+func (itr *integerFloatCastIterator) Close() error { return itr.input.Close() }
+func (itr *integerFloatCastIterator) Next() *FloatPoint {
+	p := itr.input.Next()
+	if p == nil {
+		return nil
+	}
+
+	return &FloatPoint{
+		Name:  p.Name,
+		Tags:  p.Tags,
+		Time:  p.Time,
+		Nil:   p.Nil,
+		Value: float64(p.Value),
+		Aux:   p.Aux,
+	}
+}

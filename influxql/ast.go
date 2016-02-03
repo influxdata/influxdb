@@ -23,10 +23,10 @@ const (
 	Float = 1
 	// Integer means the data type is a integer
 	Integer = 2
-	// Boolean means the data type is a boolean.
-	Boolean = 3
 	// String means the data type is a string of text.
-	String = 4
+	String = 3
+	// Boolean means the data type is a boolean.
+	Boolean = 4
 	// Time means the data type is a time.
 	Time = 5
 	// Duration means the data type is a duration of time.
@@ -40,10 +40,10 @@ func InspectDataType(v interface{}) DataType {
 		return Float
 	case int64, int32, int:
 		return Integer
-	case bool:
-		return Boolean
 	case string:
 		return String
+	case bool:
+		return Boolean
 	case time.Time:
 		return Time
 	case time.Duration:
@@ -59,10 +59,10 @@ func (d DataType) String() string {
 		return "float"
 	case Integer:
 		return "integer"
-	case Boolean:
-		return "boolean"
 	case String:
 		return "string"
+	case Boolean:
+		return "boolean"
 	case Time:
 		return "time"
 	case Duration:

@@ -17,11 +17,21 @@ type FloatIterator interface {
 }
 
 // newFloatIterators converts a slice of Iterator to a slice of FloatIterator.
-// Panic if any iterator in itrs is not a FloatIterator.
+// Drop and closes any iterator in itrs that is not a FloatIterator and cannot
+// be cast to a FloatIterator.
 func newFloatIterators(itrs []Iterator) []FloatIterator {
-	a := make([]FloatIterator, len(itrs))
-	for i, itr := range itrs {
-		a[i] = itr.(FloatIterator)
+	a := make([]FloatIterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case FloatIterator:
+			a = append(a, itr)
+
+		case IntegerIterator:
+			a = append(a, &integerFloatCastIterator{input: itr})
+
+		default:
+			itr.Close()
+		}
 	}
 	return a
 }
@@ -687,11 +697,18 @@ type IntegerIterator interface {
 }
 
 // newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
-// Panic if any iterator in itrs is not a IntegerIterator.
+// Drop and closes any iterator in itrs that is not a IntegerIterator and cannot
+// be cast to a IntegerIterator.
 func newIntegerIterators(itrs []Iterator) []IntegerIterator {
-	a := make([]IntegerIterator, len(itrs))
-	for i, itr := range itrs {
-		a[i] = itr.(IntegerIterator)
+	a := make([]IntegerIterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case IntegerIterator:
+			a = append(a, itr)
+
+		default:
+			itr.Close()
+		}
 	}
 	return a
 }
@@ -1357,11 +1374,18 @@ type StringIterator interface {
 }
 
 // newStringIterators converts a slice of Iterator to a slice of StringIterator.
-// Panic if any iterator in itrs is not a StringIterator.
+// Drop and closes any iterator in itrs that is not a StringIterator and cannot
+// be cast to a StringIterator.
 func newStringIterators(itrs []Iterator) []StringIterator {
-	a := make([]StringIterator, len(itrs))
-	for i, itr := range itrs {
-		a[i] = itr.(StringIterator)
+	a := make([]StringIterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case StringIterator:
+			a = append(a, itr)
+
+		default:
+			itr.Close()
+		}
 	}
 	return a
 }
@@ -2027,11 +2051,18 @@ type BooleanIterator interface {
 }
 
 // newBooleanIterators converts a slice of Iterator to a slice of BooleanIterator.
-// Panic if any iterator in itrs is not a BooleanIterator.
+// Drop and closes any iterator in itrs that is not a BooleanIterator and cannot
+// be cast to a BooleanIterator.
 func newBooleanIterators(itrs []Iterator) []BooleanIterator {
-	a := make([]BooleanIterator, len(itrs))
-	for i, itr := range itrs {
-		a[i] = itr.(BooleanIterator)
+	a := make([]BooleanIterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case BooleanIterator:
+			a = append(a, itr)
+
+		default:
+			itr.Close()
+		}
 	}
 	return a
 }
