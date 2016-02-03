@@ -37,15 +37,16 @@ type Value interface {
 }
 
 func NewValue(t time.Time, value interface{}) Value {
+	un := t.UnixNano()
 	switch v := value.(type) {
 	case int64:
-		return &Int64Value{time: t, value: v}
+		return &Int64Value{unixnano: un, value: v}
 	case float64:
-		return &FloatValue{unixnano: t.UnixNano(), value: v}
+		return &FloatValue{unixnano: un, value: v}
 	case bool:
-		return &BoolValue{time: t, value: v}
+		return &BoolValue{unixnano: un, value: v}
 	case string:
-		return &StringValue{time: t, value: v}
+		return &StringValue{unixnano: un, value: v}
 	}
 	return &EmptyValue{}
 }
@@ -329,12 +330,12 @@ func DecodeFloatBlock(block []byte, a []FloatValue) ([]FloatValue, error) {
 }
 
 type BoolValue struct {
-	time  time.Time
-	value bool
+	unixnano int64
+	value    bool
 }
 
 func (b *BoolValue) Time() time.Time {
-	return b.time
+	return time.Unix(0, b.unixnano)
 }
 
 func (b *BoolValue) Size() int {
@@ -342,7 +343,7 @@ func (b *BoolValue) Size() int {
 }
 
 func (b *BoolValue) UnixNano() int64 {
-	return b.time.UnixNano()
+	return b.unixnano
 }
 
 func (b *BoolValue) Value() interface{} {
@@ -410,10 +411,10 @@ func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
 		ts := dec.Read()
 		v := vdec.Read()
 		if i < len(a) {
-			a[i].time = ts
+			a[i].unixnano = ts.UnixNano()
 			a[i].value = v
 		} else {
-			a = append(a, BoolValue{ts, v})
+			a = append(a, BoolValue{ts.UnixNano(), v})
 		}
 		i++
 	}
@@ -431,12 +432,12 @@ func DecodeBoolBlock(block []byte, a []BoolValue) ([]BoolValue, error) {
 }
 
 type Int64Value struct {
-	time  time.Time
-	value int64
+	unixnano int64
+	value    int64
 }
 
 func (v *Int64Value) Time() time.Time {
-	return v.time
+	return time.Unix(0, v.unixnano)
 }
 
 func (v *Int64Value) Value() interface{} {
@@ -444,7 +445,7 @@ func (v *Int64Value) Value() interface{} {
 }
 
 func (v *Int64Value) UnixNano() int64 {
-	return v.time.UnixNano()
+	return v.unixnano
 }
 
 func (v *Int64Value) Size() int {
@@ -500,10 +501,10 @@ func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
 		ts := tsDec.Read()
 		v := vDec.Read()
 		if i < len(a) {
-			a[i].time = ts
+			a[i].unixnano = ts.UnixNano()
 			a[i].value = v
 		} else {
-			a = append(a, Int64Value{ts, v})
+			a = append(a, Int64Value{ts.UnixNano(), v})
 		}
 		i++
 	}
@@ -521,12 +522,12 @@ func DecodeInt64Block(block []byte, a []Int64Value) ([]Int64Value, error) {
 }
 
 type StringValue struct {
-	time  time.Time
-	value string
+	unixnano int64
+	value    string
 }
 
 func (v *StringValue) Time() time.Time {
-	return v.time
+	return time.Unix(0, v.unixnano)
 }
 
 func (v *StringValue) Value() interface{} {
@@ -534,7 +535,7 @@ func (v *StringValue) Value() interface{} {
 }
 
 func (v *StringValue) UnixNano() int64 {
-	return v.time.UnixNano()
+	return v.unixnano
 }
 
 func (v *StringValue) Size() int {
@@ -593,10 +594,10 @@ func DecodeStringBlock(block []byte, a []StringValue) ([]StringValue, error) {
 		ts := tsDec.Read()
 		v := vDec.Read()
 		if i < len(a) {
-			a[i].time = ts
+			a[i].unixnano = ts.UnixNano()
 			a[i].value = v
 		} else {
-			a = append(a, StringValue{ts, v})
+			a = append(a, StringValue{ts.UnixNano(), v})
 		}
 		i++
 	}
