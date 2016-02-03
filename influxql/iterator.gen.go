@@ -501,9 +501,10 @@ func (itr *floatReduceIterator) reduce() []*FloatPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
 
 		// Pass previous and current points to reducer.
-		prev := m[tags.ID()]
+		prev := m[id]
 		t, v, aux := itr.fn(prev, curr, &reduceOptions)
 		if t == ZeroTime {
 			continue
@@ -512,7 +513,7 @@ func (itr *floatReduceIterator) reduce() []*FloatPoint {
 		// If previous value didn't exist, create it and copy values.
 		if prev == nil {
 			prev = &FloatPoint{Name: curr.Name, Tags: tags}
-			m[tags.ID()] = prev
+			m[id] = prev
 		}
 		prev.Time = t
 		prev.Value = v
@@ -1178,9 +1179,10 @@ func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
 
 		// Pass previous and current points to reducer.
-		prev := m[tags.ID()]
+		prev := m[id]
 		t, v, aux := itr.fn(prev, curr, &reduceOptions)
 		if t == ZeroTime {
 			continue
@@ -1189,7 +1191,7 @@ func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 		// If previous value didn't exist, create it and copy values.
 		if prev == nil {
 			prev = &IntegerPoint{Name: curr.Name, Tags: tags}
-			m[tags.ID()] = prev
+			m[id] = prev
 		}
 		prev.Time = t
 		prev.Value = v
@@ -1855,9 +1857,10 @@ func (itr *stringReduceIterator) reduce() []*StringPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
 
 		// Pass previous and current points to reducer.
-		prev := m[tags.ID()]
+		prev := m[id]
 		t, v, aux := itr.fn(prev, curr, &reduceOptions)
 		if t == ZeroTime {
 			continue
@@ -1866,7 +1869,7 @@ func (itr *stringReduceIterator) reduce() []*StringPoint {
 		// If previous value didn't exist, create it and copy values.
 		if prev == nil {
 			prev = &StringPoint{Name: curr.Name, Tags: tags}
-			m[tags.ID()] = prev
+			m[id] = prev
 		}
 		prev.Time = t
 		prev.Value = v
@@ -2532,9 +2535,10 @@ func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
 
 		// Pass previous and current points to reducer.
-		prev := m[tags.ID()]
+		prev := m[id]
 		t, v, aux := itr.fn(prev, curr, &reduceOptions)
 		if t == ZeroTime {
 			continue
@@ -2543,7 +2547,7 @@ func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 		// If previous value didn't exist, create it and copy values.
 		if prev == nil {
 			prev = &BooleanPoint{Name: curr.Name, Tags: tags}
-			m[tags.ID()] = prev
+			m[id] = prev
 		}
 		prev.Time = t
 		prev.Value = v

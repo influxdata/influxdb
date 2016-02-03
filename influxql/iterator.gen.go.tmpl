@@ -503,9 +503,10 @@ func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
 
 		// Pass previous and current points to reducer.
-		prev := m[tags.ID()]
+		prev := m[id]
 		t, v, aux := itr.fn(prev, curr, &reduceOptions)
 		if t == ZeroTime {
 			continue
@@ -514,7 +515,7 @@ func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
 		// If previous value didn't exist, create it and copy values.
 		if prev == nil {
 			prev = &{{.Name}}Point{Name: curr.Name, Tags: tags}
-			m[tags.ID()] = prev
+			m[id] = prev
 		}
 		prev.Time = t
 		prev.Value = v
