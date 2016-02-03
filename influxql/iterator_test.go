@@ -18,9 +18,9 @@ func TestMergeIterator_Float(t *testing.T) {
 		{Points: []influxql.FloatPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
-			{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
+			{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8},
 		}},
 		{Points: []influxql.FloatPoint{
 			{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
@@ -38,17 +38,17 @@ func TestMergeIterator_Float(t *testing.T) {
 		},
 		Ascending: true,
 	})
-	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-		{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-		{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
+		{&influxql.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 11, Value: 8}},
+		{&influxql.FloatPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
+	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
 

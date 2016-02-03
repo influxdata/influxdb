@@ -103,6 +103,7 @@ type floatMergeIterator struct {
 	// Current iterator and window.
 	curr   *floatMergeHeapItem
 	window struct {
+		name      string
 		startTime int64
 		endTime   int64
 	}
@@ -154,6 +155,7 @@ func (itr *floatMergeIterator) Next() *FloatPoint {
 
 			// Read point and set current window.
 			p := itr.curr.itr.Next()
+			itr.window.name = p.Name
 			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
 			return p
 		}
@@ -167,8 +169,18 @@ func (itr *floatMergeIterator) Next() *FloatPoint {
 			continue
 		}
 
+		// Check if the point is inside of our current window.
+		inWindow := true
+		if itr.window.name != p.Name {
+			inWindow = false
+		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+			inWindow = false
+		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+			inWindow = false
+		}
+
 		// If it's outside our window then push iterator back on the heap and find new iterator.
-		if (itr.heap.opt.Ascending && p.Time >= itr.window.endTime) || (!itr.heap.opt.Ascending && p.Time < itr.window.startTime) {
+		if !inWindow {
 			itr.curr.itr.unread(p)
 			heap.Push(itr.heap, itr.curr)
 			itr.curr = nil
@@ -190,6 +202,17 @@ func (h floatMergeHeap) Len() int      { return len(h.items) }
 func (h floatMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h floatMergeHeap) Less(i, j int) bool {
 	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		}
+	} else {
+		if x.Name != y.Name {
+			return x.Name > y.Name
+		}
+	}
+
 	xt, _ := h.opt.Window(x.Time)
 	yt, _ := h.opt.Window(y.Time)
 
@@ -781,6 +804,7 @@ type integerMergeIterator struct {
 	// Current iterator and window.
 	curr   *integerMergeHeapItem
 	window struct {
+		name      string
 		startTime int64
 		endTime   int64
 	}
@@ -832,6 +856,7 @@ func (itr *integerMergeIterator) Next() *IntegerPoint {
 
 			// Read point and set current window.
 			p := itr.curr.itr.Next()
+			itr.window.name = p.Name
 			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
 			return p
 		}
@@ -845,8 +870,18 @@ func (itr *integerMergeIterator) Next() *IntegerPoint {
 			continue
 		}
 
+		// Check if the point is inside of our current window.
+		inWindow := true
+		if itr.window.name != p.Name {
+			inWindow = false
+		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+			inWindow = false
+		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+			inWindow = false
+		}
+
 		// If it's outside our window then push iterator back on the heap and find new iterator.
-		if (itr.heap.opt.Ascending && p.Time >= itr.window.endTime) || (!itr.heap.opt.Ascending && p.Time < itr.window.startTime) {
+		if !inWindow {
 			itr.curr.itr.unread(p)
 			heap.Push(itr.heap, itr.curr)
 			itr.curr = nil
@@ -868,6 +903,17 @@ func (h integerMergeHeap) Len() int      { return len(h.items) }
 func (h integerMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h integerMergeHeap) Less(i, j int) bool {
 	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		}
+	} else {
+		if x.Name != y.Name {
+			return x.Name > y.Name
+		}
+	}
+
 	xt, _ := h.opt.Window(x.Time)
 	yt, _ := h.opt.Window(y.Time)
 
@@ -1459,6 +1505,7 @@ type stringMergeIterator struct {
 	// Current iterator and window.
 	curr   *stringMergeHeapItem
 	window struct {
+		name      string
 		startTime int64
 		endTime   int64
 	}
@@ -1510,6 +1557,7 @@ func (itr *stringMergeIterator) Next() *StringPoint {
 
 			// Read point and set current window.
 			p := itr.curr.itr.Next()
+			itr.window.name = p.Name
 			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
 			return p
 		}
@@ -1523,8 +1571,18 @@ func (itr *stringMergeIterator) Next() *StringPoint {
 			continue
 		}
 
+		// Check if the point is inside of our current window.
+		inWindow := true
+		if itr.window.name != p.Name {
+			inWindow = false
+		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+			inWindow = false
+		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+			inWindow = false
+		}
+
 		// If it's outside our window then push iterator back on the heap and find new iterator.
-		if (itr.heap.opt.Ascending && p.Time >= itr.window.endTime) || (!itr.heap.opt.Ascending && p.Time < itr.window.startTime) {
+		if !inWindow {
 			itr.curr.itr.unread(p)
 			heap.Push(itr.heap, itr.curr)
 			itr.curr = nil
@@ -1546,6 +1604,17 @@ func (h stringMergeHeap) Len() int      { return len(h.items) }
 func (h stringMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h stringMergeHeap) Less(i, j int) bool {
 	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		}
+	} else {
+		if x.Name != y.Name {
+			return x.Name > y.Name
+		}
+	}
+
 	xt, _ := h.opt.Window(x.Time)
 	yt, _ := h.opt.Window(y.Time)
 
@@ -2137,6 +2206,7 @@ type booleanMergeIterator struct {
 	// Current iterator and window.
 	curr   *booleanMergeHeapItem
 	window struct {
+		name      string
 		startTime int64
 		endTime   int64
 	}
@@ -2188,6 +2258,7 @@ func (itr *booleanMergeIterator) Next() *BooleanPoint {
 
 			// Read point and set current window.
 			p := itr.curr.itr.Next()
+			itr.window.name = p.Name
 			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
 			return p
 		}
@@ -2201,8 +2272,18 @@ func (itr *booleanMergeIterator) Next() *BooleanPoint {
 			continue
 		}
 
+		// Check if the point is inside of our current window.
+		inWindow := true
+		if itr.window.name != p.Name {
+			inWindow = false
+		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+			inWindow = false
+		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+			inWindow = false
+		}
+
 		// If it's outside our window then push iterator back on the heap and find new iterator.
-		if (itr.heap.opt.Ascending && p.Time >= itr.window.endTime) || (!itr.heap.opt.Ascending && p.Time < itr.window.startTime) {
+		if !inWindow {
 			itr.curr.itr.unread(p)
 			heap.Push(itr.heap, itr.curr)
 			itr.curr = nil
@@ -2224,6 +2305,17 @@ func (h booleanMergeHeap) Len() int      { return len(h.items) }
 func (h booleanMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
 func (h booleanMergeHeap) Less(i, j int) bool {
 	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		}
+	} else {
+		if x.Name != y.Name {
+			return x.Name > y.Name
+		}
+	}
+
 	xt, _ := h.opt.Window(x.Time)
 	yt, _ := h.opt.Window(y.Time)
 
