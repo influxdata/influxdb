@@ -272,7 +272,7 @@ func new{{.Name}}SortedMergeIterator(inputs []{{.Name}}Iterator, opt IteratorOpt
 }
 
 // Close closes the underlying iterators.
-func (itr *{{.name}}SortedMergeIterator) Close() error { 
+func (itr *{{.name}}SortedMergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
@@ -623,7 +623,7 @@ func (itr *{{.name}}ReduceSliceIterator) reduce() []{{.Name}}Point {
 		tags := p.Tags.Subset(itr.opt.Dimensions)
 
 		// Append point to dimension.
-		id := tags.ID()
+		id := p.Name + "\x00" + tags.ID()
 		g := groups[id]
 		g.name = p.Name
 		g.tags = tags

@@ -621,7 +621,7 @@ func (itr *floatReduceSliceIterator) reduce() []FloatPoint {
 		tags := p.Tags.Subset(itr.opt.Dimensions)
 
 		// Append point to dimension.
-		id := tags.ID()
+		id := p.Name + "\x00" + tags.ID()
 		g := groups[id]
 		g.name = p.Name
 		g.tags = tags
@@ -1322,7 +1322,7 @@ func (itr *integerReduceSliceIterator) reduce() []IntegerPoint {
 		tags := p.Tags.Subset(itr.opt.Dimensions)
 
 		// Append point to dimension.
-		id := tags.ID()
+		id := p.Name + "\x00" + tags.ID()
 		g := groups[id]
 		g.name = p.Name
 		g.tags = tags
@@ -2023,7 +2023,7 @@ func (itr *stringReduceSliceIterator) reduce() []StringPoint {
 		tags := p.Tags.Subset(itr.opt.Dimensions)
 
 		// Append point to dimension.
-		id := tags.ID()
+		id := p.Name + "\x00" + tags.ID()
 		g := groups[id]
 		g.name = p.Name
 		g.tags = tags
@@ -2724,7 +2724,7 @@ func (itr *booleanReduceSliceIterator) reduce() []BooleanPoint {
 		tags := p.Tags.Subset(itr.opt.Dimensions)
 
 		// Append point to dimension.
-		id := tags.ID()
+		id := p.Name + "\x00" + tags.ID()
 		g := groups[id]
 		g.name = p.Name
 		g.tags = tags
