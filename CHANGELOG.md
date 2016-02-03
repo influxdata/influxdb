@@ -1,5 +1,10 @@
 ## v0.10.0 [unreleased]
 
+### Release Notes
+This release now uses the TSM storage engine. Old bz1 and b1 shards can still be read, but in a future release you will be required to migrate old shards to TSM. For new shards getting created, or new installations, the TSM storage engine will be used.
+
+This release also changes how clusters are setup. The config file has changed so have a look at the new example. Also, upgrading a single node works, but for upgrading clusters, you'll need help from us. Sent us a note at contact@influxdb.com if you need assistance upgrading a cluster.
+
 ### Features
 - [#5183](https://github.com/influxdb/influxdb/pull/5183): CLI confirms database exists when USE executed. Thanks @pires
 - [#5201](https://github.com/influxdb/influxdb/pull/5201): Allow max UDP buffer size to be configurable. Thanks @sebito91
