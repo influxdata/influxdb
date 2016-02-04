@@ -462,7 +462,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		}
 
 		for j := 0; j < nvals; j++ {
-			t := time.Unix(0, int64(btou64(b[i:i+8])))
+			un := int64(btou64(b[i : i+8]))
 			i += 8
 
 			switch typ {
@@ -470,21 +470,21 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				v := math.Float64frombits((btou64(b[i : i+8])))
 				i += 8
 				if fv, ok := values[j].(*FloatValue); ok {
-					fv.time = t
+					fv.unixnano = un
 					fv.value = v
 				}
 			case int64EntryType:
 				v := int64(btou64(b[i : i+8]))
 				i += 8
 				if fv, ok := values[j].(*Int64Value); ok {
-					fv.time = t
+					fv.unixnano = un
 					fv.value = v
 				}
 			case boolEntryType:
 				v := b[i]
 				i += 1
 				if fv, ok := values[j].(*BoolValue); ok {
-					fv.time = t
+					fv.unixnano = un
 					if v == 1 {
 						fv.value = true
 					} else {
@@ -501,7 +501,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 				v := string(b[i : i+length])
 				i += length
 				if fv, ok := values[j].(*StringValue); ok {
-					fv.time = t
+					fv.unixnano = un
 					fv.value = v
 				}
 			default:
