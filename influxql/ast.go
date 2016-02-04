@@ -287,6 +287,19 @@ func (a Sources) Names() []string {
 	return names
 }
 
+// HasSystemSource returns true if any of the sources are internal, system sources.
+func (a Sources) HasSystemSource() bool {
+	for _, s := range a {
+		switch s := s.(type) {
+		case *Measurement:
+			if IsSystemName(s.Name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // String returns a string representation of a Sources array.
 func (a Sources) String() string {
 	var buf bytes.Buffer
@@ -301,6 +314,10 @@ func (a Sources) String() string {
 
 	return buf.String()
 }
+
+// IsSystemName returns true if name is an internal system name.
+// System names are prefixed with an underscore.
+func IsSystemName(name string) bool { return strings.HasPrefix(name, "_") }
 
 // SortField represents a field to sort results by.
 type SortField struct {
@@ -780,6 +797,9 @@ type SelectStatement struct {
 
 	// The value to fill empty aggregate buckets with, if any
 	FillValue interface{}
+
+	// Removes the "time" column from the output.
+	OmitTime bool
 }
 
 // HasDerivative returns true if one of the function calls in the statement is a
@@ -1004,8 +1024,11 @@ func (s *SelectStatement) RewriteTimeFields() {
 // ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
 // while maintaining order of the field names
 func (s *SelectStatement) ColumnNames() []string {
-	// Always set the first column to be time, even if they didn't specify it
-	columnNames := []string{"time"}
+	columnNames := []string{}
+
+	if !s.OmitTime {
+		columnNames = append(columnNames, "time")
+	}
 
 	// First walk each field
 	for _, field := range s.Fields {

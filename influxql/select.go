@@ -199,7 +199,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			if err != nil {
 				return nil, err
 			}
-			return newDistinctIterator(input, opt), nil
+			return NewDistinctIterator(input, opt), nil
 		case "mean":
 			// OPTIMIZE(benbjohnson): convert to map/reduce
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)

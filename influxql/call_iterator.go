@@ -224,8 +224,8 @@ func integerLastReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int
 	return prev.Time, prev.Value, prev.Aux
 }
 
-// newDistinctIterator returns an iterator for operating on a distinct() call.
-func newDistinctIterator(input Iterator, opt IteratorOptions) Iterator {
+// NewDistinctIterator returns an iterator for operating on a distinct() call.
+func NewDistinctIterator(input Iterator, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatDistinctReduceSlice}

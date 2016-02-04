@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -423,6 +424,10 @@ func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // CreateIterator returns a single combined iterator for the shards.
 func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if influxql.Sources(opt.Sources).HasSystemSource() {
+		return a.createSystemIterator(opt)
+	}
+
 	// Create iterators for each shard.
 	// Ensure that they are closed if an error occurs.
 	itrs := make([]influxql.Iterator, 0, len(a))
@@ -443,6 +448,41 @@ func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator,
 	// Merge into a single iterator.
 	if opt.MergeSorted() {
 		return influxql.NewSortedMergeIterator(itrs, opt), nil
+	}
+	return influxql.NewMergeIterator(itrs, opt), nil
+}
+
+// createSystemIterator returns an iterator for a system source.
+func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	// Only support a single system source.
+	if len(opt.Sources) > 1 {
+		return nil, errors.New("cannot select from multiple system sources")
+	}
+
+	m := opt.Sources[0].(*influxql.Measurement)
+	switch m.Name {
+	case "_measurements":
+		return a.createMeasurementsIterator(opt)
+	default:
+		return nil, fmt.Errorf("unknown system source: %s", m.Name)
+	}
+}
+
+// createMeasurementsIterator returns an iterator for all measurement names.
+func (a Shards) createMeasurementsIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	itrs := make([]influxql.Iterator, 0, len(a))
+	if err := func() error {
+		for _, sh := range a {
+			itr, err := NewMeasurementIterator(sh, opt)
+			if err != nil {
+				return err
+			}
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
 	}
 	return influxql.NewMergeIterator(itrs, opt), nil
 }
@@ -790,6 +830,54 @@ func (f *FieldCodec) Fields() (a []*Field) {
 // FieldByName returns the field by its name. It will return a nil if not found
 func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
+}
+
+// MeasurementIterator represents a string iterator that emits all measurement names in a shard.
+type MeasurementIterator struct {
+	mms    Measurements
+	source *influxql.Measurement
+}
+
+// NewMeasurementIterator returns a new instance of MeasurementIterator.
+func NewMeasurementIterator(sh *Shard, opt influxql.IteratorOptions) (*MeasurementIterator, error) {
+	itr := &MeasurementIterator{}
+
+	// Extract source.
+	if len(opt.Sources) > 0 {
+		itr.source, _ = opt.Sources[0].(*influxql.Measurement)
+	}
+
+	// Retrieve measurements from shard. Filter if condition specified.
+	if opt.Condition == nil {
+		itr.mms = sh.index.Measurements()
+	} else {
+		mms, err := sh.index.measurementsByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+		itr.mms = mms
+	}
+
+	// Sort measurements by name.
+	sort.Sort(itr.mms)
+
+	return itr, nil
+}
+
+// Close closes the iterator.
+func (itr *MeasurementIterator) Close() error { return nil }
+
+// Next emits the next measurement name.
+func (itr *MeasurementIterator) Next() *influxql.FloatPoint {
+	if len(itr.mms) == 0 {
+		return nil
+	}
+	mm := itr.mms[0]
+	itr.mms = itr.mms[1:]
+	return &influxql.FloatPoint{
+		Name: "measurements",
+		Aux:  []interface{}{mm.Name},
+	}
 }
 
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.

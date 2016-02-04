@@ -18,6 +18,10 @@ type Emitter struct {
 
 	// The columns to attach to each row.
 	Columns []string
+
+	// Removes the "time" column from output.
+	// Used for meta queries where time does not apply.
+	OmitTime bool
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
@@ -130,25 +134,33 @@ func (e *Emitter) createRow(name string, tags Tags, values []interface{}) {
 // readAt returns the next slice of values from the iterators at time/name/tags.
 // Returns nil values once the iterators are exhausted.
 func (e *Emitter) readAt(t int64, name string, tags Tags) []interface{} {
-	values := make([]interface{}, len(e.itrs)+1)
-	values[0] = time.Unix(0, t).UTC()
+	// If time is included then move colums over by one.
+	offset := 1
+	if e.OmitTime {
+		offset = 0
+	}
+
+	values := make([]interface{}, len(e.itrs)+offset)
+	if !e.OmitTime {
+		values[0] = time.Unix(0, t).UTC()
+	}
 
 	for i, p := range e.buf {
 		// Skip if buffer is empty.
 		if p == nil {
-			values[i+1] = nil
+			values[i+offset] = nil
 			continue
 		}
 
 		// Skip point if it doesn't match time/name/tags.
 		pTags := p.tags()
 		if p.time() != t || p.name() != name || !pTags.Equals(&tags) {
-			values[i+1] = nil
+			values[i+offset] = nil
 			continue
 		}
 
 		// Read point value.
-		values[i+1] = p.value()
+		values[i+offset] = p.value()
 
 		// Clear buffer.
 		e.buf[i] = nil

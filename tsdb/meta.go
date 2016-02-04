@@ -158,6 +158,11 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 				tf.Value = s.Val
 			}
 
+			// Match on name, if specified.
+			if tag.Val == "name" {
+				return db.measurementsByNameFilter(tf.Op, tf.Value, tf.Regex), nil
+			}
+
 			return db.measurementsByTagFilters([]*TagFilter{tf}), nil
 		case influxql.OR, influxql.AND:
 			lhsIDs, err := db.measurementsByExpr(e.LHS)
@@ -182,6 +187,31 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 		return db.measurementsByExpr(e.Expr)
 	}
 	return nil, fmt.Errorf("%#v", expr)
+}
+
+// measurementsByNameFilter returns the sorted measurements matching a name.
+func (db *DatabaseIndex) measurementsByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) Measurements {
+	var measurements Measurements
+	for _, m := range db.measurements {
+		var matched bool
+		switch op {
+		case influxql.EQ:
+			matched = m.Name == val
+		case influxql.NEQ:
+			matched = m.Name != val
+		case influxql.EQREGEX:
+			matched = regex.MatchString(m.Name)
+		case influxql.NEQREGEX:
+			matched = !regex.MatchString(m.Name)
+		}
+
+		if !matched {
+			continue
+		}
+		measurements = append(measurements, m)
+	}
+	sort.Sort(measurements)
+	return measurements
 }
 
 // measurementsByTagFilters returns the sorted measurements matching the filters on tag values.
