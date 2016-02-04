@@ -100,10 +100,11 @@ type {{.name}}MergeIterator struct {
 	inputs []{{.Name}}Iterator
 	heap   *{{.name}}MergeHeap
 
-	// Current iterator and window.	
+	// Current iterator and window.
 	curr   *{{.name}}MergeHeapItem
 	window struct {
 		name      string
+		tags      string
 		startTime int64
 		endTime   int64
 	}
@@ -155,7 +156,7 @@ func (itr *{{.name}}MergeIterator) Next() *{{.Name}}Point {
 
 			// Read point and set current window.
 			p := itr.curr.itr.Next()
-			itr.window.name = p.Name
+			itr.window.name, itr.window.tags = p.Name, p.Tags.ID()
 			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
 			return p
 		}
@@ -172,6 +173,8 @@ func (itr *{{.name}}MergeIterator) Next() *{{.Name}}Point {
 		// Check if the point is inside of our current window.
 		inWindow := true
 		if itr.window.name != p.Name {
+			inWindow = false
+		} else if itr.window.tags != p.Tags.ID() {
 			inWindow = false
 		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
 			inWindow = false
@@ -206,10 +209,14 @@ func (h {{.name}}MergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
+		} else if x.Tags.ID() != y.Tags.ID() {
+			return x.Tags.ID() < y.Tags.ID()
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
+		} else if x.Tags.ID() != y.Tags.ID() {
+			return x.Tags.ID() > y.Tags.ID()
 		}
 	}
 
