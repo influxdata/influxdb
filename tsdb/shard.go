@@ -1045,10 +1045,3 @@ func mustUnmarshalJSON(b []byte, v interface{}) {
 		panic("unmarshal: " + err.Error())
 	}
 }
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
