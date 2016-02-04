@@ -41,6 +41,10 @@ type HTTPConfig struct {
 	// InsecureSkipVerify gets passed to the http client, if true, it will
 	// skip https certificate verification. Defaults to false
 	InsecureSkipVerify bool
+
+	// TLSConfig allows the user to set their own TLS config for the HTTP
+	// Client. If set, this option overrides InsecureSkipVerify.
+	TLSConfig *tls.Config
 }
 
 type UDPConfig struct {
@@ -99,6 +103,9 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: conf.InsecureSkipVerify,
 		},
+	}
+	if conf.TLSConfig != nil {
+		tr.TLSClientConfig = conf.TLSConfig
 	}
 	return &client{
 		url:       u,
