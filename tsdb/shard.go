@@ -463,6 +463,8 @@ func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 	switch m.Name {
 	case "_measurements":
 		return a.createMeasurementsIterator(opt)
+	case "_tagKeys":
+		return a.createTagKeysIterator(opt)
 	default:
 		return nil, fmt.Errorf("unknown system source: %s", m.Name)
 	}
@@ -474,6 +476,25 @@ func (a Shards) createMeasurementsIterator(opt influxql.IteratorOptions) (influx
 	if err := func() error {
 		for _, sh := range a {
 			itr, err := NewMeasurementIterator(sh, opt)
+			if err != nil {
+				return err
+			}
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+	return influxql.NewMergeIterator(itrs, opt), nil
+}
+
+// createTagKeysIterator returns an iterator for all tag keys across measurements.
+func (a Shards) createTagKeysIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	itrs := make([]influxql.Iterator, 0, len(a))
+	if err := func() error {
+		for _, sh := range a {
+			itr, err := NewTagKeysIterator(sh, opt)
 			if err != nil {
 				return err
 			}
@@ -877,6 +898,65 @@ func (itr *MeasurementIterator) Next() *influxql.FloatPoint {
 	return &influxql.FloatPoint{
 		Name: "measurements",
 		Aux:  []interface{}{mm.Name},
+	}
+}
+
+// TagKeysIterator represents a string iterator that emits all tag keys in a shard.
+type TagKeysIterator struct {
+	mms Measurements // remaining measurements
+	buf struct {
+		mm   *Measurement // current measurement
+		keys []string     // current measurement's keys
+	}
+}
+
+// NewTagKeysIterator returns a new instance of TagKeysIterator.
+func NewTagKeysIterator(sh *Shard, opt influxql.IteratorOptions) (*TagKeysIterator, error) {
+	itr := &TagKeysIterator{}
+
+	// Retrieve measurements from shard. Filter if condition specified.
+	if opt.Condition == nil {
+		itr.mms = sh.index.Measurements()
+	} else {
+		mms, err := sh.index.measurementsByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+		itr.mms = mms
+	}
+
+	// Sort measurements by name.
+	sort.Sort(itr.mms)
+
+	return itr, nil
+}
+
+// Close closes the iterator.
+func (itr *TagKeysIterator) Close() error { return nil }
+
+// Next emits the next tag key name.
+func (itr *TagKeysIterator) Next() *influxql.FloatPoint {
+	for {
+		// If there are no more keys then move to the next measurements.
+		if len(itr.buf.keys) == 0 {
+			if len(itr.mms) == 0 {
+				return nil
+			}
+
+			itr.buf.mm = itr.mms[0]
+			itr.buf.keys = itr.buf.mm.TagKeys()
+			itr.mms = itr.mms[1:]
+			continue
+		}
+
+		// Return next key.
+		p := &influxql.FloatPoint{
+			Name: itr.buf.mm.Name,
+			Aux:  []interface{}{itr.buf.keys[0]},
+		}
+		itr.buf.keys = itr.buf.keys[1:]
+
+		return p
 	}
 }
 

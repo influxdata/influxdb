@@ -585,22 +585,46 @@ func (q *QueryExecutor) planShowTagKeys(stmt *influxql.ShowTagKeysStatement, dat
 		return nil, errors.New("SHOW TAG KEYS doesn't support time in WHERE clause")
 	}
 
-	panic("FIXME: Implement SHOW TAG KEYS")
+	condition := stmt.Condition
+	if len(stmt.Sources) > 0 {
+		if source, ok := stmt.Sources[0].(*influxql.Measurement); ok {
+			var expr influxql.Expr
+			if source.Regex != nil {
+				expr = &influxql.BinaryExpr{
+					Op:  influxql.EQREGEX,
+					LHS: &influxql.VarRef{Val: "name"},
+					RHS: &influxql.RegexLiteral{Val: source.Regex.Val},
+				}
+			} else if source.Name != "" {
+				expr = &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "name"},
+					RHS: &influxql.StringLiteral{Val: source.Name},
+				}
+			}
 
-	/*
-		return q.PlanSelect(&influxql.SelectStatement{
-			Fields: influxql.Fields{
-				{Expr: &influxql.VarRef{Val: "tagKey"}},
-			},
-			Sources: influxql.Sources{
-				&influxql.Measurement{Database: database, Name: "_tagkeys"},
-			},
-			Condition:  stmt.Condition,
-			Offset:     stmt.Offset,
-			Limit:      stmt.Limit,
-			SortFields: stmt.SortFields,
-		}, chunkSize)
-	*/
+			// Set condition or "AND" together.
+			if condition == nil {
+				condition = expr
+			} else {
+				condition = &influxql.BinaryExpr{Op: influxql.AND, LHS: expr, RHS: condition}
+			}
+		}
+	}
+
+	return q.PlanSelect(&influxql.SelectStatement{
+		Fields: influxql.Fields{
+			{Expr: &influxql.VarRef{Val: "tagKey"}},
+		},
+		Sources: influxql.Sources{
+			&influxql.Measurement{Database: database, Name: "_tagKeys"},
+		},
+		Condition:  condition,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		SortFields: stmt.SortFields,
+		OmitTime:   true,
+	}, chunkSize)
 }
 
 func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statement, database string, results chan *influxql.Result, chunkSize int, closing chan struct{}) error {

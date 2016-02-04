@@ -183,7 +183,7 @@ cpu,host=serverB,region=uswest value=25  0
 		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 100,
-		Aux:   []interface{}{math.NaN()},
+		Aux:   []interface{}{(*float64)(nil)},
 	}) {
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}

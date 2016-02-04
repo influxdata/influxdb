@@ -88,26 +88,6 @@ func TestQueryExecutor_ExecuteQuery_Select_Empty(t *testing.T) {
 	}
 }
 */
-// Ensure the query executor can execute a DROP SERIES statement.
-func TestQueryExecutor_ExecuteQuery_DropSeries(t *testing.T) {
-	e := NewQueryExecutor()
-
-	e.Store.DeleteSeriesFn = func(database string, sources influxql.Sources, condition influxql.Expr) error {
-		if database != `db0` {
-			t.Fatalf("unexpected database: %s", database)
-		} else if !reflect.DeepEqual(sources, influxql.Sources{&influxql.Measurement{Database: "db0", RetentionPolicy: "rp0", Name: "cpu"}}) {
-			t.Fatalf("unexpected sources: %s", spew.Sdump(sources))
-		} else if condition != nil {
-			t.Fatalf("unexpected condition: %s", spew.Sdump(condition))
-		}
-		return nil
-	}
-
-	res := e.MustExecuteQueryString("db0", `drop series from cpu`)
-	if s := MustMarshalJSON(res); s != `[{}]` {
-		t.Fatalf("unexpected results: %s", s)
-	}
-}
 
 // Ensure the query executor can execute a DROP MEASUREMENT statement.
 func TestQueryExecutor_ExecuteQuery_DropMeasurement(t *testing.T) {
@@ -359,13 +339,17 @@ func (e *QueryExecutor) MustExecuteQueryStringJSON(database string, s string) st
 
 // QueryExecutorStore is a mockable implementation of QueryExecutor.Store.
 type QueryExecutorStore struct {
+	DatabaseIndexFn     func(name string) *tsdb.DatabaseIndex
 	ShardsFn            func(ids []uint64) []*tsdb.Shard
 	ExpandSourcesFn     func(sources influxql.Sources) (influxql.Sources, error)
 	DeleteDatabaseFn    func(name string, shardIDs []uint64) error
 	DeleteMeasurementFn func(database, name string) error
-	DeleteSeriesFn      func(database string, sources influxql.Sources, condition influxql.Expr) error
+	DeleteSeriesFn      func(database string, seriesKeys []string) error
 }
 
+func (s *QueryExecutorStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
+	return s.DatabaseIndexFn(name)
+}
 func (s *QueryExecutorStore) Shards(ids []uint64) []*tsdb.Shard {
 	return s.ShardsFn(ids)
 }
@@ -378,8 +362,8 @@ func (s *QueryExecutorStore) DeleteDatabase(name string, shardIDs []uint64) erro
 func (s *QueryExecutorStore) DeleteMeasurement(database, name string) error {
 	return s.DeleteMeasurementFn(database, name)
 }
-func (s *QueryExecutorStore) DeleteSeries(database string, sources influxql.Sources, condition influxql.Expr) error {
-	return s.DeleteSeriesFn(database, sources, condition)
+func (s *QueryExecutorStore) DeleteSeries(database string, seriesKeys []string) error {
+	return s.DeleteSeriesFn(database, seriesKeys)
 }
 
 // DefaultStoreExpandSourcesFn returns the original sources unchanged.
