@@ -82,7 +82,6 @@ func mmap(f *os.File, offset int64, length int) (out []byte, err error) {
 // Based on: https://github.com/edsrzf/mmap-go
 // Based on: https://github.com/boltdb/bolt/bolt_windows.go
 func munmap(b []byte) (err error) {
-
 	handleLock.Lock()
 	defer handleLock.Unlock()
 
@@ -99,7 +98,9 @@ func munmap(b []byte) (err error) {
 	delete(handleMap, addr)
 
 	e := syscall.CloseHandle(syscall.Handle(handle))
-	return os.NewSyscallError("CloseHandle", e)
+	if e != nil {
+		return os.NewSyscallError("CloseHandle", e)
+	}
 
 	file, ok := fileMap[addr]
 	if !ok {
@@ -109,7 +110,8 @@ func munmap(b []byte) (err error) {
 	delete(fileMap, addr)
 
 	e = file.Close()
-	return errors.New("Close File" + e.Error())
-
+	if e != nil {
+		return errors.New("close file" + e.Error())
+	}
 	return nil
 }
