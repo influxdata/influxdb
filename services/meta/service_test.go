@@ -1251,7 +1251,7 @@ func testTempDir(skip int) string {
 	}
 	_, prefix := path.Split(runtime.FuncForPC(pc).Name())
 	// Make a temp dir prefixed with calling function's name.
-	dir, err := ioutil.TempDir("/tmp", prefix)
+	dir, err := ioutil.TempDir(os.TempDir(), prefix)
 	if err != nil {
 		panic(err)
 	}
