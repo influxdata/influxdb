@@ -94,17 +94,14 @@ func (t *Tombstoner) writeTombstone(tombstones []string) error {
 		return err
 	}
 
-	if err := os.Rename(tmp.Name(), t.tombstonePath()); err != nil {
+	tmpFilename := tmp.Name()
+	tmp.Close()
+
+	if err := os.Rename(tmpFilename, t.tombstonePath()); err != nil {
 		return err
 	}
 
-	// fsync the dir to flush the rename
-	dir, err := os.OpenFile(filepath.Dir(t.tombstonePath()), os.O_RDONLY, os.ModeDir)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	return syncDir(filepath.Dir(t.tombstonePath()))
 }
 
 func (t *Tombstoner) readTombstone() ([]string, error) {
