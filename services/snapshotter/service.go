@@ -135,34 +135,36 @@ func (s *Service) handleConn(conn net.Conn) error {
 
 func (s *Service) writeMetaStore(conn net.Conn) error {
 	// Retrieve and serialize the current meta data.
-	buf, err := s.MetaClient.MarshalBinary()
+	metaBlob, err := s.MetaClient.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal meta: %s", err)
 	}
 
-	var b bytes.Buffer
-	enc := json.NewEncoder(&b)
-	if err := enc.Encode(s.Node); err != nil {
+	var nodeBytes bytes.Buffer
+	if err := json.NewEncoder(&nodeBytes).Encode(s.Node); err != nil {
 		return err
 	}
 
-	if _, err := conn.Write(u64tob(BackupMagicHeader)); err != nil {
+	var numBytes [24]byte
+
+	binary.BigEndian.PutUint64(numBytes[:8], BackupMagicHeader)
+	binary.BigEndian.PutUint64(numBytes[8:16], uint64(len(metaBlob)))
+	binary.BigEndian.PutUint64(numBytes[16:24], uint64(nodeBytes.Len()))
+
+	// backup header followed by meta blob length
+	if _, err := conn.Write(numBytes[:16]); err != nil {
 		return err
 	}
 
-	if _, err := conn.Write(u64tob(uint64(len(buf)))); err != nil {
+	if _, err := conn.Write(metaBlob); err != nil {
 		return err
 	}
 
-	if _, err := conn.Write(buf); err != nil {
+	if _, err := conn.Write(numBytes[16:24]); err != nil {
 		return err
 	}
 
-	if _, err := conn.Write(u64tob(uint64(b.Len()))); err != nil {
-		return err
-	}
-
-	if _, err := b.WriteTo(conn); err != nil {
+	if _, err := nodeBytes.WriteTo(conn); err != nil {
 		return err
 	}
 	return nil
@@ -285,15 +287,4 @@ type Request struct {
 // that are in the requested database or retention policy
 type Response struct {
 	Paths []string
-}
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
-
-func btou64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
 }

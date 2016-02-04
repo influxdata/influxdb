@@ -98,7 +98,7 @@ func MeasurementFromSeriesKey(key string) string {
 // DecodeKeyValue decodes the key and value from bytes.
 func DecodeKeyValue(field string, dec *FieldCodec, k, v []byte) (int64, interface{}) {
 	// Convert key to a timestamp.
-	key := int64(btou64(k[0:8]))
+	key := int64(binary.BigEndian.Uint64(k[0:8]))
 
 	decValue, err := dec.DecodeByName(field, v)
 	if err != nil {
@@ -106,6 +106,3 @@ func DecodeKeyValue(field string, dec *FieldCodec, k, v []byte) (int64, interfac
 	}
 	return key, decValue
 }
-
-// btou64 converts an 8-byte slice into an uint64.
-func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }

@@ -676,11 +676,13 @@ func (l *segment) readUint64() (uint64, error) {
 	if err := l.readBytes(b); err != nil {
 		return 0, err
 	}
-	return btou64(b), nil
+	return binary.BigEndian.Uint64(b), nil
 }
 
 func (l *segment) writeUint64(sz uint64) error {
-	return l.writeBytes(u64tob(sz))
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], sz)
+	return l.writeBytes(buf[:])
 }
 
 func (l *segment) writeBytes(b []byte) error {
@@ -705,14 +707,4 @@ func (l *segment) readBytes(b []byte) error {
 		return fmt.Errorf("bad read. exp %v, got %v", 0, n)
 	}
 	return nil
-}
-
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
-
-func btou64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
 }

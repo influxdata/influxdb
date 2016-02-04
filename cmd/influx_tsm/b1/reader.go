@@ -197,7 +197,9 @@ func newCursor(tx *bolt.Tx, series string, field string, dec *tsdb.FieldCodec) *
 
 // Seek moves the cursor to a position.
 func (c cursor) SeekTo(seek int64) {
-	k, v := c.cursor.Seek(u64tob(uint64(seek)))
+	var seekBytes [8]byte
+	binary.BigEndian.PutUint64(seekBytes[:], uint64(seek))
+	k, v := c.cursor.Seek(seekBytes[:])
 	c.keyBuf, c.valBuf = tsdb.DecodeKeyValue(c.field, c.dec, k, v)
 }
 
@@ -236,13 +238,3 @@ func (a cursors) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a cursors) Less(i, j int) bool {
 	return tsm1.SeriesFieldKey(a[i].series, a[i].field) < tsm1.SeriesFieldKey(a[j].series, a[j].field)
 }
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
-
-// btou64 converts an 8-byte slice to a uint64.
-func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
