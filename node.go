@@ -62,9 +62,13 @@ func (n *Node) Save() error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
-	if err := json.NewEncoder(f).Encode(n); err != nil {
+	if err = json.NewEncoder(f).Encode(n); err != nil {
+		f.Close()
+		return err
+	}
+
+	if err = f.Close(); nil != err {
 		return err
 	}
 
