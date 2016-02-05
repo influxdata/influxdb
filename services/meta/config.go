@@ -98,7 +98,7 @@ func (c *Config) Validate() error {
 func (c *Config) defaultHost(addr string) string {
 	address, err := DefaultHost(DefaultHostname, addr)
 	if nil != err {
-		panic(err)
+		return addr
 	}
 	return address
 }
