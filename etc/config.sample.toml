@@ -227,7 +227,7 @@ reporting-disabled = false
 ###
 
 [[graphite]]
-  enabled = true
+  enabled = false
   # bind-address = ":2003"
   # protocol = "tcp"
   # consistency-level = "one"
