@@ -99,9 +99,15 @@ func (s *Server) Close() {
 	if err := s.Server.Close(); err != nil {
 		panic(err.Error())
 	}
-	os.RemoveAll(s.Config.Meta.Dir)
-	os.RemoveAll(s.Config.Data.Dir)
-	os.RemoveAll(s.Config.HintedHandoff.Dir)
+	if err := os.RemoveAll(s.Config.Meta.Dir); err != nil {
+		panic(err.Error())
+	}
+	if err := os.RemoveAll(s.Config.Data.Dir); err != nil {
+		panic(err.Error())
+	}
+	if err := os.RemoveAll(s.Config.HintedHandoff.Dir); err != nil {
+		panic(err.Error())
+	}
 }
 
 // URL returns the base URL for the httpd endpoint.

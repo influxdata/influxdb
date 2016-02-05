@@ -10,6 +10,8 @@ import (
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/cmd/influxd/restore"
+	"github.com/influxdb/influxdb/cmd/influxd/run"
+	"github.com/influxdb/influxdb/services/meta"
 )
 
 func TestServer_BackupAndRestore(t *testing.T) {
@@ -56,7 +58,8 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 		// now backup
 		cmd := backup.NewCommand()
-		if err := cmd.Run("-host", config.Meta.BindAddress, "-database", "mydb", backupDir); err != nil {
+		hostAddress, _ := meta.DefaultHost(run.DefaultHostname, config.Meta.BindAddress)
+		if err := cmd.Run("-host", hostAddress, "-database", "mydb", backupDir); err != nil {
 			t.Fatalf("error backing up: %s", err.Error())
 		}
 	}()
