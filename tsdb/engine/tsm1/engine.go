@@ -670,6 +670,80 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 	return influxql.NewSortedMergeIterator(itrs, opt), nil
 }
 
+func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	seriesList := influxql.SeriesList{}
+	mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+	for _, mm := range mms {
+		// Determine tagsets for this measurement based on dimensions and filters.
+		tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+
+		// Calculate tag sets and apply SLIMIT/SOFFSET.
+		tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+		for _, t := range tagSets {
+			tagMap := make(map[string]string)
+			for k, v := range t.Tags {
+				if v == "" {
+					continue
+				}
+				tagMap[k] = v
+			}
+			tags := influxql.NewTags(tagMap)
+
+			// Determine the nil values for the aux fields/tags
+			aux := make([]interface{}, 0, len(opt.Aux))
+			for _, field := range opt.Aux {
+				typ := func() influxql.DataType {
+					mf := e.measurementFields[mm.Name]
+					if mf == nil {
+						return influxql.Unknown
+					}
+
+					f := mf.Fields[field]
+					if f == nil {
+						return influxql.Unknown
+					}
+					return f.Type
+				}()
+
+				if typ == influxql.Unknown {
+					if v := tags.Value(field); v == "" {
+						// We have no idea what this field/tag is, so it doesn't
+						// exist for this part of the series.
+						// Use a boolean so it can be promoted to the appropriate
+						// type if another iterator knows the type.
+						typ = influxql.Boolean
+					} else {
+						// All tags are strings.
+						typ = influxql.String
+					}
+				}
+
+				switch typ {
+				case influxql.Float:
+					aux = append(aux, (*float64)(nil))
+				case influxql.Integer:
+					aux = append(aux, (*int64)(nil))
+				case influxql.String:
+					aux = append(aux, (*string)(nil))
+				case influxql.Boolean:
+					aux = append(aux, (*bool)(nil))
+				default:
+					panic(fmt.Sprintf("invalid aux type: %s", typ))
+				}
+			}
+			seriesList = append(seriesList, influxql.Series{
+				Name: mm.Name,
+				Tags: tags,
+				Aux:  aux,
+			})
+		}
+	}
+	return seriesList, nil
+}
+
 // createVarRefIterator creates an iterator for a variable reference.
 func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	ref, _ := opt.Expr.(*influxql.VarRef)

@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"container/heap"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -411,6 +412,97 @@ func (itr *{{.name}}LimitIterator) Next() *{{.Name}}Point {
 	}
 }
 
+type {{.name}}FillIterator struct {
+	input      *buf{{.Name}}Iterator
+	seriesKeys SeriesList
+	prev       *{{.Name}}Point
+	index      int
+	curTime    int64
+	startTime  int64
+	endTime    int64
+	opt        IteratorOptions
+}
+
+func new{{.Name}}FillIterator(input {{.Name}}Iterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) *{{.name}}FillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = {{.Zero}}
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		_, endTime = opt.Window(opt.EndTime)
+	} else {
+		_, startTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	return &{{.name}}FillIterator{
+		input:      newBuf{{.Name}}Iterator(input),
+		seriesKeys: seriesKeys,
+		curTime:    startTime,
+		startTime:  startTime,
+		endTime:    endTime,
+		opt:        opt,
+	}
+}
+
+func (itr *{{.name}}FillIterator) Close() error { return itr.input.Close() }
+
+func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
+	p := itr.input.Next()
+	if itr.index >= len(itr.seriesKeys) {
+		return p
+	}
+	series := itr.seriesKeys[itr.index]
+
+	if p == nil || itr.curTime < p.Time || p.Name != series.Name || p.Tags.ID() != series.Tags.ID() {
+		itr.input.unread(p)
+		p = &{{.Name}}Point{
+			Name: series.Name,
+			Tags: series.Tags,
+			Time: itr.curTime,
+			Aux:  series.Aux,
+		}
+
+		switch itr.opt.Fill {
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = itr.opt.FillValue.({{.Type}})
+		case PreviousFill:
+			if itr.prev != nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		default:
+			return p
+		}
+	} else {
+		itr.prev = p
+	}
+
+	if itr.opt.Ascending {
+		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
+		if itr.curTime >= itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	} else {
+		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
+		if itr.curTime < itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	}
+	return p
+}
+
 // {{.name}}AuxIterator represents a {{.name}} implementation of AuxIterator.
 type {{.name}}AuxIterator struct {
 	input  *buf{{.Name}}Iterator
@@ -454,7 +546,11 @@ func (itr *{{.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator, 
 }
 
 func (itr *{{.name}}AuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
-	panic("not implemented")
+	return nil, nil, errors.New("not implemented")
+}
+
+func (itr *{{.name}}AuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (itr *{{.name}}AuxIterator) stream() {

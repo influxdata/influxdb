@@ -756,6 +756,7 @@ func TestIteratorOptions_DerivativeInterval_Call(t *testing.T) {
 type IteratorCreator struct {
 	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	FieldDimensionsFn func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error)
+	SeriesKeysFn      func(opt influxql.IteratorOptions) (influxql.SeriesList, error)
 }
 
 func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
@@ -764,6 +765,47 @@ func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxq
 
 func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
 	return ic.FieldDimensionsFn(sources)
+}
+
+func (ic *IteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	if ic.SeriesKeysFn != nil {
+		return ic.SeriesKeysFn(opt)
+	}
+
+	itr, err := ic.CreateIterator(opt)
+	if err != nil {
+		return nil, err
+	}
+
+	seriesMap := make(map[string]influxql.Series)
+	switch itr := itr.(type) {
+	case influxql.FloatIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			seriesMap[s.ID()] = s
+		}
+	case influxql.IntegerIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			seriesMap[s.ID()] = s
+		}
+	case influxql.StringIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			seriesMap[s.ID()] = s
+		}
+	case influxql.BooleanIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			seriesMap[s.ID()] = s
+		}
+	}
+
+	seriesList := make([]influxql.Series, 0, len(seriesMap))
+	for _, s := range seriesMap {
+		seriesList = append(seriesList, s)
+	}
+	return influxql.SeriesList(seriesList), nil
 }
 
 // Test implementation of influxql.FloatIterator

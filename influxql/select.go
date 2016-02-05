@@ -184,6 +184,8 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 	case *Call:
 		// FIXME(benbjohnson): Validate that only calls with 1 arg are passed to IC.
 
+		var err error
+		var itr Iterator
 		switch expr.Name {
 		case "count":
 			switch arg := expr.Args[0].(type) {
@@ -193,12 +195,13 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 					if err != nil {
 						return nil, err
 					}
-					return newCountIterator(input, opt), nil
+					itr = newCountIterator(input, opt)
 				}
+			default:
+				itr, err = ic.CreateIterator(opt)
 			}
-			return ic.CreateIterator(opt)
 		case "min", "max", "sum", "first", "last":
-			return ic.CreateIterator(opt)
+			itr, err = ic.CreateIterator(opt)
 		case "distinct":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {
@@ -211,26 +214,26 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			if err != nil {
 				return nil, err
 			}
-			return newMeanIterator(input, opt), nil
+			itr = newMeanIterator(input, opt)
 		case "median":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {
 				return nil, err
 			}
-			return newMedianIterator(input, opt), nil
+			itr = newMedianIterator(input, opt)
 		case "stddev":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {
 				return nil, err
 			}
-			return newStddevIterator(input, opt), nil
+			itr = newStddevIterator(input, opt)
 		case "spread":
 			// OPTIMIZE(benbjohnson): convert to map/reduce
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {
 				return nil, err
 			}
-			return newSpreadIterator(input, opt), nil
+			itr = newSpreadIterator(input, opt)
 		case "top":
 			var tags []int
 			if len(expr.Args) < 2 {
@@ -254,7 +257,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 				return nil, err
 			}
 			n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
-			return newTopIterator(input, opt, n, tags), nil
+			itr = newTopIterator(input, opt, n, tags)
 		case "bottom":
 			var tags []int
 			if len(expr.Args) < 2 {
@@ -278,14 +281,14 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 				return nil, err
 			}
 			n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
-			return newBottomIterator(input, opt, n, tags), nil
+			itr = newBottomIterator(input, opt, n, tags)
 		case "percentile":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {
 				return nil, err
 			}
 			percentile := expr.Args[1].(*NumberLiteral).Val
-			return newPercentileIterator(input, opt, percentile), nil
+			itr = newPercentileIterator(input, opt, percentile)
 		case "derivative", "non_negative_derivative":
 			input, err := buildExprIterator(expr.Args[0], ic, opt)
 			if err != nil {
@@ -301,6 +304,20 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 		default:
 			panic(fmt.Sprintf("unsupported call: %s", expr.Name))
 		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		if !opt.Interval.IsZero() && opt.Fill != NoFill {
+			seriesKeys, err := ic.SeriesKeys(opt)
+			if err != nil {
+				itr.Close()
+				return nil, err
+			}
+			itr = NewFillIterator(itr, seriesKeys, expr, opt)
+		}
+		return itr, nil
 	case *BinaryExpr:
 		if rhs, ok := expr.RHS.(Literal); ok {
 			// The right hand side is a literal. It is more common to have the RHS be a literal,

@@ -184,6 +184,22 @@ func NewDedupeIterator(input Iterator) Iterator {
 	}
 }
 
+// NewFillIterator returns an iterator that fills in missing points in an aggregate.
+func NewFillIterator(input Iterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatFillIterator(input, seriesKeys, expr, opt)
+	case IntegerIterator:
+		return newIntegerFillIterator(input, seriesKeys, expr, opt)
+	case StringIterator:
+		return newStringFillIterator(input, seriesKeys, expr, opt)
+	case BooleanIterator:
+		return newBooleanFillIterator(input, seriesKeys, expr, opt)
+	default:
+		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
+	}
+}
+
 // AuxIterator represents an iterator that can split off separate auxilary iterators.
 type AuxIterator interface {
 	Iterator
@@ -401,6 +417,9 @@ type IteratorCreator interface {
 
 	// Returns the unique fields and dimensions across a list of sources.
 	FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error)
+
+	// Returns the series keys that will be returned by this iterator.
+	SeriesKeys(opt IteratorOptions) (SeriesList, error)
 }
 
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
@@ -418,6 +437,10 @@ type IteratorOptions struct {
 	// Group by interval and tags.
 	Interval   Interval
 	Dimensions []string
+
+	// Fill options.
+	Fill      FillOption
+	FillValue interface{}
 
 	// Condition to filter by.
 	Condition Expr
@@ -477,6 +500,7 @@ func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err err
 	opt.Ascending = stmt.TimeAscending()
 	opt.Dedupe = stmt.Dedupe
 
+	opt.Fill, opt.FillValue = stmt.Fill, stmt.FillValue
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
 
@@ -561,6 +585,28 @@ func (v *selectInfo) Visit(n Node) Visitor {
 		return nil
 	}
 	return v
+}
+
+type Series struct {
+	Name string
+	Tags Tags
+	Aux  []interface{}
+}
+
+func (s *Series) ID() string {
+	return s.Name + "\x00" + s.Tags.ID()
+}
+
+type SeriesList []Series
+
+func (a SeriesList) Len() int      { return len(a) }
+func (a SeriesList) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a SeriesList) Less(i, j int) bool {
+	if a[i].Name != a[j].Name {
+		return a[i].Name < a[j].Name
+	}
+	return a[i].Tags.ID() < a[j].Tags.ID()
 }
 
 // Interval represents a repeating interval for a query.

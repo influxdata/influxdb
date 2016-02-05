@@ -5,6 +5,7 @@ package influxql
 
 import (
 	"container/heap"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -409,6 +410,97 @@ func (itr *floatLimitIterator) Next() *FloatPoint {
 	}
 }
 
+type floatFillIterator struct {
+	input      *bufFloatIterator
+	seriesKeys SeriesList
+	prev       *FloatPoint
+	index      int
+	curTime    int64
+	startTime  int64
+	endTime    int64
+	opt        IteratorOptions
+}
+
+func newFloatFillIterator(input FloatIterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) *floatFillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = float64(0)
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		_, endTime = opt.Window(opt.EndTime)
+	} else {
+		_, startTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	return &floatFillIterator{
+		input:      newBufFloatIterator(input),
+		seriesKeys: seriesKeys,
+		curTime:    startTime,
+		startTime:  startTime,
+		endTime:    endTime,
+		opt:        opt,
+	}
+}
+
+func (itr *floatFillIterator) Close() error { return itr.input.Close() }
+
+func (itr *floatFillIterator) Next() *FloatPoint {
+	p := itr.input.Next()
+	if itr.index >= len(itr.seriesKeys) {
+		return p
+	}
+	series := itr.seriesKeys[itr.index]
+
+	if p == nil || itr.curTime < p.Time || p.Name != series.Name || p.Tags.ID() != series.Tags.ID() {
+		itr.input.unread(p)
+		p = &FloatPoint{
+			Name: series.Name,
+			Tags: series.Tags,
+			Time: itr.curTime,
+			Aux:  series.Aux,
+		}
+
+		switch itr.opt.Fill {
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = itr.opt.FillValue.(float64)
+		case PreviousFill:
+			if itr.prev != nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		default:
+			return p
+		}
+	} else {
+		itr.prev = p
+	}
+
+	if itr.opt.Ascending {
+		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
+		if itr.curTime >= itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	} else {
+		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
+		if itr.curTime < itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	}
+	return p
+}
+
 // floatAuxIterator represents a float implementation of AuxIterator.
 type floatAuxIterator struct {
 	input  *bufFloatIterator
@@ -452,7 +544,11 @@ func (itr *floatAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, erro
 }
 
 func (itr *floatAuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
-	panic("not implemented")
+	return nil, nil, errors.New("not implemented")
+}
+
+func (itr *floatAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (itr *floatAuxIterator) stream() {
@@ -1164,6 +1260,97 @@ func (itr *integerLimitIterator) Next() *IntegerPoint {
 	}
 }
 
+type integerFillIterator struct {
+	input      *bufIntegerIterator
+	seriesKeys SeriesList
+	prev       *IntegerPoint
+	index      int
+	curTime    int64
+	startTime  int64
+	endTime    int64
+	opt        IteratorOptions
+}
+
+func newIntegerFillIterator(input IntegerIterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) *integerFillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = int64(0)
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		_, endTime = opt.Window(opt.EndTime)
+	} else {
+		_, startTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	return &integerFillIterator{
+		input:      newBufIntegerIterator(input),
+		seriesKeys: seriesKeys,
+		curTime:    startTime,
+		startTime:  startTime,
+		endTime:    endTime,
+		opt:        opt,
+	}
+}
+
+func (itr *integerFillIterator) Close() error { return itr.input.Close() }
+
+func (itr *integerFillIterator) Next() *IntegerPoint {
+	p := itr.input.Next()
+	if itr.index >= len(itr.seriesKeys) {
+		return p
+	}
+	series := itr.seriesKeys[itr.index]
+
+	if p == nil || itr.curTime < p.Time || p.Name != series.Name || p.Tags.ID() != series.Tags.ID() {
+		itr.input.unread(p)
+		p = &IntegerPoint{
+			Name: series.Name,
+			Tags: series.Tags,
+			Time: itr.curTime,
+			Aux:  series.Aux,
+		}
+
+		switch itr.opt.Fill {
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = itr.opt.FillValue.(int64)
+		case PreviousFill:
+			if itr.prev != nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		default:
+			return p
+		}
+	} else {
+		itr.prev = p
+	}
+
+	if itr.opt.Ascending {
+		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
+		if itr.curTime >= itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	} else {
+		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
+		if itr.curTime < itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	}
+	return p
+}
+
 // integerAuxIterator represents a integer implementation of AuxIterator.
 type integerAuxIterator struct {
 	input  *bufIntegerIterator
@@ -1207,7 +1394,11 @@ func (itr *integerAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, er
 }
 
 func (itr *integerAuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
-	panic("not implemented")
+	return nil, nil, errors.New("not implemented")
+}
+
+func (itr *integerAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (itr *integerAuxIterator) stream() {
@@ -1919,6 +2110,97 @@ func (itr *stringLimitIterator) Next() *StringPoint {
 	}
 }
 
+type stringFillIterator struct {
+	input      *bufStringIterator
+	seriesKeys SeriesList
+	prev       *StringPoint
+	index      int
+	curTime    int64
+	startTime  int64
+	endTime    int64
+	opt        IteratorOptions
+}
+
+func newStringFillIterator(input StringIterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) *stringFillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = ""
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		_, endTime = opt.Window(opt.EndTime)
+	} else {
+		_, startTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	return &stringFillIterator{
+		input:      newBufStringIterator(input),
+		seriesKeys: seriesKeys,
+		curTime:    startTime,
+		startTime:  startTime,
+		endTime:    endTime,
+		opt:        opt,
+	}
+}
+
+func (itr *stringFillIterator) Close() error { return itr.input.Close() }
+
+func (itr *stringFillIterator) Next() *StringPoint {
+	p := itr.input.Next()
+	if itr.index >= len(itr.seriesKeys) {
+		return p
+	}
+	series := itr.seriesKeys[itr.index]
+
+	if p == nil || itr.curTime < p.Time || p.Name != series.Name || p.Tags.ID() != series.Tags.ID() {
+		itr.input.unread(p)
+		p = &StringPoint{
+			Name: series.Name,
+			Tags: series.Tags,
+			Time: itr.curTime,
+			Aux:  series.Aux,
+		}
+
+		switch itr.opt.Fill {
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = itr.opt.FillValue.(string)
+		case PreviousFill:
+			if itr.prev != nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		default:
+			return p
+		}
+	} else {
+		itr.prev = p
+	}
+
+	if itr.opt.Ascending {
+		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
+		if itr.curTime >= itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	} else {
+		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
+		if itr.curTime < itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	}
+	return p
+}
+
 // stringAuxIterator represents a string implementation of AuxIterator.
 type stringAuxIterator struct {
 	input  *bufStringIterator
@@ -1962,7 +2244,11 @@ func (itr *stringAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, err
 }
 
 func (itr *stringAuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
-	panic("not implemented")
+	return nil, nil, errors.New("not implemented")
+}
+
+func (itr *stringAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (itr *stringAuxIterator) stream() {
@@ -2674,6 +2960,97 @@ func (itr *booleanLimitIterator) Next() *BooleanPoint {
 	}
 }
 
+type booleanFillIterator struct {
+	input      *bufBooleanIterator
+	seriesKeys SeriesList
+	prev       *BooleanPoint
+	index      int
+	curTime    int64
+	startTime  int64
+	endTime    int64
+	opt        IteratorOptions
+}
+
+func newBooleanFillIterator(input BooleanIterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) *booleanFillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = false
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		_, endTime = opt.Window(opt.EndTime)
+	} else {
+		_, startTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	return &booleanFillIterator{
+		input:      newBufBooleanIterator(input),
+		seriesKeys: seriesKeys,
+		curTime:    startTime,
+		startTime:  startTime,
+		endTime:    endTime,
+		opt:        opt,
+	}
+}
+
+func (itr *booleanFillIterator) Close() error { return itr.input.Close() }
+
+func (itr *booleanFillIterator) Next() *BooleanPoint {
+	p := itr.input.Next()
+	if itr.index >= len(itr.seriesKeys) {
+		return p
+	}
+	series := itr.seriesKeys[itr.index]
+
+	if p == nil || itr.curTime < p.Time || p.Name != series.Name || p.Tags.ID() != series.Tags.ID() {
+		itr.input.unread(p)
+		p = &BooleanPoint{
+			Name: series.Name,
+			Tags: series.Tags,
+			Time: itr.curTime,
+			Aux:  series.Aux,
+		}
+
+		switch itr.opt.Fill {
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = itr.opt.FillValue.(bool)
+		case PreviousFill:
+			if itr.prev != nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		default:
+			return p
+		}
+	} else {
+		itr.prev = p
+	}
+
+	if itr.opt.Ascending {
+		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
+		if itr.curTime >= itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	} else {
+		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
+		if itr.curTime < itr.endTime {
+			itr.curTime = itr.startTime
+			itr.index++
+		}
+	}
+	return p
+}
+
 // booleanAuxIterator represents a boolean implementation of AuxIterator.
 type booleanAuxIterator struct {
 	input  *bufBooleanIterator
@@ -2717,7 +3094,11 @@ func (itr *booleanAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, er
 }
 
 func (itr *booleanAuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
-	panic("not implemented")
+	return nil, nil, errors.New("not implemented")
+}
+
+func (itr *booleanAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (itr *booleanAuxIterator) stream() {

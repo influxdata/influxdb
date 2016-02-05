@@ -415,6 +415,10 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields, dimensions ma
 	return
 }
 
+func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	return s.engine.SeriesKeys(opt)
+}
+
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 
@@ -468,6 +472,27 @@ func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 	default:
 		return nil, fmt.Errorf("unknown system source: %s", m.Name)
 	}
+}
+
+func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	seriesMap := make(map[string]influxql.Series)
+	for _, sh := range a {
+		series, err := sh.SeriesKeys(opt)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, s := range series {
+			seriesMap[s.ID()] = s
+		}
+	}
+
+	seriesList := make([]influxql.Series, 0, len(seriesMap))
+	for _, s := range seriesMap {
+		seriesList = append(seriesList, s)
+	}
+	sort.Sort(influxql.SeriesList(seriesList))
+	return influxql.SeriesList(seriesList), nil
 }
 
 // createMeasurementsIterator returns an iterator for all measurement names.
