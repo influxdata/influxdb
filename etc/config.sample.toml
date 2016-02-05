@@ -228,41 +228,27 @@ reporting-disabled = false
 
 [[graphite]]
   enabled = false
-  # database = "graphite"
   # bind-address = ":2003"
   # protocol = "tcp"
   # consistency-level = "one"
-  # name-separator = "."
 
-  # These next lines control how batching works. You should have this enabled
-  # otherwise you could get dropped metrics or poor performance. Batching
-  # will buffer points in memory if you have many coming in.
+  ### If matching multiple measurement files, this string will be used to join the matched values.
+  # separator = "."
 
-  # batch-size = 1000 # will flush if this many points get buffered
-  # batch-pending = 5 # number of batches that may be pending in memory
-  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
-  # udp-read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
+  ### Default tags that will be added to all metrics.  These can be overridden at the template level
+  ### or by tags extracted from metric
+  # tags = ["region=us-east", "zone=1c"]
 
-  ## "name-schema" configures tag names for parsing the metric name from graphite protocol;
-  ## separated by `name-separator`.
-  ## The "measurement" tag is special and the corresponding field will become
-  ## the name of the metric.
-  ## e.g. "type.host.measurement.device" will parse "server.localhost.cpu.cpu0" as
-  ## {
-  ##     measurement: "cpu",
-  ##     tags: {
-  ##         "type": "server",
-  ##         "host": "localhost,
-  ##         "device": "cpu0"
-  ##     }
-  ## }
-  # name-schema = "type.host.measurement.device"
-
-  ## If set to true, when the input metric name has more fields than `name-schema` specified,
-  ## the extra fields will be ignored.
-  ## Otherwise an error will be logged and the metric rejected.
-  # ignore-unnamed = true
-
+  ### Each template line requires a template pattern.  It can have an optional
+  ### filter before the template and separated by spaces.  It can also have optional extra
+  ### tags following the template.  Multiple tags should be separated by commas and no spaces
+  ### similar to the line protocol format.  The can be only one default template.
+  # templates = [
+  #   "*.app env.service.resource.measurement",
+  #   # Default template
+  #   "server.*",
+ #]
+ 
 ###
 ### [collectd]
 ###
