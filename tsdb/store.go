@@ -317,6 +317,9 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 
 	// Remove underlying data.
 	for _, sh := range s.shards {
+		if sh.index != db {
+			continue
+		}
 		if err := sh.DeleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
 			return err
 		}

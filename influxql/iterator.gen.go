@@ -6,8 +6,11 @@ package influxql
 import (
 	"container/heap"
 	"fmt"
+	"log"
 	"sort"
 	"sync"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 // FloatIterator represents a stream of float points.
@@ -721,6 +724,53 @@ func (itr *floatBoolTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type floatBoolTransformFunc func(p *FloatPoint) *BooleanPoint
 
+// floatDedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type floatDedupeIterator struct {
+	input FloatIterator
+	m     map[string]struct{} // lookup of points already sent
+}
+
+// newFloatDedupeIterator returns a new instance of floatDedupeIterator.
+func newFloatDedupeIterator(input FloatIterator) *floatDedupeIterator {
+	return &floatDedupeIterator{
+		input: input,
+		m:     make(map[string]struct{}),
+	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *floatDedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *floatDedupeIterator) Next() *FloatPoint {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encodeFloatPoint(p))
+		if err != nil {
+			log.Println("error marshaling dedupe point:", err)
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p
+	}
+}
+
 // IntegerIterator represents a stream of integer points.
 type IntegerIterator interface {
 	Iterator
@@ -1428,6 +1478,53 @@ func (itr *integerBoolTransformIterator) Next() *BooleanPoint {
 // The point passed in may be modified and returned rather than allocating a
 // new point if possible.
 type integerBoolTransformFunc func(p *IntegerPoint) *BooleanPoint
+
+// integerDedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type integerDedupeIterator struct {
+	input IntegerIterator
+	m     map[string]struct{} // lookup of points already sent
+}
+
+// newIntegerDedupeIterator returns a new instance of integerDedupeIterator.
+func newIntegerDedupeIterator(input IntegerIterator) *integerDedupeIterator {
+	return &integerDedupeIterator{
+		input: input,
+		m:     make(map[string]struct{}),
+	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerDedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *integerDedupeIterator) Next() *IntegerPoint {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encodeIntegerPoint(p))
+		if err != nil {
+			log.Println("error marshaling dedupe point:", err)
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p
+	}
+}
 
 // StringIterator represents a stream of string points.
 type StringIterator interface {
@@ -2137,6 +2234,53 @@ func (itr *stringBoolTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type stringBoolTransformFunc func(p *StringPoint) *BooleanPoint
 
+// stringDedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type stringDedupeIterator struct {
+	input StringIterator
+	m     map[string]struct{} // lookup of points already sent
+}
+
+// newStringDedupeIterator returns a new instance of stringDedupeIterator.
+func newStringDedupeIterator(input StringIterator) *stringDedupeIterator {
+	return &stringDedupeIterator{
+		input: input,
+		m:     make(map[string]struct{}),
+	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *stringDedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *stringDedupeIterator) Next() *StringPoint {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encodeStringPoint(p))
+		if err != nil {
+			log.Println("error marshaling dedupe point:", err)
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p
+	}
+}
+
 // BooleanIterator represents a stream of boolean points.
 type BooleanIterator interface {
 	Iterator
@@ -2844,3 +2988,50 @@ func (itr *booleanBoolTransformIterator) Next() *BooleanPoint {
 // The point passed in may be modified and returned rather than allocating a
 // new point if possible.
 type booleanBoolTransformFunc func(p *BooleanPoint) *BooleanPoint
+
+// booleanDedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type booleanDedupeIterator struct {
+	input BooleanIterator
+	m     map[string]struct{} // lookup of points already sent
+}
+
+// newBooleanDedupeIterator returns a new instance of booleanDedupeIterator.
+func newBooleanDedupeIterator(input BooleanIterator) *booleanDedupeIterator {
+	return &booleanDedupeIterator{
+		input: input,
+		m:     make(map[string]struct{}),
+	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanDedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *booleanDedupeIterator) Next() *BooleanPoint {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encodeBooleanPoint(p))
+		if err != nil {
+			log.Println("error marshaling dedupe point:", err)
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p
+	}
+}

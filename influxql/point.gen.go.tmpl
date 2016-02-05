@@ -1,5 +1,10 @@
 package influxql
 
+import (
+	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb/influxql/internal"
+)
+
 {{range .}}
 
 // {{.Name}}Point represents a point with a {{.Type}} value.
@@ -38,6 +43,37 @@ func (v *{{.Name}}Point) Clone() *{{.Name}}Point {
 	}
 
 	return &other
+}
+
+func encode{{.Name}}Point(p *{{.Name}}Point) *internal.Point {
+  return &internal.Point{
+    Name: proto.String(p.Name),
+    Tags: proto.String(p.Tags.ID()),
+    Time: proto.Int64(p.Time),
+    Nil: proto.Bool(p.Nil),
+    Aux: encodeAux(p.Aux),
+
+    {{if eq .Name "Float"}}
+      FloatValue: proto.Float64(p.Value),
+    {{else if eq .Name "Integer"}}
+      IntegerValue: proto.Int64(p.Value),
+    {{else if eq .Name "String"}}
+      StringValue: proto.String(p.Value),
+    {{else if eq .Name "Boolean"}}
+      BooleanValue: proto.Bool(p.Value),
+    {{end}}
+  }
+}
+
+func decode{{.Name}}Point(pb *internal.Point) *{{.Name}}Point {
+  return &{{.Name}}Point{
+    Name:  pb.GetName(),
+    Tags:  newTagsID(pb.GetTags()),
+    Time:  pb.GetTime(),
+    Nil:   pb.GetNil(),
+    Aux:   decodeAux(pb.Aux),
+    Value: pb.Get{{.Name}}Value(),
+  }
 }
 
 // {{.name}}Points represents a slice of points sortable by value.

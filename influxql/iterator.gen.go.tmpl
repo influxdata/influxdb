@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"log"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 {{range .}}
@@ -723,5 +726,51 @@ func (itr *{{.name}}BoolTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type {{.name}}BoolTransformFunc func(p *{{.Name}}Point) *BooleanPoint
 
+// {{.name}}DedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type {{.name}}DedupeIterator struct {
+	input  {{.Name}}Iterator
+	m      map[string]struct{} // lookup of points already sent
+}
+
+// new{{.Name}}DedupeIterator returns a new instance of {{.name}}DedupeIterator.
+func new{{.Name}}DedupeIterator(input {{.Name}}Iterator) *{{.name}}DedupeIterator {
+	return &{{.name}}DedupeIterator{
+		input: input,
+		m: make(map[string]struct{}),
+	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}DedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *{{.name}}DedupeIterator) Next() *{{.Name}}Point {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encode{{.Name}}Point(p))
+		if err != nil {
+			log.Println("error marshaling dedupe point:", err)
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p
+	}
+}
 
 {{end}}

@@ -3,6 +3,11 @@
 
 package influxql
 
+import (
+	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb/influxql/internal"
+)
+
 // FloatPoint represents a point with a float64 value.
 type FloatPoint struct {
 	Name string
@@ -39,6 +44,29 @@ func (v *FloatPoint) Clone() *FloatPoint {
 	}
 
 	return &other
+}
+
+func encodeFloatPoint(p *FloatPoint) *internal.Point {
+	return &internal.Point{
+		Name: proto.String(p.Name),
+		Tags: proto.String(p.Tags.ID()),
+		Time: proto.Int64(p.Time),
+		Nil:  proto.Bool(p.Nil),
+		Aux:  encodeAux(p.Aux),
+
+		FloatValue: proto.Float64(p.Value),
+	}
+}
+
+func decodeFloatPoint(pb *internal.Point) *FloatPoint {
+	return &FloatPoint{
+		Name:  pb.GetName(),
+		Tags:  newTagsID(pb.GetTags()),
+		Time:  pb.GetTime(),
+		Nil:   pb.GetNil(),
+		Aux:   decodeAux(pb.Aux),
+		Value: pb.GetFloatValue(),
+	}
 }
 
 // floatPoints represents a slice of points sortable by value.
@@ -122,6 +150,29 @@ func (v *IntegerPoint) Clone() *IntegerPoint {
 	return &other
 }
 
+func encodeIntegerPoint(p *IntegerPoint) *internal.Point {
+	return &internal.Point{
+		Name: proto.String(p.Name),
+		Tags: proto.String(p.Tags.ID()),
+		Time: proto.Int64(p.Time),
+		Nil:  proto.Bool(p.Nil),
+		Aux:  encodeAux(p.Aux),
+
+		IntegerValue: proto.Int64(p.Value),
+	}
+}
+
+func decodeIntegerPoint(pb *internal.Point) *IntegerPoint {
+	return &IntegerPoint{
+		Name:  pb.GetName(),
+		Tags:  newTagsID(pb.GetTags()),
+		Time:  pb.GetTime(),
+		Nil:   pb.GetNil(),
+		Aux:   decodeAux(pb.Aux),
+		Value: pb.GetIntegerValue(),
+	}
+}
+
 // integerPoints represents a slice of points sortable by value.
 type integerPoints []IntegerPoint
 
@@ -203,6 +254,29 @@ func (v *StringPoint) Clone() *StringPoint {
 	return &other
 }
 
+func encodeStringPoint(p *StringPoint) *internal.Point {
+	return &internal.Point{
+		Name: proto.String(p.Name),
+		Tags: proto.String(p.Tags.ID()),
+		Time: proto.Int64(p.Time),
+		Nil:  proto.Bool(p.Nil),
+		Aux:  encodeAux(p.Aux),
+
+		StringValue: proto.String(p.Value),
+	}
+}
+
+func decodeStringPoint(pb *internal.Point) *StringPoint {
+	return &StringPoint{
+		Name:  pb.GetName(),
+		Tags:  newTagsID(pb.GetTags()),
+		Time:  pb.GetTime(),
+		Nil:   pb.GetNil(),
+		Aux:   decodeAux(pb.Aux),
+		Value: pb.GetStringValue(),
+	}
+}
+
 // stringPoints represents a slice of points sortable by value.
 type stringPoints []StringPoint
 
@@ -282,6 +356,29 @@ func (v *BooleanPoint) Clone() *BooleanPoint {
 	}
 
 	return &other
+}
+
+func encodeBooleanPoint(p *BooleanPoint) *internal.Point {
+	return &internal.Point{
+		Name: proto.String(p.Name),
+		Tags: proto.String(p.Tags.ID()),
+		Time: proto.Int64(p.Time),
+		Nil:  proto.Bool(p.Nil),
+		Aux:  encodeAux(p.Aux),
+
+		BooleanValue: proto.Bool(p.Value),
+	}
+}
+
+func decodeBooleanPoint(pb *internal.Point) *BooleanPoint {
+	return &BooleanPoint{
+		Name:  pb.GetName(),
+		Tags:  newTagsID(pb.GetTags()),
+		Time:  pb.GetTime(),
+		Nil:   pb.GetNil(),
+		Aux:   decodeAux(pb.Aux),
+		Value: pb.GetBooleanValue(),
+	}
 }
 
 // booleanPoints represents a slice of points sortable by value.

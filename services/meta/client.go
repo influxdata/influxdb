@@ -703,11 +703,6 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 
 // ShardIDsByTimeRange returns a slice of shards that may contain data in the time range.
 func (c *Client) ShardIDsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []uint64, err error) {
-	// If a system-wide source is included then return all shard ids.
-	if sources.HasSystemSource() {
-		return c.ShardIDs(), nil
-	}
-
 	m := make(map[uint64]struct{})
 	for _, src := range sources {
 		mm, ok := src.(*influxql.Measurement)

@@ -2,6 +2,9 @@ package influxql
 
 import (
 	"sort"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb/influxql/internal"
 )
 
 // ZeroTime is the Unix nanosecond timestamp for time.Time{}.
@@ -42,6 +45,15 @@ func NewTags(m map[string]string) Tags {
 		id: string(encodeTags(m)),
 		m:  m,
 	}
+}
+
+// newTagsID returns a new instance of Tags parses from a tag id.
+func newTagsID(id string) Tags {
+	m := decodeTags([]byte(id))
+	if len(m) == 0 {
+		return Tags{}
+	}
+	return Tags{id: id, m: m}
 }
 
 // ID returns the string identifier for the tags.
@@ -149,4 +161,69 @@ func encodeTags(m map[string]string) []byte {
 		}
 	}
 	return b
+}
+
+// decodeTags parses an identifier into a map of tags.
+func decodeTags(id []byte) map[string]string { panic("FIXME: implement") }
+
+func encodeAux(aux []interface{}) []*internal.Aux {
+	pb := make([]*internal.Aux, len(aux))
+	for i := range aux {
+		switch v := aux[i].(type) {
+		case float64:
+			pb[i] = &internal.Aux{DataType: proto.Int32(Float), FloatValue: proto.Float64(v)}
+		case *float64:
+			pb[i] = &internal.Aux{DataType: proto.Int32(Float)}
+		case int64:
+			pb[i] = &internal.Aux{DataType: proto.Int32(Integer), IntegerValue: proto.Int64(v)}
+		case *int64:
+			pb[i] = &internal.Aux{DataType: proto.Int32(Integer)}
+		case string:
+			pb[i] = &internal.Aux{DataType: proto.Int32(String), StringValue: proto.String(v)}
+		case *string:
+			pb[i] = &internal.Aux{DataType: proto.Int32(String)}
+		case bool:
+			pb[i] = &internal.Aux{DataType: proto.Int32(Boolean), BooleanValue: proto.Bool(v)}
+		case *bool:
+			pb[i] = &internal.Aux{DataType: proto.Int32(Boolean)}
+		default:
+			pb[i] = &internal.Aux{DataType: proto.Int32(int32(Unknown))}
+		}
+	}
+	return pb
+}
+
+func decodeAux(pb []*internal.Aux) []interface{} {
+	aux := make([]interface{}, len(pb))
+	for i := range pb {
+		switch pb[i].GetDataType() {
+		case Float:
+			if pb[i].FloatValue != nil {
+				aux[i] = *pb[i].FloatValue
+			} else {
+				aux[i] = (*float64)(nil)
+			}
+		case Integer:
+			if pb[i].IntegerValue != nil {
+				aux[i] = *pb[i].IntegerValue
+			} else {
+				aux[i] = (*int64)(nil)
+			}
+		case String:
+			if pb[i].StringValue != nil {
+				aux[i] = *pb[i].StringValue
+			} else {
+				aux[i] = (*string)(nil)
+			}
+		case Boolean:
+			if pb[i].BooleanValue != nil {
+				aux[i] = *pb[i].BooleanValue
+			} else {
+				aux[i] = (*bool)(nil)
+			}
+		default:
+			aux[i] = nil
+		}
+	}
+	return aux
 }

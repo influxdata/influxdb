@@ -4567,6 +4567,12 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
+			name:    "verify cpu measurement exists in db1",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+			params:  url.Values{"db": []string{"db1"}},
+		},
+		&Query{
 			name:    "Drop Measurement, series tags preserved tests",
 			command: `SHOW MEASUREMENTS`,
 			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["memory"]]}]}]}`,

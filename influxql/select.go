@@ -75,6 +75,11 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 		return nil, err
 	}
 
+	// Filter out duplicate rows, if required.
+	if opt.Dedupe {
+		input = NewDedupeIterator(input)
+	}
+
 	// Apply limit & offset.
 	if opt.Limit > 0 || opt.Offset > 0 {
 		input = NewLimitIterator(input, opt)

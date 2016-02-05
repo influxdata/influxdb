@@ -800,6 +800,9 @@ type SelectStatement struct {
 
 	// Removes the "time" column from the output.
 	OmitTime bool
+
+	// Removes duplicate rows from raw queries.
+	Dedupe bool
 }
 
 // HasDerivative returns true if one of the function calls in the statement is a

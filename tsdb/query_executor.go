@@ -563,19 +563,27 @@ func (q *QueryExecutor) planShowMeasurements(stmt *influxql.ShowMeasurementsStat
 		}
 	}
 
-	return q.PlanSelect(&influxql.SelectStatement{
+	ss := &influxql.SelectStatement{
 		Fields: influxql.Fields{
 			{Expr: &influxql.VarRef{Val: "name"}},
 		},
 		Sources: influxql.Sources{
-			&influxql.Measurement{Database: database, Name: "_measurements"},
+			&influxql.Measurement{Name: "_measurements"},
 		},
 		Condition:  condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
 		OmitTime:   true,
-	}, chunkSize)
+		Dedupe:     true,
+	}
+
+	// Normalize the statement.
+	if err := q.normalizeStatement(ss, database); err != nil {
+		return nil, err
+	}
+
+	return q.PlanSelect(ss, chunkSize)
 }
 
 // planShowTagKeys creates an execution plan for a SHOW MEASUREMENTS statement and returns an Executor.
@@ -612,19 +620,27 @@ func (q *QueryExecutor) planShowTagKeys(stmt *influxql.ShowTagKeysStatement, dat
 		}
 	}
 
-	return q.PlanSelect(&influxql.SelectStatement{
+	ss := &influxql.SelectStatement{
 		Fields: influxql.Fields{
 			{Expr: &influxql.VarRef{Val: "tagKey"}},
 		},
 		Sources: influxql.Sources{
-			&influxql.Measurement{Database: database, Name: "_tagKeys"},
+			&influxql.Measurement{Name: "_tagKeys"},
 		},
 		Condition:  condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
 		OmitTime:   true,
-	}, chunkSize)
+		Dedupe:     true,
+	}
+
+	// Normalize the statement.
+	if err := q.normalizeStatement(ss, database); err != nil {
+		return nil, err
+	}
+
+	return q.PlanSelect(ss, chunkSize)
 }
 
 func (q *QueryExecutor) executeStatement(statementID int, stmt influxql.Statement, database string, results chan *influxql.Result, chunkSize int, closing chan struct{}) error {

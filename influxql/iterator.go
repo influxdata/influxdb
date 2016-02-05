@@ -162,6 +162,28 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewDedupeIterator returns an iterator that only outputs unique points.
+// This iterator maintains a serialized copy of each row so it is inefficient
+// to use on large datasets. It is intended for small datasets such as meta queries.
+func NewDedupeIterator(input Iterator) Iterator {
+	if input == nil {
+		return nil
+	}
+
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatDedupeIterator(input)
+	case IntegerIterator:
+		return newIntegerDedupeIterator(input)
+	case StringIterator:
+		return newStringDedupeIterator(input)
+	case BooleanIterator:
+		return newBooleanDedupeIterator(input)
+	default:
+		panic(fmt.Sprintf("unsupported dedupe iterator type: %T", input))
+	}
+}
+
 // AuxIterator represents an iterator that can split off separate auxilary iterators.
 type AuxIterator interface {
 	Iterator
@@ -412,6 +434,9 @@ type IteratorOptions struct {
 
 	// Limits the number of series.
 	SLimit, SOffset int
+
+	// Removes duplicate rows from raw queries.
+	Dedupe bool
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -450,6 +475,7 @@ func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err err
 	opt.Sources = stmt.Sources
 	opt.Condition = stmt.Condition
 	opt.Ascending = stmt.TimeAscending()
+	opt.Dedupe = stmt.Dedupe
 
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
