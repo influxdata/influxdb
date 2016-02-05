@@ -25,11 +25,11 @@ RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.
    rm /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz
 ENV PATH /usr/local/go/bin:$PATH
 
-ENV PROJECT_DIR $GOPATH/src/github.com/influxdb/influxdb
+ENV PROJECT_DIR $GOPATH/src/github.com/influxdata/influxdb
 ENV PATH $GOPATH/bin:$PATH
 RUN mkdir -p $PROJECT_DIR
 WORKDIR $PROJECT_DIR
 
 VOLUME $PROJECT_DIR
 
-ENTRYPOINT [ "/root/go/src/github.com/influxdb/influxdb/build.py" ]
+ENTRYPOINT [ "/root/go/src/github.com/influxdata/influxdb/build.py" ]

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/services/meta/internal"
+	"github.com/influxdata/influxdb/services/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"

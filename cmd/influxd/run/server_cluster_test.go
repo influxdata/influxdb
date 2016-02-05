@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/cmd/influxd/run"
+	"github.com/influxdata/influxdb/cmd/influxd/run"
 )
 
 func TestCluster_CreateDatabase(t *testing.T) {

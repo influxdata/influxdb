@@ -6,7 +6,7 @@ session="influxd-3-shard-test"
 
 # start the world if we're not already in session
 if ! tmux ls | grep -q "$session"; then
-	cd $GOPATH/src/github.com/influxdb/influxdb/tests/tmux
+	cd $GOPATH/src/github.com/influxdata/influxdb/tests/tmux
 	tmux new-session -d -s $session
 
 	# create and split main window into three panes

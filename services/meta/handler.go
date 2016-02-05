@@ -17,8 +17,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
-	"github.com/influxdb/influxdb/services/meta/internal"
-	"github.com/influxdb/influxdb/uuid"
+	"github.com/influxdata/influxdb/services/meta/internal"
+	"github.com/influxdata/influxdb/uuid"
 )
 
 // handler represents an HTTP handler for the meta service.
