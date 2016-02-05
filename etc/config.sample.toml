@@ -242,7 +242,7 @@ reporting-disabled = false
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
   # udp-read-buffer = 0 # UDP Read buffer size, 0 means OS default. UDP listener will fail if set above OS max.
 
-  ### If matching multiple measurement files, this string will be used to join the matched values.
+  ### This string joins multiple matching 'measurement' values providing more control over the final measurement name.
   # separator = "."
 
   ### Default tags that will be added to all metrics.  These can be overridden at the template level
@@ -252,12 +252,12 @@ reporting-disabled = false
   ### Each template line requires a template pattern.  It can have an optional
   ### filter before the template and separated by spaces.  It can also have optional extra
   ### tags following the template.  Multiple tags should be separated by commas and no spaces
-  ### similar to the line protocol format.  The can be only one default template.
+  ### similar to the line protocol format.  There can be only one default template.
   # templates = [
   #   "*.app env.service.resource.measurement",
   #   # Default template
   #   "server.*",
-  #]
+  # ]
 
 ###
 ### [collectd]
