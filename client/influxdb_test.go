@@ -3,9 +3,12 @@ package client_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -554,5 +557,50 @@ func TestClient_ParseConnectionString_IPv6(t *testing.T) {
 	}
 	if u.Host != path {
 		t.Fatalf("ipv6 parse failed, expected %s, actual %s", path, u.Host)
+	}
+}
+
+func TestBufferedClient_Write_And_Close(t *testing.T) {
+	flushChan := make(chan bool)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+		all, _ := ioutil.ReadAll(r.Body)
+		t.Logf(string(all))
+		go func() { flushChan <- true }()
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	bufferConfig := client.BufferConfig{FlushMaxPoints: 25, FlushMaxWaitTime: 1 * time.Second}
+	c, err := client.NewBufferedClient(config, bufferConfig)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	var (
+		shapes     = []string{"circle", "rectangle", "square", "triangle"}
+		colors     = []string{"red", "blue", "green"}
+		sampleSize = 100
+	)
+	rand.Seed(42)
+	makeTags := func() map[string]string {
+		return map[string]string{
+			"color": strconv.Itoa(rand.Intn(len(colors))),
+			"shape": strconv.Itoa(rand.Intn(len(shapes))),
+		}
+	}
+	for i := 0; i < sampleSize; i++ {
+		c.Add("shapes", rand.Intn(sampleSize), makeTags(), nil)
+	}
+	err = c.Close()
+	if err != nil {
+		panic(err)
+	}
+	<-time.After(100 * time.Millisecond)
+	expectedFlushCount := sampleSize / bufferConfig.FlushMaxPoints
+	for i := 0; i < expectedFlushCount; i++ {
+		<-flushChan
 	}
 }
