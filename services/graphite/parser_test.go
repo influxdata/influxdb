@@ -93,6 +93,13 @@ func TestTemplateApply(t *testing.T) {
 			measurement: "cpu.load",
 			tags:        map[string]string{"zone": "us-west"},
 		},
+		{
+			test:        "conjoined fields",
+			input:       "prod.us-west.server01.cpu.util.idle.percent",
+			template:    "env.zone.host.measurement.measurement.field*",
+			measurement: "cpu.util",
+			tags:        map[string]string{"env": "prod", "zone": "us-west", "host": "server01"},
+		},
 	}
 
 	for _, test := range tests {

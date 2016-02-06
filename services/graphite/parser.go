@@ -237,6 +237,9 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 				return "", nil, "", fmt.Errorf("'field' can only be used once in each template: %q", line)
 			}
 			field = fields[i]
+		} else if tag == "field*" {
+			field = strings.Join(fields[i:], "_")
+			break			
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
 			break
