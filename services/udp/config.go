@@ -19,6 +19,9 @@ const (
 	// DefaultBatchTimeout is the default UDP batch timeout.
 	DefaultBatchTimeout = time.Second
 
+	// DefaultPrecision is the default time precision used for UDP services.
+	DefaultPrecision = "n"
+
 	// DefaultReadBuffer is the default buffer size for the UDP listener.
 	// Sets the size of the operating system's receive buffer associated with
 	// the UDP traffic. Keep in mind that the OS must be able
@@ -62,6 +65,7 @@ type Config struct {
 	BatchPending    int           `toml:"batch-pending"`
 	ReadBuffer      int           `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
+	Precision       string         `toml:"precision"`
 	UDPPayloadSize  int           `toml:"udp-payload-size"`
 }
 
@@ -80,6 +84,9 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.BatchTimeout == 0 {
 		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	}
+	if d.Precision == "" {
+		d.Precision = DefaultPrecision
 	}
 	if d.ReadBuffer == 0 {
 		d.ReadBuffer = DefaultReadBuffer
