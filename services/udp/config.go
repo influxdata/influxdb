@@ -65,7 +65,7 @@ type Config struct {
 	BatchPending    int           `toml:"batch-pending"`
 	ReadBuffer      int           `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
-	Precision       string         `toml:"precision"`
+	Precision       string        `toml:"precision"`
 	UDPPayloadSize  int           `toml:"udp-payload-size"`
 }
 
