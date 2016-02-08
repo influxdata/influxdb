@@ -817,6 +817,166 @@ func TestCompacted_NotFull(t *testing.T) {
 	}
 }
 
+func TestTSMReader_File_ReadAll(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	var data = []struct {
+		key    string
+		values []tsm1.Value
+	}{
+		{"float", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+		},
+		{"int", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+		},
+		{"bool", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), true)},
+		},
+		{"string", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), "foo")},
+		},
+	}
+
+	for _, d := range data {
+		if err := w.Write(d.key, d.values); err != nil {
+			t.Fatalf("unexpected error writing: %v", err)
+		}
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			Reader: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	var count int
+	for _, d := range data {
+		readValues, err := r.ReadAll(d.key)
+		if err != nil {
+			t.Fatalf("unexpected error reading: %v", err)
+		}
+
+		if exp := len(d.values); exp != len(readValues) {
+			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
+		}
+
+		for i, v := range d.values {
+			if exp, got := v.Value(), readValues[i].Value(); exp != got {
+				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
+			}
+		}
+		count++
+	}
+
+	if exp, got := len(data), count; exp != got {
+		t.Fatalf("read values count mismatch: exp %v, got %v", exp, got)
+	}
+}
+
+func TestTSMReader_File_Read(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	var data = []struct {
+		key    string
+		values []tsm1.Value
+	}{
+		{"float", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+		},
+		{"int", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+		},
+		{"bool", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), true)},
+		},
+		{"string", []tsm1.Value{
+			tsm1.NewValue(time.Unix(1, 0), "foo")},
+		},
+	}
+	for _, d := range data {
+		if err := w.Write(d.key, d.values); err != nil {
+			t.Fatalf("unexpected error writing: %v", err)
+		}
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReaderWithOptions(
+		tsm1.TSMReaderOptions{
+			Reader: f,
+		})
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	var count int
+	for _, d := range data {
+		readValues, err := r.Read(d.key, d.values[0].Time())
+		if err != nil {
+			t.Fatalf("unexpected error readin: %v", err)
+		}
+
+		if exp, got := len(d.values), len(readValues); exp != got {
+			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
+		}
+
+		for i, v := range d.values {
+			if v.Value() != readValues[i].Value() {
+				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
+			}
+		}
+		count++
+	}
+
+	if exp, got := count, len(data); exp != got {
+		t.Fatalf("read values count mismatch: exp %v, got %v", exp, got)
+	}
+}
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 100000; i++ {
