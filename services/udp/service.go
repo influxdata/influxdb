@@ -180,7 +180,7 @@ func (s *Service) parser() {
 		case <-s.done:
 			return
 		case buf := <-s.parserChan:
-			points, err := models.ParsePoints(buf)
+			points, err := models.ParsePointsWithPrecision(buf, time.Now().UTC(), s.config.Precision)
 			if err != nil {
 				s.statMap.Add(statPointsParseFail, 1)
 				s.Logger.Printf("Failed to parse points: %s", err)

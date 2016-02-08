@@ -27,6 +27,7 @@ This release also changes how clusters are setup. The config file has changed so
 - [#5459](https://github.com/influxdata/influxdb/pull/5459): Create `/status` endpoint for health checks.
 - [#5460](https://github.com/influxdata/influxdb/pull/5460): Prevent exponential growth in CLI history. Thanks @sczk!
 - [#5522](https://github.com/influxdata/influxdb/pull/5522): Optimize tsm1 cache to reduce memory consumption and GC scan time.
+- [#5565](https://github.com/influxdata/influxdb/pull/5565): Add configuration for time precision with UDP services. - @tpitale
 
 ### Bugfixes
 - [#4299](https://github.com/influxdata/influxdb/pull/4299): Reject uint64 Client.Point.Field values
