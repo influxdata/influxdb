@@ -8,7 +8,7 @@ The goal of this guide is to capture some Do and Don'ts of Go code for the Influ
 
 # The Guidelines
 
-## Try not to use third-party libaries
+## Try not to use third-party libraries
 
 A third-party package is defined as one that is not part of the standard Go distribution. Generally speaking we prefer to minimize our use of third-party packages, and avoid them unless absolutely necessarily. We'll often write a little bit of code rather than pull in a third-party package. Of course, we do use some third-party packages -- most importantly we use [BoltDB](https://github.com/boltdb/bolt) in some storage engines. So to maximise the chance your change will be accepted by us, use only the standard libraries, or the third-party packages we have decided to use.
 
