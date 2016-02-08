@@ -313,6 +313,11 @@ func (n *node) insert(values []string, template *template) {
 	n.children = append(n.children, newNode)
 	sort.Sort(&n.children)
 
+	// Inherit template if value is wildcard
+	if values[0] == "*" {
+		newNode.template = n.template
+	}
+
 	// Now insert the rest of the tree into the new element
 	newNode.insert(values[1:], template)
 }
