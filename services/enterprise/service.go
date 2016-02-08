@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -35,8 +36,9 @@ type Service struct {
 
 	adminPort string
 
-	token     string
-	secretKey string
+	tokenAvailable chan struct{}
+	token          string
+	secretKey      string
 
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -47,13 +49,14 @@ type Service struct {
 // NewService returns a configured enterprise service.
 func NewService(c Config, version string) (*Service, error) {
 	return &Service{
-		enabled:       c.Enabled,
-		hosts:         c.Hosts,
-		statsInterval: time.Duration(c.StatsInterval),
-		version:       version,
-		done:          make(chan struct{}),
-		logger:        log.New(os.Stderr, "[enterprise] ", log.LstdFlags),
-		adminPort:     fmt.Sprintf(":%d", c.AdminPort),
+		enabled:        c.Enabled,
+		hosts:          c.Hosts,
+		statsInterval:  time.Duration(c.StatsInterval),
+		version:        version,
+		done:           make(chan struct{}),
+		tokenAvailable: make(chan struct{}),
+		logger:         log.New(os.Stderr, "[enterprise] ", log.LstdFlags),
+		adminPort:      fmt.Sprintf(":%d", c.AdminPort),
 	}, nil
 }
 
@@ -121,12 +124,19 @@ func (s *Service) registerServer() error {
 		return err
 	}
 
+	adminURL := "http://" + hostname + s.adminPort
+	_, err = url.Parse(adminURL)
+	if err != nil {
+		return err
+	}
+
 	product := client.Product{
 		ClusterID: fmt.Sprintf("%d", clusterID),
 		ProductID: fmt.Sprintf("%d", s.MetaStore.NodeID()),
 		Host:      hostname,
 		Name:      "influxdb",
 		Version:   s.version,
+		AdminURL:  adminURL,
 	}
 
 	s.wg.Add(1)
@@ -147,6 +157,7 @@ func (s *Service) registerServer() error {
 		}
 		s.hosts = cl.Hosts
 		s.updateLastContact(time.Now().UTC())
+		close(s.tokenAvailable)
 	}()
 	return nil
 }
@@ -201,6 +212,15 @@ func (s *Service) reportStats() {
 
 func (s *Service) launchAdminInterface() {
 	defer s.wg.Done()
+
+	// block until server is registered with Enterprise
+	// otherwise die.
+	select {
+	case <-s.tokenAvailable:
+		break
+	case <-s.done:
+		return
+	}
 
 	srv := &http.Server{
 		Addr:         s.adminPort,
