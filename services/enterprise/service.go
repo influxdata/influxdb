@@ -29,9 +29,11 @@ type Service struct {
 	hosts         []*client.Host
 	statsInterval time.Duration
 	version       string
-	mu            sync.Mutex
-	lastContact   time.Time
-	adminPort     string
+
+	mu          sync.Mutex
+	lastContact time.Time
+
+	adminPort string
 
 	token     string
 	secretKey string
