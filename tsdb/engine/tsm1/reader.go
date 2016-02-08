@@ -778,6 +778,7 @@ func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 	if b == nil {
 		b = make([]byte, entry.Size)
 	}
+
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
@@ -787,7 +788,7 @@ func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 		b = make([]byte, entry.Size)
 	}
 
-	n, err := f.r.Read(b)
+	n, err := f.r.Read(b[:entry.Size])
 	if err != nil {
 		return nil, err
 	}
