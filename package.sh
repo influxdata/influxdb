@@ -67,7 +67,7 @@ if [ -z "$FPM" ]; then
     FPM=`which fpm`
 fi
 
-GO_VERSION="go1.4.3"
+GO_VERSION="go1.5.3"
 GOPATH_INSTALL=
 BINS=(
     influxd
@@ -326,7 +326,7 @@ do
         ;;
 
     -w | --working-directory)
-	PACKAGES_ONLY="PACKAGES_ONLY"
+        PACKAGES_ONLY="PACKAGES_ONLY"
         WORKING_DIR="WORKING_DIR"
 	    shift
 	    ;;

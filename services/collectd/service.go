@@ -299,7 +299,12 @@ func (s *Service) UnmarshalCollectd(packet *gollectd.Packet) []models.Point {
 		p, err := models.NewPoint(name, tags, fields, timestamp)
 		// Drop invalid points
 		if err != nil {
-			s.Logger.Printf("Dropping point %v: %v", name, err)
+			// I'm hitting a crash with name == nil. So I added this
+			// workaround to avoid it...
+			if &name != nil {
+				s.Logger.Printf("Dropping point %v: %v", name, err)
+			}
+			// Anyway, update the statistics of this...
 			s.statMap.Add(statDroppedPointsInvalid, 1)
 			continue
 		}
