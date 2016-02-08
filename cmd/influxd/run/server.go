@@ -432,7 +432,6 @@ func (s *Server) Open() error {
 		}
 
 		s.Subscriber.MetaClient = s.MetaClient
-		s.ShardMapper.MetaClient = s.MetaClient
 		s.QueryExecutor.MetaClient = s.MetaClient
 		s.ShardWriter.MetaClient = s.MetaClient
 		s.HintedHandoff.MetaClient = s.MetaClient
