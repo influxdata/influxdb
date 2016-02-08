@@ -2,11 +2,17 @@
 
 ### Features
 
+- [#5541](https://github.com/influxdata/influxdb/pull/5541): Support for adding custom TLS Config for HTTP client.
+
 ### Bugfixes
+
+- [#5182](https://github.com/influxdata/influxdb/pull/5182): Graphite: Fix an issue where the default template would be used instead of a more specific one. Thanks @flisky
+- [#5489](https://github.com/influxdata/influxdb/pull/5489): Fixes multiple issues causing tests to fail on windows. Thanks @runner-mei
 
 ## v0.10.0 [2016-02-04]
 
 ### Release Notes
+
 This release now uses the TSM storage engine. Old bz1 and b1 shards can still be read, but in a future release you will be required to migrate old shards to TSM. For new shards getting created, or new installations, the TSM storage engine will be used.
 
 This release also changes how clusters are setup. The config file has changed so have a look at the new example. Also, upgrading a single node works, but for upgrading clusters, you'll need help from us. Sent us a note at contact@influxdb.com if you need assistance upgrading a cluster.
