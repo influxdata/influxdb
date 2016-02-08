@@ -1,7 +1,6 @@
 package influxql_test
 
 import (
-	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -600,9 +599,9 @@ func TestSelect_Stddev(t *testing.T) {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 0.7071067811865476}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: math.NaN()}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Nil: true}},
 		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 0.7071067811865476}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: math.NaN()}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Nil: true}},
 		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 1.5811388300841898}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
