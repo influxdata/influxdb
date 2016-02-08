@@ -85,8 +85,14 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 		input = NewLimitIterator(input, opt)
 	}
 
+	seriesKeys, err := ic.SeriesKeys(opt)
+	if err != nil {
+		input.Close()
+		return nil, err
+	}
+
 	// Wrap in an auxilary iterator to separate the fields.
-	aitr := NewAuxIterator(input, opt)
+	aitr := NewAuxIterator(input, seriesKeys, opt)
 
 	// Generate iterators for each field.
 	itrs := make([]Iterator, len(fields))
@@ -142,9 +148,14 @@ func buildFieldIterators(fields Fields, ic IteratorCreator, opt IteratorOptions)
 			return nil
 		}
 
+		seriesKeys, err := ic.SeriesKeys(opt)
+		if err != nil {
+			return err
+		}
+
 		// Build the aux iterators. Previous validation should ensure that only one
 		// call was present so we build an AuxIterator from that input.
-		aitr := NewAuxIterator(input, opt)
+		aitr := NewAuxIterator(input, seriesKeys, opt)
 		for i, f := range fields {
 			if itrs[i] != nil {
 				itrs[i] = aitr

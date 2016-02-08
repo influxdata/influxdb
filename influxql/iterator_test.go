@@ -502,6 +502,9 @@ func TestFloatAuxIterator(t *testing.T) {
 			{Time: 0, Value: 1, Aux: []interface{}{float64(100), float64(200)}},
 			{Time: 1, Value: 2, Aux: []interface{}{float64(500), math.NaN()}},
 		}},
+		influxql.SeriesList{
+			{Aux: []influxql.DataType{influxql.Float, influxql.Float}},
+		},
 		influxql.IteratorOptions{Aux: []string{"f0", "f1"}},
 	)
 
@@ -781,22 +784,22 @@ func (ic *IteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.Se
 	switch itr := itr.(type) {
 	case influxql.FloatIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
-			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
 			seriesMap[s.ID()] = s
 		}
 	case influxql.IntegerIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
-			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
 			seriesMap[s.ID()] = s
 		}
 	case influxql.StringIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
-			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
 			seriesMap[s.ID()] = s
 		}
 	case influxql.BooleanIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
-			s := influxql.Series{Name: p.Name, Tags: p.Tags}
+			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
 			seriesMap[s.ID()] = s
 		}
 	}

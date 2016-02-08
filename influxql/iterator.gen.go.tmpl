@@ -420,6 +420,7 @@ type {{.name}}FillIterator struct {
 	curTime    int64
 	startTime  int64
 	endTime    int64
+	auxFields  []interface{}
 	opt        IteratorOptions
 }
 
@@ -440,12 +441,21 @@ func new{{.Name}}FillIterator(input {{.Name}}Iterator, seriesKeys SeriesList, ex
 		endTime, _ = opt.Window(opt.StartTime)
 	}
 
+	var auxFields []interface{}
+	if len(seriesKeys) > 0 {
+		series := seriesKeys[0]
+		if len(series.Aux) > 0 {
+			auxFields = make([]interface{}, len(series.Aux))
+		}
+	}
+
 	return &{{.name}}FillIterator{
 		input:      newBuf{{.Name}}Iterator(input),
 		seriesKeys: seriesKeys,
 		curTime:    startTime,
 		startTime:  startTime,
 		endTime:    endTime,
+		auxFields:  auxFields,
 		opt:        opt,
 	}
 }
@@ -465,7 +475,7 @@ func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
 			Name: series.Name,
 			Tags: series.Tags,
 			Time: itr.curTime,
-			Aux:  series.Aux,
+			Aux:  itr.auxFields,
 		}
 
 		switch itr.opt.Fill {
@@ -491,16 +501,28 @@ func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
 		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
 		if itr.curTime >= itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	} else {
 		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
 		if itr.curTime < itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	}
 	return p
+}
+
+func (itr *{{.name}}FillIterator) nextSeries() {
+	itr.index++
+	if itr.index < len(itr.seriesKeys) {
+		series := itr.seriesKeys[itr.index]
+		if len(series.Aux) > 0 {
+			itr.auxFields = make([]interface{}, len(series.Aux))
+		} else {
+			itr.auxFields = nil
+		}
+	}
 }
 
 // {{.name}}AuxIterator represents a {{.name}} implementation of AuxIterator.
@@ -510,17 +532,16 @@ type {{.name}}AuxIterator struct {
 	fields auxIteratorFields
 }
 
-func new{{.Name}}AuxIterator(input {{.Name}}Iterator, opt IteratorOptions) *{{.name}}AuxIterator {
+func new{{.Name}}AuxIterator(input {{.Name}}Iterator, seriesKeys SeriesList, opt IteratorOptions) *{{.name}}AuxIterator {
 	itr := &{{.name}}AuxIterator{
 		input:  newBuf{{.Name}}Iterator(input),
 		output: make(chan *{{.Name}}Point, 1),
 		fields: newAuxIteratorFields(opt),
 	}
 
-	// Initialize auxilary fields.
-	if p := itr.input.Next(); p != nil {
-		itr.output <- p
-		itr.fields.init(p)
+	// Initialize auxiliary fields.
+	if len(opt.Aux) > 0 {
+		itr.fields.init(seriesKeys)
 	}
 
 	go itr.stream()
@@ -528,7 +549,7 @@ func new{{.Name}}AuxIterator(input {{.Name}}Iterator, opt IteratorOptions) *{{.n
 }
 
 func (itr *{{.name}}AuxIterator) Close() error                  { return itr.input.Close() }
-func (itr *{{.name}}AuxIterator) Next() *{{.Name}}Point             { return <-itr.output }
+func (itr *{{.name}}AuxIterator) Next() *{{.Name}}Point         { return <-itr.output }
 func (itr *{{.name}}AuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
 
 func (itr *{{.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator, error) {

@@ -694,8 +694,8 @@ func TestSelect_Raw(t *testing.T) {
 
 		}
 		return &FloatIterator{Points: []influxql.FloatPoint{
-			{Time: 0, Aux: []interface{}{float64(1), math.NaN()}},
-			{Time: 1, Aux: []interface{}{math.NaN(), float64(2)}},
+			{Time: 0, Aux: []interface{}{float64(1), nil}},
+			{Time: 1, Aux: []interface{}{nil, float64(2)}},
 			{Time: 5, Aux: []interface{}{float64(3), float64(4)}},
 		}}, nil
 	}
@@ -707,10 +707,10 @@ func TestSelect_Raw(t *testing.T) {
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{
 			&influxql.FloatPoint{Time: 0, Value: 1},
-			&influxql.FloatPoint{Time: 0, Value: math.NaN()},
+			&influxql.FloatPoint{Time: 0, Nil: true},
 		},
 		{
-			&influxql.FloatPoint{Time: 1, Value: math.NaN()},
+			&influxql.FloatPoint{Time: 1, Nil: true},
 			&influxql.FloatPoint{Time: 1, Value: 2},
 		},
 		{

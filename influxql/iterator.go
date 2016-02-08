@@ -210,16 +210,16 @@ type AuxIterator interface {
 }
 
 // NewAuxIterator returns a new instance of AuxIterator.
-func NewAuxIterator(input Iterator, opt IteratorOptions) AuxIterator {
+func NewAuxIterator(input Iterator, seriesKeys SeriesList, opt IteratorOptions) AuxIterator {
 	switch input := input.(type) {
 	case FloatIterator:
-		return newFloatAuxIterator(input, opt)
+		return newFloatAuxIterator(input, seriesKeys, opt)
 	case IntegerIterator:
-		return newIntegerAuxIterator(input, opt)
+		return newIntegerAuxIterator(input, seriesKeys, opt)
 	case StringIterator:
-		return newStringAuxIterator(input, opt)
+		return newStringAuxIterator(input, seriesKeys, opt)
 	case BooleanIterator:
-		return newBooleanAuxIterator(input, opt)
+		return newBooleanAuxIterator(input, seriesKeys, opt)
 	default:
 		panic(fmt.Sprintf("unsupported aux iterator type: %T", input))
 	}
@@ -227,11 +227,10 @@ func NewAuxIterator(input Iterator, opt IteratorOptions) AuxIterator {
 
 // auxIteratorField represents an auxilary field within an AuxIterator.
 type auxIteratorField struct {
-	name    string     // field name
-	typ     DataType   // detected data type
-	initial Point      // first point
-	itrs    []Iterator // auxillary iterators
-	opt     IteratorOptions
+	name string     // field name
+	typ  DataType   // detected data type
+	itrs []Iterator // auxillary iterators
+	opt  IteratorOptions
 }
 
 type auxIteratorFields []*auxIteratorField
@@ -254,43 +253,16 @@ func (a auxIteratorFields) close() {
 }
 
 // init initializes all auxilary fields with initial points.
-func (a auxIteratorFields) init(p Point) {
-	values := p.aux()
-	for i, f := range a {
-		v := values[i]
+func (a auxIteratorFields) init(seriesKeys SeriesList) {
+	for _, s := range seriesKeys {
+		for i, aux := range s.Aux {
+			if aux == Unknown {
+				continue
+			}
 
-		tags := p.tags()
-		tags = tags.Subset(f.opt.Dimensions)
-
-		// Initialize first point based off value received.
-		// Primitive pointers represent nil values.
-		switch v := v.(type) {
-		case float64:
-			f.typ = Float
-			f.initial = &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-		case *float64:
-			f.typ = Float
-			f.initial = &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-		case int64:
-			f.typ = Integer
-			f.initial = &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-		case *int64:
-			f.typ = Integer
-			f.initial = &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-		case string:
-			f.typ = String
-			f.initial = &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-		case *string:
-			f.typ = String
-			f.initial = &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-		case bool:
-			f.typ = Boolean
-			f.initial = &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-		case *bool:
-			f.typ = Boolean
-			f.initial = &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-		default:
-			panic(fmt.Sprintf("invalid aux value type: %T", v))
+			if a[i].typ == Unknown || aux < a[i].typ {
+				a[i].typ = aux
+			}
 		}
 	}
 }
@@ -302,34 +274,28 @@ func (a auxIteratorFields) iterator(name string) Iterator {
 		// Exit if no points were received by the iterator.
 		if f.name != name {
 			continue
-		} else if f.initial == nil {
-			break
 		}
 
 		// Create channel iterator by data type.
 		switch f.typ {
 		case Float:
 			itr := &floatChanIterator{c: make(chan *FloatPoint, 1)}
-			itr.c <- f.initial.(*FloatPoint)
 			f.itrs = append(f.itrs, itr)
 			return itr
 		case Integer:
 			itr := &integerChanIterator{c: make(chan *IntegerPoint, 1)}
-			itr.c <- f.initial.(*IntegerPoint)
 			f.itrs = append(f.itrs, itr)
 			return itr
 		case String:
 			itr := &stringChanIterator{c: make(chan *StringPoint, 1)}
-			itr.c <- f.initial.(*StringPoint)
 			f.itrs = append(f.itrs, itr)
 			return itr
 		case Boolean:
 			itr := &booleanChanIterator{c: make(chan *BooleanPoint, 1)}
-			itr.c <- f.initial.(*BooleanPoint)
 			f.itrs = append(f.itrs, itr)
 			return itr
 		default:
-			panic(fmt.Sprintf("unsupported chan iterator type: %s", f.typ))
+			break
 		}
 	}
 
@@ -353,6 +319,8 @@ func (a auxIteratorFields) send(p Point) {
 				switch v := v.(type) {
 				case float64:
 					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
+				case int64:
+					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: float64(v)}
 				default:
 					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
 				}
@@ -590,11 +558,23 @@ func (v *selectInfo) Visit(n Node) Visitor {
 type Series struct {
 	Name string
 	Tags Tags
-	Aux  []interface{}
+	Aux  []DataType
 }
 
 func (s *Series) ID() string {
 	return s.Name + "\x00" + s.Tags.ID()
+}
+
+func (s *Series) Combine(other *Series) {
+	for i, t := range s.Aux {
+		if other.Aux[i] == Unknown {
+			continue
+		}
+
+		if t == Unknown || other.Aux[i] < t {
+			s.Aux[i] = other.Aux[i]
+		}
+	}
 }
 
 type SeriesList []Series

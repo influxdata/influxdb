@@ -692,53 +692,44 @@ func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, 
 			}
 			tags := influxql.NewTags(tagMap)
 
-			// Determine the nil values for the aux fields/tags
-			aux := make([]interface{}, 0, len(opt.Aux))
-			for _, field := range opt.Aux {
-				typ := func() influxql.DataType {
-					mf := e.measurementFields[mm.Name]
-					if mf == nil {
-						return influxql.Unknown
-					}
-
-					f := mf.Fields[field]
-					if f == nil {
-						return influxql.Unknown
-					}
-					return f.Type
-				}()
-
-				if typ == influxql.Unknown {
-					if v := tags.Value(field); v == "" {
-						// We have no idea what this field/tag is, so it doesn't
-						// exist for this part of the series.
-						// Use a boolean so it can be promoted to the appropriate
-						// type if another iterator knows the type.
-						typ = influxql.Boolean
-					} else {
-						// All tags are strings.
-						typ = influxql.String
-					}
-				}
-
-				switch typ {
-				case influxql.Float:
-					aux = append(aux, (*float64)(nil))
-				case influxql.Integer:
-					aux = append(aux, (*int64)(nil))
-				case influxql.String:
-					aux = append(aux, (*string)(nil))
-				case influxql.Boolean:
-					aux = append(aux, (*bool)(nil))
-				default:
-					panic(fmt.Sprintf("invalid aux type: %s", typ))
-				}
-			}
-			seriesList = append(seriesList, influxql.Series{
+			series := influxql.Series{
 				Name: mm.Name,
 				Tags: tags,
-				Aux:  aux,
-			})
+				Aux:  make([]influxql.DataType, len(opt.Aux)),
+			}
+
+			// Determine the aux field types.
+			for _, seriesKey := range t.SeriesKeys {
+				tags := influxql.NewTags(e.index.TagsForSeries(seriesKey))
+				for i, field := range opt.Aux {
+					typ := func() influxql.DataType {
+						mf := e.measurementFields[mm.Name]
+						if mf == nil {
+							return influxql.Unknown
+						}
+
+						f := mf.Fields[field]
+						if f == nil {
+							return influxql.Unknown
+						}
+						return f.Type
+					}()
+
+					if typ == influxql.Unknown {
+						if v := tags.Value(field); v != "" {
+							// All tags are strings.
+							typ = influxql.String
+						}
+					}
+
+					if typ != influxql.Unknown {
+						if series.Aux[i] == influxql.Unknown || typ < series.Aux[i] {
+							series.Aux[i] = typ
+						}
+					}
+				}
+			}
+			seriesList = append(seriesList, series)
 		}
 	}
 	return seriesList, nil

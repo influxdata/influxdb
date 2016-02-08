@@ -418,6 +418,7 @@ type floatFillIterator struct {
 	curTime    int64
 	startTime  int64
 	endTime    int64
+	auxFields  []interface{}
 	opt        IteratorOptions
 }
 
@@ -438,12 +439,21 @@ func newFloatFillIterator(input FloatIterator, seriesKeys SeriesList, expr Expr,
 		endTime, _ = opt.Window(opt.StartTime)
 	}
 
+	var auxFields []interface{}
+	if len(seriesKeys) > 0 {
+		series := seriesKeys[0]
+		if len(series.Aux) > 0 {
+			auxFields = make([]interface{}, len(series.Aux))
+		}
+	}
+
 	return &floatFillIterator{
 		input:      newBufFloatIterator(input),
 		seriesKeys: seriesKeys,
 		curTime:    startTime,
 		startTime:  startTime,
 		endTime:    endTime,
+		auxFields:  auxFields,
 		opt:        opt,
 	}
 }
@@ -463,7 +473,7 @@ func (itr *floatFillIterator) Next() *FloatPoint {
 			Name: series.Name,
 			Tags: series.Tags,
 			Time: itr.curTime,
-			Aux:  series.Aux,
+			Aux:  itr.auxFields,
 		}
 
 		switch itr.opt.Fill {
@@ -489,16 +499,28 @@ func (itr *floatFillIterator) Next() *FloatPoint {
 		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
 		if itr.curTime >= itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	} else {
 		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
 		if itr.curTime < itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	}
 	return p
+}
+
+func (itr *floatFillIterator) nextSeries() {
+	itr.index++
+	if itr.index < len(itr.seriesKeys) {
+		series := itr.seriesKeys[itr.index]
+		if len(series.Aux) > 0 {
+			itr.auxFields = make([]interface{}, len(series.Aux))
+		} else {
+			itr.auxFields = nil
+		}
+	}
 }
 
 // floatAuxIterator represents a float implementation of AuxIterator.
@@ -508,17 +530,16 @@ type floatAuxIterator struct {
 	fields auxIteratorFields
 }
 
-func newFloatAuxIterator(input FloatIterator, opt IteratorOptions) *floatAuxIterator {
+func newFloatAuxIterator(input FloatIterator, seriesKeys SeriesList, opt IteratorOptions) *floatAuxIterator {
 	itr := &floatAuxIterator{
 		input:  newBufFloatIterator(input),
 		output: make(chan *FloatPoint, 1),
 		fields: newAuxIteratorFields(opt),
 	}
 
-	// Initialize auxilary fields.
-	if p := itr.input.Next(); p != nil {
-		itr.output <- p
-		itr.fields.init(p)
+	// Initialize auxiliary fields.
+	if len(opt.Aux) > 0 {
+		itr.fields.init(seriesKeys)
 	}
 
 	go itr.stream()
@@ -1268,6 +1289,7 @@ type integerFillIterator struct {
 	curTime    int64
 	startTime  int64
 	endTime    int64
+	auxFields  []interface{}
 	opt        IteratorOptions
 }
 
@@ -1288,12 +1310,21 @@ func newIntegerFillIterator(input IntegerIterator, seriesKeys SeriesList, expr E
 		endTime, _ = opt.Window(opt.StartTime)
 	}
 
+	var auxFields []interface{}
+	if len(seriesKeys) > 0 {
+		series := seriesKeys[0]
+		if len(series.Aux) > 0 {
+			auxFields = make([]interface{}, len(series.Aux))
+		}
+	}
+
 	return &integerFillIterator{
 		input:      newBufIntegerIterator(input),
 		seriesKeys: seriesKeys,
 		curTime:    startTime,
 		startTime:  startTime,
 		endTime:    endTime,
+		auxFields:  auxFields,
 		opt:        opt,
 	}
 }
@@ -1313,7 +1344,7 @@ func (itr *integerFillIterator) Next() *IntegerPoint {
 			Name: series.Name,
 			Tags: series.Tags,
 			Time: itr.curTime,
-			Aux:  series.Aux,
+			Aux:  itr.auxFields,
 		}
 
 		switch itr.opt.Fill {
@@ -1339,16 +1370,28 @@ func (itr *integerFillIterator) Next() *IntegerPoint {
 		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
 		if itr.curTime >= itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	} else {
 		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
 		if itr.curTime < itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	}
 	return p
+}
+
+func (itr *integerFillIterator) nextSeries() {
+	itr.index++
+	if itr.index < len(itr.seriesKeys) {
+		series := itr.seriesKeys[itr.index]
+		if len(series.Aux) > 0 {
+			itr.auxFields = make([]interface{}, len(series.Aux))
+		} else {
+			itr.auxFields = nil
+		}
+	}
 }
 
 // integerAuxIterator represents a integer implementation of AuxIterator.
@@ -1358,17 +1401,16 @@ type integerAuxIterator struct {
 	fields auxIteratorFields
 }
 
-func newIntegerAuxIterator(input IntegerIterator, opt IteratorOptions) *integerAuxIterator {
+func newIntegerAuxIterator(input IntegerIterator, seriesKeys SeriesList, opt IteratorOptions) *integerAuxIterator {
 	itr := &integerAuxIterator{
 		input:  newBufIntegerIterator(input),
 		output: make(chan *IntegerPoint, 1),
 		fields: newAuxIteratorFields(opt),
 	}
 
-	// Initialize auxilary fields.
-	if p := itr.input.Next(); p != nil {
-		itr.output <- p
-		itr.fields.init(p)
+	// Initialize auxiliary fields.
+	if len(opt.Aux) > 0 {
+		itr.fields.init(seriesKeys)
 	}
 
 	go itr.stream()
@@ -2118,6 +2160,7 @@ type stringFillIterator struct {
 	curTime    int64
 	startTime  int64
 	endTime    int64
+	auxFields  []interface{}
 	opt        IteratorOptions
 }
 
@@ -2138,12 +2181,21 @@ func newStringFillIterator(input StringIterator, seriesKeys SeriesList, expr Exp
 		endTime, _ = opt.Window(opt.StartTime)
 	}
 
+	var auxFields []interface{}
+	if len(seriesKeys) > 0 {
+		series := seriesKeys[0]
+		if len(series.Aux) > 0 {
+			auxFields = make([]interface{}, len(series.Aux))
+		}
+	}
+
 	return &stringFillIterator{
 		input:      newBufStringIterator(input),
 		seriesKeys: seriesKeys,
 		curTime:    startTime,
 		startTime:  startTime,
 		endTime:    endTime,
+		auxFields:  auxFields,
 		opt:        opt,
 	}
 }
@@ -2163,7 +2215,7 @@ func (itr *stringFillIterator) Next() *StringPoint {
 			Name: series.Name,
 			Tags: series.Tags,
 			Time: itr.curTime,
-			Aux:  series.Aux,
+			Aux:  itr.auxFields,
 		}
 
 		switch itr.opt.Fill {
@@ -2189,16 +2241,28 @@ func (itr *stringFillIterator) Next() *StringPoint {
 		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
 		if itr.curTime >= itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	} else {
 		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
 		if itr.curTime < itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	}
 	return p
+}
+
+func (itr *stringFillIterator) nextSeries() {
+	itr.index++
+	if itr.index < len(itr.seriesKeys) {
+		series := itr.seriesKeys[itr.index]
+		if len(series.Aux) > 0 {
+			itr.auxFields = make([]interface{}, len(series.Aux))
+		} else {
+			itr.auxFields = nil
+		}
+	}
 }
 
 // stringAuxIterator represents a string implementation of AuxIterator.
@@ -2208,17 +2272,16 @@ type stringAuxIterator struct {
 	fields auxIteratorFields
 }
 
-func newStringAuxIterator(input StringIterator, opt IteratorOptions) *stringAuxIterator {
+func newStringAuxIterator(input StringIterator, seriesKeys SeriesList, opt IteratorOptions) *stringAuxIterator {
 	itr := &stringAuxIterator{
 		input:  newBufStringIterator(input),
 		output: make(chan *StringPoint, 1),
 		fields: newAuxIteratorFields(opt),
 	}
 
-	// Initialize auxilary fields.
-	if p := itr.input.Next(); p != nil {
-		itr.output <- p
-		itr.fields.init(p)
+	// Initialize auxiliary fields.
+	if len(opt.Aux) > 0 {
+		itr.fields.init(seriesKeys)
 	}
 
 	go itr.stream()
@@ -2968,6 +3031,7 @@ type booleanFillIterator struct {
 	curTime    int64
 	startTime  int64
 	endTime    int64
+	auxFields  []interface{}
 	opt        IteratorOptions
 }
 
@@ -2988,12 +3052,21 @@ func newBooleanFillIterator(input BooleanIterator, seriesKeys SeriesList, expr E
 		endTime, _ = opt.Window(opt.StartTime)
 	}
 
+	var auxFields []interface{}
+	if len(seriesKeys) > 0 {
+		series := seriesKeys[0]
+		if len(series.Aux) > 0 {
+			auxFields = make([]interface{}, len(series.Aux))
+		}
+	}
+
 	return &booleanFillIterator{
 		input:      newBufBooleanIterator(input),
 		seriesKeys: seriesKeys,
 		curTime:    startTime,
 		startTime:  startTime,
 		endTime:    endTime,
+		auxFields:  auxFields,
 		opt:        opt,
 	}
 }
@@ -3013,7 +3086,7 @@ func (itr *booleanFillIterator) Next() *BooleanPoint {
 			Name: series.Name,
 			Tags: series.Tags,
 			Time: itr.curTime,
-			Aux:  series.Aux,
+			Aux:  itr.auxFields,
 		}
 
 		switch itr.opt.Fill {
@@ -3039,16 +3112,28 @@ func (itr *booleanFillIterator) Next() *BooleanPoint {
 		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
 		if itr.curTime >= itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	} else {
 		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
 		if itr.curTime < itr.endTime {
 			itr.curTime = itr.startTime
-			itr.index++
+			itr.nextSeries()
 		}
 	}
 	return p
+}
+
+func (itr *booleanFillIterator) nextSeries() {
+	itr.index++
+	if itr.index < len(itr.seriesKeys) {
+		series := itr.seriesKeys[itr.index]
+		if len(series.Aux) > 0 {
+			itr.auxFields = make([]interface{}, len(series.Aux))
+		} else {
+			itr.auxFields = nil
+		}
+	}
 }
 
 // booleanAuxIterator represents a boolean implementation of AuxIterator.
@@ -3058,17 +3143,16 @@ type booleanAuxIterator struct {
 	fields auxIteratorFields
 }
 
-func newBooleanAuxIterator(input BooleanIterator, opt IteratorOptions) *booleanAuxIterator {
+func newBooleanAuxIterator(input BooleanIterator, seriesKeys SeriesList, opt IteratorOptions) *booleanAuxIterator {
 	itr := &booleanAuxIterator{
 		input:  newBufBooleanIterator(input),
 		output: make(chan *BooleanPoint, 1),
 		fields: newAuxIteratorFields(opt),
 	}
 
-	// Initialize auxilary fields.
-	if p := itr.input.Next(); p != nil {
-		itr.output <- p
-		itr.fields.init(p)
+	// Initialize auxiliary fields.
+	if len(opt.Aux) > 0 {
+		itr.fields.init(seriesKeys)
 	}
 
 	go itr.stream()

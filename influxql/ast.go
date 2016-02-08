@@ -53,6 +53,14 @@ func InspectDataType(v interface{}) DataType {
 	}
 }
 
+func InspectDataTypes(a []interface{}) []DataType {
+	dta := make([]DataType, len(a))
+	for i, v := range a {
+		dta[i] = InspectDataType(v)
+	}
+	return dta
+}
+
 func (d DataType) String() string {
 	switch d {
 	case Float:

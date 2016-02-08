@@ -453,7 +453,17 @@ func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator,
 	if opt.MergeSorted() {
 		return influxql.NewSortedMergeIterator(itrs, opt), nil
 	}
-	return influxql.NewMergeIterator(itrs, opt), nil
+
+	itr := influxql.NewMergeIterator(itrs, opt)
+	if opt.Expr != nil {
+		if expr, ok := opt.Expr.(*influxql.Call); ok && expr.Name == "count" {
+			opt.Expr = &influxql.Call{
+				Name: "sum",
+				Args: expr.Args,
+			}
+		}
+	}
+	return influxql.NewCallIterator(itr, opt), nil
 }
 
 // createSystemIterator returns an iterator for a system source.
@@ -475,6 +485,15 @@ func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 }
 
 func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	if influxql.Sources(opt.Sources).HasSystemSource() {
+		// Only support a single system source.
+		if len(opt.Sources) > 1 {
+			return nil, errors.New("cannot select from multiple system sources")
+		}
+		// Meta queries don't need to know the series name and always have a single string.
+		return influxql.SeriesList{{Aux: []influxql.DataType{influxql.String}}}, nil
+	}
+
 	seriesMap := make(map[string]influxql.Series)
 	for _, sh := range a {
 		series, err := sh.SeriesKeys(opt)
@@ -483,7 +502,12 @@ func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, e
 		}
 
 		for _, s := range series {
-			seriesMap[s.ID()] = s
+			cur, ok := seriesMap[s.ID()]
+			if ok {
+				cur.Combine(&s)
+			} else {
+				seriesMap[s.ID()] = s
+			}
 		}
 	}
 
