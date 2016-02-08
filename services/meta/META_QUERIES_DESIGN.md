@@ -74,10 +74,58 @@ success?
 # Options
 
 * Diff local state w/ meta-data cached state 
-* Push (and queue) changes to remote 
+  * Measurements and series aren't stored in the current state, and it would be
+    expensive to do so, so offline nodes would miss `DROP SERIES` commands
+* Push (and queue) changes to remote
+  * In order to guarantee execution, the queue would need to be replicated, at
+    which point the third option becomes favorable
 * Add Change Log to meta.Data
-* ...
+  * Nodes already poll for meta store changes, queries will be replicated (with
+    consensus), and nodes can replay missed queries
 
-# Discussion
+# Proposed Design
 
+Add a field to the `meta.Data` struct that will track a list queries that need
+to be run on data nodes. Three items need to be tracked for each query:
 
+ - A monotonically increasing ID (probably uint64, starting at 0) that can be
+   used by clients to track which queries have already been run
+ - A timestamp when the query was added to the log. This doesn't need to be
+   extremely precise or synchronized, and would only be used for expriring
+   entries from the log on a coarse time-scale (maybe a week to starti, probably
+   make it configurable).
+ - The query to be executed.
+
+Each data node would be required to track one additional value: the highest ID
+it has processed from the above described log entries. This will allow the node,
+while it is starting up, to replay the missed entries and make an attempt to
+syncronize its data with the expected state it should be in.
+
+Here are some thoughts, reasonings, and potential issues using this approach:
+
+ - Executing a query that requires the above described logging would be a matter
+   of communicating with a meta node and acknowledging that the query was added
+   to the log. The data nodes are already polling for changes in the meta
+   service's data, and would then apploy the query on those updates.
+ - As mentioned briefly above, the query log in this design would be replicated
+   via Raft consensus. This is preferable to making a single data node (the
+   recipient of the initial query) responsible for queueing the query for
+   offline/unavailable nodes.
+ - The number of queries that will need to be logged and tracked for offline
+   nodes is very low during normal operations (mostly dropping/creating
+   databases/retention policies and dropping measurements/series), so storing
+   a list of the recent queries shouldn't increate the metadata blob size
+   unreasonably
+ - A potential problem would be a drop/create database in quick succession with
+   points that get queued on other nodes' HH queues before the drop, but aren't
+   received until the node comes back online.
+    - One potential solution would be to assign every database (or retention
+      policy) a UUID, while still maintaining at most one database per name. The
+      writes would then be directed at either the old or new UUID, instead of
+      the user-friendly name.
+ - Expiring old entries would be done after sufficient time has been given for
+   offline/partitioned nodes to come back online. One week is probably more than
+   sufficient, as healthy nodes will mostly likely be up-to-date within a
+   seconds of the query being added to the log. We could probably even shorten
+   this to a day or two, because if your node is offline longer than that, you
+   probably don't care about your data anyway...
