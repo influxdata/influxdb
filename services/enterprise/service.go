@@ -154,10 +154,6 @@ func (s *Service) registerServer() error {
 func (s *Service) reportStats() {
 	defer s.wg.Done()
 
-	for _, host := range s.hosts {
-		s.logger.Printf("Reporting stats to %#v", host)
-	}
-
 	cl, err := client.New(s.hosts)
 	if err != nil {
 		s.logger.Printf("Unable to contact one or more enterprise hosts: %s", err.Error())
