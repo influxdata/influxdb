@@ -119,7 +119,7 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	}
 
 	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return nil, &UnsupposedValueError{Field: fields[0], Value: v}
+		return nil, &UnsupportedValueError{Field: fields[0], Value: v}
 	}
 
 	fieldValues := map[string]interface{}{}
