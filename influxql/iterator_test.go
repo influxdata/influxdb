@@ -495,6 +495,114 @@ func TestSortedMergeIterator_Cast_Float(t *testing.T) {
 	}
 }
 
+// Ensure limit iterators work with limit and offset.
+func TestLimitIterator_Float(t *testing.T) {
+	input := &FloatIterator{Points: []influxql.FloatPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+		{Name: "cpu", Time: 5, Value: 3},
+		{Name: "cpu", Time: 10, Value: 5},
+		{Name: "mem", Time: 5, Value: 3},
+		{Name: "mem", Time: 7, Value: 8},
+	}}
+
+	itr := influxql.NewLimitIterator(input, influxql.IteratorOptions{
+		Limit:  1,
+		Offset: 1,
+	})
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 5, Value: 3}},
+		{&influxql.FloatPoint{Name: "mem", Time: 7, Value: 8}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	if !input.Closed {
+		t.Error("iterator not closed")
+	}
+}
+
+// Ensure limit iterators work with limit and offset.
+func TestLimitIterator_Integer(t *testing.T) {
+	input := &IntegerIterator{Points: []influxql.IntegerPoint{
+		{Name: "cpu", Time: 0, Value: 1},
+		{Name: "cpu", Time: 5, Value: 3},
+		{Name: "cpu", Time: 10, Value: 5},
+		{Name: "mem", Time: 5, Value: 3},
+		{Name: "mem", Time: 7, Value: 8},
+	}}
+
+	itr := influxql.NewLimitIterator(input, influxql.IteratorOptions{
+		Limit:  1,
+		Offset: 1,
+	})
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 3}},
+		{&influxql.IntegerPoint{Name: "mem", Time: 7, Value: 8}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	if !input.Closed {
+		t.Error("iterator not closed")
+	}
+}
+
+// Ensure limit iterators work with limit and offset.
+func TestLimitIterator_String(t *testing.T) {
+	input := &StringIterator{Points: []influxql.StringPoint{
+		{Name: "cpu", Time: 0, Value: "a"},
+		{Name: "cpu", Time: 5, Value: "b"},
+		{Name: "cpu", Time: 10, Value: "c"},
+		{Name: "mem", Time: 5, Value: "d"},
+		{Name: "mem", Time: 7, Value: "e"},
+	}}
+
+	itr := influxql.NewLimitIterator(input, influxql.IteratorOptions{
+		Limit:  1,
+		Offset: 1,
+	})
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.StringPoint{Name: "cpu", Time: 5, Value: "b"}},
+		{&influxql.StringPoint{Name: "mem", Time: 7, Value: "e"}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	if !input.Closed {
+		t.Error("iterator not closed")
+	}
+}
+
+// Ensure limit iterators work with limit and offset.
+func TestLimitIterator_Boolean(t *testing.T) {
+	input := &BooleanIterator{Points: []influxql.BooleanPoint{
+		{Name: "cpu", Time: 0, Value: true},
+		{Name: "cpu", Time: 5, Value: false},
+		{Name: "cpu", Time: 10, Value: true},
+		{Name: "mem", Time: 5, Value: false},
+		{Name: "mem", Time: 7, Value: true},
+	}}
+
+	itr := influxql.NewLimitIterator(input, influxql.IteratorOptions{
+		Limit:  1,
+		Offset: 1,
+	})
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.BooleanPoint{Name: "cpu", Time: 5, Value: false}},
+		{&influxql.BooleanPoint{Name: "mem", Time: 7, Value: true}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+
+	if !input.Closed {
+		t.Error("iterator not closed")
+	}
+}
+
 // Ensure auxilary iterators can be created for auxilary fields.
 func TestFloatAuxIterator(t *testing.T) {
 	itr := influxql.NewAuxIterator(
