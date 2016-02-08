@@ -333,7 +333,7 @@ func (s *Service) handleLine(line string) {
 	point, err := s.parser.Parse(line)
 	if err != nil {
 		switch err := err.(type) {
-		case *UnsupposedValueError:
+		case *UnsupportedValueError:
 			// Graphite ignores NaN values with no error.
 			if math.IsNaN(err.Value) {
 				s.statMap.Add(statPointsNaNFail, 1)

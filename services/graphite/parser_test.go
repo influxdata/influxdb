@@ -229,7 +229,7 @@ func TestParseNaN(t *testing.T) {
 		t.Fatalf("expected error. got nil")
 	}
 
-	if _, ok := err.(*graphite.UnsupposedValueError); !ok {
+	if _, ok := err.(*graphite.UnsupportedValueError); !ok {
 		t.Fatalf("expected *graphite.ErrUnsupportedValue, got %v", reflect.TypeOf(err))
 	}
 }
