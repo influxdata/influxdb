@@ -186,7 +186,11 @@ func (s *Store) Shards(ids []uint64) []*Shard {
 	defer s.mu.RUnlock()
 	a := make([]*Shard, 0, len(ids))
 	for _, id := range ids {
-		a = append(a, s.shards[id])
+		sh := s.shards[id]
+		if sh == nil {
+			continue
+		}
+		a = append(a, sh)
 	}
 	return a
 }
