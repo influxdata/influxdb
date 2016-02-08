@@ -28,6 +28,7 @@ This release also changes how clusters are setup. The config file has changed so
 - [#5522](https://github.com/influxdata/influxdb/pull/5522): Optimize tsm1 cache to reduce memory consumption and GC scan time.
 
 ### Bugfixes
+- [#4299](https://github.com/influxdata/influxdb/pull/4299): Reject uint64 Client.Point.Field values
 - [#5129](https://github.com/influxdata/influxdb/pull/5129): Ensure precision flag is respected by CLI. Thanks @e-dard
 - [#5042](https://github.com/influxdb/influxdb/issues/5042): Count with fill(none) will drop 0 valued intervals.
 - [#4735](https://github.com/influxdb/influxdb/issues/4735): Fix panic when merging empty results.

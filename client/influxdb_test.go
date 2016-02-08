@@ -17,6 +17,36 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+func BenchmarkWrite(b *testing.B) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		b.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	bp := client.BatchPoints{
+		Points: []client.Point{
+			{Fields: map[string]interface{}{"value": 101}}},
+	}
+	for i := 0; i < b.N; i++ {
+		r, err := c.Write(bp)
+		if err != nil {
+			b.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		}
+		if r != nil {
+			b.Fatalf("unexpected response. expected %v, actual %v", nil, r)
+		}
+	}
+}
+
 func BenchmarkUnmarshalJSON2Tags(b *testing.B) {
 	var bp client.BatchPoints
 	data := []byte(`
@@ -547,6 +577,36 @@ func TestClient_NoTimeout(t *testing.T) {
 	_, err = c.Query(query)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestClient_WriteUint64(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	bp := client.BatchPoints{
+		Points: []client.Point{
+			{
+				Fields: map[string]interface{}{"value": uint64(10)},
+			},
+		},
+	}
+	r, err := c.Write(bp)
+	if err == nil {
+		t.Fatalf("unexpected error. expected err, actual %v", err)
+	}
+	if r != nil {
+		t.Fatalf("unexpected response. expected %v, actual %v", nil, r)
 	}
 }
 

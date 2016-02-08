@@ -206,6 +206,10 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 
 	var b bytes.Buffer
 	for _, p := range bp.Points {
+		err := checkPointTypes(p)
+		if err != nil {
+			return nil, err
+		}
 		if p.Raw != "" {
 			if _, err := b.WriteString(p.Raw); err != nil {
 				return nil, err
@@ -650,6 +654,19 @@ func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 // Addr provides the current url as a string of the server the client is connected to.
 func (c *Client) Addr() string {
 	return c.url.String()
+}
+
+// checkPointTypes ensures no unsupported types are submitted to influxdb, returning error if they are found.
+func checkPointTypes(p Point) error {
+	for _, v := range p.Fields {
+		switch v.(type) {
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, float32, float64, bool, string, nil:
+			return nil
+		default:
+			return fmt.Errorf("unsupported point type: %T", v)
+		}
+	}
+	return nil
 }
 
 // helper functions
