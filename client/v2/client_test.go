@@ -256,6 +256,25 @@ func TestClient_PointTags(t *testing.T) {
 	}
 }
 
+func TestClient_PointAddTag(t *testing.T) {
+	tags := map[string]string{"cpu": "cpu-total"}
+	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
+	p, _ := NewPoint("cpu_usage", tags, fields)
+
+	if !reflect.DeepEqual(tags, p.Tags()) {
+		t.Errorf("Error, got %v, expected %v",
+			p.Tags(), tags)
+	}
+
+	p.AddTag("hostname", "jazzhouse01")
+	tags["hostname"] = "jazzhouse01"
+
+	if !reflect.DeepEqual(tags, p.Tags()) {
+		t.Errorf("Error, got %v, expected %v",
+			p.Tags(), tags)
+	}
+}
+
 func TestClient_PointUnixNano(t *testing.T) {
 	const shortForm = "2006-Jan-02"
 	time1, _ := time.Parse(shortForm, "2013-Feb-03")
