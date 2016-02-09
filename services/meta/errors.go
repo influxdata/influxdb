@@ -73,9 +73,6 @@ var (
 	// ErrReplicationFactorTooLow is returned when the replication factor is not in an
 	// acceptable range.
 	ErrReplicationFactorTooLow = errors.New("replication factor must be greater than 0")
-
-	// ErrRetentionPolicyNotFound is returned when an expected retention policy can't be found.
-	ErrRetentionPolicyNotFound = errors.New("retention policy not found")
 )
 
 var (
