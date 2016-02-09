@@ -1135,6 +1135,49 @@ func Test_fieldsNames(t *testing.T) {
 
 }
 
+func TestSources_Names(t *testing.T) {
+	sources := influxql.Sources{
+		&influxql.Measurement{
+			Name: "cpu",
+		},
+		&influxql.Measurement{
+			Name: "mem",
+		},
+	}
+
+	names := sources.Names()
+	if names[0] != "cpu" {
+		t.Errorf("expected cpu, got %s", names[0])
+	}
+	if names[1] != "mem" {
+		t.Errorf("expected mem, got %s", names[1])
+	}
+}
+
+func TestSources_HasSystemSource(t *testing.T) {
+	sources := influxql.Sources{
+		&influxql.Measurement{
+			Name: "_measurements",
+		},
+	}
+
+	ok := sources.HasSystemSource()
+	if !ok {
+		t.Errorf("expected to find a system source, found none")
+	}
+
+	sources = influxql.Sources{
+		&influxql.Measurement{
+			Name: "cpu",
+		},
+	}
+
+	ok = sources.HasSystemSource()
+	if ok {
+		t.Errorf("expected to find no system source, found one")
+	}
+}
+
 // Valuer represents a simple wrapper around a map to implement the influxql.Valuer interface.
 type Valuer map[string]interface{}
 
