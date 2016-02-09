@@ -321,12 +321,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 		}
 
 		if !opt.Interval.IsZero() && opt.Fill != NoFill {
-			seriesKeys, err := ic.SeriesKeys(opt)
-			if err != nil {
-				itr.Close()
-				return nil, err
-			}
-			itr = NewFillIterator(itr, seriesKeys, expr, opt)
+			itr = NewFillIterator(itr, expr, opt)
 		}
 		return itr, nil
 	case *BinaryExpr:

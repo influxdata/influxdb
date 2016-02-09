@@ -4425,7 +4425,7 @@ func TestServer_Query_Fill(t *testing.T) {
 		&Query{
 			name:    "fill with value, WHERE no values match condition",
 			command: `select mean(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' and val > 50 group by time(5s) FILL(1)`,
-			exp:     `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",1],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",1]]}]}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{

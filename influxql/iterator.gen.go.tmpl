@@ -414,17 +414,21 @@ func (itr *{{.name}}LimitIterator) Next() *{{.Name}}Point {
 
 type {{.name}}FillIterator struct {
 	input      *buf{{.Name}}Iterator
-	seriesKeys SeriesList
 	prev       *{{.Name}}Point
-	index      int
-	curTime    int64
 	startTime  int64
 	endTime    int64
 	auxFields  []interface{}
+	done       bool
 	opt        IteratorOptions
+
+	window struct {
+		name string
+		tags Tags
+		time int64
+	}
 }
 
-func new{{.Name}}FillIterator(input {{.Name}}Iterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) *{{.name}}FillIterator {
+func new{{.Name}}FillIterator(input {{.Name}}Iterator, expr Expr, opt IteratorOptions) *{{.name}}FillIterator {
 	if opt.Fill == NullFill {
 		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
 			opt.Fill = NumberFill
@@ -442,39 +446,74 @@ func new{{.Name}}FillIterator(input {{.Name}}Iterator, seriesKeys SeriesList, ex
 	}
 
 	var auxFields []interface{}
-	if len(seriesKeys) > 0 {
-		series := seriesKeys[0]
-		if len(series.Aux) > 0 {
-			auxFields = make([]interface{}, len(series.Aux))
-		}
+	if len(opt.Aux) > 0 {
+		auxFields = make([]interface{}, len(opt.Aux))
 	}
 
-	return &{{.name}}FillIterator{
+	itr := &{{.name}}FillIterator{
 		input:      newBuf{{.Name}}Iterator(input),
-		seriesKeys: seriesKeys,
-		curTime:    startTime,
 		startTime:  startTime,
 		endTime:    endTime,
 		auxFields:  auxFields,
 		opt:        opt,
 	}
+
+	p := itr.input.peek()
+	if p != nil {
+		itr.window.name, itr.window.tags = p.Name, p.Tags
+		itr.window.time = itr.startTime
+	} else {
+		itr.window.time = itr.endTime
+	}
+	return itr
 }
 
 func (itr *{{.name}}FillIterator) Close() error { return itr.input.Close() }
 
 func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
 	p := itr.input.Next()
-	if itr.index >= len(itr.seriesKeys) {
-		return p
-	}
-	series := itr.seriesKeys[itr.index]
 
-	if p == nil || itr.curTime < p.Time || p.Name != series.Name || p.Tags.ID() != series.Tags.ID() {
-		itr.input.unread(p)
+	// Check if the next point is outside of our window or is nil.
+	for p == nil || p.Name != itr.window.name || p.Tags.ID() != itr.window.tags.ID() {
+		// If we are inside of an interval, unread the point and continue below to
+		// constructing a new point.
+		if itr.opt.Ascending {
+			if itr.window.time < itr.endTime {
+				itr.input.unread(p)
+				p = nil
+				break
+			}
+		} else {
+			if itr.window.time >= itr.endTime {
+				itr.input.unread(p)
+				p = nil
+				break
+			}
+		}
+
+		// We are *not* in a current interval. If there is no next point,
+		// we are at the end of all intervals.
+		if p == nil {
+			return nil
+		}
+
+		// Set the new interval.
+		itr.window.name, itr.window.tags = p.Name, p.Tags
+		itr.window.time = itr.startTime
+		itr.prev = nil
+		break
+	}
+
+	// Check if the point is our next expected point.
+	if p == nil || p.Time > itr.window.time {
+		if p != nil {
+			itr.input.unread(p)
+		}
+
 		p = &{{.Name}}Point{
-			Name: series.Name,
-			Tags: series.Tags,
-			Time: itr.curTime,
+			Name: itr.window.name,
+			Tags: itr.window.tags,
+			Time: itr.window.time,
 			Aux:  itr.auxFields,
 		}
 
@@ -490,39 +529,20 @@ func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
 			} else {
 				p.Nil = true
 			}
-		default:
-			return p
 		}
 	} else {
 		itr.prev = p
 	}
 
+	// Advance the expected time. Do not advance to a new window here
+	// as there may be lingering points with the same timestamp in the previous
+	// window.
 	if itr.opt.Ascending {
-		itr.curTime = p.Time + int64(itr.opt.Interval.Duration)
-		if itr.curTime >= itr.endTime {
-			itr.curTime = itr.startTime
-			itr.nextSeries()
-		}
+		itr.window.time = p.Time + int64(itr.opt.Interval.Duration)
 	} else {
-		itr.curTime = p.Time - int64(itr.opt.Interval.Duration)
-		if itr.curTime < itr.endTime {
-			itr.curTime = itr.startTime
-			itr.nextSeries()
-		}
+		itr.window.time = p.Time - int64(itr.opt.Interval.Duration)
 	}
 	return p
-}
-
-func (itr *{{.name}}FillIterator) nextSeries() {
-	itr.index++
-	if itr.index < len(itr.seriesKeys) {
-		series := itr.seriesKeys[itr.index]
-		if len(series.Aux) > 0 {
-			itr.auxFields = make([]interface{}, len(series.Aux))
-		} else {
-			itr.auxFields = nil
-		}
-	}
 }
 
 // {{.name}}AuxIterator represents a {{.name}} implementation of AuxIterator.

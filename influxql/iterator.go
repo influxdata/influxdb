@@ -185,16 +185,16 @@ func NewDedupeIterator(input Iterator) Iterator {
 }
 
 // NewFillIterator returns an iterator that fills in missing points in an aggregate.
-func NewFillIterator(input Iterator, seriesKeys SeriesList, expr Expr, opt IteratorOptions) Iterator {
+func NewFillIterator(input Iterator, expr Expr, opt IteratorOptions) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
-		return newFloatFillIterator(input, seriesKeys, expr, opt)
+		return newFloatFillIterator(input, expr, opt)
 	case IntegerIterator:
-		return newIntegerFillIterator(input, seriesKeys, expr, opt)
+		return newIntegerFillIterator(input, expr, opt)
 	case StringIterator:
-		return newStringFillIterator(input, seriesKeys, expr, opt)
+		return newStringFillIterator(input, expr, opt)
 	case BooleanIterator:
-		return newBooleanFillIterator(input, seriesKeys, expr, opt)
+		return newBooleanFillIterator(input, expr, opt)
 	default:
 		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
 	}
