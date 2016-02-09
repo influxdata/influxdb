@@ -171,7 +171,9 @@ func main() {
 	fmt.Println("b1 and bz1 shard conversion.")
 	fmt.Println("-----------------------------------")
 	fmt.Println("Data directory is:                 ", opts.DataPath)
-	fmt.Println("Backup directory is:               ", opts.BackupPath)
+	if !opts.SkipBackup {
+		fmt.Println("Backup directory is:               ", opts.BackupPath)
+	}
 	fmt.Println("Databases specified:               ", allDBs(opts.DBs))
 	fmt.Println("Database backups enabled:          ", yesno(!opts.SkipBackup), badUser)
 	fmt.Printf("Parallel mode enabled (GOMAXPROCS): %s (%d)\n", yesno(opts.Parallel), runtime.GOMAXPROCS(0))
