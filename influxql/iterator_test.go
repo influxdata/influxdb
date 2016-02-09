@@ -611,6 +611,7 @@ func TestFloatAuxIterator(t *testing.T) {
 		},
 		influxql.IteratorOptions{Aux: []string{"f0", "f1"}},
 	)
+	itr.Start()
 
 	itrs := []influxql.Iterator{
 		itr,

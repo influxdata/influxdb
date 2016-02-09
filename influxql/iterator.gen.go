@@ -558,18 +558,12 @@ func newFloatAuxIterator(input FloatIterator, seriesKeys SeriesList, opt Iterato
 	itr := &floatAuxIterator{
 		input:  newBufFloatIterator(input),
 		output: make(chan *FloatPoint, 1),
-		fields: newAuxIteratorFields(opt),
+		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-
-	// Initialize auxiliary fields.
-	if len(opt.Aux) > 0 {
-		itr.fields.init(seriesKeys)
-	}
-
-	go itr.stream()
 	return itr
 }
 
+func (itr *floatAuxIterator) Start()                        { go itr.stream() }
 func (itr *floatAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *floatAuxIterator) Next() *FloatPoint             { return <-itr.output }
 func (itr *floatAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -1453,18 +1447,12 @@ func newIntegerAuxIterator(input IntegerIterator, seriesKeys SeriesList, opt Ite
 	itr := &integerAuxIterator{
 		input:  newBufIntegerIterator(input),
 		output: make(chan *IntegerPoint, 1),
-		fields: newAuxIteratorFields(opt),
+		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-
-	// Initialize auxiliary fields.
-	if len(opt.Aux) > 0 {
-		itr.fields.init(seriesKeys)
-	}
-
-	go itr.stream()
 	return itr
 }
 
+func (itr *integerAuxIterator) Start()                        { go itr.stream() }
 func (itr *integerAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *integerAuxIterator) Next() *IntegerPoint           { return <-itr.output }
 func (itr *integerAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -2348,18 +2336,12 @@ func newStringAuxIterator(input StringIterator, seriesKeys SeriesList, opt Itera
 	itr := &stringAuxIterator{
 		input:  newBufStringIterator(input),
 		output: make(chan *StringPoint, 1),
-		fields: newAuxIteratorFields(opt),
+		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-
-	// Initialize auxiliary fields.
-	if len(opt.Aux) > 0 {
-		itr.fields.init(seriesKeys)
-	}
-
-	go itr.stream()
 	return itr
 }
 
+func (itr *stringAuxIterator) Start()                        { go itr.stream() }
 func (itr *stringAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *stringAuxIterator) Next() *StringPoint            { return <-itr.output }
 func (itr *stringAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -3243,18 +3225,12 @@ func newBooleanAuxIterator(input BooleanIterator, seriesKeys SeriesList, opt Ite
 	itr := &booleanAuxIterator{
 		input:  newBufBooleanIterator(input),
 		output: make(chan *BooleanPoint, 1),
-		fields: newAuxIteratorFields(opt),
+		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-
-	// Initialize auxiliary fields.
-	if len(opt.Aux) > 0 {
-		itr.fields.init(seriesKeys)
-	}
-
-	go itr.stream()
 	return itr
 }
 
+func (itr *booleanAuxIterator) Start()                        { go itr.stream() }
 func (itr *booleanAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *booleanAuxIterator) Next() *BooleanPoint           { return <-itr.output }
 func (itr *booleanAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }

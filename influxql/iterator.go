@@ -207,6 +207,9 @@ type AuxIterator interface {
 
 	// Auxilary iterator
 	Iterator(name string) Iterator
+
+	// Start starts writing to the created iterators.
+	Start()
 }
 
 // NewAuxIterator returns a new instance of AuxIterator.
@@ -236,10 +239,20 @@ type auxIteratorField struct {
 type auxIteratorFields []*auxIteratorField
 
 // newAuxIteratorFields returns a new instance of auxIteratorFields from a list of field names.
-func newAuxIteratorFields(opt IteratorOptions) auxIteratorFields {
+func newAuxIteratorFields(seriesKeys SeriesList, opt IteratorOptions) auxIteratorFields {
 	fields := make(auxIteratorFields, len(opt.Aux))
 	for i, name := range opt.Aux {
 		fields[i] = &auxIteratorField{name: name, opt: opt}
+		for _, s := range seriesKeys {
+			aux := s.Aux[i]
+			if aux == Unknown {
+				continue
+			}
+
+			if fields[i].typ == Unknown || aux < fields[i].typ {
+				fields[i].typ = aux
+			}
+		}
 	}
 	return fields
 }
@@ -248,21 +261,6 @@ func (a auxIteratorFields) close() {
 	for _, f := range a {
 		for _, itr := range f.itrs {
 			itr.Close()
-		}
-	}
-}
-
-// init initializes all auxilary fields with initial points.
-func (a auxIteratorFields) init(seriesKeys SeriesList) {
-	for _, s := range seriesKeys {
-		for i, aux := range s.Aux {
-			if aux == Unknown {
-				continue
-			}
-
-			if a[i].typ == Unknown || aux < a[i].typ {
-				a[i].typ = aux
-			}
 		}
 	}
 }
