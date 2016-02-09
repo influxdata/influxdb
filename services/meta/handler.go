@@ -309,6 +309,23 @@ func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 
 // serveLease
 func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
+	var name, nodeIDStr string
+	q := r.URL.Query()
+
+	// Get the requested lease name.
+	name = q.Get("name")
+	if name == "" {
+		http.Error(w, "lease name required", http.StatusBadRequest)
+		return
+	}
+
+	// Get the ID of the requesting node.
+	nodeIDStr = q.Get("nodeid")
+	if nodeIDStr == "" {
+		http.Error(w, "node ID required", http.StatusBadRequest)
+		return
+	}
+
 	// Redirect to leader if necessary.
 	leader := h.store.leaderHTTP()
 	if leader != h.s.httpAddr {
@@ -322,25 +339,11 @@ func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 			scheme = "https://"
 		}
 
-		leader = scheme + leader + "/lease"
+		leader = scheme + leader + "/lease?" + q.Encode()
 		http.Redirect(w, r, leader, http.StatusTemporaryRedirect)
 		return
 	}
 
-	q := r.URL.Query()
-
-	// Get the requested lease name.
-	name := q.Get("name")
-	if name == "" {
-		http.Error(w, "lease name required", http.StatusBadRequest)
-		return
-	}
-	// Get the ID of the requesting node.
-	nodeIDStr := q.Get("nodeid")
-	if name == "" {
-		http.Error(w, "node ID required", http.StatusBadRequest)
-		return
-	}
 	// Convert node ID to an int.
 	nodeID, err := strconv.ParseUint(nodeIDStr, 10, 64)
 	if err != nil {
