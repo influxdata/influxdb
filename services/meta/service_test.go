@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
+
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tcp"
@@ -566,7 +568,7 @@ func TestMetaService_ContinuousQueries(t *testing.T) {
 	}
 }
 
-func TestMetaService_Subscriptions(t *testing.T) {
+func TestMetaService_Subscriptions_Create(t *testing.T) {
 	t.Parallel()
 
 	d, s, c := newServiceAndClient()
@@ -598,36 +600,139 @@ func TestMetaService_Subscriptions(t *testing.T) {
 	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
 	if res.Err != nil {
 		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 1; got != exp {
+		t.Fatalf("unexpected response.\n\ngot: %d series\nexp: %d\n", got, exp)
+	}
+
+	// Create another subscription.
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// The subscriptions are correctly created.
+	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub1","ALL",["udp://example.com:6060"]]]}]}`
+	got := mustMarshalJSON(res)
+	if got != exp {
+		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", exp, got)
+	}
+
+	// // Re-create a subscription
+	// if res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub1 ON db0."default"`)); res.Err != nil {
+	// 	t.Fatal(res.Err)
+	// }
+
+	// res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	// if res.Err != nil {
+	// 	t.Fatal(res.Err)
+	// }
+
+}
+
+func TestMetaService_Subscriptions_Show(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// SHOW SUBSCRIPTIONS returns no subscriptions when there are none.
+	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 0; got != exp {
+		t.Fatalf("got %d series, expected %d", got, exp)
+	}
+
+	// Create a subscription.
+	if res = c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// SHOW SUBSCRIPTIONS returns the created subscription.
+	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 1; got != exp {
+		t.Fatalf("got %d series, expected %d", got, exp)
 	}
 
 	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]]]}]}`
 	got := mustMarshalJSON(res)
-	if exp != got {
-		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	if got != exp {
+		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", got, exp)
 	}
+}
 
-	// Create a couple more subscriptions
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
+func TestMetaService_Subscriptions_Drop(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
 		t.Fatal(res.Err)
 	}
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub2 ON db0."default" DESTINATIONS ALL 'udp://example.com:7070'`)); res.Err != nil {
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// DROP SUBSCRIPTION returns ErrSubscriptionNotFound when the
+	// subscription is unknown.
+	res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION foo ON db0."default"`))
+	if got, exp := res.Err, meta.ErrSubscriptionNotFound; got.Error() != exp.Error() {
+		t.Fatalf("got: %s, exp: %s", got.Error(), exp)
+	}
+
+	// Create a subscription.
+	if res = c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
 		t.Fatal(res.Err)
 	}
 
-	// Re-create a subscription
-	if res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub1 ON db0."default"`)); res.Err != nil {
-		t.Fatal(res.Err)
+	// DROP SUBSCRIPTION returns an influxdb.ErrDatabaseNotFound when
+	// the database is unknown.
+	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON foo."default"`))
+	if got, exp := res.Err, influxdb.ErrDatabaseNotFound("foo"); got.Error() != exp.Error() {
+		t.Fatalf("got: %s, exp: %s", got.Error(), exp)
 	}
 
-	res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
-	if res.Err != nil {
-		t.Fatal(res.Err)
+	// DROP SUBSCRIPTION returns an influxdb.ErrRetentionPolicyNotFound
+	// when the retention policy is unknown.
+	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."foo_policy"`))
+	if got, exp := res.Err, influxdb.ErrRetentionPolicyNotFound("foo_policy"); got.Error() != exp.Error() {
+		t.Fatalf("got: %s, exp: %s", got.Error(), exp)
 	}
 
-	exp = `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub2","ALL",["udp://example.com:7070"]]]}]}`
-	got = mustMarshalJSON(res)
-	if exp != got {
-		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	// DROP SUBSCRIPTION drops the subsciption if it can find it.
+	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."default"`))
+	if got := res.Err; got != nil {
+		t.Fatalf("got: %s, exp: %s", got.Error(), nil)
+	}
+
+	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 0; got != exp {
+		t.Fatalf("got %d series, expected %d", got, exp)
 	}
 }
 

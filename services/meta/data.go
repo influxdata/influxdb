@@ -574,8 +574,7 @@ func (data *Data) CreateSubscription(database, rp, name, mode string, destinatio
 	rpi, err := data.RetentionPolicy(database, rp)
 	if err != nil {
 		return err
-	}
-	if rpi == nil {
+	} else if rpi == nil {
 		return influxdb.ErrRetentionPolicyNotFound(rp)
 	}
 
@@ -601,6 +600,8 @@ func (data *Data) DropSubscription(database, rp, name string) error {
 	rpi, err := data.RetentionPolicy(database, rp)
 	if err != nil {
 		return err
+	} else if rpi == nil {
+		return influxdb.ErrRetentionPolicyNotFound(rp)
 	}
 
 	for i := range rpi.Subscriptions {
