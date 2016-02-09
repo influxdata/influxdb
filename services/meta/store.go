@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/services/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -86,7 +85,6 @@ func (s *store) open(raftln net.Listener) error {
 		c := NewClient(joinPeers, s.config.HTTPSEnabled)
 		for {
 			peers := c.peers()
-			spew.Dump(peers)
 			if len(s.config.JoinPeers)-len(peers) == 0 {
 				initializePeers = peers
 				break
@@ -96,31 +94,19 @@ func (s *store) open(raftln net.Listener) error {
 			time.Sleep(time.Second)
 		}
 	}
-	initializePeers = append(initializePeers, s.raftAddr)
 
-	if err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		// Check if store has already been opened.
-		if s.opened {
-			return ErrStoreOpen
-		}
-		s.opened = true
-
-		// Create the root directory if it doesn't already exist.
-		if err := os.MkdirAll(s.path, 0777); err != nil {
-			return fmt.Errorf("mkdir all: %s", err)
-		}
-
-		// Open the raft store.
-		if err := s.openRaft(initializePeers, raftln); err != nil {
-			return fmt.Errorf("raft: %s", err)
-		}
-
-		return nil
-	}(); err != nil {
+	if err := s.setOpen(); err != nil {
 		return err
+	}
+
+	// Create the root directory if it doesn't already exist.
+	if err := os.MkdirAll(s.path, 0777); err != nil {
+		return fmt.Errorf("mkdir all: %s", err)
+	}
+
+	// Open the raft store.
+	if err := s.openRaft(initializePeers, raftln); err != nil {
+		return fmt.Errorf("raft: %s", err)
 	}
 
 	// Wait for a leader to be elected so we know the raft log is loaded
@@ -159,6 +145,17 @@ func (s *store) open(raftln net.Listener) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *store) setOpen() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Check if store has already been opened.
+	if s.opened {
+		return ErrStoreOpen
+	}
+	s.opened = true
 	return nil
 }
 
@@ -207,6 +204,8 @@ func (s *store) filterAddr(addrs []string, filter string) ([]string, error) {
 }
 
 func (s *store) openRaft(initializePeers []string, raftln net.Listener) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	rs := newRaftState(s.config, s.raftAddr)
 	rs.logger = s.logger
 	rs.path = s.path
