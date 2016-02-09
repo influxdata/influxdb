@@ -555,12 +555,11 @@ type floatAuxIterator struct {
 }
 
 func newFloatAuxIterator(input FloatIterator, seriesKeys SeriesList, opt IteratorOptions) *floatAuxIterator {
-	itr := &floatAuxIterator{
+	return &floatAuxIterator{
 		input:  newBufFloatIterator(input),
 		output: make(chan *FloatPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-	return itr
 }
 
 func (itr *floatAuxIterator) Start()                        { go itr.stream() }
@@ -576,7 +575,7 @@ func (itr *floatAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, erro
 
 	switch expr := expr.(type) {
 	case *VarRef:
-		return itr.fields.iterator(expr.Val), nil
+		return itr.Iterator(expr.Val), nil
 	default:
 		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
 	}
@@ -1444,12 +1443,11 @@ type integerAuxIterator struct {
 }
 
 func newIntegerAuxIterator(input IntegerIterator, seriesKeys SeriesList, opt IteratorOptions) *integerAuxIterator {
-	itr := &integerAuxIterator{
+	return &integerAuxIterator{
 		input:  newBufIntegerIterator(input),
 		output: make(chan *IntegerPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-	return itr
 }
 
 func (itr *integerAuxIterator) Start()                        { go itr.stream() }
@@ -1465,7 +1463,7 @@ func (itr *integerAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, er
 
 	switch expr := expr.(type) {
 	case *VarRef:
-		return itr.fields.iterator(expr.Val), nil
+		return itr.Iterator(expr.Val), nil
 	default:
 		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
 	}
@@ -2333,12 +2331,11 @@ type stringAuxIterator struct {
 }
 
 func newStringAuxIterator(input StringIterator, seriesKeys SeriesList, opt IteratorOptions) *stringAuxIterator {
-	itr := &stringAuxIterator{
+	return &stringAuxIterator{
 		input:  newBufStringIterator(input),
 		output: make(chan *StringPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-	return itr
 }
 
 func (itr *stringAuxIterator) Start()                        { go itr.stream() }
@@ -2354,7 +2351,7 @@ func (itr *stringAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, err
 
 	switch expr := expr.(type) {
 	case *VarRef:
-		return itr.fields.iterator(expr.Val), nil
+		return itr.Iterator(expr.Val), nil
 	default:
 		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
 	}
@@ -3222,12 +3219,11 @@ type booleanAuxIterator struct {
 }
 
 func newBooleanAuxIterator(input BooleanIterator, seriesKeys SeriesList, opt IteratorOptions) *booleanAuxIterator {
-	itr := &booleanAuxIterator{
+	return &booleanAuxIterator{
 		input:  newBufBooleanIterator(input),
 		output: make(chan *BooleanPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
-	return itr
 }
 
 func (itr *booleanAuxIterator) Start()                        { go itr.stream() }
@@ -3243,7 +3239,7 @@ func (itr *booleanAuxIterator) CreateIterator(opt IteratorOptions) (Iterator, er
 
 	switch expr := expr.(type) {
 	case *VarRef:
-		return itr.fields.iterator(expr.Val), nil
+		return itr.Iterator(expr.Val), nil
 	default:
 		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
 	}

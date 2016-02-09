@@ -611,7 +611,6 @@ func TestFloatAuxIterator(t *testing.T) {
 		},
 		influxql.IteratorOptions{Aux: []string{"f0", "f1"}},
 	)
-	itr.Start()
 
 	itrs := []influxql.Iterator{
 		itr,
@@ -619,6 +618,7 @@ func TestFloatAuxIterator(t *testing.T) {
 		itr.Iterator("f1"),
 		itr.Iterator("f0"),
 	}
+	itr.Start()
 
 	if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{

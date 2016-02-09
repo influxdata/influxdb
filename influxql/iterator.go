@@ -3,6 +3,7 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -233,7 +234,22 @@ type auxIteratorField struct {
 	name string     // field name
 	typ  DataType   // detected data type
 	itrs []Iterator // auxillary iterators
+	mu   sync.Mutex
 	opt  IteratorOptions
+}
+
+func (f *auxIteratorField) append(itr Iterator) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.itrs = append(f.itrs, itr)
+}
+
+func (f *auxIteratorField) close() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, itr := range f.itrs {
+		itr.Close()
+	}
 }
 
 type auxIteratorFields []*auxIteratorField
@@ -259,9 +275,7 @@ func newAuxIteratorFields(seriesKeys SeriesList, opt IteratorOptions) auxIterato
 
 func (a auxIteratorFields) close() {
 	for _, f := range a {
-		for _, itr := range f.itrs {
-			itr.Close()
-		}
+		f.close()
 	}
 }
 
@@ -278,19 +292,19 @@ func (a auxIteratorFields) iterator(name string) Iterator {
 		switch f.typ {
 		case Float:
 			itr := &floatChanIterator{c: make(chan *FloatPoint, 1)}
-			f.itrs = append(f.itrs, itr)
+			f.append(itr)
 			return itr
 		case Integer:
 			itr := &integerChanIterator{c: make(chan *IntegerPoint, 1)}
-			f.itrs = append(f.itrs, itr)
+			f.append(itr)
 			return itr
 		case String:
 			itr := &stringChanIterator{c: make(chan *StringPoint, 1)}
-			f.itrs = append(f.itrs, itr)
+			f.append(itr)
 			return itr
 		case Boolean:
 			itr := &booleanChanIterator{c: make(chan *BooleanPoint, 1)}
-			f.itrs = append(f.itrs, itr)
+			f.append(itr)
 			return itr
 		default:
 			break
