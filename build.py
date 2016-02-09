@@ -552,6 +552,7 @@ def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iter
                     
                     if rc is not None:
                         package_iteration = "0.rc{}".format(rc)
+                    saved_a = a
                     if pkg_arch is not None:
                         a = pkg_arch
                     if a == '386':
@@ -568,6 +569,8 @@ def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iter
                         current_location)
                     if debug:
                         fpm_command += "--verbose "
+                    if pkg_arch is not None:
+                        a = saved_a
                     if package_type == "rpm":
                         fpm_command += "--depends coreutils --rpm-posttrans {}".format(POSTINST_SCRIPT)
                     out = run(fpm_command, shell=True)
