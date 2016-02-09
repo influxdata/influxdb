@@ -403,6 +403,10 @@ func (itr *floatLimitIterator) Next() *FloatPoint {
 
 		// Read next point if we're beyond the limit.
 		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			// If there's no interval and no groups then simply exit.
+			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 {
+				return nil
+			}
 			continue
 		}
 
@@ -1294,6 +1298,10 @@ func (itr *integerLimitIterator) Next() *IntegerPoint {
 
 		// Read next point if we're beyond the limit.
 		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			// If there's no interval and no groups then simply exit.
+			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 {
+				return nil
+			}
 			continue
 		}
 
@@ -2185,6 +2193,10 @@ func (itr *stringLimitIterator) Next() *StringPoint {
 
 		// Read next point if we're beyond the limit.
 		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			// If there's no interval and no groups then simply exit.
+			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 {
+				return nil
+			}
 			continue
 		}
 
@@ -3076,6 +3088,10 @@ func (itr *booleanLimitIterator) Next() *BooleanPoint {
 
 		// Read next point if we're beyond the limit.
 		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			// If there's no interval and no groups then simply exit.
+			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 {
+				return nil
+			}
 			continue
 		}
 

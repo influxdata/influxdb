@@ -512,7 +512,6 @@ func TestLimitIterator_Float(t *testing.T) {
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{&influxql.FloatPoint{Name: "cpu", Time: 5, Value: 3}},
-		{&influxql.FloatPoint{Name: "mem", Time: 7, Value: 8}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -539,7 +538,6 @@ func TestLimitIterator_Integer(t *testing.T) {
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 3}},
-		{&influxql.IntegerPoint{Name: "mem", Time: 7, Value: 8}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -566,7 +564,6 @@ func TestLimitIterator_String(t *testing.T) {
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{&influxql.StringPoint{Name: "cpu", Time: 5, Value: "b"}},
-		{&influxql.StringPoint{Name: "mem", Time: 7, Value: "e"}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -593,7 +590,6 @@ func TestLimitIterator_Boolean(t *testing.T) {
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
 		{&influxql.BooleanPoint{Name: "cpu", Time: 5, Value: false}},
-		{&influxql.BooleanPoint{Name: "mem", Time: 7, Value: true}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
