@@ -610,7 +610,7 @@ func TestFloatAuxIterator(t *testing.T) {
 			{Time: 0, Value: 1, Aux: []interface{}{float64(100), float64(200)}},
 			{Time: 1, Value: 2, Aux: []interface{}{float64(500), math.NaN()}},
 		}},
-		influxql.SeriesList{
+		[]influxql.Series{
 			{Aux: []influxql.DataType{influxql.Float, influxql.Float}},
 		},
 		influxql.IteratorOptions{Aux: []string{"f0", "f1"}},

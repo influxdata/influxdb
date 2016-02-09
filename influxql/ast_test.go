@@ -1136,14 +1136,14 @@ func Test_fieldsNames(t *testing.T) {
 }
 
 func TestSources_Names(t *testing.T) {
-	sources := influxql.Sources{
+	sources := influxql.Sources([]influxql.Source{
 		&influxql.Measurement{
 			Name: "cpu",
 		},
 		&influxql.Measurement{
 			Name: "mem",
 		},
-	}
+	})
 
 	names := sources.Names()
 	if names[0] != "cpu" {
@@ -1155,22 +1155,22 @@ func TestSources_Names(t *testing.T) {
 }
 
 func TestSources_HasSystemSource(t *testing.T) {
-	sources := influxql.Sources{
+	sources := influxql.Sources([]influxql.Source{
 		&influxql.Measurement{
 			Name: "_measurements",
 		},
-	}
+	})
 
 	ok := sources.HasSystemSource()
 	if !ok {
 		t.Errorf("expected to find a system source, found none")
 	}
 
-	sources = influxql.Sources{
+	sources = influxql.Sources([]influxql.Source{
 		&influxql.Measurement{
 			Name: "cpu",
 		},
-	}
+	})
 
 	ok = sources.HasSystemSource()
 	if ok {

@@ -491,7 +491,7 @@ func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, e
 			return nil, errors.New("cannot select from multiple system sources")
 		}
 		// Meta queries don't need to know the series name and always have a single string.
-		return influxql.SeriesList{{Aux: []influxql.DataType{influxql.String}}}, nil
+		return []influxql.Series{{Aux: []influxql.DataType{influxql.String}}}, nil
 	}
 
 	seriesMap := make(map[string]influxql.Series)

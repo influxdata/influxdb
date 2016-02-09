@@ -33,7 +33,7 @@ cpu,region=serverB value=3 20
 
 	e := NewQueryExecutor()
 	e.MetaClient.ShardIDsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []uint64, err error) {
-		if !reflect.DeepEqual(sources, influxql.Sources{&influxql.Measurement{Database: "db0", RetentionPolicy: "rp0", Name: "cpu"}}) {
+		if !reflect.DeepEqual(sources, influxql.Sources([]influxql.Source{&influxql.Measurement{Database: "db0", RetentionPolicy: "rp0", Name: "cpu"}})) {
 			t.Fatalf("unexpected sources: %s", spew.Sdump(sources))
 		} else if tmin.IsZero() {
 			t.Fatalf("unexpected tmin: %s", tmin)

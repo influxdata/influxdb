@@ -564,12 +564,12 @@ func (q *QueryExecutor) planShowMeasurements(stmt *influxql.ShowMeasurementsStat
 	}
 
 	ss := &influxql.SelectStatement{
-		Fields: influxql.Fields{
+		Fields: influxql.Fields([]*influxql.Field{
 			{Expr: &influxql.VarRef{Val: "name"}},
-		},
-		Sources: influxql.Sources{
+		}),
+		Sources: influxql.Sources([]influxql.Source{
 			&influxql.Measurement{Name: "_measurements"},
-		},
+		}),
 		Condition:  condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -621,10 +621,10 @@ func (q *QueryExecutor) planShowTagKeys(stmt *influxql.ShowTagKeysStatement, dat
 	}
 
 	ss := &influxql.SelectStatement{
-		Fields: influxql.Fields{
+		Fields: []*influxql.Field{
 			{Expr: &influxql.VarRef{Val: "tagKey"}},
 		},
-		Sources: influxql.Sources{
+		Sources: []influxql.Source{
 			&influxql.Measurement{Name: "_tagKeys"},
 		},
 		Condition:  condition,
