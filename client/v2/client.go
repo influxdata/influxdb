@@ -73,8 +73,7 @@ type BatchPointsConfig struct {
 
 // Client is a client interface for writing & querying the database
 type Client interface {
-	// Ping will check to see if the server is up with an optional timeout on waiting for leader.
-	// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
+	// Ping checks that status of cluster
 	Ping(timeout time.Duration) (time.Duration, string, error)
 
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
@@ -123,7 +122,8 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	}, nil
 }
 
-// Pings cluster
+// Ping will check to see if the server is up with an optional timeout on waiting for leader.
+// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
 func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
@@ -196,7 +196,8 @@ func NewUDPClient(conf UDPConfig) (Client, error) {
 	}, nil
 }
 
-// Pings cluster
+// Ping will check to see if the server is up with an optional timeout on waiting for leader.
+// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
 func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
 	return 0, "", nil
 }
