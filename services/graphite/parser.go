@@ -216,13 +216,13 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 	fields := strings.Split(line, ".")
 	var (
 		measurement []string
-		tags        = make(map[string]string)
+		tags        = make(map[string][]string)
 		field       string
 	)
 
 	// Set any default tags
 	for k, v := range t.defaultTags {
-		tags[k] = v
+		tags[k] = append(tags[k], v)
 	}
 
 	for i, tag := range t.tags {
@@ -241,11 +241,17 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 			measurement = append(measurement, fields[i:]...)
 			break
 		} else if tag != "" {
-			tags[tag] = fields[i]
+			tags[tag] = append(tags[tag], fields[i])
 		}
 	}
 
-	return strings.Join(measurement, t.separator), tags, field, nil
+	// Convert to map of strings.
+	out_tags := make(map[string]string)
+	for k, values := range tags {
+		out_tags[k] = strings.Join(values, t.separator)
+	}
+
+	return strings.Join(measurement, t.separator), out_tags, field, nil
 }
 
 // matcher determines which template should be applied to a given metric
