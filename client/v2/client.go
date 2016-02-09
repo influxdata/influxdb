@@ -73,6 +73,10 @@ type BatchPointsConfig struct {
 
 // Client is a client interface for writing & querying the database
 type Client interface {
+	// Ping will check to see if the server is up with an optional timeout on waiting for leader.
+	// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
+	Ping(timeout time.Duration) (time.Duration, string, error)
+
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
 	Write(bp BatchPoints) error
 
@@ -119,6 +123,49 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	}, nil
 }
 
+// Pings cluster
+func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
+	now := time.Now()
+	u := c.url
+	u.Path = "ping"
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("User-Agent", c.useragent)
+
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	if timeout > 0 {
+		params := req.URL.Query()
+		params.Set("wait_for_leader", fmt.Sprintf("%.0fs", timeout.Seconds()))
+		req.URL.RawQuery = params.Encode()
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, "", err
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		var err = fmt.Errorf(string(body))
+		return 0, "", err
+	}
+
+	version := resp.Header.Get("X-Influxdb-Version")
+	return time.Since(now), version, nil
+}
+
 // Close releases the client's resources.
 func (c *client) Close() error {
 	return nil
@@ -147,6 +194,11 @@ func NewUDPClient(conf UDPConfig) (Client, error) {
 		conn:        conn,
 		payloadSize: payloadSize,
 	}, nil
+}
+
+// Pings cluster
+func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
+	return 0, "", nil
 }
 
 // Close releases the udpclient's resources.
