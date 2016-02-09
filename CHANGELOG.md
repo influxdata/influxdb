@@ -11,6 +11,7 @@
 - [#5182](https://github.com/influxdata/influxdb/pull/5182): Graphite: Fix an issue where the default template would be used instead of a more specific one. Thanks @flisky
 - [#5489](https://github.com/influxdata/influxdb/pull/5489): Fixes multiple issues causing tests to fail on windows. Thanks @runner-mei
 - [#5594](https://github.com/influxdata/influxdb/pull/5594): Fix missing url params on lease redirect - @oldmantaiter
+- [#5376](https://github.com/influxdata/influxdb/pull/5376): Fix golint issues in models package. @nuss-justin
 
 ## v0.10.0 [2016-02-04]
 
