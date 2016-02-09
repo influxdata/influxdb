@@ -30,11 +30,11 @@ $ influx_tsm -backup ~/influxdb_backup -parallel ~/.influxdb/data
 
 b1 and bz1 shard conversion.
 -----------------------------------
-Data directory is:        /home/user/.influxdb/data
-Backup directory is:      /home/user/influxdb_backup
-Databases specified:      all
-Database backups enabled: yes
-Parallel mode enabled:    yes 8
+Data directory is:                  /home/user/.influxdb/data
+Backup directory is:                /home/user/influxdb_backup
+Databases specified:                all
+Database backups enabled:           yes
+Parallel mode enabled (GOMAXPROCS): yes (8)
 
 
 Found 1 shards that will be converted.
