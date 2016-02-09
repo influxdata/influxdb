@@ -89,7 +89,7 @@ func (data *Data) setDataNode(nodeID uint64, host, tcpHost string) error {
 	return nil
 }
 
-// DeleteNode removes a node from the metadata.
+// DeleteDataNode removes a node from the metadata.
 func (data *Data) DeleteDataNode(id uint64) error {
 	// Node has to be larger than 0 to be real
 	if id == 0 {

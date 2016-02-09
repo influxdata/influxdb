@@ -619,17 +619,6 @@ func TestMetaService_Subscriptions_Create(t *testing.T) {
 	if got != exp {
 		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", exp, got)
 	}
-
-	// // Re-create a subscription
-	// if res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub1 ON db0."default"`)); res.Err != nil {
-	// 	t.Fatal(res.Err)
-	// }
-
-	// res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
-	// if res.Err != nil {
-	// 	t.Fatal(res.Err)
-	// }
-
 }
 
 func TestMetaService_Subscriptions_Show(t *testing.T) {
@@ -726,7 +715,7 @@ func TestMetaService_Subscriptions_Drop(t *testing.T) {
 	// DROP SUBSCRIPTION drops the subsciption if it can find it.
 	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."default"`))
 	if got := res.Err; got != nil {
-		t.Fatalf("got: %s, exp: %s", got.Error(), nil)
+		t.Fatalf("got: %s, exp: %v", got.Error(), nil)
 	}
 
 	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
@@ -883,7 +872,7 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
-	for i, _ := range cfgs {
+	for i := range cfgs {
 		c := newConfig()
 
 		cfgs[i] = c
@@ -926,7 +915,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
-	for i, _ := range cfgs {
+	for i := range cfgs {
 		c := newConfig()
 
 		cfgs[i] = c
@@ -1208,18 +1197,18 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	}
 	defer c.Close()
 
-	id_after := c.ClusterID()
-	if id_after == 0 {
+	idAfter := c.ClusterID()
+	if idAfter == 0 {
 		t.Fatal("cluster ID can't be zero")
-	} else if id_after != id {
-		t.Fatalf("cluster id not the same: %d, %d", id_after, id)
+	} else if idAfter != id {
+		t.Fatalf("cluster id not the same: %d, %d", idAfter, id)
 	}
 }
 
 func TestMetaService_Ping(t *testing.T) {
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
-	for i, _ := range cfgs {
+	for i := range cfgs {
 		c := newConfig()
 
 		cfgs[i] = c
