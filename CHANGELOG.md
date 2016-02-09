@@ -13,6 +13,7 @@
 - [#5489](https://github.com/influxdata/influxdb/pull/5489): Fixes multiple issues causing tests to fail on windows. Thanks @runner-mei
 - [#5594](https://github.com/influxdata/influxdb/pull/5594): Fix missing url params on lease redirect - @oldmantaiter
 - [#5376](https://github.com/influxdata/influxdb/pull/5376): Fix golint issues in models package. @nuss-justin
+- [#5535](https://github.com/influxdata/influxdb/pull/5535): Update README for referring to Collectd
 
 ## v0.10.0 [2016-02-04]
 

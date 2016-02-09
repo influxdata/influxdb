@@ -1,6 +1,6 @@
 # The collectd Input
 
-The _collectd_ input allows InfluxDB to accept data transmitted in collectd native format. This data is transmitted over UDP.
+The [collectd](https://collectd.org) input allows InfluxDB to accept data transmitted in collectd native format. This data is transmitted over UDP.
 
 ## A note on UDP/IP OS Buffer sizes
 
@@ -13,11 +13,11 @@ Each collectd input allows the binding address, target database, and target rete
 
 Each collectd input also performs internal batching of the points it receives, as batched writes to the database are more efficient. The default batch size is 1000, pending batch factor is 5, with a batch timeout of 1 second. This means the input will write batches of maximum size 1000, but if a batch has not reached 1000 points within 1 second of the first point being added to a batch, it will emit that batch regardless of size. The pending batch factor controls how many batches can be in memory at once, allowing the input to transmit a batch, while still building other batches.
 
-The path to the collectd types database file may also be set
+The path to the collectd types database file may also be set.
 
 ## Large UDP packets
 
-Please note that UDP packages larger than the standard size of 1452 are dropped at the time of ingestion, so be sure to set `MaxPacketSize` to 1452 in the collectd configuration.
+Please note that UDP packets larger than the standard size of 1452 are dropped at the time of ingestion. Be sure to set `MaxPacketSize` to 1452 in the collectd configuration.
 
 ## Config Example
 
