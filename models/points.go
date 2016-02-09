@@ -129,6 +129,7 @@ func ParsePointsString(buf string) ([]Point, error) {
 	return ParsePoints([]byte(buf))
 }
 
+// ParseKey returns the measurement name and tags from a point.
 func ParseKey(buf string) (string, Tags, error) {
 	_, keyBuf, err := scanKey([]byte(buf), 0)
 	tags := parseTags([]byte(buf))
@@ -1087,6 +1088,7 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 	}, nil
 }
 
+// NewPointFromBytes returns a new Point from a marshalled Point.
 func NewPointFromBytes(b []byte) (Point, error) {
 	p := &point{}
 	if err := p.UnmarshalBinary(b); err != nil {
