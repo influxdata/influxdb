@@ -8,8 +8,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta/internal"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta/internal"
 )
 
 // storeFSM represents the finite state machine used by Store to interact with Raft.

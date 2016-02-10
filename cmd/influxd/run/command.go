@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
 const logo = `
