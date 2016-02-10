@@ -4,7 +4,7 @@ import (
 	"sort"
 	"fmt"
 	"math"
-	
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -72,7 +72,7 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 		} else if k < seek {
 			continue
 		}
-		
+
 		c.unread(k, v)
 
 		// Return "nil" value for type.
@@ -239,7 +239,6 @@ func (c *{{.name}}AscendingCursor) peekCache() (t int64, v {{.Type}}) {
 // peekTSM returns the current time/value from tsm.
 func (c *{{.name}}AscendingCursor) peekTSM() (t int64, v {{.Type}}) {
 	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
-		c.tsm.keyCursor.Close()
 		return tsdb.EOF, {{.Nil}}
 	}
 
@@ -293,7 +292,6 @@ func (c *{{.name}}AscendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
 		if len(c.tsm.values) == 0 {
-			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
@@ -351,7 +349,6 @@ func (c *{{.name}}DescendingCursor) peekCache() (t int64, v {{.Type}}) {
 // peekTSM returns the current time/value from tsm.
 func (c *{{.name}}DescendingCursor) peekTSM() (t int64, v {{.Type}}) {
 	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
-		c.tsm.keyCursor.Close()
 		return tsdb.EOF, {{.Nil}}
 	}
 
@@ -405,7 +402,6 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
 		if len(c.tsm.values) == 0 {
-			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
