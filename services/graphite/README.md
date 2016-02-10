@@ -59,7 +59,7 @@ Additional tags can be added to a metric that don't exist on the received metric
 
 A field key can be specified by using the keyword _field_. By default if no _field_ keyword is specified then the metric will be written to a field named _value_.
 
-The field key can also be derived from the second "half" of the input metric-name by specifying ```field*``` (eg ```measurement.measurement.field*```)
+The field key can also be derived from the second "half" of the input metric-name by specifying ```field*``` (eg ```measurement.measurement.field*```). This cannot be used in conjunction with "measurement*"!
 
 When using the current default engine _BZ1_, it's recommended to use a single field per value for performance reasons.
 
