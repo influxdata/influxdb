@@ -359,12 +359,16 @@ func (s *store) apply(b []byte) error {
 
 // join adds a new server to the metaservice and raft
 func (s *store) join(n *NodeInfo) error {
+	s.mu.RLock()
 	if s.raftState == nil {
+		s.mu.RUnlock()
 		return fmt.Errorf("store not open")
 	}
 	if err := s.raftState.addPeer(n.TCPHost); err != nil {
+		s.mu.RUnlock()
 		return err
 	}
+	s.mu.RUnlock()
 
 	return s.createMetaNode(n.Host, n.TCPHost)
 }
