@@ -200,6 +200,12 @@ func TestParse(t *testing.T) {
 			template: "measurement",
 			err:      `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
+		{
+			test:     "measurement* and field* (invalid)",
+			input:    `prod.us-west.server01.cpu.util.idle.percent 99.99 1419972457825`,
+			template: "env.zone.host.measurement*.field*",
+			err:      `either 'field*' or 'measurement*' can be used in each template (but not both together): "env.zone.host.measurement*.field*"`,
+		},
 	}
 
 	for _, test := range tests {
