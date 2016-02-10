@@ -27,13 +27,32 @@ reporting-disabled = false
   # Where the metadata/raft database is stored
   dir = "/var/lib/influxdb/meta"
 
+  # The default address to bind to
   bind-address = ":8088"
+
+  # The default address to bind the API to
+  http-bind-address = ":8091"
+  https-enabled = false
+  https-certificate = ""
+
   retention-autocreate = true
+  # The default election timeout for the store
   election-timeout = "1s"
+  # The default heartbeat timeout for the store
   heartbeat-timeout = "1s"
+  # The default leader lease for the store
   leader-lease-timeout = "500ms"
+  # The default commit timeout for the store
   commit-timeout = "50ms"
+  # If trace log messages are printed for the meta service
   cluster-tracing = false
+  # The default for auto promoting a node to a raft node when needed
+  raft-promotion-enabled = true
+  # If log messages are printed for the meta service
+  logging-enabled = true
+  pprof-enabled = false
+  # The default duration for leases.
+  lease-duration = "1m0s"
 
 ###
 ### [data]
