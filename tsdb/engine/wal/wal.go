@@ -18,7 +18,7 @@ only flush series that are over a given threshold (32kb by default). The rest
 will be written into a new segment file so they can be flushed later. This
 is like a compaction in an LSM Tree.
 */
-package wal
+package wal // import "github.com/influxdata/influxdb/tsdb/engine/wal"
 
 import (
 	"bytes"

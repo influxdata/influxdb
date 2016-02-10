@@ -1,4 +1,4 @@
-package copier
+package copier // import "github.com/influxdata/influxdb/services/copier"
 
 import (
 	"encoding/binary"

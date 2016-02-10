@@ -1,4 +1,4 @@
-package tcp
+package tcp // import "github.com/influxdata/influxdb/tcp"
 
 import (
 	"errors"

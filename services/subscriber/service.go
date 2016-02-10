@@ -1,4 +1,4 @@
-package subscriber
+package subscriber // import "github.com/influxdata/influxdb/services/subscriber"
 
 import (
 	"expvar"

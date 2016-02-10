@@ -1,4 +1,4 @@
-package tsm1
+package tsm1 // import "github.com/influxdata/influxdb/tsdb/engine/tsm1"
 
 import (
 	"archive/tar"

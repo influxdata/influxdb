@@ -31,7 +31,7 @@
 //
 // http://tools.ietf.org/html/rfc4122
 
-package uuid
+package uuid // import "github.com/influxdata/influxdb/uuid"
 
 import (
 	"sync/atomic"

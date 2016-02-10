@@ -1,4 +1,4 @@
-package continuous_querier
+package continuous_querier // import "github.com/influxdata/influxdb/services/continuous_querier"
 
 import (
 	"errors"

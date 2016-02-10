@@ -1,4 +1,4 @@
-package v8
+package v8 // import "github.com/influxdata/influxdb/importer/v8"
 
 import (
 	"bufio"

@@ -1,4 +1,4 @@
-package bz1
+package bz1 // import "github.com/influxdata/influxdb/cmd/influx_tsm/bz1"
 
 import (
 	"bytes"

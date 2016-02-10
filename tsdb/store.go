@@ -1,4 +1,4 @@
-package tsdb
+package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"fmt"

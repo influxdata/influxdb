@@ -1,4 +1,4 @@
-package retention
+package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
 	"log"

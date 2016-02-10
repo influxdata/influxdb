@@ -1,4 +1,4 @@
-package collectd
+package collectd // import "github.com/influxdata/influxdb/services/collectd"
 
 import (
 	"expvar"

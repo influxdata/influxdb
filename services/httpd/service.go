@@ -1,4 +1,4 @@
-package httpd
+package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
 	"crypto/tls"

@@ -1,4 +1,4 @@
-package precreator
+package precreator // import "github.com/influxdata/influxdb/services/precreator"
 
 import (
 	"log"

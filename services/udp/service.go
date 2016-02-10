@@ -1,4 +1,4 @@
-package udp
+package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
 	"errors"

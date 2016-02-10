@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package deep
+package deep // import "github.com/influxdata/influxdb/pkg/deep"
 
 import (
 	"fmt"

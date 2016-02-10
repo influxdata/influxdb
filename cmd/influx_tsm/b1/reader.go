@@ -1,4 +1,4 @@
-package b1
+package b1 // import "github.com/influxdata/influxdb/cmd/influx_tsm/b1"
 
 import (
 	"encoding/binary"
