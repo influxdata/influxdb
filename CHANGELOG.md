@@ -2,10 +2,11 @@
 
 ### Features
 
-- [#5541](https://github.com/influxdata/influxdb/pull/5541): Support for adding custom TLS Config for HTTP client.
-- [#4299](https://github.com/influxdata/influxdb/pull/4299): Reject uint64 Client.Point.Field values. Thanks @arussellsaw
+- [#5541](https://github.com/influxdata/influxdb/pull/5541): Client: Support for adding custom TLS Config for HTTP client.
+- [#4299](https://github.com/influxdata/influxdb/pull/4299): Client: Reject uint64 Client.Point.Field values. Thanks @arussellsaw
 - [#5550](https://github.com/influxdata/influxdb/pull/5550): Enabled golint for tsdb/engine/wal.
 - [#5419](https://github.com/influxdata/influxdb/pull/5419): Graphite: Support matching tags multiple times Thanks @m4ce
+- [#5598](https://github.com/influxdata/influxdb/pull/5598): Client: Add Ping to v2 client @PSUdaemon
 
 ### Bugfixes
 
