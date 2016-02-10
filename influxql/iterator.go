@@ -567,16 +567,20 @@ func (v *selectInfo) Visit(n Node) Visitor {
 	return v
 }
 
+// Series represents a series that will be returned by the iterator.
 type Series struct {
 	Name string
 	Tags Tags
 	Aux  []DataType
 }
 
+// ID is a single string that combines the name and tags id for the series.
 func (s *Series) ID() string {
 	return s.Name + "\x00" + s.Tags.ID()
 }
 
+// Combine combines two series with the same name and tags.
+// It will promote auxiliary iterator types to the highest type.
 func (s *Series) Combine(other *Series) {
 	for i, t := range s.Aux {
 		if other.Aux[i] == Unknown {
@@ -589,6 +593,7 @@ func (s *Series) Combine(other *Series) {
 	}
 }
 
+// SeriesList is a list of series that will be returned by an iterator.
 type SeriesList []Series
 
 func (a SeriesList) Len() int      { return len(a) }
