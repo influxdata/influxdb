@@ -37,7 +37,7 @@ const (
 	// for writes that a full flush and compaction are forced
 	DefaultFlushColdInterval = 5 * time.Second
 
-	// DefaultParititionSizeThreshold specifies when a partition gets to this size in
+	// DefaultPartitionSizeThreshold specifies when a partition gets to this size in
 	// memory, we should slow down writes until it gets a chance to compact.
 	// This will force clients to get backpressure if they're writing too fast. We need
 	// this because the WAL can take writes much faster than the index. So eventually
@@ -70,6 +70,7 @@ const (
 	DefaultMaxPointsPerBlock = 1000
 )
 
+// Config holds the configuration for the tsbd package.
 type Config struct {
 	Enabled bool   `toml:"enabled"`
 	Dir     string `toml:"dir"`
@@ -102,6 +103,7 @@ type Config struct {
 	DataLoggingEnabled bool `toml:"data-logging-enabled"`
 }
 
+// NewConfig returns the default configuration for tsdb.
 func NewConfig() Config {
 	return Config{
 		Engine:                 DefaultEngine,
@@ -128,6 +130,7 @@ func NewConfig() Config {
 	}
 }
 
+// Validate validates the configuration hold by c.
 func (c *Config) Validate() error {
 	if c.Dir == "" {
 		return errors.New("Data.Dir must be specified")

@@ -18,14 +18,17 @@ import (
 )
 
 var (
+	// ErrShardNotFound gets returned when trying to get a non existing shard.
 	ErrShardNotFound = fmt.Errorf("shard not found")
-	ErrStoreClosed   = fmt.Errorf("store is closed")
+	// ErrStoreClosed gets returned when trying to use a closed Store.
+	ErrStoreClosed = fmt.Errorf("store is closed")
 )
 
 const (
-	MaintenanceCheckInterval = time.Minute
+	maintenanceCheckInterval = time.Minute
 )
 
+// Store manages shards and indexes for databases.
 type Store struct {
 	mu   sync.RWMutex
 	path string
@@ -42,6 +45,8 @@ type Store struct {
 	opened  bool
 }
 
+// NewStore returns a new store with the given path and a default configuration.
+// The returned store must be initialized by calling Open before using it.
 func NewStore(path string) *Store {
 	opts := NewEngineOptions()
 	opts.Config = NewConfig()
@@ -56,6 +61,8 @@ func NewStore(path string) *Store {
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 
+// Open initializes the store, creating all necessary directories, loading all
+// shards and indexes and initializing periodic maintenance of all shards.
 func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -145,6 +152,8 @@ func (s *Store) loadShards() error {
 	return nil
 }
 
+// Close closes the store and all associated shards. After calling Close accessing
+// shards through the Store will result in ErrStoreClosed being returned.
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -202,6 +211,7 @@ func (s *Store) ShardN() int {
 	return len(s.shards)
 }
 
+// CreateShard creates a shard with the given id and retention policy on a database.
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -341,7 +351,7 @@ func (s *Store) ShardIDs() []uint64 {
 
 func (s *Store) shardIDs() []uint64 {
 	a := make([]uint64, 0, len(s.shards))
-	for shardID, _ := range s.shards {
+	for shardID := range s.shards {
 		a = append(a, shardID)
 	}
 	return a
@@ -357,6 +367,7 @@ func (s *Store) shardsSlice() []*Shard {
 	return a
 }
 
+// DatabaseIndex returns the index for a database by its name.
 func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -374,6 +385,7 @@ func (s *Store) Databases() []string {
 	return databases
 }
 
+// Measurement returns a measurement by name from the given database.
 func (s *Store) Measurement(database, name string) *Measurement {
 	s.mu.RLock()
 	db := s.databaseIndexes[database]
@@ -448,7 +460,7 @@ func (s *Store) DeleteSeries(database string, seriesKeys []string) error {
 // periodicMaintenance is the method called in a goroutine on the opening of the store
 // to perform periodic maintenance of the shards.
 func (s *Store) periodicMaintenance() {
-	t := time.NewTicker(MaintenanceCheckInterval)
+	t := time.NewTicker(maintenanceCheckInterval)
 	for {
 		select {
 		case <-t.C:
@@ -536,6 +548,7 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 	return expanded, nil
 }
 
+// WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

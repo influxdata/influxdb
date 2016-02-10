@@ -95,7 +95,7 @@ func (s *Shard) PerformMaintenance() {
 	s.engine.PerformMaintenance()
 }
 
-// open initializes and opens the shard's store.
+// Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
 	if err := func() error {
 		s.mu.Lock()
@@ -165,6 +165,7 @@ func (s *Shard) DiskSize() (int64, error) {
 	return size, nil
 }
 
+// FieldCodec returns the field encoding for a measurement.
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
@@ -177,13 +178,13 @@ func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
 	return m.Codec
 }
 
-// struct to hold information for a field to create on a measurement
+// FieldCreate holds information for a field to create on a measurement
 type FieldCreate struct {
 	Measurement string
 	Field       *Field
 }
 
-// struct to hold information for a series to create
+// SeriesCreate holds information for a series to create
 type SeriesCreate struct {
 	Measurement string
 	Series      *Series
@@ -415,6 +416,7 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields, dimensions ma
 	return
 }
 
+// SeriesKeys returns a list of series in the shard.
 func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
 	return s.engine.SeriesKeys(opt)
 }
@@ -484,6 +486,9 @@ func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 	}
 }
 
+// SeriesKeys returns a list of series in in all shards in a. If a series
+// exists in multiple shards in a, all instances will be combined into a single
+// Series by calling Combine on it.
 func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
 	if influxql.Sources(opt.Sources).HasSystemSource() {
 		// Only support a single system source.
@@ -577,6 +582,7 @@ func (a Shards) FieldDimensions(sources influxql.Sources) (fields, dimensions ma
 	return
 }
 
+// MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {
 	Fields map[string]*Field `json:"fields"`
 	Codec  *FieldCodec
@@ -740,6 +746,7 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 	return b, nil
 }
 
+// FieldIDByName returns the ID of the field with the given name s.
 // TODO: this shouldn't be exported. remove when tx.go and engine.go get refactored into tsdb
 func (f *FieldCodec) FieldIDByName(s string) (uint8, error) {
 	fi := f.fieldsByName[s]
@@ -890,6 +897,7 @@ func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
 	return f.DecodeByID(fi.ID, b)
 }
 
+// Fields returns a unsorted list of the codecs fields.
 func (f *FieldCodec) Fields() (a []*Field) {
 	for _, f := range f.fieldsByID {
 		a = append(a, f)

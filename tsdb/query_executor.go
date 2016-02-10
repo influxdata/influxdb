@@ -54,7 +54,7 @@ type QueryExecutor struct {
 	QueryLogEnabled bool
 }
 
-// partial copy of cluster.WriteRequest
+// IntoWriteRequest is a partial copy of cluster.WriteRequest
 type IntoWriteRequest struct {
 	Database        string
 	RetentionPolicy string
@@ -969,7 +969,7 @@ type ErrAuthorize struct {
 
 const authErrLogFmt string = "unauthorized request | user: %q | query: %q | database %q\n"
 
-// newAuthorizationError returns a new instance of AuthorizationError.
+// NewErrAuthorize returns a new instance of AuthorizationError.
 func NewErrAuthorize(qe *QueryExecutor, q *influxql.Query, u, db, m string) *ErrAuthorize {
 	return &ErrAuthorize{q: qe, query: q, user: u, database: db, message: m}
 }
@@ -992,8 +992,10 @@ var (
 	ErrNotExecuted = errors.New("not executed")
 )
 
+// ErrDatabaseNotFound returns a database not found error for the given database name.
 func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
+// ErrMeasurementNotFound returns a measurement not found error for the given measurement name.
 func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
 type uint64Slice []uint64

@@ -44,9 +44,11 @@ type Engine interface {
 	Backup(w io.Writer, basePath string, since time.Time) error
 }
 
+// EngineFormat represents the format for an engine.
 type EngineFormat int
 
 const (
+	// TSM1Format is the format used by the tsm1 engine.
 	TSM1Format EngineFormat = 2
 )
 
@@ -67,7 +69,7 @@ func RegisterEngine(name string, fn NewEngineFunc) {
 // RegisteredEngines returns the slice of currently registered engines.
 func RegisteredEngines() []string {
 	a := make([]string, 0, len(newEngineFuncs))
-	for k, _ := range newEngineFuncs {
+	for k := range newEngineFuncs {
 		a = append(a, k)
 	}
 	sort.Strings(a)
@@ -142,6 +144,7 @@ func DedupeEntries(a [][]byte) [][]byte {
 	return other
 }
 
+// ByteSlices wraps a list of byte-slices for sorting.
 type ByteSlices [][]byte
 
 func (a ByteSlices) Len() int           { return len(a) }
