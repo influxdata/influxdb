@@ -924,13 +924,14 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
 	joinPeers := freePorts(len(cfgs))
+	raftPeers := freePorts(len(cfgs))
 
 	var swg sync.WaitGroup
 	swg.Add(len(cfgs))
 	for i, _ := range cfgs {
 		c := newConfig()
 		c.HTTPBindAddress = joinPeers[i]
-		c.BindAddress = "127.0.0.1:0"
+		c.BindAddress = raftPeers[i]
 		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
