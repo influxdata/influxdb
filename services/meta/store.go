@@ -90,7 +90,11 @@ func (s *store) open(raftln net.Listener) error {
 				break
 			}
 
-			s.logger.Printf("Waiting for %d join peers", len(s.config.JoinPeers)-len(peers))
+			if len(peers) > len(s.config.JoinPeers) {
+				s.logger.Printf("waiting for join peers to match config specified. found %v, config specified %v", peers, s.config.JoinPeers)
+			} else {
+				s.logger.Printf("Waiting for %d join peers.  Have %v. Asking nodes: %v", len(s.config.JoinPeers)-len(peers), peers, joinPeers)
+			}
 			time.Sleep(time.Second)
 		}
 	}
@@ -109,12 +113,6 @@ func (s *store) open(raftln net.Listener) error {
 		return fmt.Errorf("raft: %s", err)
 	}
 
-	// Wait for a leader to be elected so we know the raft log is loaded
-	// and up to date
-	if err := s.waitForLeader(0); err != nil {
-		return err
-	}
-
 	if len(joinPeers) > 0 {
 		c := NewClient(joinPeers, s.config.HTTPSEnabled)
 		if err := c.Open(); err != nil {
@@ -125,6 +123,12 @@ func (s *store) open(raftln net.Listener) error {
 		if err := c.JoinMetaServer(s.httpAddr, s.raftAddr); err != nil {
 			return err
 		}
+	}
+
+	// Wait for a leader to be elected so we know the raft log is loaded
+	// and up to date
+	if err := s.waitForLeader(0); err != nil {
+		return err
 	}
 
 	// Make sure this server is in the list of metanodes
@@ -295,7 +299,7 @@ func (s *store) isLeader() bool {
 func (s *store) leader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.raftState == nil {
+	if s.raftState == nil || s.raftState.raft == nil {
 		return ""
 	}
 	return s.raftState.raft.Leader()

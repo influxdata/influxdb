@@ -2,6 +2,7 @@ package meta_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -772,47 +773,61 @@ func TestMetaService_Shards(t *testing.T) {
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
+	joinPeers := freePorts(4)
+
 	cfg1 := newConfig()
+	cfg1.HTTPBindAddress = joinPeers[0]
 	defer os.RemoveAll(cfg1.Dir)
 	cfg2 := newConfig()
+	cfg2.HTTPBindAddress = joinPeers[1]
 	defer os.RemoveAll(cfg2.Dir)
 	cfg3 := newConfig()
+	cfg3.HTTPBindAddress = joinPeers[2]
 	defer os.RemoveAll(cfg3.Dir)
 	cfg4 := newConfig()
+	cfg4.HTTPBindAddress = joinPeers[3]
 	defer os.RemoveAll(cfg4.Dir)
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+	cfg1.JoinPeers = joinPeers[0:2]
 	s1 := newService(cfg1)
-	if err := s1.Open(); err != nil {
-		t.Fatalf(err.Error())
-	}
-	defer s1.Close()
-
-	cfg2.JoinPeers = []string{s1.HTTPAddr()}
-	s2 := newService(cfg2)
-	if err := s2.Open(); err != nil {
-		t.Fatal(err.Error())
-	}
-	defer s2.Close()
-
-	func() {
-		cfg3.JoinPeers = []string{s2.HTTPAddr()}
-		s3 := newService(cfg3)
-		if err := s3.Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		defer s3.Close()
-
-		c1 := meta.NewClient([]string{s1.HTTPAddr()}, false)
-		if err := c1.Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		defer c1.Close()
-
-		metaNodes, _ := c1.MetaNodes()
-		if len(metaNodes) != 3 {
-			t.Fatalf("meta nodes wrong: %v", metaNodes)
+	go func() {
+		defer wg.Done()
+		if err := s1.Open(); err != nil {
+			t.Fatalf(err.Error())
 		}
 	}()
+	defer s1.Close()
+
+	cfg2.JoinPeers = joinPeers[0:2]
+	s2 := newService(cfg2)
+	go func() {
+		defer wg.Done()
+		if err := s2.Open(); err != nil {
+			t.Fatal(err.Error())
+		}
+	}()
+	defer s2.Close()
+	wg.Wait()
+
+	cfg3.JoinPeers = joinPeers[0:3]
+	s3 := newService(cfg3)
+	if err := s3.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer s3.Close()
+
+	c1 := meta.NewClient(joinPeers[0:3], false)
+	if err := c1.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c1.Close()
+
+	metaNodes, _ := c1.MetaNodes()
+	if len(metaNodes) != 3 {
+		t.Fatalf("meta nodes wrong: %v", metaNodes)
+	}
 
 	c := meta.NewClient([]string{s1.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
@@ -824,19 +839,25 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		t.Fatal(res.Err)
 	}
 
-	metaNodes, _ := c.MetaNodes()
+	metaNodes, _ = c.MetaNodes()
 	if len(metaNodes) != 2 {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 
-	cfg4.JoinPeers = []string{s1.HTTPAddr()}
+	cfg4.JoinPeers = []string{joinPeers[0], joinPeers[1], joinPeers[3]}
 	s4 := newService(cfg4)
 	if err := s4.Open(); err != nil {
 		t.Fatal(err.Error())
 	}
 	defer s4.Close()
 
-	metaNodes, _ = c.MetaNodes()
+	c2 := meta.NewClient(cfg4.JoinPeers, false)
+	if err := c2.Open(); err != nil {
+		t.Fatal(err.Error())
+	}
+	defer c2.Close()
+
+	metaNodes, _ = c2.MetaNodes()
 	if len(metaNodes) != 3 {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
@@ -850,39 +871,48 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
-	for i := range cfgs {
-		c := newConfig()
+	joinPeers := freePorts(len(cfgs))
 
+	var wg sync.WaitGroup
+	wg.Add(len(cfgs))
+
+	for i, _ := range cfgs {
+		c := newConfig()
+		c.HTTPBindAddress = joinPeers[i]
+		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
-		if i > 0 {
-			c.JoinPeers = []string{srvs[0].HTTPAddr()}
-		}
 		srvs[i] = newService(c)
-		if err := srvs[i].Open(); err != nil {
-			t.Fatal(err.Error())
-		}
+		go func(srv *testService) {
+			defer wg.Done()
+			if err := srv.Open(); err != nil {
+				t.Fatal(err.Error())
+			}
+		}(srvs[i])
 		defer srvs[i].Close()
 		defer os.RemoveAll(c.Dir)
 	}
+	wg.Wait()
 
-	c := meta.NewClient([]string{srvs[2].HTTPAddr()}, false)
-	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
-	}
-	defer c.Close()
+	for i := range cfgs {
+		c := meta.NewClient([]string{joinPeers[i]}, false)
+		if err := c.Open(); err != nil {
+			t.Fatal(err.Error())
+		}
+		defer c.Close()
 
-	metaNodes, _ := c.MetaNodes()
-	if len(metaNodes) != 3 {
-		t.Fatalf("meta nodes wrong: %v", metaNodes)
-	}
+		metaNodes, _ := c.MetaNodes()
+		if len(metaNodes) != 3 {
+			t.Fatalf("node %d - meta nodes wrong: %v", i, metaNodes)
+		}
 
-	if _, err := c.CreateDatabase("foo"); err != nil {
-		t.Fatal(err)
-	}
+		if _, err := c.CreateDatabase(fmt.Sprintf("foo%d", i)); err != nil {
+			t.Fatalf("node %d: %s", i, err)
+		}
 
-	if db, err := c.Database("foo"); db == nil || err != nil {
-		t.Fatalf("database foo wasn't created: %s", err.Error())
+		if db, err := c.Database(fmt.Sprintf("foo%d", i)); db == nil || err != nil {
+			t.Fatalf("node %d: database foo wasn't created: %s", i, err.Error())
+		}
 	}
 }
 
@@ -893,26 +923,31 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
-	for i := range cfgs {
-		c := newConfig()
+	joinPeers := freePorts(len(cfgs))
 
+	var swg sync.WaitGroup
+	swg.Add(len(cfgs))
+	for i, _ := range cfgs {
+		c := newConfig()
+		c.HTTPBindAddress = joinPeers[i]
+		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
-		if i > 0 {
-			c.JoinPeers = []string{srvs[0].HTTPAddr()}
-		}
 		srvs[i] = newService(c)
-		if err := srvs[i].Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		c.HTTPBindAddress = srvs[i].HTTPAddr()
-		c.BindAddress = srvs[i].RaftAddr()
-		c.JoinPeers = nil
+		go func(i int, srv *testService) {
+			defer swg.Done()
+			if err := srv.Open(); err != nil {
+				t.Logf("opening server %d", i)
+				t.Fatal(err.Error())
+			}
+		}(i, srvs[i])
+
 		defer srvs[i].Close()
 		defer os.RemoveAll(c.Dir)
 	}
+	swg.Wait()
 
-	c := meta.NewClient([]string{srvs[0].HTTPAddr(), srvs[1].HTTPAddr()}, false)
+	c := meta.NewClient(joinPeers, false)
 	if err := c.Open(); err != nil {
 		t.Fatal(err.Error())
 	}
@@ -954,12 +989,11 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	// give them a second to shut down
 	time.Sleep(time.Second)
 
-	// when we start back up they need to happen simultaneously, otherwise
-	// a leader won't get elected
+	// need to start them all at once so they can discover the bind addresses for raft
 	var wg sync.WaitGroup
+	wg.Add(len(cfgs))
 	for i, cfg := range cfgs {
 		srvs[i] = newService(cfg)
-		wg.Add(1)
 		go func(srv *testService) {
 			if err := srv.Open(); err != nil {
 				panic(err)
@@ -971,7 +1005,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	wg.Wait()
 	time.Sleep(time.Second)
 
-	c2 := meta.NewClient([]string{srvs[0].HTTPAddr()}, false)
+	c2 := meta.NewClient(joinPeers, false)
 	if err := c2.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1186,42 +1220,46 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 func TestMetaService_Ping(t *testing.T) {
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
-	for i := range cfgs {
-		c := newConfig()
+	joinPeers := freePorts(len(cfgs))
 
+	var swg sync.WaitGroup
+	swg.Add(len(cfgs))
+
+	for i, _ := range cfgs {
+		c := newConfig()
+		c.HTTPBindAddress = joinPeers[i]
+		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
-		if i > 0 {
-			c.JoinPeers = []string{srvs[0].HTTPAddr()}
-		}
 		srvs[i] = newService(c)
-		if err := srvs[i].Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		c.HTTPBindAddress = srvs[i].HTTPAddr()
-		c.BindAddress = srvs[i].RaftAddr()
-		c.JoinPeers = nil
+		go func(i int, srv *testService) {
+			defer swg.Done()
+			if err := srv.Open(); err != nil {
+				t.Fatalf("error opening server %d: %s", i, err.Error())
+			}
+		}(i, srvs[i])
 		defer srvs[i].Close()
 		defer os.RemoveAll(c.Dir)
 	}
+	swg.Wait()
 
-	c := meta.NewClient([]string{srvs[0].HTTPAddr(), srvs[1].HTTPAddr()}, false)
+	c := meta.NewClient(joinPeers, false)
 	if err := c.Open(); err != nil {
 		t.Fatal(err.Error())
 	}
 	defer c.Close()
 
 	if err := c.Ping(false); err != nil {
-		t.Fatal(err.Error())
+		t.Fatalf("ping false all failed: %s", err.Error())
 	}
 	if err := c.Ping(true); err != nil {
-		t.Fatal(err.Error())
+		t.Fatalf("ping false true failed: %s", err.Error())
 	}
 
 	srvs[1].Close()
 
 	if err := c.Ping(false); err != nil {
-		t.Fatal(err.Error())
+		t.Fatalf("ping false some failed: %s", err.Error())
 	}
 
 	if err := c.Ping(true); err == nil {
@@ -1374,4 +1412,18 @@ func mustMarshalJSON(v interface{}) string {
 		panic(e)
 	}
 	return string(b)
+}
+
+func freePort() string {
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer l.Close()
+	return l.Addr().String()
+}
+
+func freePorts(i int) []string {
+	var ports []string
+	for j := 0; j < i; j++ {
+		ports = append(ports, freePort())
+	}
+	return ports
 }

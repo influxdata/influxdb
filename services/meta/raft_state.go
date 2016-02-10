@@ -1,7 +1,6 @@
 package meta
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -159,6 +158,9 @@ func (r *raftState) logLeaderChanges() {
 }
 
 func (r *raftState) close() error {
+	if r == nil {
+		return nil
+	}
 	if r.closing != nil {
 		close(r.closing)
 	}
@@ -238,7 +240,7 @@ func (r *raftState) addPeer(addr string) error {
 func (r *raftState) removePeer(addr string) error {
 	// Only do this on the leader
 	if !r.isLeader() {
-		return errors.New("not the leader")
+		return raft.ErrNotLeader
 	}
 	if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
 		return fut.Error()
