@@ -30,7 +30,7 @@ import (
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
-	client "github.com/influxdb/usage-client/v1"
+	client "github.com/influxdata/usage-client/v1"
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 )

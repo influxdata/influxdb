@@ -634,7 +634,7 @@ func TestClient_CustomCertificates(t *testing.T) {
 	// ST = CA
 	// L = San Francisco
 	// O = InfluxDB
-	// CN = github.com/influxdb
+	// CN = github.com/influxdata
 	// [v3_req]
 	// keyUsage = keyEncipherment, dataEncipherment
 	// extendedKeyUsage = serverAuth
