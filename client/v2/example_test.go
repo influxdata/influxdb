@@ -55,6 +55,23 @@ func ExampleClient_uDP() {
 	c.Write(bp)
 }
 
+// Ping the cluster using the HTTP client
+func ExampleClient_Ping() {
+	// Make client
+	c, err := client.NewHTTPClient(client.HTTPConfig{
+		Addr: "http://localhost:8086",
+	})
+	if err != nil {
+		fmt.Println("Error creating InfluxDB Client: ", err.Error())
+	}
+	defer c.Close()
+
+	_, _, err = c.Ping(0)
+	if err != nil {
+		fmt.Println("Error pinging InfluxDB Cluster: ", err.Error())
+	}
+}
+
 // Write a point using the HTTP client
 func ExampleClient_write() {
 	// Make client

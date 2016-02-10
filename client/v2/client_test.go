@@ -24,6 +24,20 @@ func TestUDPClient_Query(t *testing.T) {
 	}
 }
 
+func TestUDPClient_Ping(t *testing.T) {
+	config := UDPConfig{Addr: "localhost:8089"}
+	c, err := NewUDPClient(config)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	defer c.Close()
+
+	rtt, version, err := c.Ping(0)
+	if rtt != 0 || version != "" || err != nil {
+		t.Errorf("unexpected error.  expected (%v, '%v', %v), actual (%v, '%v', %v)", 0, "", nil, rtt, version, err)
+	}
+}
+
 func TestUDPClient_Write(t *testing.T) {
 	config := UDPConfig{Addr: "localhost:8089"}
 	c, err := NewUDPClient(config)
@@ -101,6 +115,24 @@ func TestClient_BasicAuth(t *testing.T) {
 
 	query := Query{}
 	_, err := c.Query(query)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestClient_Ping(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data Response
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{Addr: ts.URL}
+	c, _ := NewHTTPClient(config)
+	defer c.Close()
+
+	_, _, err := c.Ping(0)
 	if err != nil {
 		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
