@@ -20,7 +20,7 @@ It uses the HTTP protocol to communicate with your **InfluxDB** cluster.
 Connecting to an **InfluxDB** database is straightforward. You will need a host
 name, a port and the cluster user credentials if applicable. The default port is
 8086. You can customize these settings to your specific installation via the
-**InfluxDB** configuration file.
+[**InfluxDB** configuration file](https://influxdb.com/docs/v0.9/introduction/installation.html#generate-a-configuration-file).
 
 Thought not necessary for experimentation, you may want to create a new user
 and authenticate the connection to your database.
@@ -29,7 +29,7 @@ For more information please check out the
 [Cluster Admin Docs](http://influxdb.com/docs/v0.9/query_language/database_administration.html).
 
 For the impatient, you can create a new admin user _bubba_ by firing off the
-[InfluxDB CLI](https://github.com/influxdb/influxdb/blob/master/cmd/influx/main.go).
+[**InfluxDB** CLI](https://github.com/influxdb/influxdb/blob/master/cmd/influx/main.go).
 
 ```shell
 influx
@@ -105,8 +105,8 @@ In this sample we will create a batch of a 1,000 points. Each point has a time a
 a single value as well as 2 tags indicating a shape and color. We write these points
 to a database called _square_holes_ using a measurement named _shapes_.
 
-NOTE: You can specify a RetentionPolicy as part of the batch points. If not
-provided InfluxDB will use the database _default_ retention policy.
+NOTE: You can specify a [RetentionPolicy](https://influxdb.com/docs/v0.9/query_language/database_management.html#retention-policy-management) as part of the batch points. If not
+provided **InfluxDB** will use the database _default_ retention policy.
 
 ```go
 func writePoints(clnt client.Client) {
@@ -150,8 +150,8 @@ func writePoints(clnt client.Client) {
 
 ### Querying Data
 
-One nice advantage of using **InfluxDB** the ability to query your data using familiar
-SQL constructs. In this example we can create a convenience function to query the database
+One nice advantage of using **InfluxDB** is the ability to query your data using [familiar
+SQL constructs](https://influxdb.com/docs/v0.9/query_language/data_exploration.html). In this example we can create a convenience function to query the database
 as follows:
 
 ```go
