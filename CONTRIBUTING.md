@@ -106,12 +106,12 @@ If you wish to work with fork of InfluxDB, your own fork for example, you must s
 
 ```bash
     export GOPATH=$HOME/gocodez
-    mkdir -p $GOPATH/src/github.com/influxdb
-    cd $GOPATH/src/github.com/influxdb
+    mkdir -p $GOPATH/src/github.com/influxdata
+    cd $GOPATH/src/github.com/influxdata
     git clone git@github.com:<username>/influxdb
 ```
 
-Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary so that Go imports work correctly.
+Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessary so that Go imports work correctly.
 
 Build and Test
 -----
