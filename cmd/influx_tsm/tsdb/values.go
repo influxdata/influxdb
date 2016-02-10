@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	tsm "github.com/influxdb/influxdb/tsdb/engine/tsm1"
+	tsm "github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 type FloatValue struct {

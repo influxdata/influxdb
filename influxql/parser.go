@@ -958,8 +958,8 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 // This function assumes the DELETE token has already been consumed.
 func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 	// TODO remove and do not skip test once we wire up DELETE FROM.
-	// See issues https://github.com/influxdb/influxdb/issues/1647
-	// and https://github.com/influxdb/influxdb/issues/4404
+	// See issues https://github.com/influxdata/influxdb/issues/1647
+	// and https://github.com/influxdata/influxdb/issues/4404
 	return nil, errors.New("DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead")
 	//stmt := &DeleteStatement{}
 

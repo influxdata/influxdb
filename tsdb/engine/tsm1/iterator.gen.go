@@ -8,8 +8,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 type cursor interface {

@@ -5,7 +5,7 @@ package influxql
 
 import (
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb/influxql/internal"
+	"github.com/influxdata/influxdb/influxql/internal"
 )
 
 // FloatPoint represents a point with a float64 value.

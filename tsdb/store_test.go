@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/pkg/deep"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Ensure the store can create a new shard.
