@@ -21,6 +21,7 @@ const (
 	UDPPayloadSize = 512
 )
 
+// HTTPConfig is the config data needed to create an HTTP Client
 type HTTPConfig struct {
 	// Addr should be of the form "http://host:port"
 	// or "http://[ipv6-host%zone]:port".
@@ -47,6 +48,7 @@ type HTTPConfig struct {
 	TLSConfig *tls.Config
 }
 
+// UDPConfig is the config data needed to create a UDP Client
 type UDPConfig struct {
 	// Addr should be of the form "host:port"
 	// or "[ipv6-host%zone]:port".
@@ -57,6 +59,7 @@ type UDPConfig struct {
 	PayloadSize int
 }
 
+// BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct
 type BatchPointsConfig struct {
 	// Precision is the write precision of the points, defaults to "ns"
 	Precision string
@@ -87,7 +90,7 @@ type Client interface {
 	Close() error
 }
 
-// NewClient creates a client interface from the given config.
+// NewHTTPClient creates a client interface from the given config.
 func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	if conf.UserAgent == "" {
 		conf.UserAgent = "InfluxDBClient"
@@ -319,6 +322,7 @@ func (bp *batchpoints) SetRetentionPolicy(rp string) {
 	bp.retentionPolicy = rp
 }
 
+// Point represents a single data point
 type Point struct {
 	pt models.Point
 }
@@ -362,7 +366,7 @@ func (p *Point) Name() string {
 	return p.pt.Name()
 }
 
-// Name returns the tags associated with the point
+// Tags returns the tags associated with the point
 func (p *Point) Tags() map[string]string {
 	return p.pt.Tags()
 }
