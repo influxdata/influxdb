@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // Ensure the parser can parse a multi-statement query.
@@ -644,8 +644,8 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// See issues https://github.com/influxdb/influxdb/issues/1647
-		// and https://github.com/influxdb/influxdb/issues/4404
+		// See issues https://github.com/influxdata/influxdb/issues/1647
+		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
 		//{
 		//	s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
@@ -1731,8 +1731,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT s =~ /foo/ FROM cpu`, err: `invalid operator =~ in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
-		// See issues https://github.com/influxdb/influxdb/issues/1647
-		// and https://github.com/influxdb/influxdb/issues/4404
+		// See issues https://github.com/influxdata/influxdb/issues/1647
+		// and https://github.com/influxdata/influxdb/issues/4404
 		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		//{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		//{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},

@@ -4,7 +4,7 @@ import (
 	"sort"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb/influxql/internal"
+	"github.com/influxdata/influxdb/influxql/internal"
 )
 
 // ZeroTime is the Unix nanosecond timestamp for time.Time{}.

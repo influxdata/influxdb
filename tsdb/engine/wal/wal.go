@@ -18,7 +18,7 @@ only flush series that are over a given threshold (32kb by default). The rest
 will be written into a new segment file so they can be flushed later. This
 is like a compaction in an LSM Tree.
 */
-package wal
+package wal // import "github.com/influxdata/influxdb/tsdb/engine/wal"
 
 import (
 	"bytes"
@@ -38,9 +38,9 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (

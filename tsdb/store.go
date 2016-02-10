@@ -1,4 +1,4 @@
-package tsdb
+package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"fmt"
@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 )
 
 var (

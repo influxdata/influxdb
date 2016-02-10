@@ -3,8 +3,8 @@ package cluster
 import (
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // IteratorCreator is responsible for creating iterators for queries.
