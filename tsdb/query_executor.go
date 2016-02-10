@@ -237,11 +237,22 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
 	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	explicitTimeRange := true
 	if tmax.IsZero() {
 		tmax = now
+		explicitTimeRange = false
 	}
 	if tmin.IsZero() {
 		tmin = time.Unix(0, 0)
+		explicitTimeRange = false
+	}
+
+	// for queries with small group by interval set time range if it wasn't explicit
+	if !explicitTimeRange {
+		interval, err := stmt.GroupByInterval()
+		if err == nil && interval < time.Second {
+			stmt.SetTimeRange(tmin, tmax)
+		}
 	}
 
 	// Expand regex sources to their actual source names.

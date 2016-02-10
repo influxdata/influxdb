@@ -3606,6 +3606,53 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 	}
 }
 
+// Test for bug #4481 GROUP BY on intervals < 1ms makes too many buckets
+func TestServer_Query_GroupBySmallInterval(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=1i %d`, time.Now().UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "group by with small interval - this query should return 2 buckets",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value) FROM cpu where time >= now() - 1u group by time(1u)`,
+			exp:     `"values":\[\["\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d*)?Z",null\],\["\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(.\d*)?Z",null\]\]`,
+			pattern: true,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Write_Precision(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")

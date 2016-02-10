@@ -219,6 +219,7 @@ There are breaking changes in this release:
 - [#4472](https://github.com/influxdb/influxdb/issues/4472): Fix 'too many points in GROUP BY interval' error
 - [#4475](https://github.com/influxdb/influxdb/issues/4475): Fix SHOW TAG VALUES error message.
 - [#4486](https://github.com/influxdb/influxdb/pull/4486): Fix missing comments for runner package
+- [#4481](https://github.com/influxdb/influxdb/issues/4481): GROUP BY on intervals < 1ms makes too many buckets
 - [#4497](https://github.com/influxdb/influxdb/pull/4497): Fix sequence in meta proto
 - [#3367](https://github.com/influxdb/influxdb/issues/3367): Negative timestamps are parsed correctly by the line protocol.
 - [#4563](https://github.com/influxdb/influxdb/pull/4536): Fix broken subscriptions updates.
