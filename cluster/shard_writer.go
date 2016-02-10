@@ -64,6 +64,8 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point)
 
 	// Write request.
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
+	//Fix for Windows not timing out with 1 Nano sec deadline
+	time.Sleep (time.Nanosecond)
 	if err := WriteTLV(conn, writeShardRequestMessage, buf); err != nil {
 		conn.MarkUnusable()
 		return err
