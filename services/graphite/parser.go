@@ -238,7 +238,7 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 			}
 			field = fields[i]
 		} else if tag == "field*" {
-			field = strings.Join(fields[i:], "_")
+			field = strings.Join(fields[i:], t.separator)
 			break
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
