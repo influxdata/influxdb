@@ -85,6 +85,9 @@ func (s *store) open(raftln net.Listener) error {
 		c := NewClient(joinPeers, s.config.HTTPSEnabled)
 		for {
 			peers := c.peers()
+			if !Peers(peers).Contains(s.raftAddr) {
+				peers = append(peers, s.raftAddr)
+			}
 			if len(s.config.JoinPeers)-len(peers) == 0 {
 				initializePeers = peers
 				break
@@ -356,6 +359,9 @@ func (s *store) apply(b []byte) error {
 
 // join adds a new server to the metaservice and raft
 func (s *store) join(n *NodeInfo) error {
+	if s.raftState == nil {
+		return fmt.Errorf("store not open")
+	}
 	if err := s.raftState.addPeer(n.TCPHost); err != nil {
 		return err
 	}

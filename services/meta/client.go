@@ -1120,8 +1120,8 @@ func (c *Client) getSnapshot(server string, index uint64) (*Data, error) {
 
 // peers returns the TCPHost addresses of all the metaservers
 func (c *Client) peers() []string {
-	distinct := map[string]struct{}{}
 
+	var peers Peers
 	// query each server and keep track of who their peers are
 	for _, server := range c.metaServers {
 		url := c.url(server) + "/peers"
@@ -1137,22 +1137,15 @@ func (c *Client) peers() []string {
 		}
 
 		dec := json.NewDecoder(resp.Body)
-		var peers []string
-		if err := dec.Decode(&peers); err != nil {
+		var p []string
+		if err := dec.Decode(&p); err != nil {
 			continue
 		}
-
-		for _, p := range peers {
-			distinct[p] = struct{}{}
-		}
+		peers = peers.Append(p...)
 	}
 
 	// Return the unique set of peer addresses
-	var peers []string
-	for k := range distinct {
-		peers = append(peers, k)
-	}
-	return peers
+	return []string(peers.Unique())
 }
 
 func (c *Client) url(server string) string {
@@ -1214,6 +1207,36 @@ func (c *Client) updateAuthCache() {
 	}
 
 	c.authCache = newCache
+}
+
+type Peers []string
+
+func (peers Peers) Append(p ...string) Peers {
+	peers = append(peers, p...)
+
+	return peers.Unique()
+}
+
+func (peers Peers) Unique() Peers {
+	distinct := map[string]struct{}{}
+	for _, p := range peers {
+		distinct[p] = struct{}{}
+	}
+
+	var u Peers
+	for k := range distinct {
+		u = append(u, k)
+	}
+	return u
+}
+
+func (peers Peers) Contains(peer string) bool {
+	for _, p := range peers {
+		if p == peer {
+			return true
+		}
+	}
+	return false
 }
 
 type errRedirect struct {
