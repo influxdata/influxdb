@@ -51,6 +51,15 @@ func MustParseStatement(s string) Statement {
 // ParseExpr parses an expression string and returns its AST representation.
 func ParseExpr(s string) (Expr, error) { return NewParser(strings.NewReader(s)).ParseExpr() }
 
+// MustParseExpr parses an expression string and returns its AST. Panic on error.
+func MustParseExpr(s string) Expr {
+	expr, err := ParseExpr(s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return expr
+}
+
 // ParseQuery parses an InfluxQL string and returns a Query AST object.
 func (p *Parser) ParseQuery() (*Query, error) {
 	var statements Statements

@@ -60,13 +60,13 @@ type Server struct {
 	MetaClient  *meta.Client
 	MetaService *meta.Service
 
-	TSDBStore     *tsdb.Store
-	QueryExecutor *tsdb.QueryExecutor
-	PointsWriter  *cluster.PointsWriter
-	ShardWriter   *cluster.ShardWriter
-	ShardMapper   *cluster.ShardMapper
-	HintedHandoff *hh.Service
-	Subscriber    *subscriber.Service
+	TSDBStore       *tsdb.Store
+	QueryExecutor   *tsdb.QueryExecutor
+	PointsWriter    *cluster.PointsWriter
+	ShardWriter     *cluster.ShardWriter
+	IteratorCreator *cluster.IteratorCreator
+	HintedHandoff   *hh.Service
+	Subscriber      *subscriber.Service
 
 	Services []Service
 
@@ -199,16 +199,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
 		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
-		// Set the shard mapper
-		s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
-		s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
-		s.ShardMapper.TSDBStore = s.TSDBStore
-		s.ShardMapper.Node = node
-
 		// Initialize query executor.
-		s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
+		s.QueryExecutor = tsdb.NewQueryExecutor()
+		s.QueryExecutor.Store = s.TSDBStore
 		s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
-		s.QueryExecutor.ShardMapper = s.ShardMapper
 		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
 
 		// Set the shard writer
@@ -438,7 +432,6 @@ func (s *Server) Open() error {
 		}
 
 		s.Subscriber.MetaClient = s.MetaClient
-		s.ShardMapper.MetaClient = s.MetaClient
 		s.QueryExecutor.MetaClient = s.MetaClient
 		s.ShardWriter.MetaClient = s.MetaClient
 		s.HintedHandoff.MetaClient = s.MetaClient

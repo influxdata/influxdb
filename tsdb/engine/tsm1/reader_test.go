@@ -40,7 +40,7 @@ func TestTSMReader_Type(t *testing.T) {
 		fatal(t, "reading type", err)
 	}
 
-	if got, exp := typ, tsm1.BlockInt64; got != exp {
+	if got, exp := typ, tsm1.BlockInteger; got != exp {
 		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -512,7 +512,7 @@ func TestIndirectIndex_MaxBlocks(t *testing.T) {
 
 func TestIndirectIndex_Type(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", tsm1.BlockInt64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("cpu", tsm1.BlockInteger, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
 
 	b, err := index.MarshalBinary()
 
@@ -526,7 +526,7 @@ func TestIndirectIndex_Type(t *testing.T) {
 		fatal(t, "reading type", err)
 	}
 
-	if got, exp := typ, tsm1.BlockInt64; got != exp {
+	if got, exp := typ, tsm1.BlockInteger; got != exp {
 		t.Fatalf("type mismatch: got %v, exp %v", got, exp)
 	}
 }

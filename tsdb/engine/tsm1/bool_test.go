@@ -8,21 +8,21 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
-func Test_BoolEncoder_NoValues(t *testing.T) {
-	enc := tsm1.NewBoolEncoder()
+func Test_BooleanEncoder_NoValues(t *testing.T) {
+	enc := tsm1.NewBooleanEncoder()
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := tsm1.NewBoolDecoder(b)
+	dec := tsm1.NewBooleanDecoder(b)
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
 }
 
-func Test_BoolEncoder_Single(t *testing.T) {
-	enc := tsm1.NewBoolEncoder()
+func Test_BooleanEncoder_Single(t *testing.T) {
+	enc := tsm1.NewBooleanEncoder()
 	v1 := true
 	enc.Write(v1)
 	b, err := enc.Bytes()
@@ -30,7 +30,7 @@ func Test_BoolEncoder_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := tsm1.NewBoolDecoder(b)
+	dec := tsm1.NewBooleanDecoder(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got false, exp true")
 	}
@@ -40,8 +40,8 @@ func Test_BoolEncoder_Single(t *testing.T) {
 	}
 }
 
-func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
-	enc := tsm1.NewBoolEncoder()
+func Test_BooleanEncoder_Multi_Compressed(t *testing.T) {
+	enc := tsm1.NewBooleanEncoder()
 
 	values := make([]bool, 10)
 	for i := range values {
@@ -58,7 +58,7 @@ func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
-	dec := tsm1.NewBoolDecoder(b)
+	dec := tsm1.NewBooleanDecoder(b)
 
 	for i, v := range values {
 		if !dec.Next() {
@@ -74,10 +74,10 @@ func Test_BoolEncoder_Multi_Compressed(t *testing.T) {
 	}
 }
 
-func Test_BoolEncoder_Quick(t *testing.T) {
+func Test_BooleanEncoder_Quick(t *testing.T) {
 	if err := quick.Check(func(values []bool) bool {
 		// Write values to encoder.
-		enc := tsm1.NewBoolEncoder()
+		enc := tsm1.NewBooleanEncoder()
 		for _, v := range values {
 			enc.Write(v)
 		}
@@ -90,7 +90,7 @@ func Test_BoolEncoder_Quick(t *testing.T) {
 
 		// Read values out of decoder.
 		got := make([]bool, 0, len(values))
-		dec := tsm1.NewBoolDecoder(buf)
+		dec := tsm1.NewBooleanDecoder(buf)
 		for dec.Next() {
 			got = append(got, dec.Read())
 		}

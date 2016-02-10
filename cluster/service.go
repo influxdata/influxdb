@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/services/meta"
 	"github.com/influxdb/influxdb/tsdb"
@@ -50,7 +48,7 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []models.Point) error
-		CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
+		// CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	Logger  *log.Logger
@@ -166,13 +164,16 @@ func (s *Service) handleConn(conn net.Conn) {
 			s.writeShardResponse(conn, err)
 		case mapShardRequestMessage:
 			s.statMap.Add(mapShardReq, 1)
-			err := s.processMapShardRequest(conn, buf)
-			if err != nil {
-				s.Logger.Printf("process map shard error: %s", err)
-				if err := writeMapShardResponseMessage(conn, NewMapShardResponse(1, err.Error())); err != nil {
-					s.Logger.Printf("process map shard error writing response: %s", err.Error())
+			panic("FIXME(benbjohnson: integrate remote execution with iterators")
+			/*
+				err := s.processMapShardRequest(conn, buf)
+				if err != nil {
+					s.Logger.Printf("process map shard error: %s", err)
+					if err := writeMapShardResponseMessage(conn, NewMapShardResponse(1, err.Error())); err != nil {
+						s.Logger.Printf("process map shard error writing response: %s", err.Error())
+					}
 				}
-			}
+			*/
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -245,6 +246,7 @@ func (s *Service) writeShardResponse(w io.Writer, e error) {
 	}
 }
 
+/*
 func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 	// Decode request
 	var req MapShardRequest
@@ -312,6 +314,7 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		}
 	}
 }
+*/
 
 func writeMapShardResponseMessage(w io.Writer, msg *MapShardResponse) error {
 	buf, err := msg.MarshalBinary()

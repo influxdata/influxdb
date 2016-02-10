@@ -135,6 +135,15 @@ func (s *Server) Query(query string) (results string, err error) {
 	return s.QueryWithParams(query, nil)
 }
 
+// MustQuery executes a query against the server and returns the results.
+func (s *Server) MustQuery(query string) string {
+	results, err := s.Query(query)
+	if err != nil {
+		panic(err)
+	}
+	return results
+}
+
 // Query executes a query against the server and returns the results.
 func (s *Server) QueryWithParams(query string, values url.Values) (results string, err error) {
 	var v url.Values
@@ -145,6 +154,15 @@ func (s *Server) QueryWithParams(query string, values url.Values) (results strin
 	}
 	v.Set("q", query)
 	return s.HTTPGet(s.URL() + "/query?" + v.Encode())
+}
+
+// MustQueryWithParams executes a query against the server and returns the results.
+func (s *Server) MustQueryWithParams(query string, values url.Values) string {
+	results, err := s.QueryWithParams(query, values)
+	if err != nil {
+		panic(err)
+	}
+	return results
 }
 
 // HTTPGet makes an HTTP GET request to the server and returns the response.

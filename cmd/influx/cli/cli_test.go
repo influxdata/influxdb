@@ -194,7 +194,7 @@ func TestParseCommand_Connect(t *testing.T) {
 
 	// assert connection is established
 	if err := c.ParseCommand(cmd); err != nil {
-		t.Fatalf("There was an error while connecting to %s: %s", u.Path, err)
+		t.Fatalf("There was an error while connecting to %v: %v", u.Path, err)
 	}
 
 	// assert server version is populated

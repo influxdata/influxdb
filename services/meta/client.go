@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -664,6 +665,22 @@ func (c *Client) UserCount() int {
 	return len(c.data().Users)
 }
 
+// ShardIDs returns a list of all shard ids.
+func (c *Client) ShardIDs() []uint64 {
+	var a []uint64
+	for _, dbi := range c.data().Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, si := range sgi.Shards {
+					a = append(a, si.ID)
+				}
+			}
+		}
+	}
+	sort.Sort(uint64Slice(a))
+	return a
+}
+
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
 // for the specified time range. Shard groups are sorted by start time.
 func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
@@ -682,6 +699,34 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 		groups = append(groups, g)
 	}
 	return groups, nil
+}
+
+// ShardIDsByTimeRange returns a slice of shards that may contain data in the time range.
+func (c *Client) ShardIDsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []uint64, err error) {
+	m := make(map[uint64]struct{})
+	for _, src := range sources {
+		mm, ok := src.(*influxql.Measurement)
+		if !ok {
+			return nil, fmt.Errorf("invalid source type: %#v", src)
+		}
+
+		groups, err := c.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range groups {
+			for _, sh := range g.Shards {
+				m[sh.ID] = struct{}{}
+			}
+		}
+	}
+
+	a = make([]uint64, 0, len(m))
+	for k := range m {
+		a = append(a, k)
+	}
+
+	return a, nil
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
@@ -1147,3 +1192,9 @@ type errRedirect struct {
 func (e errRedirect) Error() string {
 	return fmt.Sprintf("redirect to %s", e.host)
 }
+
+type uint64Slice []uint64
+
+func (a uint64Slice) Len() int           { return len(a) }
+func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }

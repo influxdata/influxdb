@@ -1,0 +1,22 @@
+package internal;
+
+message Point {
+    required string Name = 1;
+    required string Tags = 2;
+    required int64  Time = 3;
+    required bool   Nil  = 4;
+    repeated Aux    Aux  = 5;
+
+    optional double FloatValue   = 6;
+    optional int64  IntegerValue = 7;
+    optional string StringValue  = 8;
+    optional bool   BooleanValue = 9;
+}
+
+message Aux {
+    required int32  DataType     = 1;
+    optional double FloatValue   = 2;
+    optional int64  IntegerValue = 3;
+    optional string StringValue  = 4;
+    optional bool   BooleanValue = 5;
+}

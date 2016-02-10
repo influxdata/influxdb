@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 )
 
@@ -26,7 +26,8 @@ type Engine interface {
 	SetLogOutput(io.Writer)
 	LoadMetadataIndex(shard *Shard, index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
-	Begin(writable bool) (Tx, error)
+	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+	SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error)
 	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
@@ -46,9 +47,7 @@ type Engine interface {
 type EngineFormat int
 
 const (
-	B1Format EngineFormat = iota
-	BZ1Format
-	TSM1Format
+	TSM1Format EngineFormat = 2
 )
 
 // NewEngineFunc creates a new engine.
@@ -83,49 +82,14 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 		return newEngineFuncs[options.EngineVersion](path, walPath, options), nil
 	}
 
-	// Only bolt and tsm1 based storage engines are currently supported
-	var format string
-	if err := func() error {
-		// if it's a dir then it's a tsm1 engine
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		fi, err := f.Stat()
-		f.Close()
-		if err != nil {
-			return err
-		}
-		if fi.Mode().IsDir() {
-			format = "tsm1"
-			return nil
-		}
-
-		db, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-
-		return db.View(func(tx *bolt.Tx) error {
-			// Retrieve the meta bucket.
-			b := tx.Bucket([]byte("meta"))
-
-			// If no format is specified then it must be an original b1 database.
-			if b == nil {
-				format = "b1"
-				return nil
-			}
-
-			// Save the format.
-			format = string(b.Get([]byte("format")))
-			if format == "v1" {
-				format = "b1"
-			}
-			return nil
-		})
-	}(); err != nil {
+	// If it's a dir then it's a tsm1 engine
+	format := "tsm1"
+	if fi, err := os.Stat(path); err != nil {
 		return nil, err
+	} else if !fi.Mode().IsDir() {
+		return nil, errors.New("unknown engine type")
+	} else {
+		format = "tsm1"
 	}
 
 	// Lookup engine by format.
@@ -156,17 +120,6 @@ func NewEngineOptions() EngineOptions {
 		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
 		Config:                 NewConfig(),
 	}
-}
-
-// Tx represents a transaction.
-type Tx interface {
-	io.WriterTo
-
-	Size() int64
-	Commit() error
-	Rollback() error
-
-	Cursor(series string, fields []string, dec *FieldCodec, ascending bool) Cursor
 }
 
 // DedupeEntries returns slices with unique keys (the first 8 bytes).

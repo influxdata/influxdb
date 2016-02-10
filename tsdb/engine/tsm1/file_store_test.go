@@ -64,9 +64,10 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 
 	fs.Add(files...)
 
-	c := fs.KeyCursor("cpu")
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(0, 0), true)
 	// Search for an entry that exists in the second file
-	values, err := c.SeekTo(time.Unix(0, 0), true)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -101,9 +102,10 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 
 	fs.Add(files...)
 
-	c := fs.KeyCursor("cpu")
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(0, 0), true)
 	// Search for an entry that exists in the second file
-	values, err := c.SeekTo(time.Unix(0, 0), true)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -120,7 +122,8 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 	}
 
 	// Check that calling Next will dedupe points
-	values, err = c.Next(true)
+	c.Next()
+	values, err = c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -134,8 +137,8 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
-
 }
+
 func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 	fs := tsm1.NewFileStore("")
 
@@ -154,8 +157,9 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(0, 0), true)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(0, 0), true)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -191,8 +195,9 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(3, 0), true)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(3, 0), true)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -226,8 +231,9 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 
 	fs.Add(files...)
 
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(2, 0), true)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(2, 0), true)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -262,8 +268,9 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(0, 0), false)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(0, 0), false)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -298,8 +305,9 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(2, 0), false)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(2, 0), false)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -315,7 +323,8 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 	}
 
 	// Check that calling Next will dedupe points
-	values, err = c.Next(false)
+	c.Next()
+	values, err = c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -347,8 +356,9 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 
 	fs.Add(files...)
 
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(4, 0), false)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(4, 0), false)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -386,8 +396,9 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(3, 0), false)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(3, 0), false)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -421,8 +432,9 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 
 	fs.Add(files...)
 
-	c := fs.KeyCursor("cpu")
-	values, err := c.SeekTo(time.Unix(2, 0), false)
+	buf := make(tsm1.FloatValues, 1000)
+	c := fs.KeyCursor("cpu", time.Unix(2, 0), false)
+	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}

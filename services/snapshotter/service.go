@@ -251,7 +251,6 @@ func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPol
 	}
 
 	return nil
-
 }
 
 // readRequest Unmarshals a request object from the conn

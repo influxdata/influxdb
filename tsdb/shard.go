@@ -9,14 +9,14 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"sync"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
 	"github.com/influxdb/influxdb/tsdb/internal"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 const (
@@ -165,12 +165,6 @@ func (s *Shard) DiskSize() (int64, error) {
 	return size, nil
 }
 
-// ReadOnlyTx returns a read-only transaction for the shard.  The transaction must be rolled back to
-// release resources.
-func (s *Shard) ReadOnlyTx() (Tx, error) {
-	return s.engine.Begin(false)
-}
-
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
@@ -269,61 +263,9 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return nil
 }
 
-func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt *influxql.SelectStatement) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	validateType := func(aname, fname string, t influxql.DataType) error {
-		if t != influxql.Float && t != influxql.Integer {
-			return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
-				aname, fname, t)
-		}
-		return nil
-	}
-
-	m := s.measurementFields[measurementName]
-	if m == nil {
-		return fmt.Errorf("measurement not found: %s", measurementName)
-	}
-
-	// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
-	// nested aggregate on numeric data.
-	for _, a := range stmt.FunctionCalls() {
-		// Check for fields like `derivative(mean(value), 1d)`
-		var nested *influxql.Call = a
-		if fn, ok := nested.Args[0].(*influxql.Call); ok {
-			nested = fn
-		}
-
-		switch lit := nested.Args[0].(type) {
-		case *influxql.VarRef:
-			if IsNumeric(nested) {
-				f := m.Fields[lit.Val]
-				if err := validateType(a.Name, f.Name, f.Type); err != nil {
-					return err
-				}
-			}
-		case *influxql.Distinct:
-			if nested.Name != "count" {
-				return fmt.Errorf("aggregate call didn't contain a field %s", a.String())
-			}
-			if IsNumeric(nested) {
-				f := m.Fields[lit.Val]
-				if err := validateType(a.Name, f.Name, f.Type); err != nil {
-					return err
-				}
-			}
-		default:
-			return fmt.Errorf("aggregate call didn't contain a field %s", a.String())
-		}
-	}
-
-	return nil
-}
-
 // DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(keys []string) error {
-	return s.engine.DeleteSeries(keys)
+func (s *Shard) DeleteSeries(seriesKeys []string) error {
+	return s.engine.DeleteSeries(seriesKeys)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
@@ -354,7 +296,6 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 	// add fields
 	measurementsToSave := make(map[string]*MeasurementFields)
 	for _, f := range fieldsToCreate {
-
 		m := s.measurementFields[f.Measurement]
 		if m == nil {
 			m = measurementsToSave[f.Measurement]
@@ -366,10 +307,8 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 
 		measurementsToSave[f.Measurement] = m
 
-		// add the field to the in memory index
-		// only limit the field count for non-tsm eninges
-		limitFieldCount := s.engine.Format() == B1Format || s.engine.Format() == BZ1Format
-		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, limitFieldCount); err != nil {
+		// Add the field to the in memory index
+		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
 			return nil, err
 		}
 
@@ -442,6 +381,200 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 	n, err := s.engine.WriteTo(w)
 	s.statMap.Add(statWriteBytes, int64(n))
 	return n, err
+}
+
+// CreateIterator returns an iterator for the data in the shard.
+func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return s.engine.CreateIterator(opt)
+}
+
+// FieldDimensions returns unique sets of fields and dimensions across a list of sources.
+func (s *Shard) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+	fields = make(map[string]struct{})
+	dimensions = make(map[string]struct{})
+
+	for _, src := range sources {
+		switch m := src.(type) {
+		case *influxql.Measurement:
+			// Retrieve measurement.
+			mm := s.index.Measurement(m.Name)
+			if mm == nil {
+				continue
+			}
+
+			// Append fields and dimensions.
+			for _, name := range mm.FieldNames() {
+				fields[name] = struct{}{}
+			}
+			for _, key := range mm.TagKeys() {
+				dimensions[key] = struct{}{}
+			}
+		}
+	}
+
+	return
+}
+
+func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	return s.engine.SeriesKeys(opt)
+}
+
+// Shards represents a sortable list of shards.
+type Shards []*Shard
+
+func (a Shards) Len() int           { return len(a) }
+func (a Shards) Less(i, j int) bool { return a[i].id < a[j].id }
+func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// CreateIterator returns a single combined iterator for the shards.
+func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if influxql.Sources(opt.Sources).HasSystemSource() {
+		return a.createSystemIterator(opt)
+	}
+
+	// Create iterators for each shard.
+	// Ensure that they are closed if an error occurs.
+	itrs := make([]influxql.Iterator, 0, len(a))
+	if err := func() error {
+		for _, sh := range a {
+			itr, err := sh.CreateIterator(opt)
+			if err != nil {
+				return err
+			}
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+
+	// Merge into a single iterator.
+	if opt.MergeSorted() {
+		return influxql.NewSortedMergeIterator(itrs, opt), nil
+	}
+
+	itr := influxql.NewMergeIterator(itrs, opt)
+	if opt.Expr != nil {
+		if expr, ok := opt.Expr.(*influxql.Call); ok && expr.Name == "count" {
+			opt.Expr = &influxql.Call{
+				Name: "sum",
+				Args: expr.Args,
+			}
+		}
+	}
+	return influxql.NewCallIterator(itr, opt), nil
+}
+
+// createSystemIterator returns an iterator for a system source.
+func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	// Only support a single system source.
+	if len(opt.Sources) > 1 {
+		return nil, errors.New("cannot select from multiple system sources")
+	}
+
+	m := opt.Sources[0].(*influxql.Measurement)
+	switch m.Name {
+	case "_measurements":
+		return a.createMeasurementsIterator(opt)
+	case "_tagKeys":
+		return a.createTagKeysIterator(opt)
+	default:
+		return nil, fmt.Errorf("unknown system source: %s", m.Name)
+	}
+}
+
+func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	if influxql.Sources(opt.Sources).HasSystemSource() {
+		// Only support a single system source.
+		if len(opt.Sources) > 1 {
+			return nil, errors.New("cannot select from multiple system sources")
+		}
+		// Meta queries don't need to know the series name and always have a single string.
+		return []influxql.Series{{Aux: []influxql.DataType{influxql.String}}}, nil
+	}
+
+	seriesMap := make(map[string]influxql.Series)
+	for _, sh := range a {
+		series, err := sh.SeriesKeys(opt)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, s := range series {
+			cur, ok := seriesMap[s.ID()]
+			if ok {
+				cur.Combine(&s)
+			} else {
+				seriesMap[s.ID()] = s
+			}
+		}
+	}
+
+	seriesList := make([]influxql.Series, 0, len(seriesMap))
+	for _, s := range seriesMap {
+		seriesList = append(seriesList, s)
+	}
+	sort.Sort(influxql.SeriesList(seriesList))
+	return influxql.SeriesList(seriesList), nil
+}
+
+// createMeasurementsIterator returns an iterator for all measurement names.
+func (a Shards) createMeasurementsIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	itrs := make([]influxql.Iterator, 0, len(a))
+	if err := func() error {
+		for _, sh := range a {
+			itr, err := NewMeasurementIterator(sh, opt)
+			if err != nil {
+				return err
+			}
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+	return influxql.NewMergeIterator(itrs, opt), nil
+}
+
+// createTagKeysIterator returns an iterator for all tag keys across measurements.
+func (a Shards) createTagKeysIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	itrs := make([]influxql.Iterator, 0, len(a))
+	if err := func() error {
+		for _, sh := range a {
+			itr, err := NewTagKeysIterator(sh, opt)
+			if err != nil {
+				return err
+			}
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+	return influxql.NewMergeIterator(itrs, opt), nil
+}
+
+// FieldDimensions returns the unique fields and dimensions across a list of sources.
+func (a Shards) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+	fields = make(map[string]struct{})
+	dimensions = make(map[string]struct{})
+
+	for _, sh := range a {
+		f, d, err := sh.FieldDimensions(sources)
+		if err != nil {
+			return nil, nil, err
+		}
+		for k := range f {
+			fields[k] = struct{}{}
+		}
+		for k := range d {
+			dimensions[k] = struct{}{}
+		}
+	}
+	return
 }
 
 type MeasurementFields struct {
@@ -767,6 +900,123 @@ func (f *FieldCodec) Fields() (a []*Field) {
 // FieldByName returns the field by its name. It will return a nil if not found
 func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
+}
+
+// MeasurementIterator represents a string iterator that emits all measurement names in a shard.
+type MeasurementIterator struct {
+	mms    Measurements
+	source *influxql.Measurement
+}
+
+// NewMeasurementIterator returns a new instance of MeasurementIterator.
+func NewMeasurementIterator(sh *Shard, opt influxql.IteratorOptions) (*MeasurementIterator, error) {
+	itr := &MeasurementIterator{}
+
+	// Extract source.
+	if len(opt.Sources) > 0 {
+		itr.source, _ = opt.Sources[0].(*influxql.Measurement)
+	}
+
+	// Retrieve measurements from shard. Filter if condition specified.
+	if opt.Condition == nil {
+		itr.mms = sh.index.Measurements()
+	} else {
+		mms, err := sh.index.measurementsByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+		itr.mms = mms
+	}
+
+	// Sort measurements by name.
+	sort.Sort(itr.mms)
+
+	return itr, nil
+}
+
+// Close closes the iterator.
+func (itr *MeasurementIterator) Close() error { return nil }
+
+// Next emits the next measurement name.
+func (itr *MeasurementIterator) Next() *influxql.FloatPoint {
+	if len(itr.mms) == 0 {
+		return nil
+	}
+	mm := itr.mms[0]
+	itr.mms = itr.mms[1:]
+	return &influxql.FloatPoint{
+		Name: "measurements",
+		Aux:  []interface{}{mm.Name},
+	}
+}
+
+// TagKeysIterator represents a string iterator that emits all tag keys in a shard.
+type TagKeysIterator struct {
+	mms Measurements // remaining measurements
+	buf struct {
+		mm   *Measurement // current measurement
+		keys []string     // current measurement's keys
+	}
+}
+
+// NewTagKeysIterator returns a new instance of TagKeysIterator.
+func NewTagKeysIterator(sh *Shard, opt influxql.IteratorOptions) (*TagKeysIterator, error) {
+	itr := &TagKeysIterator{}
+
+	// Retrieve measurements from shard. Filter if condition specified.
+	if opt.Condition == nil {
+		itr.mms = sh.index.Measurements()
+	} else {
+		mms, err := sh.index.measurementsByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+		itr.mms = mms
+	}
+
+	// Sort measurements by name.
+	sort.Sort(itr.mms)
+
+	return itr, nil
+}
+
+// Close closes the iterator.
+func (itr *TagKeysIterator) Close() error { return nil }
+
+// Next emits the next tag key name.
+func (itr *TagKeysIterator) Next() *influxql.FloatPoint {
+	for {
+		// If there are no more keys then move to the next measurements.
+		if len(itr.buf.keys) == 0 {
+			if len(itr.mms) == 0 {
+				return nil
+			}
+
+			itr.buf.mm = itr.mms[0]
+			itr.buf.keys = itr.buf.mm.TagKeys()
+			itr.mms = itr.mms[1:]
+			continue
+		}
+
+		// Return next key.
+		p := &influxql.FloatPoint{
+			Name: itr.buf.mm.Name,
+			Aux:  []interface{}{itr.buf.keys[0]},
+		}
+		itr.buf.keys = itr.buf.keys[1:]
+
+		return p
+	}
+}
+
+// IsNumeric returns whether a given aggregate can only be run on numeric fields.
+func IsNumeric(c *influxql.Call) bool {
+	switch c.Name {
+	case "count", "first", "last", "distinct":
+		return false
+	default:
+		return true
+	}
 }
 
 // mustMarshal encodes a value to JSON.

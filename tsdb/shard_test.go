@@ -1,21 +1,30 @@
 package tsdb_test
 
 import (
-	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/models"
+	"github.com/influxdb/influxdb/pkg/deep"
 	"github.com/influxdb/influxdb/tsdb"
-	"github.com/influxdb/influxdb/tsdb/engine/b1"
+	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
 
+// DefaultPrecision is the precision used by the MustWritePointsString() function.
+const DefaultPrecision = "s"
+
 func TestShardWriteAndIndex(t *testing.T) {
+	t.Skip("pending tsm1 iterator impl")
+
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
@@ -84,6 +93,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 }
 
 func TestShardWriteAddNewField(t *testing.T) {
+	t.Skip("pending tsm1 iterator impl")
+
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
@@ -137,86 +148,64 @@ func TestShardWriteAddNewField(t *testing.T) {
 	if len(index.Measurement("cpu").FieldNames()) != 2 {
 		t.Fatalf("field names wasn't saved to measurement index")
 	}
-
 }
 
-// Ensure the shard will automatically flush the WAL after a threshold has been reached.
-func TestShard_Autoflush(t *testing.T) {
-	path, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(path)
-
-	// Open shard with a really low size threshold, high flush interval.
-	sh := tsdb.NewShard(1, tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), filepath.Join(path, "wal"), tsdb.EngineOptions{
-		EngineVersion:          b1.Format,
-		MaxWALSize:             1024, // 1KB
-		WALFlushInterval:       1 * time.Hour,
-		WALPartitionFlushDelay: 1 * time.Millisecond,
-	})
-	if err := sh.Open(); err != nil {
-		t.Fatal(err)
-	}
+// Ensure a shard can create iterators for its underlying data.
+func TestShard_CreateIterator(t *testing.T) {
+	sh := MustOpenShard()
 	defer sh.Close()
 
-	// Write a bunch of points.
-	for i := 0; i < 100; i++ {
-		if err := sh.WritePoints([]models.Point{models.MustNewPoint(
-			fmt.Sprintf("cpu%d", i),
-			map[string]string{"host": "server"},
-			map[string]interface{}{"value": 1.0},
-			time.Unix(1, 2),
-		)}); err != nil {
-			t.Fatal(err)
-		}
-	}
+	sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+`)
 
-	// Wait for autoflush.
-	time.Sleep(100 * time.Millisecond)
-
-	// Make sure we have series buckets created outside the WAL.
-	if n, err := sh.SeriesCount(); err != nil {
-		t.Fatal(err)
-	} else if n < 10 {
-		t.Fatalf("not enough series, expected at least 10, got %d", n)
-	}
-}
-
-// Ensure the shard will automatically flush the WAL after a threshold has been reached.
-func TestShard_Autoflush_FlushInterval(t *testing.T) {
-	path, _ := ioutil.TempDir("", "shard_test")
-	defer os.RemoveAll(path)
-
-	// Open shard with a high size threshold, small time threshold.
-	sh := tsdb.NewShard(1, tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), filepath.Join(path, "wal"), tsdb.EngineOptions{
-		EngineVersion:          b1.Format,
-		MaxWALSize:             10 * 1024 * 1024, // 10MB
-		WALFlushInterval:       100 * time.Millisecond,
-		WALPartitionFlushDelay: 1 * time.Millisecond,
+	// Create iterator.
+	itr, err := sh.CreateIterator(influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr(`value`),
+		Aux:        []string{"val2"},
+		Dimensions: []string{"host"},
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
 	})
-	if err := sh.Open(); err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
-	defer sh.Close()
+	defer itr.Close()
+	fitr := itr.(influxql.FloatIterator)
 
-	// Write some points.
-	for i := 0; i < 100; i++ {
-		if err := sh.WritePoints([]models.Point{models.MustNewPoint(
-			fmt.Sprintf("cpu%d", i),
-			map[string]string{"host": "server"},
-			map[string]interface{}{"value": 1.0},
-			time.Unix(1, 2),
-		)}); err != nil {
-			t.Fatal(err)
-		}
+	// Read values from iterator.
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "cpu",
+		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Time:  time.Unix(0, 0).UnixNano(),
+		Value: 100,
+		Aux:   []interface{}{(*float64)(nil)},
+	}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}
 
-	// Wait for time-based flush.
-	time.Sleep(100 * time.Millisecond)
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "cpu",
+		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Time:  time.Unix(10, 0).UnixNano(),
+		Value: 50,
+		Aux:   []interface{}{float64(5)},
+	}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
 
-	// Make sure we have series buckets created outside the WAL.
-	if n, err := sh.SeriesCount(); err != nil {
-		t.Fatal(err)
-	} else if n < 10 {
-		t.Fatalf("not enough series, expected at least 10, got %d", n)
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "cpu",
+		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
+		Time:  time.Unix(0, 0).UnixNano(),
+		Value: 25,
+		Aux:   []interface{}{math.NaN()},
+	}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
 	}
 }
 
@@ -344,5 +333,62 @@ func chunkedWrite(shard *tsdb.Shard, points []models.Point) {
 		shard.WritePoints(points[start:end])
 		start = end
 		end += chunkSz
+	}
+}
+
+// Shard represents a test wrapper for tsdb.Shard.
+type Shard struct {
+	*tsdb.Shard
+	path string
+}
+
+// NewShard returns a new instance of Shard with temp paths.
+func NewShard() *Shard {
+	// Create temporary path for data and WAL.
+	path, err := ioutil.TempDir("", "influxdb-tsdb-")
+	if err != nil {
+		panic(err)
+	}
+
+	// Build engine options.
+	opt := tsdb.NewEngineOptions()
+	opt.Config.WALDir = filepath.Join(path, "wal")
+
+	return &Shard{
+		Shard: tsdb.NewShard(0,
+			tsdb.NewDatabaseIndex(),
+			filepath.Join(path, "data"),
+			filepath.Join(path, "wal"),
+			opt,
+		),
+		path: path,
+	}
+}
+
+// MustOpenShard returns a new open shard. Panic on error.
+func MustOpenShard() *Shard {
+	sh := NewShard()
+	if err := sh.Open(); err != nil {
+		panic(err)
+	}
+	return sh
+}
+
+// Close closes the shard and removes all underlying data.
+func (sh *Shard) Close() error {
+	defer os.RemoveAll(sh.path)
+	return sh.Shard.Close()
+}
+
+// MustWritePointsString parses the line protocol (with second precision) and
+// inserts the resulting points into the shard. Panic on error.
+func (sh *Shard) MustWritePointsString(s string) {
+	a, err := models.ParsePointsWithPrecision([]byte(strings.TrimSpace(s)), time.Time{}, "s")
+	if err != nil {
+		panic(err)
+	}
+
+	if err := sh.WritePoints(a); err != nil {
+		panic(err)
 	}
 }

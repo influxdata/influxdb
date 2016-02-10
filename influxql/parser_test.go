@@ -1898,7 +1898,6 @@ func TestParser_ParseStatement(t *testing.T) {
 
 	for i, tt := range tests {
 		if tt.skip {
-			t.Logf("skipping test of '%s'", tt.s)
 			continue
 		}
 		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
@@ -2283,14 +2282,18 @@ func BenchmarkParserParseStatement(b *testing.B) {
 // MustParseSelectStatement parses a select statement. Panic on error.
 func MustParseSelectStatement(s string) *influxql.SelectStatement {
 	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
-	panicIfErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return stmt.(*influxql.SelectStatement)
 }
 
 // MustParseExpr parses an expression. Panic on error.
 func MustParseExpr(s string) influxql.Expr {
 	expr, err := influxql.NewParser(strings.NewReader(s)).ParseExpr()
-	panicIfErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return expr
 }
 
@@ -2324,18 +2327,16 @@ func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, r
 // mustMarshalJSON encodes a value to JSON.
 func mustMarshalJSON(v interface{}) []byte {
 	b, err := json.Marshal(v)
-	panicIfErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return b
 }
 
 func mustParseDuration(s string) time.Duration {
 	d, err := influxql.ParseDuration(s)
-	panicIfErr(err)
-	return d
-}
-
-func panicIfErr(err error) {
 	if err != nil {
 		panic(err)
 	}
+	return d
 }
