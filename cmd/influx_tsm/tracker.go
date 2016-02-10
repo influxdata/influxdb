@@ -64,7 +64,7 @@ func (t *tracker) Run() error {
 				defer t.wg.Done()
 
 				start := time.Now()
-				log.Printf("Backup of databse '%v' started", db)
+				log.Printf("Backup of database '%v' started", db)
 				err := backupDatabase(db)
 				if err != nil {
 					log.Fatalf("Backup of database %v failed: %v\n", db, err)
