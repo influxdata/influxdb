@@ -45,7 +45,7 @@ keys are not known to the meta store so a distributed query must run.
 * Local vs. Cluster Query - The `SHOW SERIES` meta query should have two 
 versions; one which returns all series in the queried database, and another
 which returns only the series located on the specified node. Presumably the
-meta queries which execute against data nodes should have a `NODE` clause
+meta queries which execute against data nodes should have a `SERVER =` clause
 to allow direct inquiry of that node's data, not the entire cluster.
 
 * Update Meta Data Only - The `DROP CONTINUOUS QUERY` statement can execute
