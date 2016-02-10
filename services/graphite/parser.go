@@ -216,7 +216,7 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 	fields := strings.Split(line, ".")
 	var (
 		measurement                    []string
-		tags                           = make(map[string]string)
+		tags                           = make(map[string][]string)
 		field                          string
 		wildcard_field_specified       = false
 		wildcard_measurement_specified = false
