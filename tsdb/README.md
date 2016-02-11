@@ -38,7 +38,7 @@ Fields are key-value metrics associated with the measurement.  Every line must h
 Field keys are always strings and follow the same syntactical rules as described above for tag keys and values. Field values can be one of four types.  The first value written for a given field on a given measurement defines the type of that field for all series under that measurement.
 
 * _integer_ - Numeric values that do not include a decimal and are followed by a trailing i when inserted (e.g. 1i, 345i, 2015i, -10i). Note that all values must have a trailing i. If they do not they will be written as floats.
-* _float_ - Numeric values tha are not followed by a trailing i. (e.g. 1, 1.0, -3.14, 6.0+e5, 10).
+* _float_ - Numeric values that are not followed by a trailing i. (e.g. 1, 1.0, -3.14, 6.0+e5, 10).
 * _boolean_ - A value indicating true or false.  Valid boolean strings are (t, T, true, TRUE, f, F, false, and FALSE).
 * _string_ - A text value.  All string values _must_ be surrounded in double-quotes `"`.  If the string contains
 a double-quote or backslashes, it must be escaped with a backslash, e.g. `\"`, `\\`.

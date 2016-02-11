@@ -157,12 +157,10 @@ func (s *Shard) DiskSize() (int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	stats, err := os.Stat(s.path)
-	var size int64
 	if err != nil {
 		return 0, err
 	}
-	size += stats.Size()
-	return size, nil
+	return stats.Size(), nil
 }
 
 // FieldCodec returns the field encoding for a measurement.
@@ -606,7 +604,7 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 	if err := proto.Unmarshal(buf, &pb); err != nil {
 		return err
 	}
-	m.Fields = make(map[string]*Field)
+	m.Fields = make(map[string]*Field, len(pb.Fields))
 	for _, f := range pb.Fields {
 		m.Fields[f.GetName()] = &Field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
 	}
@@ -898,11 +896,12 @@ func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
 }
 
 // Fields returns a unsorted list of the codecs fields.
-func (f *FieldCodec) Fields() (a []*Field) {
+func (f *FieldCodec) Fields() []*Field {
+	a := make([]*Field, 0, len(f.fieldsByID))
 	for _, f := range f.fieldsByID {
 		a = append(a, f)
 	}
-	return
+	return a
 }
 
 // FieldByName returns the field by its name. It will return a nil if not found
