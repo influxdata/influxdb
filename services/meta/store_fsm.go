@@ -433,7 +433,6 @@ func (fsm *storeFSM) applyDropUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
-	delete(fsm.authCache, v.GetName())
 	return nil
 }
 
@@ -447,7 +446,6 @@ func (fsm *storeFSM) applyUpdateUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
-	delete(fsm.authCache, v.GetName())
 	return nil
 }
 

@@ -64,10 +64,12 @@ type Client struct {
 
 	// Authentication cache.
 	authCache map[string]authUser
+}
 
-	// hashPassword generates a cryptographically secure hash for password.
-	// Returns an error if the password is invalid or a hash cannot be generated.
-	hashPassword HashPasswordFn
+type authUser struct {
+	bhash string
+	salt  []byte
+	hash  []byte
 }
 
 // NewClient returns a new *Client.
@@ -78,9 +80,6 @@ func NewClient(metaServers []string, tls bool) *Client {
 		tls:         tls,
 		logger:      log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
 		authCache:   make(map[string]authUser, 0),
-		hashPassword: func(password string) ([]byte, error) {
-			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
-		},
 	}
 	client.executor = &StatementExecutor{Store: client}
 	return client
@@ -488,49 +487,31 @@ func (c *Client) User(name string) (*UserInfo, error) {
 	return nil, ErrUserNotFound
 }
 
-// BcryptCost is the cost associated with generating password with Bcrypt.
+// bcryptCost is the cost associated with generating password with bcrypt.
 // This setting is lowered during testing to improve test suite performance.
-var BcryptCost = 10
-
-// HashPasswordFn represnets a password hashing function.
-type HashPasswordFn func(password string) ([]byte, error)
-
-// GetHashPasswordFn returns the current password hashing function.
-func (c *Client) GetHashPasswordFn() HashPasswordFn {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.hashPassword
-}
-
-// SetHashPasswordFn sets the password hashing function.
-func (c *Client) SetHashPasswordFn(fn HashPasswordFn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.hashPassword = fn
-}
+var bcryptCost = bcrypt.DefaultCost
 
 // hashWithSalt returns a salted hash of password using salt
-func (c *Client) hashWithSalt(salt []byte, password string) ([]byte, error) {
+func (c *Client) hashWithSalt(salt []byte, password string) []byte {
 	hasher := sha256.New()
-	hasher.Write(append(salt, []byte(password)...))
-	return hasher.Sum(nil), nil
+	hasher.Write(salt)
+	hasher.Write([]byte(password))
+	return hasher.Sum(nil)
 }
 
 // saltedHash returns a salt and salted hash of password
 func (c *Client) saltedHash(password string) (salt, hash []byte, err error) {
 	salt = make([]byte, SaltBytes)
-	_, err = io.ReadFull(crand.Reader, salt)
-	if err != nil {
-		return
+	if _, err := io.ReadFull(crand.Reader, salt); err != nil {
+		return nil, nil, err
 	}
 
-	hash, err = c.hashWithSalt(salt, password)
-	return
+	return salt, c.hashWithSalt(salt, password), nil
 }
 
 func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error) {
 	// Hash the password before serializing it.
-	hash, err := c.hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return nil, err
 	}
@@ -549,25 +530,17 @@ func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error
 
 func (c *Client) UpdateUser(name, password string) error {
 	// Hash the password before serializing it.
-	hash, err := c.hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return err
 	}
 
-	err = c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
+	return c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
 		&internal.UpdateUserCommand{
 			Name: proto.String(name),
 			Hash: proto.String(string(hash)),
 		},
 	)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err == nil {
-		delete(c.authCache, name)
-	}
-
-	return err
 }
 
 func (c *Client) DropUser(name string) error {
@@ -627,27 +600,23 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 	defer c.mu.Unlock()
 
 	// Find user.
-	u := c.cacheData.User(username)
-	if u == nil {
+	userInfo := c.cacheData.User(username)
+	if userInfo == nil {
 		return nil, ErrUserNotFound
 	}
 
 	// Check the local auth cache first.
 	if au, ok := c.authCache[username]; ok {
 		// verify the password using the cached salt and hash
-		hashed, err := c.hashWithSalt(au.salt, password)
-		if err != nil {
-			return nil, err
+		if bytes.Equal(c.hashWithSalt(au.salt, password), au.hash) {
+			return userInfo, nil
 		}
 
-		if bytes.Equal(hashed, au.hash) {
-			return u, nil
-		}
-		return nil, ErrAuthenticate
+		// fall through to requiring a full bcrypt hash for invalid passwords
 	}
 
 	// Compare password with user hash.
-	if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(userInfo.Hash), []byte(password)); err != nil {
 		return nil, ErrAuthenticate
 	}
 
@@ -656,9 +625,9 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.authCache[username] = authUser{salt: salt, hash: hashed}
+	c.authCache[username] = authUser{salt: salt, hash: hashed, bhash: userInfo.Hash}
 
-	return u, nil
+	return userInfo, nil
 }
 
 func (c *Client) UserCount() int {
@@ -1108,6 +1077,7 @@ func (c *Client) pollForUpdates() {
 		c.mu.Lock()
 		idx := c.cacheData.Index
 		c.cacheData = data
+		c.updateAuthCache()
 		if idx < data.Index {
 			close(c.changed)
 			c.changed = make(chan struct{})
@@ -1183,6 +1153,21 @@ func (c *Client) retryUntilSnapshot(idx uint64) *Data {
 
 		currentServer++
 	}
+}
+
+func (c *Client) updateAuthCache() {
+	// copy cached user info for still-present users
+	newCache := make(map[string]authUser, len(c.authCache))
+
+	for _, userInfo := range c.cacheData.Users {
+		if cached, ok := c.authCache[userInfo.Name]; ok {
+			if cached.bhash == userInfo.Hash {
+				newCache[userInfo.Name] = cached
+			}
+		}
+	}
+
+	c.authCache = newCache
 }
 
 type errRedirect struct {

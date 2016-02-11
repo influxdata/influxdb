@@ -22,6 +22,7 @@
 - [#5510](https://github.com/influxdata/influxdb/pull/5510): Optimize ReducePercentile @bsideup
 - [#5557](https://github.com/influxdata/influxdb/issues/5630): Fixes panic when surrounding the select statement arguments in brackets
 - [#5628](https://github.com/influxdata/influxdb/issues/5628): Crashed the server with a bad derivative query
+- [#5532](https://github.com/influxdata/influxdb/issues/5532): user passwords not changeable in cluster
 
 ## v0.10.0 [2016-02-04]
 
