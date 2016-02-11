@@ -808,7 +808,7 @@ func cors(inner http.Handler) http.Handler {
 
 			w.Header().Set(`Access-Control-Expose-Headers`, strings.Join([]string{
 				`Date`,
-				`X-Influxdb-Version`,
+				`X-InfluxDB-Version`,
 			}, ", "))
 		}
 
