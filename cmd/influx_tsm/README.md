@@ -145,7 +145,7 @@ influx_tsm -parallel /tmp/data/
 ```
 3. Remove the existing cold `b1`/`bz1` shards from the production data directory.
 4. Move the new `tsm1` shards into the original directory, overwriting the existing `b1`/`bz1` shards of the same name. Do this simultaneously with step 3 to avoid any query errors.
-5. Wait an hour, a day, or a week (depending on your retention period) for any hot `b1`/`bz1` shards to become cold and repeat steps 1 through 3 on the newly cold shards.
+5. Wait an hour, a day, or a week (depending on your retention period) for any hot `b1`/`bz1` shards to become cold and repeat steps 1 through 4 on the newly cold shards.
 
 > **Note:** Any points written to the cold shards after making a copy will be lost when the `tsm1` shard overwrites the existing cold shard.
 Nothing in InfluxDB will prevent writes to cold shards, they are merely unexpected, not impossible.
