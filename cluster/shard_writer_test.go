@@ -154,8 +154,22 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	shardID := uint64(1)
 	ownerID := uint64(2)
 	var points []models.Point
+
+	//Single point will be transmitted within 1 nano sec in Windows, thus no error. Need more data to fill associated underlying buffers.
 	points = append(points, models.MustNewPoint(
 		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
+
+	points = append(points, models.MustNewPoint(
+		"cpu", models.Tags{"host": "server02"}, map[string]interface{}{"value2": int64(100)}, now,
+	))
+
+	points = append(points, models.MustNewPoint(
+		"cpu", models.Tags{"host": "server03"}, map[string]interface{}{"value3": int64(100)}, now,
+	))
+
+	points = append(points, models.MustNewPoint(
+		"cpu", models.Tags{"host": "server04"}, map[string]interface{}{"value4": int64(100)}, now,
 	))
 
 	if err, exp := w.WriteShard(shardID, ownerID, points), "i/o timeout"; err == nil || !strings.Contains(err.Error(), exp) {
