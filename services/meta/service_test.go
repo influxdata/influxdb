@@ -774,18 +774,23 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
 	joinPeers := freePorts(4)
+	raftPeers := freePorts(4)
 
 	cfg1 := newConfig()
 	cfg1.HTTPBindAddress = joinPeers[0]
+	cfg1.BindAddress = raftPeers[0]
 	defer os.RemoveAll(cfg1.Dir)
 	cfg2 := newConfig()
 	cfg2.HTTPBindAddress = joinPeers[1]
+	cfg2.BindAddress = raftPeers[1]
 	defer os.RemoveAll(cfg2.Dir)
 	cfg3 := newConfig()
 	cfg3.HTTPBindAddress = joinPeers[2]
+	cfg3.BindAddress = raftPeers[2]
 	defer os.RemoveAll(cfg3.Dir)
 	cfg4 := newConfig()
 	cfg4.HTTPBindAddress = joinPeers[3]
+	cfg4.BindAddress = raftPeers[3]
 	defer os.RemoveAll(cfg4.Dir)
 
 	var wg sync.WaitGroup
@@ -1259,6 +1264,8 @@ func TestMetaService_Ping(t *testing.T) {
 	}
 
 	srvs[1].Close()
+	// give the server time to close
+	time.Sleep(time.Second)
 
 	if err := c.Ping(false); err != nil {
 		t.Fatalf("ping false some failed: %s", err.Error())
