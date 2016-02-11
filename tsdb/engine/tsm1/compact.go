@@ -697,7 +697,7 @@ func (k *tsmKeyIterator) Next() bool {
 		if v == nil {
 			iter := k.iterators[i]
 			if iter.Next() {
-				key, minTime, maxTime, b, err := iter.Read()
+				key, minTime, maxTime, _, b, err := iter.Read()
 				if err != nil {
 					k.err = err
 				}
@@ -712,7 +712,7 @@ func (k *tsmKeyIterator) Next() bool {
 				blockKey := key
 				for iter.PeekNext() == blockKey {
 					iter.Next()
-					key, minTime, maxTime, b, err := iter.Read()
+					key, minTime, maxTime, _, b, err := iter.Read()
 					if err != nil {
 						k.err = err
 					}

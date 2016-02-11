@@ -113,6 +113,23 @@ func main() {
 		opts.dumpBlocks = opts.dumpBlocks || dumpAll || opts.filterKey != ""
 		opts.dumpIndex = opts.dumpIndex || dumpAll || opts.filterKey != ""
 		cmdDumpTsm1dev(opts)
+	case "verify":
+		var path string
+		fs := flag.NewFlagSet("verify", flag.ExitOnError)
+		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+
+		fs.Usage = func() {
+			println("Usage: influx_inspect verify [options]\n\n   verifies the the checksum of shards")
+			println()
+			println("Options:")
+			fs.PrintDefaults()
+		}
+
+		if err := fs.Parse(flag.Args()[1:]); err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+		cmdVerify(path)
 	default:
 		flag.Usage()
 		os.Exit(1)
