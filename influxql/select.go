@@ -4,15 +4,25 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 )
+
+// SelectOptions are options that customize the select call.
+type SelectOptions struct {
+	// The lower bound for a select call.
+	MinTime time.Time
+
+	// The upper bound for a select call.
+	MaxTime time.Time
+}
 
 // Select executes stmt against ic and returns a list of iterators to stream from.
 //
 // Statements should have all rewriting performed before calling select(). This
 // includes wildcard and source expansion.
-func Select(stmt *SelectStatement, ic IteratorCreator) ([]Iterator, error) {
+func Select(stmt *SelectStatement, ic IteratorCreator, sopt *SelectOptions) ([]Iterator, error) {
 	// Determine base options for iterators.
-	opt, err := newIteratorOptionsStmt(stmt)
+	opt, err := newIteratorOptionsStmt(stmt, sopt)
 	if err != nil {
 		return nil, err
 	}

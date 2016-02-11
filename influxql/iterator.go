@@ -443,18 +443,26 @@ type IteratorOptions struct {
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
-func newIteratorOptionsStmt(stmt *SelectStatement) (opt IteratorOptions, err error) {
+func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
 	// Determine time range from the condition.
 	startTime, endTime := TimeRange(stmt.Condition)
 	if !startTime.IsZero() {
 		opt.StartTime = startTime.UnixNano()
 	} else {
-		opt.StartTime = MinTime
+		if sopt != nil {
+			opt.StartTime = sopt.MinTime.UnixNano()
+		} else {
+			opt.StartTime = MinTime
+		}
 	}
 	if !endTime.IsZero() {
 		opt.EndTime = endTime.UnixNano()
 	} else {
-		opt.EndTime = MaxTime
+		if sopt != nil {
+			opt.EndTime = sopt.MaxTime.UnixNano()
+		} else {
+			opt.EndTime = MaxTime
+		}
 	}
 
 	// Determine group by interval.
