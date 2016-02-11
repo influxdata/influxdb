@@ -7,6 +7,7 @@
 - [#5550](https://github.com/influxdata/influxdb/pull/5550): Enabled golint for tsdb/engine/wal.
 - [#5419](https://github.com/influxdata/influxdb/pull/5419): Graphite: Support matching tags multiple times Thanks @m4ce
 - [#5598](https://github.com/influxdata/influxdb/pull/5598): Client: Add Ping to v2 client @PSUdaemon
+- [#4125](https://github.com/influxdata/influxdb/pull/4125): Admin UI: Fetch and display server version on connect. Thanks @alexiri!
 
 ### Bugfixes
 
