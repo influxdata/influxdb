@@ -788,10 +788,6 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	cfg3.HTTPBindAddress = joinPeers[2]
 	cfg3.BindAddress = raftPeers[2]
 	defer os.RemoveAll(cfg3.Dir)
-	cfg4 := newConfig()
-	cfg4.HTTPBindAddress = joinPeers[3]
-	cfg4.BindAddress = raftPeers[3]
-	defer os.RemoveAll(cfg4.Dir)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -849,7 +845,11 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 
-	cfg4.JoinPeers = []string{joinPeers[0], joinPeers[1], joinPeers[3]}
+	cfg4 := newConfig()
+	cfg4.HTTPBindAddress = freePort()
+	cfg4.BindAddress = freePort()
+	cfg4.JoinPeers = []string{joinPeers[0], joinPeers[1], cfg4.HTTPBindAddress}
+	defer os.RemoveAll(cfg4.Dir)
 	s4 := newService(cfg4)
 	if err := s4.Open(); err != nil {
 		t.Fatal(err.Error())
