@@ -748,7 +748,7 @@ func (c *CommandLine) help() {
         show field keys       show field key information
 
         A full list of influxql commands can be found at:
-        https://influxdb.com/docs/v0.9/query_language/spec.html
+        https://docs.influxdata.com/influxdb/v0.10/query_language/spec
 `)
 }
 
