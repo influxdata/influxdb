@@ -311,8 +311,9 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			interval := opt.DerivativeInterval()
 			isNonNegative := (expr.Name == "non_negative_derivative")
 
-			// Derivatives do not use GROUP BY intervals, so clear this option.
+			// Derivatives do not use GROUP BY intervals or time constraints, so clear these options.
 			opt.Interval = Interval{}
+			opt.StartTime, opt.EndTime = MinTime, MaxTime
 			return newDerivativeIterator(input, opt, interval, isNonNegative), nil
 		default:
 			panic(fmt.Sprintf("unsupported call: %s", expr.Name))
