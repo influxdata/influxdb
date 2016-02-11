@@ -12,7 +12,7 @@ import (
 
 	"github.com/influxdata/enterprise-client/v2"
 	"github.com/influxdata/enterprise-client/v2/admin"
-	"github.com/influxdb/influxdb/monitor"
+	"github.com/influxdata/influxdb/monitor"
 )
 
 // Service represents the enterprise service.

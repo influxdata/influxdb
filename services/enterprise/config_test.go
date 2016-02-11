@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/influxdata/config"
-	"github.com/influxdb/influxdb/services/enterprise"
+	"github.com/influxdata/influxdb/services/enterprise"
 )
 
 func TestConfig_Parse(t *testing.T) {
