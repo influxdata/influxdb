@@ -168,6 +168,8 @@ func (s *store) setOpen() error {
 
 // peers returns the raft peers known to this store
 func (s *store) peers() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.raftState == nil {
 		return []string{s.raftAddr}
 	}
