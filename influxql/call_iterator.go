@@ -772,13 +772,14 @@ func newPercentileIterator(input Iterator, opt IteratorOptions, percentile float
 // newFloatPercentileReduceSliceFunc returns the percentile value within a window.
 func newFloatPercentileReduceSliceFunc(percentile float64) floatReduceSliceFunc {
 	return func(a []FloatPoint, opt *reduceOptions) []FloatPoint {
-		sort.Sort(floatPointsByValue(a))
-		i := int(math.Floor(float64(len(a))*percentile/100.0+0.5)) - 1
+		length := len(a)
+		i := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
 
-		if i < 0 || i >= len(a) {
+		if i < 0 || i >= length {
 			return []FloatPoint{{Time: opt.startTime, Nil: true}}
 		}
 
+		sort.Sort(floatPointsByValue(a))
 		return []FloatPoint{{Time: opt.startTime, Value: a[i].Value}}
 	}
 }
@@ -786,13 +787,14 @@ func newFloatPercentileReduceSliceFunc(percentile float64) floatReduceSliceFunc 
 // newIntegerPercentileReduceSliceFunc returns the percentile value within a window.
 func newIntegerPercentileReduceSliceFunc(percentile float64) integerReduceSliceFunc {
 	return func(a []IntegerPoint, opt *reduceOptions) []IntegerPoint {
-		sort.Sort(integerPointsByValue(a))
-		i := int(math.Floor(float64(len(a))*percentile/100.0+0.5)) - 1
+		length := len(a)
+		i := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
 
-		if i < 0 || i >= len(a) {
+		if i < 0 || i >= length {
 			return nil
 		}
 
+		sort.Sort(integerPointsByValue(a))
 		return []IntegerPoint{{Time: opt.startTime, Value: a[i].Value}}
 	}
 }
