@@ -525,7 +525,7 @@ func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
-			p.Value = itr.opt.FillValue.({{.Type}})
+			p.Value = castTo{{.Name}}(itr.opt.FillValue)
 		case PreviousFill:
 			if itr.prev != nil {
 				p.Value = itr.prev.Value

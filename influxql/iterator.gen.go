@@ -523,7 +523,7 @@ func (itr *floatFillIterator) Next() *FloatPoint {
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
-			p.Value = itr.opt.FillValue.(float64)
+			p.Value = castToFloat(itr.opt.FillValue)
 		case PreviousFill:
 			if itr.prev != nil {
 				p.Value = itr.prev.Value
@@ -1411,7 +1411,7 @@ func (itr *integerFillIterator) Next() *IntegerPoint {
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
-			p.Value = itr.opt.FillValue.(int64)
+			p.Value = castToInteger(itr.opt.FillValue)
 		case PreviousFill:
 			if itr.prev != nil {
 				p.Value = itr.prev.Value
@@ -2299,7 +2299,7 @@ func (itr *stringFillIterator) Next() *StringPoint {
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
-			p.Value = itr.opt.FillValue.(string)
+			p.Value = castToString(itr.opt.FillValue)
 		case PreviousFill:
 			if itr.prev != nil {
 				p.Value = itr.prev.Value
@@ -3187,7 +3187,7 @@ func (itr *booleanFillIterator) Next() *BooleanPoint {
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
-			p.Value = itr.opt.FillValue.(bool)
+			p.Value = castToBoolean(itr.opt.FillValue)
 		case PreviousFill:
 			if itr.prev != nil {
 				p.Value = itr.prev.Value
