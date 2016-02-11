@@ -93,8 +93,8 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 		// Ensure we can always become the leader
 		config.DisableBootstrapAfterElect = false
 
-		// For single-node clusters, we can update the raft peers before we start the cluster
-		// just in case the hostname has changed.
+		// Make sure our peer address is here.  This happens with either a single node cluster
+		// or a node joining the cluster, as no one else has that information yet.
 		if !raft.PeerContained(peers, r.addr) {
 			if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
 				return err
@@ -189,7 +189,7 @@ func (r *raftState) close() error {
 
 // apply applies a serialized command to the raft log.
 func (r *raftState) apply(b []byte) error {
-	// Apply to raft log.`
+	// Apply to raft log.
 	f := r.raft.Apply(b, 0)
 	if err := f.Error(); err != nil {
 		return err

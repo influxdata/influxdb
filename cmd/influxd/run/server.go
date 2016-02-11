@@ -655,7 +655,7 @@ func (s *Server) initializeMetaClient() error {
 	for {
 		n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 		if err != nil {
-			println("Unable to create data node. retry...", err.Error())
+			log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
 			time.Sleep(time.Second)
 			continue
 		}
