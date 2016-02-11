@@ -137,7 +137,8 @@ func buildFieldIterators(fields Fields, ic IteratorCreator, opt IteratorOptions)
 				continue
 			}
 
-			itr, err := buildExprIterator(f.Expr, ic, opt)
+			expr := Reduce(f.Expr, nil)
+			itr, err := buildExprIterator(expr, ic, opt)
 			if err != nil {
 				return err
 			}
@@ -163,7 +164,8 @@ func buildFieldIterators(fields Fields, ic IteratorCreator, opt IteratorOptions)
 				continue
 			}
 
-			itr, err := buildExprIterator(f.Expr, aitr, opt)
+			expr := Reduce(f.Expr, nil)
+			itr, err := buildExprIterator(expr, aitr, opt)
 			if err != nil {
 				return err
 			}
@@ -358,6 +360,8 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			}
 			return buildTransformIterator(lhs, rhs, expr.Op, ic, opt)
 		}
+	case *ParenExpr:
+		return buildExprIterator(expr.Expr, ic, opt)
 	default:
 		panic(fmt.Sprintf("invalid expression type: %T", expr)) // FIXME
 	}
