@@ -19,6 +19,7 @@
 - [#5590](https://github.com/influxdata/influxdb/pull/5590): Fix panic when dropping subscription for unknown retention policy.
 - [#5375](https://github.com/influxdata/influxdb/pull/5375): Lint tsdb and tsdb/engine package @nuss-justin
 - [#5624](https://github.com/influxdata/influxdb/pull/5624): Fix golint issues in client v2 package @PSUDaemon
+- [#5510](https://github.com/influxdata/influxdb/pull/5510): Optimize ReducePercentile @bsideup
 
 ## v0.10.0 [2016-02-04]
 
