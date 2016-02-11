@@ -685,6 +685,7 @@ func (itr *floatReduceIterator) reduce() []*FloatPoint {
 		prev.Time = t
 		prev.Value = v
 		prev.Aux = aux
+		prev.Aggregated++
 	}
 
 	// Reverse sort points by name & tag.
@@ -1573,6 +1574,7 @@ func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 		prev.Time = t
 		prev.Value = v
 		prev.Aux = aux
+		prev.Aggregated++
 	}
 
 	// Reverse sort points by name & tag.
@@ -2461,6 +2463,7 @@ func (itr *stringReduceIterator) reduce() []*StringPoint {
 		prev.Time = t
 		prev.Value = v
 		prev.Aux = aux
+		prev.Aggregated++
 	}
 
 	// Reverse sort points by name & tag.
@@ -3349,6 +3352,7 @@ func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 		prev.Time = t
 		prev.Value = v
 		prev.Aux = aux
+		prev.Aggregated++
 	}
 
 	// Reverse sort points by name & tag.

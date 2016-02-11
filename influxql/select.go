@@ -225,7 +225,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			default:
 				itr, err = ic.CreateIterator(opt)
 			}
-		case "min", "max", "sum", "first", "last":
+		case "min", "max", "sum", "first", "last", "mean":
 			itr, err = ic.CreateIterator(opt)
 		case "distinct":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
@@ -233,13 +233,6 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 				return nil, err
 			}
 			return NewDistinctIterator(input, opt), nil
-		case "mean":
-			// OPTIMIZE(benbjohnson): convert to map/reduce
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			itr = newMeanIterator(input, opt)
 		case "median":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {

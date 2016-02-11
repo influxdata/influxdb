@@ -687,6 +687,7 @@ func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
 		prev.Time = t
 		prev.Value = v
 		prev.Aux = aux
+		prev.Aggregated++
 	}
 
 	// Reverse sort points by name & tag.

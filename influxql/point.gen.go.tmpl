@@ -8,6 +8,8 @@ import (
 {{range .}}
 
 // {{.Name}}Point represents a point with a {{.Type}} value.
+// DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
+// See TestPoint_Fields in influxql/point_test.go for more details.
 type {{.Name}}Point struct {
 	Name string
 	Tags Tags
@@ -16,6 +18,10 @@ type {{.Name}}Point struct {
 	Nil   bool
 	Value {{.Type}}
 	Aux   []interface{}
+
+	// Total number of points that were combined into this point from an aggregate.
+	// If this is zero, the point is not the result of an aggregate function.
+	Aggregated int
 }
 
 func (v *{{.Name}}Point) name() string       { return v.Name }

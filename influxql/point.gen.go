@@ -9,6 +9,8 @@ import (
 )
 
 // FloatPoint represents a point with a float64 value.
+// DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
+// See TestPoint_Fields in influxql/point_test.go for more details.
 type FloatPoint struct {
 	Name string
 	Tags Tags
@@ -17,6 +19,10 @@ type FloatPoint struct {
 	Nil   bool
 	Value float64
 	Aux   []interface{}
+
+	// Total number of points that were combined into this point from an aggregate.
+	// If this is zero, the point is not the result of an aggregate function.
+	Aggregated int
 }
 
 func (v *FloatPoint) name() string { return v.Name }
@@ -113,6 +119,8 @@ func floatPointsSortBy(points []FloatPoint, cmp func(a, b *FloatPoint) bool) *fl
 }
 
 // IntegerPoint represents a point with a int64 value.
+// DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
+// See TestPoint_Fields in influxql/point_test.go for more details.
 type IntegerPoint struct {
 	Name string
 	Tags Tags
@@ -121,6 +129,10 @@ type IntegerPoint struct {
 	Nil   bool
 	Value int64
 	Aux   []interface{}
+
+	// Total number of points that were combined into this point from an aggregate.
+	// If this is zero, the point is not the result of an aggregate function.
+	Aggregated int
 }
 
 func (v *IntegerPoint) name() string { return v.Name }
@@ -217,6 +229,8 @@ func integerPointsSortBy(points []IntegerPoint, cmp func(a, b *IntegerPoint) boo
 }
 
 // StringPoint represents a point with a string value.
+// DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
+// See TestPoint_Fields in influxql/point_test.go for more details.
 type StringPoint struct {
 	Name string
 	Tags Tags
@@ -225,6 +239,10 @@ type StringPoint struct {
 	Nil   bool
 	Value string
 	Aux   []interface{}
+
+	// Total number of points that were combined into this point from an aggregate.
+	// If this is zero, the point is not the result of an aggregate function.
+	Aggregated int
 }
 
 func (v *StringPoint) name() string { return v.Name }
@@ -321,6 +339,8 @@ func stringPointsSortBy(points []StringPoint, cmp func(a, b *StringPoint) bool) 
 }
 
 // BooleanPoint represents a point with a bool value.
+// DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
+// See TestPoint_Fields in influxql/point_test.go for more details.
 type BooleanPoint struct {
 	Name string
 	Tags Tags
@@ -329,6 +349,10 @@ type BooleanPoint struct {
 	Nil   bool
 	Value bool
 	Aux   []interface{}
+
+	// Total number of points that were combined into this point from an aggregate.
+	// If this is zero, the point is not the result of an aggregate function.
+	Aggregated int
 }
 
 func (v *BooleanPoint) name() string { return v.Name }
