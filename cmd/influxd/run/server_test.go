@@ -116,7 +116,6 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
-	fmt.Println("1")
 	defer s.Close()
 
 	test := tests.load(t, "drop_and_recreate_series")
@@ -128,7 +127,6 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println("2")
 	for i, query := range test.queries {
 		if i == 0 {
 			if err := test.init(s); err != nil {
@@ -146,7 +144,6 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 		}
 	}
 
-	fmt.Println("3")
 	// Re-write data and test again.
 	retest := tests.load(t, "drop_and_recreate_series_retest")
 
@@ -166,9 +163,6 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 			t.Error(query.failureMessage())
 		}
 	}
-
-	fmt.Println("4")
-
 }
 
 func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
