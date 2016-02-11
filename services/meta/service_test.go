@@ -784,10 +784,6 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	cfg2.HTTPBindAddress = joinPeers[1]
 	cfg2.BindAddress = raftPeers[1]
 	defer os.RemoveAll(cfg2.Dir)
-	cfg3 := newConfig()
-	cfg3.HTTPBindAddress = joinPeers[2]
-	cfg3.BindAddress = raftPeers[2]
-	defer os.RemoveAll(cfg3.Dir)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -811,6 +807,13 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	}()
 	defer s2.Close()
 	wg.Wait()
+
+	cfg3 := newConfig()
+	joinPeers[2] = freePort()
+	cfg3.HTTPBindAddress = joinPeers[2]
+	raftPeers[2] = freePort()
+	cfg3.BindAddress = raftPeers[2]
+	defer os.RemoveAll(cfg3.Dir)
 
 	cfg3.JoinPeers = joinPeers[0:3]
 	s3 := newService(cfg3)
