@@ -655,17 +655,14 @@ func (s *Server) initializeMetaClient() error {
 	if err := s.MetaClient.Open(); err != nil {
 		return err
 	}
-	for {
-		n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
-		if err != nil {
-			log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
-			time.Sleep(time.Second)
-			continue
-		}
-		s.Node.ID = n.ID
-
-		break
+	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
+	for err != nil {
+		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
+		time.Sleep(time.Second)
+		n, err = s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 	}
+	s.Node.ID = n.ID
+
 	metaNodes, err := s.MetaClient.MetaNodes()
 	if err != nil {
 		return err

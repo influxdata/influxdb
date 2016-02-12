@@ -118,21 +118,21 @@ func TestMetaService_Databases(t *testing.T) {
 	// Create two databases.
 	db, err := c.CreateDatabase("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
 	db, err = c.CreateDatabase("db1")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db1" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
 	dbs, err := c.Databases()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if len(dbs) != 2 {
 		t.Fatalf("expected 2 databases but got %d", len(dbs))
@@ -187,7 +187,7 @@ func TestMetaService_CreateRetentionPolicy(t *testing.T) {
 
 	db, err := c.Database("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -240,7 +240,7 @@ func TestMetaService_SetDefaultRetentionPolicy(t *testing.T) {
 
 	db, err := c.Database("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -276,7 +276,7 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 
 	db, err := c.Database("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -669,7 +669,7 @@ func TestMetaService_Subscriptions_Drop(t *testing.T) {
 	// subscription is unknown.
 	res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION foo ON db0."default"`))
 	if got, exp := res.Err, meta.ErrSubscriptionNotFound; got.Error() != exp.Error() {
-		t.Fatalf("got: %s, exp: %s", got.Error(), exp)
+		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// Create a subscription.
@@ -681,20 +681,20 @@ func TestMetaService_Subscriptions_Drop(t *testing.T) {
 	// the database is unknown.
 	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON foo."default"`))
 	if got, exp := res.Err, influxdb.ErrDatabaseNotFound("foo"); got.Error() != exp.Error() {
-		t.Fatalf("got: %s, exp: %s", got.Error(), exp)
+		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// DROP SUBSCRIPTION returns an influxdb.ErrRetentionPolicyNotFound
 	// when the retention policy is unknown.
 	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."foo_policy"`))
 	if got, exp := res.Err, influxdb.ErrRetentionPolicyNotFound("foo_policy"); got.Error() != exp.Error() {
-		t.Fatalf("got: %s, exp: %s", got.Error(), exp)
+		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// DROP SUBSCRIPTION drops the subsciption if it can find it.
 	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."default"`))
 	if got := res.Err; got != nil {
-		t.Fatalf("got: %s, exp: %v", got.Error(), nil)
+		t.Fatalf("got: %s, exp: %v", got, nil)
 	}
 
 	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
@@ -719,7 +719,7 @@ func TestMetaService_Shards(t *testing.T) {
 	}
 
 	if _, err := c.CreateDataNode(exp.Host, exp.TCPHost); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -792,7 +792,7 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		if err := s1.Open(); err != nil {
-			t.Fatalf(err.Error())
+			t.Fatal(err)
 		}
 	}()
 	defer s1.Close()
@@ -802,7 +802,7 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		if err := s2.Open(); err != nil {
-			t.Fatal(err.Error())
+			t.Fatal(err)
 		}
 	}()
 	defer s2.Close()
@@ -818,13 +818,13 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	cfg3.JoinPeers = joinPeers[0:3]
 	s3 := newService(cfg3)
 	if err := s3.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer s3.Close()
 
 	c1 := meta.NewClient(joinPeers[0:3], false)
 	if err := c1.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c1.Close()
 
@@ -835,7 +835,7 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 
 	c := meta.NewClient([]string{s1.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
@@ -855,13 +855,13 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	defer os.RemoveAll(cfg4.Dir)
 	s4 := newService(cfg4)
 	if err := s4.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer s4.Close()
 
 	c2 := meta.NewClient(cfg4.JoinPeers, false)
 	if err := c2.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c2.Close()
 
@@ -894,7 +894,7 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 		go func(srv *testService) {
 			defer wg.Done()
 			if err := srv.Open(); err != nil {
-				t.Fatal(err.Error())
+				t.Fatal(err)
 			}
 		}(srvs[i])
 		defer srvs[i].Close()
@@ -905,7 +905,7 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 	for i := range cfgs {
 		c := meta.NewClient([]string{joinPeers[i]}, false)
 		if err := c.Open(); err != nil {
-			t.Fatal(err.Error())
+			t.Fatal(err)
 		}
 		defer c.Close()
 
@@ -919,7 +919,7 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 		}
 
 		if db, err := c.Database(fmt.Sprintf("foo%d", i)); db == nil || err != nil {
-			t.Fatalf("node %d: database foo wasn't created: %s", i, err.Error())
+			t.Fatalf("node %d: database foo wasn't created: %s", i, err)
 		}
 	}
 }
@@ -948,7 +948,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 			defer swg.Done()
 			if err := srv.Open(); err != nil {
 				t.Logf("opening server %d", i)
-				t.Fatal(err.Error())
+				t.Fatal(err)
 			}
 		}(i, srvs[i])
 
@@ -959,7 +959,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 
 	c := meta.NewClient(joinPeers, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
@@ -974,11 +974,11 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c.Database("foo"); db == nil || err != nil {
-		t.Fatalf("database foo wasn't created: %s", err.Error())
+		t.Fatalf("database foo wasn't created: %s", err)
 	}
 
 	if err := srvs[0].Close(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if _, err := c.CreateDatabase("bar"); err != nil {
@@ -986,14 +986,14 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c.Database("bar"); db == nil || err != nil {
-		t.Fatalf("database bar wasn't created: %s", err.Error())
+		t.Fatalf("database bar wasn't created: %s", err)
 	}
 
 	if err := srvs[1].Close(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	if err := srvs[2].Close(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	// give them a second to shut down
@@ -1027,7 +1027,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c2.Database("bar"); db == nil || err != nil {
-		t.Fatalf("database bar wasn't created: %s", err.Error())
+		t.Fatalf("database bar wasn't created: %s", err)
 	}
 
 	if _, err := c2.CreateDatabase("asdf"); err != nil {
@@ -1035,7 +1035,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c2.Database("asdf"); db == nil || err != nil {
-		t.Fatalf("database bar wasn't created: %s", err.Error())
+		t.Fatalf("database bar wasn't created: %s", err)
 	}
 }
 
@@ -1058,12 +1058,12 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 
 	c := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("foo"); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	s.Close()
@@ -1073,24 +1073,24 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 	cfg.HTTPBindAddress = "asdf" + ":" + strings.Split(s.HTTPAddr(), ":")[1]
 	s = newService(cfg)
 	if err := s.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer s.Close()
 
 	c2 := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c2.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c2.Close()
 
 	db, err := c2.Database("foo")
 	if db == nil || err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	nodes, err := c2.MetaNodes()
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	exp := []meta.NodeInfo{{ID: 1, Host: cfg.HTTPBindAddress, TCPHost: cfg.BindAddress}}
 
@@ -1116,7 +1116,7 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 
 	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(n, exp) {
@@ -1125,7 +1125,7 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 
 	nodes, err := c.DataNodes()
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
@@ -1149,7 +1149,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 
 	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(n, exp) {
@@ -1158,7 +1158,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 
 	nodes, err := c.DataNodes()
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
@@ -1166,11 +1166,11 @@ func TestMetaService_DropDataNode(t *testing.T) {
 	}
 
 	if _, err := c.CreateDatabase("foo"); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	sg, err := c.CreateShardGroup("foo", "default", time.Now())
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{1}}) {
@@ -1178,7 +1178,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 	}
 
 	if res := c.ExecuteStatement(mustParseStatement("DROP DATA SERVER 1")); res.Err != nil {
-		t.Fatal(res.Err.Error())
+		t.Fatal(res.Err)
 	}
 
 	rp, _ := c.RetentionPolicy("foo", "default")
@@ -1200,7 +1200,7 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 
 	c := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	id := c.ClusterID()
 	if id == 0 {
@@ -1210,12 +1210,12 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	s.Close()
 	s = newService(cfg)
 	if err := s.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	c = meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
@@ -1245,7 +1245,7 @@ func TestMetaService_Ping(t *testing.T) {
 		go func(i int, srv *testService) {
 			defer swg.Done()
 			if err := srv.Open(); err != nil {
-				t.Fatalf("error opening server %d: %s", i, err.Error())
+				t.Fatalf("error opening server %d: %s", i, err)
 			}
 		}(i, srvs[i])
 		defer srvs[i].Close()
@@ -1255,15 +1255,15 @@ func TestMetaService_Ping(t *testing.T) {
 
 	c := meta.NewClient(joinPeers, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
 	if err := c.Ping(false); err != nil {
-		t.Fatalf("ping false all failed: %s", err.Error())
+		t.Fatalf("ping false all failed: %s", err)
 	}
 	if err := c.Ping(true); err != nil {
-		t.Fatalf("ping false true failed: %s", err.Error())
+		t.Fatalf("ping false true failed: %s", err)
 	}
 
 	srvs[1].Close()
@@ -1271,7 +1271,7 @@ func TestMetaService_Ping(t *testing.T) {
 	time.Sleep(time.Second)
 
 	if err := c.Ping(false); err != nil {
-		t.Fatalf("ping false some failed: %s", err.Error())
+		t.Fatalf("ping false some failed: %s", err)
 	}
 
 	if err := c.Ping(true); err == nil {
@@ -1291,12 +1291,12 @@ func TestMetaService_AcquireLease(t *testing.T) {
 
 	n1, err := c1.CreateDataNode("foo1:8180", "bar1:8281")
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	n2, err := c2.CreateDataNode("foo2:8180", "bar2:8281")
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	// Client 1 acquires a lease.  Should succeed.
