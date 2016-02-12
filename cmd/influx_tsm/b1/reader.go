@@ -2,9 +2,7 @@ package b1
 
 import (
 	"encoding/binary"
-	"fmt"
 	"sort"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +14,11 @@ import (
 const DefaultChunkSize = 1000
 
 var NoFieldsFiltered uint64
+
+var excludedBuckets = map[string]bool{
+	"fields": true,
+	"series": true,
+}
 
 // Reader is used to read all data from a b1 shard.
 type Reader struct {
@@ -29,19 +32,16 @@ type Reader struct {
 	keyBuf    string
 	valuesBuf []tsm1.Value
 
-	series map[string]*tsdb.Series
 	fields map[string]*tsdb.MeasurementFields
 	codecs map[string]*tsdb.FieldCodec
 
-	ChunkSize   int
-	RepairIndex string
+	ChunkSize int
 }
 
 // NewReader returns a reader for the b1 shard at path.
 func NewReader(path string) *Reader {
 	return &Reader{
 		path:   path,
-		series: make(map[string]*tsdb.Series),
 		fields: make(map[string]*tsdb.MeasurementFields),
 		codecs: make(map[string]*tsdb.FieldCodec),
 	}
@@ -74,32 +74,14 @@ func (r *Reader) Open() error {
 		return err
 	}
 
-	// Load series
-	if err := r.db.View(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte("series"))
-		c := meta.Cursor()
+	seriesSet := make(map[string]bool)
 
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := &tsdb.Series{}
-			if err := series.UnmarshalBinary(v); err != nil {
-				return err
-			}
-			r.series[string(k)] = series
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	orphaned := []string{}
+	// ignore series index and find all series in this shard
 	if err := r.db.View(func(tx *bolt.Tx) error {
-		tx.ForEach(func(name []byte, b *bolt.Bucket) error {
-			s := string(name)
-			if !strings.Contains(s, ",") {
-				return nil
-			}
-			if _, ok := r.series[s]; !ok {
-				orphaned = append(orphaned, s)
+		tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
+			key := string(name)
+			if !excludedBuckets[key] {
+				seriesSet[key] = true
 			}
 			return nil
 		})
@@ -108,46 +90,15 @@ func (r *Reader) Open() error {
 		return err
 	}
 
-	// Cope with certain kinds of meta data corruption in b1 shard indexes
-	if len(orphaned) > 0 {
-		fmt.Printf("warning: found orphaned series:\n")
-		for _, e := range orphaned {
-			fmt.Printf("  %s\n", e)
-		}
-		switch r.RepairIndex {
-		case "fail":
-			return fmt.Errorf("use --repair-index to repair or ignore orphaned series")
-		case "ignore":
-			fmt.Printf("warning: orphaned series will be dropped from converted shard\n")
-			// do nothing in this case
-		case "repair":
-			count := 0
-			for _, e := range orphaned {
-				m := tsdb.MeasurementFromSeriesKey(e)
-				if _, ok := r.fields[m]; !ok {
-					fmt.Printf("warning: found orphaned series '%s' but could not find fields for '%s'. Skipping export of series.\n", e, m)
-				} else {
-					// We could reconstruct Tags from the series key but this meta data
-					// is not currently used, so we can ignore this detail for now.
-					r.series[e] = &tsdb.Series{
-						Key: e,
-					}
-					count++
-				}
-			}
-			fmt.Printf("warning: %d orphaned series will be exported to converted shard.\n", count)
-		}
-	}
-
-	// Create cursor for each field of each series.
 	r.tx, err = r.db.Begin(false)
 	if err != nil {
 		return err
 	}
 
-	for s := range r.series {
+	// Create cursor for each field of each series.
+	for s := range seriesSet {
 		measurement := tsdb.MeasurementFromSeriesKey(s)
-		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
+		fields := r.fields[measurement]
 		if fields == nil {
 			atomic.AddUint64(&NoFieldsFiltered, 1)
 			continue
@@ -208,11 +159,7 @@ func (r *Reader) Read() (string, []tsm1.Value, error) {
 
 // Close closes the reader.
 func (r *Reader) Close() error {
-	if r.tx != nil {
-		return r.tx.Rollback()
-	} else {
-		return nil
-	}
+	return r.tx.Rollback()
 }
 
 // cursor provides ordered iteration across a series.

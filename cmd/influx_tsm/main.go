@@ -54,8 +54,6 @@ type options struct {
 	Parallel       bool
 	SkipBackup     bool
 	UpdateInterval time.Duration
-	RepairIndex    string
-	// Quiet          bool
 }
 
 func (o *options) Parse() error {
@@ -68,10 +66,8 @@ func (o *options) Parse() error {
 	fs.BoolVar(&opts.Parallel, "parallel", false, "Perform parallel conversion. (up to GOMAXPROCS shards at once)")
 	fs.BoolVar(&opts.SkipBackup, "nobackup", false, "Disable database backups. Not recommended.")
 	fs.StringVar(&opts.BackupPath, "backup", "", "The location to backup up the current databases. Must not be within the data directoryi.")
-	// fs.BoolVar(&opts.Quiet, "quiet", false, "Suppresses the regular status updates.")
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
-	fs.StringVar(&opts.RepairIndex, "repair-index", "fail", "Use 'repair', 'ignore' or 'fail' to repair, ignore or fail to process orphaned series.")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "%v\n\nOptions:\n", description)
@@ -320,9 +316,7 @@ func convertShard(si *tsdb.ShardInfo, tr *tracker) error {
 	case tsdb.BZ1:
 		reader = bz1.NewReader(src)
 	case tsdb.B1:
-		b1Reader := b1.NewReader(src)
-		b1Reader.RepairIndex = opts.RepairIndex
-		reader = b1Reader
+		reader = b1.NewReader(src)
 	default:
 		return fmt.Errorf("Unsupported shard format: %v", si.FormatAsString())
 	}
