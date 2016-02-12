@@ -93,11 +93,8 @@ func (r *Reader) Open() error {
 	if err != nil {
 		return err
 	}
-	for s, _ := range r.series {
-		if err != nil {
-			return err
-		}
 
+	for s := range r.series {
 		measurement := tsdb.MeasurementFromSeriesKey(s)
 		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
 		if fields == nil {
