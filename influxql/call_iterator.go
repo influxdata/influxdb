@@ -804,6 +804,8 @@ func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interva
 	switch input := input.(type) {
 	case FloatIterator:
 		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatDerivativeReduceSliceFunc(interval, isNonNegative)}
+	case IntegerIterator:
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerDerivativeReduceSliceFunc(interval, isNonNegative)}
 	default:
 		panic(fmt.Sprintf("unsupported derivative iterator type: %T", input))
 	}
@@ -831,6 +833,48 @@ func newFloatDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) fl
 			// Calculate the derivative of successive points by dividing the
 			// difference of each value by the elapsed time normalized to the interval.
 			diff := p.Value - prev.Value
+			elapsed := p.Time - prev.Time
+
+			value := 0.0
+			if elapsed > 0 {
+				value = diff / (float64(elapsed) / float64(interval.Duration))
+			}
+
+			prev = *p
+
+			// Drop negative values for non-negative derivatives.
+			if isNonNegative && diff < 0 {
+				continue
+			}
+
+			output = append(output, FloatPoint{Time: p.Time, Value: value})
+		}
+		return output
+	}
+}
+
+// newIntegerDerivativeReduceSliceFunc returns the derivative value within a window.
+func newIntegerDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) integerReduceSliceFloatFunc {
+	prev := IntegerPoint{Time: -1}
+
+	return func(a []IntegerPoint, opt *reduceOptions) []FloatPoint {
+		if len(a) == 0 {
+			return []FloatPoint{}
+		} else if len(a) == 1 {
+			return []FloatPoint{{Time: a[0].Time, Nil: true}}
+		}
+
+		if prev.Time == -1 {
+			prev = a[0]
+		}
+
+		output := make([]FloatPoint, 0, len(a)-1)
+		for i := 1; i < len(a); i++ {
+			p := &a[i]
+
+			// Calculate the derivative of successive points by dividing the
+			// difference of each value by the elapsed time normalized to the interval.
+			diff := float64(p.Value - prev.Value)
 			elapsed := p.Time - prev.Time
 
 			value := 0.0
