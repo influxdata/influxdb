@@ -322,12 +322,12 @@ func convertShard(si *tsdb.ShardInfo, tr *tracker) error {
 	default:
 		return fmt.Errorf("Unsupported shard format: %v", si.FormatAsString())
 	}
-	defer reader.Close()
 
 	// Open the shard, and create a converter.
 	if err := reader.Open(); err != nil {
 		return fmt.Errorf("Failed to open %v for conversion: %v", src, err)
 	}
+	defer reader.Close()
 	converter := NewConverter(dst, uint32(opts.TSMSize), tr)
 
 	// Perform the conversion.
