@@ -32,7 +32,7 @@ func TestSelect_Min(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT min(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT min(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -61,7 +61,7 @@ func TestSelect_Distinct_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -90,7 +90,7 @@ func TestSelect_Distinct_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -119,7 +119,7 @@ func TestSelect_Distinct_String(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -153,7 +153,7 @@ func TestSelect_Mean_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -188,7 +188,7 @@ func TestSelect_Mean_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -223,7 +223,7 @@ func TestSelect_Median_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -258,7 +258,7 @@ func TestSelect_Median_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -293,7 +293,7 @@ func TestSelect_Top_NoTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -329,7 +329,7 @@ func TestSelect_Top_NoTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -365,7 +365,7 @@ func TestSelect_Top_Tags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -411,7 +411,7 @@ func TestSelect_Top_Tags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -457,7 +457,7 @@ func TestSelect_Top_GroupByTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -499,7 +499,7 @@ func TestSelect_Top_GroupByTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -541,7 +541,7 @@ func TestSelect_Bottom_NoTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -577,7 +577,7 @@ func TestSelect_Bottom_NoTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -613,7 +613,7 @@ func TestSelect_Bottom_Tags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -659,7 +659,7 @@ func TestSelect_Bottom_Tags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -705,7 +705,7 @@ func TestSelect_Bottom_GroupByTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -747,7 +747,7 @@ func TestSelect_Bottom_GroupByTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -778,7 +778,7 @@ func TestSelect_Fill_Null_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(null)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(null)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -803,7 +803,7 @@ func TestSelect_Fill_Number_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(1)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(1)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -828,7 +828,7 @@ func TestSelect_Fill_Previous_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(previous)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(previous)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -864,7 +864,7 @@ func TestSelect_Stddev_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -899,7 +899,7 @@ func TestSelect_Stddev_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -934,7 +934,7 @@ func TestSelect_Stddev_String(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -969,7 +969,7 @@ func TestSelect_Spread_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1004,7 +1004,7 @@ func TestSelect_Spread_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT spread(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1044,7 +1044,7 @@ func TestSelect_Percentile_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1084,7 +1084,7 @@ func TestSelect_Percentile_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT percentile(value, 90) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1115,7 +1115,7 @@ func TestSelect_Raw(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT v1, v2 FROM cpu`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT v1, v2 FROM cpu`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1268,7 +1268,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 	} {
-		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic)
+		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
 		if err != nil {
 			t.Errorf("%s: parse error: %s", test.Name, err)
 		} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, test.Points) {
@@ -1409,7 +1409,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 	} {
-		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic)
+		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
 		if err != nil {
 			t.Errorf("%s: parse error: %s", test.Name, err)
 		} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, test.Points) {
@@ -1437,7 +1437,7 @@ func TestSelect_ParenExpr(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT (min(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT (min(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1462,7 +1462,7 @@ func TestSelect_ParenExpr(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err = influxql.Select(MustParseSelectStatement(`SELECT (distinct(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic)
+	itrs, err = influxql.Select(MustParseSelectStatement(`SELECT (distinct(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1487,7 +1487,7 @@ func TestSelect_Derivative_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
@@ -1511,7 +1511,7 @@ func TestSelect_Derivative_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{

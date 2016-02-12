@@ -233,15 +233,16 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
+	opt := influxql.SelectOptions{}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
-	tmin, tmax := influxql.TimeRange(stmt.Condition)
-	if tmax.IsZero() {
-		tmax = now
+	opt.MinTime, opt.MaxTime = influxql.TimeRange(stmt.Condition)
+	if opt.MaxTime.IsZero() {
+		opt.MaxTime = now
 	}
-	if tmin.IsZero() {
-		tmin = time.Unix(0, 0)
+	if opt.MinTime.IsZero() {
+		opt.MinTime = time.Unix(0, 0)
 	}
 
 	// Expand regex sources to their actual source names.
@@ -258,7 +259,7 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 	stmt.RewriteTimeFields()
 
 	// Filter only shards that contain date range.
-	shardIDs, err := q.MetaClient.ShardIDsByTimeRange(stmt.Sources, tmin, tmax)
+	shardIDs, err := q.MetaClient.ShardIDsByTimeRange(stmt.Sources, opt.MinTime, opt.MaxTime)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +273,7 @@ func (q *QueryExecutor) PlanSelect(stmt *influxql.SelectStatement, chunkSize int
 	stmt = tmp
 
 	// Create a set of iterators from a selection.
-	itrs, err := influxql.Select(stmt, Shards(shards))
+	itrs, err := influxql.Select(stmt, Shards(shards), &opt)
 	if err != nil {
 		return nil, err
 	}
