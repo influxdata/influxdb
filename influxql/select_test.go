@@ -1474,3 +1474,51 @@ func TestSelect_ParenExpr(t *testing.T) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
+
+func TestSelect_Derivative_Float(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 4 * Second, Value: 10},
+			{Name: "cpu", Time: 8 * Second, Value: 19},
+			{Name: "cpu", Time: 12 * Second, Value: 3},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic)
+	if err != nil {
+		t.Fatal(err)
+	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+func TestSelect_Derivative_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 4 * Second, Value: 10},
+			{Name: "cpu", Time: 8 * Second, Value: 19},
+			{Name: "cpu", Time: 12 * Second, Value: 3},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT derivative(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic)
+	if err != nil {
+		t.Fatal(err)
+	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 4 * Second, Value: -2.5}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 2.25}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 12 * Second, Value: -4}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
