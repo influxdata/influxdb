@@ -57,7 +57,7 @@ To assist in review for the PR, please add the following to your pull request co
 - [ ] CHANGELOG.md updated
 - [ ] Rebased/mergable
 - [ ] Tests pass
-- [ ] Sign [CLA](http://influxdb.com/community/cla.html) (if not already signed)
+- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
 ```
 
 Signing the CLA
@@ -65,7 +65,7 @@ Signing the CLA
 
 If you are going to be contributing back to InfluxDB please take a
 second to sign our CLA, which can be found
-[on our website](http://influxdb.com/community/cla.html).
+[on our website](https://influxdata.com/community/cla/).
 
 Installing Go
 -------------
@@ -218,7 +218,7 @@ When troubleshooting problems with CPU or memory the Go toolchain can be helpful
 
 ```sh
 # start influx with profiling
-./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof 
+./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof
 # run queries, writes, whatever you're testing
 # Quit out of influxd and influxd.prof will then be written.
 # open up pprof to examine the profiling data.
