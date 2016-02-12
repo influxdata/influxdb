@@ -109,7 +109,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
 	if len(peers) > 0 && !raft.PeerContained(peers, r.addr) {
-		r.logger.Printf("%s is not in the list of raft peers. Please ensure all nodes have the same meta nodes configured", r.addr, r.path)
+		r.logger.Printf("%s is not in the list of raft peers. Please ensure all nodes have the same meta nodes configured", r.addr)
 		return fmt.Errorf("peers out of sync: %v not in %v", r.addr, peers)
 	}
 
