@@ -2,7 +2,9 @@ package b1
 
 import (
 	"encoding/binary"
+	"fmt"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -31,7 +33,8 @@ type Reader struct {
 	fields map[string]*tsdb.MeasurementFields
 	codecs map[string]*tsdb.FieldCodec
 
-	ChunkSize int
+	ChunkSize   int
+	RepairIndex string
 }
 
 // NewReader returns a reader for the b1 shard at path.
@@ -86,6 +89,54 @@ func (r *Reader) Open() error {
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	orphaned := []string{}
+	if err := r.db.View(func(tx *bolt.Tx) error {
+		tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+			s := string(name)
+			if !strings.Contains(s, ",") {
+				return nil
+			}
+			if _, ok := r.series[s]; !ok {
+				orphaned = append(orphaned, s)
+			}
+			return nil
+		})
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Cope with certain kinds of meta data corruption in b1 shard indexes
+	if len(orphaned) > 0 {
+		fmt.Printf("warning: found orphaned series:\n")
+		for _, e := range orphaned {
+			fmt.Printf("  %s\n", e)
+		}
+		switch r.RepairIndex {
+		case "fail":
+			return fmt.Errorf("use --repair-index to repair or ignore orphaned series")
+		case "ignore":
+			fmt.Printf("warning: orphaned series will be dropped from converted shard\n")
+			// do nothing in this case
+		case "repair":
+			count := 0
+			for _, e := range orphaned {
+				m := tsdb.MeasurementFromSeriesKey(e)
+				if _, ok := r.fields[m]; !ok {
+					fmt.Printf("warning: found orphaned series '%s' but could not find fields for '%s'. Skipping export of series.\n", e, m)
+				} else {
+					// We could reconstruct Tags from the series key but this meta data
+					// is not currently used, so we can ignore this detail for now.
+					r.series[e] = &tsdb.Series{
+						Key: e,
+					}
+					count++
+				}
+			}
+			fmt.Printf("warning: %d orphaned series will be exported to converted shard.\n", count)
+		}
 	}
 
 	// Create cursor for each field of each series.
