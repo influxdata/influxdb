@@ -208,7 +208,11 @@ func (r *Reader) Read() (string, []tsm1.Value, error) {
 
 // Close closes the reader.
 func (r *Reader) Close() error {
-	return r.tx.Rollback()
+	if r.tx != nil {
+		return r.tx.Rollback()
+	} else {
+		return nil
+	}
 }
 
 // cursor provides ordered iteration across a series.
