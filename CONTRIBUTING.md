@@ -80,6 +80,12 @@ running the following:
     gvm install go1.4.3
     gvm use go1.4.3 --default
 
+Installing GDM
+-------------
+InfluxDB uses [gdm](https://github.com/sparrc/gdm) to manage dependencies.  Install it by running the following:
+
+    go get github.com/sparrc/gdm
+
 Revision Control Systems
 -------------
 Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
@@ -120,7 +126,7 @@ Make sure you have Go installed and the project structure as shown above. To the
 
 ```bash
 cd $GOPATH/src/github.com/influxdata/influxdb
-go get -u -f -t ./...
+gdm restore
 ```
 
 To then build and install the binaries, run the following command.
