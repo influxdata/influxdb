@@ -133,6 +133,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		return nil, fmt.Errorf("mkdir all: %s", err)
 	}
 
+	// 0.11 we no longer use peers.json.  Remove the file if we have one on disk.
+	os.RemoveAll(filepath.Join(c.Meta.Dir, "peers.json"))
+
 	// load the node information
 	metaAddresses := []string{nodeAddr}
 	if !c.Meta.Enabled {

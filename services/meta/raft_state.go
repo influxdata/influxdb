@@ -72,7 +72,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
 
 	// Create peer storage.
-	r.peerStore = raft.NewJSONPeers(r.path, r.transport)
+	r.peerStore = &peerStore{}
 
 	// This server is joining the raft cluster for the first time if initializePeers are passed in
 	if len(initializePeers) > 0 {
@@ -109,7 +109,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
 	if len(peers) > 0 && !raft.PeerContained(peers, r.addr) {
-		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.addr, r.path)
+		r.logger.Printf("%s is not in the list of raft peers. Please ensure all nodes have the same meta nodes configured", r.addr, r.path)
 		return fmt.Errorf("peers out of sync: %v not in %v", r.addr, peers)
 	}
 
@@ -322,3 +322,17 @@ func (l *raftLayer) Accept() (net.Conn, error) { return l.ln.Accept() }
 
 // Close closes the layer.
 func (l *raftLayer) Close() error { return l.ln.Close() }
+
+// peerStore is an in-memory implementation of raft.PeerStore
+type peerStore struct {
+	peers []string
+}
+
+func (m *peerStore) Peers() ([]string, error) {
+	return m.peers, nil
+}
+
+func (m *peerStore) SetPeers(peers []string) error {
+	m.peers = peers
+	return nil
+}
