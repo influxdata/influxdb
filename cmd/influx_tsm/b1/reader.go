@@ -15,6 +15,11 @@ const DefaultChunkSize = 1000
 
 var NoFieldsFiltered uint64
 
+var excludedBuckets = map[string]bool{
+	"fields": true,
+	"series": true,
+}
+
 // Reader is used to read all data from a b1 shard.
 type Reader struct {
 	path string
@@ -27,7 +32,6 @@ type Reader struct {
 	keyBuf    string
 	valuesBuf []tsm1.Value
 
-	series map[string]*tsdb.Series
 	fields map[string]*tsdb.MeasurementFields
 	codecs map[string]*tsdb.FieldCodec
 
@@ -38,7 +42,6 @@ type Reader struct {
 func NewReader(path string) *Reader {
 	return &Reader{
 		path:   path,
-		series: make(map[string]*tsdb.Series),
 		fields: make(map[string]*tsdb.MeasurementFields),
 		codecs: make(map[string]*tsdb.FieldCodec),
 	}
@@ -71,32 +74,31 @@ func (r *Reader) Open() error {
 		return err
 	}
 
-	// Load series
-	if err := r.db.View(func(tx *bolt.Tx) error {
-		meta := tx.Bucket([]byte("series"))
-		c := meta.Cursor()
+	seriesSet := make(map[string]bool)
 
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := &tsdb.Series{}
-			if err := series.UnmarshalBinary(v); err != nil {
-				return err
+	// ignore series index and find all series in this shard
+	if err := r.db.View(func(tx *bolt.Tx) error {
+		tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
+			key := string(name)
+			if !excludedBuckets[key] {
+				seriesSet[key] = true
 			}
-			r.series[string(k)] = series
-		}
+			return nil
+		})
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	// Create cursor for each field of each series.
 	r.tx, err = r.db.Begin(false)
 	if err != nil {
 		return err
 	}
 
-	for s := range r.series {
+	// Create cursor for each field of each series.
+	for s := range seriesSet {
 		measurement := tsdb.MeasurementFromSeriesKey(s)
-		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
+		fields := r.fields[measurement]
 		if fields == nil {
 			atomic.AddUint64(&NoFieldsFiltered, 1)
 			continue
