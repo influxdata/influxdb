@@ -42,7 +42,7 @@ The backed-up files must be removed manually, generally after starting up the
 node again to make sure all of data has been converted correctly.
 
 To restore a backup:
-  Shut down the node, remove the converted directory, and 
+  Shut down the node, remove the converted directory, and
   copy the backed-up directory to the original location.`
 
 type options struct {
@@ -54,6 +54,7 @@ type options struct {
 	Parallel       bool
 	SkipBackup     bool
 	UpdateInterval time.Duration
+	RepairIndex    string
 	// Quiet          bool
 }
 
@@ -70,6 +71,7 @@ func (o *options) Parse() error {
 	// fs.BoolVar(&opts.Quiet, "quiet", false, "Suppresses the regular status updates.")
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
+	fs.StringVar(&opts.RepairIndex, "repair-index", "fail", "Use 'repair', 'ignore' or 'fail' to repair, ignore or fail to process orphaned series.")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "%v\n\nOptions:\n", description)
@@ -320,7 +322,9 @@ func convertShard(si *tsdb.ShardInfo, tr *tracker) error {
 	case tsdb.BZ1:
 		reader = bz1.NewReader(src)
 	case tsdb.B1:
-		reader = b1.NewReader(src)
+		b1Reader := b1.NewReader(src)
+		b1Reader.RepairIndex = opts.RepairIndex
+		reader = b1Reader
 	default:
 		return fmt.Errorf("Unsupported shard format: %v", si.FormatAsString())
 	}
