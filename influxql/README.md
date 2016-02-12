@@ -340,20 +340,6 @@ CREATE USER jdoe WITH PASSWORD '1337password';
 CREATE USER jdoe WITH PASSWORD '1337password' WITH ALL PRIVILEGES;
 ```
 
-### DELETE
-
-```
-delete_stmt  = "DELETE FROM" measurement where_clause .
-```
-
-#### Example:
-
-```sql
--- delete data points from the cpu measurement where the region tag
--- equals 'uswest'
-DELETE FROM cpu WHERE region = 'uswest';
-```
-
 ### DROP CONTINUOUS QUERY
 
 ```
