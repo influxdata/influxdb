@@ -350,8 +350,7 @@ func TestHandler_Version(t *testing.T) {
 		} else {
 			h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, nil))
 		}
-		v, ok := w.HeaderMap["X-Influxdb-Version"]
-		if ok {
+		if v, ok := w.HeaderMap["X-Influxdb-Version"]; ok {
 			if v[0] != "0.0.0" {
 				t.Fatalf("unexpected version: %s", v)
 			}
