@@ -325,14 +325,19 @@ func (l *raftLayer) Close() error { return l.ln.Close() }
 
 // peerStore is an in-memory implementation of raft.PeerStore
 type peerStore struct {
+	mu    sync.RWMutex
 	peers []string
 }
 
 func (m *peerStore) Peers() ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return m.peers, nil
 }
 
 func (m *peerStore) SetPeers(peers []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.peers = peers
 	return nil
 }
