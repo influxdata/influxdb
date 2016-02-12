@@ -65,11 +65,20 @@ func TestService_Telnet(t *testing.T) {
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond)
 
-	// Verify that the writer was called.
-	if atomic.LoadInt32(&called) == 0 {
-		t.Fatal("points writer not called")
+	tick := time.Tick(10 * time.Millisecond)
+	timeout := time.After(10 * time.Second)
+
+	for {
+		select {
+		case <-tick:
+			// Verify that the writer was called.
+			if atomic.LoadInt32(&called) > 0 {
+				return
+			}
+		case <-timeout:
+			t.Fatal("points writer not called")
+		}
 	}
 }
 

@@ -128,6 +128,14 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		return nil, err
 	}
 
+	// Create the root directory if it doesn't already exist.
+	if err := os.MkdirAll(c.Meta.Dir, 0777); err != nil {
+		return nil, fmt.Errorf("mkdir all: %s", err)
+	}
+
+	// 0.11 we no longer use peers.json.  Remove the file if we have one on disk.
+	os.RemoveAll(filepath.Join(c.Meta.Dir, "peers.json"))
+
 	// load the node information
 	metaAddresses := []string{nodeAddr}
 	if !c.Meta.Enabled {
@@ -627,6 +635,8 @@ func (s *Server) initializeMetaClient() error {
 
 		go s.updateMetaNodeInformation()
 
+		s.MetaClient.WaitForDataChanged()
+
 		return nil
 	}
 
@@ -645,14 +655,14 @@ func (s *Server) initializeMetaClient() error {
 	if err := s.MetaClient.Open(); err != nil {
 		return err
 	}
-
-	if s.TSDBStore != nil {
-		n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
-		if err != nil {
-			return err
-		}
-		s.Node.ID = n.ID
+	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
+	for err != nil {
+		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
+		time.Sleep(time.Second)
+		n, err = s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 	}
+	s.Node.ID = n.ID
+
 	metaNodes, err := s.MetaClient.MetaNodes()
 	if err != nil {
 		return err

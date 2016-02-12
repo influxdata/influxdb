@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +39,7 @@ type handler struct {
 		apply(b []byte) error
 		join(n *NodeInfo) error
 		otherMetaServersHTTP() []string
+		peers() []string
 	}
 	s *Service
 
@@ -84,6 +86,8 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.WrapHandler("ping", h.servePing).ServeHTTP(w, r)
 		case "/lease":
 			h.WrapHandler("lease", h.serveLease).ServeHTTP(w, r)
+		case "/peers":
+			h.WrapHandler("peers", h.servePeers).ServeHTTP(w, r)
 		default:
 			h.WrapHandler("snapshot", h.serveSnapshot).ServeHTTP(w, r)
 		}
@@ -120,7 +124,7 @@ func (h *handler) isClosed() bool {
 // serveExec executes the requested command.
 func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 	if h.isClosed() {
-		h.httpError(fmt.Errorf("server closed"), w, http.StatusInternalServerError)
+		h.httpError(fmt.Errorf("server closed"), w, http.StatusServiceUnavailable)
 		return
 	}
 
@@ -137,6 +141,7 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 			h.httpError(err, w, http.StatusInternalServerError)
 			return
 		}
+
 		err := h.store.join(n)
 		if err == raft.ErrNotLeader {
 			l := h.store.leaderHTTP()
@@ -307,6 +312,13 @@ func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 	h.httpError(fmt.Errorf("one or more metaservers not up"), w, http.StatusInternalServerError)
 }
 
+func (h *handler) servePeers(w http.ResponseWriter, r *http.Request) {
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(h.store.peers()); err != nil {
+		h.httpError(err, w, http.StatusInternalServerError)
+	}
+}
+
 // serveLease
 func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 	var name, nodeIDStr string
@@ -442,8 +454,10 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 
 		defer func() {
 			if err := recover(); err != nil {
+				b := make([]byte, 1024)
+				runtime.Stack(b, false)
 				logLine := buildLogLine(l, r, start)
-				logLine = fmt.Sprintf(`%s [panic:%s]`, logLine, err)
+				logLine = fmt.Sprintf("%s [panic:%s]\n%s", logLine, err, string(b))
 				weblog.Println(logLine)
 			}
 		}()
