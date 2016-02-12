@@ -339,10 +339,7 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	u, err = c.Authenticate("fred", "supersecure")
-	if u == nil || err != nil {
-		t.Fatalf("failed to authenticate")
-	}
-	if u.Name != "fred" {
+	if u == nil || err != nil || u.Name != "fred" {
 		t.Fatalf("failed to authenticate")
 	}
 
@@ -371,10 +368,7 @@ func TestMetaService_CreateUser(t *testing.T) {
 
 	// Auth for new password should succeed.
 	u, err = c.Authenticate("fred", "moresupersecure")
-	if u == nil || err != nil {
-		t.Fatalf("failed to authenticate")
-	}
-	if u.Name != "fred" {
+	if u == nil || err != nil || u.Name != "fred" {
 		t.Fatalf("failed to authenticate")
 	}
 
@@ -413,22 +407,6 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 	if !u.Admin {
 		t.Fatalf("expected user to be an admin")
-	}
-
-	// Revoke privilidges from user
-	if res := c.ExecuteStatement(mustParseStatement("REVOKE ALL PRIVILEGES FROM wilma")); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	u, err = c.User("wilma")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if exp, got := "wilma", u.Name; exp != got {
-		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
-	}
-	if u.Admin {
-		t.Fatalf("expected user not to be an admin")
 	}
 
 	// Revoke privilidges from user

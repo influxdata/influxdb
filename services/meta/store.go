@@ -44,16 +44,8 @@ type store struct {
 	opened      bool
 	logger      *log.Logger
 
-	// Authentication cache.
-	authCache map[string]authUser
-
 	raftAddr string
 	httpAddr string
-}
-
-type authUser struct {
-	salt []byte
-	hash []byte
 }
 
 // newStore will create a new metastore with the passed in config
