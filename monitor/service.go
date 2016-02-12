@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
@@ -59,8 +58,11 @@ type Monitor struct {
 
 	NodeID uint64
 
+	// Writer for pushing stats back into the database.
+	// This causes a circular dependency if it depends on cluster directly so it
+	// is wrapped in a simpler interface.
 	PointsWriter interface {
-		WritePoints(p *cluster.WritePointsRequest) error
+		WritePoints(database, retentionPolicy string, points models.Points) error
 	}
 
 	Logger *log.Logger
@@ -338,13 +340,7 @@ func (m *Monitor) storeStatistics() {
 				points = append(points, pt)
 			}
 
-			err = m.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:         m.storeDatabase,
-				RetentionPolicy:  m.storeRetentionPolicy,
-				ConsistencyLevel: cluster.ConsistencyLevelOne,
-				Points:           points,
-			})
-			if err != nil {
+			if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
 				m.Logger.Printf("failed to store statistics: %s", err)
 			}
 		case <-m.done:
@@ -372,7 +368,7 @@ func newStatistic(name string, tags map[string]string, values map[string]interfa
 }
 
 // valueNames returns a sorted list of the value names, if any.
-func (s *Statistic) valueNames() []string {
+func (s *Statistic) ValueNames() []string {
 	a := make([]string, 0, len(s.Values))
 	for k := range s.Values {
 		a = append(a, k)

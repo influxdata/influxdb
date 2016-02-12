@@ -64,10 +64,8 @@ type Handler struct {
 		Ping(checkAllMetaServers bool) error
 	}
 
-	QueryExecutor interface {
-		Authorize(u *meta.UserInfo, q *influxql.Query, db string) error
-		ExecuteQuery(q *influxql.Query, db string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
-	}
+	QueryAuthorizer *meta.QueryAuthorizer
+	QueryExecutor   influxql.QueryExecutor
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -264,8 +262,10 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Check authorization.
 	if h.requireAuthentication {
-		err = h.QueryExecutor.Authorize(user, query, db)
-		if err != nil {
+		if err := h.QueryAuthorizer.AuthorizeQuery(user, query, db); err != nil {
+			if err, ok := err.(meta.ErrAuthorize); ok {
+				h.Logger.Printf("unauthorized request | user: %q | query: %q | database %q\n", err.User, err.Query.String(), err.Database)
+			}
 			httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusUnauthorized)
 			return
 		}
@@ -292,12 +292,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Execute query.
 	w.Header().Add("content-type", "application/json")
-	results, err := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, closing)
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, closing)
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	resp := Response{Results: make([]*influxql.Result, 0)}
