@@ -54,7 +54,7 @@ func newHandler(c *Config, s *Service) *handler {
 		s:              s,
 		config:         c,
 		logger:         log.New(os.Stderr, "[meta-http] ", log.LstdFlags),
-		loggingEnabled: c.LoggingEnabled,
+		loggingEnabled: c.ClusterTracing,
 		closing:        make(chan struct{}),
 		leases:         NewLeases(time.Duration(c.LeaseDuration)),
 	}
