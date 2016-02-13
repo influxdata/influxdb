@@ -6,13 +6,14 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 )
 
 // StatementExecutor translates InfluxQL queries to Monitor methods.
 type StatementExecutor struct {
 	Monitor interface {
 		Statistics(map[string]string) ([]*Statistic, error)
-		Diagnostics() (map[string]*Diagnostic, error)
+		Diagnostics() (map[string]*diagnostics.Diagnostics, error)
 	}
 }
 

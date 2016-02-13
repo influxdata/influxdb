@@ -14,7 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cluster"
-	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -76,7 +76,7 @@ type Service struct {
 	done chan struct{}
 
 	Monitor interface {
-		RegisterDiagnosticsClient(name string, client monitor.DiagsClient)
+		RegisterDiagnosticsClient(name string, client diagnostics.Client)
 		DeregisterDiagnosticsClient(name string)
 	}
 	PointsWriter interface {
@@ -374,16 +374,15 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 }
 
 // Diagnostics returns diagnostics of the graphite service.
-func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
+func (s *Service) Diagnostics() (*diagnostics.Diagnostics, error) {
 	s.tcpConnectionsMu.Lock()
 	defer s.tcpConnectionsMu.Unlock()
 
-	d := &monitor.Diagnostic{
+	d := &diagnostics.Diagnostics{
 		Columns: []string{"local", "remote", "connect time"},
 		Rows:    make([][]interface{}, 0, len(s.tcpConnections)),
 	}
 	for _, v := range s.tcpConnections {
-		_ = v
 		d.Rows = append(d.Rows, []interface{}{v.conn.LocalAddr().String(), v.conn.RemoteAddr().String(), v.connectTime})
 	}
 	return d, nil

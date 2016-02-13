@@ -2,12 +2,14 @@ package monitor
 
 import (
 	"os"
+
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 )
 
 // network captures network diagnostics
 type network struct{}
 
-func (n *network) Diagnostics() (*Diagnostic, error) {
+func (n *network) Diagnostics() (*diagnostics.Diagnostics, error) {
 	h, err := os.Hostname()
 	if err != nil {
 		return nil, err
@@ -17,5 +19,5 @@ func (n *network) Diagnostics() (*Diagnostic, error) {
 		"hostname": h,
 	}
 
-	return DiagnosticFromMap(diagnostics), nil
+	return DiagnosticsFromMap(diagnostics), nil
 }
