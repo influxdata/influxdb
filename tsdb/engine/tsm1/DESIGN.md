@@ -97,7 +97,7 @@ The compaction is used to generate a set of SeriesIterators that return a sequen
 
 Deletions can occur while a new file is being written.  Since the new TSM file is not complete a tombstone would not be written for it. This could result in deleted values getting written into a new file.  To prevent this, if a compaction is running and a delete occurs, the current compaction is aborted and new compaction is started.
 
-When all files are processed and successfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the checkpoint of the compaction which is used for by the Cache to know what entries can be evicted in the future.
+When all WAL files in the current compaction have been processed and the new TSM files have been successfully written, completion checkpoint markers are created and the new TSM files are renamed to their final names. The engine then notifies the Cache of the checkpoint of the compaction which is used by the Cache to learn which entries may be evicted in the future.
 
 The compaction process then runs again until there are no more WAL files and the minimum number of TSM files exist that are also under the maximum file size.
 
