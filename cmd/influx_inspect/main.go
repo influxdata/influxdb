@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	_ "github.com/influxdb/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/engine"
 )
 
 func usage() {

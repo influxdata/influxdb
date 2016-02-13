@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // Ensure the parser can parse a multi-statement query.
@@ -644,8 +644,8 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// See issues https://github.com/influxdb/influxdb/issues/1647
-		// and https://github.com/influxdb/influxdb/issues/4404
+		// See issues https://github.com/influxdata/influxdb/issues/1647
+		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
 		//{
 		//	s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
@@ -1731,8 +1731,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT s =~ /foo/ FROM cpu`, err: `invalid operator =~ in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
-		// See issues https://github.com/influxdb/influxdb/issues/1647
-		// and https://github.com/influxdb/influxdb/issues/4404
+		// See issues https://github.com/influxdata/influxdb/issues/1647
+		// and https://github.com/influxdata/influxdb/issues/4404
 		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		//{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		//{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
@@ -1898,7 +1898,6 @@ func TestParser_ParseStatement(t *testing.T) {
 
 	for i, tt := range tests {
 		if tt.skip {
-			t.Logf("skipping test of '%s'", tt.s)
 			continue
 		}
 		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
@@ -2283,14 +2282,18 @@ func BenchmarkParserParseStatement(b *testing.B) {
 // MustParseSelectStatement parses a select statement. Panic on error.
 func MustParseSelectStatement(s string) *influxql.SelectStatement {
 	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
-	panicIfErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return stmt.(*influxql.SelectStatement)
 }
 
 // MustParseExpr parses an expression. Panic on error.
 func MustParseExpr(s string) influxql.Expr {
 	expr, err := influxql.NewParser(strings.NewReader(s)).ParseExpr()
-	panicIfErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return expr
 }
 
@@ -2324,18 +2327,16 @@ func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, r
 // mustMarshalJSON encodes a value to JSON.
 func mustMarshalJSON(v interface{}) []byte {
 	b, err := json.Marshal(v)
-	panicIfErr(err)
+	if err != nil {
+		panic(err)
+	}
 	return b
 }
 
 func mustParseDuration(s string) time.Duration {
 	d, err := influxql.ParseDuration(s)
-	panicIfErr(err)
-	return d
-}
-
-func panicIfErr(err error) {
 	if err != nil {
 		panic(err)
 	}
+	return d
 }

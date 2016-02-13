@@ -1,5 +1,6 @@
 package cluster
 
+/*
 import (
 	"bytes"
 	"encoding/json"
@@ -8,8 +9,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // remoteShardResponder implements the remoteShardConn interface.
@@ -108,3 +109,4 @@ func mustParseStmt(stmt string) influxql.Statement {
 	}
 	return q.Statements[0]
 }
+*/

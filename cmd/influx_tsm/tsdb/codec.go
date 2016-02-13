@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 const maxStringLength = 64 * 1024

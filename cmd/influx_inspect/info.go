@@ -11,7 +11,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func cmdInfo(path string) {

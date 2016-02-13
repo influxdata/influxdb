@@ -1,4 +1,4 @@
-package client
+package client // import "github.com/influxdata/influxdb/client/v2"
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/influxdb/influxdb/models"
+	"github.com/influxdata/influxdb/models"
 )
 
 // UDPPayloadSize is a reasonable default payload size for UDP packets that
@@ -21,6 +21,7 @@ const (
 	UDPPayloadSize = 512
 )
 
+// HTTPConfig is the config data needed to create an HTTP Client
 type HTTPConfig struct {
 	// Addr should be of the form "http://host:port"
 	// or "http://[ipv6-host%zone]:port".
@@ -47,6 +48,7 @@ type HTTPConfig struct {
 	TLSConfig *tls.Config
 }
 
+// UDPConfig is the config data needed to create a UDP Client
 type UDPConfig struct {
 	// Addr should be of the form "host:port"
 	// or "[ipv6-host%zone]:port".
@@ -57,6 +59,7 @@ type UDPConfig struct {
 	PayloadSize int
 }
 
+// BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct
 type BatchPointsConfig struct {
 	// Precision is the write precision of the points, defaults to "ns"
 	Precision string
@@ -73,6 +76,9 @@ type BatchPointsConfig struct {
 
 // Client is a client interface for writing & querying the database
 type Client interface {
+	// Ping checks that status of cluster
+	Ping(timeout time.Duration) (time.Duration, string, error)
+
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
 	Write(bp BatchPoints) error
 
@@ -84,7 +90,7 @@ type Client interface {
 	Close() error
 }
 
-// NewClient creates a client interface from the given config.
+// NewHTTPClient creates a client interface from the given config.
 func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	if conf.UserAgent == "" {
 		conf.UserAgent = "InfluxDBClient"
@@ -119,6 +125,50 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	}, nil
 }
 
+// Ping will check to see if the server is up with an optional timeout on waiting for leader.
+// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
+func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
+	now := time.Now()
+	u := c.url
+	u.Path = "ping"
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("User-Agent", c.useragent)
+
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	if timeout > 0 {
+		params := req.URL.Query()
+		params.Set("wait_for_leader", fmt.Sprintf("%.0fs", timeout.Seconds()))
+		req.URL.RawQuery = params.Encode()
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, "", err
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		var err = fmt.Errorf(string(body))
+		return 0, "", err
+	}
+
+	version := resp.Header.Get("X-Influxdb-Version")
+	return time.Since(now), version, nil
+}
+
 // Close releases the client's resources.
 func (c *client) Close() error {
 	return nil
@@ -147,6 +197,12 @@ func NewUDPClient(conf UDPConfig) (Client, error) {
 		conn:        conn,
 		payloadSize: payloadSize,
 	}, nil
+}
+
+// Ping will check to see if the server is up with an optional timeout on waiting for leader.
+// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
+func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
+	return 0, "", nil
 }
 
 // Close releases the udpclient's resources.
@@ -266,6 +322,7 @@ func (bp *batchpoints) SetRetentionPolicy(rp string) {
 	bp.retentionPolicy = rp
 }
 
+// Point represents a single data point
 type Point struct {
 	pt models.Point
 }
@@ -309,7 +366,7 @@ func (p *Point) Name() string {
 	return p.pt.Name()
 }
 
-// Name returns the tags associated with the point
+// Tags returns the tags associated with the point
 func (p *Point) Tags() map[string]string {
 	return p.pt.Tags()
 }

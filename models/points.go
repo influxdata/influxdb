@@ -1,4 +1,4 @@
-package models
+package models // import "github.com/influxdata/influxdb/models"
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/pkg/escape"
+	"github.com/influxdata/influxdb/pkg/escape"
 )
 
 var (

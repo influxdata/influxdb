@@ -1,4 +1,4 @@
-package subscriber
+package subscriber // import "github.com/influxdata/influxdb/services/subscriber"
 
 import (
 	"expvar"
@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // Statistics for the Subscriber service.

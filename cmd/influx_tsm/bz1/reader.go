@@ -1,4 +1,4 @@
-package bz1
+package bz1 // import "github.com/influxdata/influxdb/cmd/influx_tsm/bz1"
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/golang/snappy"
-	"github.com/influxdb/influxdb/cmd/influx_tsm/tsdb"
-	tsm "github.com/influxdb/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/cmd/influx_tsm/tsdb"
+	tsm "github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 const DefaultChunkSize = 1000

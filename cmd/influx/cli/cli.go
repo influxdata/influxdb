@@ -1,4 +1,4 @@
-package cli
+package cli // import "github.com/influxdata/influxdb/cmd/influx/cli"
 
 import (
 	"bytes"
@@ -19,9 +19,9 @@ import (
 	"syscall"
 	"text/tabwriter"
 
-	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/importer/v8"
+	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/importer/v8"
 	"github.com/peterh/liner"
 )
 
@@ -748,7 +748,7 @@ func (c *CommandLine) help() {
         show field keys       show field key information
 
         A full list of influxql commands can be found at:
-        https://influxdb.com/docs/v0.9/query_language/spec.html
+        https://docs.influxdata.com/influxdb/v0.10/query_language/spec
 `)
 }
 

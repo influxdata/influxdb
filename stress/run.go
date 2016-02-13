@@ -1,4 +1,4 @@
-package stress
+package stress // import "github.com/influxdata/influxdb/stress"
 
 import (
 	"bytes"

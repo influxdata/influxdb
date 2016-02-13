@@ -1,4 +1,4 @@
-package tsdb
+package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"fmt"
@@ -7,35 +7,28 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 )
 
-func NewStore(path string) *Store {
-	opts := NewEngineOptions()
-	opts.Config = NewConfig()
-
-	return &Store{
-		path:          path,
-		EngineOptions: opts,
-		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
-	}
-}
-
 var (
+	// ErrShardNotFound gets returned when trying to get a non existing shard.
 	ErrShardNotFound = fmt.Errorf("shard not found")
-	ErrStoreClosed   = fmt.Errorf("store is closed")
+	// ErrStoreClosed gets returned when trying to use a closed Store.
+	ErrStoreClosed = fmt.Errorf("store is closed")
 )
 
 const (
-	MaintenanceCheckInterval = time.Minute
+	maintenanceCheckInterval = time.Minute
 )
 
+// Store manages shards and indexes for databases.
 type Store struct {
 	mu   sync.RWMutex
 	path string
@@ -52,8 +45,135 @@ type Store struct {
 	opened  bool
 }
 
+// NewStore returns a new store with the given path and a default configuration.
+// The returned store must be initialized by calling Open before using it.
+func NewStore(path string) *Store {
+	opts := NewEngineOptions()
+	opts.Config = NewConfig()
+
+	return &Store{
+		path:          path,
+		EngineOptions: opts,
+		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
+	}
+}
+
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
+
+// Open initializes the store, creating all necessary directories, loading all
+// shards and indexes and initializing periodic maintenance of all shards.
+func (s *Store) Open() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.closing = make(chan struct{})
+
+	s.shards = map[uint64]*Shard{}
+	s.databaseIndexes = map[string]*DatabaseIndex{}
+
+	s.Logger.Printf("Using data dir: %v", s.Path())
+
+	// Create directory.
+	if err := os.MkdirAll(s.path, 0777); err != nil {
+		return err
+	}
+
+	// TODO: Start AE for Node
+	if err := s.loadIndexes(); err != nil {
+		return err
+	}
+
+	if err := s.loadShards(); err != nil {
+		return err
+	}
+
+	go s.periodicMaintenance()
+	s.opened = true
+
+	return nil
+}
+
+func (s *Store) loadIndexes() error {
+	dbs, err := ioutil.ReadDir(s.path)
+	if err != nil {
+		return err
+	}
+	for _, db := range dbs {
+		if !db.IsDir() {
+			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
+			continue
+		}
+		s.databaseIndexes[db.Name()] = NewDatabaseIndex()
+	}
+	return nil
+}
+
+func (s *Store) loadShards() error {
+	// loop through the current database indexes
+	for db := range s.databaseIndexes {
+		rps, err := ioutil.ReadDir(filepath.Join(s.path, db))
+		if err != nil {
+			return err
+		}
+
+		for _, rp := range rps {
+			// retention policies should be directories.  Skip anything that is not a dir.
+			if !rp.IsDir() {
+				s.Logger.Printf("Skipping retention policy dir: %s. Not a directory", rp.Name())
+				continue
+			}
+
+			shards, err := ioutil.ReadDir(filepath.Join(s.path, db, rp.Name()))
+			if err != nil {
+				return err
+			}
+			for _, sh := range shards {
+				path := filepath.Join(s.path, db, rp.Name(), sh.Name())
+				walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp.Name(), sh.Name())
+
+				// Shard file names are numeric shardIDs
+				shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
+				if err != nil {
+					s.Logger.Printf("Skipping shard: %s. Not a valid path", rp.Name())
+					continue
+				}
+
+				shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
+				err = shard.Open()
+				if err != nil {
+					return fmt.Errorf("failed to open shard %d: %s", shardID, err)
+				}
+				s.shards[shardID] = shard
+			}
+		}
+	}
+
+	return nil
+}
+
+// Close closes the store and all associated shards. After calling Close accessing
+// shards through the Store will result in ErrStoreClosed being returned.
+func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.opened {
+		close(s.closing)
+	}
+	s.wg.Wait()
+
+	for _, sh := range s.shards {
+		if err := sh.Close(); err != nil {
+			return err
+		}
+	}
+	s.opened = false
+	s.shards = nil
+	s.databaseIndexes = nil
+
+	return nil
+}
 
 // DatabaseIndexN returns the number of databases indicies in the store.
 func (s *Store) DatabaseIndexN() int {
@@ -69,13 +189,29 @@ func (s *Store) Shard(id uint64) *Shard {
 	return s.shards[id]
 }
 
-// ShardN returns the number of shard in the store.
+// Shards returns a list of shards by id.
+func (s *Store) Shards(ids []uint64) []*Shard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	a := make([]*Shard, 0, len(ids))
+	for _, id := range ids {
+		sh := s.shards[id]
+		if sh == nil {
+			continue
+		}
+		a = append(a, sh)
+	}
+	return a
+}
+
+// ShardN returns the number of shards in the store.
 func (s *Store) ShardN() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.shards)
 }
 
+// CreateShard creates a shard with the given id and retention policy on a database.
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -152,6 +288,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	for _, id := range shardIDs {
 		shard := s.shards[id]
 		if shard != nil {
@@ -166,7 +303,42 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 	if err := os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, name)); err != nil {
 		return err
 	}
+
 	delete(s.databaseIndexes, name)
+
+	return nil
+}
+
+// DeleteMeasurement removes a measurement and all associated series from a database.
+func (s *Store) DeleteMeasurement(database, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Find the database.
+	db := s.databaseIndexes[database]
+	if db == nil {
+		return nil
+	}
+
+	// Find the measurement.
+	m := db.Measurement(name)
+	if m == nil {
+		return ErrMeasurementNotFound(name)
+	}
+
+	// Remove measurement from index.
+	db.DropMeasurement(m.Name)
+
+	// Remove underlying data.
+	for _, sh := range s.shards {
+		if sh.index != db {
+			continue
+		}
+		if err := sh.DeleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -174,23 +346,28 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 func (s *Store) ShardIDs() []uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	ids := make([]uint64, 0, len(s.shards))
-	for i, _ := range s.shards {
-		ids = append(ids, i)
-	}
-	return ids
+	return s.shardIDs()
 }
 
-func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error {
-	s.mu.RLock()
-	shard := s.shards[shardID]
-	s.mu.RUnlock()
-	if shard == nil {
-		return ErrShardNotFound
+func (s *Store) shardIDs() []uint64 {
+	a := make([]uint64, 0, len(s.shards))
+	for shardID := range s.shards {
+		a = append(a, shardID)
 	}
-	return shard.ValidateAggregateFieldsInStatement(measurementName, stmt)
+	return a
 }
 
+// shardsSlice returns an ordered list of shards.
+func (s *Store) shardsSlice() []*Shard {
+	a := make([]*Shard, 0, len(s.shards))
+	for _, sh := range s.shards {
+		a = append(a, sh)
+	}
+	sort.Sort(Shards(a))
+	return a
+}
+
+// DatabaseIndex returns the index for a database by its name.
 func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -201,13 +378,14 @@ func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 func (s *Store) Databases() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	databases := []string{}
+	databases := make([]string, 0, len(s.databaseIndexes))
 	for db := range s.databaseIndexes {
 		databases = append(databases, db)
 	}
 	return databases
 }
 
+// Measurement returns a measurement by name from the given database.
 func (s *Store) Measurement(database, name string) *Measurement {
 	s.mu.RLock()
 	db := s.databaseIndexes[database]
@@ -258,8 +436,8 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 	return relativePath(s.path, shard.path)
 }
 
-// deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
-func (s *Store) deleteSeries(database string, keys []string) error {
+// DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
+func (s *Store) DeleteSeries(database string, seriesKeys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -272,96 +450,17 @@ func (s *Store) deleteSeries(database string, keys []string) error {
 		if sh.index != db {
 			continue
 		}
-		if err := sh.DeleteSeries(keys); err != nil {
+		if err := sh.DeleteSeries(seriesKeys); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// deleteMeasurement loops through the local shards and removes the measurement field encodings from each shard
-func (s *Store) deleteMeasurement(database, name string, seriesKeys []string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	db, ok := s.databaseIndexes[database]
-	if !ok {
-		return ErrDatabaseNotFound(database)
-	}
-
-	for _, sh := range s.shards {
-		if sh.index != db {
-			continue
-		}
-		if err := sh.DeleteMeasurement(name, seriesKeys); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Store) loadIndexes() error {
-	dbs, err := ioutil.ReadDir(s.path)
-	if err != nil {
-		return err
-	}
-	for _, db := range dbs {
-		if !db.IsDir() {
-			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
-			continue
-		}
-		s.databaseIndexes[db.Name()] = NewDatabaseIndex()
-	}
-	return nil
-}
-
-func (s *Store) loadShards() error {
-	// loop through the current database indexes
-	for db := range s.databaseIndexes {
-		rps, err := ioutil.ReadDir(filepath.Join(s.path, db))
-		if err != nil {
-			return err
-		}
-
-		for _, rp := range rps {
-			// retention policies should be directories.  Skip anything that is not a dir.
-			if !rp.IsDir() {
-				s.Logger.Printf("Skipping retention policy dir: %s. Not a directory", rp.Name())
-				continue
-			}
-
-			shards, err := ioutil.ReadDir(filepath.Join(s.path, db, rp.Name()))
-			if err != nil {
-				return err
-			}
-			for _, sh := range shards {
-				path := filepath.Join(s.path, db, rp.Name(), sh.Name())
-				walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp.Name(), sh.Name())
-
-				// Shard file names are numeric shardIDs
-				shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
-				if err != nil {
-					s.Logger.Printf("Skipping shard: %s. Not a valid path", rp.Name())
-					continue
-				}
-
-				shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
-				err = shard.Open()
-				if err != nil {
-					return fmt.Errorf("failed to open shard %d: %s", shardID, err)
-				}
-				s.shards[shardID] = shard
-			}
-		}
-	}
-	return nil
-
 }
 
 // periodicMaintenance is the method called in a goroutine on the opening of the store
 // to perform periodic maintenance of the shards.
 func (s *Store) periodicMaintenance() {
-	t := time.NewTicker(MaintenanceCheckInterval)
+	t := time.NewTicker(maintenanceCheckInterval)
 	for {
 		select {
 		case <-t.C:
@@ -387,43 +486,69 @@ func (s *Store) performMaintenance() {
 func (s *Store) performMaintenanceOnShard(shard *Shard) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.Logger.Printf("recovered eror in maintenance on shard %d", shard.id)
+			s.Logger.Printf("recovered error in maintenance on shard %d", shard.id)
 		}
 	}()
 	shard.PerformMaintenance()
 }
 
-func (s *Store) Open() error {
+// ExpandSources expands regex sources and removes duplicates.
+// NOTE: sources must be normalized (db and rp set) before calling this function.
+func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.closing = make(chan struct{})
+	// Use a map as a set to prevent duplicates.
+	set := map[string]influxql.Source{}
 
-	s.shards = map[uint64]*Shard{}
-	s.databaseIndexes = map[string]*DatabaseIndex{}
+	// Iterate all sources, expanding regexes when they're found.
+	for _, source := range sources {
+		switch src := source.(type) {
+		case *influxql.Measurement:
+			// Add non-regex measurements directly to the set.
+			if src.Regex == nil {
+				set[src.String()] = src
+				continue
+			}
 
-	s.Logger.Printf("Using data dir: %v", s.Path())
+			// Lookup the database.
+			db := s.databaseIndexes[src.Database]
+			if db == nil {
+				return nil, nil
+			}
 
-	// Create directory.
-	if err := os.MkdirAll(s.path, 0777); err != nil {
-		return err
+			// Loop over matching measurements.
+			for _, m := range db.measurementsByRegex(src.Regex.Val) {
+				other := &influxql.Measurement{
+					Database:        src.Database,
+					RetentionPolicy: src.RetentionPolicy,
+					Name:            m.Name,
+				}
+				set[other.String()] = other
+			}
+
+		default:
+			return nil, fmt.Errorf("expandSources: unsupported source type: %T", source)
+		}
 	}
 
-	// TODO: Start AE for Node
-	if err := s.loadIndexes(); err != nil {
-		return err
+	// Convert set to sorted slice.
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Convert set to a list of Sources.
+	expanded := make(influxql.Sources, 0, len(set))
+	for _, name := range names {
+		expanded = append(expanded, set[name])
 	}
 
-	if err := s.loadShards(); err != nil {
-		return err
-	}
-
-	go s.periodicMaintenance()
-	s.opened = true
-
-	return nil
+	return expanded, nil
 }
 
+// WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -440,50 +565,6 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	}
 
 	return sh.WritePoints(points)
-}
-
-func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (Mapper, error) {
-	shard := s.Shard(shardID)
-
-	switch stmt := stmt.(type) {
-	case *influxql.SelectStatement:
-		if (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative() {
-			m := NewRawMapper(shard, stmt)
-			m.ChunkSize = chunkSize
-			return m, nil
-		}
-		return NewAggregateMapper(shard, stmt), nil
-
-	case *influxql.ShowMeasurementsStatement:
-		m := NewShowMeasurementsMapper(shard, stmt)
-		m.ChunkSize = chunkSize
-		return m, nil
-	case *influxql.ShowTagKeysStatement:
-		return NewShowTagKeysMapper(shard, stmt, chunkSize), nil
-	default:
-		return nil, fmt.Errorf("can't create mapper for statement type: %T", stmt)
-	}
-}
-
-func (s *Store) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.opened {
-		close(s.closing)
-	}
-	s.wg.Wait()
-
-	for _, sh := range s.shards {
-		if err := sh.Close(); err != nil {
-			return err
-		}
-	}
-	s.opened = false
-	s.shards = nil
-	s.databaseIndexes = nil
-
-	return nil
 }
 
 // IsRetryable returns true if this error is temporary and could be retried

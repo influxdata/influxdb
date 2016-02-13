@@ -14,12 +14,13 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta/internal"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
 	"golang.org/x/crypto/bcrypt"
@@ -63,10 +64,12 @@ type Client struct {
 
 	// Authentication cache.
 	authCache map[string]authUser
+}
 
-	// hashPassword generates a cryptographically secure hash for password.
-	// Returns an error if the password is invalid or a hash cannot be generated.
-	hashPassword HashPasswordFn
+type authUser struct {
+	bhash string
+	salt  []byte
+	hash  []byte
 }
 
 // NewClient returns a new *Client.
@@ -77,9 +80,6 @@ func NewClient(metaServers []string, tls bool) *Client {
 		tls:         tls,
 		logger:      log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
 		authCache:   make(map[string]authUser, 0),
-		hashPassword: func(password string) ([]byte, error) {
-			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
-		},
 	}
 	client.executor = &StatementExecutor{Store: client}
 	return client
@@ -487,49 +487,31 @@ func (c *Client) User(name string) (*UserInfo, error) {
 	return nil, ErrUserNotFound
 }
 
-// BcryptCost is the cost associated with generating password with Bcrypt.
+// bcryptCost is the cost associated with generating password with bcrypt.
 // This setting is lowered during testing to improve test suite performance.
-var BcryptCost = 10
-
-// HashPasswordFn represnets a password hashing function.
-type HashPasswordFn func(password string) ([]byte, error)
-
-// GetHashPasswordFn returns the current password hashing function.
-func (c *Client) GetHashPasswordFn() HashPasswordFn {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.hashPassword
-}
-
-// SetHashPasswordFn sets the password hashing function.
-func (c *Client) SetHashPasswordFn(fn HashPasswordFn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.hashPassword = fn
-}
+var bcryptCost = bcrypt.DefaultCost
 
 // hashWithSalt returns a salted hash of password using salt
-func (c *Client) hashWithSalt(salt []byte, password string) ([]byte, error) {
+func (c *Client) hashWithSalt(salt []byte, password string) []byte {
 	hasher := sha256.New()
-	hasher.Write(append(salt, []byte(password)...))
-	return hasher.Sum(nil), nil
+	hasher.Write(salt)
+	hasher.Write([]byte(password))
+	return hasher.Sum(nil)
 }
 
 // saltedHash returns a salt and salted hash of password
 func (c *Client) saltedHash(password string) (salt, hash []byte, err error) {
 	salt = make([]byte, SaltBytes)
-	_, err = io.ReadFull(crand.Reader, salt)
-	if err != nil {
-		return
+	if _, err := io.ReadFull(crand.Reader, salt); err != nil {
+		return nil, nil, err
 	}
 
-	hash, err = c.hashWithSalt(salt, password)
-	return
+	return salt, c.hashWithSalt(salt, password), nil
 }
 
 func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error) {
 	// Hash the password before serializing it.
-	hash, err := c.hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return nil, err
 	}
@@ -548,25 +530,17 @@ func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error
 
 func (c *Client) UpdateUser(name, password string) error {
 	// Hash the password before serializing it.
-	hash, err := c.hashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return err
 	}
 
-	err = c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
+	return c.retryUntilExec(internal.Command_UpdateUserCommand, internal.E_UpdateUserCommand_Command,
 		&internal.UpdateUserCommand{
 			Name: proto.String(name),
 			Hash: proto.String(string(hash)),
 		},
 	)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err == nil {
-		delete(c.authCache, name)
-	}
-
-	return err
 }
 
 func (c *Client) DropUser(name string) error {
@@ -626,27 +600,23 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 	defer c.mu.Unlock()
 
 	// Find user.
-	u := c.cacheData.User(username)
-	if u == nil {
+	userInfo := c.cacheData.User(username)
+	if userInfo == nil {
 		return nil, ErrUserNotFound
 	}
 
 	// Check the local auth cache first.
 	if au, ok := c.authCache[username]; ok {
 		// verify the password using the cached salt and hash
-		hashed, err := c.hashWithSalt(au.salt, password)
-		if err != nil {
-			return nil, err
+		if bytes.Equal(c.hashWithSalt(au.salt, password), au.hash) {
+			return userInfo, nil
 		}
 
-		if bytes.Equal(hashed, au.hash) {
-			return u, nil
-		}
-		return nil, ErrAuthenticate
+		// fall through to requiring a full bcrypt hash for invalid passwords
 	}
 
 	// Compare password with user hash.
-	if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(userInfo.Hash), []byte(password)); err != nil {
 		return nil, ErrAuthenticate
 	}
 
@@ -655,13 +625,29 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.authCache[username] = authUser{salt: salt, hash: hashed}
+	c.authCache[username] = authUser{salt: salt, hash: hashed, bhash: userInfo.Hash}
 
-	return u, nil
+	return userInfo, nil
 }
 
 func (c *Client) UserCount() int {
 	return len(c.data().Users)
+}
+
+// ShardIDs returns a list of all shard ids.
+func (c *Client) ShardIDs() []uint64 {
+	var a []uint64
+	for _, dbi := range c.data().Databases {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, sgi := range rpi.ShardGroups {
+				for _, si := range sgi.Shards {
+					a = append(a, si.ID)
+				}
+			}
+		}
+	}
+	sort.Sort(uint64Slice(a))
+	return a
 }
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
@@ -682,6 +668,34 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 		groups = append(groups, g)
 	}
 	return groups, nil
+}
+
+// ShardIDsByTimeRange returns a slice of shards that may contain data in the time range.
+func (c *Client) ShardIDsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []uint64, err error) {
+	m := make(map[uint64]struct{})
+	for _, src := range sources {
+		mm, ok := src.(*influxql.Measurement)
+		if !ok {
+			return nil, fmt.Errorf("invalid source type: %#v", src)
+		}
+
+		groups, err := c.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range groups {
+			for _, sh := range g.Shards {
+				m[sh.ID] = struct{}{}
+			}
+		}
+	}
+
+	a = make([]uint64, 0, len(m))
+	for k := range m {
+		a = append(a, k)
+	}
+
+	return a, nil
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
@@ -813,12 +827,21 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
 			continue
 		}
 		resp.Body.Close()
+
+		// Successfully joined
+		if resp.StatusCode == http.StatusOK {
+			return nil
+		}
+
+		// We tried to join a meta node that was not the leader, rety at the node
+		// they think is the leader.
 		if resp.StatusCode == http.StatusTemporaryRedirect {
 			redirectServer = resp.Header.Get("Location")
 			continue
 		}
 
-		return nil
+		// Something failed, try the next node
+		currentServer++
 	}
 }
 
@@ -1063,6 +1086,7 @@ func (c *Client) pollForUpdates() {
 		c.mu.Lock()
 		idx := c.cacheData.Index
 		c.cacheData = data
+		c.updateAuthCache()
 		if idx < data.Index {
 			close(c.changed)
 			c.changed = make(chan struct{})
@@ -1092,6 +1116,36 @@ func (c *Client) getSnapshot(server string, index uint64) (*Data, error) {
 	}
 
 	return data, nil
+}
+
+// peers returns the TCPHost addresses of all the metaservers
+func (c *Client) peers() []string {
+
+	var peers Peers
+	// query each server and keep track of who their peers are
+	for _, server := range c.metaServers {
+		url := c.url(server) + "/peers"
+		resp, err := http.Get(url)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		// This meta-server might not be ready to answer, continue on
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
+
+		dec := json.NewDecoder(resp.Body)
+		var p []string
+		if err := dec.Decode(&p); err != nil {
+			continue
+		}
+		peers = peers.Append(p...)
+	}
+
+	// Return the unique set of peer addresses
+	return []string(peers.Unique())
 }
 
 func (c *Client) url(server string) string {
@@ -1140,6 +1194,51 @@ func (c *Client) retryUntilSnapshot(idx uint64) *Data {
 	}
 }
 
+func (c *Client) updateAuthCache() {
+	// copy cached user info for still-present users
+	newCache := make(map[string]authUser, len(c.authCache))
+
+	for _, userInfo := range c.cacheData.Users {
+		if cached, ok := c.authCache[userInfo.Name]; ok {
+			if cached.bhash == userInfo.Hash {
+				newCache[userInfo.Name] = cached
+			}
+		}
+	}
+
+	c.authCache = newCache
+}
+
+type Peers []string
+
+func (peers Peers) Append(p ...string) Peers {
+	peers = append(peers, p...)
+
+	return peers.Unique()
+}
+
+func (peers Peers) Unique() Peers {
+	distinct := map[string]struct{}{}
+	for _, p := range peers {
+		distinct[p] = struct{}{}
+	}
+
+	var u Peers
+	for k := range distinct {
+		u = append(u, k)
+	}
+	return u
+}
+
+func (peers Peers) Contains(peer string) bool {
+	for _, p := range peers {
+		if p == peer {
+			return true
+		}
+	}
+	return false
+}
+
 type errRedirect struct {
 	host string
 }
@@ -1147,3 +1246,9 @@ type errRedirect struct {
 func (e errRedirect) Error() string {
 	return fmt.Sprintf("redirect to %s", e.host)
 }
+
+type uint64Slice []uint64
+
+func (a uint64Slice) Len() int           { return len(a) }
+func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }

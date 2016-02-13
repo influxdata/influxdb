@@ -1,4 +1,4 @@
-package tsm1
+package tsm1 // import "github.com/influxdata/influxdb/tsdb/engine/tsm1"
 
 import (
 	"archive/tar"
@@ -7,15 +7,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
+
+//go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
 
 func init() {
 	tsdb.RegisterEngine("tsm1", NewEngine)
@@ -38,6 +39,10 @@ type Engine struct {
 
 	path   string
 	logger *log.Logger
+
+	// TODO(benbjohnson): Index needs to be moved entirely into engine.
+	index             *tsdb.DatabaseIndex
+	measurementFields map[string]*tsdb.MeasurementFields
 
 	WAL            *WAL
 	Cache          *Cache
@@ -101,6 +106,23 @@ func (e *Engine) Path() string { return e.path }
 func (e *Engine) PerformMaintenance() {
 }
 
+// Index returns the database index.
+func (e *Engine) Index() *tsdb.DatabaseIndex {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.index
+}
+
+// MeasurementFields returns the measurement fields for a measurement.
+func (e *Engine) MeasurementFields(name string) *tsdb.MeasurementFields {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.measurementFields[name] == nil {
+		e.measurementFields[name] = &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
+	}
+	return e.measurementFields[name]
+}
+
 // Format returns the format type of this engine
 func (e *Engine) Format() tsdb.EngineFormat {
 	return tsdb.TSM1Format
@@ -162,6 +184,10 @@ func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(_ *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+	// Save reference to index for iterator creation.
+	e.index = index
+	e.measurementFields = measurementFields
+
 	keys := e.FileStore.Keys()
 
 	keysLoaded := make(map[string]bool)
@@ -376,11 +402,6 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 // SeriesCount returns the number of series buckets on the shard.
 func (e *Engine) SeriesCount() (n int, err error) {
 	return 0, nil
-}
-
-// Begin starts a new transaction on the engine.
-func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
-	return &tx{engine: e}, nil
 }
 
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
@@ -625,217 +646,275 @@ func (e *Engine) cleanup() error {
 	return nil
 }
 
-func (e *Engine) KeyCursor(key string) *KeyCursor {
+func (e *Engine) KeyCursor(key string, t time.Time, ascending bool) *KeyCursor {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.FileStore.KeyCursor(key)
+	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
-type tx struct {
-	engine *Engine
-}
-
-// Cursor returns a cursor for all cached and TSM-based data.
-func (t *tx) Cursor(series string, fields []string, dec *tsdb.FieldCodec, ascending bool) tsdb.Cursor {
-	if len(fields) == 1 {
-		key := SeriesFieldKey(series, fields[0])
-		return &devCursor{
-			series:       series,
-			fields:       fields,
-			cache:        t.engine.Cache.Values(key),
-			tsmKeyCursor: t.engine.KeyCursor(key),
-			ascending:    ascending,
+func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if call, ok := opt.Expr.(*influxql.Call); ok {
+		refOpt := opt
+		refOpt.Expr = call.Args[0].(*influxql.VarRef)
+		inputs, err := e.createVarRefIterator(refOpt)
+		if err != nil {
+			return nil, err
 		}
+		return influxql.NewCallIterator(influxql.NewMergeIterator(inputs, opt), opt), nil
 	}
 
-	// multiple fields. use just the MultiFieldCursor, which also handles time collisions
-	// so we don't need to use the combined cursor
-	var cursors []tsdb.Cursor
-	var cursorFields []string
-	for _, field := range fields {
-		key := SeriesFieldKey(series, field)
-		wc := &devCursor{
-			series:       series,
-			fields:       []string{field},
-			cache:        t.engine.Cache.Values(key),
-			tsmKeyCursor: t.engine.KeyCursor(key),
-			ascending:    ascending,
+	itrs, err := e.createVarRefIterator(opt)
+	if err != nil {
+		return nil, err
+	}
+	return influxql.NewSortedMergeIterator(itrs, opt), nil
+}
+
+func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	seriesList := influxql.SeriesList{}
+	mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+	for _, mm := range mms {
+		// Determine tagsets for this measurement based on dimensions and filters.
+		tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
+		if err != nil {
+			return nil, err
 		}
 
-		// double up the fields since there's one for the wal and one for the index
-		cursorFields = append(cursorFields, field)
-		cursors = append(cursors, wc)
-	}
-	return NewMultiFieldCursor(cursorFields, cursors, ascending)
-}
-
-func (t *tx) Rollback() error                          { return nil }
-func (t *tx) Size() int64                              { panic("not implemented") }
-func (t *tx) Commit() error                            { panic("not implemented") }
-func (t *tx) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
-
-// devCursor is a cursor that combines both TSM and cached data.
-type devCursor struct {
-	series string
-	fields []string
-
-	cache         Values
-	cachePos      int
-	cacheKeyBuf   int64
-	cacheValueBuf interface{}
-
-	tsmValues   Values
-	tsmPos      int
-	tsmKeyBuf   int64
-	tsmValueBuf interface{}
-
-	tsmKeyCursor *KeyCursor
-	ascending    bool
-}
-
-// SeekTo positions the cursor at the timestamp specified by seek and returns the
-// timestamp and value.
-func (c *devCursor) SeekTo(seek int64) (int64, interface{}) {
-	// Seek to position in cache.
-	c.cacheKeyBuf, c.cacheValueBuf = func() (int64, interface{}) {
-		// Seek to position in cache index.
-		c.cachePos = sort.Search(len(c.cache), func(i int) bool {
-			return c.cache[i].Time().UnixNano() >= seek
-		})
-
-		if c.cachePos < len(c.cache) {
-			v := c.cache[c.cachePos]
-			if v.UnixNano() == seek || c.ascending {
-				// Exact seek found or, if ascending, next one is good.
-				return v.UnixNano(), v.Value()
+		// Calculate tag sets and apply SLIMIT/SOFFSET.
+		tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+		for _, t := range tagSets {
+			tagMap := make(map[string]string)
+			for k, v := range t.Tags {
+				if v == "" {
+					continue
+				}
+				tagMap[k] = v
 			}
-			// Nothing available if descending.
-			return tsdb.EOF, nil
+			tags := influxql.NewTags(tagMap)
+
+			series := influxql.Series{
+				Name: mm.Name,
+				Tags: tags,
+				Aux:  make([]influxql.DataType, len(opt.Aux)),
+			}
+
+			// Determine the aux field types.
+			for _, seriesKey := range t.SeriesKeys {
+				tags := influxql.NewTags(e.index.TagsForSeries(seriesKey))
+				for i, field := range opt.Aux {
+					typ := func() influxql.DataType {
+						mf := e.measurementFields[mm.Name]
+						if mf == nil {
+							return influxql.Unknown
+						}
+
+						f := mf.Fields[field]
+						if f == nil {
+							return influxql.Unknown
+						}
+						return f.Type
+					}()
+
+					if typ == influxql.Unknown {
+						if v := tags.Value(field); v != "" {
+							// All tags are strings.
+							typ = influxql.String
+						}
+					}
+
+					if typ != influxql.Unknown {
+						if series.Aux[i] == influxql.Unknown || typ < series.Aux[i] {
+							series.Aux[i] = typ
+						}
+					}
+				}
+			}
+			seriesList = append(seriesList, series)
 		}
-
-		// Ascending cursor, no match in the cache.
-		if c.ascending {
-			return tsdb.EOF, nil
-		}
-
-		// Descending cursor, go to previous value in cache, and return if it exists.
-		c.cachePos--
-		if c.cachePos < 0 {
-			return tsdb.EOF, nil
-		}
-		return c.cache[c.cachePos].UnixNano(), c.cache[c.cachePos].Value()
-	}()
-
-	// Seek to position to tsm block.
-	if c.ascending {
-		c.tsmValues, _ = c.tsmKeyCursor.SeekTo(time.Unix(0, seek-1), c.ascending)
-	} else {
-		c.tsmValues, _ = c.tsmKeyCursor.SeekTo(time.Unix(0, seek+1), c.ascending)
 	}
-
-	c.tsmPos = sort.Search(len(c.tsmValues), func(i int) bool {
-		return c.tsmValues[i].Time().UnixNano() >= seek
-	})
-
-	if !c.ascending {
-		c.tsmPos--
-	}
-
-	if c.tsmPos >= 0 && c.tsmPos < len(c.tsmValues) {
-		c.tsmKeyBuf = c.tsmValues[c.tsmPos].Time().UnixNano()
-		c.tsmValueBuf = c.tsmValues[c.tsmPos].Value()
-	} else {
-		c.tsmKeyBuf = tsdb.EOF
-		c.tsmKeyCursor.Close()
-	}
-
-	return c.read()
+	return seriesList, nil
 }
 
-// Next returns the next value from the cursor.
-func (c *devCursor) Next() (int64, interface{}) {
-	return c.read()
+// createVarRefIterator creates an iterator for a variable reference.
+func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+	ref, _ := opt.Expr.(*influxql.VarRef)
+
+	var itrs []influxql.Iterator
+	if err := func() error {
+		mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+
+		// Retrieve non-time names from condition (includes tags).
+		conditionNames := influxql.ExprNames(opt.Condition)
+
+		for _, mm := range mms {
+			// Determine tagsets for this measurement based on dimensions and filters.
+			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
+			if err != nil {
+				return err
+			}
+
+			// Calculate tag sets and apply SLIMIT/SOFFSET.
+			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+
+			// Filter the names from condition to only fields from the measurement.
+			conditionFields := make([]string, 0, len(conditionNames))
+			for _, f := range conditionNames {
+				if mm.HasField(f) {
+					conditionFields = append(conditionFields, f)
+				}
+			}
+
+			for _, t := range tagSets {
+				for i, seriesKey := range t.SeriesKeys {
+					itr, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, t.Filters[i], conditionFields, opt)
+					if err != nil {
+						return err
+					} else if itr == nil {
+						continue
+					}
+					itrs = append(itrs, itr)
+				}
+			}
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+
+	return itrs, nil
 }
 
-// Ascending returns whether the cursor returns data in time-ascending order.
-func (c *devCursor) Ascending() bool { return c.ascending }
+// createVarRefSeriesIterator creates an iterator for a variable reference for a series.
+func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	tags := influxql.NewTags(e.index.TagsForSeries(seriesKey))
 
-// read returns the next value for the cursor.
-func (c *devCursor) read() (int64, interface{}) {
-	var key int64
-	var value interface{}
+	// Create options specific for this series.
+	itrOpt := opt
+	itrOpt.Condition = filter
 
-	// Determine where the next datum should come from -- the cache or the TSM files.
+	// Build auxilary cursors.
+	// Tag values should be returned if the field doesn't exist.
+	var aux []cursorAt
+	if len(opt.Aux) > 0 {
+		aux = make([]cursorAt, len(opt.Aux))
+		for i := range aux {
+			// Create cursor from field.
+			cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
+			if cur != nil {
+				aux[i] = newBufCursor(cur)
+				continue
+			}
 
-	switch {
-	// No more data in cache or in TSM files.
-	case c.cacheKeyBuf == tsdb.EOF && c.tsmKeyBuf == tsdb.EOF:
-		key = tsdb.EOF
+			// If field doesn't exist, use the tag value.
+			// However, if the tag value is blank then return a null.
+			if v := tags.Value(opt.Aux[i]); v == "" {
+				aux[i] = &stringNilLiteralCursor{}
+			} else {
+				aux[i] = &stringLiteralCursor{value: v}
+			}
+		}
+	}
 
-	// Both cache and tsm files have the same key, cache takes precedence.
-	case c.cacheKeyBuf == c.tsmKeyBuf:
-		key = c.cacheKeyBuf
-		value = c.cacheValueBuf
-		c.cacheKeyBuf, c.cacheValueBuf = c.nextCache()
-		c.tsmKeyBuf, c.tsmValueBuf = c.nextTSM()
+	// Build conditional field cursors.
+	// If a conditional field doesn't exist then ignore the series.
+	var conds []*bufCursor
+	if len(conditionFields) > 0 {
+		conds = make([]*bufCursor, len(conditionFields))
+		for i := range conds {
+			cur := e.buildCursor(mm.Name, seriesKey, conditionFields[i], opt)
+			if cur == nil {
+				return nil, nil
+			}
+			conds[i] = newBufCursor(cur)
+		}
+	}
 
-	// Buffered cache key precedes that in TSM file.
-	case c.ascending && (c.cacheKeyBuf != tsdb.EOF && (c.cacheKeyBuf < c.tsmKeyBuf || c.tsmKeyBuf == tsdb.EOF)),
-		!c.ascending && (c.cacheKeyBuf != tsdb.EOF && (c.cacheKeyBuf > c.tsmKeyBuf || c.tsmKeyBuf == tsdb.EOF)):
-		key = c.cacheKeyBuf
-		value = c.cacheValueBuf
-		c.cacheKeyBuf, c.cacheValueBuf = c.nextCache()
+	// Limit tags to only the dimensions selected.
+	tags = tags.Subset(opt.Dimensions)
 
-	// Buffered TSM key precedes that in cache.
+	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
+	if ref == nil {
+		return newFloatIterator(mm.Name, tags, itrOpt, nil, aux, conds, conditionFields), nil
+	}
+
+	// Build main cursor.
+	cur := e.buildCursor(mm.Name, seriesKey, ref.Val, opt)
+
+	// If the field doesn't exist then don't build an iterator.
+	if cur == nil {
+		return nil, nil
+	}
+
+	switch cur := cur.(type) {
+	case floatCursor:
+		return newFloatIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+	case integerCursor:
+		return newIntegerIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+	case stringCursor:
+		return newStringIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+	case booleanCursor:
+		return newBooleanIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
 	default:
-		key = c.tsmKeyBuf
-		value = c.tsmValueBuf
-		c.tsmKeyBuf, c.tsmValueBuf = c.nextTSM()
-	}
-
-	return key, value
-}
-
-// nextCache returns the next value from the cache.
-func (c *devCursor) nextCache() (int64, interface{}) {
-	if c.ascending {
-		c.cachePos++
-		if c.cachePos >= len(c.cache) {
-			return tsdb.EOF, nil
-		}
-		return c.cache[c.cachePos].UnixNano(), c.cache[c.cachePos].Value()
-	} else {
-		c.cachePos--
-		if c.cachePos < 0 {
-			return tsdb.EOF, nil
-		}
-		return c.cache[c.cachePos].UnixNano(), c.cache[c.cachePos].Value()
+		panic("unreachable")
 	}
 }
 
-// nextTSM returns the next value from the TSM files.
-func (c *devCursor) nextTSM() (int64, interface{}) {
-	if c.ascending {
-		c.tsmPos++
-		if c.tsmPos >= len(c.tsmValues) {
-			c.tsmValues, _ = c.tsmKeyCursor.Next(c.ascending)
-			if len(c.tsmValues) == 0 {
-				return tsdb.EOF, nil
-			}
-			c.tsmPos = 0
-		}
-		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
-	} else {
-		c.tsmPos--
-		if c.tsmPos < 0 {
-			c.tsmValues, _ = c.tsmKeyCursor.Next(c.ascending)
-			if len(c.tsmValues) == 0 {
-				return tsdb.EOF, nil
-			}
-			c.tsmPos = len(c.tsmValues) - 1
-		}
-		return c.tsmValues[c.tsmPos].UnixNano(), c.tsmValues[c.tsmPos].Value()
+// buildCursor creates an untyped cursor for a field.
+func (e *Engine) buildCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) cursor {
+	// Look up fields for measurement.
+	mf := e.measurementFields[measurement]
+	if mf == nil {
+		return nil
 	}
+
+	// Find individual field.
+	f := mf.Fields[field]
+	if f == nil {
+		return nil
+	}
+
+	// Return appropriate cursor based on type.
+	switch f.Type {
+	case influxql.Float:
+		return e.buildFloatCursor(measurement, seriesKey, field, opt)
+	case influxql.Integer:
+		return e.buildIntegerCursor(measurement, seriesKey, field, opt)
+	case influxql.String:
+		return e.buildStringCursor(measurement, seriesKey, field, opt)
+	case influxql.Boolean:
+		return e.buildBooleanCursor(measurement, seriesKey, field, opt)
+	default:
+		panic("unreachable")
+	}
+}
+
+// buildFloatCursor creates a cursor for a float field.
+func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) floatCursor {
+	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	return newFloatCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// buildIntegerCursor creates a cursor for an integer field.
+func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) integerCursor {
+	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// buildStringCursor creates a cursor for a string field.
+func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) stringCursor {
+	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	return newStringCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+// buildBooleanCursor creates a cursor for a boolean field.
+func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) booleanCursor {
+	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // SeriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID
@@ -847,9 +926,9 @@ func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
 	switch typ {
 	case BlockFloat64:
 		return influxql.Float, nil
-	case BlockInt64:
+	case BlockInteger:
 		return influxql.Integer, nil
-	case BlockBool:
+	case BlockBoolean:
 		return influxql.Boolean, nil
 	case BlockString:
 		return influxql.String, nil

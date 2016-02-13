@@ -1,4 +1,4 @@
-package tsdb
+package tsdb // import "github.com/influxdata/influxdb/cmd/influx_tsm/tsdb"
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdb/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/pkg/slices"
 )
 
 const (

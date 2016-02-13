@@ -1,0 +1,910 @@
+package influxql
+
+import (
+	"container/heap"
+	"errors"
+	"fmt"
+	"sort"
+	"sync"
+	"log"
+
+	"github.com/gogo/protobuf/proto"
+)
+
+{{range .}}
+
+// {{.Name}}Iterator represents a stream of {{.name}} points.
+type {{.Name}}Iterator interface {
+	Iterator
+	Next() *{{.Name}}Point
+}
+
+// new{{.Name}}Iterators converts a slice of Iterator to a slice of {{.Name}}Iterator.
+// Drop and closes any iterator in itrs that is not a {{.Name}}Iterator and cannot
+// be cast to a {{.Name}}Iterator.
+func new{{.Name}}Iterators(itrs []Iterator) []{{.Name}}Iterator {
+	a := make([]{{.Name}}Iterator, 0, len(itrs))
+	for _, itr := range itrs {
+		switch itr := itr.(type) {
+		case {{.Name}}Iterator:
+			a = append(a, itr)
+{{if eq .Name "Float"}}
+		case IntegerIterator:
+			a = append(a, &integerFloatCastIterator{input: itr})
+{{end}}
+		default:
+			itr.Close()
+		}
+	}
+	return a
+}
+
+
+// buf{{.Name}}Iterator represents a buffered {{.Name}}Iterator.
+type buf{{.Name}}Iterator struct {
+	itr {{.Name}}Iterator
+	buf *{{.Name}}Point
+}
+
+// newBuf{{.Name}}Iterator returns a buffered {{.Name}}Iterator.
+func newBuf{{.Name}}Iterator(itr {{.Name}}Iterator) *buf{{.Name}}Iterator {
+	return &buf{{.Name}}Iterator{
+		itr: itr,
+	}
+}
+
+// Close closes the underlying iterator.
+func (itr *buf{{.Name}}Iterator) Close() error { return itr.itr.Close() }
+
+// peek returns the next point without removing it from the iterator.
+func (itr *buf{{.Name}}Iterator) peek() *{{.Name}}Point {
+	p := itr.Next()
+	itr.unread(p)
+	return p
+}
+
+// peekTime returns the time of the next point.
+// Returns zero time if no more points available.
+func (itr *buf{{.Name}}Iterator) peekTime() int64 {
+	p := itr.peek()
+	if p == nil {
+		return ZeroTime
+	}
+	return p.Time
+}
+
+// Next returns the current buffer, if exists, or calls the underlying iterator.
+func (itr *buf{{.Name}}Iterator) Next() *{{.Name}}Point {
+	if itr.buf != nil {
+		buf := itr.buf
+		itr.buf = nil
+		return buf
+	}
+	return itr.itr.Next()
+}
+
+// NextInWindow returns the next value if it is between [startTime, endTime).
+// If the next value is outside the range then it is moved to the buffer.
+func (itr *buf{{.Name}}Iterator) NextInWindow(startTime, endTime int64) *{{.Name}}Point {
+	v := itr.Next()
+	if v == nil {
+		return nil
+	} else if v.Time < startTime || v.Time >= endTime {
+		itr.unread(v)
+		return nil
+	}
+	return v
+}
+
+// unread sets v to the buffer. It is read on the next call to Next().
+func (itr *buf{{.Name}}Iterator) unread(v *{{.Name}}Point) { itr.buf = v }
+
+// {{.name}}MergeIterator represents an iterator that combines multiple {{.name}} iterators.
+type {{.name}}MergeIterator struct {
+	inputs []{{.Name}}Iterator
+	heap   *{{.name}}MergeHeap
+
+	// Current iterator and window.
+	curr   *{{.name}}MergeHeapItem
+	window struct {
+		name      string
+		tags      string
+		startTime int64
+		endTime   int64
+	}
+}
+
+// new{{.Name}}MergeIterator returns a new instance of {{.name}}MergeIterator.
+func new{{.Name}}MergeIterator(inputs []{{.Name}}Iterator, opt IteratorOptions) *{{.name}}MergeIterator {
+	itr := &{{.name}}MergeIterator{
+		inputs: inputs,
+		heap: &{{.name}}MergeHeap{
+			items: make([]*{{.name}}MergeHeapItem, 0, len(inputs)),
+  		opt: opt,
+		},
+	}
+
+	// Initialize heap items.
+	for _, input := range inputs {
+		// Wrap in buffer, ignore any inputs without anymore points.
+		bufInput := newBuf{{.Name}}Iterator(input)
+		if bufInput.peek() == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap.items = append(itr.heap.items, &{{.name}}MergeHeapItem{itr: bufInput})
+	}
+	heap.Init(itr.heap)
+
+	return itr
+}
+
+// Close closes the underlying iterators.
+func (itr *{{.name}}MergeIterator) Close() error {
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *{{.name}}MergeIterator) Next() *{{.Name}}Point {
+	for {
+		// Retrieve the next iterator if we don't have one.
+		if itr.curr == nil {
+			if len(itr.heap.items) == 0 {
+				return nil
+			}
+			itr.curr = heap.Pop(itr.heap).(*{{.name}}MergeHeapItem)
+
+			// Read point and set current window.
+			p := itr.curr.itr.Next()
+			itr.window.name, itr.window.tags = p.Name, p.Tags.ID()
+			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
+			return p
+		}
+
+		// Read the next point from the current iterator.
+		p := itr.curr.itr.Next()
+
+		// If there are no more points then remove iterator from heap and find next.
+		if p == nil {
+			itr.curr = nil
+			continue
+		}
+
+		// Check if the point is inside of our current window.
+		inWindow := true
+		if itr.window.name != p.Name {
+			inWindow = false
+		} else if itr.window.tags != p.Tags.ID() {
+			inWindow = false
+		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+			inWindow = false
+		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+			inWindow = false
+		}
+
+		// If it's outside our window then push iterator back on the heap and find new iterator.
+		if !inWindow {
+			itr.curr.itr.unread(p)
+			heap.Push(itr.heap, itr.curr)
+			itr.curr = nil
+			continue
+		}
+
+		return p
+	}
+}
+
+// {{.name}}MergeHeap represents a heap of {{.name}}MergeHeapItems.
+// Items are sorted by their next window and then by name/tags.
+type {{.name}}MergeHeap struct {
+	opt   IteratorOptions
+	items []*{{.name}}MergeHeapItem
+}
+
+func (h {{.name}}MergeHeap) Len() int      { return len(h.items) }
+func (h {{.name}}MergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h {{.name}}MergeHeap) Less(i, j int) bool {
+	x, y := h.items[i].itr.peek(), h.items[j].itr.peek()
+
+	if h.opt.Ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if x.Tags.ID() != y.Tags.ID() {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+	} else {
+		if x.Name != y.Name {
+			return x.Name > y.Name
+		} else if x.Tags.ID() != y.Tags.ID() {
+			return x.Tags.ID() > y.Tags.ID()
+		}
+	}
+
+	xt, _ := h.opt.Window(x.Time)
+	yt, _ := h.opt.Window(y.Time)
+
+	if h.opt.Ascending {
+		return xt < yt
+	}
+	return xt > yt
+}
+
+
+func (h *{{.name}}MergeHeap) Push(x interface{}) {
+	h.items = append(h.items, x.(*{{.name}}MergeHeapItem))
+}
+
+func (h *{{.name}}MergeHeap) Pop() interface{} {
+	old := h.items
+	n := len(old)
+	item := old[n-1]
+	h.items = old[0 : n-1]
+	return item
+}
+
+type {{.name}}MergeHeapItem struct {
+	itr *buf{{.Name}}Iterator
+}
+
+
+// {{.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
+type {{.name}}SortedMergeIterator struct {
+	inputs []{{.Name}}Iterator
+	opt    IteratorOptions
+	heap   {{.name}}SortedMergeHeap
+}
+
+// new{{.Name}}SortedMergeIterator returns an instance of {{.name}}SortedMergeIterator.
+func new{{.Name}}SortedMergeIterator(inputs []{{.Name}}Iterator, opt IteratorOptions) Iterator {
+	itr := &{{.name}}SortedMergeIterator{
+		inputs: inputs,
+		heap:   make({{.name}}SortedMergeHeap, 0, len(inputs)),
+		opt:    opt,
+	}
+
+	// Initialize heap.
+	for _, input := range inputs {
+		// Read next point.
+		p := input.Next()
+		if p == nil {
+			continue
+		}
+
+		// Append to the heap.
+		itr.heap = append(itr.heap, &{{.name}}SortedMergeHeapItem{point: p, itr: input, ascending: opt.Ascending})
+	}
+	heap.Init(&itr.heap)
+
+	return itr
+}
+
+// Close closes the underlying iterators.
+func (itr *{{.name}}SortedMergeIterator) Close() error {
+	for _, input := range itr.inputs {
+		input.Close()
+	}
+	return nil
+}
+
+// Next returns the next points from the iterator.
+func (itr *{{.name}}SortedMergeIterator) Next() *{{.Name}}Point { return itr.pop() }
+
+// pop returns the next point from the heap.
+// Reads the next point from item's cursor and puts it back on the heap.
+func (itr *{{.name}}SortedMergeIterator) pop() *{{.Name}}Point {
+	if len(itr.heap) == 0 {
+		return nil
+	}
+
+	// Read the next item from the heap.
+	item := heap.Pop(&itr.heap).(*{{.name}}SortedMergeHeapItem)
+
+	// Copy the point for return.
+	p := item.point.Clone()
+
+	// Read the next item from the cursor. Push back to heap if one exists.
+	if item.point = item.itr.Next(); item.point != nil {
+		heap.Push(&itr.heap, item)
+	}
+
+	return p
+}
+
+// {{.name}}SortedMergeHeap represents a heap of {{.name}}SortedMergeHeapItems.
+type {{.name}}SortedMergeHeap []*{{.name}}SortedMergeHeapItem
+
+func (h {{.name}}SortedMergeHeap) Len() int      { return len(h) }
+func (h {{.name}}SortedMergeHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h {{.name}}SortedMergeHeap) Less(i, j int) bool {
+	x, y := h[i].point, h[j].point
+
+	if h[i].ascending {
+		if x.Name != y.Name {
+			return x.Name < y.Name
+		} else if !x.Tags.Equals(&y.Tags) {
+			return x.Tags.ID() < y.Tags.ID()
+		}
+		return x.Time < y.Time
+	}
+
+	if x.Name != y.Name {
+		return x.Name > y.Name
+	} else if !x.Tags.Equals(&y.Tags) {
+		return x.Tags.ID() > y.Tags.ID()
+	}
+	return x.Time > y.Time
+}
+
+func (h *{{.name}}SortedMergeHeap) Push(x interface{}) {
+	*h = append(*h, x.(*{{.name}}SortedMergeHeapItem))
+}
+
+func (h *{{.name}}SortedMergeHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	*h = old[0 : n-1]
+	return item
+}
+
+type {{.name}}SortedMergeHeapItem struct {
+	point     *{{.Name}}Point
+	itr       {{.Name}}Iterator
+	ascending bool
+}
+
+// {{.name}}LimitIterator represents an iterator that limits points per group.
+type {{.name}}LimitIterator struct {
+	input {{.Name}}Iterator
+	opt   IteratorOptions
+	n     int
+
+	prev struct {
+		name string
+		tags Tags
+	}
+}
+
+// new{{.Name}}LimitIterator returns a new instance of {{.name}}LimitIterator.
+func new{{.Name}}LimitIterator(input {{.Name}}Iterator, opt IteratorOptions) *{{.name}}LimitIterator {
+	return &{{.name}}LimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+// Close closes the underlying iterators.
+func (itr *{{.name}}LimitIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next point from the iterator.
+func (itr *{{.name}}LimitIterator) Next() *{{.Name}}Point {
+	for {
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Reset window and counter if a new window is encountered.
+		if p.Name != itr.prev.name || !p.Tags.Equals(&itr.prev.tags) {
+			itr.prev.name = p.Name
+			itr.prev.tags = p.Tags
+			itr.n = 0
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Read next point if not beyond the offset.
+		if itr.n <= itr.opt.Offset {
+			continue
+		}
+
+		// Read next point if we're beyond the limit.
+		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			// If there's no interval and no groups then simply exit.
+			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 {
+				return nil
+			}
+			continue
+		}
+
+		return p
+	}
+}
+
+type {{.name}}FillIterator struct {
+	input      *buf{{.Name}}Iterator
+	prev       *{{.Name}}Point
+	startTime  int64
+	endTime    int64
+	auxFields  []interface{}
+	done       bool
+	opt        IteratorOptions
+
+	window struct {
+		name string
+		tags Tags
+		time int64
+	}
+}
+
+func new{{.Name}}FillIterator(input {{.Name}}Iterator, expr Expr, opt IteratorOptions) *{{.name}}FillIterator {
+	if opt.Fill == NullFill {
+		if expr, ok := expr.(*Call); ok && expr.Name == "count" {
+			opt.Fill = NumberFill
+			opt.FillValue = {{.Zero}}
+		}
+	}
+
+	var startTime, endTime int64
+	if opt.Ascending {
+		startTime, _ = opt.Window(opt.StartTime)
+		_, endTime = opt.Window(opt.EndTime)
+	} else {
+		_, startTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.StartTime)
+	}
+
+	var auxFields []interface{}
+	if len(opt.Aux) > 0 {
+		auxFields = make([]interface{}, len(opt.Aux))
+	}
+
+	itr := &{{.name}}FillIterator{
+		input:      newBuf{{.Name}}Iterator(input),
+		startTime:  startTime,
+		endTime:    endTime,
+		auxFields:  auxFields,
+		opt:        opt,
+	}
+
+	p := itr.input.peek()
+	if p != nil {
+		itr.window.name, itr.window.tags = p.Name, p.Tags
+		itr.window.time = itr.startTime
+	} else {
+		itr.window.time = itr.endTime
+	}
+	return itr
+}
+
+func (itr *{{.name}}FillIterator) Close() error { return itr.input.Close() }
+
+func (itr *{{.name}}FillIterator) Next() *{{.Name}}Point {
+	p := itr.input.Next()
+
+	// Check if the next point is outside of our window or is nil.
+	for p == nil || p.Name != itr.window.name || p.Tags.ID() != itr.window.tags.ID() {
+		// If we are inside of an interval, unread the point and continue below to
+		// constructing a new point.
+		if itr.opt.Ascending {
+			if itr.window.time < itr.endTime {
+				itr.input.unread(p)
+				p = nil
+				break
+			}
+		} else {
+			if itr.window.time >= itr.endTime {
+				itr.input.unread(p)
+				p = nil
+				break
+			}
+		}
+
+		// We are *not* in a current interval. If there is no next point,
+		// we are at the end of all intervals.
+		if p == nil {
+			return nil
+		}
+
+		// Set the new interval.
+		itr.window.name, itr.window.tags = p.Name, p.Tags
+		itr.window.time = itr.startTime
+		itr.prev = nil
+		break
+	}
+
+	// Check if the point is our next expected point.
+	if p == nil || p.Time > itr.window.time {
+		if p != nil {
+			itr.input.unread(p)
+		}
+
+		p = &{{.Name}}Point{
+			Name: itr.window.name,
+			Tags: itr.window.tags,
+			Time: itr.window.time,
+			Aux:  itr.auxFields,
+		}
+
+		switch itr.opt.Fill {
+		case NullFill:
+			p.Nil = true
+		case NumberFill:
+			p.Value = castTo{{.Name}}(itr.opt.FillValue)
+		case PreviousFill:
+			if itr.prev != nil {
+				p.Value = itr.prev.Value
+				p.Nil = itr.prev.Nil
+			} else {
+				p.Nil = true
+			}
+		}
+	} else {
+		itr.prev = p
+	}
+
+	// Advance the expected time. Do not advance to a new window here
+	// as there may be lingering points with the same timestamp in the previous
+	// window.
+	if itr.opt.Ascending {
+		itr.window.time = p.Time + int64(itr.opt.Interval.Duration)
+	} else {
+		itr.window.time = p.Time - int64(itr.opt.Interval.Duration)
+	}
+	return p
+}
+
+// {{.name}}AuxIterator represents a {{.name}} implementation of AuxIterator.
+type {{.name}}AuxIterator struct {
+	input  *buf{{.Name}}Iterator
+	output chan *{{.Name}}Point
+	fields auxIteratorFields
+}
+
+func new{{.Name}}AuxIterator(input {{.Name}}Iterator, seriesKeys SeriesList, opt IteratorOptions) *{{.name}}AuxIterator {
+	return &{{.name}}AuxIterator{
+		input:  newBuf{{.Name}}Iterator(input),
+		output: make(chan *{{.Name}}Point, 1),
+		fields: newAuxIteratorFields(seriesKeys, opt),
+	}
+}
+
+func (itr *{{.name}}AuxIterator) Start()                        { go itr.stream() }
+func (itr *{{.name}}AuxIterator) Close() error                  { return itr.input.Close() }
+func (itr *{{.name}}AuxIterator) Next() *{{.Name}}Point         { return <-itr.output }
+func (itr *{{.name}}AuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
+
+func (itr *{{.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator, error) {
+	expr := opt.Expr
+	if expr == nil {
+		panic("unable to create an iterator with no expression from an aux iterator")
+	}
+
+	switch expr := expr.(type) {
+	case *VarRef:
+		return itr.Iterator(expr.Val), nil
+	default:
+		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
+	}
+}
+
+func (itr *{{.name}}AuxIterator) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
+	return nil, nil, errors.New("not implemented")
+}
+
+func (itr *{{.name}}AuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (itr *{{.name}}AuxIterator) stream() {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			break
+		}
+
+		// Send point to output and to each field iterator.
+		itr.output <- p
+		itr.fields.send(p)
+	}
+
+	close(itr.output)
+	itr.fields.close()
+}
+
+// {{.name}}ChanIterator represents a new instance of {{.name}}ChanIterator.
+type {{.name}}ChanIterator struct {
+	c    chan *{{.Name}}Point
+	once sync.Once
+}
+
+func (itr *{{.name}}ChanIterator) Close() error {
+	itr.once.Do(func() { close(itr.c) })
+	return nil
+}
+
+func (itr *{{.name}}ChanIterator) Next() *{{.Name}}Point { return <-itr.c }
+
+// {{.name}}ReduceIterator executes a reducer for every interval and buffers the result.
+type {{.name}}ReduceIterator struct {
+	input  *buf{{.Name}}Iterator
+	fn     {{.name}}ReduceFunc
+	opt    IteratorOptions
+	points []*{{.Name}}Point
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}ReduceIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *{{.name}}ReduceIterator) Next() *{{.Name}}Point {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *{{.name}}ReduceIterator) reduce() []*{{.Name}}Point {
+	// Calculate next window.
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	var reduceOptions = reduceOptions{
+		startTime: startTime,
+		endTime:   endTime,
+	}
+
+	// Create points by tags.
+	m := make(map[string]*{{.Name}}Point)
+	for {
+		// Read next point.
+		curr := itr.input.NextInWindow(startTime, endTime)
+		if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
+
+		// Pass previous and current points to reducer.
+		prev := m[id]
+		t, v, aux := itr.fn(prev, curr, &reduceOptions)
+		if t == ZeroTime {
+			continue
+		}
+
+		// If previous value didn't exist, create it and copy values.
+		if prev == nil {
+			prev = &{{.Name}}Point{Name: curr.Name, Tags: tags}
+			m[id] = prev
+		}
+		prev.Time = t
+		prev.Value = v
+		prev.Aux = aux
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	a := make([]*{{.Name}}Point, len(m))
+	for i, k := range keys {
+		a[i] = m[k]
+	}
+
+	// Set the time on each point to the beginning of the interval.
+	for _, p := range a {
+		p.Time = startTime
+	}
+
+	return a
+}
+
+// {{.name}}ReduceFunc is the function called by a {{.Name}}Point reducer.
+type {{.name}}ReduceFunc func(prev, curr *{{.Name}}Point, opt *reduceOptions) (t int64, v {{.Type}}, aux []interface{})
+
+// {{.name}}ReduceSliceIterator executes a reducer on all points in a window and buffers the result.
+type {{.name}}ReduceSliceIterator struct {
+	input  *buf{{.Name}}Iterator
+	fn     {{.name}}ReduceSliceFunc
+	opt    IteratorOptions
+	points []{{.Name}}Point
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}ReduceSliceIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *{{.name}}ReduceSliceIterator) Next() *{{.Name}}Point {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return &p
+}
+
+// reduce executes fn once for every point in the next window.
+// The previous value for the dimension is passed to fn.
+func (itr *{{.name}}ReduceSliceIterator) reduce() []{{.Name}}Point {
+	// Calculate next window.
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	var reduceOptions = reduceOptions{
+		startTime: startTime,
+		endTime:   endTime,
+	}
+
+	// Group points by name and tagset.
+	groups := make(map[string]struct {
+		name   string
+		tags   Tags
+		points []{{.Name}}Point
+	})
+	for {
+		// Read next point.
+		p := itr.input.NextInWindow(startTime, endTime)
+		if p == nil {
+			break
+		} else if p.Nil {
+			continue
+		}
+		tags := p.Tags.Subset(itr.opt.Dimensions)
+
+		// Append point to dimension.
+		id := p.Name + "\x00" + tags.ID()
+		g := groups[id]
+		g.name = p.Name
+		g.tags = tags
+		g.points = append(g.points, *p)
+		groups[id] = g
+	}
+
+	// Reduce each set into a set of values.
+	results := make(map[string][]{{.Name}}Point)
+	for key, g := range groups {
+		a := itr.fn(g.points, &reduceOptions)
+		if len(a) == 0 {
+			continue
+		}
+
+		// Update name and tags for each returned point.
+		for i := range a {
+			a[i].Name = g.name
+			a[i].Tags = g.tags
+		}
+		results[key] = a
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(results))
+	for k := range results {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	// Reverse order points within each key.
+	a := make([]{{.Name}}Point, 0, len(results))
+	for _, k := range keys {
+		for i := len(results[k]) - 1; i >= 0; i-- {
+			a = append(a, results[k][i])
+		}
+	}
+
+	return a
+}
+
+// {{.name}}ReduceSliceFunc is the function called by a {{.Name}}Point slice reducer.
+type {{.name}}ReduceSliceFunc func(a []{{.Name}}Point, opt *reduceOptions) []{{.Name}}Point
+
+// {{.name}}ReduceIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type {{.name}}TransformIterator struct {
+	input {{.Name}}Iterator
+	fn    {{.name}}TransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}TransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *{{.name}}TransformIterator) Next() *{{.Name}}Point {
+	p := itr.input.Next()
+	if p != nil {
+		p = itr.fn(p)
+	}
+	return p
+}
+
+// {{.name}}TransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type {{.name}}TransformFunc func(p *{{.Name}}Point) *{{.Name}}Point
+
+// {{.name}}ReduceIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type {{.name}}BoolTransformIterator struct {
+	input {{.Name}}Iterator
+	fn    {{.name}}BoolTransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}BoolTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *{{.name}}BoolTransformIterator) Next() *BooleanPoint {
+	p := itr.input.Next()
+	if p != nil {
+		return itr.fn(p)
+	}
+	return nil
+}
+
+// {{.name}}BoolTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type {{.name}}BoolTransformFunc func(p *{{.Name}}Point) *BooleanPoint
+
+// {{.name}}DedupeIterator only outputs unique points.
+// This differs from the DistinctIterator in that it compares all aux fields too.
+// This iterator is relatively inefficient and should only be used on small
+// datasets such as meta query results.
+type {{.name}}DedupeIterator struct {
+	input  {{.Name}}Iterator
+	m      map[string]struct{} // lookup of points already sent
+}
+
+// new{{.Name}}DedupeIterator returns a new instance of {{.name}}DedupeIterator.
+func new{{.Name}}DedupeIterator(input {{.Name}}Iterator) *{{.name}}DedupeIterator {
+	return &{{.name}}DedupeIterator{
+		input: input,
+		m: make(map[string]struct{}),
+	}
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *{{.name}}DedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *{{.name}}DedupeIterator) Next() *{{.Name}}Point {
+	for {
+		// Read next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Serialize to bytes to store in lookup.
+		buf, err := proto.Marshal(encode{{.Name}}Point(p))
+		if err != nil {
+			log.Println("error marshaling dedupe point:", err)
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		if _, ok := itr.m[string(buf)]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[string(buf)] = struct{}{}
+		return p
+	}
+}
+
+{{end}}

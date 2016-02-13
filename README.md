@@ -2,40 +2,32 @@
 
 ## An Open-Source, Distributed, Time Series Database
 
-> InfluxDB v0.9.0 is now out. Going forward, the 0.9.x series of releases will not make breaking API changes or breaking changes to the underlying data storage. However, 0.9.x clustering should be considered an alpha release.
-
 InfluxDB is an open source **distributed time series database** with
 **no external dependencies**. It's useful for recording metrics,
 events, and performing analytics.
 
 ## Features
 
-* Built-in [HTTP API](https://docs.influxdata.com/influxdb/v0.9/guides/writing_data/) so you don't have to write any server side code to get up and running.
+* Built-in [HTTP API](https://docs.influxdata.com/influxdb/v0.10/guides/writing_data/) so you don't have to write any server side code to get up and running.
 * Data can be tagged, allowing very flexible querying.
 * SQL-like query language.
-* Clustering is supported out of the box, so that you can scale horizontally to handle your data.
+* Clustering is supported out of the box, so that you can scale horizontally to handle your data. **Clustering is currently in an alpha state.**
 * Simple to install and manage, and fast to get data in and out.
 * It aims to answer queries in real-time. That means every data point is
   indexed as it comes in and is immediately available in queries that
   should return in < 100ms.
 
-## Getting Started
-*The following directions apply only to the 0.9.x series or building from the source on master.*
+## Installation
 
-### Building
+We recommend installing InfluxDB using one of the [pre-built packages](https://influxdata.com/downloads/#influxdb). Then start InfluxDB using:
 
-You don't need to build the project to use it - you can use any of our
-[pre-built packages](https://influxdata.com/downloads/) to install InfluxDB. That's
-the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build.
-For those adventurous enough, you can
-[follow along on our docs](http://github.com/influxdata/influxdb/blob/master/CONTRIBUTING.md).
-
-### Starting InfluxDB
 * `service influxdb start` if you have installed InfluxDB using an official Debian or RPM package.
 * `systemctl start influxdb` if you have installed InfluxDB using an official Debian or RPM package, and are running a distro with `systemd`. For example, Ubuntu 15 or later.
 * `$GOPATH/bin/influxd` if you have built InfluxDB from source.
 
-### Creating your first database
+## Getting Started
+
+### Create your first database
 
 ```
 curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
@@ -65,12 +57,16 @@ curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" \
 --data-urlencode "q=SELECT mean(load) FROM cpu WHERE region='uswest'"
 ```
 
-## Helpful Links
+## Documentation
 
-* Understand the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/v0.9/introduction/overview/).
-* Follow the [getting started guide](https://docs.influxdata.com/influxdb/v0.9/introduction/getting_started/) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
-* See the  [HTTP API documentation to start writing a library for your favorite language](https://docs.influxdata.com/influxdb/v0.9/guides/writing_data/).
+* Read more about the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/v0.10/).
+* Follow the [getting started guide](https://docs.influxdata.com/influxdb/v0.10/introduction/getting_started/) to learn the basics in just a few minutes.
+* Learn more about [InfluxDB's key concepts](https://docs.influxdata.com/influxdb/v0.10/guides/writing_data/).
+
+## Contributing
+
+If you're feeling adventurous and want to contribute to InfluxDB, see our [contributing doc](https://github.com/influxdata/influxdb/blob/master/CONTRIBUTING.md) for info on how to make feature requests, build from source, and run tests.
 
 ## Looking for Support?
 
-InfluxDB has technical support subscriptions to help your project succeed. We offer Developer Support for organizations in active development and Production Support for companies requiring the best response times and SLAs on technical fixes. Visit our [support page](https://influxdata.com/services/) to learn which subscription is right for you, or contact sales@influxdb.com for a quote.
+InfluxDB offers a number of services to help your project succeed. We offer Developer Support for organizations in active development, Managed Hosting to make it easy to move into production, and Enterprise Support for companies requiring the best response times, SLAs, and technical fixes. Visit our [support page](https://influxdata.com/services/) or contact [sales@influxdb.com](mailto:sales@influxdb.com) to learn how we can best help you succeed.
