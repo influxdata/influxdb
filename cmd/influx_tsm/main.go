@@ -42,7 +42,7 @@ The backed-up files must be removed manually, generally after starting up the
 node again to make sure all of data has been converted correctly.
 
 To restore a backup:
-  Shut down the node, remove the converted directory, and 
+  Shut down the node, remove the converted directory, and
   copy the backed-up directory to the original location.`
 
 type options struct {
@@ -54,7 +54,6 @@ type options struct {
 	Parallel       bool
 	SkipBackup     bool
 	UpdateInterval time.Duration
-	// Quiet          bool
 }
 
 func (o *options) Parse() error {
@@ -67,7 +66,6 @@ func (o *options) Parse() error {
 	fs.BoolVar(&opts.Parallel, "parallel", false, "Perform parallel conversion. (up to GOMAXPROCS shards at once)")
 	fs.BoolVar(&opts.SkipBackup, "nobackup", false, "Disable database backups. Not recommended.")
 	fs.StringVar(&opts.BackupPath, "backup", "", "The location to backup up the current databases. Must not be within the data directory.")
-	// fs.BoolVar(&opts.Quiet, "quiet", false, "Suppresses the regular status updates.")
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
 	fs.Usage = func() {
