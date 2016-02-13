@@ -2,11 +2,9 @@ package tsdb
 
 import (
 	"container/heap"
-	"encoding/binary"
-	"sort"
-	"strings"
+	"math"
 
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // EOF represents a "not found" key returned by a Cursor.
@@ -146,258 +144,176 @@ type cursorHeapItem struct {
 	priority int
 }
 
-// TagSetCursor is virtual cursor that iterates over multiple TagsCursors.
-type TagSetCursor struct {
-	measurement   string            // Measurement name
-	currentFields interface{}       // the current decoded and selected fields for the cursor in play
-	tags          map[string]string // Tag key-value pairs
-	cursors       []*TagsCursor     // Underlying tags cursors.
-	currentTags   map[string]string // the current tags for the underlying series cursor in play
-
-	SelectFields []string // fields to be selected
-
-	// Min-heap of cursors ordered by timestamp.
-	heap heap.Interface
-
-	// Memoize the cursor's tagset-based key.
-	memokey string
-}
-
-// NewTagSetCursor returns a instance of TagSetCursor.
-func NewTagSetCursor(m string, t map[string]string, c []*TagsCursor, ascending bool) *TagSetCursor {
-	return &TagSetCursor{
-		measurement: m,
-		tags:        t,
-		cursors:     c,
-		heap:        newPointHeap(ascending),
-	}
-}
-
-func (tsc *TagSetCursor) key() string {
-	if tsc.memokey == "" {
-		if len(tsc.tags) == 0 {
-			tsc.memokey = tsc.measurement
-		} else {
-			tsc.memokey = strings.Join([]string{tsc.measurement, string(MarshalTags(tsc.tags))}, "|")
-		}
-	}
-	return tsc.memokey
-}
-
-func (tsc *TagSetCursor) Init(seek int64) {
-	// Prime the buffers.
-	for i := 0; i < len(tsc.cursors); i++ {
-		k, v := tsc.cursors[i].SeekTo(seek)
-		if k == EOF {
-			k, v = tsc.cursors[i].Next()
-		}
-		if k == EOF {
-			continue
-		}
-
-		heap.Push(tsc.heap, &pointHeapItem{
-			timestamp: k,
-			value:     v,
-			cursor:    tsc.cursors[i],
-		})
-	}
-}
-
-// Next returns the next matching series-key, timestamp byte slice and meta tags for the tagset. Filtering
-// is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *TagSetCursor) Next(tmin, tmax int64) (int64, interface{}) {
-	for {
-		// If we're out of points, we're done.
-		if tsc.heap.Len() == 0 {
-			return -1, nil
-		}
-
-		// Grab the next point with the lowest timestamp.
-		p := heap.Pop(tsc.heap).(*pointHeapItem)
-
-		// We're done if the point is outside the query's time range [tmin:tmax).
-		if p.timestamp != tmin && (p.timestamp < tmin || p.timestamp > tmax) {
-			return -1, nil
-		}
-
-		// Save timestamp & value.
-		timestamp, value := p.timestamp, p.value
-
-		// Keep track of all fields for series cursor so we can
-		// respond with them if asked
-		tsc.currentFields = value
-
-		// Keep track of the current tags for the series cursor so we can
-		// respond with them if asked
-		tsc.currentTags = p.cursor.tags
-
-		// Advance the cursor.
-		if nextKey, nextVal := p.cursor.Next(); nextKey != -1 {
-			*p = pointHeapItem{
-				timestamp: nextKey,
-				value:     nextVal,
-				cursor:    p.cursor,
-			}
-			heap.Push(tsc.heap, p)
-		}
-
-		// Value didn't match, look for the next one.
-		if value == nil {
-			continue
-		}
-
-		// Filter value.
-		if p.cursor.filter != nil {
-			// Convert value to a map for filter evaluation.
-			m, ok := value.(map[string]interface{})
-			if !ok {
-				m = map[string]interface{}{tsc.SelectFields[0]: value}
-			}
-
-			// If filter fails then skip to the next value.
-			if !influxql.EvalBool(p.cursor.filter, m) {
-				continue
-			}
-		}
-
-		// Filter out single field, if specified.
-		if len(tsc.SelectFields) == 1 {
-			if m, ok := value.(map[string]interface{}); ok {
-				value = m[tsc.SelectFields[0]]
-			}
-			if value == nil {
-				continue
-			}
-		}
-
-		return timestamp, value
-	}
-}
-
-// Fields returns the current fields of the current cursor
-func (tsc *TagSetCursor) Fields() map[string]interface{} {
-	switch v := tsc.currentFields.(type) {
-	case map[string]interface{}:
-		return v
-	default:
-		return map[string]interface{}{"": v}
-	}
-}
-
-// Tags returns the current tags of the current cursor
-// if there is no current currsor, it returns nil
-func (tsc *TagSetCursor) Tags() map[string]string { return tsc.currentTags }
-
-type pointHeapItem struct {
-	timestamp int64
-	value     interface{}
-	cursor    *TagsCursor // cursor whence pointHeapItem came
-}
-
-type pointHeap []*pointHeapItem
-type pointHeapReverse struct {
-	pointHeap
-}
-
-func newPointHeap(ascending bool) heap.Interface {
-	q := make(pointHeap, 0)
-	heap.Init(&q)
-	if ascending {
-		return &q
-	} else {
-		return &pointHeapReverse{q}
-	}
-}
-
-func (pq *pointHeapReverse) Less(i, j int) bool {
-	return pq.pointHeap[i].timestamp > pq.pointHeap[j].timestamp
-}
-
-func (pq pointHeap) Len() int { return len(pq) }
-
-func (pq pointHeap) Less(i, j int) bool {
-	// We want a min-heap (points in chronological order), so use less than.
-	return pq[i].timestamp < pq[j].timestamp
-}
-
-func (pq pointHeap) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
-
-func (pq *pointHeap) Push(x interface{}) {
-	item := x.(*pointHeapItem)
-	*pq = append(*pq, item)
-}
-
-func (pq *pointHeap) Pop() interface{} {
-	old := *pq
-	n := len(old)
-	item := old[n-1]
-	*pq = old[0 : n-1]
-	return item
-}
-
-// TagsCursor is a cursor with attached tags and filter.
-type TagsCursor struct {
-	cursor Cursor
-	filter influxql.Expr
-	tags   map[string]string
-
-	seeked bool
-	buf    struct {
+// bufCursor represents a buffered cursor that is initialized at a time.
+// This cursor does not allow seeking after initial seek.
+type bufCursor struct {
+	cur Cursor
+	buf *struct {
 		key   int64
 		value interface{}
 	}
 }
 
-// NewTagsCursor returns a new instance of a series cursor.
-func NewTagsCursor(c Cursor, filter influxql.Expr, tags map[string]string) *TagsCursor {
-	cur := &TagsCursor{
-		cursor: c,
-		filter: filter,
+// newBufCursor returns a new instance of bufCursor that wraps cur.
+func newBufCursor(cur Cursor, seek int64) *bufCursor {
+	c := &bufCursor{cur: cur}
+
+	// Limit min seek to zero.
+	if seek < 0 {
+		seek = 0
+	}
+
+	// Fill buffer, if seekable.
+	k, v := cur.SeekTo(seek)
+	if k != EOF {
+		c.buf = &struct {
+			key   int64
+			value interface{}
+		}{k, v}
+	}
+
+	return c
+}
+
+// SeekTo panics if called. Cursor can only be seeked on initialization.
+func (c *bufCursor) SeekTo(seek int64) (key int64, value interface{}) { panic("unseekable") }
+
+// Next returns the next key & value from the underlying cursor.
+func (c *bufCursor) Next() (key int64, value interface{}) {
+	if c.buf != nil {
+		key, value = c.buf.key, c.buf.value
+		c.buf = nil
+		return
+	}
+	return c.cur.Next()
+}
+
+// Ascending returns true if the cursor traverses in ascending order.
+func (c *bufCursor) Ascending() bool { return c.cur.Ascending() }
+
+// FloatCursorIterator represents a wrapper for Cursor to produce an influxql.FloatIterator.
+type FloatCursorIterator struct {
+	cursor *bufCursor
+	opt    influxql.IteratorOptions
+	ref    *influxql.VarRef
+	tags   influxql.Tags
+	point  influxql.FloatPoint // reuseable point to emit
+}
+
+// NewFloatCursorIterator returns a new instance of FloatCursorIterator.
+func NewFloatCursorIterator(name string, tagMap map[string]string, cur Cursor, opt influxql.IteratorOptions) *FloatCursorIterator {
+	// Extract variable reference if available.
+	var ref *influxql.VarRef
+	if opt.Expr != nil {
+		ref = opt.Expr.(*influxql.VarRef)
+	}
+
+	// Only allocate aux values if we have any requested.
+	var aux []interface{}
+	if len(opt.Aux) > 0 {
+		aux = make([]interface{}, len(opt.Aux))
+	}
+
+	// Convert to influxql tags.
+	tags := influxql.NewTags(tagMap)
+
+	// Determine initial seek position based on sort direction.
+	seek := opt.StartTime
+	if !opt.Ascending {
+		seek = opt.EndTime
+	}
+
+	return &FloatCursorIterator{
+		point: influxql.FloatPoint{
+			Name: name,
+			Tags: tags.Subset(opt.Dimensions),
+			Aux:  aux,
+		},
+		opt:    opt,
+		ref:    ref,
 		tags:   tags,
+		cursor: newBufCursor(cur, seek),
 	}
-	cur.buf.key = EOF
-	return cur
 }
 
-// Seeked returns true if SeekTo() has been called.
-func (c *TagsCursor) Seeked() bool { return c.seeked }
+// Close closes the iterator.
+func (itr *FloatCursorIterator) Close() error { return nil }
 
-// Seek positions returning the key and value at that key.
-func (c *TagsCursor) SeekTo(seek int64) (int64, interface{}) {
-	c.seeked = true
-	return c.cursor.SeekTo(seek)
-}
+// Next returns the next point from the cursor.
+func (itr *FloatCursorIterator) Next() *influxql.FloatPoint {
+	for {
+		// Read next key/value and emit nil if at the end.
+		timestamp, value := itr.cursor.Next()
+		if timestamp == EOF {
+			return nil
+		} else if itr.opt.Ascending && timestamp > itr.opt.EndTime {
+			return nil
+		} else if !itr.opt.Ascending && timestamp < itr.opt.StartTime {
+			return nil
+		}
 
-// Next returns the next timestamp and value from the cursor.
-func (c *TagsCursor) Next() (int64, interface{}) {
-	if c.buf.key != EOF {
-		key, value := c.buf.key, c.buf.value
-		c.buf.key, c.buf.value = EOF, nil
-		return key, value
+		// Set timestamp on point.
+		itr.point.Time = timestamp
+
+		// Retrieve tags key/value map.
+		tags := itr.tags.KeyValues()
+
+		// If value is a map then extract all the fields.
+		if m, ok := value.(map[string]interface{}); ok {
+			// If filter fails then skip to the next value.
+			if itr.opt.Condition != nil && !influxql.EvalBool(itr.opt.Condition, m) {
+				continue
+			}
+
+			if itr.ref != nil {
+				fv, ok := m[itr.ref.Val].(float64)
+				if !ok {
+					continue // read next point
+				}
+				itr.point.Value = fv
+			} else {
+				itr.point.Value = math.NaN()
+			}
+
+			// Read all auxilary fields.
+			for i, name := range itr.opt.Aux {
+				if v, ok := m[name]; ok {
+					itr.point.Aux[i] = v
+				} else if s, ok := tags[name]; ok {
+					itr.point.Aux[i] = s
+				} else {
+					itr.point.Aux[i] = nil
+				}
+			}
+
+			return &itr.point
+		}
+
+		// Otherwise expect value to be of an appropriate type.
+		if itr.ref != nil {
+			// If filter fails then skip to the next value.
+			if itr.opt.Condition != nil && !influxql.EvalBool(itr.opt.Condition, map[string]interface{}{itr.ref.Val: value}) {
+				continue
+			}
+
+			fv, ok := value.(float64)
+			if !ok {
+				continue // read next point
+			}
+			itr.point.Value = fv
+		} else {
+			itr.point.Value = math.NaN()
+		}
+
+		// Read all auxilary fields.
+		for i, name := range itr.opt.Aux {
+			if tagValue, ok := tags[name]; ok {
+				itr.point.Aux[i] = tagValue
+			} else {
+				itr.point.Aux[i] = value
+			}
+		}
+
+		return &itr.point
 	}
-	return c.cursor.Next()
 }
-
-// Unread pushes a timestamp and value back onto the cursor buffer.
-func (c *TagsCursor) Unread(key int64, value interface{}) {
-	c.buf.key, c.buf.value = key, value
-}
-
-// TagSetCursors represents a sortable slice of TagSetCursors.
-type TagSetCursors []*TagSetCursor
-
-func (a TagSetCursors) Len() int           { return len(a) }
-func (a TagSetCursors) Less(i, j int) bool { return a[i].key() < a[j].key() }
-func (a TagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-func (a TagSetCursors) Keys() []string {
-	keys := []string{}
-	for i := range a {
-		keys = append(keys, a[i].key())
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// btou64 converts an 8-byte slice into an uint64.
-func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }

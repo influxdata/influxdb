@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Test comparing SeriesIDs for equality.
 func Test_SeriesIDs_Equals(t *testing.T) {
-	ids1 := tsdb.SeriesIDs{1, 2, 3}
-	ids2 := tsdb.SeriesIDs{1, 2, 3}
-	ids3 := tsdb.SeriesIDs{4, 5, 6}
+	ids1 := tsdb.SeriesIDs([]uint64{1, 2, 3})
+	ids2 := tsdb.SeriesIDs([]uint64{1, 2, 3})
+	ids3 := tsdb.SeriesIDs([]uint64{4, 5, 6})
 
 	if !ids1.Equals(ids2) {
 		t.Fatal("expected ids1 == ids2")
@@ -25,9 +25,9 @@ func Test_SeriesIDs_Equals(t *testing.T) {
 // Test intersecting sets of SeriesIDs.
 func Test_SeriesIDs_Intersect(t *testing.T) {
 	// Test swaping l & r, all branches of if-else, and exit loop when 'j < len(r)'
-	ids1 := tsdb.SeriesIDs{1, 3, 4, 5, 6}
-	ids2 := tsdb.SeriesIDs{1, 2, 3, 7}
-	exp := tsdb.SeriesIDs{1, 3}
+	ids1 := tsdb.SeriesIDs([]uint64{1, 3, 4, 5, 6})
+	ids2 := tsdb.SeriesIDs([]uint64{1, 2, 3, 7})
+	exp := tsdb.SeriesIDs([]uint64{1, 3})
 	got := ids1.Intersect(ids2)
 
 	if !exp.Equals(got) {
@@ -35,9 +35,9 @@ func Test_SeriesIDs_Intersect(t *testing.T) {
 	}
 
 	// Test exit for loop when 'i < len(l)'
-	ids1 = tsdb.SeriesIDs{1}
-	ids2 = tsdb.SeriesIDs{1, 2}
-	exp = tsdb.SeriesIDs{1}
+	ids1 = tsdb.SeriesIDs([]uint64{1})
+	ids2 = tsdb.SeriesIDs([]uint64{1, 2})
+	exp = tsdb.SeriesIDs([]uint64{1})
 	got = ids1.Intersect(ids2)
 
 	if !exp.Equals(got) {
@@ -48,9 +48,9 @@ func Test_SeriesIDs_Intersect(t *testing.T) {
 // Test union sets of SeriesIDs.
 func Test_SeriesIDs_Union(t *testing.T) {
 	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
-	ids1 := tsdb.SeriesIDs{1, 2, 3, 7}
-	ids2 := tsdb.SeriesIDs{1, 3, 4, 5, 6}
-	exp := tsdb.SeriesIDs{1, 2, 3, 4, 5, 6, 7}
+	ids1 := tsdb.SeriesIDs([]uint64{1, 2, 3, 7})
+	ids2 := tsdb.SeriesIDs([]uint64{1, 3, 4, 5, 6})
+	exp := tsdb.SeriesIDs([]uint64{1, 2, 3, 4, 5, 6, 7})
 	got := ids1.Union(ids2)
 
 	if !exp.Equals(got) {
@@ -58,9 +58,9 @@ func Test_SeriesIDs_Union(t *testing.T) {
 	}
 
 	// Test exit because of 'i < len(l)' and append remainder from right.
-	ids1 = tsdb.SeriesIDs{1}
-	ids2 = tsdb.SeriesIDs{1, 2}
-	exp = tsdb.SeriesIDs{1, 2}
+	ids1 = tsdb.SeriesIDs([]uint64{1})
+	ids2 = tsdb.SeriesIDs([]uint64{1, 2})
+	exp = tsdb.SeriesIDs([]uint64{1, 2})
 	got = ids1.Union(ids2)
 
 	if !exp.Equals(got) {
@@ -71,9 +71,9 @@ func Test_SeriesIDs_Union(t *testing.T) {
 // Test removing one set of SeriesIDs from another.
 func Test_SeriesIDs_Reject(t *testing.T) {
 	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
-	ids1 := tsdb.SeriesIDs{1, 2, 3, 7}
-	ids2 := tsdb.SeriesIDs{1, 3, 4, 5, 6}
-	exp := tsdb.SeriesIDs{2, 7}
+	ids1 := tsdb.SeriesIDs([]uint64{1, 2, 3, 7})
+	ids2 := tsdb.SeriesIDs([]uint64{1, 3, 4, 5, 6})
+	exp := tsdb.SeriesIDs([]uint64{2, 7})
 	got := ids1.Reject(ids2)
 
 	if !exp.Equals(got) {
@@ -81,8 +81,8 @@ func Test_SeriesIDs_Reject(t *testing.T) {
 	}
 
 	// Test exit because of 'i < len(l)'.
-	ids1 = tsdb.SeriesIDs{1}
-	ids2 = tsdb.SeriesIDs{1, 2}
+	ids1 = tsdb.SeriesIDs([]uint64{1})
+	ids2 = tsdb.SeriesIDs([]uint64{1, 2})
 	exp = tsdb.SeriesIDs{}
 	got = ids1.Reject(ids2)
 

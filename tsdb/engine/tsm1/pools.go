@@ -5,8 +5,8 @@ import "sync"
 var (
 	bufPool          sync.Pool
 	float64ValuePool sync.Pool
-	int64ValuePool   sync.Pool
-	boolValuePool    sync.Pool
+	integerValuePool sync.Pool
+	booleanValuePool sync.Pool
 	stringValuePool  sync.Pool
 )
 
@@ -55,9 +55,9 @@ func putFloat64Values(buf []Value) {
 }
 
 // getBuf returns a buffer with length size from the buffer pool.
-func getInt64Values(size int) []Value {
+func getIntegerValues(size int) []Value {
 	var buf []Value
-	x := int64ValuePool.Get()
+	x := integerValuePool.Get()
 	if x == nil {
 		buf = make([]Value, size)
 	} else {
@@ -69,21 +69,21 @@ func getInt64Values(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &Int64Value{}
+			buf[i] = &IntegerValue{}
 		}
 	}
 	return buf[:size]
 }
 
 // putBuf returns a buffer to the pool.
-func putInt64Values(buf []Value) {
-	int64ValuePool.Put(buf)
+func putIntegerValues(buf []Value) {
+	integerValuePool.Put(buf)
 }
 
 // getBuf returns a buffer with length size from the buffer pool.
-func getBoolValues(size int) []Value {
+func getBooleanValues(size int) []Value {
 	var buf []Value
-	x := boolValuePool.Get()
+	x := booleanValuePool.Get()
 	if x == nil {
 		buf = make([]Value, size)
 	} else {
@@ -95,7 +95,7 @@ func getBoolValues(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &BoolValue{}
+			buf[i] = &BooleanValue{}
 		}
 	}
 	return buf[:size]
@@ -128,20 +128,20 @@ func getStringValues(size int) []Value {
 }
 
 // putBuf returns a buffer to the pool.
-func putBoolValues(buf []Value) {
-	boolValuePool.Put(buf)
+func putBooleanValues(buf []Value) {
+	booleanValuePool.Put(buf)
 }
 func putValue(buf []Value) {
 	if len(buf) > 0 {
 		switch buf[0].(type) {
 		case *FloatValue:
 			putFloat64Values(buf)
-		case *Int64Value:
-			putInt64Values(buf)
-		case *BoolValue:
-			putBoolValues(buf)
+		case *IntegerValue:
+			putIntegerValues(buf)
+		case *BooleanValue:
+			putBooleanValues(buf)
 		case *StringValue:
-			putBoolValues(buf)
+			putStringValues(buf)
 		}
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/pkg/slices"
+	"github.com/influxdata/influxdb/pkg/slices"
 )
 
 // DataType represents the primitive data types available in InfluxQL.
@@ -23,10 +23,10 @@ const (
 	Float = 1
 	// Integer means the data type is a integer
 	Integer = 2
-	// Boolean means the data type is a boolean.
-	Boolean = 3
 	// String means the data type is a string of text.
-	String = 4
+	String = 3
+	// Boolean means the data type is a boolean.
+	Boolean = 4
 	// Time means the data type is a time.
 	Time = 5
 	// Duration means the data type is a duration of time.
@@ -40,10 +40,10 @@ func InspectDataType(v interface{}) DataType {
 		return Float
 	case int64, int32, int:
 		return Integer
-	case bool:
-		return Boolean
 	case string:
 		return String
+	case bool:
+		return Boolean
 	case time.Time:
 		return Time
 	case time.Duration:
@@ -53,16 +53,24 @@ func InspectDataType(v interface{}) DataType {
 	}
 }
 
+func InspectDataTypes(a []interface{}) []DataType {
+	dta := make([]DataType, len(a))
+	for i, v := range a {
+		dta[i] = InspectDataType(v)
+	}
+	return dta
+}
+
 func (d DataType) String() string {
 	switch d {
 	case Float:
 		return "float"
 	case Integer:
 		return "integer"
-	case Boolean:
-		return "boolean"
 	case String:
 		return "string"
+	case Boolean:
+		return "boolean"
 	case Time:
 		return "time"
 	case Duration:
@@ -250,6 +258,20 @@ func (*TimeLiteral) expr()     {}
 func (*VarRef) expr()          {}
 func (*Wildcard) expr()        {}
 
+// Literal represents a static literal.
+type Literal interface {
+	Expr
+	literal()
+}
+
+func (*BooleanLiteral) literal()  {}
+func (*DurationLiteral) literal() {}
+func (*nilLiteral) literal()      {}
+func (*NumberLiteral) literal()   {}
+func (*RegexLiteral) literal()    {}
+func (*StringLiteral) literal()   {}
+func (*TimeLiteral) literal()     {}
+
 // Source represents a source of data for a statement.
 type Source interface {
 	Node
@@ -260,6 +282,31 @@ func (*Measurement) source() {}
 
 // Sources represents a list of sources.
 type Sources []Source
+
+// Names returns a list of source names.
+func (a Sources) Names() []string {
+	names := make([]string, 0, len(a))
+	for _, s := range a {
+		switch s := s.(type) {
+		case *Measurement:
+			names = append(names, s.Name)
+		}
+	}
+	return names
+}
+
+// HasSystemSource returns true if any of the sources are internal, system sources.
+func (a Sources) HasSystemSource() bool {
+	for _, s := range a {
+		switch s := s.(type) {
+		case *Measurement:
+			if IsSystemName(s.Name) {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // String returns a string representation of a Sources array.
 func (a Sources) String() string {
@@ -275,6 +322,10 @@ func (a Sources) String() string {
 
 	return buf.String()
 }
+
+// IsSystemName returns true if name is an internal system name.
+// System names are prefixed with an underscore.
+func IsSystemName(name string) bool { return strings.HasPrefix(name, "_") }
 
 // SortField represents a field to sort results by.
 type SortField struct {
@@ -754,18 +805,12 @@ type SelectStatement struct {
 
 	// The value to fill empty aggregate buckets with, if any
 	FillValue interface{}
-}
 
-// SourceNames returns a list of source names.
-func (s *SelectStatement) SourceNames() []string {
-	a := make([]string, 0, len(s.Sources))
-	for _, src := range s.Sources {
-		switch src := src.(type) {
-		case *Measurement:
-			a = append(a, src.Name)
-		}
-	}
-	return a
+	// Removes the "time" column from the output.
+	OmitTime bool
+
+	// Removes duplicate rows from raw queries.
+	Dedupe bool
 }
 
 // HasDerivative returns true if one of the function calls in the statement is a
@@ -892,19 +937,40 @@ func cloneSource(s Source) Source {
 // RewriteWildcards returns the re-written form of the select statement. Any wildcard query
 // fields are replaced with the supplied fields, and any wildcard GROUP BY fields are replaced
 // with the supplied dimensions.
-func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions) *SelectStatement {
+func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement, error) {
+	// Ignore if there are no wildcards.
+	hasFieldWildcard := s.HasFieldWildcard()
+	hasDimensionWildcard := s.HasDimensionWildcard()
+	if !hasFieldWildcard && !hasDimensionWildcard {
+		return s, nil
+	}
+
+	// Retrieve a list of unqiue field and dimensions.
+	fieldSet, dimensionSet, err := ic.FieldDimensions(s.Sources)
+	if err != nil {
+		return s, err
+	}
+
+	// If there are no dimension wildcards then merge dimensions to fields.
+	if !hasDimensionWildcard {
+		for k := range dimensionSet {
+			fieldSet[k] = struct{}{}
+		}
+		dimensionSet = nil
+	}
+	fields := stringSetSlice(fieldSet)
+	dimensions := stringSetSlice(dimensionSet)
+
 	other := s.Clone()
-	selectWildcard, groupWildcard := false, false
 
 	// Rewrite all wildcard query fields
 	rwFields := make(Fields, 0, len(s.Fields))
 	for _, f := range s.Fields {
 		switch f.Expr.(type) {
 		case *Wildcard:
-			// Sort wildcard fields for consistent output
-			sort.Sort(fields)
-			rwFields = append(rwFields, fields...)
-			selectWildcard = true
+			for _, name := range fields {
+				rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+			}
 		default:
 			rwFields = append(rwFields, f)
 		}
@@ -916,28 +982,52 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	for _, d := range s.Dimensions {
 		switch d.Expr.(type) {
 		case *Wildcard:
-			rwDimensions = append(rwDimensions, dimensions...)
-			groupWildcard = true
+			for _, name := range dimensions {
+				rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
+			}
 		default:
 			rwDimensions = append(rwDimensions, d)
 		}
 	}
 
-	if selectWildcard && !groupWildcard {
-		rwDimensions = append(rwDimensions, dimensions...)
+	if hasFieldWildcard && !hasDimensionWildcard {
+		for _, name := range dimensions {
+			rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
+		}
 	}
 	other.Dimensions = rwDimensions
 
-	return other
+	return other, nil
 }
 
 // RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly
 // This method assumes all validation has passed
 func (s *SelectStatement) RewriteDistinct() {
-	for i, f := range s.Fields {
-		if d, ok := f.Expr.(*Distinct); ok {
-			s.Fields[i].Expr = d.NewCall()
-			s.IsRawQuery = false
+	WalkFunc(s.Fields, func(n Node) {
+		switch n := n.(type) {
+		case *Field:
+			if expr, ok := n.Expr.(*Distinct); ok {
+				n.Expr = expr.NewCall()
+				s.IsRawQuery = false
+			}
+		case *Call:
+			for i, arg := range n.Args {
+				if arg, ok := arg.(*Distinct); ok {
+					n.Args[i] = arg.NewCall()
+				}
+			}
+		}
+	})
+}
+
+// RewriteTimeFields removes any "time" field references.
+func (s *SelectStatement) RewriteTimeFields() {
+	for i := 0; i < len(s.Fields); i++ {
+		switch expr := s.Fields[i].Expr.(type) {
+		case *VarRef:
+			if expr.Val == "time" {
+				s.Fields = append(s.Fields[:i], s.Fields[i+1:]...)
+			}
 		}
 	}
 }
@@ -945,8 +1035,11 @@ func (s *SelectStatement) RewriteDistinct() {
 // ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
 // while maintaining order of the field names
 func (s *SelectStatement) ColumnNames() []string {
-	// Always set the first column to be time, even if they didn't specify it
-	columnNames := []string{"time"}
+	columnNames := []string{}
+
+	if !s.OmitTime {
+		columnNames = append(columnNames, "time")
+	}
 
 	// First walk each field
 	for _, field := range s.Fields {
@@ -1613,22 +1706,22 @@ func (s *SelectStatement) NamesInDimension() []string {
 }
 
 // LimitTagSets returns a tag set list with SLIMIT and SOFFSET applied.
-func (s *SelectStatement) LimitTagSets(a []*TagSet) []*TagSet {
+func LimitTagSets(a []*TagSet, slimit, soffset int) []*TagSet {
 	// Ignore if no limit or offset is specified.
-	if s.SLimit == 0 && s.SOffset == 0 {
+	if slimit == 0 && soffset == 0 {
 		return a
 	}
 
 	// If offset is beyond the number of tag sets then return nil.
-	if s.SOffset > len(a) {
+	if soffset > len(a) {
 		return nil
 	}
 
 	// Clamp limit to the max number of tag sets.
-	if s.SOffset+s.SLimit > len(a) {
-		s.SLimit = len(a) - s.SOffset
+	if soffset+slimit > len(a) {
+		slimit = len(a) - soffset
 	}
-	return a[s.SOffset : s.SOffset+s.SLimit]
+	return a[soffset : soffset+slimit]
 }
 
 // walkNames will walk the Expr and return the database fields
@@ -1656,6 +1749,25 @@ func walkNames(exp Expr) []string {
 	}
 
 	return nil
+}
+
+// ExprNames returns a list of non-"time" field names from an expression.
+func ExprNames(expr Expr) []string {
+	m := make(map[string]struct{})
+	for _, name := range walkNames(expr) {
+		if name == "time" {
+			continue
+		}
+		m[name] = struct{}{}
+	}
+
+	a := make([]string, 0, len(m))
+	for k := range m {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+
+	return a
 }
 
 // FunctionCalls returns the Call objects from the query
@@ -2973,8 +3085,8 @@ func TimeRange(expr Expr) (min, max time.Time) {
 				if min.IsZero() || value.After(min) {
 					min = value
 				}
-				if max.IsZero() || value.Before(max) {
-					max = value
+				if max.IsZero() || value.Add(1*time.Nanosecond).Before(max) {
+					max = value.Add(1 * time.Nanosecond)
 				}
 			}
 		}
@@ -3619,4 +3731,25 @@ func (v *NowValuer) Value(key string) (interface{}, bool) {
 		return v.Now, true
 	}
 	return nil, false
+}
+
+// ContainsVarRef returns true if expr is a VarRef or contains one.
+func ContainsVarRef(expr Expr) bool {
+	var v containsVarRefVisitor
+	Walk(&v, expr)
+	return v.contains
+}
+
+type containsVarRefVisitor struct {
+	contains bool
+}
+
+func (v *containsVarRefVisitor) Visit(n Node) Visitor {
+	switch n.(type) {
+	case *Call:
+		return nil
+	case *VarRef:
+		v.contains = true
+	}
+	return v
 }

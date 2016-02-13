@@ -1,7 +1,6 @@
 package meta
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -73,7 +72,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
 
 	// Create peer storage.
-	r.peerStore = raft.NewJSONPeers(r.path, r.transport)
+	r.peerStore = &peerStore{}
 
 	// This server is joining the raft cluster for the first time if initializePeers are passed in
 	if len(initializePeers) > 0 {
@@ -88,17 +87,20 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	}
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	if len(peers) <= 1 {
+	if len(initializePeers) <= 1 {
 		config.EnableSingleNode = true
 
 		// Ensure we can always become the leader
 		config.DisableBootstrapAfterElect = false
 
-		// For single-node clusters, we can update the raft peers before we start the cluster
-		// just in case the hostname has changed.
-		if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
-			return err
+		// Make sure our peer address is here.  This happens with either a single node cluster
+		// or a node joining the cluster, as no one else has that information yet.
+		if !raft.PeerContained(peers, r.addr) {
+			if err := r.peerStore.SetPeers([]string{r.addr}); err != nil {
+				return err
+			}
 		}
+
 		peers = []string{r.addr}
 	}
 
@@ -107,7 +109,7 @@ func (r *raftState) open(s *store, ln net.Listener, initializePeers []string) er
 	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
 	// of the cluster before we can change them.
 	if len(peers) > 0 && !raft.PeerContained(peers, r.addr) {
-		r.logger.Printf("%s is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", r.addr, r.path)
+		r.logger.Printf("%s is not in the list of raft peers. Please ensure all nodes have the same meta nodes configured", r.addr)
 		return fmt.Errorf("peers out of sync: %v not in %v", r.addr, peers)
 	}
 
@@ -156,6 +158,9 @@ func (r *raftState) logLeaderChanges() {
 }
 
 func (r *raftState) close() error {
+	if r == nil {
+		return nil
+	}
 	if r.closing != nil {
 		close(r.closing)
 	}
@@ -214,15 +219,6 @@ func (r *raftState) snapshot() error {
 
 // addPeer adds addr to the list of peers in the cluster.
 func (r *raftState) addPeer(addr string) error {
-	// peers, err := r.peerStore.Peers()
-	// if err != nil {
-	// 	return err
-	// }
-	// peers = append(peers, addr)
-	// if fut := r.raft.SetPeers(peers); fut.Error() != nil {
-	// 	return fut.Error()
-	// }
-
 	peers, err := r.peerStore.Peers()
 	if err != nil {
 		return err
@@ -244,7 +240,7 @@ func (r *raftState) addPeer(addr string) error {
 func (r *raftState) removePeer(addr string) error {
 	// Only do this on the leader
 	if !r.isLeader() {
-		return errors.New("not the leader")
+		return raft.ErrNotLeader
 	}
 	if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
 		return fut.Error()
@@ -326,3 +322,22 @@ func (l *raftLayer) Accept() (net.Conn, error) { return l.ln.Accept() }
 
 // Close closes the layer.
 func (l *raftLayer) Close() error { return l.ln.Close() }
+
+// peerStore is an in-memory implementation of raft.PeerStore
+type peerStore struct {
+	mu    sync.RWMutex
+	peers []string
+}
+
+func (m *peerStore) Peers() ([]string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.peers, nil
+}
+
+func (m *peerStore) SetPeers(peers []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.peers = peers
+	return nil
+}

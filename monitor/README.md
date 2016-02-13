@@ -46,7 +46,7 @@ For example, if you have a component called `Service`, you can statistics like s
 ```
 import (
      "expvar"
-     "github.com/influxdb/influxdb"
+     "github.com/influxdata/influxdb"
 )
 .
 .

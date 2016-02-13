@@ -1,4 +1,4 @@
-package graphite
+package graphite // import "github.com/influxdata/influxdb/services/graphite"
 
 import (
 	"bufio"
@@ -12,11 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/monitor"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (

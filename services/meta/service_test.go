@@ -2,6 +2,7 @@ package meta_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -13,10 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/tcp"
-	"github.com/influxdb/influxdb/toml"
+	"github.com/influxdata/influxdb"
+
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tcp"
+	"github.com/influxdata/influxdb/toml"
 )
 
 func TestMetaService_CreateDatabase(t *testing.T) {
@@ -115,21 +118,21 @@ func TestMetaService_Databases(t *testing.T) {
 	// Create two databases.
 	db, err := c.CreateDatabase("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
 	db, err = c.CreateDatabase("db1")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db1" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
 	dbs, err := c.Databases()
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	}
 	if len(dbs) != 2 {
 		t.Fatalf("expected 2 databases but got %d", len(dbs))
@@ -184,7 +187,7 @@ func TestMetaService_CreateRetentionPolicy(t *testing.T) {
 
 	db, err := c.Database("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -237,7 +240,7 @@ func TestMetaService_SetDefaultRetentionPolicy(t *testing.T) {
 
 	db, err := c.Database("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -273,7 +276,7 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 
 	db, err := c.Database("db0")
 	if err != nil {
-		t.Fatalf(err.Error())
+		t.Fatal(err)
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
@@ -337,10 +340,7 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	u, err = c.Authenticate("fred", "supersecure")
-	if u == nil || err != nil {
-		t.Fatalf("failed to authenticate")
-	}
-	if u.Name != "fred" {
+	if u == nil || err != nil || u.Name != "fred" {
 		t.Fatalf("failed to authenticate")
 	}
 
@@ -369,10 +369,7 @@ func TestMetaService_CreateUser(t *testing.T) {
 
 	// Auth for new password should succeed.
 	u, err = c.Authenticate("fred", "moresupersecure")
-	if u == nil || err != nil {
-		t.Fatalf("failed to authenticate")
-	}
-	if u.Name != "fred" {
+	if u == nil || err != nil || u.Name != "fred" {
 		t.Fatalf("failed to authenticate")
 	}
 
@@ -411,22 +408,6 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 	if !u.Admin {
 		t.Fatalf("expected user to be an admin")
-	}
-
-	// Revoke privilidges from user
-	if res := c.ExecuteStatement(mustParseStatement("REVOKE ALL PRIVILEGES FROM wilma")); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	u, err = c.User("wilma")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if exp, got := "wilma", u.Name; exp != got {
-		t.Fatalf("unexpected user name: exp: %s got: %s", exp, got)
-	}
-	if u.Admin {
-		t.Fatalf("expected user not to be an admin")
 	}
 
 	// Revoke privilidges from user
@@ -566,7 +547,7 @@ func TestMetaService_ContinuousQueries(t *testing.T) {
 	}
 }
 
-func TestMetaService_Subscriptions(t *testing.T) {
+func TestMetaService_Subscriptions_Create(t *testing.T) {
 	t.Parallel()
 
 	d, s, c := newServiceAndClient()
@@ -598,36 +579,128 @@ func TestMetaService_Subscriptions(t *testing.T) {
 	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
 	if res.Err != nil {
 		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 1; got != exp {
+		t.Fatalf("unexpected response.\n\ngot: %d series\nexp: %d\n", got, exp)
+	}
+
+	// Create another subscription.
+	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// The subscriptions are correctly created.
+	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub1","ALL",["udp://example.com:6060"]]]}]}`
+	got := mustMarshalJSON(res)
+	if got != exp {
+		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", exp, got)
+	}
+}
+
+func TestMetaService_Subscriptions_Show(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// SHOW SUBSCRIPTIONS returns no subscriptions when there are none.
+	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 0; got != exp {
+		t.Fatalf("got %d series, expected %d", got, exp)
+	}
+
+	// Create a subscription.
+	if res = c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
+		t.Fatal(res.Err)
+	}
+
+	// SHOW SUBSCRIPTIONS returns the created subscription.
+	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 1; got != exp {
+		t.Fatalf("got %d series, expected %d", got, exp)
 	}
 
 	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]]]}]}`
 	got := mustMarshalJSON(res)
-	if exp != got {
-		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	if got != exp {
+		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", got, exp)
 	}
+}
 
-	// Create a couple more subscriptions
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
+func TestMetaService_Subscriptions_Drop(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a database to use
+	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
 		t.Fatal(res.Err)
 	}
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub2 ON db0."default" DESTINATIONS ALL 'udp://example.com:7070'`)); res.Err != nil {
+	db, err := c.Database("db0")
+	if err != nil {
+		t.Fatal(err)
+	} else if db.Name != "db0" {
+		t.Fatalf("db name wrong: %s", db.Name)
+	}
+
+	// DROP SUBSCRIPTION returns ErrSubscriptionNotFound when the
+	// subscription is unknown.
+	res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION foo ON db0."default"`))
+	if got, exp := res.Err, meta.ErrSubscriptionNotFound; got.Error() != exp.Error() {
+		t.Fatalf("got: %s, exp: %s", got, exp)
+	}
+
+	// Create a subscription.
+	if res = c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
 		t.Fatal(res.Err)
 	}
 
-	// Re-create a subscription
-	if res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub1 ON db0."default"`)); res.Err != nil {
-		t.Fatal(res.Err)
+	// DROP SUBSCRIPTION returns an influxdb.ErrDatabaseNotFound when
+	// the database is unknown.
+	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON foo."default"`))
+	if got, exp := res.Err, influxdb.ErrDatabaseNotFound("foo"); got.Error() != exp.Error() {
+		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
-	res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
-	if res.Err != nil {
-		t.Fatal(res.Err)
+	// DROP SUBSCRIPTION returns an influxdb.ErrRetentionPolicyNotFound
+	// when the retention policy is unknown.
+	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."foo_policy"`))
+	if got, exp := res.Err, influxdb.ErrRetentionPolicyNotFound("foo_policy"); got.Error() != exp.Error() {
+		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
-	exp = `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub2","ALL",["udp://example.com:7070"]]]}]}`
-	got = mustMarshalJSON(res)
-	if exp != got {
-		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	// DROP SUBSCRIPTION drops the subsciption if it can find it.
+	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."default"`))
+	if got := res.Err; got != nil {
+		t.Fatalf("got: %s, exp: %v", got, nil)
+	}
+
+	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if got, exp := len(res.Series), 0; got != exp {
+		t.Fatalf("got %d series, expected %d", got, exp)
 	}
 }
 
@@ -646,7 +719,7 @@ func TestMetaService_Shards(t *testing.T) {
 	}
 
 	if _, err := c.CreateDataNode(exp.Host, exp.TCPHost); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if _, err := c.CreateDatabase("db0"); err != nil {
@@ -700,51 +773,69 @@ func TestMetaService_Shards(t *testing.T) {
 func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	t.Parallel()
 
+	joinPeers := freePorts(4)
+	raftPeers := freePorts(4)
+
 	cfg1 := newConfig()
+	cfg1.HTTPBindAddress = joinPeers[0]
+	cfg1.BindAddress = raftPeers[0]
 	defer os.RemoveAll(cfg1.Dir)
 	cfg2 := newConfig()
+	cfg2.HTTPBindAddress = joinPeers[1]
+	cfg2.BindAddress = raftPeers[1]
 	defer os.RemoveAll(cfg2.Dir)
-	cfg3 := newConfig()
-	defer os.RemoveAll(cfg3.Dir)
-	cfg4 := newConfig()
-	defer os.RemoveAll(cfg4.Dir)
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+	cfg1.JoinPeers = joinPeers[0:2]
 	s1 := newService(cfg1)
-	if err := s1.Open(); err != nil {
-		t.Fatalf(err.Error())
-	}
-	defer s1.Close()
-
-	cfg2.JoinPeers = []string{s1.HTTPAddr()}
-	s2 := newService(cfg2)
-	if err := s2.Open(); err != nil {
-		t.Fatal(err.Error())
-	}
-	defer s2.Close()
-
-	func() {
-		cfg3.JoinPeers = []string{s2.HTTPAddr()}
-		s3 := newService(cfg3)
-		if err := s3.Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		defer s3.Close()
-
-		c1 := meta.NewClient([]string{s1.HTTPAddr()}, false)
-		if err := c1.Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		defer c1.Close()
-
-		metaNodes, _ := c1.MetaNodes()
-		if len(metaNodes) != 3 {
-			t.Fatalf("meta nodes wrong: %v", metaNodes)
+	go func() {
+		defer wg.Done()
+		if err := s1.Open(); err != nil {
+			t.Fatal(err)
 		}
 	}()
+	defer s1.Close()
+
+	cfg2.JoinPeers = joinPeers[0:2]
+	s2 := newService(cfg2)
+	go func() {
+		defer wg.Done()
+		if err := s2.Open(); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	defer s2.Close()
+	wg.Wait()
+
+	cfg3 := newConfig()
+	joinPeers[2] = freePort()
+	cfg3.HTTPBindAddress = joinPeers[2]
+	raftPeers[2] = freePort()
+	cfg3.BindAddress = raftPeers[2]
+	defer os.RemoveAll(cfg3.Dir)
+
+	cfg3.JoinPeers = joinPeers[0:3]
+	s3 := newService(cfg3)
+	if err := s3.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer s3.Close()
+
+	c1 := meta.NewClient(joinPeers[0:3], false)
+	if err := c1.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer c1.Close()
+
+	metaNodes, _ := c1.MetaNodes()
+	if len(metaNodes) != 3 {
+		t.Fatalf("meta nodes wrong: %v", metaNodes)
+	}
 
 	c := meta.NewClient([]string{s1.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
@@ -752,19 +843,29 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		t.Fatal(res.Err)
 	}
 
-	metaNodes, _ := c.MetaNodes()
+	metaNodes, _ = c.MetaNodes()
 	if len(metaNodes) != 2 {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 
-	cfg4.JoinPeers = []string{s1.HTTPAddr()}
+	cfg4 := newConfig()
+	cfg4.HTTPBindAddress = freePort()
+	cfg4.BindAddress = freePort()
+	cfg4.JoinPeers = []string{joinPeers[0], joinPeers[1], cfg4.HTTPBindAddress}
+	defer os.RemoveAll(cfg4.Dir)
 	s4 := newService(cfg4)
 	if err := s4.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer s4.Close()
 
-	metaNodes, _ = c.MetaNodes()
+	c2 := meta.NewClient(cfg4.JoinPeers, false)
+	if err := c2.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer c2.Close()
+
+	metaNodes, _ = c2.MetaNodes()
 	if len(metaNodes) != 3 {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
@@ -778,39 +879,48 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
+	joinPeers := freePorts(len(cfgs))
+
+	var wg sync.WaitGroup
+	wg.Add(len(cfgs))
+
 	for i, _ := range cfgs {
 		c := newConfig()
-
+		c.HTTPBindAddress = joinPeers[i]
+		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
-		if i > 0 {
-			c.JoinPeers = []string{srvs[0].HTTPAddr()}
-		}
 		srvs[i] = newService(c)
-		if err := srvs[i].Open(); err != nil {
-			t.Fatal(err.Error())
-		}
+		go func(srv *testService) {
+			defer wg.Done()
+			if err := srv.Open(); err != nil {
+				t.Fatal(err)
+			}
+		}(srvs[i])
 		defer srvs[i].Close()
 		defer os.RemoveAll(c.Dir)
 	}
+	wg.Wait()
 
-	c := meta.NewClient([]string{srvs[2].HTTPAddr()}, false)
-	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
-	}
-	defer c.Close()
+	for i := range cfgs {
+		c := meta.NewClient([]string{joinPeers[i]}, false)
+		if err := c.Open(); err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
 
-	metaNodes, _ := c.MetaNodes()
-	if len(metaNodes) != 3 {
-		t.Fatalf("meta nodes wrong: %v", metaNodes)
-	}
+		metaNodes, _ := c.MetaNodes()
+		if len(metaNodes) != 3 {
+			t.Fatalf("node %d - meta nodes wrong: %v", i, metaNodes)
+		}
 
-	if _, err := c.CreateDatabase("foo"); err != nil {
-		t.Fatal(err)
-	}
+		if _, err := c.CreateDatabase(fmt.Sprintf("foo%d", i)); err != nil {
+			t.Fatalf("node %d: %s", i, err)
+		}
 
-	if db, err := c.Database("foo"); db == nil || err != nil {
-		t.Fatalf("database foo wasn't created: %s", err.Error())
+		if db, err := c.Database(fmt.Sprintf("foo%d", i)); db == nil || err != nil {
+			t.Fatalf("node %d: database foo wasn't created: %s", i, err)
+		}
 	}
 }
 
@@ -821,28 +931,35 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
+	joinPeers := freePorts(len(cfgs))
+	raftPeers := freePorts(len(cfgs))
+
+	var swg sync.WaitGroup
+	swg.Add(len(cfgs))
 	for i, _ := range cfgs {
 		c := newConfig()
-
+		c.HTTPBindAddress = joinPeers[i]
+		c.BindAddress = raftPeers[i]
+		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
-		if i > 0 {
-			c.JoinPeers = []string{srvs[0].HTTPAddr()}
-		}
 		srvs[i] = newService(c)
-		if err := srvs[i].Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		c.HTTPBindAddress = srvs[i].HTTPAddr()
-		c.BindAddress = srvs[i].RaftAddr()
-		c.JoinPeers = nil
+		go func(i int, srv *testService) {
+			defer swg.Done()
+			if err := srv.Open(); err != nil {
+				t.Logf("opening server %d", i)
+				t.Fatal(err)
+			}
+		}(i, srvs[i])
+
 		defer srvs[i].Close()
 		defer os.RemoveAll(c.Dir)
 	}
+	swg.Wait()
 
-	c := meta.NewClient([]string{srvs[0].HTTPAddr(), srvs[1].HTTPAddr()}, false)
+	c := meta.NewClient(joinPeers, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
@@ -857,11 +974,11 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c.Database("foo"); db == nil || err != nil {
-		t.Fatalf("database foo wasn't created: %s", err.Error())
+		t.Fatalf("database foo wasn't created: %s", err)
 	}
 
 	if err := srvs[0].Close(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if _, err := c.CreateDatabase("bar"); err != nil {
@@ -869,25 +986,24 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c.Database("bar"); db == nil || err != nil {
-		t.Fatalf("database bar wasn't created: %s", err.Error())
+		t.Fatalf("database bar wasn't created: %s", err)
 	}
 
 	if err := srvs[1].Close(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	if err := srvs[2].Close(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	// give them a second to shut down
 	time.Sleep(time.Second)
 
-	// when we start back up they need to happen simultaneously, otherwise
-	// a leader won't get elected
+	// need to start them all at once so they can discover the bind addresses for raft
 	var wg sync.WaitGroup
+	wg.Add(len(cfgs))
 	for i, cfg := range cfgs {
 		srvs[i] = newService(cfg)
-		wg.Add(1)
 		go func(srv *testService) {
 			if err := srv.Open(); err != nil {
 				panic(err)
@@ -899,7 +1015,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	wg.Wait()
 	time.Sleep(time.Second)
 
-	c2 := meta.NewClient([]string{srvs[0].HTTPAddr()}, false)
+	c2 := meta.NewClient(joinPeers, false)
 	if err := c2.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -911,7 +1027,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c2.Database("bar"); db == nil || err != nil {
-		t.Fatalf("database bar wasn't created: %s", err.Error())
+		t.Fatalf("database bar wasn't created: %s", err)
 	}
 
 	if _, err := c2.CreateDatabase("asdf"); err != nil {
@@ -919,7 +1035,7 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 
 	if db, err := c2.Database("asdf"); db == nil || err != nil {
-		t.Fatalf("database bar wasn't created: %s", err.Error())
+		t.Fatalf("database bar wasn't created: %s", err)
 	}
 }
 
@@ -942,12 +1058,12 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 
 	c := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
 	if _, err := c.CreateDatabase("foo"); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	s.Close()
@@ -957,24 +1073,24 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 	cfg.HTTPBindAddress = "asdf" + ":" + strings.Split(s.HTTPAddr(), ":")[1]
 	s = newService(cfg)
 	if err := s.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer s.Close()
 
 	c2 := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c2.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c2.Close()
 
 	db, err := c2.Database("foo")
 	if db == nil || err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	nodes, err := c2.MetaNodes()
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	exp := []meta.NodeInfo{{ID: 1, Host: cfg.HTTPBindAddress, TCPHost: cfg.BindAddress}}
 
@@ -1000,7 +1116,7 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 
 	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(n, exp) {
@@ -1009,7 +1125,7 @@ func TestMetaService_CreateDataNode(t *testing.T) {
 
 	nodes, err := c.DataNodes()
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
@@ -1033,7 +1149,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 
 	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(n, exp) {
@@ -1042,7 +1158,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 
 	nodes, err := c.DataNodes()
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
@@ -1050,11 +1166,11 @@ func TestMetaService_DropDataNode(t *testing.T) {
 	}
 
 	if _, err := c.CreateDatabase("foo"); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	sg, err := c.CreateShardGroup("foo", "default", time.Now())
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{1}}) {
@@ -1062,7 +1178,7 @@ func TestMetaService_DropDataNode(t *testing.T) {
 	}
 
 	if res := c.ExecuteStatement(mustParseStatement("DROP DATA SERVER 1")); res.Err != nil {
-		t.Fatal(res.Err.Error())
+		t.Fatal(res.Err)
 	}
 
 	rp, _ := c.RetentionPolicy("foo", "default")
@@ -1084,7 +1200,7 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 
 	c := meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	id := c.ClusterID()
 	if id == 0 {
@@ -1094,62 +1210,68 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	s.Close()
 	s = newService(cfg)
 	if err := s.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	c = meta.NewClient([]string{s.HTTPAddr()}, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
-	id_after := c.ClusterID()
-	if id_after == 0 {
+	idAfter := c.ClusterID()
+	if idAfter == 0 {
 		t.Fatal("cluster ID can't be zero")
-	} else if id_after != id {
-		t.Fatalf("cluster id not the same: %d, %d", id_after, id)
+	} else if idAfter != id {
+		t.Fatalf("cluster id not the same: %d, %d", idAfter, id)
 	}
 }
 
 func TestMetaService_Ping(t *testing.T) {
 	cfgs := make([]*meta.Config, 3)
 	srvs := make([]*testService, 3)
+	joinPeers := freePorts(len(cfgs))
+
+	var swg sync.WaitGroup
+	swg.Add(len(cfgs))
+
 	for i, _ := range cfgs {
 		c := newConfig()
-
+		c.HTTPBindAddress = joinPeers[i]
+		c.JoinPeers = joinPeers
 		cfgs[i] = c
 
-		if i > 0 {
-			c.JoinPeers = []string{srvs[0].HTTPAddr()}
-		}
 		srvs[i] = newService(c)
-		if err := srvs[i].Open(); err != nil {
-			t.Fatal(err.Error())
-		}
-		c.HTTPBindAddress = srvs[i].HTTPAddr()
-		c.BindAddress = srvs[i].RaftAddr()
-		c.JoinPeers = nil
+		go func(i int, srv *testService) {
+			defer swg.Done()
+			if err := srv.Open(); err != nil {
+				t.Fatalf("error opening server %d: %s", i, err)
+			}
+		}(i, srvs[i])
 		defer srvs[i].Close()
 		defer os.RemoveAll(c.Dir)
 	}
+	swg.Wait()
 
-	c := meta.NewClient([]string{srvs[0].HTTPAddr(), srvs[1].HTTPAddr()}, false)
+	c := meta.NewClient(joinPeers, false)
 	if err := c.Open(); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 	defer c.Close()
 
 	if err := c.Ping(false); err != nil {
-		t.Fatal(err.Error())
+		t.Fatalf("ping false all failed: %s", err)
 	}
 	if err := c.Ping(true); err != nil {
-		t.Fatal(err.Error())
+		t.Fatalf("ping false true failed: %s", err)
 	}
 
 	srvs[1].Close()
+	// give the server time to close
+	time.Sleep(time.Second)
 
 	if err := c.Ping(false); err != nil {
-		t.Fatal(err.Error())
+		t.Fatalf("ping false some failed: %s", err)
 	}
 
 	if err := c.Ping(true); err == nil {
@@ -1169,12 +1291,12 @@ func TestMetaService_AcquireLease(t *testing.T) {
 
 	n1, err := c1.CreateDataNode("foo1:8180", "bar1:8281")
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	n2, err := c2.CreateDataNode("foo2:8180", "bar2:8281")
 	if err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	// Client 1 acquires a lease.  Should succeed.
@@ -1302,4 +1424,18 @@ func mustMarshalJSON(v interface{}) string {
 		panic(e)
 	}
 	return string(b)
+}
+
+func freePort() string {
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer l.Close()
+	return l.Addr().String()
+}
+
+func freePorts(i int) []string {
+	var ports []string
+	for j := 0; j < i; j++ {
+		ports = append(ports, freePort())
+	}
+	return ports
 }

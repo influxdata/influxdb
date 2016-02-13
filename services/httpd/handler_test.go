@@ -13,13 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/services/httpd"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services/httpd"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
@@ -440,7 +439,6 @@ type Handler struct {
 	*httpd.Handler
 	MetaClient    HandlerMetaStore
 	QueryExecutor HandlerQueryExecutor
-	TSDBStore     HandlerTSDBStore
 }
 
 // NewHandler returns a new instance of Handler.
@@ -495,15 +493,6 @@ func (e *HandlerQueryExecutor) Authorize(u *meta.UserInfo, q *influxql.Query, db
 
 func (e *HandlerQueryExecutor) ExecuteQuery(q *influxql.Query, db string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error) {
 	return e.ExecuteQueryFn(q, db, chunkSize, closing)
-}
-
-// HandlerTSDBStore is a mock implementation of Handler.TSDBStore
-type HandlerTSDBStore struct {
-	CreateMapperFn func(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
-}
-
-func (h *HandlerTSDBStore) CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error) {
-	return h.CreateMapperFn(shardID, query, chunkSize)
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.

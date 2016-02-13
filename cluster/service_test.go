@@ -5,12 +5,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/tcp"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tcp"
 )
 
 type metaClient struct {
@@ -25,12 +23,11 @@ func (m *metaClient) DataNode(nodeID uint64) (*meta.NodeInfo, error) {
 }
 
 type testService struct {
-	nodeID           uint64
-	ln               net.Listener
-	muxln            net.Listener
-	writeShardFunc   func(shardID uint64, points []models.Point) error
-	createShardFunc  func(database, policy string, shardID uint64) error
-	createMapperFunc func(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
+	nodeID          uint64
+	ln              net.Listener
+	muxln           net.Listener
+	writeShardFunc  func(shardID uint64, points []models.Point) error
+	createShardFunc func(database, policy string, shardID uint64) error
 }
 
 func newTestWriteService(f func(shardID uint64, points []models.Point) error) testService {
@@ -69,10 +66,6 @@ func (t testService) WriteToShard(shardID uint64, points []models.Point) error {
 
 func (t testService) CreateShard(database, policy string, shardID uint64) error {
 	return t.createShardFunc(database, policy, shardID)
-}
-
-func (t testService) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
-	return t.createMapperFunc(shardID, stmt, chunkSize)
 }
 
 func writeShardSuccess(shardID uint64, points []models.Point) error {

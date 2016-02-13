@@ -11,28 +11,28 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/monitor"
-	"github.com/influxdb/influxdb/services/admin"
-	"github.com/influxdb/influxdb/services/collectd"
-	"github.com/influxdb/influxdb/services/continuous_querier"
-	"github.com/influxdb/influxdb/services/copier"
-	"github.com/influxdb/influxdb/services/graphite"
-	"github.com/influxdb/influxdb/services/hh"
-	"github.com/influxdb/influxdb/services/httpd"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/services/opentsdb"
-	"github.com/influxdb/influxdb/services/precreator"
-	"github.com/influxdb/influxdb/services/retention"
-	"github.com/influxdb/influxdb/services/snapshotter"
-	"github.com/influxdb/influxdb/services/subscriber"
-	"github.com/influxdb/influxdb/services/udp"
-	"github.com/influxdb/influxdb/tcp"
-	"github.com/influxdb/influxdb/tsdb"
-	client "github.com/influxdb/usage-client/v1"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/services/admin"
+	"github.com/influxdata/influxdb/services/collectd"
+	"github.com/influxdata/influxdb/services/continuous_querier"
+	"github.com/influxdata/influxdb/services/copier"
+	"github.com/influxdata/influxdb/services/graphite"
+	"github.com/influxdata/influxdb/services/hh"
+	"github.com/influxdata/influxdb/services/httpd"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/opentsdb"
+	"github.com/influxdata/influxdb/services/precreator"
+	"github.com/influxdata/influxdb/services/retention"
+	"github.com/influxdata/influxdb/services/snapshotter"
+	"github.com/influxdata/influxdb/services/subscriber"
+	"github.com/influxdata/influxdb/services/udp"
+	"github.com/influxdata/influxdb/tcp"
+	"github.com/influxdata/influxdb/tsdb"
+	client "github.com/influxdata/usage-client/v1"
 	// Initialize the engine packages
-	_ "github.com/influxdb/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/engine"
 )
 
 // BuildInfo represents the build details for the server code.
@@ -60,13 +60,13 @@ type Server struct {
 	MetaClient  *meta.Client
 	MetaService *meta.Service
 
-	TSDBStore     *tsdb.Store
-	QueryExecutor *tsdb.QueryExecutor
-	PointsWriter  *cluster.PointsWriter
-	ShardWriter   *cluster.ShardWriter
-	ShardMapper   *cluster.ShardMapper
-	HintedHandoff *hh.Service
-	Subscriber    *subscriber.Service
+	TSDBStore       *tsdb.Store
+	QueryExecutor   *tsdb.QueryExecutor
+	PointsWriter    *cluster.PointsWriter
+	ShardWriter     *cluster.ShardWriter
+	IteratorCreator *cluster.IteratorCreator
+	HintedHandoff   *hh.Service
+	Subscriber      *subscriber.Service
 
 	Services []Service
 
@@ -127,6 +127,14 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Create the root directory if it doesn't already exist.
+	if err := os.MkdirAll(c.Meta.Dir, 0777); err != nil {
+		return nil, fmt.Errorf("mkdir all: %s", err)
+	}
+
+	// 0.11 we no longer use peers.json.  Remove the file if we have one on disk.
+	os.RemoveAll(filepath.Join(c.Meta.Dir, "peers.json"))
 
 	// load the node information
 	metaAddresses := []string{nodeAddr}
@@ -199,16 +207,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
 		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
-		// Set the shard mapper
-		s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
-		s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
-		s.ShardMapper.TSDBStore = s.TSDBStore
-		s.ShardMapper.Node = node
-
 		// Initialize query executor.
-		s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
+		s.QueryExecutor = tsdb.NewQueryExecutor()
+		s.QueryExecutor.Store = s.TSDBStore
 		s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
-		s.QueryExecutor.ShardMapper = s.ShardMapper
 		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
 
 		// Set the shard writer
@@ -438,7 +440,6 @@ func (s *Server) Open() error {
 		}
 
 		s.Subscriber.MetaClient = s.MetaClient
-		s.ShardMapper.MetaClient = s.MetaClient
 		s.QueryExecutor.MetaClient = s.MetaClient
 		s.ShardWriter.MetaClient = s.MetaClient
 		s.HintedHandoff.MetaClient = s.MetaClient
@@ -634,6 +635,8 @@ func (s *Server) initializeMetaClient() error {
 
 		go s.updateMetaNodeInformation()
 
+		s.MetaClient.WaitForDataChanged()
+
 		return nil
 	}
 
@@ -652,14 +655,14 @@ func (s *Server) initializeMetaClient() error {
 	if err := s.MetaClient.Open(); err != nil {
 		return err
 	}
-
-	if s.TSDBStore != nil {
-		n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
-		if err != nil {
-			return err
-		}
-		s.Node.ID = n.ID
+	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
+	for err != nil {
+		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
+		time.Sleep(time.Second)
+		n, err = s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 	}
+	s.Node.ID = n.ID
+
 	metaNodes, err := s.MetaClient.MetaNodes()
 	if err != nil {
 		return err

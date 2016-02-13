@@ -1,4 +1,4 @@
-package retention
+package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
 	"log"
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // Service represents the retention policy enforcement service.

@@ -8,8 +8,8 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta/internal"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta/internal"
 )
 
 // storeFSM represents the finite state machine used by Store to interact with Raft.
@@ -433,7 +433,6 @@ func (fsm *storeFSM) applyDropUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
-	delete(fsm.authCache, v.GetName())
 	return nil
 }
 
@@ -447,7 +446,6 @@ func (fsm *storeFSM) applyUpdateUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
-	delete(fsm.authCache, v.GetName())
 	return nil
 }
 

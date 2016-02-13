@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cmd/influx/cli"
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/client"
+	"github.com/influxdata/influxdb/cmd/influx/cli"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/peterh/liner"
 )
 
@@ -194,7 +194,7 @@ func TestParseCommand_Connect(t *testing.T) {
 
 	// assert connection is established
 	if err := c.ParseCommand(cmd); err != nil {
-		t.Fatalf("There was an error while connecting to %s: %s", u.Path, err)
+		t.Fatalf("There was an error while connecting to %v: %v", u.Path, err)
 	}
 
 	// assert server version is populated

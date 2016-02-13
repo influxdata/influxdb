@@ -15,7 +15,7 @@ http://get.influxdb.org.s3.amazonaws.com/influxdb-0.8.9-1.x86_64.rpm
 
 `0.8.9` exports raw data to a flat file that includes two sections, `DDL` and `DML`.  You can choose to export them independently (see below).
 
-The `DDL` section contains the sql commands to create databases and retention policies.  the `DML` section is [line protocol](https://github.com/influxdb/influxdb/blob/master/tsdb/README.md) and can be directly posted to the [http endpoint](https://influxdb.com/docs/v0.9/guides/writing_data.html) in `0.9`.  Remember that batching is important and we don't recommend batch sizes over 5k.
+The `DDL` section contains the sql commands to create databases and retention policies.  the `DML` section is [line protocol](https://github.com/influxdata/influxdb/blob/master/tsdb/README.md) and can be directly posted to the [http endpoint](https://docs.influxdata.com/influxdb/v0.10/guides/writing_data) in `0.10`.  Remember that batching is important and we don't recommend batch sizes over 5k without further testing.
 
 You need to specify a database and shard group when you export.
 
@@ -55,18 +55,18 @@ curl -o export.dml.gz --compressed http://username:password@http://localhost:808
 
 ### Assumptions
 
-- Series name mapping follows these [guidelines](https://influxdb.com/docs/v0.8/advanced_topics/schema_design.html)
-- Database name will map directly from `0.8` to `0.9`
+- Series name mapping follows these [guidelines](https://docs.influxdata.com/influxdb/v0.8/advanced_topics/schema_design/)
+- Database name will map directly from `0.8` to `0.10`
 - Shard Spaces map to Retention Policies
-- Shard Space Duration is ignored, as in `0.9` we determine shard size automatically
+- Shard Space Duration is ignored, as in `0.10` we determine shard size automatically
 - Regex is used to match the correct series names and only exports that data for the database
 - Duration becomes the new Retention Policy duration
 
-- Users are not migrated due to inability to get passwords.  Anyone using users will need to manually set these back up in `0.9`
+- Users are not migrated due to inability to get passwords.  Anyone using users will need to manually set these back up in `0.10`
 
 ### Upgrade Recommendations
 
-It's recommended that you upgrade to `0.9.3` first and have all your writes going there.  Then, on the `0.8.X` instances, upgrade to `0.8.9`.
+It's recommended that you upgrade to `0.9.3` or later first and have all your writes going there.  Then, on the `0.8.X` instances, upgrade to `0.8.9`.
 
 It is important that when exporting you change your config to allow for the http endpoints not timing out.  To do so, make this change in your config:
 
@@ -190,4 +190,4 @@ During the import, a status message will write out for every 100,000 points impo
  2015/07/29 22:18:28 error writing batch:  write failed: field type conflict: input field "value" on measurement "metric" is type float64, already exists as type integer
  ```
 
- This is due to the fact that in `0.8` a field could get created and saved as int or float types for independent writes.  In `0.9` the field has to have a consistent type.
+ This is due to the fact that in `0.8` a field could get created and saved as int or float types for independent writes.  In `0.9` and greater the field has to have a consistent type.
