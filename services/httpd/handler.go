@@ -164,6 +164,8 @@ func (h *Handler) SetRoutes(routes []route) {
 // ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.statMap.Add(statRequest, 1)
+	h.statMap.Add(statRequestsActive, 1)
+	start := time.Now()
 
 	// FIXME(benbjohnson): Add pprof enabled flag.
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") {
@@ -182,6 +184,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		h.mux.ServeHTTP(w, r)
 	}
+
+	h.statMap.Add(statRequestsActive, -1)
+	h.statMap.Add(statRequestDuration, time.Since(start).Nanoseconds())
 }
 
 func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
@@ -228,6 +233,9 @@ func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.R
 // serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
 	h.statMap.Add(statQueryRequest, 1)
+	defer func(start time.Time) {
+		h.statMap.Add(statQueryRequestDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
 
 	q := r.URL.Query()
 	pretty := q.Get("pretty") == "true"
@@ -363,6 +371,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
 	h.statMap.Add(statWriteRequest, 1)
+	defer func(start time.Time) {
+		h.statMap.Add(statWriteRequestDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
 
 	// Handle gzip decoding of the body
 	body := r.Body
