@@ -135,6 +135,10 @@ func (s *Service) Close() error {
 		}
 	}
 
+	if s.Monitor != nil {
+		s.Monitor.DeregisterDiagnosticsClient("hh")
+	}
+
 	if s.closing != nil {
 		close(s.closing)
 	}

@@ -67,6 +67,7 @@ type Service struct {
 	statMap          *expvar.Map
 	tcpConnectionsMu sync.Mutex
 	tcpConnections   map[string]*tcpConnection
+	diagsKey         string
 
 	ln      net.Listener
 	addr    net.Addr
@@ -103,6 +104,7 @@ func NewService(c Config) (*Service, error) {
 		logger:         log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		tcpConnections: make(map[string]*tcpConnection),
 		done:           make(chan struct{}),
+		diagsKey:       strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
 
 	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
@@ -133,13 +135,12 @@ func (s *Service) Open() error {
 
 	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
 	// should be done before any data could arrive for the service.
-	key := strings.Join([]string{"graphite", s.protocol, s.bindAddress}, ":")
 	tags := map[string]string{"proto": s.protocol, "bind": s.bindAddress}
-	s.statMap = influxdb.NewStatistics(key, "graphite", tags)
+	s.statMap = influxdb.NewStatistics(s.diagsKey, "graphite", tags)
 
 	// Register diagnostics if a Monitor service is available.
 	if s.Monitor != nil {
-		s.Monitor.RegisterDiagnosticsClient(key, s)
+		s.Monitor.RegisterDiagnosticsClient(s.diagsKey, s)
 	}
 
 	if _, err := s.MetaClient.CreateDatabase(s.database); err != nil {
@@ -194,6 +195,11 @@ func (s *Service) Close() error {
 	if s.batcher != nil {
 		s.batcher.Stop()
 	}
+
+	if s.Monitor != nil {
+		s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
+	}
+
 	close(s.done)
 	s.wg.Wait()
 	s.done = nil
