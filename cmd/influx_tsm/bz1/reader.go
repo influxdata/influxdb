@@ -31,7 +31,6 @@ type Reader struct {
 	keyBuf    string
 	valuesBuf []tsm.Value
 
-	series map[string]*tsdb.Series
 	fields map[string]*tsdb.MeasurementFields
 	codecs map[string]*tsdb.FieldCodec
 
@@ -42,7 +41,6 @@ type Reader struct {
 func NewReader(path string) *Reader {
 	return &Reader{
 		path:      path,
-		series:    make(map[string]*tsdb.Series),
 		fields:    make(map[string]*tsdb.MeasurementFields),
 		codecs:    make(map[string]*tsdb.FieldCodec),
 		ChunkSize: DefaultChunkSize,
@@ -58,6 +56,8 @@ func (r *Reader) Open() error {
 	}
 	r.db = db
 
+	seriesSet := make(map[string]bool)
+
 	if err := r.db.View(func(tx *bolt.Tx) error {
 		var data []byte
 
@@ -66,20 +66,20 @@ func (r *Reader) Open() error {
 			// No data in this shard.
 			return nil
 		}
-		buf := meta.Get([]byte("series"))
-		if buf == nil {
-			// No data in this shard.
+
+		pointsBucket := tx.Bucket([]byte("points"))
+		if pointsBucket == nil {
 			return nil
 		}
-		data, err = snappy.Decode(nil, buf)
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(data, &r.series); err != nil {
+
+		if err := pointsBucket.ForEach(func(key, _ []byte) error {
+			seriesSet[string(key)] = true
+			return nil
+		}); err != nil {
 			return err
 		}
 
-		buf = meta.Get([]byte("fields"))
+		buf := meta.Get([]byte("fields"))
 		if buf == nil {
 			// No data in this shard.
 			return nil
@@ -102,15 +102,15 @@ func (r *Reader) Open() error {
 		r.codecs[k] = tsdb.NewFieldCodec(v.Fields)
 	}
 
-	// Create cursor for each field of each series.
 	r.tx, err = r.db.Begin(false)
 	if err != nil {
 		return err
 	}
 
-	for s := range r.series {
+	// Create cursor for each field of each series.
+	for s := range seriesSet {
 		measurement := tsdb.MeasurementFromSeriesKey(s)
-		fields := r.fields[tsdb.MeasurementFromSeriesKey(s)]
+		fields := r.fields[measurement]
 		if fields == nil {
 			atomic.AddUint64(&NoFieldsFiltered, 1)
 			continue
