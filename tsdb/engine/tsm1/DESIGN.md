@@ -60,11 +60,11 @@ The last section is the footer that stores the offset of the start of the index.
 
 # File System Layout
 
-The file system is organized a directory per shard where each shard is an integer number.  Within the shard dir exists a set of other directories and files:
+The file system is organized a directory per shard where each shard is an integer number.  Within each shard directory, there is a set of other directories and files:
 
-* wal Dir - Contains a set numerically increasing files WAL segment files name ######.wal.  The wal dir will be a separate location from the TSM data files so that different types can be used if necessary.
-* TSM files - A set of numerically increasing TSM files containing compressed series data.
-* Tombstone files - Files named after the corresponding TSM file as #####.tombstone.  These contain measurement and series keys that have been deleted.  These are removed during compactions.
+* a wal directory - contains a set numerically increasing files WAL segment files named #####.wal.  The wal directory is separate from the directory containing the TSM files so that different types can be used if necessary.
+* .tsm files - a set of numerically increasing TSM files containing compressed series data.
+* .tombstone files - files named after the corresponding TSM file as #####.tombstone.  These contain measurement and series keys that have been deleted.  These files are removed during compactions.
 
 # Data Flow
 
