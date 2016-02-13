@@ -60,7 +60,7 @@ The last section is the footer that stores the offset of the start of the index.
 
 # File System Layout
 
-The file system is organized a directory per shard where each shard is integer number.  Within the shard dir exists a set of other directories and files:
+The file system is organized a directory per shard where each shard is an integer number.  Within the shard dir exists a set of other directories and files:
 
 * wal Dir - Contains a set numerically increasing files WAL segment files name ######.wal.  The wal dir will be a separate location from the TSM data files so that different types can be used if necessary.
 * TSM files - A set of numerically increasing TSM files containing compressed series data.
@@ -70,13 +70,13 @@ The file system is organized a directory per shard where each shard is integer n
 
 Writes are appended to the current WAL segment and are also added to the Cache.  Each WAL segment is size bounded and rolls-over to a new file after it fills up.  The cache is also size bounded and older entries are evicted as new entries are added to maintain the size.  The WAL and Cache are separate entities and do not interact with each other.  The Engine coordinates the writes to both.
 
-When WAL segments fill up and closed, the Compactor reads the WAL entries and combines then with one or more existing TSM files.  This process runs continuously until all WAL files are compacted and there is a minimum number of TSM files.  As each TSM file is completed, it is loaded and referenced by the FileStore.
+When WAL segments fill up and have been closed, the Compactor reads the WAL entries and combines them with one or more existing TSM files.  This process runs continuously until all WAL files are compacted and there is a minimum number of TSM files.  As each TSM file is completed, it is loaded and referenced by the FileStore.
 
-Queries are executed by constructing Cursors for keys.  The Cursors iterate of slices of Values.  When the current Values are exhausted, a cursor requests a the next set of Values from the Engine.  The Engine returns a slice of Values by querying the FileStore and Cache.  The Values in the Cache are overlayed on top of the values returned from the FileStore.  The FileStore reads and decodes blocks of Values according to the index for the file.
+Queries are executed by constructing Cursors for keys.  The Cursors iterate over slices of Values.  When the current Values are exhausted, a Cursor requests the next set of Values from the Engine.  The Engine returns a slice of Values by querying the FileStore and Cache.  The Values in the Cache are overlaid on top of the values returned from the FileStore.  The FileStore reads and decodes blocks of Values according to the index for the file.
 
 Updates (writing a newer value for a point that already exists) occur as normal writes.  Since cached values overwrite existing values, newer writes take precedence.
 
-Deletes occur by writing a delete entry for the measurement or series to the WAL and then update the Cache and FileStore.  The Cache evicts all relevant entries.  The FileStore writes a tombstone file for each TSM file that contains relevant data.  These tombstone files are used at startup time to ignore blocks as well as during compactions to remove deleted entries.
+Deletes occur by writing a delete entry for the measurement or series to the WAL and then updating the Cache and FileStore.  The Cache evicts all relevant entries.  The FileStore writes a tombstone file for each TSM file that contains relevant data.  These tombstone files are used at startup time to ignore blocks as well as during compactions to remove deleted entries.
 
 # Compactions
 
@@ -90,22 +90,22 @@ Compactions are a serial and continuously running process that iteratively optim
 The compaction algorithm is continuously running and always selects files to compact based on a priority.
 
 1. If there are closed WAL files, the 5 oldest WAL segments are added to the set of compaction files.
-2. If any TSM files contains points with older timestamps that also exist in the WAL files, those TSM files are added to the compaction set.
+2. If any TSM files contain points with older timestamps that also exist in the WAL files, those TSM files are added to the compaction set.
 3. If any TSM files have a tombstone marker, those TSM files are added to the compaction set.
 
-The compaction is used to generate a set of SeriesIterators that return a sequence of `key`, `Values` where each `key` returned is lexicographically greater than the previous one.  The iterators are ordered such that WAL iterators will override any values return the TSM file iterators.  WAL iterators read and cache the WAL segment so that deletes later in the log can be processed correctly.  TSM file iterators use the tombstone files to ensure that deleted series are not returned during iteration.  As each key is processed, the Values slice is grown, sorted, and then written to a new block in the new TSM file.  The blocks can be split based on number of points or size of the block.  If the total size of the current TSM file would exceed the maximum file size, a new file is created.
+The compaction is used to generate a set of SeriesIterators that return a sequence of `key`, `Values` where each `key` returned is lexicographically greater than the previous one.  The iterators are ordered such that WAL iterators will override any values returned by the TSM file iterators.  WAL iterators read and cache the WAL segment so that deletes later in the log can be processed correctly.  TSM file iterators use the tombstone files to ensure that deleted series are not returned during iteration.  As each key is processed, the Values slice is grown, sorted, and then written to a new block in the new TSM file.  The blocks can be split based on number of points or size of the block.  If the total size of the current TSM file would exceed the maximum file size, a new file is created.
 
 Deletions can occur while a new file is being written.  Since the new TSM file is not complete a tombstone would not be written for it. This could result in deleted values getting written into a new file.  To prevent this, if a compaction is running and a delete occurs, the current compaction is aborted and new compaction is started.
 
-When all files are processed and successfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the checkpoint of the compacted which is used for by the Cache to know what entries can be evicted in the future.
+When all files are processed and successfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the checkpoint of the compaction which is used for by the Cache to know what entries can be evicted in the future.
 
-This process then runs again until there are no more WAL files and the minimum number of TSM files exists that are also under the maximum file size.
+The compaction process then runs again until there are no more WAL files and the minimum number of TSM files exist that are also under the maximum file size.
 
 # WAL
 
-Currently, there is a WAL per shard.  This means all the writes in a WAL segments are for the given shard.  It also means that writes across a lot of shards append to many files which might results in more disk IO due to seeking to the end of multiple files.
+Currently, there is a WAL per shard.  This means all the writes in a WAL segment are for the given shard.  It also means that writes across a lot of shards append to many files which might result in more disk IO due to seeking to the end of multiple files.
 
-Two options being considered:
+Two options are being considered:
 
 ## WAL per Shard
 
@@ -184,7 +184,7 @@ Another option is compress keys using a key specific dictionary encoding.   For 
 ```
 cpu,host=server1 value=1
 cpu,host=server2 value=2
-meory,host=server1 value=3
+memory,host=server1 value=3
 ```
 
 Could be compressed by expanding the key into its respective parts: measurement, tag keys, tag values and tag fields .  For each part a unique number is assigned.  e.g.
@@ -231,7 +231,7 @@ These are some of the high-level components and their responsibilities.  These a
 
 ## WAL
 
-* Append-only log composed of a fixed size segment files.
+* Append-only log composed of fixed size segment files.
 * Writes are appended to the current segment
 * Roll-over to new segment after filling the current segment
 * Closed segments are never modified and used for startup and recovery as well as compactions.
@@ -395,7 +395,7 @@ Compactions are IO intensive in that they may need to read multiple, large TSM f
 
 The performance of compactions also has an effect on what data is visible during queries.  If the Cache fills up and evicts old entries faster than the compactions can process old WAL files, queries could return return gaps until compactions catch up.
 
-To address these concerns, compactions prioritize old WAL files over optimizing storage/compression to avoid data being hidden overload situations.  This also accounts for the fact that shards will eventually become cold for writes so that existing data will be able to be optimized.  To maintain consistent performance, the number of each type of file processed as well as the size of each file processed is bounded.
+To address these concerns, compactions prioritize old WAL files over optimizing storage/compression to avoid data being hidden during overload situations.  This also accounts for the fact that shards will eventually become cold for writes so that existing data will be able to be optimized.  To maintain consistent performance, the number of each type of file processed as well as the size of each file processed is bounded.
 
 ### Memory Footprint
 
@@ -403,7 +403,7 @@ The memory footprint should not grow unbounded due to additional files or series
 
 ## Concurrency
 
-The main concern with concurrency is that reads and writes should not block each other.  Writes add entries to the Cache and append entries to the WAL.  During queries, the contention points will be the Cache and existing TSM files.  Since the Cache and TSM file data is only access through the engine by the cursors, several strategies can be used to improve concurrency.
+The main concern with concurrency is that reads and writes should not block each other.  Writes add entries to the Cache and append entries to the WAL.  During queries, the contention points will be the Cache and existing TSM files.  Since the Cache and TSM file data is only accessed through the engine by the cursors, several strategies can be used to improve concurrency.
 
 1. Cache series data can be returned to cursors as a copy.  Since cache entries are evicted on writes, cursors iteration and writes to the same series could block each other.  Iterating over copies of the values can relieve some of this contention.
 2. TSM data values returned by the engine are new references to Values and not access to the actual TSM files.  This means that the `Engine`, through the `FileStore` can limit contention.
@@ -413,7 +413,7 @@ The main concern with concurrency is that reads and writes should not block each
 
 The two robustness concerns considered by this design are writes filling the cache and crash recovery.
 
-Writes filling up cache faster than the WAL segments can be processed result in the oldest entries being evicted from the cache.  This is the normal operation for the cache.  Old entries are always evicted to make room for new entries.  In the case where WAL segments are slow to be processed, writes are not blocked or errored so timeouts should not occur due to IO issues.  A side effect of this is that queries for recent data will always be served from memory.  The size of the in-memory cache can also be tuned so that if IO does because a bottleneck the window of time for queries with recent data can be tuned.
+Writes filling up cache faster than the WAL segments can be processed result in the oldest entries being evicted from the cache.  This is the normal operation for the cache.  Old entries are always evicted to make room for new entries.  In the case where WAL segments are slow to be processed, writes are not blocked or errored so timeouts should not occur due to IO issues.  A side effect of this is that queries for recent data will always be served from memory.  The size of the in-memory cache can also be tuned so that if IO does cause a bottleneck the window of time for queries with recent data can be tuned.
 
-Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recored as new changes and processed at compaction and query time.
+Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recorded as new changes and processed at compaction and query time.
 
