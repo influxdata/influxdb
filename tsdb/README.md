@@ -21,10 +21,10 @@ Tags should be sorted by key before being sent for best performance. The sort sh
 # measurement only
 cpu
 
-# measurment and tags
+# measurement and tags
 cpu,host=serverA,region=us-west
 
-# measurment with commas
+# measurement with commas
 cpu\,01,host=serverA,region=us-west
 
 # tag value with spaces

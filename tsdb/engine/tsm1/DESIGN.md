@@ -34,7 +34,7 @@ Blocks are sequences of block CRC32 and data.  The block data is opaque to the f
 
 Following the blocks is the index for the blocks in the file.  The index is composed of a sequence of index entries ordered lexicographically by key and then by time.  Each index entry starts with a key length and key followed by a count of the number of blocks in the file.  Each block entry is composed of the min and max time for the block, the offset into the file where the block is located and the size of the block.
 
-The index structure can provide efficient access to all blocks as well as the ability to determine the cost associated with acessing given key.  Given a key and timestamp, we know exactly which file contains the block for that timestamp as well as where that block resides and how much data to read to retrieve the block.  If we know we need to read all or multiple blocks in a file, we can use the size to determine how much to read in a given IO.
+The index structure can provide efficient access to all blocks as well as the ability to determine the cost associated with accessing a given key.  Given a key and timestamp, we know exactly which file contains the block for that timestamp as well as where that block resides and how much data to read to retrieve the block.  If we know we need to read all or multiple blocks in a file, we can use the size to determine how much to read in a given IO.
 
 _TBD: The block length stored in the block data could probably be dropped since we store it in the index._
 
@@ -70,34 +70,34 @@ The file system is organized a directory per shard where each shard is integer n
 
 Writes are appended to the current WAL segment and are also added to the Cache.  Each WAL segment is size bounded and rolls-over to a new file after it fills up.  The cache is also size bounded and older entries are evicted as new entries are added to maintain the size.  The WAL and Cache are separate entities and do not interact with each other.  The Engine coordinates the writes to both.
 
-When WAL segments fill up and closed, the Compactor reads the WAL entries and combines then with one or more existing TSM files.  This process runs continously until all WAL files are compacted and there is a minimum number of TSM files.  As each TSM file is completed, it is loaded and referenced by the FileStore.
+When WAL segments fill up and closed, the Compactor reads the WAL entries and combines then with one or more existing TSM files.  This process runs continuously until all WAL files are compacted and there is a minimum number of TSM files.  As each TSM file is completed, it is loaded and referenced by the FileStore.
 
 Queries are executed by constructing Cursors for keys.  The Cursors iterate of slices of Values.  When the current Values are exhausted, a cursor requests a the next set of Values from the Engine.  The Engine returns a slice of Values by querying the FileStore and Cache.  The Values in the Cache are overlayed on top of the values returned from the FileStore.  The FileStore reads and decodes blocks of Values according to the index for the file.
 
 Updates (writing a newer value for a point that already exists) occur as normal writes.  Since cached values overwrite existing values, newer writes take precedence.
 
-Deletes occur by writing a delete entry for the measurement or series to the WAL and then update the Cache and FileStore.  The Cache evicts all relevant entries.  The FileStore writes a tombstone file for each TSM file that contains relevent data.  These tombstone files are used at startup time to ignore blocks as well as during compactions to remove deleted entries.
+Deletes occur by writing a delete entry for the measurement or series to the WAL and then update the Cache and FileStore.  The Cache evicts all relevant entries.  The FileStore writes a tombstone file for each TSM file that contains relevant data.  These tombstone files are used at startup time to ignore blocks as well as during compactions to remove deleted entries.
 
 # Compactions
 
-Compactions are a serial and continously running process that iteratively optimizes the storage for queries.  Specifically, it does the following:
+Compactions are a serial and continuously running process that iteratively optimizes the storage for queries.  Specifically, it does the following:
 
 * Converts closed WAL files into TSM files and removes the closed WAL files
 * Combines smaller TSM files into larger ones to improve compression ratios
 * Rewrites existing files that contain series data that has been deleted
 * Rewrites existing files that contain writes with more recent data to ensure a point exists in only one TSM file.
 
-The compaction algorithm is continously running and always selects files to compact based on a priority.
+The compaction algorithm is continuously running and always selects files to compact based on a priority.
 
 1. If there are closed WAL files, the 5 oldest WAL segments are added to the set of compaction files.
-2. If any TSM files contain points with older timestamps that also exist in the WAL files, those TSM files are added to the compaction set.
+2. If any TSM files contains points with older timestamps that also exist in the WAL files, those TSM files are added to the compaction set.
 3. If any TSM files have a tombstone marker, those TSM files are added to the compaction set.
 
 The compaction is used to generate a set of SeriesIterators that return a sequence of `key`, `Values` where each `key` returned is lexicographically greater than the previous one.  The iterators are ordered such that WAL iterators will override any values return the TSM file iterators.  WAL iterators read and cache the WAL segment so that deletes later in the log can be processed correctly.  TSM file iterators use the tombstone files to ensure that deleted series are not returned during iteration.  As each key is processed, the Values slice is grown, sorted, and then written to a new block in the new TSM file.  The blocks can be split based on number of points or size of the block.  If the total size of the current TSM file would exceed the maximum file size, a new file is created.
 
 Deletions can occur while a new file is being written.  Since the new TSM file is not complete a tombstone would not be written for it. This could result in deleted values getting written into a new file.  To prevent this, if a compaction is running and a delete occurs, the current compaction is aborted and new compaction is started.
 
-When all files are processed and succesfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the checkpoint of the compacted which is used for by the Cache to know what entries can be evicted in the future.
+When all files are processed and successfully written, completion checkpoint markers are created and files are renamed.   The engine then notifies the Cache of the checkpoint of the compacted which is used for by the Cache to know what entries can be evicted in the future.
 
 This process then runs again until there are no more WAL files and the minimum number of TSM files exists that are also under the maximum file size.
 
@@ -109,17 +109,17 @@ Two options being considered:
 
 ## WAL per Shard
 
-This is the current behavior of the WAL.  This option is conceptually easier to reason about.  For example, compactions that read in multiple WAL segments are assured that all the WAL entries pertain to the current shard.  If it completes a compaction, it is saft to remove the WAL segment.  It is also easier to deal with shard deletions as all the WAL segments can be dropped along with the other shard files.
+This is the current behavior of the WAL.  This option is conceptually easier to reason about.  For example, compactions that read in multiple WAL segments are assured that all the WAL entries pertain to the current shard.  If it completes a compaction, it is safe to remove the WAL segment.  It is also easier to deal with shard deletions as all the WAL segments can be dropped along with the other shard files.
 
 The drawback of this option is the potential for turning sequential write IO into random IO in the presence of multiple shards and writes to many different shards.
 
 ## Single WAL
 
-Using a single WAL adds some complexity to compactions and deletions.  Compactions will need to either sort all the WAL entries in a segment by shard first and then run compactiosn on each shard or the compactor needs to be able to compact multiple shards concurrently while ensuring points in existing TSM files in different shards remain separate.
+Using a single WAL adds some complexity to compactions and deletions.  Compactions will need to either sort all the WAL entries in a segment by shard first and then run compactions on each shard or the compactor needs to be able to compact multiple shards concurrently while ensuring points in existing TSM files in different shards remain separate.
 
 Deletions would not be able to reclaim WAL segments immediately as in the case where there is a WAL per shard.  Similarly, a compaction of a WAL segment that contains writes for a deleted shard would need to be dropped.
 
-Currently, we are moving towards a Single WAL implemention.
+Currently, we are moving towards a Single WAL implementation.
 
 # Cache
 
@@ -167,7 +167,7 @@ We would build an `offsets` slices where each element pointers to the byte locat
  ```
 
 
-Using this offset slice we can find `Key 2` by doing a binary search over the offsets slice.  Instead of comparing the value in the offsets (e.g. `62`), we use that as an index into the underlying index to retrieve the key at postion `62` and perform our comparisons with that.
+Using this offset slice we can find `Key 2` by doing a binary search over the offsets slice.  Instead of comparing the value in the offsets (e.g. `62`), we use that as an index into the underlying index to retrieve the key at position `62` and perform our comparisons with that.
 
 When we have identified the correct position in the index for a given key, we could perform another binary search or a linear scan.  This should be fast as well since each index entry is 28 bytes and all contiguous in memory.
 
@@ -187,7 +187,7 @@ cpu,host=server2 value=2
 meory,host=server1 value=3
 ```
 
-Could be compressed by expanding the key into its respective parts: mesasurment, tag keys, tag values and tag fields .  For each part a unique number is assigned.  e.g.
+Could be compressed by expanding the key into its respective parts: measurement, tag keys, tag values and tag fields .  For each part a unique number is assigned.  e.g.
 
 Measurements
 ```
@@ -211,7 +211,7 @@ Fields
 value = 1
 ```
 
-Using this encoding dictionary, the string keys could be converted to a sequency of integers:
+Using this encoding dictionary, the string keys could be converted to a sequence of integers:
 
 ```
 cpu,host=server1 value=1 -->    1,1,1,1
@@ -239,7 +239,7 @@ These are some of the high-level components and their responsibilities.  These a
 
 ## Compactor
 
-* Continously running, iterative file storage optimizer
+* Continuously running, iterative file storage optimizer
 * Takes closed WAL files, existing TSM files and combines into one or more new TSM files
 
 ## Cache
@@ -276,14 +276,14 @@ These are some of the high-level components and their responsibilities.  These a
 ```
 SeriesIterator returns the key and []Value such that a key is only returned
 once and subsequent calls to Next() do not return the same key twice.
-type SeriesIterator interace {
+type SeriesIterator interface {
    func Next() (key, []Value, error)
 }
 ```
 
 ## Types
 
-_NOTE: the actual func names are to illustrate the type of functionaltiy the type is responsible._
+_NOTE: the actual func names are to illustrate the type of functionality the type is responsible._
 
 ```
 TSMWriter writes a sets of key and Values to a TSM file.
@@ -305,7 +305,7 @@ func (r *WALReader) Next() (key, []Value, error)
 ```
 TSMIterator returns the key and values from a TSM file.
 type TSMIterator struct {}
-funct (r *TSMIterator) Next() (key, []Value, error)
+func (r *TSMIterator) Next() (key, []Value, error)
 ```
 
 ```
@@ -321,8 +321,8 @@ type Engine struct {
     compactor *Compactor
 }
 
-func (e *Engine) ValuesBefore(key string, timstamp time.Time) ([]Value, error)
-func (e *Engine) ValuesAfter(key string, timstamp time.Time) ([]Value, error)
+func (e *Engine) ValuesBefore(key string, timestamp time.Time) ([]Value, error)
+func (e *Engine) ValuesAfter(key string, timestamp time.Time) ([]Value, error)
 ```
 
 ```
@@ -335,8 +335,8 @@ type Cursor struct{
 ```
 // FileStore maintains references
 type FileStore struct {}
-func (f *FileStore) ValuesBefore(key string, timstamp time.Time) ([]Value, error)
-func (f *FileStore) ValuesAfter(key string, timstamp time.Time) ([]Value, error)
+func (f *FileStore) ValuesBefore(key string, timestamp time.Time) ([]Value, error)
+func (f *FileStore) ValuesAfter(key string, timestamp time.Time) ([]Value, error)
 
 ```
 
@@ -375,9 +375,9 @@ There are three categories of performance this design is concerned with:
 
 ### Writes
 
-Write throughput is bounded by the time to process the write on the CPU (parsing, sorting, etc..), adding and evicting to the Cache and appending the write to the WAL.  The first two items are CPU bound and can be tuned and optimized if they become a bottleneck.  The WAL write can be tuned such that in the worst case every write requires at least 2 IOPS (write + fysnc) or batched so that multiple writes are queued and fysnc'd in sizes matching one or more disk blocks.  Performing more work with each IO will improve throughput
+Write throughput is bounded by the time to process the write on the CPU (parsing, sorting, etc..), adding and evicting to the Cache and appending the write to the WAL.  The first two items are CPU bound and can be tuned and optimized if they become a bottleneck.  The WAL write can be tuned such that in the worst case every write requires at least 2 IOPS (write + fsync) or batched so that multiple writes are queued and fsync'd in sizes matching one or more disk blocks.  Performing more work with each IO will improve throughput
 
-Write latency is minimal for the WAL write since there are no seeks.  The latency is bounded by the time to complete any write and fysnc calls.
+Write latency is minimal for the WAL write since there are no seeks.  The latency is bounded by the time to complete any write and fsync calls.
 
 ### Queries
 
@@ -399,7 +399,7 @@ To address these concerns, compactions prioritize old WAL files over optimizing 
 
 ### Memory Footprint
 
-The memory footprint should shoud not grow unbounded due to additional files or series keys of large sizes or numbers.  Some options for addressing this concern is covered in the [Design Options] section.
+The memory footprint should not grow unbounded due to additional files or series keys of large sizes or numbers.  Some options for addressing this concern is covered in the [Design Options] section.
 
 ## Concurrency
 
@@ -407,13 +407,13 @@ The main concern with concurrency is that reads and writes should not block each
 
 1. Cache series data can be returned to cursors as a copy.  Since cache entries are evicted on writes, cursors iteration and writes to the same series could block each other.  Iterating over copies of the values can relieve some of this contention.
 2. TSM data values returned by the engine are new references to Values and not access to the actual TSM files.  This means that the `Engine`, through the `FileStore` can limit contention.
-3. Compactions are the only place where new TSM files are added and removed.  Since this is a serial, continously running process, file contention is minimized.
+3. Compactions are the only place where new TSM files are added and removed.  Since this is a serial, continuously running process, file contention is minimized.
 
 ## Robustness
 
 The two robustness concerns considered by this design are writes filling the cache and crash recovery.
 
-Writes filling up cache faster than the WAL segments can be processed result in the oldest entries being evicted from the cache.  This is the normal operation for the cache.  Old entries are always evicited to make room for new entries.  In the case where WAL segements are slow to be processed, writes are not blocked or errored so timeouts should not occur due to IO issues.  A side effect of this is that queries for recent data will always be served from memory.  The size of the in-memory cache can also be tuned so that if IO does because a bottleneck the window of time for queries with recent data can be tuned.
+Writes filling up cache faster than the WAL segments can be processed result in the oldest entries being evicted from the cache.  This is the normal operation for the cache.  Old entries are always evicted to make room for new entries.  In the case where WAL segments are slow to be processed, writes are not blocked or errored so timeouts should not occur due to IO issues.  A side effect of this is that queries for recent data will always be served from memory.  The size of the in-memory cache can also be tuned so that if IO does because a bottleneck the window of time for queries with recent data can be tuned.
 
 Crash recovery is handled by using copy-on-write style updates along with checkpoint marker files.  Existing data is never updated.  Updates and deletes to existing data are recored as new changes and processed at compaction and query time.
 
