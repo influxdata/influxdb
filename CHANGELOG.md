@@ -9,6 +9,7 @@
 - [#5598](https://github.com/influxdata/influxdb/pull/5598): Client: Add Ping to v2 client @PSUdaemon
 - [#4125](https://github.com/influxdata/influxdb/pull/4125): Admin UI: Fetch and display server version on connect. Thanks @alexiri!
 - [#5602](https://github.com/influxdata/influxdb/pull/5602): Simplify cluster startup for scripting and deployment
+- [#5562](https://github.com/influxdata/influxdb/pull/5562): Graphite: Support matching fields multiple times (@chrusty)
 
 ### Bugfixes
 
