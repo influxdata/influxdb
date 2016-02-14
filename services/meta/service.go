@@ -73,6 +73,7 @@ func (s *Service) Open() error {
 		}
 
 		s.Logger.Println("Listening on HTTPS:", listener.Addr().String())
+		s.httpAddr = listener.Addr().String()
 		s.ln = listener
 	} else {
 		listener, err := net.Listen("tcp", s.httpAddr)
@@ -81,6 +82,7 @@ func (s *Service) Open() error {
 		}
 
 		s.Logger.Println("Listening on HTTP:", listener.Addr().String())
+		s.httpAddr = listener.Addr().String()
 		s.ln = listener
 	}
 

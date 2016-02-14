@@ -403,6 +403,22 @@ func init() {
 		},
 	}
 
+	tests["retention_policy_auto_create_cluster"] = Test{
+		queries: []*Query{
+			&Query{
+				name:    "create database should succeed",
+				command: `CREATE DATABASE db0`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "show retention policies should return auto-created policy",
+				command: `SHOW RETENTION POLICIES ON db0`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",3,true]]}]}]}`,
+			},
+		},
+	}
+
 }
 
 func (tests Tests) load(t *testing.T, key string) Test {
