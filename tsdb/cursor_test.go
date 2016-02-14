@@ -3,13 +3,17 @@ package tsdb_test
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"math/rand"
 	"reflect"
 	"sort"
 	"testing"
 	"testing/quick"
 
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Ensure the multi-cursor can correctly iterate across a single subcursor.
@@ -206,6 +210,187 @@ func TestMultiCursor_Quick(t *testing.T) {
 	}, nil)
 }
 
+// Ensure a cursor with a single ref value can be converted into an iterator.
+func TestFloatCursorIterator_SingleValue(t *testing.T) {
+	cur := NewCursor([]CursorItem{
+		{Key: 0, Value: float64(100)},
+		{Key: 3, Value: float64(200)},
+	}, true)
+
+	opt := influxql.IteratorOptions{
+		Expr:      &influxql.VarRef{Val: "value"},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}
+	itr := tsdb.NewFloatCursorIterator("series0", map[string]string{"host": "serverA"}, cur, opt)
+	defer itr.Close()
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  0,
+		Value: float64(100),
+	}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  3,
+		Value: float64(200),
+	}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); p != nil {
+		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
+	}
+}
+
+// Ensure a cursor with a ref and multiple aux values can be converted into an iterator.
+func TestFloatCursorIterator_MultipleValues(t *testing.T) {
+	cur := NewCursor([]CursorItem{
+		{Key: 0, Value: map[string]interface{}{"val1": float64(100), "val2": "foo"}},
+		{Key: 3, Value: map[string]interface{}{"val1": float64(200), "val2": "bar"}},
+	}, true)
+
+	opt := influxql.IteratorOptions{
+		Expr: &influxql.VarRef{Val: "val1"}, Aux: []string{"val1", "val2"},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}
+	itr := tsdb.NewFloatCursorIterator("series0", map[string]string{"host": "serverA"}, cur, opt)
+	defer itr.Close()
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  0,
+		Value: 100,
+		Aux:   []interface{}{float64(100), "foo"},
+	}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  3,
+		Value: 200,
+		Aux:   []interface{}{float64(200), "bar"},
+	}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); p != nil {
+		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
+	}
+}
+
+// Ensure a cursor with a single value can be converted into an iterator.
+func TestFloatCursorIterator_Aux_SingleValue(t *testing.T) {
+	cur := NewCursor([]CursorItem{
+		{Key: 0, Value: float64(100)},
+		{Key: 3, Value: float64(200)},
+	}, true)
+
+	opt := influxql.IteratorOptions{
+		Aux:       []string{"val1"},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}
+	itr := tsdb.NewFloatCursorIterator("series0", map[string]string{"host": "serverA"}, cur, opt)
+	defer itr.Close()
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  0,
+		Value: math.NaN(),
+		Aux:   []interface{}{float64(100)},
+	}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  3,
+		Value: math.NaN(),
+		Aux:   []interface{}{float64(200)},
+	}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); p != nil {
+		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
+	}
+}
+
+// Ensure a cursor with multiple values can be converted into an iterator.
+func TestFloatCursorIterator_Aux_MultipleValues(t *testing.T) {
+	cur := NewCursor([]CursorItem{
+		{Key: 0, Value: map[string]interface{}{"val1": float64(100), "val2": "foo"}},
+		{Key: 3, Value: map[string]interface{}{"val1": float64(200), "val2": "bar"}},
+	}, true)
+
+	opt := influxql.IteratorOptions{
+		Aux:       []string{"val1", "val2"},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}
+	itr := tsdb.NewFloatCursorIterator("series0", map[string]string{"host": "serverA"}, cur, opt)
+	defer itr.Close()
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  0,
+		Value: math.NaN(),
+		Aux:   []interface{}{float64(100), "foo"},
+	}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "series0",
+		Time:  3,
+		Value: math.NaN(),
+		Aux:   []interface{}{float64(200), "bar"},
+	}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
+
+	if p := itr.Next(); p != nil {
+		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
+	}
+}
+
+// Ensure a cursor iterator does not go past the end time.
+func TestFloatCursorIterator_EndTime(t *testing.T) {
+	cur := NewCursor([]CursorItem{
+		{Key: 0, Value: float64(100)},
+		{Key: 3, Value: float64(200)},
+		{Key: 4, Value: float64(300)},
+	}, true)
+
+	itr := tsdb.NewFloatCursorIterator("x", nil, cur, influxql.IteratorOptions{
+		Expr:      &influxql.VarRef{Val: "value"},
+		Ascending: true,
+		EndTime:   3,
+	})
+	defer itr.Close()
+
+	// Verify that only two points are emitted.
+	if p := itr.Next(); p == nil || p.Time != 0 {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	}
+	if p := itr.Next(); p == nil || p.Time != 3 {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
+	if p := itr.Next(); p != nil {
+		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
+	}
+}
+
 // Cursor represents an in-memory test cursor.
 type Cursor struct {
 	items     []CursorItem
@@ -243,7 +428,9 @@ func (c *Cursor) seekForward(seek int64) (key int64, value interface{}) {
 		if c.items[c.index].Key < seek { // skip keys less than seek
 			continue
 		}
-		return c.items[c.index].Key, c.items[c.index].Value
+		key, value = c.items[c.index].Key, c.items[c.index].Value
+		c.index++
+		return key, value
 	}
 	return tsdb.EOF, nil
 }
@@ -253,7 +440,9 @@ func (c *Cursor) seekReverse(seek int64) (key int64, value interface{}) {
 		if c.items[c.index].Key > seek { // skip keys greater than seek
 			continue
 		}
-		return c.items[c.index].Key, c.items[c.index].Value
+		key, value = c.items[c.index].Key, c.items[c.index].Value
+		c.index--
+		return key, value
 	}
 	return tsdb.EOF, nil
 }
@@ -309,7 +498,7 @@ func tsdbCursorSlice(a []Cursor) []tsdb.Cursor {
 // CursorItem represents a key/value pair in a cursor.
 type CursorItem struct {
 	Key   int64
-	Value int
+	Value interface{}
 }
 
 type CursorItems []CursorItem

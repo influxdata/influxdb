@@ -31,8 +31,8 @@ const (
 	walEncodeBufSize = 4 * 1024 * 1024
 
 	float64EntryType = 1
-	int64EntryType   = 2
-	boolEntryType    = 3
+	integerEntryType = 2
+	booleanEntryType = 3
 	stringEntryType  = 4
 )
 
@@ -358,7 +358,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	// slice is written.  Following the type, the length and key bytes are written.
 	// Following the key, a 4 byte count followed by each value as a 8 byte time
 	// and N byte value.  The value is dependent on the type being encoded.  float64,
-	// int64, use 8 bytes, bool uses 1 byte, and string is similar to the key encoding.
+	// int64, use 8 bytes, boolean uses 1 byte, and string is similar to the key encoding.
 	//
 	// This structure is then repeated for each key an value slices.
 	//
@@ -382,9 +382,9 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		case float64:
 			dst[n] = float64EntryType
 		case int64:
-			dst[n] = int64EntryType
+			dst[n] = integerEntryType
 		case bool:
-			dst[n] = boolEntryType
+			dst[n] = booleanEntryType
 		case string:
 			dst[n] = stringEntryType
 		default:
@@ -451,10 +451,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		switch typ {
 		case float64EntryType:
 			values = getFloat64Values(nvals)
-		case int64EntryType:
-			values = getInt64Values(nvals)
-		case boolEntryType:
-			values = getBoolValues(nvals)
+		case integerEntryType:
+			values = getIntegerValues(nvals)
+		case booleanEntryType:
+			values = getBooleanValues(nvals)
 		case stringEntryType:
 			values = getStringValues(nvals)
 		default:
@@ -473,17 +473,17 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 					fv.unixnano = un
 					fv.value = v
 				}
-			case int64EntryType:
+			case integerEntryType:
 				v := int64(btou64(b[i : i+8]))
 				i += 8
-				if fv, ok := values[j].(*Int64Value); ok {
+				if fv, ok := values[j].(*IntegerValue); ok {
 					fv.unixnano = un
 					fv.value = v
 				}
-			case boolEntryType:
+			case booleanEntryType:
 				v := b[i]
 				i += 1
-				if fv, ok := values[j].(*BoolValue); ok {
+				if fv, ok := values[j].(*BooleanValue); ok {
 					fv.unixnano = un
 					if v == 1 {
 						fv.value = true

@@ -9,9 +9,9 @@ Continuous queries serve two purposes in InfluxDB:
 1. Combining many series into a single series (i.e. removing 1 or more tag dimensions to make queries more efficient)
 2. Aggregating and downsampling series
 
-The purpose of both types of continuous queries is to duplicate or downsample data automatically in the background to make querying thier results fast and efficient. Think of them as another way to create indexes on data.
+The purpose of both types of continuous query is to duplicate or downsample data automatically in the background, to make querying their results fast and efficient. Think of them as another way to create indexes on data.
 
-Generally, there are continuous queries that create copyies of data into another measurement or tagset and queries that downsample and aggregate data. The only difference between the two types is if the query has a `GROUP BY time` clause.
+Generally, there are continuous queries that create copies of data into another measurement or tagset, and queries that downsample and aggregate data. The only difference between the two types is if the query has a `GROUP BY time` clause.
 
 Before we get to the continuous query examples, we need to define the `INTO` syntax of queries.
 
@@ -29,7 +29,7 @@ FROM <measurement>
 
 The syntax states that the retention policy, database, where clause, and group by clause are all optional. If a retention policy isn't specified, the database's default retention policy will be written into. If the database isn't specified, the database the query is running from will be written into.
 
-By selecting specific fields, `INTO` can merge many series into one that will go into a new either a new measurement, retention policy, or database. For example:
+By selecting specific fields, `INTO` can merge many series into one that will go into either a new measurement, retention policy, or database. For example:
 
 ```sql
 SELECT mean(value) as value, region
@@ -98,14 +98,13 @@ The `GROUP BY *` indicates that we want to group by the tagset of the points wri
 Showing what continuous queries we have:
 
 ```sql
-LIST CONTINUOUS QUERIES
+SHOW CONTINUOUS QUERIES
 ```
 
 Dropping continuous queries:
 
 ```sql
-DROP CONTINUOUS QUERY <name>
-ON <database>
+DROP CONTINUOUS QUERY <name> ON <database>
 ```
 
 ### Security
@@ -122,24 +121,24 @@ In theory they'd still be able to create a cycle with multiple continuous querie
 
 ## Proposed Architecture
 
-Continuous queries should be stored in the metastore cluster wide. That is, they amount to database schema that should be stored in every server in a cluster.
+Continuous queries should be stored in the metastore cluster wide. That is, they amount to a database schema that should be stored in every server in a cluster.
 
 Continuous queries will have to be handled in a different way for two different use cases: those that simply copy data (CQs without a group by time) and those that aggregate and downsample data (those with a group by time).
 
-### No group by time
+### No GROUP BY time
 
 For CQs that have no `GROUP BY time` clause, they should be evaluated at the data node as part of the write. The single write should create any other writes for the CQ and submit those in the same request to the brokers to ensure that all writes succeed (both the original and the new CQ writes) or none do.
 
 I imagine the process going something like this:
 
 1. Convert the data point into its compact form `<series id><time><values>`
-2. For each CQ on the measurement and retention policy without a group by time:
-3. Run the data point through a special query engine that will output 0 or 1 data point
-4. Goto #1 for each newly generated data point
-5. Write all the data points in a single call to the brokers
-6. Return success to the user
+2. For each CQ on the measurement and retention policy without a `GROUP BY time`:
+    2.1. Run the data point through a special query engine that will output 0 or 1 data point.
+    2.2. GOTO 1. for each newly generated data point
+    2.3. Write all the data points in a single call to the brokers
+    2.4. Return success to the user
 
-Note that for the generated data points, we need to go through and run this process against them since they can feed into different retention policies, measurements, and new tagsets. On #3 I mention that the output will either be a data point or not. That's because of `WHERE` clauses on the query. However, it will never be more than a single data point.
+Note that for the generated data points, we need to go through and run this process against them since they can feed into different retention policies, measurements, and new tag-sets. On 2.2 I mention that the output will either be a data point or not. That's because of `WHERE` clauses on the query. However, it will never be more than a single data point.
 
 I mention that we'll need a special query engine for these types of queries. In this case, they never have an aggregate function. Any query with an aggregate function also has a group by time, and these queries by definition don't have that.
 
@@ -147,11 +146,11 @@ The only thing we have to worry about is which fields are being selected, and wh
 
 I think this transform function be something separate from the regular query planner and engine. It can be in `influxQL` but it should be something fairly simply since the only purpose of these types of queries is to either filter some data out and output to a new series or transform into a new series by dropping tags.
 
-### Has group by time
+### Has GROUP BY time
 
 CQs that have a `GROUP BY time` (or aggregate CQs) will need to be handled differently.
 
-One key point on continuous queries with a group by time is that all their writes should always be `overwrite = true`. That is, they should only have a single data point for each timestamp. This distinction means that continuous queries for previous blocks of time can be safely run multiple times without duplicating data (i.e. they're idempotent).
+One key point on continuous queries with a `GROUP BY time`, is that all their writes should always be `overwrite = true`. That is, they should only have a single data point for each timestamp. This distinction means that continuous queries for previous blocks of time can be safely run multiple times without duplicating data (i.e. they're idempotent).
 
 There are two different ideas I have for how CQs with group by time could be handled. The first is through periodic updates handled by the Raft Leader. The second would be to expand out writes for each CQ and handle them on the data node.
 

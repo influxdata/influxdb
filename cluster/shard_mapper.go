@@ -1,16 +1,16 @@
 package cluster
 
+/*
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // ShardMapper is responsible for providing mappers for requested shards. It is
@@ -26,7 +26,7 @@ type ShardMapper struct {
 	}
 
 	TSDBStore interface {
-		CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
+		// CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	timeout time.Duration
@@ -60,7 +60,6 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, c
 	if err != nil {
 		return nil, err
 	}
-
 	return m, nil
 }
 
@@ -93,7 +92,7 @@ type RemoteMapper struct {
 	conn             net.Conn
 	bufferedResponse *MapShardResponse
 
-	unmarshallers []tsdb.UnmarshalFunc // Mapping-specific unmarshal functions.
+	// unmarshallers []tsdb.UnmarshalFunc // Mapping-specific unmarshal functions.
 }
 
 // NewRemoteMapper returns a new remote mapper using the given connection.
@@ -261,3 +260,5 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 func (r *RemoteMapper) Close() {
 	r.conn.Close()
 }
+
+*/

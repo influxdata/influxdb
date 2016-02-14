@@ -1,4 +1,4 @@
-package httpd
+package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
 	"crypto/tls"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
 // statistics gathered by the httpd package.

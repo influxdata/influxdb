@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func TestEncoding_FloatBlock(t *testing.T) {
@@ -143,7 +143,7 @@ func TestEncoding_IntBlock_Negatives(t *testing.T) {
 	}
 }
 
-func TestEncoding_BoolBlock_Basic(t *testing.T) {
+func TestEncoding_BooleanBlock_Basic(t *testing.T) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -201,8 +201,8 @@ func TestEncoding_BlockType(t *testing.T) {
 		blockType byte
 	}{
 		{value: float64(1.0), blockType: tsm1.BlockFloat64},
-		{value: int64(1), blockType: tsm1.BlockInt64},
-		{value: true, blockType: tsm1.BlockBool},
+		{value: int64(1), blockType: tsm1.BlockInteger},
+		{value: true, blockType: tsm1.BlockBoolean},
 		{value: "string", blockType: tsm1.BlockString},
 	}
 
@@ -237,8 +237,8 @@ func TestEncoding_Count(t *testing.T) {
 		blockType byte
 	}{
 		{value: float64(1.0), blockType: tsm1.BlockFloat64},
-		{value: int64(1), blockType: tsm1.BlockInt64},
-		{value: true, blockType: tsm1.BlockBool},
+		{value: int64(1), blockType: tsm1.BlockInteger},
+		{value: true, blockType: tsm1.BlockBoolean},
 		{value: "string", blockType: tsm1.BlockString},
 	}
 
@@ -335,7 +335,7 @@ func BenchmarkDecodeBlock_Float_TypeSpecific(b *testing.B) {
 	}
 }
 
-func BenchmarkDecodeBlock_Int64_Empty(b *testing.B) {
+func BenchmarkDecodeBlock_Integer_Empty(b *testing.B) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -358,7 +358,7 @@ func BenchmarkDecodeBlock_Int64_Empty(b *testing.B) {
 	}
 }
 
-func BenchmarkDecodeBlock_Int64_EqualSize(b *testing.B) {
+func BenchmarkDecodeBlock_Integer_EqualSize(b *testing.B) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -381,7 +381,7 @@ func BenchmarkDecodeBlock_Int64_EqualSize(b *testing.B) {
 	}
 }
 
-func BenchmarkDecodeBlock_Int64_TypeSpecific(b *testing.B) {
+func BenchmarkDecodeBlock_Integer_TypeSpecific(b *testing.B) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -394,17 +394,17 @@ func BenchmarkDecodeBlock_Int64_TypeSpecific(b *testing.B) {
 		b.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := make([]tsm1.Int64Value, len(values))
+	decodedValues := make([]tsm1.IntegerValue, len(values))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = tsm1.DecodeInt64Block(bytes, decodedValues)
+		_, err = tsm1.DecodeIntegerBlock(bytes, decodedValues)
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}
 	}
 }
 
-func BenchmarkDecodeBlock_Bool_Empty(b *testing.B) {
+func BenchmarkDecodeBlock_Boolean_Empty(b *testing.B) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -427,7 +427,7 @@ func BenchmarkDecodeBlock_Bool_Empty(b *testing.B) {
 	}
 }
 
-func BenchmarkDecodeBlock_Bool_EqualSize(b *testing.B) {
+func BenchmarkDecodeBlock_Boolean_EqualSize(b *testing.B) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -450,7 +450,7 @@ func BenchmarkDecodeBlock_Bool_EqualSize(b *testing.B) {
 	}
 }
 
-func BenchmarkDecodeBlock_Bool_TypeSpecific(b *testing.B) {
+func BenchmarkDecodeBlock_Boolean_TypeSpecific(b *testing.B) {
 	valueCount := 1000
 	times := getTimes(valueCount, 60, time.Second)
 	values := make([]tsm1.Value, len(times))
@@ -463,10 +463,10 @@ func BenchmarkDecodeBlock_Bool_TypeSpecific(b *testing.B) {
 		b.Fatalf("unexpected error: %v", err)
 	}
 
-	decodedValues := make([]tsm1.BoolValue, len(values))
+	decodedValues := make([]tsm1.BooleanValue, len(values))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = tsm1.DecodeBoolBlock(bytes, decodedValues)
+		_, err = tsm1.DecodeBooleanBlock(bytes, decodedValues)
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}

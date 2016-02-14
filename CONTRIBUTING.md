@@ -57,7 +57,7 @@ To assist in review for the PR, please add the following to your pull request co
 - [ ] CHANGELOG.md updated
 - [ ] Rebased/mergable
 - [ ] Tests pass
-- [ ] Sign [CLA](http://influxdb.com/community/cla.html) (if not already signed)
+- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
 ```
 
 Signing the CLA
@@ -65,7 +65,7 @@ Signing the CLA
 
 If you are going to be contributing back to InfluxDB please take a
 second to sign our CLA, which can be found
-[on our website](http://influxdb.com/community/cla.html).
+[on our website](https://influxdata.com/community/cla/).
 
 Installing Go
 -------------
@@ -95,7 +95,7 @@ Setup the project structure and fetch the repo like so:
 ```bash
     mkdir $HOME/gocodez
     export GOPATH=$HOME/gocodez
-    go get github.com/influxdb/influxdb
+    go get github.com/influxdata/influxdb
 ```
 
 You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
@@ -106,12 +106,12 @@ If you wish to work with fork of InfluxDB, your own fork for example, you must s
 
 ```bash
     export GOPATH=$HOME/gocodez
-    mkdir -p $GOPATH/src/github.com/influxdb
-    cd $GOPATH/src/github.com/influxdb
+    mkdir -p $GOPATH/src/github.com/influxdata
+    cd $GOPATH/src/github.com/influxdata
     git clone git@github.com:<username>/influxdb
 ```
 
-Retaining the directory structure `$GOPATH/src/github.com/influxdb` is necessary so that Go imports work correctly.
+Retaining the directory structure `$GOPATH/src/github.com/influxdata` is necessary so that Go imports work correctly.
 
 Build and Test
 -----
@@ -119,7 +119,7 @@ Build and Test
 Make sure you have Go installed and the project structure as shown above. To then get the dependencies for the project, execute the following commands:
 
 ```bash
-cd $GOPATH/src/github.com/influxdb/influxdb
+cd $GOPATH/src/github.com/influxdata/influxdb
 go get -u -f -t ./...
 ```
 
@@ -146,7 +146,7 @@ package.sh -h
 To run the tests, execute the following command:
 
 ```bash
-cd $GOPATH/src/github.com/influxdb/influxdb
+cd $GOPATH/src/github.com/influxdata/influxdb
 go test -v ./...
 
 # run tests that match some pattern
@@ -192,7 +192,7 @@ Pre-commit checks
 
 We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
 ```bash
-    cd $GOPATH/src/github.com/influxdb/influxdb
+    cd $GOPATH/src/github.com/influxdata/influxdb
     cp .hooks/pre-commit .git/hooks/
 ```
 In case the commit is rejected because it's not formatted you can run
@@ -218,7 +218,7 @@ When troubleshooting problems with CPU or memory the Go toolchain can be helpful
 
 ```sh
 # start influx with profiling
-./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof 
+./influxd -cpuprofile influxdcpu.prof -memprof influxdmem.prof
 # run queries, writes, whatever you're testing
 # Quit out of influxd and influxd.prof will then be written.
 # open up pprof to examine the profiling data.

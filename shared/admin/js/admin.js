@@ -343,6 +343,17 @@ var pretty = function(val) {
     }
 }
 
+var getVersion = function () {
+    var query = $.get(connectionString() + "/ping");
+
+    query.fail(handleRequestError);
+
+    query.done(function (data, status, xhr) {
+        var version = xhr.getResponseHeader('X-InfluxDB-Version');
+        $('.influxdb-version').html(' (Server v'+version+')');
+    });
+}
+
 var chooseDatabase = function (databaseName) {
     currentlySelectedDatabase = databaseName;
     document.getElementById("content-current-database").innerHTML = currentlySelectedDatabase;
@@ -404,6 +415,7 @@ var updateDatabaseList = function() {
 // when the page is ready, start everything up
 $(document).ready(function () {
     loadSettings();
+    getVersion();
 
     // bind to the settings cog in the navbar
     $("#action-settings").click(function (e) {

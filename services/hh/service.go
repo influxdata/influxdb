@@ -1,4 +1,4 @@
-package hh
+package hh // import "github.com/influxdata/influxdb/services/hh"
 
 import (
 	"expvar"
@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/monitor"
-	"github.com/influxdb/influxdb/services/meta"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // ErrHintedHandoffDisabled is returned when attempting to use a

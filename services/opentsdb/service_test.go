@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/services/meta"
-	"github.com/influxdb/influxdb/services/opentsdb"
+	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/opentsdb"
 )
 
 // Ensure a point can be written via the telnet protocol.
@@ -65,11 +65,20 @@ func TestService_Telnet(t *testing.T) {
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(10 * time.Millisecond)
 
-	// Verify that the writer was called.
-	if atomic.LoadInt32(&called) == 0 {
-		t.Fatal("points writer not called")
+	tick := time.Tick(10 * time.Millisecond)
+	timeout := time.After(10 * time.Second)
+
+	for {
+		select {
+		case <-tick:
+			// Verify that the writer was called.
+			if atomic.LoadInt32(&called) > 0 {
+				return
+			}
+		case <-timeout:
+			t.Fatal("points writer not called")
+		}
 	}
 }
 

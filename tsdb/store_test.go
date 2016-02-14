@@ -1,322 +1,233 @@
 package tsdb_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/models"
-	"github.com/influxdb/influxdb/tsdb"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/deep"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
-func TestStoreOpen(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
+// Ensure the store can create a new shard.
+func TestStore_CreateShard(t *testing.T) {
+	s := MustOpenStore()
+	defer s.Close()
 
-	if err := os.MkdirAll(filepath.Join(dir, "mydb"), 0600); err != nil {
-		t.Fatalf("failed to create test db dir: %v", err)
-	}
-
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
-	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
+	// Create a new shard and verify that it exists.
+	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(1); sh == nil {
+		t.Fatalf("expected shard")
+	} else if di := s.DatabaseIndex("db0"); di == nil {
+		t.Errorf("expected database index")
 	}
 
-	if got, exp := s.DatabaseIndexN(), 1; got != exp {
-		t.Fatalf("database index count mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func TestStoreOpenShard(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
-	if err != nil {
-		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
-
-	path := filepath.Join(dir, "mydb", "myrp")
-	if err := os.MkdirAll(path, 0700); err != nil {
-		t.Fatalf("Store.Open() failed to create test db dir: %v", err)
+	// Create another shard and verify that it exists.
+	if err := s.CreateShard("db0", "rp0", 2); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(2); sh == nil {
+		t.Fatalf("expected shard")
 	}
 
-	shardPath := filepath.Join(path, "1")
-	if _, err := os.Create(shardPath); err != nil {
-		t.Fatalf("Store.Open() failed to create test shard 1: %v", err)
-	}
-
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
-	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
-	}
-
-	if got, exp := s.DatabaseIndexN(), 1; got != exp {
-		t.Fatalf("Store.Open() database index count mismatch: got %v, exp %v", got, exp)
-	}
-
-	if di := s.DatabaseIndex("mydb"); di == nil {
-		t.Errorf("Store.Open() database myb does not exist")
-	}
-
-	if got, exp := s.ShardN(), 1; got != exp {
-		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", got, exp)
-	}
-
-	if sh := s.Shard(1); sh.Path() != shardPath {
-		t.Errorf("Store.Open() shard path mismatch: got %v, exp %v", sh.Path(), shardPath)
+	// Reopen shard and recheck.
+	if s, err := ReopenStore(s); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(1); sh == nil {
+		t.Fatalf("expected shard(1)")
+	} else if sh = s.Shard(2); sh == nil {
+		t.Fatalf("expected shard(2)")
 	}
 }
 
-func TestStoreOpenShardCreateDelete(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
-	if err != nil {
-		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
+// Ensure the store can delete an existing shard.
+func TestStore_DeleteShard(t *testing.T) {
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create a new shard and verify that it exists.
+	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(1); sh == nil {
+		t.Fatalf("expected shard")
 	}
 
-	path := filepath.Join(dir, "mydb", "myrp")
-	if err := os.MkdirAll(path, 0700); err != nil {
-		t.Fatalf("Store.Open() failed to create test db dir: %v", err)
-	}
-
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
-	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
-	}
-
-	if got, exp := s.DatabaseIndexN(), 1; got != exp {
-		t.Fatalf("Store.Open() database index count mismatch: got %v, exp %v", got, exp)
-	}
-
-	if di := s.DatabaseIndex("mydb"); di == nil {
-		t.Errorf("Store.Open() database mydb does not exist")
-	}
-
-	if err := s.CreateShard("mydb", "myrp", 1); err != nil {
-		t.Fatalf("Store.Open() failed to create shard")
-	}
-
-	if got, exp := s.ShardN(), 1; got != exp {
-		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", got, exp)
-	}
-
-	shardIDs := s.ShardIDs()
-	if len(shardIDs) != 1 || shardIDs[0] != 1 {
-		t.Fatalf("Store.Open() ShardIDs not correct: got %v, exp %v", s.ShardIDs(), []uint64{1})
-	}
-
-	if err := s.DeleteShard(1); err != nil {
-		t.Fatalf("Store.Open() failed to delete shard: %v", err)
-	}
-
-	if sh := s.Shard(1); sh != nil {
-		t.Fatal("Store.Open() shard ID 1 still exists")
+	// Reopen shard and recheck.
+	if s, err := ReopenStore(s); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(1); sh == nil {
+		t.Fatalf("shard exists")
 	}
 }
 
-func TestStoreOpenNotDatabaseDir(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
-	if err != nil {
-		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
+// Ensure the store reports an error when it can't open a database directory.
+func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
+	s := NewStore()
+	defer s.Close()
 
-	path := filepath.Join(dir, "bad_db_path")
-	if _, err := os.Create(path); err != nil {
-		t.Fatalf("Store.Open() failed to create test db dir: %v", err)
+	// Create a file instead of a directory for a database.
+	if _, err := os.Create(filepath.Join(s.Path(), "db0")); err != nil {
+		t.Fatal(err)
 	}
 
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
+	// Store should ignore database since it's a file.
 	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
-	}
-
-	if got, exp := s.DatabaseIndexN(), 0; got != exp {
-		t.Fatalf("Store.Open() database index count mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got, exp := s.ShardN(), 0; got != exp {
-		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", got, exp)
+		t.Fatal(err)
+	} else if n := s.DatabaseIndexN(); n != 0 {
+		t.Fatalf("unexpected database index count: %d", n)
 	}
 }
 
-func TestStoreOpenNotRPDir(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
-	if err != nil {
-		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
+// Ensure the store reports an error when it can't open a retention policy.
+func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
+	s := NewStore()
+	defer s.Close()
+
+	// Create an RP file instead of a directory.
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db0"), 0777); err != nil {
+		t.Fatal(err)
+	} else if _, err := os.Create(filepath.Join(s.Path(), "db0", "rp0")); err != nil {
+		t.Fatal(err)
 	}
 
-	path := filepath.Join(dir, "mydb")
-	if err := os.MkdirAll(path, 0700); err != nil {
-		t.Fatalf("Store.Open() failed to create test db dir: %v", err)
-	}
-
-	rpPath := filepath.Join(path, "myrp")
-	if _, err := os.Create(rpPath); err != nil {
-		t.Fatalf("Store.Open() failed to create test retention policy directory: %v", err)
-	}
-
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
+	// Store should ignore database since it's a file.
 	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
-	}
-
-	if got, exp := s.DatabaseIndexN(), 1; got != exp {
-		t.Fatalf("Store.Open() database index count mismatch: got %v, exp %v", got, exp)
-	}
-
-	if di := s.DatabaseIndex("mydb"); di == nil {
-		t.Errorf("Store.Open() database myb does not exist")
-	}
-
-	if got, exp := s.ShardN(), 0; got != exp {
-		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", got, exp)
+		t.Fatal(err)
+	} else if n := s.DatabaseIndexN(); n != 1 {
+		t.Fatalf("unexpected database index count: %d", n)
 	}
 }
 
-func TestStoreOpenShardBadShardPath(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
-	if err != nil {
-		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
+// Ensure the store reports an error when it can't open a retention policy.
+func TestStore_Open_InvalidShard(t *testing.T) {
+	s := NewStore()
+	defer s.Close()
 
-	path := filepath.Join(dir, "mydb", "myrp")
-	if err := os.MkdirAll(path, 0700); err != nil {
-		t.Fatalf("Store.Open() failed to create test db dir: %v", err)
-	}
-
-	// Non-numeric shard ID
-	shardPath := filepath.Join(path, "bad_shard_path")
-	if _, err := os.Create(shardPath); err != nil {
-		t.Fatalf("Store.Open() failed to create test shard 1: %v", err)
+	// Create a non-numeric shard file.
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0"), 0777); err != nil {
+		t.Fatal(err)
+	} else if _, err := os.Create(filepath.Join(s.Path(), "db0", "rp0", "bad_shard")); err != nil {
+		t.Fatal(err)
 	}
 
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
+	// Store should ignore shard since it does not have a numeric name.
 	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
+		t.Fatal(err)
+	} else if n := s.DatabaseIndexN(); n != 1 {
+		t.Fatalf("unexpected database index count: %d", n)
+	} else if n := s.ShardN(); n != 0 {
+		t.Fatalf("unexpected shard count: %d", n)
 	}
-
-	if got, exp := s.DatabaseIndexN(), 1; got != exp {
-		t.Fatalf("Store.Open() database index count mismatch: got %v, exp %v", got, exp)
-	}
-
-	if di := s.DatabaseIndex("mydb"); di == nil {
-		t.Errorf("Store.Open() database myb does not exist")
-	}
-
-	if got, exp := s.ShardN(), 0; got != exp {
-		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", got, exp)
-	}
-
 }
 
-func TestStoreEnsureSeriesPersistedInNewShards(t *testing.T) {
-	dir, err := ioutil.TempDir("", "store_test")
+// Ensure shards can create iterators.
+func TestShards_CreateIterator(t *testing.T) {
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create shard #0 with data.
+	s.MustCreateShardWithData("db0", "rp0", 0,
+		`cpu,host=serverA value=1  0`,
+		`cpu,host=serverA value=2 10`,
+		`cpu,host=serverB value=3 20`,
+	)
+
+	// Create shard #1 with data.
+	s.MustCreateShardWithData("db0", "rp0", 1,
+		`cpu,host=serverA value=1 30`,
+		`mem,host=serverA value=2 40`, // skip: wrong source
+		`cpu,host=serverC value=3 60`,
+	)
+
+	// Create iterator.
+	itr, err := tsdb.Shards(s.Shards([]uint64{0, 1})).CreateIterator(influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr(`value`),
+		Dimensions: []string{"host"},
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	})
 	if err != nil {
-		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
+		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer itr.Close()
+	fitr := itr.(influxql.FloatIterator)
 
-	s := tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
-	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
-	}
-
-	if err := s.CreateShard("foo", "default", 1); err != nil {
-		t.Fatalf("error creating shard: %v", err)
-	}
-
-	p, _ := models.ParsePoints([]byte("cpu val=1"))
-	if err := s.WriteToShard(1, p); err != nil {
-		t.Fatalf("error writing to shard: %v", err)
+	// Read values from iterator. The host=serverA points should come first.
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	} else if p = fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	} else if p = fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(30, 0).UnixNano(), Value: 1}) {
+		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
 
-	if err := s.CreateShard("foo", "default", 2); err != nil {
-		t.Fatalf("error creating shard: %v", err)
+	// Next the host=serverB point.
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverB"), Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
+		t.Fatalf("unexpected point(3): %s", spew.Sdump(p))
 	}
 
-	if err := s.WriteToShard(2, p); err != nil {
-		t.Fatalf("error writing to shard: %v", err)
+	// And finally the host=serverC point.
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(60, 0).UnixNano(), Value: 3}) {
+		t.Fatalf("unexpected point(4): %s", spew.Sdump(p))
 	}
 
-	d := s.DatabaseIndex("foo")
-	if d == nil {
-		t.Fatal("expected to have database index for foo")
-	}
-	if d.Series("cpu") == nil {
-		t.Fatal("expected series cpu to be in the index")
-	}
-
-	// delete the shard, close the store and reopen it and confirm the measurement is still there
-	s.DeleteShard(1)
-	s.Close()
-
-	s = tsdb.NewStore(dir)
-	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
-	if err := s.Open(); err != nil {
-		t.Fatalf("Store.Open() failed: %v", err)
-	}
-
-	d = s.DatabaseIndex("foo")
-	if d == nil {
-		t.Fatal("expected to have database index for foo")
-	}
-	if d.Series("cpu") == nil {
-		t.Fatal("expected series cpu to be in the index")
+	// Then an EOF should occur.
+	if p := fitr.Next(); p != nil {
+		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
 	}
 }
 
 func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
 
 func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
-	// Generate test series (measurements + unique tag sets).
-	series := genTestSeries(mCnt, tkCnt, tvCnt)
-	// Generate point data to write to the shards.
-	points := []models.Point{}
-	for _, s := range series {
-		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
-			points = append(points, p)
+	var path string
+	if err := func() error {
+		store := MustOpenStore()
+		defer store.Store.Close()
+		path = store.Path()
+
+		// Generate test series (measurements + unique tag sets).
+		series := genTestSeries(mCnt, tkCnt, tvCnt)
+
+		// Generate point data to write to the shards.
+		points := []models.Point{}
+		for _, s := range series {
+			for val := 0.0; val < float64(pntCnt); val++ {
+				p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+				points = append(points, p)
+			}
 		}
-	}
-	// Create a temporary directory for the test data.
-	dir, _ := ioutil.TempDir("", "store_test")
-	// Create the store.
-	store := tsdb.NewStore(dir)
-	// Open the store.
-	if err := store.Open(); err != nil {
-		b.Fatalf("benchmarkStoreOpen: %s", err)
-	}
-	// Create requested number of shards in the store & write points.
-	for shardID := 0; shardID < shardCnt; shardID++ {
-		if err := store.CreateShard("mydb", "myrp", uint64(shardID)); err != nil {
-			b.Fatalf("benchmarkStoreOpen: %s", err)
+
+		// Create requested number of shards in the store & write points.
+		for shardID := 0; shardID < shardCnt; shardID++ {
+			if err := store.CreateShard("mydb", "myrp", uint64(shardID)); err != nil {
+				return fmt.Errorf("create shard: %s", err)
+			}
+			if err := store.BatchWrite(shardID, points); err != nil {
+				return fmt.Errorf("batch write: %s", err)
+			}
 		}
-		// Write points to the shard.
-		chunkedWriteStoreShard(store, shardID, points)
+		return nil
+	}(); err != nil {
+		b.Fatal(err)
 	}
-	// Close the store.
-	if err := store.Close(); err != nil {
-		b.Fatalf("benchmarkStoreOpen: %s", err)
-	}
+	defer os.RemoveAll(path)
 
 	// Run the benchmark loop.
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		store := tsdb.NewStore(dir)
+		store := tsdb.NewStore(path)
 		if err := store.Open(); err != nil {
-			b.Fatalf("benchmarkStoreOpen: %s", err)
+			b.Fatalf("open store error: %s", err)
 		}
 
 		b.StopTimer()
@@ -325,7 +236,80 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 	}
 }
 
-func chunkedWriteStoreShard(store *tsdb.Store, shardID int, points []models.Point) {
+// Store is a test wrapper for tsdb.Store.
+type Store struct {
+	*tsdb.Store
+}
+
+// NewStore returns a new instance of Store with a temporary path.
+func NewStore() *Store {
+	path, err := ioutil.TempDir("", "influxdb-tsdb-")
+	if err != nil {
+		panic(err)
+	}
+
+	s := &Store{Store: tsdb.NewStore(path)}
+	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	return s
+}
+
+// MustOpenStore returns a new, open Store at a temporary path.
+func MustOpenStore() *Store {
+	s := NewStore()
+	if err := s.Open(); err != nil {
+		panic(err)
+	}
+	return s
+}
+
+// ReopenStore closes and reopens the store as a new store.
+func ReopenStore(s *Store) (*Store, error) {
+	if err := s.Store.Close(); err != nil {
+		return nil, err
+	}
+
+	other := &Store{Store: tsdb.NewStore(s.Path())}
+	other.EngineOptions = s.EngineOptions
+	if err := other.Open(); err != nil {
+		return nil, err
+	}
+
+	return other, nil
+}
+
+// Close closes the store and removes the underlying data.
+func (s *Store) Close() error {
+	defer os.RemoveAll(s.Path())
+	return s.Store.Close()
+}
+
+// MustCreateShardWithData creates a shard and writes line protocol data to it.
+func (s *Store) MustCreateShardWithData(db, rp string, shardID int, data ...string) {
+	if err := s.CreateShard(db, rp, uint64(shardID)); err != nil {
+		panic(err)
+	}
+	s.MustWriteToShardString(shardID, data...)
+}
+
+// MustWriteToShardString parses the line protocol (with second precision) and
+// inserts the resulting points into a shard. Panic on error.
+func (s *Store) MustWriteToShardString(shardID int, data ...string) {
+	var points []models.Point
+	for i := range data {
+		a, err := models.ParsePointsWithPrecision([]byte(strings.TrimSpace(data[i])), time.Time{}, "s")
+		if err != nil {
+			panic(err)
+		}
+		points = append(points, a...)
+	}
+
+	if err := s.WriteToShard(uint64(shardID), points); err != nil {
+		panic(err)
+	}
+}
+
+// BatchWrite writes points to a shard in chunks.
+func (s *Store) BatchWrite(shardID int, points []models.Point) error {
 	nPts := len(points)
 	chunkSz := 10000
 	start := 0
@@ -339,8 +323,21 @@ func chunkedWriteStoreShard(store *tsdb.Store, shardID int, points []models.Poin
 			break
 		}
 
-		store.WriteToShard(uint64(shardID), points[start:end])
+		if err := s.WriteToShard(uint64(shardID), points[start:end]); err != nil {
+			return err
+		}
 		start = end
 		end += chunkSz
 	}
+	return nil
+}
+
+// ParseTags returns an instance of Tags for a comma-delimited list of key/values.
+func ParseTags(s string) influxql.Tags {
+	m := make(map[string]string)
+	for _, kv := range strings.Split(s, ",") {
+		a := strings.Split(kv, "=")
+		m[a[0]] = a[1]
+	}
+	return influxql.NewTags(m)
 }

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 // Ensure a value's data type can be retrieved.
@@ -17,10 +17,37 @@ func TestInspectDataType(t *testing.T) {
 		typ influxql.DataType
 	}{
 		{float64(100), influxql.Float},
+		{int64(100), influxql.Integer},
+		{int32(100), influxql.Integer},
+		{100, influxql.Integer},
+		{true, influxql.Boolean},
+		{"string", influxql.String},
+		{time.Now(), influxql.Time},
+		{time.Second, influxql.Duration},
+		{nil, influxql.Unknown},
 	} {
 		if typ := influxql.InspectDataType(tt.v); tt.typ != typ {
 			t.Errorf("%d. %v (%s): unexpected type: %s", i, tt.v, tt.typ, typ)
 			continue
+		}
+	}
+}
+
+func TestDataType_String(t *testing.T) {
+	for i, tt := range []struct {
+		typ influxql.DataType
+		v   string
+	}{
+		{influxql.Float, "float"},
+		{influxql.Integer, "integer"},
+		{influxql.Boolean, "boolean"},
+		{influxql.String, "string"},
+		{influxql.Time, "time"},
+		{influxql.Duration, "duration"},
+		{influxql.Unknown, "unknown"},
+	} {
+		if v := tt.typ.String(); tt.v != v {
+			t.Errorf("%d. %v (%s): unexpected string: %s", i, tt.typ, tt.v, v)
 		}
 	}
 }
@@ -295,7 +322,6 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 	for i, tt := range tests {
 		// Parse statement.
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
@@ -311,15 +337,6 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 // Test SELECT statement wildcard rewrite.
 func TestSelectStatement_RewriteWildcards(t *testing.T) {
-	var fields = influxql.Fields{
-		&influxql.Field{Expr: &influxql.VarRef{Val: "value1"}},
-		&influxql.Field{Expr: &influxql.VarRef{Val: "value2"}},
-	}
-	var dimensions = influxql.Dimensions{
-		&influxql.Dimension{Expr: &influxql.VarRef{Val: "host"}},
-		&influxql.Dimension{Expr: &influxql.VarRef{Val: "region"}},
-	}
-
 	var tests = []struct {
 		stmt    string
 		rewrite string
@@ -333,7 +350,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Query wildcard
 		{
 			stmt:    `SELECT * FROM cpu`,
-			rewrite: `SELECT value1, value2 FROM cpu GROUP BY host, region`,
+			rewrite: `SELECT host, region, value1, value2 FROM cpu`,
 		},
 
 		// Parser fundamentally prohibits multiple query sources
@@ -400,22 +417,27 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		// Parse statement.
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		// Rewrite statement.
-		rw := stmt.(*influxql.SelectStatement).RewriteWildcards(fields, dimensions)
-		if rw == nil {
-			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
-			continue
+		var ic IteratorCreator
+		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+			fields = map[string]struct{}{"value1": struct{}{}, "value2": struct{}{}}
+			dimensions = map[string]struct{}{"host": struct{}{}, "region": struct{}{}}
+			return
 		}
-		if rw := rw.String(); tt.rewrite != rw {
+
+		// Rewrite statement.
+		rw, err := stmt.(*influxql.SelectStatement).RewriteWildcards(&ic)
+		if err != nil {
+			t.Errorf("%d. %q: error: %s", i, tt.stmt, err)
+		} else if rw == nil {
+			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
+		} else if rw := rw.String(); tt.rewrite != rw {
 			t.Errorf("%d. %q: unexpected rewrite:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.rewrite, rw)
-			continue
 		}
 	}
 }
@@ -456,8 +478,7 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		t.Logf("index: %d, statement: %s", i, tt.stmt)
+	for _, tt := range tests {
 		s := MustParseSelectStatement(tt.stmt)
 		if s.IsRawQuery != tt.isRaw {
 			t.Errorf("'%s', IsRawQuery should be %v", tt.stmt, tt.isRaw)
@@ -718,7 +739,7 @@ func TestTimeRange(t *testing.T) {
 		{expr: `time < 10`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
 
 		// Equality
-		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
+		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00.000000001Z`},
 
 		// Multiple time expressions.
 		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T23:59:59.999999999Z`},
@@ -727,7 +748,7 @@ func TestTimeRange(t *testing.T) {
 		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `1999-01-01T00:00:00Z`},
 
 		// Absolute time
-		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00Z`},
+		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00.000000001Z`},
 
 		// Non-comparative expressions.
 		{expr: `time`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
@@ -858,8 +879,8 @@ func TestParseString(t *testing.T) {
 		{
 			stmt: `DROP CONTINUOUS QUERY "my query" ON "my database"`,
 		},
-		// See issues https://github.com/influxdb/influxdb/issues/1647
-		// and https://github.com/influxdb/influxdb/issues/4404
+		// See issues https://github.com/influxdata/influxdb/issues/1647
+		// and https://github.com/influxdata/influxdb/issues/4404
 		//{
 		//	stmt: `DELETE FROM "my db"."my rp"."my measurement"`,
 		//},
@@ -1112,6 +1133,49 @@ func Test_fieldsNames(t *testing.T) {
 		}
 	}
 
+}
+
+func TestSources_Names(t *testing.T) {
+	sources := influxql.Sources([]influxql.Source{
+		&influxql.Measurement{
+			Name: "cpu",
+		},
+		&influxql.Measurement{
+			Name: "mem",
+		},
+	})
+
+	names := sources.Names()
+	if names[0] != "cpu" {
+		t.Errorf("expected cpu, got %s", names[0])
+	}
+	if names[1] != "mem" {
+		t.Errorf("expected mem, got %s", names[1])
+	}
+}
+
+func TestSources_HasSystemSource(t *testing.T) {
+	sources := influxql.Sources([]influxql.Source{
+		&influxql.Measurement{
+			Name: "_measurements",
+		},
+	})
+
+	ok := sources.HasSystemSource()
+	if !ok {
+		t.Errorf("expected to find a system source, found none")
+	}
+
+	sources = influxql.Sources([]influxql.Source{
+		&influxql.Measurement{
+			Name: "cpu",
+		},
+	})
+
+	ok = sources.HasSystemSource()
+	if ok {
+		t.Errorf("expected to find no system source, found one")
+	}
 }
 
 // Valuer represents a simple wrapper around a map to implement the influxql.Valuer interface.
