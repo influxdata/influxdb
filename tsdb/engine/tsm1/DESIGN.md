@@ -60,7 +60,7 @@ The last section is the footer that stores the offset of the start of the index.
 
 # File System Layout
 
-The file system is organized a directory per shard where each shard is an integer number.  Within each shard directory, there is a set of other directories and files:
+The file system is organized a directory per shard where each shard is an integer number. Associated with each shard directory, there is a set of other directories and files:
 
 * a wal directory - contains a set numerically increasing files WAL segment files named #####.wal.  The wal directory is separate from the directory containing the TSM files so that different types can be used if necessary.
 * .tsm files - a set of numerically increasing TSM files containing compressed series data.
