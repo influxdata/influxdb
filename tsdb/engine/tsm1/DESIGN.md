@@ -436,7 +436,9 @@ The current design chooses the last option - failing the writes. While this opti
 
 Crash recovery is facilitated with the following two properties: the append-only nature of WAL segments and the write-once nature of TSM files. If the server crashes incomplete compactions are discarded and the cache is rebuilt from the discovered WAL segments. Compactions will then resume in the normal way. Similarly, TSM files are immutable once they have been created and registered with the file store. A compaction may replace an existing TSM file, but the replaced file is not removed from the file system until replacement file has been created and synced to disk.
 
+#Errata
 
+This section is reserved for errata. In cases where the document is incorrect or inconsistent, such errata will be noted here with the contents of this section taking precedence over text elsewhere in the document in the case of discrepancies. Future full revisions of this document will fold the errata text back into the body of the document.
 
 #Revisions
 
