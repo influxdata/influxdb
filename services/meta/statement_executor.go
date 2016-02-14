@@ -198,6 +198,9 @@ func (e *StatementExecutor) executeDropServerStatement(q *influxql.DropServerSta
 
 func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserStatement) *influxql.Result {
 	_, err := e.Store.CreateUser(q.Name, q.Password, q.Admin)
+	if err == ErrUserExists && q.IfNotExists {
+		err = nil
+	}
 	return &influxql.Result{Err: err}
 }
 

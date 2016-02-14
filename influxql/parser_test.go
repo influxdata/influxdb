@@ -1334,8 +1334,9 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE USER testuser WITH PASSWORD 'pwd1337'`,
 			stmt: &influxql.CreateUserStatement{
-				Name:     "testuser",
-				Password: "pwd1337",
+				Name:        "testuser",
+				IfNotExists: false,
+				Password:    "pwd1337",
 			},
 		},
 
@@ -1343,9 +1344,20 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE USER testuser WITH PASSWORD 'pwd1337' WITH ALL PRIVILEGES`,
 			stmt: &influxql.CreateUserStatement{
-				Name:     "testuser",
-				Password: "pwd1337",
-				Admin:    true,
+				Name:        "testuser",
+				IfNotExists: false,
+				Password:    "pwd1337",
+				Admin:       true,
+			},
+		},
+
+		// CREATE USER IF NOT EXISTS statement
+		{
+			s: `CREATE USER IF NOT EXISTS testuser WITH PASSWORD 'pwd1337'`,
+			stmt: &influxql.CreateUserStatement{
+				Name:        "testuser",
+				IfNotExists: true,
+				Password:    "pwd1337",
 			},
 		},
 
