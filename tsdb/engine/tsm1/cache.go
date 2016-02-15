@@ -79,6 +79,7 @@ const (
 
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
+	commit  sync.Mutex
 	mu      sync.RWMutex
 	store   map[string]*entry
 	dirty   map[string]*entry
@@ -171,6 +172,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 // Every call to this method must be matched with exactly one corresponding call to either
 // CommitSnapshot() or RollbackSnapshot().
 func (c *Cache) PrepareSnapshot() *Cache {
+
+	c.commit.Lock() // released by RollbackSnapshot() or CommitSnapshot()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -218,12 +222,13 @@ func (c *Cache) UpdateStore() {
 
 // RollbackSnapshot rolls back a previously prepared snapshot.
 func (c *Cache) RollbackSnapshot(snapshot *Cache) {
-	// TBD: replace placeholder with true implementation.
+	defer c.commit.Unlock()
 }
 
 // CommitSnapshot will remove the snapshot cache from the list of flushing caches and
 // adjust the size of the list.
 func (c *Cache) CommitSnapshot(snapshot *Cache) {
+	defer c.commit.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
