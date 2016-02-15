@@ -435,7 +435,7 @@ func (e *Engine) WriteSnapshot() error {
 			return nil, nil, nil, err
 		}
 
-		snapshot := e.Cache.Snapshot()
+		snapshot := e.Cache.PrepareSnapshot()
 
 		return segments, snapshot, e.Compactor.Clone(), nil
 	}()
@@ -478,7 +478,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, c
 	}
 
 	// clear the snapshot from the in-memory cache, then the old WAL files
-	e.Cache.ClearSnapshot(snapshot)
+	e.Cache.CommitSnapshot(snapshot)
 
 	if err := e.WAL.Remove(closedFiles); err != nil {
 		e.logger.Printf("error removing closed wal segments: %v", err)

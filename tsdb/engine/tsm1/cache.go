@@ -166,8 +166,11 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 }
 
 // Snapshot will take a snapshot of the current cache, add it to the slice of caches that
-// are being flushed, and reset the current cache with new values
-func (c *Cache) Snapshot() *Cache {
+// are being flushed, and reset the current cache with new values.
+//
+// Every call to this method must be matched with exactly one corresponding call to either
+// CommitSnapshot() or RollbackSnapshot().
+func (c *Cache) PrepareSnapshot() *Cache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -213,9 +216,14 @@ func (c *Cache) UpdateStore() {
 	c.store, c.dirty = c.dirty, nil
 }
 
-// ClearSnapshot will remove the snapshot cache from the list of flushing caches and
-// adjust the size
-func (c *Cache) ClearSnapshot(snapshot *Cache) {
+// RollbackSnapshot rolls back a previously prepared snapshot.
+func (c *Cache) RollbackSnapshot(snapshot *Cache) {
+	// TBD: replace placeholder with true implementation.
+}
+
+// CommitSnapshot will remove the snapshot cache from the list of flushing caches and
+// adjust the size of the list.
+func (c *Cache) CommitSnapshot(snapshot *Cache) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
