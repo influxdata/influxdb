@@ -2,13 +2,14 @@ package run
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -123,11 +124,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	nodeAddr, err := meta.DefaultHost(DefaultHostname, c.Meta.HTTPBindAddress)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create the root directory if it doesn't already exist.
 	if err := os.MkdirAll(c.Meta.Dir, 0777); err != nil {
 		return nil, fmt.Errorf("mkdir all: %s", err)
@@ -136,19 +132,21 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// 0.11 we no longer use peers.json.  Remove the file if we have one on disk.
 	os.RemoveAll(filepath.Join(c.Meta.Dir, "peers.json"))
 
-	// load the node information
-	metaAddresses := []string{nodeAddr}
-	if !c.Meta.Enabled {
-		metaAddresses = c.Meta.JoinPeers
-	}
-
-	node, err := influxdb.LoadNode(c.Meta.Dir, metaAddresses)
+	node, err := influxdb.LoadNode(c.Meta.Dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		} else {
-			node = influxdb.NewNode(c.Meta.Dir, metaAddresses)
+			node = influxdb.NewNode(c.Meta.Dir)
 		}
+	}
+
+	// In 0.11 we removed MetaServers from node.json.  To avoid confusion for
+	// existing users, force a re-save of the node.json file to remove that property
+	// if it happens to exist.
+	nodeContents, err := ioutil.ReadFile(filepath.Join(c.Meta.Dir, "node.json"))
+	if err == nil && strings.Contains(string(nodeContents), "MetaServers") {
+		node.Save()
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check
@@ -626,20 +624,6 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 
 // initializeMetaClient will set the MetaClient and join the node to the cluster if needed
 func (s *Server) initializeMetaClient() error {
-	// if the node ID is > 0 then we just need to initialize the metaclient
-	if s.Node.ID > 0 {
-		s.MetaClient = meta.NewClient(s.Node.MetaServers, s.metaUseTLS)
-		if err := s.MetaClient.Open(); err != nil {
-			return err
-		}
-
-		go s.updateMetaNodeInformation()
-
-		s.MetaClient.WaitForDataChanged()
-
-		return nil
-	}
-
 	// It's the first time starting up and we need to either join
 	// the cluster or initialize this node as the first member
 	if len(s.joinPeers) == 0 {
@@ -655,6 +639,13 @@ func (s *Server) initializeMetaClient() error {
 	if err := s.MetaClient.Open(); err != nil {
 		return err
 	}
+
+	// if the node ID is > 0 then we just need to initialize the metaclient
+	if s.Node.ID > 0 {
+		s.MetaClient.WaitForDataChanged()
+		return nil
+	}
+
 	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 	for err != nil {
 		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
@@ -663,47 +654,16 @@ func (s *Server) initializeMetaClient() error {
 	}
 	s.Node.ID = n.ID
 
-	metaNodes, err := s.MetaClient.MetaNodes()
-	if err != nil {
-		return err
-	}
-	for _, n := range metaNodes {
-		s.Node.AddMetaServers([]string{n.Host})
-	}
-
 	if err := s.Node.Save(); err != nil {
 		return err
 	}
 
-	go s.updateMetaNodeInformation()
-
 	return nil
 }
 
-// updateMetaNodeInformation will continuously run and save the node.json file
-// if the list of metaservers in the cluster changes
-func (s *Server) updateMetaNodeInformation() {
-	for {
-		c := s.MetaClient.WaitForDataChanged()
-		select {
-		case <-c:
-			nodes, _ := s.MetaClient.MetaNodes()
-			var nodeAddrs []string
-			for _, n := range nodes {
-				nodeAddrs = append(nodeAddrs, n.Host)
-			}
-			if !reflect.DeepEqual(nodeAddrs, s.Node.MetaServers) {
-				s.Node.MetaServers = nodeAddrs
-				if err := s.Node.Save(); err != nil {
-					log.Printf("error saving node information: %s\n", err.Error())
-				} else {
-					log.Printf("updated node metaservers with: %v\n", s.Node.MetaServers)
-				}
-			}
-		case <-s.closing:
-			return
-		}
-	}
+// MetaServers returns the meta node HTTP addresses used by this server.
+func (s *Server) MetaServers() []string {
+	return s.MetaClient.MetaServers()
 }
 
 // Service represents a service attached to the server.
