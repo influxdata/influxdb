@@ -220,25 +220,23 @@ func (c *Cache) UpdateStore() {
 	c.store, c.dirty = c.dirty, nil
 }
 
-// RollbackSnapshot rolls back a previously prepared snapshot.
-func (c *Cache) RollbackSnapshot(snapshot *Cache) {
+// RollbackSnapshot rolls back a previously prepared snapshot by releasing the commit lock.
+//
+// We leave the snapshots slice untouched because we need to use it to resolve
+// queries that hit the WAL segments.
+func (c *Cache) RollbackSnapshot() {
 	defer c.commit.Unlock()
 }
 
-// CommitSnapshot will remove the snapshot cache from the list of flushing caches and
-// adjust the size of the list.
-func (c *Cache) CommitSnapshot(snapshot *Cache) {
+// CommitSnapshot commits a previously prepared snapshot by reset the snapshots array
+// and releasing the commit lock.
+func (c *Cache) CommitSnapshot() {
 	defer c.commit.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for i, cache := range c.snapshots {
-		if cache == snapshot {
-			c.snapshots = append(c.snapshots[:i], c.snapshots[i+1:]...)
-			c.snapshotsSize -= snapshot.size
-			break
-		}
-	}
+	c.snapshots = nil
+	c.snapshotsSize = 0
 
 	c.updateSnapshots()
 }
