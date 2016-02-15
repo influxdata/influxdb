@@ -147,7 +147,8 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Nanosecond * 0, 1)
+	//Windows implementation of net DialTimeout seems to fail with 1 Nano sec timeouts. Without a timeout
+	w := cluster.NewShardWriter(time.Nanosecond*0, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
@@ -155,12 +156,9 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	ownerID := uint64(2)
 	var points []models.Point
 
-	//Single point will be transmitted within 1 nano sec in Windows, thus no error. Try more data to fill associated underlying buffers.
-	//for i := 0; i < 1000; i++ {
 	points = append(points, models.MustNewPoint(
 		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
-	//}
 
 	if err, exp := w.WriteShard(shardID, ownerID, points), "i/o timeout"; err == nil || !strings.Contains(err.Error(), exp) {
 		t.Fatalf("expected error %v, to contain %s", err, exp)
