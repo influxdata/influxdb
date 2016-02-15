@@ -46,9 +46,9 @@ func TestCacheRace(t *testing.T) {
 	go func() {
 		wg.Done()
 		<-ch
-		s := c.PrepareSnapshot()
-		s.Deduplicate()
-		c.CommitSnapshot()
+		s := c.PrepareSnapshots([]string{"wal"})
+		s[len(s)-1].Deduplicate()
+		c.CommitSnapshots()
 	}()
 	close(ch)
 	wg.Wait()

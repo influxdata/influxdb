@@ -147,9 +147,9 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshot := c.PrepareSnapshot()
+	snapshots := c.PrepareSnapshots([]string{"foo.wal"})
 	expValues := Values{v0, v1, v2, v3}
-	if deduped := snapshot.values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := snapshots[0].values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
@@ -177,7 +177,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot, ensuring non-snapshot data untouched.
-	c.CommitSnapshot()
+	c.CommitSnapshots()
 	expValues = Values{v5, v4}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
@@ -188,8 +188,8 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	c := NewCache(512, "")
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshot := c.PrepareSnapshot()
-	if deduped := snapshot.values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
+	snapshots := c.PrepareSnapshots([]string{"foo.wal"})
+	if deduped := snapshots[0].values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", nil, deduped)
 	}
 
@@ -199,7 +199,7 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot.
-	c.CommitSnapshot()
+	c.CommitSnapshots()
 	if deduped := c.Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("post-snapshot-clear values for foo incorrect, exp: %v, got %v", Values(nil), deduped)
 	}
@@ -222,13 +222,13 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	}
 
 	// Grab snapshot, write should still fail since we're still using the memory.
-	_ = c.PrepareSnapshot()
+	_ = c.PrepareSnapshots([]string{"foobar.wal"})
 	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 
 	// Clear the snapshot and the write should now succeed.
-	c.CommitSnapshot()
+	c.CommitSnapshots()
 	if err := c.Write("bar", Values{v1}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}

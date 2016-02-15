@@ -91,6 +91,7 @@ type Cache struct {
 	// they are read only and should never be modified
 	snapshots     []*Cache
 	snapshotsSize uint64
+	files         []string
 
 	statMap      *expvar.Map // nil for snapshots.
 	lastSnapshot time.Time
@@ -166,12 +167,37 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	return nil
 }
 
-// Snapshot will take a snapshot of the current cache, add it to the slice of caches that
-// are being flushed, and reset the current cache with new values.
+// Answers the names WAL segment files which are captured by the snapshot. The contents
+// of the specified files and the receiving snapshot should be identical.
+func (c *Cache) Files() []string {
+	return c.files
+}
+
+// Filter the specified list of files to exclude any file already referenced
+// by an existing snapshot
+func (c *Cache) newFiles(files []string) []string {
+	filtered := []string{}
+	existing := map[string]bool{}
+	for _, s := range c.snapshots {
+		for _, f := range s.files {
+			existing[f] = true
+		}
+	}
+	for _, f := range files {
+		if !existing[f] {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
+}
+
+// PrepareSnapshots accepts a list of the closed files and prepares a new snapshot corresponding
+// to the changes in newly closed files that were not captured by previous snapshots. It returns a slice
+// containing references to every snapshot that has not yet been successfully committed.
 //
 // Every call to this method must be matched with exactly one corresponding call to either
-// CommitSnapshot() or RollbackSnapshot().
-func (c *Cache) PrepareSnapshot() *Cache {
+// CommitSnapshots() or RollbackSnapshots().
+func (c *Cache) PrepareSnapshots(files []string) []*Cache {
 
 	c.commit.Lock() // released by RollbackSnapshot() or CommitSnapshot()
 
@@ -182,6 +208,7 @@ func (c *Cache) PrepareSnapshot() *Cache {
 		store: c.store,
 		size:  c.size,
 		dirty: make(map[string]*entry),
+		files: c.newFiles(files),
 	}
 
 	for k, e := range c.store {
@@ -203,7 +230,10 @@ func (c *Cache) PrepareSnapshot() *Cache {
 	c.updateCachedBytes(snapshot.size)
 	c.updateSnapshots()
 
-	return snapshot
+	clone := make([]*Cache, len(c.snapshots))
+	copy(clone, c.snapshots)
+
+	return clone
 }
 
 // Deduplicate sorts the snapshot before returning it. The compactor and any queries
@@ -224,13 +254,29 @@ func (c *Cache) UpdateStore() {
 //
 // We leave the snapshots slice untouched because we need to use it to resolve
 // queries that hit the WAL segments.
-func (c *Cache) RollbackSnapshot() {
+// RollbackSnapshot rolls back a previously prepared snapshot by resetting
+// the
+
+func (c *Cache) RollbackSnapshots(incomplete []*Cache) {
 	defer c.commit.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.snapshots = make([]*Cache, 0, len(incomplete)) // not strictly necessary since we expect incomplete[i] != nil for at least one i.
+	c.snapshotsSize = 0
+
+	// remove any snapshots that have been nil'd
+	for _, s := range incomplete {
+		if s != nil {
+			c.snapshots = append(c.snapshots, s)
+			c.snapshotsSize += s.Size()
+		}
+	}
 }
 
 // CommitSnapshot commits a previously prepared snapshot by reset the snapshots array
 // and releasing the commit lock.
-func (c *Cache) CommitSnapshot() {
+func (c *Cache) CommitSnapshots() {
 	defer c.commit.Unlock()
 	c.mu.Lock()
 	defer c.mu.Unlock()

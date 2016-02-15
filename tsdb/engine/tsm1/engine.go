@@ -410,7 +410,6 @@ func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemen
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
-
 	var started *time.Time
 
 	defer func() {
@@ -419,7 +418,7 @@ func (e *Engine) WriteSnapshot() error {
 		}
 	}()
 
-	closedFiles, snapshot, compactor, err := func() ([]string, *Cache, *Compactor, error) {
+	snapshots, compactor, err := func() ([]*Cache, *Compactor, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 
@@ -427,17 +426,17 @@ func (e *Engine) WriteSnapshot() error {
 		started = &now
 
 		if err := e.WAL.CloseSegment(); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		segments, err := e.WAL.ClosedSegments()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
-		snapshot := e.Cache.PrepareSnapshot()
+		snapshots := e.Cache.PrepareSnapshots(segments)
 
-		return segments, snapshot, e.Compactor.Clone(), nil
+		return snapshots, e.Compactor.Clone(), nil
 	}()
 
 	if err != nil {
@@ -447,6 +446,10 @@ func (e *Engine) WriteSnapshot() error {
 	// The snapshotted cache may have duplicate points and unsorted data.  We need to deduplicate
 	// it before writing the snapshot.  This can be very expensive so it's done while we are not
 	// holding the engine write lock.
+	//
+	// We only need to deduplicate the last snapshot, since any earlier snapshots would have
+	// been deduplicated when they were taken.
+	snapshot := snapshots[len(snapshots)-1]
 	snapshot.Deduplicate()
 
 	// once we are done, we need to quickly update the snapshot's store with the dirty slice (which is now
@@ -456,39 +459,63 @@ func (e *Engine) WriteSnapshot() error {
 	snapshot.UpdateStore()
 	e.Cache.mu.Unlock()
 
-	return e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
+	return e.writeSnapshotsAndCommit(snapshots, compactor)
 }
 
-// writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments
-func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, compactor *Compactor) (err error) {
+// writeSnapshotsAndCommit will write the passed snapshots to new TSM files,
+// remove the corresponding closed WAL segments and commit the snapshot to the cache.
+//
+// Any snapshot not successfully written will be returned to the cache with RollbackSnapshots.
+func (e *Engine) writeSnapshotsAndCommit(snapshots []*Cache, compactor *Compactor) (err error) {
+
+	// ensure that any snapshot that was not completely written in returned
+	// to the cache
 	defer func() {
 		if err != nil {
-			e.Cache.RollbackSnapshot()
+
+			// at least one snapshot failed to write - rollback it
+			// and all remaining snapshots
+
+			e.Cache.RollbackSnapshots(snapshots)
 		}
 	}()
 
-	// write the new snapshot files
-	newFiles, err := compactor.WriteSnapshot(snapshot)
-	if err != nil {
-		e.logger.Printf("error writing snapshot from compactor: %v", err)
-		return err
-	}
+	for i, snapshot := range snapshots {
 
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+		if closedFiles, err := func(snapshot *Cache) ([]string, error) {
+			// write the new snapshot files
+			newFiles, err := compactor.WriteSnapshot(snapshot)
+			if err != nil {
+				e.logger.Printf("error writing snapshot from compactor: %v", err)
+				return nil, err
+			}
+			e.mu.RLock()
+			defer e.mu.RUnlock()
 
-	// update the file store with these new files
-	if err := e.FileStore.Replace(nil, newFiles); err != nil {
-		e.logger.Printf("error adding new TSM files from snapshot: %v", err)
-		return err
+			// update the file store with these new files
+			if err := e.FileStore.Replace(nil, newFiles); err != nil {
+				e.logger.Printf("error adding new TSM files from snapshot: %v", err)
+				return nil, err
+			}
+
+			return snapshot.Files(), nil
+
+		}(snapshot); err != nil {
+			return err
+		} else if err := e.WAL.Remove(closedFiles); err != nil {
+
+			// TBD: isn't this really an error - don't we risk causing out of order
+			// writes if we leave WAL segments hanging around?
+
+			e.logger.Printf("error removing closed wal segments: %v", err)
+		}
+
+		// success! - mark the snapshot as completely written so that rollback will remove it
+		snapshots[i] = nil
 	}
 
 	// clear the snapshot from the in-memory cache, then the old WAL files
-	e.Cache.CommitSnapshot()
-
-	if err := e.WAL.Remove(closedFiles); err != nil {
-		e.logger.Printf("error removing closed wal segments: %v", err)
-	}
+	e.Cache.CommitSnapshots()
 
 	return nil
 }
