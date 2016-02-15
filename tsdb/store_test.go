@@ -16,6 +16,75 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// Ensure the store can delete a retention policy and all shards under
+// it.
+func TestStore_DeleteRetentionPolicy(t *testing.T) {
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create a new shard and verify that it exists.
+	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(1); sh == nil {
+		t.Fatalf("expected shard")
+	}
+
+	// Create a new shard under the same retention policy,  and verify
+	// that it exists.
+	if err := s.CreateShard("db0", "rp0", 2); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(2); sh == nil {
+		t.Fatalf("expected shard")
+	}
+
+	// Create a new shard under a different retention policy, and
+	// verify that it exists.
+	if err := s.CreateShard("db0", "rp1", 3); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(3); sh == nil {
+		t.Fatalf("expected shard")
+	}
+
+	// Deleting the rp0 retention policy does not return an error.
+	if err := s.DeleteRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// It deletes the shards under that retention policy.
+	if sh := s.Shard(1); sh != nil {
+		t.Errorf("shard 1 was not deleted")
+	}
+
+	if sh := s.Shard(2); sh != nil {
+		t.Errorf("shard 2 was not deleted")
+	}
+
+	// It deletes the retention policy directory.
+	if got, exp := dirExists(filepath.Join(s.Path(), "db0", "rp0")), false; got != exp {
+		t.Error("directory exists, but should have been removed")
+	}
+
+	// It deletes the WAL retention policy directory.
+	if got, exp := dirExists(filepath.Join(s.EngineOptions.Config.WALDir, "db0", "rp0")), false; got != exp {
+		t.Error("directory exists, but should have been removed")
+	}
+
+	// Reopen other shard and check it still exists.
+	if err := s.Reopen(); err != nil {
+		t.Error(err)
+	} else if sh := s.Shard(3); sh == nil {
+		t.Errorf("shard 3 does not exist")
+	}
+
+	// It does not delete other retention policy directories.
+	if got, exp := dirExists(filepath.Join(s.Path(), "db0", "rp1")), true; got != exp {
+		t.Error("directory does not exist, but should")
+	}
+	if got, exp := dirExists(filepath.Join(s.EngineOptions.Config.WALDir, "db0", "rp1")), true; got != exp {
+		t.Error("directory does not exist, but should")
+	}
+}
+
 // Ensure the store can create a new shard.
 func TestStore_CreateShard(t *testing.T) {
 	s := MustOpenStore()
@@ -38,7 +107,7 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 
 	// Reopen shard and recheck.
-	if s, err := ReopenStore(s); err != nil {
+	if err := s.Reopen(); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard(1)")
@@ -60,7 +129,7 @@ func TestStore_DeleteShard(t *testing.T) {
 	}
 
 	// Reopen shard and recheck.
-	if s, err := ReopenStore(s); err != nil {
+	if err := s.Reopen(); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("shard exists")
@@ -262,19 +331,13 @@ func MustOpenStore() *Store {
 	return s
 }
 
-// ReopenStore closes and reopens the store as a new store.
-func ReopenStore(s *Store) (*Store, error) {
+// Reopen closes and reopens the store as a new store.
+func (s *Store) Reopen() error {
 	if err := s.Store.Close(); err != nil {
-		return nil, err
+		return err
 	}
-
-	other := &Store{Store: tsdb.NewStore(s.Path())}
-	other.EngineOptions = s.EngineOptions
-	if err := other.Open(); err != nil {
-		return nil, err
-	}
-
-	return other, nil
+	s.Store = tsdb.NewStore(s.Path())
+	return s.Open()
 }
 
 // Close closes the store and removes the underlying data.
@@ -340,4 +403,12 @@ func ParseTags(s string) influxql.Tags {
 		m[a[0]] = a[1]
 	}
 	return influxql.NewTags(m)
+}
+
+func dirExists(path string) bool {
+	var err error
+	if _, err = os.Stat(path); err == nil {
+		return true
+	}
+	return !os.IsNotExist(err)
 }

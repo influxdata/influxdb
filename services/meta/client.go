@@ -412,7 +412,7 @@ func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInf
 
 	// TODO: This should not be handled here
 	if db == nil {
-		return nil, ErrDatabaseNotExists
+		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
 
 	return db.RetentionPolicy(name), nil

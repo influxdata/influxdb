@@ -293,22 +293,27 @@ func (e *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 		return err
 	}
 
-	// Retrieve a list of all shard ids.
-	var shardIDs []uint64
-	for _, rp := range dbi.RetentionPolicies {
-		for _, sg := range rp.ShardGroups {
-			for _, s := range sg.Shards {
-				shardIDs = append(shardIDs, s.ID)
-			}
-		}
-	}
-
 	// Remove the database from the local store
-	if err := e.TSDBStore.DeleteDatabase(stmt.Name, shardIDs); err != nil {
+	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// executeDropRetentionPolicy closes all local shards for the retention
+// policy and removes the directory.
+func (q *QueryExecutor) executeDropRetentionPolicy(stmt *influxql.DropRetentionPolicyStatement) error {
+	// Check if the database and retention policy exist.
+	if _, err := q.MetaClient.RetentionPolicy(stmt.Database, stmt.Name); err != nil {
+		return err
+	}
+
+	// Remove the retention policy from the local store.
+	if err := q.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
+		return err
+	}
+	return q.MetaClient.DropRetentionPolicy(stmt.Database, stmt.Name)
 }
 
 func (e *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) error {

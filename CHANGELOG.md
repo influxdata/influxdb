@@ -14,8 +14,8 @@
 - [#5666](https://github.com/influxdata/influxdb/pull/5666): Manage dependencies with gdm
 - [#5512](https://github.com/influxdata/influxdb/pull/5512): HTTP: Add config option to enable HTTP JSON write path which is now disabled by default.
 - [#5336](https://github.com/influxdata/influxdb/pull/5366): Enabled golint for influxql. @gabelev
-- [#5706](https://github.com/influxdata/influxdb/pull/5706): Cluster setup
-cleanup
+- [#5706](https://github.com/influxdata/influxdb/pull/5706): Cluster setup cleanup
+- [#5691](https://github.com/influxdata/influxdb/pull/5691): Remove associated shard data when retention policies are dropped.
 
 ### Bugfixes
 
