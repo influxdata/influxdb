@@ -460,7 +460,13 @@ func (e *Engine) WriteSnapshot() error {
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments
-func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, compactor *Compactor) error {
+func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, compactor *Compactor) (err error) {
+	defer func() {
+		if err != nil {
+			e.Cache.RollbackSnapshot(snapshot)
+		}
+	}()
+
 	// write the new snapshot files
 	newFiles, err := compactor.WriteSnapshot(snapshot)
 	if err != nil {
