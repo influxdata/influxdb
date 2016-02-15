@@ -147,7 +147,7 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Nanosecond, 1)
+	w := cluster.NewShardWriter(time.Nanosecond * 0, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 

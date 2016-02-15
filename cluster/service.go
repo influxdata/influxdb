@@ -356,14 +356,9 @@ func ReadTLV(r io.Reader) (byte, []byte, error) {
 
 // WriteTLV writes a type-length-value record to w.
 func WriteTLV(w io.Writer, typ byte, buf []byte) error {
-
-	x, err := w.Write([]byte{typ})
-
-	if err != nil {
+	if _, err := w.Write([]byte{typ}); err != nil {
 		return fmt.Errorf("write message type: %s", err)
 	}
-
-	fmt.Println(x)
 
 	// Write the size of the message.
 	if err := binary.Write(w, binary.BigEndian, int64(len(buf))); err != nil {
@@ -371,11 +366,9 @@ func WriteTLV(w io.Writer, typ byte, buf []byte) error {
 	}
 
 	// Write the value.
-	x, err = w.Write(buf)
-	if err != nil {
+	if _, err := w.Write(buf); err != nil {
 		return fmt.Errorf("write message value: %s", err)
 	}
 
-	fmt.Println(x)
 	return nil
 }
