@@ -67,6 +67,7 @@
 - [#5937](https://github.com/influxdata/influxdb/pull/5937): Rewrite SHOW SERIES to use query engine
 - [#5949](https://github.com/influxdata/influxdb/issues/5949): Return error message when improper types are used in SELECT
 - [#5963](https://github.com/influxdata/influxdb/pull/5963): Fix possible deadlock
+- [#4688](https://github.com/influxdata/influxdb/issues/4688): admin UI doesn't display results for some SHOW queries
 
 ## v0.10.2 [2016-03-03]
 
