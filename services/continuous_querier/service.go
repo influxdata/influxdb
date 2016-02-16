@@ -323,7 +323,14 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	startTime := now.Add(-resampleEvery).Truncate(interval)
 	for ; !startTime.Before(oldestTime); startTime = startTime.Add(-interval) {
 		endTime := startTime.Add(interval)
-		if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
+
+		var err error
+		if cq.q.HasDerivative() {
+			err = cq.q.SetTimeRange(startTime.Add(-interval), endTime)
+		} else {
+			err = cq.q.SetTimeRange(startTime, endTime)
+		}
+		if err != nil {
 			s.Logger.Printf("error setting time range: %s\n", err)
 		}
 
