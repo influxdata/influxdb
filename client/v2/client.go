@@ -15,10 +15,12 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-// UDPPayloadSize is a reasonable default payload size for UDP packets that
-// could be travelling over the internet.
 const (
+	// UDPPayloadSize is a reasonable default payload size for UDP packets that
+	// could be travelling over the internet.
 	UDPPayloadSize = 512
+	// DefaultBatchWriteSize is the value used for BatchWrite
+	DefaultBatchWriteSize = 5000
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -559,4 +561,47 @@ func (c *client) Query(q Query) (*Response, error) {
 			resp.StatusCode)
 	}
 	return &response, nil
+}
+
+// BatchWriteSize breaks up large BatchPoints sets into smaller chunks to write to InfluxDB using a variable chunk size
+func BatchWriteSize(c Client, bps BatchPoints, batchsize int) (BatchPoints, error) {
+	pts := bps.Points()
+	for len(pts) > 0 {
+		chunkBps, err := NewBatchPoints(BatchPointsConfig{
+			Database:         bps.Database(),
+			Precision:        bps.Precision(),
+			RetentionPolicy:  bps.RetentionPolicy(),
+			WriteConsistency: bps.WriteConsistency(),
+		})
+		// This will fail always or never so we can assume this is the first time and just return all the BatchPoints as they were given to us
+		if err != nil {
+			return bps, err
+		}
+		for _, p := range pts[:intMin(batchsize, len(pts))] {
+			chunkBps.AddPoint(p)
+		}
+		pts = pts[intMin(batchsize, len(pts)):]
+
+		err = c.Write(chunkBps)
+		// On error lets return all the remaining BatchPoints
+		if err != nil {
+			for _, p := range pts {
+				chunkBps.AddPoint(p)
+			}
+			return chunkBps, err
+		}
+	}
+	return nil, nil
+}
+
+// BatchWrite breaks up large BatchPoints sets into smaller chunks to write to InfluxDB using a default chunk size
+func BatchWrite(c Client, bps BatchPoints) (BatchPoints, error) {
+	return BatchWriteSize(c, bps, DefaultBatchWriteSize)
+}
+
+func intMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
