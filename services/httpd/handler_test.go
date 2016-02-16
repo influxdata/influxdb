@@ -325,7 +325,7 @@ func TestHandler_Version(t *testing.T) {
 	tests := []struct {
 		method   string
 		endpoint string
-		body     *bytes.Reader
+		body     io.Reader
 	}{
 		{
 			method:   "GET",
@@ -345,11 +345,7 @@ func TestHandler_Version(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		if test.body != nil {
-			h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, test.body))
-		} else {
-			h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, nil))
-		}
+		h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, test.body))
 		if v, ok := w.HeaderMap["X-Influxdb-Version"]; ok {
 			if v[0] != "0.0.0" {
 				t.Fatalf("unexpected version: %s", v)
