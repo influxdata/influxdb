@@ -202,12 +202,99 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 }
 
+func TestCache_CacheRollbackSnapshots(t *testing.T) {
+	segment2 := "segment2.wal"
+	segment3 := "segment3.wal"
+	segment4 := "segment4.wal"
+	segment5 := "segment5.wal"
+	v4 := NewValue(time.Unix(6, 0).UTC(), 5.0)
+	v5 := NewValue(time.Unix(1, 0).UTC(), 5.0)
+	v6 := NewValue(time.Unix(7, 0).UTC(), 5.0)
+
+	c := NewCache(512, "")
+
+	// Write a new value to the cache.
+	if err := c.Write("foo", Values{v4, v5}); err != nil {
+		t.Fatalf("failed to write value, key foo to cache: %s", err.Error())
+	}
+
+	expValues := Values{v5, v4}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("pre-snapshot write values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	snapshots := c.PrepareSnapshots([]string{segment2})
+
+	if err := c.Write("foo", Values{v6}); err != nil {
+		t.Fatalf("failed to write post-prepare-snapshots key foo to cache: %s", err.Error())
+	}
+
+	expValues = Values{v5, v4, v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-prepare-snapshots values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	c.RollbackSnapshots(snapshots)
+
+	expValues = Values{v5, v4, v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-rollback values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	snapshots = c.PrepareSnapshots([]string{segment2, segment3, segment4})
+	expLength := 2
+	if length := len(snapshots); length != expLength {
+		t.Fatalf("post-prepare-snap-shots: length of snaphots incorrect, exp: %v, got %v", expLength, length)
+	}
+
+	expFiles := [][]string{[]string{segment2}, []string{segment3, segment4}}
+	if files := [][]string{snapshots[0].Files(), snapshots[1].Files()}; !reflect.DeepEqual(expFiles, files) {
+		t.Fatalf("files is incorrect, exp: %v, got %v", expFiles, files)
+	}
+
+	expFooValues := []Values{Values{v5, v4}, Values{v6}}
+	if fooValues := []Values{snapshots[0].Values("foo"), snapshots[1].Values("foo")}; !reflect.DeepEqual(expFooValues, fooValues) {
+		t.Fatalf("snapshot values are incorrect, exp: %v, got %v", expFooValues, fooValues)
+	}
+
+	snapshots[0] = nil
+	c.RollbackSnapshots(snapshots)
+
+	expValues = Values{v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-rollback values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	snapshots = c.PrepareSnapshots([]string{segment3, segment4, segment5})
+	expLength = 2
+	if length := len(snapshots); length != expLength {
+		t.Fatalf("post-prepare-snap-shots: length of snaphots incorrect, exp: %v, got %v", expLength, length)
+	}
+
+	expFiles = [][]string{[]string{segment3, segment4}, []string{segment5}}
+	if files := [][]string{snapshots[0].Files(), snapshots[1].Files()}; !reflect.DeepEqual(expFiles, files) {
+		t.Fatalf("snapshot files are incorrect, exp: %v, got %v", expFiles, files)
+	}
+
+	expFooValues = []Values{Values{v6}, nil}
+	if fooValues := []Values{snapshots[0].Values("foo"), snapshots[1].Values("foo")}; !reflect.DeepEqual(expFooValues, fooValues) {
+		t.Fatalf("snapshot values are incorrect, exp: %v, got %v", expFooValues, fooValues)
+	}
+
+	c.CommitSnapshots()
+
+	expValues = nil
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-commit values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+}
+
 func TestCache_CacheEmptySnapshot(t *testing.T) {
 	c := NewCache(512, "")
 
 	// Grab snapshot, and ensure it's as expected.
 	snapshots := c.PrepareSnapshots([]string{"foo.wal"})
-	if deduped := snapshots[0].values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
+	if deduped := snapshots[0].Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", nil, deduped)
 	}
 
