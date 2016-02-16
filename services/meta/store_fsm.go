@@ -208,7 +208,24 @@ func (fsm *storeFSM) applyCreateDatabaseCommand(cmd *internal.Command) interface
 	}
 
 	s := (*store)(fsm)
-	if s.config.RetentionAutoCreate {
+	if rpi := v.GetRetentionPolicy(); rpi != nil {
+		if err := other.CreateRetentionPolicy(v.GetName(), &RetentionPolicyInfo{
+			Name:               rpi.GetName(),
+			ReplicaN:           int(rpi.GetReplicaN()),
+			Duration:           time.Duration(rpi.GetDuration()),
+			ShardGroupDuration: time.Duration(rpi.GetShardGroupDuration()),
+		}); err != nil {
+			if err == ErrRetentionPolicyExists {
+				return ErrRetentionPolicyConflict
+			}
+			return err
+		}
+
+		// Set it as the default retention policy.
+		if err := other.SetDefaultRetentionPolicy(v.GetName(), rpi.GetName()); err != nil {
+			return err
+		}
+	} else if s.config.RetentionAutoCreate {
 		// Read node count.
 		// Retention policies must be fully replicated.
 		replicaN := len(other.DataNodes)

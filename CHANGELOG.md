@@ -1,4 +1,9 @@
-## v0.10.0 [unreleased]
+## v0.10.1 [unreleased]
+
+### Bugfixes
+- [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
+
+## v0.10.0 [2016-02-04]
 
 ### Features
 - [#5183](https://github.com/influxdb/influxdb/pull/5183): CLI confirms database exists when USE executed. Thanks @pires
