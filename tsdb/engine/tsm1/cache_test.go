@@ -134,6 +134,7 @@ func TestCache_CacheValues(t *testing.T) {
 }
 
 func TestCache_CacheSnapshot(t *testing.T) {
+	segment1 := "segment1.wal"
 	v0 := NewValue(time.Unix(2, 0).UTC(), 0.0)
 	v1 := NewValue(time.Unix(3, 0).UTC(), 2.0)
 	v2 := NewValue(time.Unix(4, 0).UTC(), 3.0)
@@ -147,9 +148,25 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshots := c.PrepareSnapshots([]string{"foo.wal"})
+	snapshots := c.PrepareSnapshots([]string{segment1})
+	if length := len(snapshots); length != 1 {
+		t.Fatalf("invalid snapshots length, exp %d, got %d", 1, length)
+	}
+
+	// check that the snapshot we got is not nil
+	snapshot := snapshots[0]
+	if snapshot == nil {
+		t.Fatalf("snapshot is nil")
+	}
+
+	// check that the snapshot has captured the segment files
+	expFiles := [][]string{[]string{segment1}}
+	if files := [][]string{snapshot.Files()}; !reflect.DeepEqual(expFiles, files) {
+		t.Fatalf("files is incorrect, exp: %v, got %v", expFiles, files)
+	}
+
 	expValues := Values{v0, v1, v2, v3}
-	if deduped := snapshots[0].values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := snapshot.values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
@@ -178,9 +195,10 @@ func TestCache_CacheSnapshot(t *testing.T) {
 
 	// Clear snapshot, ensuring non-snapshot data untouched.
 	c.CommitSnapshots()
+
 	expValues = Values{v5, v4}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
-		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
+		t.Fatalf("post-commit values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 }
 
