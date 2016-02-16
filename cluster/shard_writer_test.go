@@ -147,8 +147,8 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	//Windows implementation of net DialTimeout seems to fail with 1 Nano sec timeouts. Without a timeout
-	w := cluster.NewShardWriter(time.Nanosecond*0, 1)
+	// Zero timeout set to support all platforms.
+	w := cluster.NewShardWriter(0, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
