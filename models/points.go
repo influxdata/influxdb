@@ -888,8 +888,8 @@ func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 			break
 		}
 
-		// reached end of block?
-		if buf[i] == stop && buf[i-1] != '\\' {
+		// Reached unescaped stop value?
+		if buf[i] == stop && (i == 0 || buf[i-1] != '\\') {
 			break
 		}
 		i++
