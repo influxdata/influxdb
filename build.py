@@ -272,6 +272,7 @@ def check_prereqs():
         else:
             print "?"
     print ""
+    return True
 
 def upload_packages(packages, bucket_name=None, nightly=False):
     if debug:
@@ -313,17 +314,9 @@ def upload_packages(packages, bucket_name=None, nightly=False):
     return 0
 
 def run_tests(race, parallel, timeout, no_vet):
-    print "Retrieving Go dependencies...",
-    get_command = "go get github.com/sparrc/gdm"
+    print "Downloading vet tool..."
     sys.stdout.flush()
-    run(get_command)
-    deps_command = "gdm restore"
-    sys.stdout.flush()
-    run(deps_command)
-    get_command = "go get golang.org/x/tools/cmd/vet"
-    sys.stdout.flush()
-    run(get_command)
-    print "done."
+    run("go get golang.org/x/tools/cmd/vet")
     print "Running tests:"
     print "\tRace: ", race
     if parallel is not None:
@@ -463,7 +456,12 @@ def copy_file(fr, to):
         print e
 
 def go_get(branch, update=False):
-    print "Retrieving Go dependencies..."
+    if not check_path_for("gdm"):
+        print "Downloading `gdm`..."
+        get_command = "go get github.com/sparrc/gdm"
+        run(get_command)
+    print "Retrieving dependencies with `gdm`..."
+    sys.stdout.flush()
     run("gdm restore")
 
 def generate_md5_from_file(path):
@@ -719,7 +717,8 @@ def main():
 
     # Pre-build checks
     check_environ()
-    check_prereqs()
+    if not check_prereqs():
+        return 1
 
     if not commit:
         commit = get_current_commit(short=True)
@@ -749,13 +748,13 @@ def main():
         if not run_generate():
             return 1
 
+    if run_get:
+        go_get(branch, update=update)
+
     if test:
         if not run_tests(race, parallel, timeout, no_vet):
             return 1
         return 0
-
-    if run_get:
-        go_get(branch, update=update)
 
     platforms = []
     single_build = True
@@ -804,4 +803,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-
