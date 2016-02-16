@@ -3,6 +3,8 @@ package monitor
 import (
 	"os"
 	"time"
+
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 )
 
 var startTime time.Time
@@ -14,7 +16,7 @@ func init() {
 // system captures system-level diagnostics
 type system struct{}
 
-func (s *system) Diagnostics() (*Diagnostic, error) {
+func (s *system) Diagnostics() (*diagnostics.Diagnostics, error) {
 	diagnostics := map[string]interface{}{
 		"PID":         os.Getpid(),
 		"currentTime": time.Now().UTC(),
@@ -22,5 +24,5 @@ func (s *system) Diagnostics() (*Diagnostic, error) {
 		"uptime":      time.Since(startTime).String(),
 	}
 
-	return DiagnosticFromMap(diagnostics), nil
+	return DiagnosticsFromMap(diagnostics), nil
 }

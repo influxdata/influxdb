@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 )
 
@@ -24,46 +25,6 @@ const (
 	MonitorRetentionPolicy         = "monitor"
 	MonitorRetentionPolicyDuration = 7 * 24 * time.Hour
 )
-
-// DiagsClient is the interface modules implement if they register diags with monitor.
-type DiagsClient interface {
-	Diagnostics() (*Diagnostic, error)
-}
-
-// The DiagsClientFunc type is an adapter to allow the use of
-// ordinary functions as Diagnostis clients.
-type DiagsClientFunc func() (*Diagnostic, error)
-
-// Diagnostics calls f().
-func (f DiagsClientFunc) Diagnostics() (*Diagnostic, error) {
-	return f()
-}
-
-// Diagnostic represents a table of diagnostic information. The first value
-// is the name of the columns, the second is a slice of interface slices containing
-// the values for each column, by row. This information is never written to an InfluxDB
-// system and is display-only. An example showing, say, connections follows:
-//
-//     source_ip    source_port       dest_ip     dest_port
-//     182.1.0.2    2890              127.0.0.1   38901
-//     174.33.1.2   2924              127.0.0.1   38902
-type Diagnostic struct {
-	Columns []string
-	Rows    [][]interface{}
-}
-
-// NewDiagnostic initialises a new Diagnostic with the specified columns.
-func NewDiagnostic(columns []string) *Diagnostic {
-	return &Diagnostic{
-		Columns: columns,
-		Rows:    make([][]interface{}, 0),
-	}
-}
-
-// AddRow appends the provided row to the Diagnostic's rows.
-func (d *Diagnostic) AddRow(r []interface{}) {
-	d.Rows = append(d.Rows, r)
-}
 
 // Monitor represents an instance of the monitor system.
 type Monitor struct {
@@ -77,7 +38,7 @@ type Monitor struct {
 	done chan struct{}
 	mu   sync.Mutex
 
-	diagRegistrations map[string]DiagsClient
+	diagRegistrations map[string]diagnostics.Client
 
 	storeCreated           bool
 	storeEnabled           bool
@@ -109,7 +70,7 @@ type Monitor struct {
 func New(c Config) *Monitor {
 	return &Monitor{
 		done:              make(chan struct{}),
-		diagRegistrations: make(map[string]DiagsClient),
+		diagRegistrations: make(map[string]diagnostics.Client),
 		storeEnabled:      c.StoreEnabled,
 		storeDatabase:     c.StoreDatabase,
 		storeInterval:     time.Duration(c.StoreInterval),
@@ -158,7 +119,7 @@ func (m *Monitor) SetLogger(l *log.Logger) {
 }
 
 // RegisterDiagnosticsClient registers a diagnostics client with the given name and tags.
-func (m *Monitor) RegisterDiagnosticsClient(name string, client DiagsClient) {
+func (m *Monitor) RegisterDiagnosticsClient(name string, client diagnostics.Client) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.diagRegistrations[name] = client
@@ -287,11 +248,11 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 // Diagnostics fetches diagnostic information for each registered
 // diagnostic client. It skips any clients that return an error when
 // retrieving their diagnostics.
-func (m *Monitor) Diagnostics() (map[string]*Diagnostic, error) {
+func (m *Monitor) Diagnostics() (map[string]*diagnostics.Diagnostics, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	diags := make(map[string]*Diagnostic, len(m.diagRegistrations))
+	diags := make(map[string]*diagnostics.Diagnostics, len(m.diagRegistrations))
 	for k, v := range m.diagRegistrations {
 		d, err := v.Diagnostics()
 		if err != nil {
@@ -420,8 +381,8 @@ func (s *Statistic) valueNames() []string {
 	return a
 }
 
-// DiagnosticFromMap returns a Diagnostic from a map.
-func DiagnosticFromMap(m map[string]interface{}) *Diagnostic {
+// DiagnosticsFromMap returns a Diagnostics from a map.
+func DiagnosticsFromMap(m map[string]interface{}) *diagnostics.Diagnostics {
 	// Display columns in deterministic order.
 	sortedKeys := make([]string, 0, len(m))
 	for k := range m {
@@ -429,7 +390,7 @@ func DiagnosticFromMap(m map[string]interface{}) *Diagnostic {
 	}
 	sort.Strings(sortedKeys)
 
-	d := NewDiagnostic(sortedKeys)
+	d := diagnostics.NewDiagnostics(sortedKeys)
 	row := make([]interface{}, len(sortedKeys))
 	for i, k := range sortedKeys {
 		row[i] = m[k]

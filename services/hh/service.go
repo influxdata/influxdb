@@ -14,7 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 )
 
@@ -46,7 +46,7 @@ type Service struct {
 	MetaClient  metaClient
 
 	Monitor interface {
-		RegisterDiagnosticsClient(name string, client monitor.DiagsClient)
+		RegisterDiagnosticsClient(name string, client diagnostics.Client)
 		DeregisterDiagnosticsClient(name string)
 	}
 }
@@ -135,6 +135,10 @@ func (s *Service) Close() error {
 		}
 	}
 
+	if s.Monitor != nil {
+		s.Monitor.DeregisterDiagnosticsClient("hh")
+	}
+
 	if s.closing != nil {
 		close(s.closing)
 	}
@@ -188,11 +192,11 @@ func (s *Service) WriteShard(shardID, ownerID uint64, points []models.Point) err
 }
 
 // Diagnostics returns diagnostic information.
-func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
+func (s *Service) Diagnostics() (*diagnostics.Diagnostics, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	d := &monitor.Diagnostic{
+	d := &diagnostics.Diagnostics{
 		Columns: []string{"node", "active", "last modified", "head", "tail"},
 		Rows:    make([][]interface{}, 0, len(s.processors)),
 	}
