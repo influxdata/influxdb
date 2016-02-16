@@ -1,16 +1,17 @@
 package internal;
 
 message Point {
-    required string Name = 1;
-    required string Tags = 2;
-    required int64  Time = 3;
-    required bool   Nil  = 4;
-    repeated Aux    Aux  = 5;
+    required string Name       = 1;
+    required string Tags       = 2;
+    required int64  Time       = 3;
+    required bool   Nil        = 4;
+    repeated Aux    Aux        = 5;
+    optional uint32 Aggregated = 6;
 
-    optional double FloatValue   = 6;
-    optional int64  IntegerValue = 7;
-    optional string StringValue  = 8;
-    optional bool   BooleanValue = 9;
+    optional double FloatValue   = 7;
+    optional int64  IntegerValue = 8;
+    optional string StringValue  = 9;
+    optional bool   BooleanValue = 10;
 }
 
 message Aux {

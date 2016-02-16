@@ -22,7 +22,7 @@ type FloatPoint struct {
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
-	Aggregated int
+	Aggregated uint32
 }
 
 func (v *FloatPoint) name() string { return v.Name }
@@ -54,11 +54,12 @@ func (v *FloatPoint) Clone() *FloatPoint {
 
 func encodeFloatPoint(p *FloatPoint) *internal.Point {
 	return &internal.Point{
-		Name: proto.String(p.Name),
-		Tags: proto.String(p.Tags.ID()),
-		Time: proto.Int64(p.Time),
-		Nil:  proto.Bool(p.Nil),
-		Aux:  encodeAux(p.Aux),
+		Name:       proto.String(p.Name),
+		Tags:       proto.String(p.Tags.ID()),
+		Time:       proto.Int64(p.Time),
+		Nil:        proto.Bool(p.Nil),
+		Aux:        encodeAux(p.Aux),
+		Aggregated: proto.Uint32(p.Aggregated),
 
 		FloatValue: proto.Float64(p.Value),
 	}
@@ -66,12 +67,13 @@ func encodeFloatPoint(p *FloatPoint) *internal.Point {
 
 func decodeFloatPoint(pb *internal.Point) *FloatPoint {
 	return &FloatPoint{
-		Name:  pb.GetName(),
-		Tags:  newTagsID(pb.GetTags()),
-		Time:  pb.GetTime(),
-		Nil:   pb.GetNil(),
-		Aux:   decodeAux(pb.Aux),
-		Value: pb.GetFloatValue(),
+		Name:       pb.GetName(),
+		Tags:       newTagsID(pb.GetTags()),
+		Time:       pb.GetTime(),
+		Nil:        pb.GetNil(),
+		Aux:        decodeAux(pb.Aux),
+		Aggregated: pb.GetAggregated(),
+		Value:      pb.GetFloatValue(),
 	}
 }
 
@@ -132,7 +134,7 @@ type IntegerPoint struct {
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
-	Aggregated int
+	Aggregated uint32
 }
 
 func (v *IntegerPoint) name() string { return v.Name }
@@ -164,11 +166,12 @@ func (v *IntegerPoint) Clone() *IntegerPoint {
 
 func encodeIntegerPoint(p *IntegerPoint) *internal.Point {
 	return &internal.Point{
-		Name: proto.String(p.Name),
-		Tags: proto.String(p.Tags.ID()),
-		Time: proto.Int64(p.Time),
-		Nil:  proto.Bool(p.Nil),
-		Aux:  encodeAux(p.Aux),
+		Name:       proto.String(p.Name),
+		Tags:       proto.String(p.Tags.ID()),
+		Time:       proto.Int64(p.Time),
+		Nil:        proto.Bool(p.Nil),
+		Aux:        encodeAux(p.Aux),
+		Aggregated: proto.Uint32(p.Aggregated),
 
 		IntegerValue: proto.Int64(p.Value),
 	}
@@ -176,12 +179,13 @@ func encodeIntegerPoint(p *IntegerPoint) *internal.Point {
 
 func decodeIntegerPoint(pb *internal.Point) *IntegerPoint {
 	return &IntegerPoint{
-		Name:  pb.GetName(),
-		Tags:  newTagsID(pb.GetTags()),
-		Time:  pb.GetTime(),
-		Nil:   pb.GetNil(),
-		Aux:   decodeAux(pb.Aux),
-		Value: pb.GetIntegerValue(),
+		Name:       pb.GetName(),
+		Tags:       newTagsID(pb.GetTags()),
+		Time:       pb.GetTime(),
+		Nil:        pb.GetNil(),
+		Aux:        decodeAux(pb.Aux),
+		Aggregated: pb.GetAggregated(),
+		Value:      pb.GetIntegerValue(),
 	}
 }
 
@@ -242,7 +246,7 @@ type StringPoint struct {
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
-	Aggregated int
+	Aggregated uint32
 }
 
 func (v *StringPoint) name() string { return v.Name }
@@ -274,11 +278,12 @@ func (v *StringPoint) Clone() *StringPoint {
 
 func encodeStringPoint(p *StringPoint) *internal.Point {
 	return &internal.Point{
-		Name: proto.String(p.Name),
-		Tags: proto.String(p.Tags.ID()),
-		Time: proto.Int64(p.Time),
-		Nil:  proto.Bool(p.Nil),
-		Aux:  encodeAux(p.Aux),
+		Name:       proto.String(p.Name),
+		Tags:       proto.String(p.Tags.ID()),
+		Time:       proto.Int64(p.Time),
+		Nil:        proto.Bool(p.Nil),
+		Aux:        encodeAux(p.Aux),
+		Aggregated: proto.Uint32(p.Aggregated),
 
 		StringValue: proto.String(p.Value),
 	}
@@ -286,12 +291,13 @@ func encodeStringPoint(p *StringPoint) *internal.Point {
 
 func decodeStringPoint(pb *internal.Point) *StringPoint {
 	return &StringPoint{
-		Name:  pb.GetName(),
-		Tags:  newTagsID(pb.GetTags()),
-		Time:  pb.GetTime(),
-		Nil:   pb.GetNil(),
-		Aux:   decodeAux(pb.Aux),
-		Value: pb.GetStringValue(),
+		Name:       pb.GetName(),
+		Tags:       newTagsID(pb.GetTags()),
+		Time:       pb.GetTime(),
+		Nil:        pb.GetNil(),
+		Aux:        decodeAux(pb.Aux),
+		Aggregated: pb.GetAggregated(),
+		Value:      pb.GetStringValue(),
 	}
 }
 
@@ -352,7 +358,7 @@ type BooleanPoint struct {
 
 	// Total number of points that were combined into this point from an aggregate.
 	// If this is zero, the point is not the result of an aggregate function.
-	Aggregated int
+	Aggregated uint32
 }
 
 func (v *BooleanPoint) name() string { return v.Name }
@@ -384,11 +390,12 @@ func (v *BooleanPoint) Clone() *BooleanPoint {
 
 func encodeBooleanPoint(p *BooleanPoint) *internal.Point {
 	return &internal.Point{
-		Name: proto.String(p.Name),
-		Tags: proto.String(p.Tags.ID()),
-		Time: proto.Int64(p.Time),
-		Nil:  proto.Bool(p.Nil),
-		Aux:  encodeAux(p.Aux),
+		Name:       proto.String(p.Name),
+		Tags:       proto.String(p.Tags.ID()),
+		Time:       proto.Int64(p.Time),
+		Nil:        proto.Bool(p.Nil),
+		Aux:        encodeAux(p.Aux),
+		Aggregated: proto.Uint32(p.Aggregated),
 
 		BooleanValue: proto.Bool(p.Value),
 	}
@@ -396,12 +403,13 @@ func encodeBooleanPoint(p *BooleanPoint) *internal.Point {
 
 func decodeBooleanPoint(pb *internal.Point) *BooleanPoint {
 	return &BooleanPoint{
-		Name:  pb.GetName(),
-		Tags:  newTagsID(pb.GetTags()),
-		Time:  pb.GetTime(),
-		Nil:   pb.GetNil(),
-		Aux:   decodeAux(pb.Aux),
-		Value: pb.GetBooleanValue(),
+		Name:       pb.GetName(),
+		Tags:       newTagsID(pb.GetTags()),
+		Time:       pb.GetTime(),
+		Nil:        pb.GetNil(),
+		Aux:        decodeAux(pb.Aux),
+		Aggregated: pb.GetAggregated(),
+		Value:      pb.GetBooleanValue(),
 	}
 }
 
