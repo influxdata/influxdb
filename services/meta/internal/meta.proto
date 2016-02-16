@@ -120,12 +120,12 @@ message Command {
 		CreateSubscriptionCommand        = 21;
 		DropSubscriptionCommand          = 22;
 		RemovePeerCommand                = 23;
-        CreateMetaNodeCommand            = 24;
-        CreateDataNodeCommand            = 25;
-        UpdateDataNodeCommand            = 26;
-        DeleteMetaNodeCommand            = 27;
-        DeleteDataNodeCommand            = 28;
-        SetMetaNodeCommand               = 29;
+		CreateMetaNodeCommand            = 24;
+		CreateDataNodeCommand            = 25;
+		UpdateDataNodeCommand            = 26;
+		DeleteMetaNodeCommand            = 27;
+		DeleteDataNodeCommand            = 28;
+		SetMetaNodeCommand               = 29;
     }
 
     required Type type = 1;
@@ -154,6 +154,7 @@ message CreateDatabaseCommand {
         optional CreateDatabaseCommand command = 103;
     }
 	required string Name = 1;
+	optional RetentionPolicyInfo RetentionPolicy = 2;
 }
 
 message DropDatabaseCommand {
@@ -355,7 +356,7 @@ message DeleteDataNodeCommand {
     extend Command {
         optional DeleteDataNodeCommand command = 128;
     }
-    required uint64 ID = 1;    
+    required uint64 ID = 1;
 }
 
 message Response {

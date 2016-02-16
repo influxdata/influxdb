@@ -343,24 +343,24 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPo
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
 
-	if _, err := c.CreateDatabase(name); err != nil {
-		return nil, err
+	if db, _ := c.Database(name); db != nil {
+		// Check if the retention policy already exists. If it does and matches
+		// the desired retention policy, exit with no error.
+		if rp := db.RetentionPolicy(rpi.Name); rp != nil {
+			if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration {
+				return nil, ErrRetentionPolicyConflict
+			}
+			return db, nil
+		}
 	}
 
-	if err := c.DropRetentionPolicy(name, rpi.Name); err != nil {
-		return nil, err
-	}
-
-	cmd := &internal.CreateRetentionPolicyCommand{
-		Database:        proto.String(name),
+	cmd := &internal.CreateDatabaseCommand{
+		Name:            proto.String(name),
 		RetentionPolicy: rpi.marshal(),
 	}
 
-	if err := c.retryUntilExec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command, cmd); err != nil {
-		return nil, err
-	}
-
-	if err := c.SetDefaultRetentionPolicy(name, rpi.Name); err != nil {
+	err := c.retryUntilExec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command, cmd)
+	if err != nil {
 		return nil, err
 	}
 

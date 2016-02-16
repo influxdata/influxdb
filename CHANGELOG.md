@@ -28,6 +28,7 @@
 - [#5695](https://github.com/influxdata/influxdb/pull/5695): Remove meta servers from node.json
 - [#5606](https://github.com/influxdata/influxdb/issues/5606): TSM conversion reproducibly drops data silently
 - [#5656](https://github.com/influxdata/influxdb/issues/5656): influx\_tsm: panic during conversion
+- [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
 
 ## v0.10.0 [2016-02-04]
 
