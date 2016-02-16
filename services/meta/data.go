@@ -58,13 +58,29 @@ func (data *Data) CreateDataNode(host, tcpHost string) error {
 		}
 	}
 
+	// If an existing meta node exists with the same TCPHost address,
+	// then these nodes are actually the same so re-use the existing ID
+	var existingID uint64
+	for _, n := range data.MetaNodes {
+		if n.TCPHost == tcpHost {
+			existingID = n.ID
+			break
+		}
+	}
+
+	// We didn't find an existing node, so assign it a new node ID
+	if existingID == 0 {
+		data.MaxNodeID++
+		existingID = data.MaxNodeID
+	}
+
 	// Append new node.
-	data.MaxNodeID++
 	data.DataNodes = append(data.DataNodes, NodeInfo{
-		ID:      data.MaxNodeID,
+		ID:      existingID,
 		Host:    host,
 		TCPHost: tcpHost,
 	})
+	sort.Sort(NodeInfos(data.DataNodes))
 
 	return nil
 }
@@ -151,14 +167,31 @@ func (data *Data) CreateMetaNode(httpAddr, tcpAddr string) error {
 		}
 	}
 
+	// If an existing data node exists with the same TCPHost address,
+	// then these nodes are actually the same so re-use the existing ID
+	var existingID uint64
+	for _, n := range data.DataNodes {
+		if n.TCPHost == tcpAddr {
+			existingID = n.ID
+			break
+		}
+	}
+
+	// We didn't find and existing data node ID, so assign a new ID
+	// to this meta node.
+	if existingID == 0 {
+		data.MaxNodeID++
+		existingID = data.MaxNodeID
+	}
+
 	// Append new node.
-	data.MaxNodeID++
 	data.MetaNodes = append(data.MetaNodes, NodeInfo{
-		ID:      data.MaxNodeID,
+		ID:      existingID,
 		Host:    httpAddr,
 		TCPHost: tcpAddr,
 	})
 
+	sort.Sort(NodeInfos(data.MetaNodes))
 	return nil
 }
 
