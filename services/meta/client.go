@@ -1209,6 +1209,10 @@ func (c *Client) updateAuthCache() {
 	c.authCache = newCache
 }
 
+func (c *Client) MetaServers() []string {
+	return c.metaServers
+}
+
 type Peers []string
 
 func (peers Peers) Append(p ...string) Peers {

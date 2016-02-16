@@ -16,15 +16,14 @@ const (
 )
 
 type Node struct {
-	path        string
-	ID          uint64
-	MetaServers []string
+	path string
+	ID   uint64
 }
 
 // LoadNode will load the node information from disk if present
-func LoadNode(path string, addrs []string) (*Node, error) {
+func LoadNode(path string) (*Node, error) {
 	// Always check to see if we are upgrading first
-	if err := upgradeNodeFile(path, addrs); err != nil {
+	if err := upgradeNodeFile(path); err != nil {
 		return nil, err
 	}
 
@@ -46,10 +45,9 @@ func LoadNode(path string, addrs []string) (*Node, error) {
 }
 
 // NewNode will return a new node
-func NewNode(path string, addrs []string) *Node {
+func NewNode(path string) *Node {
 	return &Node{
-		path:        path,
-		MetaServers: addrs,
+		path: path,
 	}
 }
 
@@ -75,26 +73,7 @@ func (n *Node) Save() error {
 	return os.Rename(tmpFile, file)
 }
 
-// AddMetaServers adds the addrs to the set of MetaServers known to this node.
-// If an addr already exists, it will not be re-added.
-func (n *Node) AddMetaServers(addrs []string) {
-	unique := map[string]struct{}{}
-	for _, addr := range n.MetaServers {
-		unique[addr] = struct{}{}
-	}
-
-	for _, addr := range addrs {
-		unique[addr] = struct{}{}
-	}
-
-	metaServers := []string{}
-	for addr := range unique {
-		metaServers = append(metaServers, addr)
-	}
-	n.MetaServers = metaServers
-}
-
-func upgradeNodeFile(path string, addrs []string) error {
+func upgradeNodeFile(path string) error {
 	oldFile := filepath.Join(path, oldNodeFile)
 	b, err := ioutil.ReadFile(oldFile)
 	if err != nil {
@@ -122,8 +101,7 @@ func upgradeNodeFile(path string, addrs []string) error {
 	}
 
 	n := &Node{
-		path:        path,
-		MetaServers: addrs,
+		path: path,
 	}
 	if n.ID, err = strconv.ParseUint(string(b), 10, 64); err != nil {
 		return err
