@@ -318,6 +318,44 @@ func TestHandler_Ping(t *testing.T) {
 	}
 }
 
+// Ensure the handler returns the version correctly from the different endpoints.
+func TestHandler_Version(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+	tests := []struct {
+		method   string
+		endpoint string
+		body     io.Reader
+	}{
+		{
+			method:   "GET",
+			endpoint: "/ping",
+			body:     nil,
+		},
+		{
+			method:   "GET",
+			endpoint: "/query?db=foo&q=SELECT+*+FROM+bar",
+			body:     nil,
+		},
+		{
+			method:   "POST",
+			endpoint: "/write",
+			body:     bytes.NewReader(make([]byte, 10)),
+		},
+	}
+
+	for _, test := range tests {
+		h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, test.body))
+		if v, ok := w.HeaderMap["X-Influxdb-Version"]; ok {
+			if v[0] != "0.0.0" {
+				t.Fatalf("unexpected version: %s", v)
+			}
+		} else {
+			t.Fatalf("Header entry 'X-Influxdb-Version' not present")
+		}
+	}
+}
+
 // Ensure the handler handles status requests correctly.
 func TestHandler_Status(t *testing.T) {
 	h := NewHandler(false)
