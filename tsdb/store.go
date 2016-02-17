@@ -1,6 +1,7 @@
 package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -323,7 +324,7 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 	// Find the measurement.
 	m := db.Measurement(name)
 	if m == nil {
-		return ErrMeasurementNotFound(name)
+		return influxql.ErrMeasurementNotFound(name)
 	}
 
 	// Remove measurement from index.
@@ -437,13 +438,75 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 }
 
 // DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
-func (s *Store) DeleteSeries(database string, seriesKeys []string) error {
+func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// Find the database.
+	db := s.DatabaseIndex(database)
+	if db == nil {
+		return nil
+	}
+
+	// Expand regex expressions in the FROM clause.
+	a, err := s.expandSources(sources)
+	if err != nil {
+		return err
+	} else if sources != nil && len(sources) != 0 && len(a) == 0 {
+		return nil
+	}
+	sources = a
+
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
+	if err != nil {
+		return err
+	}
+
+	var seriesKeys []string
+	for _, m := range measurements {
+		var ids SeriesIDs
+		var filters FilterExprs
+		if condition != nil {
+			// Get series IDs that match the WHERE clause.
+			ids, filters, err = m.walkWhereForSeriesIds(condition)
+			if err != nil {
+				return err
+			}
+
+			// Delete boolean literal true filter expressions.
+			// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
+			filters.DeleteBoolLiteralTrues()
+
+			// Check for unsupported field filters.
+			// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
+			if filters.Len() > 0 {
+				return errors.New("DROP SERIES doesn't support fields in WHERE clause")
+			}
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		for _, id := range ids {
+			seriesKeys = append(seriesKeys, m.seriesByID[id].Key)
+		}
+	}
+
+	// delete the raw series data
+	if err := s.deleteSeries(database, seriesKeys); err != nil {
+		return err
+	}
+
+	// remove them from the index
+	db.DropSeries(seriesKeys)
+
+	return nil
+}
+
+func (s *Store) deleteSeries(database string, seriesKeys []string) error {
 	db, ok := s.databaseIndexes[database]
 	if !ok {
-		return ErrDatabaseNotFound(database)
+		return influxql.ErrDatabaseNotFound(database)
 	}
 
 	for _, sh := range s.shards {
@@ -497,7 +560,10 @@ func (s *Store) performMaintenanceOnShard(shard *Shard) {
 func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.expandSources(sources)
+}
 
+func (s *Store) expandSources(sources influxql.Sources) (influxql.Sources, error) {
 	// Use a map as a set to prevent duplicates.
 	set := map[string]influxql.Source{}
 
@@ -567,6 +633,260 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	return sh.WritePoints(points)
 }
 
+func (s *Store) ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error) {
+	// NOTE(benbjohnson):
+	// This function is temporarily moved here until reimplemented in the new query engine.
+
+	// Find the database.
+	db := s.DatabaseIndex(database)
+	if db == nil {
+		return nil, nil
+	}
+
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.ExpandSources(stmt.Sources)
+	if err != nil {
+		return nil, err
+	}
+
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make result.
+	rows := make(models.Rows, 0, len(measurements))
+
+	// Loop through measurements, adding a result row for each.
+	for _, m := range measurements {
+		// Create a new row.
+		r := &models.Row{
+			Name:    m.Name,
+			Columns: []string{"fieldKey"},
+		}
+
+		// Get a list of field names from the measurement then sort them.
+		names := m.FieldNames()
+		sort.Strings(names)
+
+		// Add the field names to the result row values.
+		for _, n := range names {
+			v := interface{}(n)
+			r.Values = append(r.Values, []interface{}{v})
+		}
+
+		// Append the row to the result.
+		rows = append(rows, r)
+	}
+
+	return rows, nil
+}
+
+func (s *Store) ExecuteShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) (models.Rows, error) {
+	// NOTE(benbjohnson):
+	// This function is temporarily moved here until reimplemented in the new query engine.
+
+	// Check for time in WHERE clause (not supported).
+	if influxql.HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW SERIES doesn't support time in WHERE clause")
+	}
+
+	// Find the database.
+	db := s.DatabaseIndex(database)
+	if db == nil {
+		return nil, nil
+	}
+
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.ExpandSources(stmt.Sources)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create result struct that will be populated and returned.
+	rows := make(models.Rows, 0, len(measurements))
+
+	// Loop through measurements to build result. One result row / measurement.
+	for _, m := range measurements {
+		var ids SeriesIDs
+		var filters FilterExprs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			ids, filters, err = m.walkWhereForSeriesIds(stmt.Condition)
+			if err != nil {
+				return nil, err
+			}
+
+			// Delete boolean literal true filter expressions.
+			filters.DeleteBoolLiteralTrues()
+
+			// Check for unsupported field filters.
+			if filters.Len() > 0 {
+				return nil, errors.New("SHOW SERIES doesn't support fields in WHERE clause")
+			}
+
+			// If no series matched, then go to the next measurement.
+			if len(ids) == 0 {
+				continue
+			}
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		// Make a new row for this measurement.
+		r := &models.Row{
+			Name:    m.Name,
+			Columns: m.TagKeys(),
+		}
+
+		// Loop through series IDs getting matching tag sets.
+		for _, id := range ids {
+			if s, ok := m.seriesByID[id]; ok {
+				values := make([]interface{}, 0, len(r.Columns))
+
+				// make the series key the first value
+				values = append(values, s.Key)
+
+				for _, column := range r.Columns {
+					values = append(values, s.Tags[column])
+				}
+
+				// Add the tag values to the row.
+				r.Values = append(r.Values, values)
+			}
+		}
+		// make the id the first column
+		r.Columns = append([]string{"_key"}, r.Columns...)
+
+		// Append the row.
+		rows = append(rows, r)
+	}
+
+	if stmt.Limit > 0 || stmt.Offset > 0 {
+		rows = s.filterShowSeriesResult(stmt.Limit, stmt.Offset, rows)
+	}
+
+	return rows, nil
+}
+
+// filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
+// Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
+// to the number of total Values returned, since each Value represents a unique series.
+func (e *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) models.Rows {
+	var filteredSeries models.Rows
+	seriesCount := 0
+	for _, r := range rows {
+		var currentSeries [][]interface{}
+
+		// filter the values
+		for _, v := range r.Values {
+			if seriesCount >= offset && seriesCount-offset < limit {
+				currentSeries = append(currentSeries, v)
+			}
+			seriesCount++
+		}
+
+		// only add the row back in if there are some values in it
+		if len(currentSeries) > 0 {
+			r.Values = currentSeries
+			filteredSeries = append(filteredSeries, r)
+			if seriesCount > limit+offset {
+				return filteredSeries
+			}
+		}
+	}
+	return filteredSeries
+}
+
+func (s *Store) ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error) {
+	// NOTE(benbjohnson):
+	// This function is temporarily moved here until reimplemented in the new query engine.
+
+	// Check for time in WHERE clause (not supported).
+	if influxql.HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW TAG VALUES doesn't support time in WHERE clause")
+	}
+
+	// Find the database.
+	db := s.DatabaseIndex(database)
+	if db == nil {
+		return nil, nil
+	}
+
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.ExpandSources(stmt.Sources)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make result.
+	var rows models.Rows
+	tagValues := make(map[string]stringSet)
+	for _, m := range measurements {
+		var ids SeriesIDs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
+			if err != nil {
+				return nil, err
+			}
+
+			// If no series matched, then go to the next measurement.
+			if len(ids) == 0 {
+				continue
+			}
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		for k, v := range m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids) {
+			_, ok := tagValues[k]
+			if !ok {
+				tagValues[k] = v
+			}
+			tagValues[k] = tagValues[k].union(v)
+		}
+	}
+
+	for k, v := range tagValues {
+		r := &models.Row{
+			Name:    k + "TagValues",
+			Columns: []string{k},
+		}
+
+		vals := v.list()
+		sort.Strings(vals)
+
+		for _, val := range vals {
+			v := interface{}(val)
+			r.Values = append(r.Values, []interface{}{v})
+		}
+
+		rows = append(rows, r)
+	}
+
+	sort.Sort(rows)
+	return rows, nil
+}
+
 // IsRetryable returns true if this error is temporary and could be retried
 func IsRetryable(err error) bool {
 	if err == nil {
@@ -598,4 +918,35 @@ func relativePath(storePath, shardPath string) (string, error) {
 	}
 
 	return name, nil
+}
+
+// measurementsFromSourcesOrDB returns a list of measurements from the
+// sources passed in or, if sources is empty, a list of all
+// measurement names from the database passed in.
+func measurementsFromSourcesOrDB(db *DatabaseIndex, sources ...influxql.Source) (Measurements, error) {
+	var measurements Measurements
+	if len(sources) > 0 {
+		for _, source := range sources {
+			if m, ok := source.(*influxql.Measurement); ok {
+				measurement := db.measurements[m.Name]
+				if measurement == nil {
+					continue
+				}
+
+				measurements = append(measurements, measurement)
+			} else {
+				return nil, errors.New("identifiers in FROM clause must be measurement names")
+			}
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if m.HasSeries() {
+				measurements = append(measurements, m)
+			}
+		}
+	}
+	sort.Sort(measurements)
+
+	return measurements, nil
 }

@@ -60,8 +60,6 @@ type Client struct {
 	closing     chan struct{}
 	cacheData   *Data
 
-	executor *StatementExecutor
-
 	// Authentication cache.
 	authCache map[string]authUser
 }
@@ -73,16 +71,12 @@ type authUser struct {
 }
 
 // NewClient returns a new *Client.
-func NewClient(metaServers []string, tls bool) *Client {
-	client := &Client{
-		cacheData:   &Data{},
-		metaServers: metaServers,
-		tls:         tls,
-		logger:      log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
-		authCache:   make(map[string]authUser, 0),
+func NewClient() *Client {
+	return &Client{
+		cacheData: &Data{},
+		logger:    log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
+		authCache: make(map[string]authUser, 0),
 	}
-	client.executor = &StatementExecutor{Store: client}
-	return client
 }
 
 // Open a connection to a meta service cluster.
@@ -117,6 +111,17 @@ func (c *Client) Close() error {
 
 // GetNodeID returns the client's node ID.
 func (c *Client) NodeID() uint64 { return c.nodeID }
+
+// SetMetaServers updates the meta servers on the client.
+func (c *Client) SetMetaServers(a []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.metaServers = a
+}
+
+// SetTLS sets whether the client should use TLS when connecting.
+// This function is not safe for concurrent use.
+func (c *Client) SetTLS(v bool) { c.tls = v }
 
 // Ping will hit the ping endpoint for the metaservice and return nil if
 // it returns 200. If checkAllMetaServers is set to true, it will hit the
@@ -921,10 +926,6 @@ func (c *Client) SetData(data *Data) error {
 			Data: data.marshal(),
 		},
 	)
-}
-
-func (c *Client) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
-	return c.executor.ExecuteStatement(stmt)
 }
 
 // WaitForDataChanged will return a channel that will get closed when

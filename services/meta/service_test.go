@@ -30,8 +30,8 @@ func TestMetaService_CreateDatabase(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -58,9 +58,8 @@ func TestMetaService_CreateDatabaseIfNotExists(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	qry := `CREATE DATABASE IF NOT EXISTS db0`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -70,8 +69,8 @@ func TestMetaService_CreateDatabaseIfNotExists(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -83,9 +82,12 @@ func TestMetaService_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	qry := `CREATE DATABASE db0 WITH DURATION 1h REPLICATION 1 NAME rp0`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		Duration: 1 * time.Hour,
+		ReplicaN: 1,
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -151,9 +153,8 @@ func TestMetaService_DropDatabase(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	qry := `CREATE DATABASE db0`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -163,9 +164,8 @@ func TestMetaService_DropDatabase(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	qry = `DROP DATABASE db0`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.DropDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	if db, _ = c.Database("db0"); db != nil {
@@ -181,8 +181,8 @@ func TestMetaService_CreateRetentionPolicy(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -192,9 +192,12 @@ func TestMetaService_CreateRetentionPolicy(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	qry := `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		Duration: 1 * time.Hour,
+		ReplicaN: 1,
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	rp, err := c.RetentionPolicy("db0", "rp0")
@@ -209,8 +212,12 @@ func TestMetaService_CreateRetentionPolicy(t *testing.T) {
 	}
 
 	// Create the same policy.  Should not error.
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		Duration: 1 * time.Hour,
+		ReplicaN: 1,
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	rp, err = c.RetentionPolicy("db0", "rp0")
@@ -233,9 +240,12 @@ func TestMetaService_SetDefaultRetentionPolicy(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	qry := `CREATE DATABASE db0 WITH DURATION 1h REPLICATION 1 NAME rp0`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		Duration: 1 * time.Hour,
+		ReplicaN: 1,
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -270,8 +280,8 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -281,9 +291,12 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	qry := `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		Duration: 1 * time.Hour,
+		ReplicaN: 1,
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	rp, err := c.RetentionPolicy("db0", "rp0")
@@ -297,9 +310,8 @@ func TestMetaService_DropRetentionPolicy(t *testing.T) {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
 	}
 
-	qry = `DROP RETENTION POLICY rp0 ON db0`
-	if res := c.ExecuteStatement(mustParseStatement(qry)); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.DropRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
 	}
 
 	rp, err = c.RetentionPolicy("db0", "rp0")
@@ -319,13 +331,13 @@ func TestMetaService_CreateUser(t *testing.T) {
 	defer c.Close()
 
 	// Create an admin user
-	if res := c.ExecuteStatement(mustParseStatement("CREATE USER fred WITH PASSWORD 'supersecure' WITH ALL PRIVILEGES")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateUser("fred", "supersecure", true); err != nil {
+		t.Fatal(err)
 	}
 
 	// Create a non-admin user
-	if res := c.ExecuteStatement(mustParseStatement("CREATE USER wilma WITH PASSWORD 'password'")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateUser("wilma", "password", false); err != nil {
+		t.Fatal(err)
 	}
 
 	u, err := c.User("fred")
@@ -357,8 +369,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Change password should succeed.
-	if res := c.ExecuteStatement(mustParseStatement("SET PASSWORD FOR fred = 'moresupersecure'")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.UpdateUser("fred", "moresupersecure"); err != nil {
+		t.Fatal(err)
 	}
 
 	// Auth for old password should fail
@@ -395,8 +407,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Grant privilidges to a non-admin user
-	if res := c.ExecuteStatement(mustParseStatement("GRANT ALL PRIVILEGES TO wilma")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.SetAdminPrivilege("wilma", true); err != nil {
+		t.Fatal(err)
 	}
 
 	u, err = c.User("wilma")
@@ -411,8 +423,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Revoke privilidges from user
-	if res := c.ExecuteStatement(mustParseStatement("REVOKE ALL PRIVILEGES FROM wilma")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.SetAdminPrivilege("wilma", false); err != nil {
+		t.Fatal(err)
 	}
 
 	u, err = c.User("wilma")
@@ -427,8 +439,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Create a database to use for assiging privileges to.
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := c.Database("db0")
@@ -439,8 +451,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Assign a single privilege at the database level
-	if res := c.ExecuteStatement(mustParseStatement("GRANT READ ON db0 TO wilma")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.SetPrivilege("wilma", "db0", influxql.ReadPrivilege); err != nil {
+		t.Fatal(err)
 	}
 
 	p, err := c.UserPrivilege("wilma", "db0")
@@ -455,8 +467,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Remove a single privilege at the database level
-	if res := c.ExecuteStatement(mustParseStatement("REVOKE READ ON db0 FROM wilma")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.SetPrivilege("wilma", "db0", influxql.NoPrivileges); err != nil {
+		t.Fatal(err)
 	}
 	p, err = c.UserPrivilege("wilma", "db0")
 	if err != nil {
@@ -470,8 +482,8 @@ func TestMetaService_CreateUser(t *testing.T) {
 	}
 
 	// Drop a user
-	if res := c.ExecuteStatement(mustParseStatement("DROP USER wilma")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.DropUser("wilma"); err != nil {
+		t.Fatal(err)
 	}
 
 	u, err = c.User("wilma")
@@ -493,8 +505,8 @@ func TestMetaService_ContinuousQueries(t *testing.T) {
 	defer c.Close()
 
 	// Create a database to use
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 	db, err := c.Database("db0")
 	if err != nil {
@@ -504,46 +516,26 @@ func TestMetaService_ContinuousQueries(t *testing.T) {
 	}
 
 	// Create a CQ
-	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m) END")); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	res := c.ExecuteStatement(mustParseStatement("SHOW CONTINUOUS QUERIES"))
-	if res.Err != nil {
-		t.Fatal(res.Err)
-	}
-	exp := `{"series":[{"name":"db0","columns":["name","query"],"values":[["cq0","CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m) END"]]}]}`
-	got := mustMarshalJSON(res)
-	if exp != got {
-		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	if err := c.CreateContinuousQuery("db0", "cq0", `SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m)`); err != nil {
+		t.Fatal(err)
 	}
 
 	// Recreate an existing CQ
-	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m) END")); res.Err == nil {
-		t.Fatalf("expected error: got %v", res.Err)
+	if err := c.CreateContinuousQuery("db0", "cq0", `SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m)`); err == nil || err.Error() != `continuous query already exists` {
+		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// Create a few more CQ's
-	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq1 ON db0 BEGIN SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m) END")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.CreateContinuousQuery("db0", "cq1", `SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m)`); err != nil {
+		t.Fatal(err)
 	}
-	if res := c.ExecuteStatement(mustParseStatement("CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT min(value) INTO foo_min FROM foo GROUP BY time(10m) END")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.CreateContinuousQuery("db0", "cq2", `SELECT min(value) INTO foo_min FROM foo GROUP BY time(10m)`); err != nil {
+		t.Fatal(err)
 	}
 
 	// Drop a single CQ
-	if res := c.ExecuteStatement(mustParseStatement("DROP CONTINUOUS QUERY cq1 ON db0")); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	res = c.ExecuteStatement(mustParseStatement("SHOW CONTINUOUS QUERIES"))
-	if res.Err != nil {
-		t.Fatal(res.Err)
-	}
-	exp = `{"series":[{"name":"db0","columns":["name","query"],"values":[["cq0","CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m) END"],["cq2","CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT min(value) INTO foo_min FROM foo GROUP BY time(10m) END"]]}]}`
-	got = mustMarshalJSON(res)
-	if exp != got {
-		t.Fatalf("unexpected response.\n\nexp: %s\ngot: %s\n", exp, got)
+	if err := c.DropContinuousQuery("db0", "cq1"); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -556,8 +548,8 @@ func TestMetaService_Subscriptions_Create(t *testing.T) {
 	defer c.Close()
 
 	// Create a database to use
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
 	}
 	db, err := c.Database("db0")
 	if err != nil {
@@ -567,82 +559,18 @@ func TestMetaService_Subscriptions_Create(t *testing.T) {
 	}
 
 	// Create a subscription
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.CreateSubscription("db0", "default", "sub0", "ALL", []string{"udp://example.com:9090"}); err != nil {
+		t.Fatal(err)
 	}
 
 	// Re-create a subscription
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err == nil {
-		t.Fatal(res.Err)
-	}
-
-	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
-	if res.Err != nil {
-		t.Fatal(res.Err)
-	} else if got, exp := len(res.Series), 1; got != exp {
-		t.Fatalf("unexpected response.\n\ngot: %d series\nexp: %d\n", got, exp)
+	if err := c.CreateSubscription("db0", "default", "sub0", "ALL", []string{"udp://example.com:9090"}); err == nil || err.Error() != `subscription already exists` {
+		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// Create another subscription.
-	if res := c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub1 ON db0."default" DESTINATIONS ALL 'udp://example.com:6060'`)); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	// The subscriptions are correctly created.
-	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]],["default","sub1","ALL",["udp://example.com:6060"]]]}]}`
-	got := mustMarshalJSON(res)
-	if got != exp {
-		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", exp, got)
-	}
-}
-
-func TestMetaService_Subscriptions_Show(t *testing.T) {
-	t.Parallel()
-
-	d, s, c := newServiceAndClient()
-	defer os.RemoveAll(d)
-	defer s.Close()
-	defer c.Close()
-
-	// Create a database to use
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-	db, err := c.Database("db0")
-	if err != nil {
+	if err := c.CreateSubscription("db0", "default", "sub1", "ALL", []string{"udp://example.com:6060"}); err != nil {
 		t.Fatal(err)
-	} else if db.Name != "db0" {
-		t.Fatalf("db name wrong: %s", db.Name)
-	}
-
-	// SHOW SUBSCRIPTIONS returns no subscriptions when there are none.
-	res := c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`))
-	if res.Err != nil {
-		t.Fatal(res.Err)
-	} else if got, exp := len(res.Series), 0; got != exp {
-		t.Fatalf("got %d series, expected %d", got, exp)
-	}
-
-	// Create a subscription.
-	if res = c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-
-	// SHOW SUBSCRIPTIONS returns the created subscription.
-	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
-		t.Fatal(res.Err)
-	} else if got, exp := len(res.Series), 1; got != exp {
-		t.Fatalf("got %d series, expected %d", got, exp)
-	}
-
-	exp := `{"series":[{"name":"db0","columns":["retention_policy","name","mode","destinations"],"values":[["default","sub0","ALL",["udp://example.com:9090"]]]}]}`
-	got := mustMarshalJSON(res)
-	if got != exp {
-		t.Fatalf("unexpected response.\n\ngot: %s\nexp: %s\n", got, exp)
 	}
 }
 
@@ -655,52 +583,40 @@ func TestMetaService_Subscriptions_Drop(t *testing.T) {
 	defer c.Close()
 
 	// Create a database to use
-	if res := c.ExecuteStatement(mustParseStatement("CREATE DATABASE db0")); res.Err != nil {
-		t.Fatal(res.Err)
-	}
-	db, err := c.Database("db0")
-	if err != nil {
+	if _, err := c.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if db.Name != "db0" {
-		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
 	// DROP SUBSCRIPTION returns ErrSubscriptionNotFound when the
 	// subscription is unknown.
-	res := c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION foo ON db0."default"`))
-	if got, exp := res.Err, meta.ErrSubscriptionNotFound; got.Error() != exp.Error() {
+	err := c.DropSubscription("db0", "default", "foo")
+	if got, exp := err, meta.ErrSubscriptionNotFound; got.Error() != exp.Error() {
 		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// Create a subscription.
-	if res = c.ExecuteStatement(mustParseStatement(`CREATE SUBSCRIPTION sub0 ON db0."default" DESTINATIONS ALL 'udp://example.com:9090'`)); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.CreateSubscription("db0", "default", "sub0", "ALL", []string{"udp://example.com:9090"}); err != nil {
+		t.Fatal(err)
 	}
 
 	// DROP SUBSCRIPTION returns an influxdb.ErrDatabaseNotFound when
 	// the database is unknown.
-	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON foo."default"`))
-	if got, exp := res.Err, influxdb.ErrDatabaseNotFound("foo"); got.Error() != exp.Error() {
+	err = c.DropSubscription("foo", "default", "sub0")
+	if got, exp := err, influxdb.ErrDatabaseNotFound("foo"); got.Error() != exp.Error() {
 		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// DROP SUBSCRIPTION returns an influxdb.ErrRetentionPolicyNotFound
 	// when the retention policy is unknown.
-	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."foo_policy"`))
-	if got, exp := res.Err, influxdb.ErrRetentionPolicyNotFound("foo_policy"); got.Error() != exp.Error() {
+	err = c.DropSubscription("db0", "foo_policy", "sub0")
+	if got, exp := err, influxdb.ErrRetentionPolicyNotFound("foo_policy"); got.Error() != exp.Error() {
 		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// DROP SUBSCRIPTION drops the subsciption if it can find it.
-	res = c.ExecuteStatement(mustParseStatement(`DROP SUBSCRIPTION sub0 ON db0."default"`))
-	if got := res.Err; got != nil {
+	err = c.DropSubscription("db0", "default", "sub0")
+	if got := err; got != nil {
 		t.Fatalf("got: %s, exp: %v", got, nil)
-	}
-
-	if res = c.ExecuteStatement(mustParseStatement(`SHOW SUBSCRIPTIONS`)); res.Err != nil {
-		t.Fatal(res.Err)
-	} else if got, exp := len(res.Series), 0; got != exp {
-		t.Fatalf("got %d series, expected %d", got, exp)
 	}
 }
 
@@ -822,7 +738,8 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	}
 	defer s3.Close()
 
-	c1 := meta.NewClient(joinPeers[0:3], false)
+	c1 := meta.NewClient()
+	c1.SetMetaServers(joinPeers[0:3])
 	if err := c1.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -833,14 +750,15 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 		t.Fatalf("meta nodes wrong: %v", metaNodes)
 	}
 
-	c := meta.NewClient([]string{s1.HTTPAddr()}, false)
+	c := meta.NewClient()
+	c.SetMetaServers([]string{s1.HTTPAddr()})
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
 	defer c.Close()
 
-	if res := c.ExecuteStatement(mustParseStatement("DROP META SERVER 3")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.DeleteMetaNode(3); err != nil {
+		t.Fatal(err)
 	}
 
 	metaNodes, _ = c.MetaNodes()
@@ -859,7 +777,8 @@ func TestMetaService_CreateRemoveMetaNode(t *testing.T) {
 	}
 	defer s4.Close()
 
-	c2 := meta.NewClient(cfg4.JoinPeers, false)
+	c2 := meta.NewClient()
+	c2.SetMetaServers(cfg4.JoinPeers)
 	if err := c2.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -903,7 +822,8 @@ func TestMetaService_CommandAgainstNonLeader(t *testing.T) {
 	wg.Wait()
 
 	for i := range cfgs {
-		c := meta.NewClient([]string{joinPeers[i]}, false)
+		c := meta.NewClient()
+		c.SetMetaServers([]string{joinPeers[i]})
 		if err := c.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -957,7 +877,8 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	}
 	swg.Wait()
 
-	c := meta.NewClient(joinPeers, false)
+	c := meta.NewClient()
+	c.SetMetaServers(joinPeers)
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1015,7 +936,8 @@ func TestMetaService_FailureAndRestartCluster(t *testing.T) {
 	wg.Wait()
 	time.Sleep(time.Second)
 
-	c2 := meta.NewClient(joinPeers, false)
+	c2 := meta.NewClient()
+	c2.SetMetaServers(joinPeers)
 	if err := c2.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1056,7 +978,8 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 	}
 	defer s.Close()
 
-	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	c := meta.NewClient()
+	c.SetMetaServers([]string{s.HTTPAddr()})
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1077,7 +1000,8 @@ func TestMetaService_NameChangeSingleNode(t *testing.T) {
 	}
 	defer s.Close()
 
-	c2 := meta.NewClient([]string{s.HTTPAddr()}, false)
+	c2 := meta.NewClient()
+	c2.SetMetaServers([]string{s.HTTPAddr()})
 	if err := c2.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1177,8 +1101,8 @@ func TestMetaService_DropDataNode(t *testing.T) {
 		t.Fatalf("expected owners to be [1]: %v", sg.Shards[0].Owners)
 	}
 
-	if res := c.ExecuteStatement(mustParseStatement("DROP DATA SERVER 1")); res.Err != nil {
-		t.Fatal(res.Err)
+	if err := c.DeleteDataNode(1); err != nil {
+		t.Fatal(err)
 	}
 
 	rp, _ := c.RetentionPolicy("foo", "default")
@@ -1198,7 +1122,8 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 	}
 	defer s.Close()
 
-	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	c := meta.NewClient()
+	c.SetMetaServers([]string{s.HTTPAddr()})
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1213,7 +1138,8 @@ func TestMetaService_PersistClusterIDAfterRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c = meta.NewClient([]string{s.HTTPAddr()}, false)
+	c = meta.NewClient()
+	c.SetMetaServers([]string{s.HTTPAddr()})
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1253,7 +1179,8 @@ func TestMetaService_Ping(t *testing.T) {
 	}
 	swg.Wait()
 
-	c := meta.NewClient(joinPeers, false)
+	c := meta.NewClient()
+	c.SetMetaServers(joinPeers)
 	if err := c.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -1349,7 +1276,8 @@ func newServiceAndClient() (string, *testService, *meta.Client) {
 }
 
 func newClient(s *testService) *meta.Client {
-	c := meta.NewClient([]string{s.HTTPAddr()}, false)
+	c := meta.NewClient()
+	c.SetMetaServers([]string{s.HTTPAddr()})
 	if err := c.Open(); err != nil {
 		panic(err)
 	}
