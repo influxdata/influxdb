@@ -48,6 +48,10 @@ type Config struct {
 	Enabled bool   `toml:"enabled"`
 	Dir     string `toml:"dir"`
 
+	// RemoteHostname is the hostname portion to use when registering meta node
+	// addresses.  This hostname must be resolvable from other nodes.
+	RemoteHostname string
+
 	// this is deprecated. Should use the address from run/config.go
 	BindAddress string `toml:"bind-address"`
 
@@ -101,20 +105,6 @@ func (c *Config) defaultHost(addr string) string {
 		return addr
 	}
 	return address
-}
-
-// DefaultedBindAddress returns the BindAddress normalized with the
-// hosts name or "localhost" if that could not be determined.  If
-// the BindAddress already has a hostname, BindAddress is returned.
-func (c *Config) DefaultedBindAddress() string {
-	return c.defaultHost(c.BindAddress)
-}
-
-// DefaultedHTTPBindAddress returns the HTTPBindAddress normalized with the
-// hosts name or "localhost" if that could not be determined.  If
-// the HTTPBindAddress already has a hostname, HTTPBindAddress is returned.
-func (c *Config) DefaultedHTTPBindAddress() string {
-	return c.defaultHost(c.HTTPBindAddress)
 }
 
 func DefaultHost(hostname, addr string) (string, error) {

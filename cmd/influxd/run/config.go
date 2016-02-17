@@ -62,6 +62,10 @@ type Config struct {
 
 	// BindAddress is the address that all TCP services use (Raft, Snapshot, Cluster, etc.)
 	BindAddress string `toml:"bind-address"`
+
+	// Hostname is the hostname portion to use when registering local
+	// addresses.  This hostname must be resolvable from other nodes.
+	Hostname string `toml:"hostname"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
