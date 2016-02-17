@@ -71,12 +71,13 @@ type Monitor struct {
 // New returns a new instance of the monitor system.
 func New(c Config) *Monitor {
 	return &Monitor{
-		done:              make(chan struct{}),
-		diagRegistrations: make(map[string]diagnostics.Client),
-		storeEnabled:      c.StoreEnabled,
-		storeDatabase:     c.StoreDatabase,
-		storeInterval:     time.Duration(c.StoreInterval),
-		Logger:            log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+		done:                 make(chan struct{}),
+		diagRegistrations:    make(map[string]diagnostics.Client),
+		storeEnabled:         c.StoreEnabled,
+		storeDatabase:        c.StoreDatabase,
+		storeInterval:        time.Duration(c.StoreInterval),
+		storeRetentionPolicy: MonitorRetentionPolicy,
+		Logger:               log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
 
