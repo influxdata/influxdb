@@ -75,20 +75,22 @@ type Handler struct {
 
 	ContinuousQuerier continuous_querier.ContinuousQuerier
 
-	Logger         *log.Logger
-	loggingEnabled bool // Log every HTTP access.
-	WriteTrace     bool // Detailed logging of write path
-	statMap        *expvar.Map
+	Logger           *log.Logger
+	loggingEnabled   bool // Log every HTTP access.
+	WriteTrace       bool // Detailed logging of write path
+	JSONWriteEnabled bool // Allow JSON writes
+	statMap          *expvar.Map
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap *expvar.Map) *Handler {
+func NewHandler(requireAuthentication, loggingEnabled, writeTrace, JSONWriteEnabled bool, statMap *expvar.Map) *Handler {
 	h := &Handler{
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 		loggingEnabled:        loggingEnabled,
 		WriteTrace:            writeTrace,
+		JSONWriteEnabled:      JSONWriteEnabled,
 		statMap:               statMap,
 	}
 
@@ -403,6 +405,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 
 // serveWriteJSON receives incoming series data in JSON and writes it to the database.
 func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []byte, user *meta.UserInfo) {
+	if !h.JSONWriteEnabled {
+		resultError(w, influxql.Result{Err: fmt.Errorf("JSON write protocol has been deprecated")}, http.StatusBadRequest)
+		return
+	}
+
 	var bp client.BatchPoints
 	var dec *json.Decoder
 

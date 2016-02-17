@@ -483,7 +483,7 @@ type Handler struct {
 func NewHandler(requireAuthentication bool) *Handler {
 	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
 	h := &Handler{
-		Handler: httpd.NewHandler(requireAuthentication, true, false, statMap),
+		Handler: httpd.NewHandler(requireAuthentication, true, false, false, statMap),
 	}
 	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = &h.QueryExecutor
