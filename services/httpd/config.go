@@ -10,6 +10,7 @@ type Config struct {
 	PprofEnabled     bool   `toml:"pprof-enabled"`
 	HTTPSEnabled     bool   `toml:"https-enabled"`
 	HTTPSCertificate string `toml:"https-certificate"`
+	JSONWriteEnabled bool   `toml:"json-write-enabled"`
 }
 
 // NewConfig returns a new Config with default settings.
@@ -20,5 +21,6 @@ func NewConfig() Config {
 		LogEnabled:       true,
 		HTTPSEnabled:     false,
 		HTTPSCertificate: "/etc/ssl/influxdb.pem",
+		JSONWriteEnabled: false,
 	}
 }
