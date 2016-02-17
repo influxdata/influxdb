@@ -373,17 +373,20 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
-			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:         s.Database,
-				RetentionPolicy:  s.RetentionPolicy,
-				ConsistencyLevel: s.ConsistencyLevel,
-				Points:           batch,
-			}); err == nil {
-				s.statMap.Add(statBatchesTrasmitted, 1)
-				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
-			} else {
-				s.Logger.Printf("failed to write point batch to database %q: %s", s.Database, err)
-				s.statMap.Add(statBatchesTransmitFail, 1)
+			for database, points := range batch {
+				if database == "" { database = s.Database }
+				if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
+					Database:         database,
+					RetentionPolicy:  s.RetentionPolicy,
+					ConsistencyLevel: s.ConsistencyLevel,
+					Points:           points,
+				}); err == nil {
+					s.statMap.Add(statBatchesTrasmitted, 1)
+					s.statMap.Add(statPointsTransmitted, int64(len(batch)))
+				} else {
+					s.Logger.Printf("failed to write point batch to database %q: %s", s.Database, err)
+					s.statMap.Add(statBatchesTransmitFail, 1)
+				}
 			}
 
 		case <-s.done:
