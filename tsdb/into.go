@@ -17,8 +17,10 @@ func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point
 	for i, c := range row.Columns {
 		if c == "time" {
 			timeIndex = i
-		} else {
+		} else if c != "" {
 			fieldIndexes[c] = i
+		} else {
+			return nil, errors.New("error converting rows to points - empty field name encountered")
 		}
 	}
 
