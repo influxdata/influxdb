@@ -2,6 +2,7 @@
 
 ### Bugfixes
 - [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
+- [#5724](https://github.com/influxdata/influxdb/issues/5724): influx\_tsm doesn't close file handles properly
 
 ## v0.10.0 [2016-02-04]
 
