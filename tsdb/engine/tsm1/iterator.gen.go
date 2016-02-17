@@ -8,7 +8,6 @@ package tsm1
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -233,7 +232,7 @@ func newFloatAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCu
 // peekCache returns the current time/value from the cache.
 func (c *floatAscendingCursor) peekCache() (t int64, v float64) {
 	if c.cache.pos >= len(c.cache.values) {
-		return tsdb.EOF, math.NaN()
+		return tsdb.EOF, 0
 	}
 
 	item := c.cache.values[c.cache.pos]
@@ -243,7 +242,7 @@ func (c *floatAscendingCursor) peekCache() (t int64, v float64) {
 // peekTSM returns the current time/value from tsm.
 func (c *floatAscendingCursor) peekTSM() (t int64, v float64) {
 	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
-		return tsdb.EOF, math.NaN()
+		return tsdb.EOF, 0
 	}
 
 	item := c.tsm.values[c.tsm.pos]
@@ -260,7 +259,7 @@ func (c *floatAscendingCursor) nextFloat() (int64, float64) {
 
 	// No more data in cache or in TSM files.
 	if ckey == tsdb.EOF && tkey == tsdb.EOF {
-		return tsdb.EOF, math.NaN()
+		return tsdb.EOF, 0
 	}
 
 	// Both cache and tsm files have the same key, cache takes precedence.
@@ -343,7 +342,7 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 // peekCache returns the current time/value from the cache.
 func (c *floatDescendingCursor) peekCache() (t int64, v float64) {
 	if c.cache.pos < 0 || c.cache.pos >= len(c.cache.values) {
-		return tsdb.EOF, math.NaN()
+		return tsdb.EOF, 0
 	}
 
 	item := c.cache.values[c.cache.pos]
@@ -353,7 +352,7 @@ func (c *floatDescendingCursor) peekCache() (t int64, v float64) {
 // peekTSM returns the current time/value from tsm.
 func (c *floatDescendingCursor) peekTSM() (t int64, v float64) {
 	if c.tsm.pos < 0 || c.tsm.pos >= len(c.tsm.values) {
-		return tsdb.EOF, math.NaN()
+		return tsdb.EOF, 0
 	}
 
 	item := c.tsm.values[c.tsm.pos]
@@ -370,7 +369,7 @@ func (c *floatDescendingCursor) nextFloat() (int64, float64) {
 
 	// No more data in cache or in TSM files.
 	if ckey == tsdb.EOF && tkey == tsdb.EOF {
-		return tsdb.EOF, math.NaN()
+		return tsdb.EOF, 0
 	}
 
 	// Both cache and tsm files have the same key, cache takes precedence.
