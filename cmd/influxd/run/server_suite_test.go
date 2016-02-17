@@ -64,9 +64,9 @@ func init() {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "create database with retention duration should not error with existing database with IF NOT EXISTS",
+				name:    "create database with retention duration should error if retention policy is different with IF NOT EXISTS",
 				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION 24h`,
-				exp:     `{"results":[{}]}`,
+				exp:     `{"results":[{"error":"retention policy conflicts with an existing policy"}]}`,
 			},
 			&Query{
 				name:    "create database should error IF NOT EXISTS with bad retention duration",

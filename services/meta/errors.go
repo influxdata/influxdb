@@ -66,6 +66,10 @@ var (
 	ErrRetentionPolicyDurationTooLow = errors.New(fmt.Sprintf("retention policy duration must be at least %s",
 		MinRetentionPolicyDuration))
 
+	// ErrRetentionPolicyConflict is returned when creating a retention policy conflicts
+	// with an existing policy.
+	ErrRetentionPolicyConflict = errors.New("retention policy conflicts with an existing policy")
+
 	// ErrReplicationFactorTooLow is returned when the replication factor is not in an
 	// acceptable range.
 	ErrReplicationFactorTooLow = errors.New("replication factor must be greater than 0")
