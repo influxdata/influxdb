@@ -1772,3 +1772,21 @@ t159,label=another a=2i,value=1i 1`
 		t.Fatalf("expected 2 points, got %d", len(points))
 	}
 }
+
+func TestAddFieldWithEmptyName(t *testing.T) {
+	ch := make(chan struct{})
+	go func() {
+		p, err := models.NewPoint("foo", nil, models.Fields{"a": 1}, time.Now())
+		if err != nil {
+			t.Fatalf("%v", err)
+		}
+		p.AddField("", 2)
+		p.AddField("b", 3) // causes infinite loop in newFieldsFromBinary
+		close(ch)
+	}()
+	select {
+	case _ = <-ch:
+	case _ = <-time.NewTimer(time.Second).C:
+		t.Fatalf("failed: probable infite loop")
+	}
+}
