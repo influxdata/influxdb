@@ -147,13 +147,15 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	defer s.Close()
 	defer ts.Close()
 
-	w := cluster.NewShardWriter(time.Nanosecond, 1)
+	// Zero timeout set to support all platforms.
+	w := cluster.NewShardWriter(0, 1)
 	w.MetaClient = &metaClient{host: ts.ln.Addr().String()}
 	now := time.Now()
 
 	shardID := uint64(1)
 	ownerID := uint64(2)
 	var points []models.Point
+
 	points = append(points, models.MustNewPoint(
 		"cpu", models.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
