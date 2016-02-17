@@ -958,6 +958,7 @@ func (c *Client) index() uint64 {
 func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
 	var err error
 	var index uint64
+	var retry bool
 	tries := 0
 	currentServer := 0
 	var redirectServer string
@@ -995,7 +996,7 @@ func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.Extension
 			}
 		}
 
-		index, err = c.exec(url, typ, desc, value)
+		index, err, retry = c.exec(url, typ, desc, value)
 		tries++
 		currentServer++
 
@@ -1008,6 +1009,10 @@ func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.Extension
 			return err
 		}
 
+		if !retry {
+			return err
+		}
+
 		if e, ok := err.(errRedirect); ok {
 			redirectServer = e.host
 			continue
@@ -1017,7 +1022,7 @@ func (c *Client) retryUntilExec(typ internal.Command_Type, desc *proto.Extension
 	}
 }
 
-func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) (index uint64, err error) {
+func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) (index uint64, err error, retry bool) {
 	// Create command.
 	cmd := &internal.Command{Type: &typ}
 	if err := proto.SetExtension(cmd, desc, value); err != nil {
@@ -1026,38 +1031,38 @@ func (c *Client) exec(url string, typ internal.Command_Type, desc *proto.Extensi
 
 	b, err := proto.Marshal(cmd)
 	if err != nil {
-		return 0, err
+		return 0, err, false
 	}
 
 	resp, err := http.Post(url, "application/octet-stream", bytes.NewBuffer(b))
 	if err != nil {
-		return 0, err
+		return 0, err, true
 	}
 	defer resp.Body.Close()
 
 	// read the response
 	if resp.StatusCode == http.StatusTemporaryRedirect {
-		return 0, errRedirect{host: resp.Header.Get("Location")}
+		return 0, errRedirect{host: resp.Header.Get("Location")}, true
 	} else if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("meta service returned %s", resp.Status)
+		return 0, fmt.Errorf("meta service returned %s", resp.Status), true
 	}
 
 	res := &internal.Response{}
 
 	b, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return 0, err
+		return 0, err, false
 	}
 
 	if err := proto.Unmarshal(b, res); err != nil {
-		return 0, err
+		return 0, err, false
 	}
 	es := res.GetError()
 	if es != "" {
-		return 0, fmt.Errorf(es)
+		return 0, fmt.Errorf(es), false
 	}
 
-	return res.GetIndex(), nil
+	return res.GetIndex(), nil, false
 }
 
 func (c *Client) waitForIndex(idx uint64) {
