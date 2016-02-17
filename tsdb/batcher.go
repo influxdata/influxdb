@@ -18,7 +18,7 @@ type PointBatcher struct {
 
 	stop  chan struct{}
 	in    chan models.Point
-	out   chan []models.Point
+	out   chan map[string][]models.Point
 	flush chan struct{}
 
 	wg *sync.WaitGroup
@@ -34,7 +34,7 @@ func NewPointBatcher(sz int, bp int, d time.Duration) *PointBatcher {
 		duration: d,
 		stop:     make(chan struct{}),
 		in:       make(chan models.Point, bp*sz),
-		out:      make(chan []models.Point),
+		out:      make(chan map[string][]models.Point),
 		flush:    make(chan struct{}),
 	}
 }
@@ -56,8 +56,9 @@ func (b *PointBatcher) Start() {
 	}
 
 	var timer *time.Timer
-	var batch []models.Point
+	var batch map[string][]models.Point
 	var timerCh <-chan time.Time
+	var database string
 
 	emit := func() {
 		b.out <- batch
@@ -80,22 +81,32 @@ func (b *PointBatcher) Start() {
 				return
 			case p := <-b.in:
 				atomic.AddUint64(&b.stats.PointTotal, 1)
+
+				// If database not defined, set default in service
+				database = p.Tags()["database"]
+				if database == "" {
+					database = ""
+				}
+
 				if batch == nil {
-					batch = make([]models.Point, 0, b.size)
+					// TODO: set array max size?
+					batch = make(map[string][]models.Point)
 					if b.duration > 0 {
 						timer = time.NewTimer(b.duration)
 						timerCh = timer.C
 					}
 				}
 
-				batch = append(batch, p)
-				if len(batch) >= b.size { // 0 means send immediately.
+				batch[database] = append(batch[database], p)
+				if len(batch[database]) >= b.size { // 0 means send immediately.
 					atomic.AddUint64(&b.stats.SizeTotal, 1)
 					emit()
 					timerCh = nil
 				}
 
 			case <-b.flush:
+				// TODO: now it checks if there is some keys in the map
+				// Change to check all arrays?
 				if len(batch) > 0 {
 					emit()
 					timerCh = nil
@@ -127,7 +138,7 @@ func (b *PointBatcher) In() chan<- models.Point {
 }
 
 // Out returns the channel from which batches should be read.
-func (b *PointBatcher) Out() <-chan []models.Point {
+func (b *PointBatcher) Out() <-chan map[string][]models.Point {
 	return b.out
 }
 
