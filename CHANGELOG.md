@@ -12,6 +12,7 @@
 ### Bugfixes
 
 - [#5152](https://github.com/influxdata/influxdb/issues/5152): Fix where filters when a tag and a filter are combined with OR.
+- [#5728](https://github.com/influxdata/influxdb/issues/5728): Properly handle semi-colons as part of the main query loop.
 
 ## v0.11.0 [unreleased]
 
