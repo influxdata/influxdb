@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
@@ -62,7 +63,7 @@ type Server struct {
 	MetaService *meta.Service
 
 	TSDBStore       *tsdb.Store
-	QueryExecutor   *tsdb.QueryExecutor
+	QueryExecutor   *cluster.QueryExecutor
 	PointsWriter    *cluster.PointsWriter
 	ShardWriter     *cluster.ShardWriter
 	IteratorCreator *cluster.IteratorCreator
@@ -176,7 +177,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Node: node,
+		Node:       node,
+		MetaClient: meta.NewClient(),
 
 		Monitor: monitor.New(c.Monitor),
 
@@ -205,12 +207,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
 		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
-		// Initialize query executor.
-		s.QueryExecutor = tsdb.NewQueryExecutor()
-		s.QueryExecutor.Store = s.TSDBStore
-		s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
-		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
-
 		// Set the shard writer
 		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout),
 			c.Cluster.MaxRemoteWriteConnections)
@@ -231,15 +227,22 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.PointsWriter.Subscriber = s.Subscriber
 		s.PointsWriter.Node = s.Node
 
-		// needed for executing INTO queries.
-		s.QueryExecutor.IntoWriter = s.PointsWriter
+		// Initialize query executor.
+		s.QueryExecutor = cluster.NewQueryExecutor()
+		s.QueryExecutor.MetaClient = s.MetaClient
+		s.QueryExecutor.TSDBStore = s.TSDBStore
+		s.QueryExecutor.Monitor = s.Monitor
+		s.QueryExecutor.PointsWriter = s.PointsWriter
+		if c.Data.QueryLogEnabled {
+			s.QueryExecutor.LogOutput = os.Stderr
+		}
 
 		// Initialize the monitor
 		s.Monitor.Version = s.buildInfo.Version
 		s.Monitor.Commit = s.buildInfo.Commit
 		s.Monitor.Branch = s.buildInfo.Branch
 		s.Monitor.BuildTime = s.buildInfo.Time
-		s.Monitor.PointsWriter = s.PointsWriter
+		s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
 	}
 
 	return s, nil
@@ -438,7 +441,6 @@ func (s *Server) Open() error {
 		}
 
 		s.Subscriber.MetaClient = s.MetaClient
-		s.QueryExecutor.MetaClient = s.MetaClient
 		s.ShardWriter.MetaClient = s.MetaClient
 		s.HintedHandoff.MetaClient = s.MetaClient
 		s.Subscriber.MetaClient = s.MetaClient
@@ -631,10 +633,12 @@ func (s *Server) initializeMetaClient() error {
 		if s.MetaService == nil {
 			return fmt.Errorf("server not set to join existing cluster must run also as a meta node")
 		}
-		s.MetaClient = meta.NewClient([]string{s.MetaService.HTTPAddr()}, s.metaUseTLS)
+		s.MetaClient.SetMetaServers([]string{s.MetaService.HTTPAddr()})
+		s.MetaClient.SetTLS(s.metaUseTLS)
 	} else {
 		// join this node to the cluster
-		s.MetaClient = meta.NewClient(s.joinPeers, s.metaUseTLS)
+		s.MetaClient.SetMetaServers(s.joinPeers)
+		s.MetaClient.SetTLS(s.metaUseTLS)
 	}
 	if err := s.MetaClient.Open(); err != nil {
 		return err
@@ -720,3 +724,16 @@ type tcpaddr struct{ host string }
 
 func (a *tcpaddr) Network() string { return "tcp" }
 func (a *tcpaddr) String() string  { return a.host }
+
+// monitorPointsWriter is a wrapper around `cluster.PointsWriter` that helps
+// to prevent a circular dependency between the `cluster` and `monitor` packages.
+type monitorPointsWriter cluster.PointsWriter
+
+func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
+	return (*cluster.PointsWriter)(pw).WritePoints(&cluster.WritePointsRequest{
+		Database:         database,
+		RetentionPolicy:  retentionPolicy,
+		ConsistencyLevel: cluster.ConsistencyLevelOne,
+		Points:           points,
+	})
+}

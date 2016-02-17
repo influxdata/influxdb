@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -34,11 +33,6 @@ const (
 type ContinuousQuerier interface {
 	// Run executes the named query in the named database.  Blank database or name matches all.
 	Run(database, name string, t time.Time) error
-}
-
-// queryExecutor is an internal interface to make testing easier.
-type queryExecutor interface {
-	ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
 }
 
 // metaClient is an internal interface to make testing easier.
@@ -74,7 +68,7 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
-	QueryExecutor queryExecutor
+	QueryExecutor influxql.QueryExecutor
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
@@ -149,7 +143,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		if err != nil {
 			return err
 		} else if db == nil {
-			return tsdb.ErrDatabaseNotFound(database)
+			return influxql.ErrDatabaseNotFound(database)
 		}
 		dbs = append(dbs, *db)
 	} else {
@@ -351,10 +345,8 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	defer close(closing)
 
 	// Execute the SELECT.
-	ch, err := s.QueryExecutor.ExecuteQuery(q, cq.Database, NoChunkingSize, closing)
-	if err != nil {
-		return err
-	}
+	ch := s.QueryExecutor.ExecuteQuery(q, cq.Database, NoChunkingSize, closing)
+
 	// There is only one statement, so we will only ever receive one result
 	res, ok := <-ch
 	if !ok {
