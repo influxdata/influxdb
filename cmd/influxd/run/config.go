@@ -84,12 +84,30 @@ func NewConfig() *Config {
 	c.HintedHandoff = hh.NewConfig()
 	c.BindAddress = DefaultBindAddress
 
+	// All ARRAY attributes have to be init after toml decode
+	// See: https://github.com/BurntSushi/toml/pull/68
+	// Those attributes will be initialized in Config.InitTableAttrs method
+	// Concerned Attributes:
+	//  * `c.Graphites`
+	//  * `c.UDPs`
+
 	return c
+}
+
+// Init all ARRAY attributes if it's empty
+func (c *Config) InitTableAttrs() {
+	if len(c.UDPs) == 0 {
+		c.UDPs = []udp.Config{udp.NewConfig()}
+	}
+	if len(c.Graphites) == 0 {
+		c.Graphites = []graphite.Config{graphite.NewConfig()}
+	}
 }
 
 // NewDemoConfig returns the config that runs when no config is specified.
 func NewDemoConfig() (*Config, error) {
 	c := NewConfig()
+	c.InitTableAttrs()
 
 	var homeDir string
 	// By default, store meta and data files in current users home directory
