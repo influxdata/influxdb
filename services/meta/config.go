@@ -50,7 +50,7 @@ type Config struct {
 
 	// RemoteHostname is the hostname portion to use when registering meta node
 	// addresses.  This hostname must be resolvable from other nodes.
-	RemoteHostname string
+	RemoteHostname string `toml:"-"`
 
 	// this is deprecated. Should use the address from run/config.go
 	BindAddress string `toml:"bind-address"`
@@ -61,7 +61,7 @@ type Config struct {
 	HTTPSCertificate string `toml:"https-certificate"`
 
 	// JoinPeers if specified gives other metastore servers to join this server to the cluster
-	JoinPeers            []string      `toml:"-"`
+	JoinPeers            []string      `toml:"join"`
 	RetentionAutoCreate  bool          `toml:"retention-autocreate"`
 	ElectionTimeout      toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout     toml.Duration `toml:"heartbeat-timeout"`
@@ -89,6 +89,7 @@ func NewConfig() *Config {
 		RaftPromotionEnabled: DefaultRaftPromotionEnabled,
 		LeaseDuration:        toml.Duration(DefaultLeaseDuration),
 		LoggingEnabled:       DefaultLoggingEnabled,
+		JoinPeers:            []string{},
 	}
 }
 
