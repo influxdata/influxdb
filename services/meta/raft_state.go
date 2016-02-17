@@ -233,6 +233,24 @@ func (r *raftState) removePeer(addr string) error {
 	if !r.isLeader() {
 		return raft.ErrNotLeader
 	}
+
+	peers, err := r.peerStore.Peers()
+	if err != nil {
+		return err
+	}
+
+	var exists bool
+	for _, p := range peers {
+		if addr == p {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		return nil
+	}
+
 	if fut := r.raft.RemovePeer(addr); fut.Error() != nil {
 		return fut.Error()
 	}
