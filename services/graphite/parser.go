@@ -215,14 +215,28 @@ func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*te
 func (t *template) Apply(line string) (string, map[string]string, string, error) {
 	fields := strings.Split(line, ".")
 	var (
-		measurement []string
-		tags        = make(map[string][]string)
-		field       string
+		measurement            []string
+		tags                   = make(map[string][]string)
+		field                  string
+		hasFieldWildcard       = false
+		hasMeasurementWildcard = false
 	)
 
 	// Set any default tags
 	for k, v := range t.defaultTags {
 		tags[k] = append(tags[k], v)
+	}
+
+	// See if an invalid combination has been specified in the template:
+	for _, tag := range t.tags {
+		if tag == "measurement*" {
+			hasMeasurementWildcard = true
+		} else if tag == "field*" {
+			hasFieldWildcard = true
+		}
+	}
+	if hasFieldWildcard && hasMeasurementWildcard {
+		return "", nil, "", fmt.Errorf("either 'field*' or 'measurement*' can be used in each template (but not both together): %q", strings.Join(t.tags, t.separator))
 	}
 
 	for i, tag := range t.tags {
@@ -237,6 +251,9 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 				return "", nil, "", fmt.Errorf("'field' can only be used once in each template: %q", line)
 			}
 			field = fields[i]
+		} else if tag == "field*" {
+			field = strings.Join(fields[i:], t.separator)
+			break
 		} else if tag == "measurement*" {
 			measurement = append(measurement, fields[i:]...)
 			break
