@@ -120,6 +120,37 @@ func TestPoint_Clone_Nil(t *testing.T) {
 	}
 }
 
+// TestPoint_Fields ensures that no additional fields are added to the point structs.
+// This struct is very sensitive and can effect performance unless handled carefully.
+// To avoid the struct becoming a dumping ground for every function that needs to store
+// miscellaneous information, this test is meant to ensure that new fields don't slip
+// into the struct.
+func TestPoint_Fields(t *testing.T) {
+	allowedFields := map[string]bool{
+		"Name":       true,
+		"Tags":       true,
+		"Time":       true,
+		"Nil":        true,
+		"Value":      true,
+		"Aux":        true,
+		"Aggregated": true,
+	}
+
+	for _, typ := range []reflect.Type{
+		reflect.TypeOf(influxql.FloatPoint{}),
+		reflect.TypeOf(influxql.IntegerPoint{}),
+		reflect.TypeOf(influxql.StringPoint{}),
+		reflect.TypeOf(influxql.BooleanPoint{}),
+	} {
+		f, ok := typ.FieldByNameFunc(func(name string) bool {
+			return !allowedFields[name]
+		})
+		if ok {
+			t.Errorf("found an unallowed field in %s: %s %s", typ, f.Name, f.Type)
+		}
+	}
+}
+
 // Ensure that tags can return a unique id.
 func TestTags_ID(t *testing.T) {
 	tags := influxql.NewTags(map[string]string{"foo": "bar", "baz": "bat"})
