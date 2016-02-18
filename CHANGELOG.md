@@ -33,6 +33,15 @@
 - [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
 - [#5724](https://github.com/influxdata/influxdb/issues/5724): influx\_tsm doesn't close file handles properly
 
+## v0.10.1 [2016-02-18]
+
+### Bugfixes
+- [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
+- [#5724](https://github.com/influxdata/influxdb/issues/5724): influx\_tsm doesn't close file handles properly
+- [#5606](https://github.com/influxdata/influxdb/issues/5606): TSM conversion reproducibly drops data silently
+- [#5656](https://github.com/influxdata/influxdb/issues/5656): influx\_tsm: panic during conversion
+- [#5303](https://github.com/influxdata/influxdb/issues/5303): Protect against stateful mappers returning nothing in the raw executor
+
 ## v0.10.0 [2016-02-04]
 
 ### Release Notes
