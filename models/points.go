@@ -1247,29 +1247,37 @@ func (p *point) String() string {
 }
 
 func (p *point) MarshalBinary() ([]byte, error) {
-	b := u32tob(uint32(len(p.Key())))
-	b = append(b, p.Key()...)
-
-	b = append(b, u32tob(uint32(len(p.fields)))...)
-	b = append(b, p.fields...)
-
 	tb, err := p.time.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
-	b = append(b, tb...)
+
+	b := make([]byte, 8+len(p.key)+len(p.fields)+len(tb))
+	i := 0
+
+	binary.BigEndian.PutUint32(b[i:], uint32(len(p.key)))
+	i += 4
+
+	i += copy(b[i:], p.key)
+
+	binary.BigEndian.PutUint32(b[i:i+4], uint32(len(p.fields)))
+	i += 4
+
+	i += copy(b[i:], p.fields)
+
+	copy(b[i:], tb)
 	return b, nil
 }
 
 func (p *point) UnmarshalBinary(b []byte) error {
 	var i int
-	keyLen := int(btou32(b[:4]))
+	keyLen := int(binary.BigEndian.Uint32(b[:4]))
 	i += int(4)
 
 	p.key = b[i : i+keyLen]
 	i += keyLen
 
-	fieldLen := int(btou32(b[i : i+4]))
+	fieldLen := int(binary.BigEndian.Uint32(b[i : i+4]))
 	i += int(4)
 
 	p.fields = b[i : i+fieldLen]
@@ -1527,14 +1535,4 @@ func (s *indexedSlice) Swap(i, j int) {
 
 func (s *indexedSlice) Len() int {
 	return len(s.indices)
-}
-
-func u32tob(v uint32) []byte {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, v)
-	return b
-}
-
-func btou32(b []byte) uint32 {
-	return uint32(binary.BigEndian.Uint32(b))
 }

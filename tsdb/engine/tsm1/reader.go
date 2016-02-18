@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
@@ -447,7 +448,7 @@ func (d *indirectIndex) search(key []byte) int {
 		offset := d.offsets[i]
 
 		// It's pointing to the start of the key which is a 2 byte length
-		keyLen := int32(btou16(d.b[offset : offset+2]))
+		keyLen := int32(binary.BigEndian.Uint16(d.b[offset : offset+2]))
 
 		// See if it matches
 		return bytes.Compare(d.b[offset+2:offset+2+keyLen], key) >= 0
@@ -653,30 +654,24 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	for i < int32(len(b)) {
 		d.offsets = append(d.offsets, i)
 
-		keyLen := btou16(b[i : i+2])
-		// Skip to the start of the key
-		i += 2
+		// Skip to the start of the values
+		// key length value (2) + type (1) + length of key
+		i += 3 + int32(binary.BigEndian.Uint16(b[i:i+2]))
 
-		// Skip over the key
-		i += int32(keyLen)
-
-		// Skip over the type
-		i++
-
-		// 2 byte count of index entries
-		count := int32(btou16(b[i : i+indexCountSize]))
+		// count of index entries
+		count := int32(binary.BigEndian.Uint16(b[i : i+indexCountSize]))
 		i += indexCountSize
 
 		// Find the min time for the block
-		minT := int64(btou64(b[int(i) : int(i)+8]))
+		minT := int64(binary.BigEndian.Uint64(b[i : i+8]))
 		if minT < minTime {
 			minTime = minT
 		}
 
-		i += int32((count - 1) * indexEntrySize)
+		i += (count - 1) * indexEntrySize
 
 		// Find the max time for the block
-		maxT := int64(btou64(b[int(i)+8 : int(i)+16]))
+		maxT := int64(binary.BigEndian.Uint64(b[i+8 : i+16]))
 		if maxT > maxTime {
 			maxTime = maxT
 		}
@@ -750,7 +745,7 @@ func (f *fileAccessor) init() (TSMIndex, error) {
 
 	}
 
-	indexStart := int64(btou64(b))
+	indexStart := int64(binary.BigEndian.Uint64(b))
 
 	_, err = f.r.Seek(indexStart, os.SEEK_SET)
 	if err != nil {
@@ -970,7 +965,7 @@ func (m *mmapAccessor) init() (TSMIndex, error) {
 	}
 
 	indexOfsPos := len(m.b) - 8
-	indexStart := btou64(m.b[indexOfsPos : indexOfsPos+8])
+	indexStart := binary.BigEndian.Uint64(m.b[indexOfsPos : indexOfsPos+8])
 
 	m.index = NewIndirectIndex()
 	if err := m.index.UnmarshalBinary(m.b[indexStart:indexOfsPos]); err != nil {
@@ -1152,43 +1147,35 @@ func (a *indexEntries) Append(entry ...*IndexEntry) {
 	a.entries = append(a.entries, entry...)
 }
 
-func (a *indexEntries) MarshalBinary() (b []byte, err error) {
-	for _, entry := range a.entries {
-		b = append(b, u64tob(uint64(entry.MinTime.UnixNano()))...)
-		b = append(b, u64tob(uint64(entry.MaxTime.UnixNano()))...)
-		b = append(b, u64tob(uint64(entry.Offset))...)
-		b = append(b, u32tob(entry.Size)...)
+func (a *indexEntries) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, len(a.entries)*indexEntrySize)
+
+	for i, entry := range a.entries {
+		entry.AppendTo(buf[indexEntrySize*i:])
 	}
-	return b, nil
+
+	return buf, nil
 }
 
-func (a *indexEntries) Write(w io.Writer) error {
+func (a *indexEntries) WriteTo(w io.Writer) (total int64, err error) {
+	var buf [indexEntrySize]byte
+	var n int
+
 	for _, entry := range a.entries {
-		_, err := w.Write(u64tob(uint64(entry.MinTime.UnixNano())))
+		entry.AppendTo(buf[:])
+		n, err = w.Write(buf[:])
+		total += int64(n)
 		if err != nil {
-			return err
-		}
-		_, err = w.Write(u64tob(uint64(entry.MaxTime.UnixNano())))
-		if err != nil {
-			return err
-		}
-
-		_, err = w.Write(u64tob(uint64(entry.Offset)))
-		if err != nil {
-			return err
-		}
-
-		_, err = w.Write(u32tob(entry.Size))
-		if err != nil {
-			return err
+			return total, err
 		}
 	}
-	return nil
+
+	return total, nil
 }
 
 func readKey(b []byte) (n int, key []byte, err error) {
 	// 2 byte size of key
-	n, size := 2, int(btou16(b[:2]))
+	n, size := 2, int(binary.BigEndian.Uint16(b[:2]))
 
 	// N byte key
 	key = b[n : n+size]
@@ -1207,7 +1194,7 @@ func readEntries(b []byte) (n int, entries *indexEntries, err error) {
 	n++
 
 	// 2 byte count of index entries
-	count := int(btou16(b[n : n+indexCountSize]))
+	count := int(binary.BigEndian.Uint16(b[n : n+indexCountSize]))
 	n += indexCountSize
 
 	for i := 0; i < count; i++ {

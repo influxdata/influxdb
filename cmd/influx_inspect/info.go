@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -88,28 +87,6 @@ func countSeries(tstore *tsdb.Store) int {
 		count += cnt
 	}
 	return count
-}
-
-func btou64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
-
-func btou32(b []byte) uint32 {
-	return binary.BigEndian.Uint32(b)
-}
-
-// u32tob converts a uint32 into an 4-byte slice.
-func u32tob(v uint32) []byte {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, v)
-	return b
 }
 
 // ShardIDs is a collection of UINT 64 that represent shard ids.
