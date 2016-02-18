@@ -32,11 +32,11 @@ func TestCallIterator_Count_Float(t *testing.T) {
 	)
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA")}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB")}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA")}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
-		{&influxql.FloatPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.FloatPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -64,11 +64,11 @@ func TestCallIterator_Count_Integer(t *testing.T) {
 	)
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
-		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA")}},
-		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB")}},
-		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA")}},
-		{&influxql.IntegerPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
-		{&influxql.IntegerPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB")}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -96,10 +96,10 @@ func TestCallIterator_Min_Float(t *testing.T) {
 	)
 
 	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 10, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 4},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -127,10 +127,10 @@ func TestCallIterator_Min_Integer(t *testing.T) {
 	)
 
 	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 10, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 4},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -157,10 +157,10 @@ func TestCallIterator_Max_Float(t *testing.T) {
 	)
 
 	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 15, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -187,10 +187,10 @@ func TestCallIterator_Max_Integer(t *testing.T) {
 	)
 
 	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 15, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -217,10 +217,10 @@ func TestCallIterator_Sum_Float(t *testing.T) {
 	)
 
 	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 35, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 35, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -247,10 +247,10 @@ func TestCallIterator_Sum_Integer(t *testing.T) {
 	)
 
 	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 35, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 35, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -277,10 +277,10 @@ func TestCallIterator_First_Float(t *testing.T) {
 	)
 
 	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 15, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -307,10 +307,10 @@ func TestCallIterator_First_Integer(t *testing.T) {
 	)
 
 	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 15, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -337,10 +337,10 @@ func TestCallIterator_Last_Float(t *testing.T) {
 	)
 
 	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 10, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -367,10 +367,10 @@ func TestCallIterator_Last_Integer(t *testing.T) {
 	)
 
 	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 10, Tags: ParseTags("host=hostA")},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB")},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA")},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB")},
+		{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3},
+		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
+		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
+		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
 	}); !ok {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
