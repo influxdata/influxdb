@@ -16,6 +16,7 @@
 - [#5336](https://github.com/influxdata/influxdb/pull/5366): Enabled golint for influxql. @gabelev
 - [#5706](https://github.com/influxdata/influxdb/pull/5706): Cluster setup cleanup
 - [#5691](https://github.com/influxdata/influxdb/pull/5691): Remove associated shard data when retention policies are dropped.
+- [#5737](https://github.com/influxdata/influxdb/pull/5737): Admin UI: Display results of multiple queries, not just the first query.
 
 ### Bugfixes
 

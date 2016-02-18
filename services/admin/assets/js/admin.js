@@ -31,7 +31,12 @@ var connectionString = function() {
 }
 
 var getSeriesFromJSON = function(data) {
-    var results = data.results[0].series;
+    var results = [];
+    data.results.forEach(function(result) {
+        result.series.forEach(function(s) {
+            results.push(s);
+        });
+    });
     return results;
 }
 
