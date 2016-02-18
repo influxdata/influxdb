@@ -3,6 +3,7 @@ package cluster
 import (
 	"bytes"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -35,12 +36,22 @@ type QueryExecutor struct {
 	// Output of all logging.
 	// Defaults to discarding all log output.
 	LogOutput io.Writer
+
+	// expvar-based stats.
+	statMap *expvar.Map
 }
+
+// Statistics for the QueryExecutor
+const (
+	statQueriesActive          = "queriesActive"   // Number of queries currently being executed
+	statQueryExecutionDuration = "queryDurationNs" // Total (wall) time spent executing queries
+)
 
 // NewQueryExecutor returns a new instance of QueryExecutor.
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		LogOutput: ioutil.Discard,
+		statMap:   influxdb.NewStatistics("queryExecutor", "queryExecutor", nil),
 	}
 }
 
@@ -53,6 +64,13 @@ func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 
 func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}, results chan *influxql.Result) {
 	defer close(results)
+
+	e.statMap.Add(statQueriesActive, 1)
+	defer func(start time.Time) {
+		e.statMap.Add(statQueriesActive, -1)
+		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
+
 	logger := e.logger()
 
 	var i int

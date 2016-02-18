@@ -16,17 +16,21 @@ import (
 
 // statistics gathered by the httpd package.
 const (
-	statRequest                      = "req"               // Number of HTTP requests served
-	statCQRequest                    = "cqReq"             // Number of CQ-execute requests served
-	statQueryRequest                 = "queryReq"          // Number of query requests served
-	statWriteRequest                 = "writeReq"          // Number of write requests serverd
-	statPingRequest                  = "pingReq"           // Number of ping requests served
-	statStatusRequest                = "statusReq"         // Number of status requests served
-	statWriteRequestBytesReceived    = "writeReqBytes"     // Sum of all bytes in write requests
-	statQueryRequestBytesTransmitted = "queryRespBytes"    // Sum of all bytes returned in query reponses
-	statPointsWrittenOK              = "pointsWrittenOK"   // Number of points written OK
-	statPointsWrittenFail            = "pointsWrittenFail" // Number of points that failed to be written
-	statAuthFail                     = "authFail"          // Number of authentication failures
+	statRequest                      = "req"                // Number of HTTP requests served
+	statCQRequest                    = "cqReq"              // Number of CQ-execute requests served
+	statQueryRequest                 = "queryReq"           // Number of query requests served
+	statWriteRequest                 = "writeReq"           // Number of write requests serverd
+	statPingRequest                  = "pingReq"            // Number of ping requests served
+	statStatusRequest                = "statusReq"          // Number of status requests served
+	statWriteRequestBytesReceived    = "writeReqBytes"      // Sum of all bytes in write requests
+	statQueryRequestBytesTransmitted = "queryRespBytes"     // Sum of all bytes returned in query reponses
+	statPointsWrittenOK              = "pointsWrittenOK"    // Number of points written OK
+	statPointsWrittenFail            = "pointsWrittenFail"  // Number of points that failed to be written
+	statAuthFail                     = "authFail"           // Number of authentication failures
+	statRequestDuration              = "reqDurationNs"      // Number of (wall-time) nanoseconds spent inside requests
+	statQueryRequestDuration         = "queryReqDurationNs" // Number of (wall-time) nanoseconds spent inside query requests
+	statWriteRequestDuration         = "writeReqDurationNs" // Number of (wall-time) nanoseconds spent inside write requests
+	statRequestsActive               = "reqActive"          // Number of currently active requests
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
