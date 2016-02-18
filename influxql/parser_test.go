@@ -2268,7 +2268,7 @@ func TestDropSeriesStatement_String(t *testing.T) {
 
 func BenchmarkParserParseStatement(b *testing.B) {
 	b.ReportAllocs()
-	s := `SELECT field FROM "series" WHERE value > 10`
+	s := `SELECT "field" FROM "series" WHERE value > 10`
 	for i := 0; i < b.N; i++ {
 		if stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement(); err != nil {
 			b.Fatalf("unexpected error: %s", err)

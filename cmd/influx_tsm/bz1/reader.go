@@ -211,24 +211,25 @@ func newCursor(tx *bolt.Tx, series string, field string, dec *tsdb.FieldCodec) *
 
 // Seek moves the cursor to a position.
 func (c *cursor) SeekTo(seek int64) {
-	seekBytes := u64tob(uint64(seek))
+	var seekBytes [8]byte
+	binary.BigEndian.PutUint64(seekBytes[:], uint64(seek))
 
 	// Move cursor to appropriate block and set to buffer.
-	k, v := c.cursor.Seek(seekBytes)
+	k, v := c.cursor.Seek(seekBytes[:])
 	if v == nil { // get the last block, it might have this time
 		_, v = c.cursor.Last()
-	} else if seek < int64(btou64(k)) { // the seek key is less than this block, go back one and check
+	} else if seek < int64(binary.BigEndian.Uint64(k)) { // the seek key is less than this block, go back one and check
 		_, v = c.cursor.Prev()
 
 		// if the previous block max time is less than the seek value, reset to where we were originally
-		if v == nil || seek > int64(btou64(v[0:8])) {
-			_, v = c.cursor.Seek(seekBytes)
+		if v == nil || seek > int64(binary.BigEndian.Uint64(v[0:8])) {
+			_, v = c.cursor.Seek(seekBytes[:])
 		}
 	}
 	c.setBuf(v)
 
 	// Read current block up to seek position.
-	c.seekBuf(seekBytes)
+	c.seekBuf(seekBytes[:])
 
 	// Return current entry.
 	c.keyBuf, c.valBuf = c.read()
@@ -331,16 +332,6 @@ func (a cursors) Len() int      { return len(a) }
 func (a cursors) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a cursors) Less(i, j int) bool {
 	return tsm.SeriesFieldKey(a[i].series, a[i].field) < tsm.SeriesFieldKey(a[j].series, a[j].field)
-}
-
-// btou64 converts an 8-byte slice into an uint64.
-func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
 }
 
 // entryHeaderSize is the number of bytes required for the header.

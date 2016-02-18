@@ -201,12 +201,12 @@ func readIndex(f *os.File) (*tsmIndex, error) {
 	// Get the min time
 	f.Seek(-20, os.SEEK_END)
 	f.Read(b)
-	minTime := time.Unix(0, int64(btou64(b)))
+	minTime := time.Unix(0, int64(binary.BigEndian.Uint64(b)))
 
 	// Get max time
 	f.Seek(-12, os.SEEK_END)
 	f.Read(b)
-	maxTime := time.Unix(0, int64(btou64(b)))
+	maxTime := time.Unix(0, int64(binary.BigEndian.Uint64(b)))
 
 	// Figure out where the index starts
 	indexStart := stat.Size() - int64(seriesCount*12+20)
@@ -356,7 +356,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		f.Seek(int64(i), 0)
 
 		f.Read(b)
-		id := btou64(b)
+		id := binary.BigEndian.Uint64(b)
 		f.Read(b[:4])
 		length := binary.BigEndian.Uint32(b[:4])
 		buf := make([]byte, length)
@@ -364,7 +364,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 
 		blockSize += int64(len(buf)) + 12
 
-		startTime := time.Unix(0, int64(btou64(buf[:8])))
+		startTime := time.Unix(0, int64(binary.BigEndian.Uint64(buf[:8])))
 		blockType := buf[8]
 
 		encoded := buf[9:]
@@ -544,7 +544,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			f.Seek(int64(e.Offset), 0)
 			f.Read(b[:4])
 
-			chksum := btou32(b[:4])
+			chksum := binary.BigEndian.Uint32(b[:4])
 
 			buf := make([]byte, e.Size-4)
 			f.Read(buf)

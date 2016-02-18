@@ -233,7 +233,7 @@ func (cmd *Command) backupMetastore() error {
 			return err
 		}
 
-		magic := btou64(binData[:8])
+		magic := binary.BigEndian.Uint64(binData[:8])
 		if magic != snapshotter.BackupMagicHeader {
 			cmd.Logger.Println("Invalid metadata blob, ensure the metadata service is running (default port 8088)")
 			return errors.New("invalid metadata received")
@@ -364,8 +364,4 @@ func retentionAndShardFromPath(path string) (retention, shard string, err error)
 	}
 
 	return a[1], a[2], nil
-}
-
-func btou64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
 }

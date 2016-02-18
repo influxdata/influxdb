@@ -203,15 +203,35 @@ type IndexEntry struct {
 	Size uint32
 }
 
+// UnmarshalBinary decodes an IndexEntry from a byte slice
 func (e *IndexEntry) UnmarshalBinary(b []byte) error {
 	if len(b) != indexEntrySize {
 		return fmt.Errorf("unmarshalBinary: short buf: %v != %v", indexEntrySize, len(b))
 	}
-	e.MinTime = time.Unix(0, int64(btou64(b[:8])))
-	e.MaxTime = time.Unix(0, int64(btou64(b[8:16])))
-	e.Offset = int64(btou64(b[16:24]))
-	e.Size = btou32(b[24:28])
+	e.MinTime = time.Unix(0, int64(binary.BigEndian.Uint64(b[:8])))
+	e.MaxTime = time.Unix(0, int64(binary.BigEndian.Uint64(b[8:16])))
+	e.Offset = int64(binary.BigEndian.Uint64(b[16:24]))
+	e.Size = binary.BigEndian.Uint32(b[24:28])
 	return nil
+}
+
+// AppendTo will write a binary-encoded version of IndexEntry to b, allocating
+// and returning a new slice, if necessary
+func (e *IndexEntry) AppendTo(b []byte) []byte {
+	if len(b) < indexEntrySize {
+		if cap(b) < indexEntrySize {
+			b = make([]byte, indexEntrySize)
+		} else {
+			b = b[:indexEntrySize]
+		}
+	}
+
+	binary.BigEndian.PutUint64(b[:8], uint64(e.MinTime.UnixNano()))
+	binary.BigEndian.PutUint64(b[8:16], uint64(e.MaxTime.UnixNano()))
+	binary.BigEndian.PutUint64(b[16:24], uint64(e.Offset))
+	binary.BigEndian.PutUint32(b[24:28], uint32(e.Size))
+
+	return b
 }
 
 // Returns true if this IndexEntry may contain values for the given time.  The min and max
@@ -403,6 +423,9 @@ func (d *directIndex) Write(w io.Writer) error {
 	}
 	sort.Strings(keys)
 
+	var buf [5]byte
+	var err error
+
 	// For each key, individual entries are sorted by time
 	for _, key := range keys {
 		entries := d.blocks[key]
@@ -413,31 +436,26 @@ func (d *directIndex) Write(w io.Writer) error {
 		}
 		sort.Sort(entries)
 
+		binary.BigEndian.PutUint16(buf[0:2], uint16(len(key)))
+		buf[2] = entries.Type
+		binary.BigEndian.PutUint16(buf[3:5], uint16(entries.Len()))
+
 		// Append the key length and key
-		_, err := w.Write(u16tob(uint16(len(key))))
-		if err != nil {
+		if _, err = w.Write(buf[0:2]); err != nil {
 			return fmt.Errorf("write: writer key length error: %v", err)
 		}
 
-		_, err = io.WriteString(w, key)
-		if err != nil {
+		if _, err = io.WriteString(w, key); err != nil {
 			return fmt.Errorf("write: writer key error: %v", err)
 		}
 
-		// Append the block type
-		_, err = w.Write([]byte{entries.Type})
-		if err != nil {
-			return fmt.Errorf("write: writer key type error: %v", err)
-		}
-
-		// Append the index block count
-		_, err = w.Write(u16tob(uint16(entries.Len())))
-		if err != nil {
-			return fmt.Errorf("write: writer block count error: %v", err)
+		// Append the block type and count
+		if _, err = w.Write(buf[2:5]); err != nil {
+			return fmt.Errorf("write: writer block type and count error: %v", err)
 		}
 
 		// Append each index entry for all blocks for this key
-		if err = entries.Write(w); err != nil {
+		if _, err = entries.WriteTo(w); err != nil {
 			return fmt.Errorf("write: writer entries error: %v", err)
 		}
 	}
@@ -498,7 +516,11 @@ func NewTSMWriter(w io.Writer) (TSMWriter, error) {
 }
 
 func (t *tsmWriter) writeHeader() error {
-	n, err := t.w.Write(append(u32tob(MagicNumber), Version))
+	var buf [5]byte
+	binary.BigEndian.PutUint32(buf[0:4], MagicNumber)
+	buf[4] = Version
+
+	n, err := t.w.Write(buf[:])
 	if err != nil {
 		return err
 	}
@@ -524,17 +546,25 @@ func (t *tsmWriter) Write(key string, values Values) error {
 		return err
 	}
 
-	checksum := crc32.ChecksumIEEE(block)
-
-	n, err := t.w.Write(append(u32tob(checksum), block...))
-	if err != nil {
-		return err
-	}
-
 	blockType, err := BlockType(block)
 	if err != nil {
 		return err
 	}
+
+	var checksum [crc32.Size]byte
+	binary.BigEndian.PutUint32(checksum[:], crc32.ChecksumIEEE(block))
+
+	_, err = t.w.Write(checksum[:])
+	if err != nil {
+		return err
+	}
+
+	n, err := t.w.Write(block)
+	if err != nil {
+		return err
+	}
+	n += len(checksum)
+
 	// Record this block in index
 	t.index.Add(key, blockType, values[0].Time(), values[len(values)-1].Time(), t.n, uint32(n))
 
@@ -549,6 +579,11 @@ func (t *tsmWriter) WriteBlock(key string, minTime, maxTime time.Time, block []b
 		return nil
 	}
 
+	blockType, err := BlockType(block)
+	if err != nil {
+		return err
+	}
+
 	// Write header only after we have some data to write.
 	if t.n == 0 {
 		if err := t.writeHeader(); err != nil {
@@ -556,9 +591,10 @@ func (t *tsmWriter) WriteBlock(key string, minTime, maxTime time.Time, block []b
 		}
 	}
 
-	checksum := crc32.ChecksumIEEE(block)
+	var checksum [crc32.Size]byte
+	binary.BigEndian.PutUint32(checksum[:], crc32.ChecksumIEEE(block))
 
-	_, err := t.w.Write(u32tob(checksum))
+	_, err = t.w.Write(checksum[:])
 	if err != nil {
 		return err
 	}
@@ -567,19 +603,13 @@ func (t *tsmWriter) WriteBlock(key string, minTime, maxTime time.Time, block []b
 	if err != nil {
 		return err
 	}
+	n += len(checksum)
 
-	// 4 byte checksum + len of block
-	blockSize := 4 + n
-
-	blockType, err := BlockType(block)
-	if err != nil {
-		return err
-	}
 	// Record this block in index
-	t.index.Add(key, blockType, minTime, maxTime, t.n, uint32(blockSize))
+	t.index.Add(key, blockType, minTime, maxTime, t.n, uint32(n))
 
 	// Increment file position pointer (checksum + block len)
-	t.n += int64(blockSize)
+	t.n += int64(n)
 
 	return nil
 }
@@ -598,12 +628,12 @@ func (t *tsmWriter) WriteIndex() error {
 		return err
 	}
 
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], uint64(indexPos))
+
 	// Write the index index position
-	_, err := t.w.Write(u64tob(uint64(indexPos)))
-	if err != nil {
-		return err
-	}
-	return nil
+	_, err := t.w.Write(buf[:])
+	return err
 }
 
 func (t *tsmWriter) Close() error {
@@ -621,37 +651,6 @@ func (t *tsmWriter) Size() uint32 {
 	return uint32(t.n) + t.index.Size()
 }
 
-func u16tob(v uint16) []byte {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, v)
-	return b
-}
-
-func btou16(b []byte) uint16 {
-	return binary.BigEndian.Uint16(b)
-}
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
-
-func btou64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
-
-func u32tob(v uint32) []byte {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, v)
-	return b
-}
-
-func btou32(b []byte) uint32 {
-	return binary.BigEndian.Uint32(b)
-}
-
 // verifyVersion will verify that the reader's bytes are a TSM byte
 // stream of the correct version (1)
 func verifyVersion(r io.ReadSeeker) error {
@@ -659,15 +658,15 @@ func verifyVersion(r io.ReadSeeker) error {
 	if err != nil {
 		return fmt.Errorf("init: failed to seek: %v", err)
 	}
-	b := make([]byte, 4)
-	_, err = r.Read(b)
+	var b [4]byte
+	_, err = io.ReadFull(r, b[:])
 	if err != nil {
 		return fmt.Errorf("init: error reading magic number of file: %v", err)
 	}
-	if bytes.Compare(b, u32tob(MagicNumber)) != 0 {
+	if binary.BigEndian.Uint32(b[:]) != MagicNumber {
 		return fmt.Errorf("can only read from tsm file")
 	}
-	_, err = r.Read(b)
+	_, err = io.ReadFull(r, b[:1])
 	if err != nil {
 		return fmt.Errorf("init: error reading version: %v", err)
 	}

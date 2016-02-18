@@ -2,7 +2,6 @@ package tsdb_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"math"
 	"math/rand"
 	"reflect"
@@ -513,10 +512,3 @@ type byteSlices [][]byte
 func (a byteSlices) Len() int           { return len(a) }
 func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
 func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}

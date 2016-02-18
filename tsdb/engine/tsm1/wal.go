@@ -1,6 +1,8 @@
 package tsm1
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -358,7 +360,8 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	// slice is written.  Following the type, the length and key bytes are written.
 	// Following the key, a 4 byte count followed by each value as a 8 byte time
 	// and N byte value.  The value is dependent on the type being encoded.  float64,
-	// int64, use 8 bytes, boolean uses 1 byte, and string is similar to the key encoding.
+	// int64, use 8 bytes, boolean uses 1 byte, and string is similar to the key encoding,
+	// except that string values have a 4-byte length, and keys only use 2 bytes.
 	//
 	// This structure is then repeated for each key an value slices.
 	//
@@ -366,60 +369,108 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	// │                           WriteWALEntry                            │
 	// ├──────┬─────────┬────────┬───────┬─────────┬─────────┬───┬──────┬───┤
 	// │ Type │ Key Len │   Key  │ Count │  Time   │  Value  │...│ Type │...│
-	// │1 byte│ 4 bytes │ N bytes│4 bytes│ 8 bytes │ N bytes │   │1 byte│   │
+	// │1 byte│ 2 bytes │ N bytes│4 bytes│ 8 bytes │ N bytes │   │1 byte│   │
 	// └──────┴─────────┴────────┴───────┴─────────┴─────────┴───┴──────┴───┘
-	var n int
 
+	encLen := 7 * len(w.Values) // Type (1), Key Length (2), and Count (4) for each key
+
+	// determine required length
 	for k, v := range w.Values {
-		// Make sure we have enough space in our buf before copying.  If not,
-		// grow the buf.
-		if len(dst[:n])+2+len(k)+len(v)*8+4 > len(dst) {
-			grow := make([]byte, len(dst)*2)
-			dst = append(dst, grow...)
+		encLen += len(k)
+		if len(v) == 0 {
+			return nil, errors.New("empty value slice in WAL entry")
 		}
+
+		encLen += 8 * len(v) // timestamps (8)
 
 		switch v[0].Value().(type) {
-		case float64:
-			dst[n] = float64EntryType
-		case int64:
-			dst[n] = integerEntryType
+		case float64, int64:
+			encLen += 8 * len(v)
 		case bool:
-			dst[n] = booleanEntryType
+			encLen += 1 * len(v)
 		case string:
-			dst[n] = stringEntryType
+			for _, vv := range v {
+				str, ok := vv.Value().(string)
+				if !ok {
+					return nil, fmt.Errorf("non-string found in string value slice: %T", vv.Value())
+				}
+				encLen += 4 + len(str)
+			}
 		default:
-			return nil, fmt.Errorf("unsupported value type: %#v", v[0].Value())
+			return nil, fmt.Errorf("unsupported value type: %T", v[0].Value())
 		}
+	}
+
+	// allocate or re-slice to correct size
+	if len(dst) < encLen {
+		dst = make([]byte, encLen)
+	} else {
+		dst = dst[:encLen]
+	}
+
+	// Finally, encode the entry
+	var n int
+	var curType byte
+
+	for k, v := range w.Values {
+		switch v[0].Value().(type) {
+		case float64:
+			curType = float64EntryType
+		case int64:
+			curType = integerEntryType
+		case bool:
+			curType = booleanEntryType
+		case string:
+			curType = stringEntryType
+		default:
+			return nil, fmt.Errorf("unsupported value type: %T", v[0].Value())
+		}
+		dst[n] = curType
 		n++
 
-		n += copy(dst[n:], u16tob(uint16(len(k))))
+		binary.BigEndian.PutUint16(dst[n:n+2], uint16(len(k)))
+		n += 2
 		n += copy(dst[n:], k)
 
-		n += copy(dst[n:], u32tob(uint32(len(v))))
+		binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(v)))
+		n += 4
 
 		for _, vv := range v {
-			// Grow our slice if needed. Enough room is needed for the timestamp (8 bytes)
-			// and the value itself (another 8 bytes).
-			if len(dst[:n])+16 > len(dst) {
-				grow := make([]byte, len(dst)*2)
-				dst = append(dst, grow...)
-			}
+			binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.Time().UnixNano()))
+			n += 8
 
-			n += copy(dst[n:], u64tob(uint64(vv.Time().UnixNano())))
 			switch t := vv.Value().(type) {
 			case float64:
-				n += copy(dst[n:], u64tob(uint64(math.Float64bits(t))))
-			case int64:
-				n += copy(dst[n:], u64tob(uint64(t)))
-			case bool:
-				if t {
-					n += copy(dst[n:], []byte{1})
-				} else {
-					n += copy(dst[n:], []byte{0})
+				if curType != float64EntryType {
+					return nil, fmt.Errorf("incorrect value found in float64 slice: %T", t)
 				}
+				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(t))
+				n += 8
+			case int64:
+				if curType != integerEntryType {
+					return nil, fmt.Errorf("incorrect value found in int64 slice: %T", t)
+				}
+				binary.BigEndian.PutUint64(dst[n:n+8], uint64(t))
+				n += 8
+			case bool:
+				if curType != booleanEntryType {
+					return nil, fmt.Errorf("incorrect value found in bool slice: %T", t)
+				}
+				if t {
+					dst[n] = 1
+				} else {
+					dst[n] = 0
+				}
+				n++
 			case string:
-				n += copy(dst[n:], u32tob(uint32(len(t))))
-				n += copy(dst[n:], []byte(t))
+				if curType != stringEntryType {
+					return nil, fmt.Errorf("incorrect value found in string slice: %T", t)
+				}
+				binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(t)))
+				n += 4
+				n += copy(dst[n:], t)
+			default:
+				return nil, fmt.Errorf("unsupported value found in value slice: %T", t)
 			}
 		}
 	}
@@ -439,12 +490,12 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		typ := b[i]
 		i++
 
-		length := int(btou16(b[i : i+2]))
+		length := int(binary.BigEndian.Uint16(b[i : i+2]))
 		i += 2
 		k := string(b[i : i+length])
 		i += length
 
-		nvals := int(btou32(b[i : i+4]))
+		nvals := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
 
 		var values []Value
@@ -462,19 +513,19 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		}
 
 		for j := 0; j < nvals; j++ {
-			un := int64(btou64(b[i : i+8]))
+			un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 			i += 8
 
 			switch typ {
 			case float64EntryType:
-				v := math.Float64frombits((btou64(b[i : i+8])))
+				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
 				if fv, ok := values[j].(*FloatValue); ok {
 					fv.unixnano = un
 					fv.value = v
 				}
 			case integerEntryType:
-				v := int64(btou64(b[i : i+8]))
+				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				if fv, ok := values[j].(*IntegerValue); ok {
 					fv.unixnano = un
@@ -492,7 +543,7 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 					}
 				}
 			case stringEntryType:
-				length := int(btou32(b[i : i+4]))
+				length := int(binary.BigEndian.Uint32(b[i : i+4]))
 				if i+length > int(uint32(len(b))) {
 					return fmt.Errorf("corrupted write wall entry")
 				}
@@ -573,11 +624,12 @@ func (w *WALSegmentWriter) path() string {
 }
 
 func (w *WALSegmentWriter) Write(entryType WalEntryType, compressed []byte) error {
-	if _, err := w.w.Write([]byte{byte(entryType)}); err != nil {
-		return err
-	}
 
-	if _, err := w.w.Write(u32tob(uint32(len(compressed)))); err != nil {
+	var buf [5]byte
+	buf[0] = byte(entryType)
+	binary.BigEndian.PutUint32(buf[1:5], uint32(len(compressed)))
+
+	if _, err := w.w.Write(buf[:]); err != nil {
 		return err
 	}
 
@@ -585,8 +637,7 @@ func (w *WALSegmentWriter) Write(entryType WalEntryType, compressed []byte) erro
 		return err
 	}
 
-	// 5 is the 1 byte type + 4 byte uint32 length
-	w.size += len(compressed) + 5
+	w.size += len(buf) + len(compressed)
 
 	return nil
 }
@@ -638,7 +689,7 @@ func (r *WALSegmentReader) Next() bool {
 	nReadOK += n
 
 	entryType := b[0]
-	length := btou32(b[1:5])
+	length := binary.BigEndian.Uint32(b[1:5])
 
 	// read the compressed block and decompress it
 	if int(length) > len(b) {

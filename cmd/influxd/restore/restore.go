@@ -159,20 +159,20 @@ func (cmd *Command) unpackMeta() error {
 	var i int
 
 	// Make sure the file is actually a meta store backup file
-	magic := btou64(b[:8])
+	magic := binary.BigEndian.Uint64(b[:8])
 	if magic != snapshotter.BackupMagicHeader {
 		return fmt.Errorf("invalid metadata file")
 	}
 	i += 8
 
 	// Size of the meta store bytes
-	length := int(btou64(b[i : i+8]))
+	length := int(binary.BigEndian.Uint64(b[i : i+8]))
 	i += 8
 	metaBytes := b[i : i+length]
 	i += int(length)
 
 	// Size of the node.json bytes
-	length = int(btou64(b[i : i+8]))
+	length = int(binary.BigEndian.Uint64(b[i : i+8]))
 	i += 8
 	nodeBytes := b[i:]
 
@@ -401,14 +401,3 @@ func (ln *nopListener) Close() error {
 }
 
 func (ln *nopListener) Addr() net.Addr { return &net.TCPAddr{} }
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
-}
-
-func btou64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
