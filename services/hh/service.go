@@ -207,13 +207,9 @@ func (s *Service) Diagnostics() (*diagnostics.Diagnostics, error) {
 			return nil, err
 		}
 
-		active := "no"
-		b, err := v.Active()
+		active, err := v.Active()
 		if err != nil {
 			return nil, err
-		}
-		if b {
-			active = "yes"
 		}
 
 		d.Rows = append(d.Rows, []interface{}{k, active, lm, v.Head(), v.Tail()})
