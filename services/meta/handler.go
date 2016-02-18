@@ -24,8 +24,7 @@ import (
 
 // handler represents an HTTP handler for the meta service.
 type handler struct {
-	config  *Config
-	Version string
+	config *Config
 
 	logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
@@ -255,6 +254,7 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 			h.httpError(err, w, http.StatusInternalServerError)
 			return
 		}
+		w.Header().Add("Content-Type", "application/octet-stream")
 		w.Write(b)
 		return
 	case <-w.(http.CloseNotifier).CloseNotify():
@@ -313,6 +313,7 @@ func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) servePeers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(h.store.peers()); err != nil {
 		h.httpError(err, w, http.StatusInternalServerError)
@@ -381,7 +382,7 @@ func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	// Write the lease data.
-	w.Header().Add("content-type", "application/json")
+	w.Header().Add("Content-Type", "application/json")
 	w.Write(b)
 	return
 }
@@ -422,7 +423,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, h *handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-InfluxDB-Version", h.Version)
+		w.Header().Add("X-InfluxDB-Version", h.s.Version)
 		inner.ServeHTTP(w, r)
 	})
 }

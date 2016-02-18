@@ -195,6 +195,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	if c.Meta.Enabled {
 		s.MetaService = meta.NewService(c.Meta)
+		s.MetaService.Version = s.buildInfo.Version
 	}
 
 	if c.Data.Enabled {
