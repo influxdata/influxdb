@@ -15,7 +15,7 @@ Follow these steps to perform a conversion.
 * Stop all write-traffic to your InfluxDB system.
 * Restart the InfluxDB service and wait until all WAL data is flushed to disk -- this has completed when the system responds to queries. This is to ensure all data is present in shards.
 * Stop the InfluxDB service. It should not be restarted until conversion is complete.
-* Run conversion tool.
+* Run conversion tool. Depending on the size of the data directory, this might be a lengthy operation. Consider running the conversion tool under a "screen" session to avoid any interruptions.
 * Unless you ran the conversion tool as the same user as that which runs InfluxDB, then you may need to set the correct read-and-write permissions on the new tsm1 directories.
 * Restart node and ensure data looks correct.
 * If everything looks OK, you may then wish to remove or archive the backed-up databases.
