@@ -161,7 +161,8 @@ func (r *Reader) Read() (string, []tsm1.Value, error) {
 
 // Close closes the reader.
 func (r *Reader) Close() error {
-	return r.tx.Rollback()
+	r.tx.Rollback()
+	return r.db.Close()
 }
 
 // cursor provides ordered iteration across a series.
