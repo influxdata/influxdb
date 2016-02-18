@@ -82,7 +82,9 @@ func (s *store) open(raftln net.Listener) error {
 
 	var initializePeers []string
 	if len(joinPeers) > 0 {
-		c := NewClient(joinPeers, s.config.HTTPSEnabled)
+		c := NewClient()
+		c.SetMetaServers(joinPeers)
+		c.SetTLS(s.config.HTTPSEnabled)
 		for {
 			peers := c.peers()
 			if !Peers(peers).Contains(s.raftAddr) {
@@ -117,7 +119,9 @@ func (s *store) open(raftln net.Listener) error {
 	}
 
 	if len(joinPeers) > 0 {
-		c := NewClient(joinPeers, s.config.HTTPSEnabled)
+		c := NewClient()
+		c.SetMetaServers(joinPeers)
+		c.SetTLS(s.config.HTTPSEnabled)
 		if err := c.Open(); err != nil {
 			return err
 		}

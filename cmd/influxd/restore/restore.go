@@ -214,7 +214,9 @@ func (cmd *Command) unpackMeta() error {
 	default:
 	}
 
-	client := meta.NewClient([]string{store.HTTPAddr()}, false)
+	client := meta.NewClient()
+	client.SetMetaServers([]string{store.HTTPAddr()})
+	client.SetTLS(false)
 	client.SetLogger(log.New(ioutil.Discard, "", 0))
 	if err := client.Open(); err != nil {
 		return err

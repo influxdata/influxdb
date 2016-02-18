@@ -54,7 +54,7 @@ MAINTAINER = "support@influxdb.com"
 VENDOR = "InfluxData"
 DESCRIPTION = "Distributed time-series database."
 
-prereqs = [ 'git', 'go' ]
+prereqs = [ 'git', 'go', 'gdm' ]
 optional_prereqs = [ 'gvm', 'fpm', 'rpmbuild' ]
 
 fpm_common_args = "-f -s dir --log error \
@@ -140,7 +140,7 @@ def run_generate():
     #     print "Generate Succeeded"
     # return True
     pass
-    
+
 ################
 #### All InfluxDB-specific content above this line
 ################
@@ -272,6 +272,7 @@ def check_prereqs():
         else:
             print "?"
     print ""
+    return True
 
 def upload_packages(packages, bucket_name=None, nightly=False):
     if debug:
@@ -313,14 +314,9 @@ def upload_packages(packages, bucket_name=None, nightly=False):
     return 0
 
 def run_tests(race, parallel, timeout, no_vet):
-    print "Retrieving Go dependencies...",
-    get_command = "go get -d -t ./..."
+    print "Downloading vet tool..."
     sys.stdout.flush()
-    run(get_command)
-    get_command = "go get golang.org/x/tools/cmd/vet"
-    sys.stdout.flush()
-    run(get_command)
-    print "done."
+    run("go get golang.org/x/tools/cmd/vet")
     print "Running tests:"
     print "\tRace: ", race
     if parallel is not None:
@@ -406,7 +402,7 @@ def build(version=None,
         arch = '386'
     elif arch == 'x86_64':
         arch = 'amd64'
-    
+
     print "Starting build..."
     tmp_build_dir = create_temp_dir()
     for b, c in targets.iteritems():
@@ -460,35 +456,14 @@ def copy_file(fr, to):
         print e
 
 def go_get(branch, update=False):
-    get_command = None
-    if update:
-        get_command = "go get -u -f -d ./..."
-    else:
-        get_command = "go get -d ./..."
-
-    # 'go get' switches to master, so stash what we currently have
-    stash = run("git stash create -a").strip()
-    if len(stash) > 0:
-        print "There are un-committed changes in your local branch, stashing them as {}".format(stash)
-        # reset to ensure we don't have any checkout issues
-        run("git reset --hard")
-
-        print "Retrieving Go dependencies (moving to master)..."
+    if not check_path_for("gdm"):
+        print "Downloading `gdm`..."
+        get_command = "go get github.com/sparrc/gdm"
         run(get_command)
-        sys.stdout.flush()
+    print "Retrieving dependencies with `gdm`..."
+    sys.stdout.flush()
+    run("gdm restore")
 
-        print "Moving back to branch '{}'...".format(branch)
-        run("git checkout {}".format(branch))
-        
-        print "Applying previously stashed contents..."
-        run("git stash apply {}".format(stash))
-    else:
-        print "Retrieving Go dependencies..."
-        run(get_command)
-
-        print "Moving back to branch '{}'...".format(branch)
-        run("git checkout {}".format(branch))
-        
 def generate_md5_from_file(path):
     m = hashlib.md5()
     with open(path, 'rb') as f:
@@ -543,13 +518,13 @@ def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iter
                             name = '{}-nightly_{}_{}'.format(name, p, a)
                         else:
                             name = '{}-{}-{}_{}_{}'.format(name, package_version, package_iteration, p, a)
-                    
+
                     if package_type == 'tar':
                         # Add `tar.gz` to path to ensure a small package size
                         current_location = os.path.join(current_location, name + '.tar.gz')
                     elif package_type == 'zip':
                         current_location = os.path.join(current_location, name + '.zip')
-                    
+
                     if rc is not None:
                         package_iteration = "0.rc{}".format(rc)
                     saved_a = a
@@ -557,7 +532,7 @@ def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iter
                         a = pkg_arch
                     if a == '386':
                         a = 'i386'
-                    
+
                     fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
                         fpm_common_args,
                         name,
@@ -628,7 +603,7 @@ def print_package_summary(packages):
 
 def main():
     global debug
-    
+
     # Command-line arguments
     outdir = "build"
     commit = None
@@ -653,7 +628,7 @@ def main():
     run_get = True
     upload_bucket = None
     generate = False
-    
+
     for arg in sys.argv[1:]:
         if '--outdir' in arg:
             # Output directory. If none is specified, then builds will be placed in the same directory.
@@ -742,8 +717,9 @@ def main():
 
     # Pre-build checks
     check_environ()
-    check_prereqs()
-    
+    if not check_prereqs():
+        return 1
+
     if not commit:
         commit = get_current_commit(short=True)
     if not branch:
@@ -765,20 +741,20 @@ def main():
         target_arch = 'i386'
     elif target_arch == 'x86_64':
         target_arch = 'amd64'
-    
+
     build_output = {}
 
     if generate:
         if not run_generate():
             return 1
-    
+
+    if run_get:
+        go_get(branch, update=update)
+
     if test:
         if not run_tests(race, parallel, timeout, no_vet):
             return 1
         return 0
-
-    if run_get:
-        go_get(branch, update=update)
 
     platforms = []
     single_build = True
@@ -827,4 +803,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
-

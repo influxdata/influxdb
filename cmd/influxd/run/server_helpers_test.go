@@ -501,7 +501,7 @@ func configureLogging(s *Server) {
 		s.TSDBStore.Logger = nullLogger
 		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
-		s.QueryExecutor.SetLogger(nullLogger)
+		s.QueryExecutor.LogOutput = ioutil.Discard
 		s.Subscriber.SetLogger(nullLogger)
 		for _, service := range s.Services {
 			if service, ok := service.(logSetter); ok {
@@ -518,7 +518,7 @@ type Cluster struct {
 func NewCluster(size int) (*Cluster, error) {
 	c := Cluster{}
 	c.Servers = append(c.Servers, OpenServer(NewConfig(), ""))
-	metaServiceAddr := c.Servers[0].Node.MetaServers[0]
+	metaServiceAddr := c.Servers[0].MetaServers()[0]
 
 	for i := 1; i < size; i++ {
 		c.Servers = append(c.Servers, OpenServer(NewConfig(), metaServiceAddr))
@@ -548,7 +548,7 @@ func verifyCluster(c *Cluster, size int) error {
 	// grab only the meta nodes series
 	series := cl.Results[0].Series[0]
 	for i, value := range series.Values {
-		addr := c.Servers[i].Node.MetaServers[i]
+		addr := c.Servers[0].MetaServers()[0]
 		if value[0].(float64) != float64(i+1) {
 			return fmt.Errorf("expected nodeID %d, got %v", i, value[0])
 		}
@@ -594,7 +594,7 @@ func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluste
 	cb(0, config)
 
 	c.Servers = append(c.Servers, OpenServer(config, ""))
-	metaServiceAddr := c.Servers[0].Node.MetaServers[0]
+	metaServiceAddr := c.Servers[0].MetaServers()[0]
 
 	for i := 1; i < size; i++ {
 		config := NewConfig()

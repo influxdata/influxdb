@@ -64,10 +64,8 @@ type Handler struct {
 		Ping(checkAllMetaServers bool) error
 	}
 
-	QueryExecutor interface {
-		Authorize(u *meta.UserInfo, q *influxql.Query, db string) error
-		ExecuteQuery(q *influxql.Query, db string, chunkSize int, closing chan struct{}) (<-chan *influxql.Result, error)
-	}
+	QueryAuthorizer *meta.QueryAuthorizer
+	QueryExecutor   influxql.QueryExecutor
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -75,20 +73,22 @@ type Handler struct {
 
 	ContinuousQuerier continuous_querier.ContinuousQuerier
 
-	Logger         *log.Logger
-	loggingEnabled bool // Log every HTTP access.
-	WriteTrace     bool // Detailed logging of write path
-	statMap        *expvar.Map
+	Logger           *log.Logger
+	loggingEnabled   bool // Log every HTTP access.
+	WriteTrace       bool // Detailed logging of write path
+	JSONWriteEnabled bool // Allow JSON writes
+	statMap          *expvar.Map
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap *expvar.Map) *Handler {
+func NewHandler(requireAuthentication, loggingEnabled, writeTrace, JSONWriteEnabled bool, statMap *expvar.Map) *Handler {
 	h := &Handler{
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 		loggingEnabled:        loggingEnabled,
 		WriteTrace:            writeTrace,
+		JSONWriteEnabled:      JSONWriteEnabled,
 		statMap:               statMap,
 	}
 
@@ -264,8 +264,10 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Check authorization.
 	if h.requireAuthentication {
-		err = h.QueryExecutor.Authorize(user, query, db)
-		if err != nil {
+		if err := h.QueryAuthorizer.AuthorizeQuery(user, query, db); err != nil {
+			if err, ok := err.(meta.ErrAuthorize); ok {
+				h.Logger.Printf("unauthorized request | user: %q | query: %q | database %q\n", err.User, err.Query.String(), err.Database)
+			}
 			httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusUnauthorized)
 			return
 		}
@@ -292,12 +294,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Execute query.
 	w.Header().Add("content-type", "application/json")
-	results, err := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, closing)
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, closing)
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	resp := Response{Results: make([]*influxql.Result, 0)}
@@ -403,6 +400,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 
 // serveWriteJSON receives incoming series data in JSON and writes it to the database.
 func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []byte, user *meta.UserInfo) {
+	if !h.JSONWriteEnabled {
+		resultError(w, influxql.Result{Err: fmt.Errorf("JSON write protocol has been deprecated")}, http.StatusBadRequest)
+		return
+	}
+
 	var bp client.BatchPoints
 	var dec *json.Decoder
 

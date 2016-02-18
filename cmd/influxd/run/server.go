@@ -2,17 +2,19 @@ package run
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
@@ -61,7 +63,7 @@ type Server struct {
 	MetaService *meta.Service
 
 	TSDBStore       *tsdb.Store
-	QueryExecutor   *tsdb.QueryExecutor
+	QueryExecutor   *cluster.QueryExecutor
 	PointsWriter    *cluster.PointsWriter
 	ShardWriter     *cluster.ShardWriter
 	IteratorCreator *cluster.IteratorCreator
@@ -123,11 +125,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	nodeAddr, err := meta.DefaultHost(DefaultHostname, c.Meta.HTTPBindAddress)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create the root directory if it doesn't already exist.
 	if err := os.MkdirAll(c.Meta.Dir, 0777); err != nil {
 		return nil, fmt.Errorf("mkdir all: %s", err)
@@ -136,19 +133,21 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// 0.11 we no longer use peers.json.  Remove the file if we have one on disk.
 	os.RemoveAll(filepath.Join(c.Meta.Dir, "peers.json"))
 
-	// load the node information
-	metaAddresses := []string{nodeAddr}
-	if !c.Meta.Enabled {
-		metaAddresses = c.Meta.JoinPeers
-	}
-
-	node, err := influxdb.LoadNode(c.Meta.Dir, metaAddresses)
+	node, err := influxdb.LoadNode(c.Meta.Dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		} else {
-			node = influxdb.NewNode(c.Meta.Dir, metaAddresses)
+			node = influxdb.NewNode(c.Meta.Dir)
 		}
+	}
+
+	// In 0.11 we removed MetaServers from node.json.  To avoid confusion for
+	// existing users, force a re-save of the node.json file to remove that property
+	// if it happens to exist.
+	nodeContents, err := ioutil.ReadFile(filepath.Join(c.Meta.Dir, "node.json"))
+	if err == nil && strings.Contains(string(nodeContents), "MetaServers") {
+		node.Save()
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check
@@ -178,7 +177,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Node: node,
+		Node:       node,
+		MetaClient: meta.NewClient(),
 
 		Monitor: monitor.New(c.Monitor),
 
@@ -207,12 +207,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
 		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
-		// Initialize query executor.
-		s.QueryExecutor = tsdb.NewQueryExecutor()
-		s.QueryExecutor.Store = s.TSDBStore
-		s.QueryExecutor.MonitorStatementExecutor = &monitor.StatementExecutor{Monitor: s.Monitor}
-		s.QueryExecutor.QueryLogEnabled = c.Data.QueryLogEnabled
-
 		// Set the shard writer
 		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout),
 			c.Cluster.MaxRemoteWriteConnections)
@@ -233,15 +227,22 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.PointsWriter.Subscriber = s.Subscriber
 		s.PointsWriter.Node = s.Node
 
-		// needed for executing INTO queries.
-		s.QueryExecutor.IntoWriter = s.PointsWriter
+		// Initialize query executor.
+		s.QueryExecutor = cluster.NewQueryExecutor()
+		s.QueryExecutor.MetaClient = s.MetaClient
+		s.QueryExecutor.TSDBStore = s.TSDBStore
+		s.QueryExecutor.Monitor = s.Monitor
+		s.QueryExecutor.PointsWriter = s.PointsWriter
+		if c.Data.QueryLogEnabled {
+			s.QueryExecutor.LogOutput = os.Stderr
+		}
 
 		// Initialize the monitor
 		s.Monitor.Version = s.buildInfo.Version
 		s.Monitor.Commit = s.buildInfo.Commit
 		s.Monitor.Branch = s.buildInfo.Branch
 		s.Monitor.BuildTime = s.buildInfo.Time
-		s.Monitor.PointsWriter = s.PointsWriter
+		s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
 	}
 
 	return s, nil
@@ -440,7 +441,6 @@ func (s *Server) Open() error {
 		}
 
 		s.Subscriber.MetaClient = s.MetaClient
-		s.QueryExecutor.MetaClient = s.MetaClient
 		s.ShardWriter.MetaClient = s.MetaClient
 		s.HintedHandoff.MetaClient = s.MetaClient
 		s.Subscriber.MetaClient = s.MetaClient
@@ -626,20 +626,6 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 
 // initializeMetaClient will set the MetaClient and join the node to the cluster if needed
 func (s *Server) initializeMetaClient() error {
-	// if the node ID is > 0 then we just need to initialize the metaclient
-	if s.Node.ID > 0 {
-		s.MetaClient = meta.NewClient(s.Node.MetaServers, s.metaUseTLS)
-		if err := s.MetaClient.Open(); err != nil {
-			return err
-		}
-
-		go s.updateMetaNodeInformation()
-
-		s.MetaClient.WaitForDataChanged()
-
-		return nil
-	}
-
 	// It's the first time starting up and we need to either join
 	// the cluster or initialize this node as the first member
 	if len(s.joinPeers) == 0 {
@@ -647,14 +633,23 @@ func (s *Server) initializeMetaClient() error {
 		if s.MetaService == nil {
 			return fmt.Errorf("server not set to join existing cluster must run also as a meta node")
 		}
-		s.MetaClient = meta.NewClient([]string{s.MetaService.HTTPAddr()}, s.metaUseTLS)
+		s.MetaClient.SetMetaServers([]string{s.MetaService.HTTPAddr()})
+		s.MetaClient.SetTLS(s.metaUseTLS)
 	} else {
 		// join this node to the cluster
-		s.MetaClient = meta.NewClient(s.joinPeers, s.metaUseTLS)
+		s.MetaClient.SetMetaServers(s.joinPeers)
+		s.MetaClient.SetTLS(s.metaUseTLS)
 	}
 	if err := s.MetaClient.Open(); err != nil {
 		return err
 	}
+
+	// if the node ID is > 0 then we just need to initialize the metaclient
+	if s.Node.ID > 0 {
+		s.MetaClient.WaitForDataChanged()
+		return nil
+	}
+
 	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
 	for err != nil {
 		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
@@ -663,47 +658,16 @@ func (s *Server) initializeMetaClient() error {
 	}
 	s.Node.ID = n.ID
 
-	metaNodes, err := s.MetaClient.MetaNodes()
-	if err != nil {
-		return err
-	}
-	for _, n := range metaNodes {
-		s.Node.AddMetaServers([]string{n.Host})
-	}
-
 	if err := s.Node.Save(); err != nil {
 		return err
 	}
 
-	go s.updateMetaNodeInformation()
-
 	return nil
 }
 
-// updateMetaNodeInformation will continuously run and save the node.json file
-// if the list of metaservers in the cluster changes
-func (s *Server) updateMetaNodeInformation() {
-	for {
-		c := s.MetaClient.WaitForDataChanged()
-		select {
-		case <-c:
-			nodes, _ := s.MetaClient.MetaNodes()
-			var nodeAddrs []string
-			for _, n := range nodes {
-				nodeAddrs = append(nodeAddrs, n.Host)
-			}
-			if !reflect.DeepEqual(nodeAddrs, s.Node.MetaServers) {
-				s.Node.MetaServers = nodeAddrs
-				if err := s.Node.Save(); err != nil {
-					log.Printf("error saving node information: %s\n", err.Error())
-				} else {
-					log.Printf("updated node metaservers with: %v\n", s.Node.MetaServers)
-				}
-			}
-		case <-s.closing:
-			return
-		}
-	}
+// MetaServers returns the meta node HTTP addresses used by this server.
+func (s *Server) MetaServers() []string {
+	return s.MetaClient.MetaServers()
 }
 
 // Service represents a service attached to the server.
@@ -760,3 +724,16 @@ type tcpaddr struct{ host string }
 
 func (a *tcpaddr) Network() string { return "tcp" }
 func (a *tcpaddr) String() string  { return a.host }
+
+// monitorPointsWriter is a wrapper around `cluster.PointsWriter` that helps
+// to prevent a circular dependency between the `cluster` and `monitor` packages.
+type monitorPointsWriter cluster.PointsWriter
+
+func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
+	return (*cluster.PointsWriter)(pw).WritePoints(&cluster.WritePointsRequest{
+		Database:         database,
+		RetentionPolicy:  retentionPolicy,
+		ConsistencyLevel: cluster.ConsistencyLevelOne,
+		Points:           points,
+	})
+}

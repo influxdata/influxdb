@@ -7,8 +7,14 @@ import (
 )
 
 const (
+	// DefaultBindAddress is the default binding interface if none is specified.
+	DefaultBindAddress = ":8089"
+
 	// DefaultDatabase is the default database for UDP traffic.
 	DefaultDatabase = "udp"
+
+	// DefaultRetentionPolicy is the default retention policy used for writes.
+	DefaultRetentionPolicy = ""
 
 	// DefaultBatchSize is the default UDP batch size.
 	DefaultBatchSize = 5000
@@ -67,6 +73,18 @@ type Config struct {
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 	Precision       string        `toml:"precision"`
 	UDPPayloadSize  int           `toml:"udp-payload-size"`
+}
+
+// NewConfig returns a new instance of Config with defaults.
+func NewConfig() Config {
+	return Config{
+		BindAddress:     DefaultBindAddress,
+		Database:        DefaultDatabase,
+		RetentionPolicy: DefaultRetentionPolicy,
+		BatchSize:       DefaultBatchSize,
+		BatchPending:    DefaultBatchPending,
+		BatchTimeout:    toml.Duration(DefaultBatchTimeout),
+	}
 }
 
 // WithDefaults takes the given config and returns a new config with any required
