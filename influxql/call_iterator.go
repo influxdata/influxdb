@@ -49,6 +49,8 @@ func NewCallIterator(input Iterator, opt IteratorOptions) Iterator {
 		return newFirstIterator(input, opt)
 	case "last":
 		return newLastIterator(input, opt)
+	case "diff":
+		return newDiffIterator(input, opt)
 	default:
 		panic(fmt.Sprintf("unsupported function call: %s", name))
 	}
@@ -222,6 +224,34 @@ func integerLastReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int
 		return curr.Time, curr.Value, curr.Aux
 	}
 	return prev.Time, prev.Value, prev.Aux
+}
+
+// newDiffIterator returns an iterator for operating on a diff() call.
+func newDiffIterator(input Iterator, opt IteratorOptions) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatDiffReduce}
+	case IntegerIterator:
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerDiffReduce}
+	default:
+		panic(fmt.Sprintf("unsupported last iterator type: %T", input))
+	}
+}
+
+// floatDiffReduce returns the last point sorted by time.
+//TODO ???
+func floatDiffReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+	lastTime, lastValue, lastAux := floatLastReduce(prev, curr, opt)
+	_, firstValue, _ := floatFirstReduce(prev, curr, opt)
+	return lastTime, lastValue - firstValue, lastAux
+}
+
+// integerDiffReduce returns the last point sorted by time.
+//TODO ???
+func integerDiffReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+	lastTime, lastValue, lastAux := integerLastReduce(prev, curr, opt)
+	_, firstValue, _ := integerFirstReduce(prev, curr, opt)
+	return lastTime, lastValue - firstValue, lastAux
 }
 
 // NewDistinctIterator returns an iterator for operating on a distinct() call.
