@@ -8,6 +8,7 @@
 - [#5419](https://github.com/influxdata/influxdb/pull/5419): Graphite: Support matching tags multiple times Thanks @m4ce
 - [#5598](https://github.com/influxdata/influxdb/pull/5598): Client: Add Ping to v2 client @PSUdaemon
 - [#4125](https://github.com/influxdata/influxdb/pull/4125): Admin UI: Fetch and display server version on connect. Thanks @alexiri!
+- [#5681](https://github.com/influxdata/influxdb/pull/5681): Stats: Add durations, number currently active to httpd and query executor
 - [#5602](https://github.com/influxdata/influxdb/pull/5602): Simplify cluster startup for scripting and deployment
 - [#5562](https://github.com/influxdata/influxdb/pull/5562): Graphite: Support matching fields multiple times (@chrusty)
 - [#5666](https://github.com/influxdata/influxdb/pull/5666): Manage dependencies with gdm
