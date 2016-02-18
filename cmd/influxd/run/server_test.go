@@ -807,37 +807,37 @@ func TestServer_Query_Math(t *testing.T) {
 		&Query{
 			name:    "SELECT multiple of float value",
 			command: `SELECT value * 2 from db.rp.float`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time","value"],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT multiple of float value",
 			command: `SELECT 2 * value from db.rp.float`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time","value"],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT multiple of integer value",
 			command: `SELECT value * 2 from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","value"],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT float multiple of integer value",
 			command: `SELECT value * 2.0 from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","value"],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT square of float value",
 			command: `SELECT value * value from db.rp.float`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time","value_value"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT square of integer value",
 			command: `SELECT value * value from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","value_value"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT square of integer, float value",
 			command: `SELECT value * value,float from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","","float"],"values":[["%s",1764,null]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","value_value","float"],"values":[["%s",1764,null]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT square of integer value with alias",
@@ -847,17 +847,17 @@ func TestServer_Query_Math(t *testing.T) {
 		&Query{
 			name:    "SELECT sum of aggregates",
 			command: `SELECT max(value) + min(value) from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","max_min"],"values":[["1970-01-01T00:00:00Z",84]]}]}]}`),
 		},
 		&Query{
 			name:    "SELECT square of enclosed integer value",
 			command: `SELECT ((value) * (value)) from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","value_value"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "SELECT square of enclosed integer value",
 			command: `SELECT (value * value) from db.rp.integer`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time","value_value"],"values":[["%s",1764]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 	}...)
 
@@ -2871,13 +2871,13 @@ func TestServer_Query_Aggregates_Load(t *testing.T) {
 			name:    "group by multiple dimensions",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT sum(value)*2 FROM load`,
-			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",300]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"load","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",300]]}]}]}`,
 		},
 		&Query{
 			name:    "group by multiple dimensions",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT sum(value)/2 FROM load`,
-			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",75]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"load","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",75]]}]}]}`,
 		},
 	}...)
 
