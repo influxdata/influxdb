@@ -1,4 +1,4 @@
-## v0.10.1 [unreleased]
+## v0.10.1 [2016-02-18]
 
 ### Bugfixes
 - [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
