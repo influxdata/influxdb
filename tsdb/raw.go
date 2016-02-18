@@ -224,6 +224,11 @@ func (e *RawExecutor) execute(out chan *models.Row, closing <-chan struct{}) {
 			}
 		}
 
+		// Protect against none of the mappers producing any output.
+		if chunkedOutput == nil {
+			continue
+		}
+
 		if ascending {
 			// Sort the values by time first so we can then handle offset and limit
 			sort.Sort(MapperValues(chunkedOutput.Values))
