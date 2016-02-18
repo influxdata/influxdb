@@ -37,8 +37,8 @@ type Service struct {
 func NewService(c *Config) *Service {
 	s := &Service{
 		config:   c,
-		httpAddr: c.DefaultedHTTPBindAddress(),
-		raftAddr: c.DefaultedBindAddress(),
+		httpAddr: c.HTTPBindAddress,
+		raftAddr: c.BindAddress,
 		https:    c.HTTPSEnabled,
 		cert:     c.HTTPSCertificate,
 		err:      make(chan error),
@@ -110,8 +110,8 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	// Open the store
-	s.store = newStore(s.config, s.httpAddr, s.raftAddr)
+	// Open the store.  The addresses passed in are remotely accessible.
+	s.store = newStore(s.config, s.remoteAddr(s.httpAddr), s.remoteAddr(s.raftAddr))
 
 	handler := newHandler(s.config, s)
 	handler.logger = s.Logger
@@ -126,6 +126,18 @@ func (s *Service) Open() error {
 	}
 
 	return nil
+}
+
+func (s *Service) remoteAddr(addr string) string {
+	hostname := s.config.RemoteHostname
+	if hostname == "" {
+		hostname = DefaultHostname
+	}
+	remote, err := DefaultHost(hostname, addr)
+	if err != nil {
+		return addr
+	}
+	return remote
 }
 
 // serve serves the handler from the listener.

@@ -161,15 +161,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		return nil, fmt.Errorf("must run as either meta node or data node or both")
 	}
 
-	httpBindAddress, err := meta.DefaultHost(DefaultHostname, c.HTTPD.BindAddress)
-	if err != nil {
-		return nil, err
-	}
-	tcpBindAddress, err := meta.DefaultHost(DefaultHostname, bind)
-	if err != nil {
-		return nil, err
-	}
-
 	s := &Server{
 		buildInfo: *buildInfo,
 		err:       make(chan error),
@@ -186,9 +177,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		joinPeers:         c.Meta.JoinPeers,
 		metaUseTLS:        c.Meta.HTTPSEnabled,
 
-		httpAPIAddr: httpBindAddress,
+		httpAPIAddr: c.HTTPD.BindAddress,
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
-		tcpAddr:     tcpBindAddress,
+		tcpAddr:     bind,
 
 		config: c,
 	}
@@ -651,11 +642,11 @@ func (s *Server) initializeMetaClient() error {
 		return nil
 	}
 
-	n, err := s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
+	n, err := s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
 	for err != nil {
 		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
 		time.Sleep(time.Second)
-		n, err = s.MetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
+		n, err = s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
 	}
 	s.Node.ID = n.ID
 
@@ -664,6 +655,28 @@ func (s *Server) initializeMetaClient() error {
 	}
 
 	return nil
+}
+
+// HTTPAddr returns the HTTP address used by other nodes for HTTP queries and writes.
+func (s *Server) HTTPAddr() string {
+	return s.remoteAddr(s.httpAPIAddr)
+}
+
+// TCPAddr returns the TCP address used by other nodes for cluster communication.
+func (s *Server) TCPAddr() string {
+	return s.remoteAddr(s.tcpAddr)
+}
+
+func (s *Server) remoteAddr(addr string) string {
+	hostname := s.config.Hostname
+	if hostname == "" {
+		hostname = meta.DefaultHostname
+	}
+	remote, err := meta.DefaultHost(hostname, addr)
+	if err != nil {
+		return addr
+	}
+	return remote
 }
 
 // MetaServers returns the meta node HTTP addresses used by this server.
