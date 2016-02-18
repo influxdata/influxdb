@@ -4,7 +4,7 @@
 
 - [#5541](https://github.com/influxdata/influxdb/pull/5541): Client: Support for adding custom TLS Config for HTTP client.
 - [#4299](https://github.com/influxdata/influxdb/pull/4299): Client: Reject uint64 Client.Point.Field values. Thanks @arussellsaw
-- [#5550](https://github.com/influxdata/influxdb/pull/5550): Enabled golint for tsdb/engine/wal.
+- [#5550](https://github.com/influxdata/influxdb/pull/5550): Enabled golint for tsdb/engine/wal. @gabelev
 - [#5419](https://github.com/influxdata/influxdb/pull/5419): Graphite: Support matching tags multiple times Thanks @m4ce
 - [#5598](https://github.com/influxdata/influxdb/pull/5598): Client: Add Ping to v2 client @PSUdaemon
 - [#4125](https://github.com/influxdata/influxdb/pull/4125): Admin UI: Fetch and display server version on connect. Thanks @alexiri!
@@ -12,6 +12,7 @@
 - [#5562](https://github.com/influxdata/influxdb/pull/5562): Graphite: Support matching fields multiple times (@chrusty)
 - [#5666](https://github.com/influxdata/influxdb/pull/5666): Manage dependencies with gdm
 - [#5512](https://github.com/influxdata/influxdb/pull/5512): HTTP: Add config option to enable HTTP JSON write path which is now disabled by default.
+- [#5336](https://github.com/influxdata/influxdb/pull/5366): Enabled golint for influxql. @gabelev
 
 ### Bugfixes
 
