@@ -254,6 +254,7 @@ func (h *handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 			h.httpError(err, w, http.StatusInternalServerError)
 			return
 		}
+		w.Header().Add("Content-Type", "application/octet-stream")
 		w.Write(b)
 		return
 	case <-w.(http.CloseNotifier).CloseNotify():
@@ -312,6 +313,7 @@ func (h *handler) servePing(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) servePeers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(h.store.peers()); err != nil {
 		h.httpError(err, w, http.StatusInternalServerError)
@@ -380,7 +382,7 @@ func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	// Write the lease data.
-	w.Header().Add("content-type", "application/json")
+	w.Header().Add("Content-Type", "application/json")
 	w.Write(b)
 	return
 }
