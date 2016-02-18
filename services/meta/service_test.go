@@ -1065,49 +1065,133 @@ func TestMetaService_DropDataNode(t *testing.T) {
 	defer s.Close()
 	defer c.Close()
 
-	exp := &meta.NodeInfo{
-		ID:      1,
-		Host:    "foo:8180",
-		TCPHost: "bar:8281",
+	// Dropping a data node with an invalid ID returns an error
+	if err := c.DeleteDataNode(0); err == nil {
+		t.Fatalf("Didn't get an error but expected %s", meta.ErrNodeNotFound)
+	} else if err.Error() != meta.ErrNodeNotFound.Error() {
+		t.Fatalf("got %v, expected %v", err, meta.ErrNodeNotFound)
 	}
 
-	n, err := c.CreateDataNode(exp.Host, exp.TCPHost)
+	// Create a couple of nodes.
+	n1, err := c.CreateDataNode("foo:8180", "bar:8181")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(n, exp) {
-		t.Fatalf("data node attributes wrong: %v", n)
-	}
-
-	nodes, err := c.DataNodes()
+	n2, err := c.CreateDataNode("foo:8280", "bar:8281")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(nodes, []meta.NodeInfo{*exp}) {
-		t.Fatalf("nodes wrong: %v", nodes)
-	}
-
+	// Create a database and shard group. The default retention policy
+	// means that the created shards should be replicated (owned) by
+	// both the data nodes.
 	if _, err := c.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
+
 	sg, err := c.CreateShardGroup("foo", "default", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{1}}) {
-		t.Fatalf("expected owners to be [1]: %v", sg.Shards[0].Owners)
-	}
-
-	if err := c.DeleteDataNode(1); err != nil {
+	// Dropping the first data server should result in that node ID
+	// being removed as an owner of the shard.
+	if err := c.DeleteDataNode(n1.ID); err != nil {
 		t.Fatal(err)
 	}
 
+	// Retrieve updated shard group data from the Meta Store.
 	rp, _ := c.RetentionPolicy("foo", "default")
-	if len(rp.ShardGroups[0].Shards[0].Owners) != 0 {
-		t.Fatalf("expected shard to have no owners: %v", rp.ShardGroups[0].Shards[0].Owners)
+	sg = &rp.ShardGroups[0]
+
+	// The first data node should be removed as an owner of the shard on
+	// the shard group
+	if !reflect.DeepEqual(sg.Shards[0].Owners, []meta.ShardOwner{{n2.ID}}) {
+		t.Errorf("owners for shard are %v, expected %v", sg.Shards[0].Owners, []meta.ShardOwner{{2}})
+	}
+
+	// The shard group should still be marked as active because it still
+	// has a shard with owners.
+	if sg.Deleted() {
+		t.Error("shard group marked as deleted, but shouldn't be")
+	}
+
+	// Dropping the second data node will orphan the shard, but as
+	// there won't be any shards left in the shard group, the shard
+	// group will be deleted.
+	if err := c.DeleteDataNode(n2.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Retrieve updated data.
+	rp, _ = c.RetentionPolicy("foo", "default")
+	sg = &rp.ShardGroups[0]
+
+	if got, exp := sg.Deleted(), true; got != exp {
+		t.Error("Shard group not marked as deleted")
+	}
+}
+
+func TestMetaService_DropDataNode_Reassign(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Create a couple of nodes.
+	n1, err := c.CreateDataNode("foo:8180", "bar:8181")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	n2, err := c.CreateDataNode("foo:8280", "bar:8281")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy with a replica factor of 1.
+	rp := meta.NewRetentionPolicyInfo("rp0")
+	rp.ReplicaN = 1
+
+	// Create a database using rp0
+	if _, err := c.CreateDatabaseWithRetentionPolicy("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+
+	sg, err := c.CreateShardGroup("foo", "rp0", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Dropping the first data server should result in the shard being
+	// reassigned to the other node.
+	if err := c.DeleteDataNode(n1.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Retrieve updated shard group data from the Meta Store.
+	rp, _ = c.RetentionPolicy("foo", "rp0")
+	sg = &rp.ShardGroups[0]
+
+	// There should still be two shards.
+	if got, exp := len(sg.Shards), 2; got != exp {
+		t.Errorf("there are %d shards, but should be %d", got, exp)
+	}
+
+	// The second data node should be the owner of both shards.
+	for _, s := range sg.Shards {
+		if !reflect.DeepEqual(s.Owners, []meta.ShardOwner{{n2.ID}}) {
+			t.Errorf("owners for shard are %v, expected %v", s.Owners, []meta.ShardOwner{{2}})
+		}
+	}
+
+	// The shard group should not be marked as deleted because both
+	// shards have an owner.
+	if sg.Deleted() {
+		t.Error("shard group marked as deleted, but shouldn't be")
 	}
 }
 
