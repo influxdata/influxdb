@@ -19,6 +19,8 @@ const (
 type Service struct {
 	RaftListener net.Listener
 
+	Version string
+
 	config   *Config
 	handler  *handler
 	ln       net.Listener

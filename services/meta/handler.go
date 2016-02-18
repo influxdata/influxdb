@@ -24,8 +24,7 @@ import (
 
 // handler represents an HTTP handler for the meta service.
 type handler struct {
-	config  *Config
-	Version string
+	config *Config
 
 	logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
@@ -422,7 +421,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, h *handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-InfluxDB-Version", h.Version)
+		w.Header().Add("X-InfluxDB-Version", h.s.Version)
 		inner.ServeHTTP(w, r)
 	})
 }
