@@ -10,6 +10,8 @@
 - [#4125](https://github.com/influxdata/influxdb/pull/4125): Admin UI: Fetch and display server version on connect. Thanks @alexiri!
 - [#5602](https://github.com/influxdata/influxdb/pull/5602): Simplify cluster startup for scripting and deployment
 - [#5562](https://github.com/influxdata/influxdb/pull/5562): Graphite: Support matching fields multiple times (@chrusty)
+- [#5666](https://github.com/influxdata/influxdb/pull/5666): Manage dependencies with gdm
+- [#5512](https://github.com/influxdata/influxdb/pull/5512): HTTP: Add config option to enable HTTP JSON write path which is now disabled by default.
 
 ### Bugfixes
 
@@ -25,6 +27,10 @@
 - [#5557](https://github.com/influxdata/influxdb/issues/5630): Fixes panic when surrounding the select statement arguments in brackets
 - [#5628](https://github.com/influxdata/influxdb/issues/5628): Crashed the server with a bad derivative query
 - [#5532](https://github.com/influxdata/influxdb/issues/5532): user passwords not changeable in cluster
+- [#5695](https://github.com/influxdata/influxdb/pull/5695): Remove meta servers from node.json
+- [#5606](https://github.com/influxdata/influxdb/issues/5606): TSM conversion reproducibly drops data silently
+- [#5656](https://github.com/influxdata/influxdb/issues/5656): influx\_tsm: panic during conversion
+- [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
 
 ## v0.10.0 [2016-02-04]
 

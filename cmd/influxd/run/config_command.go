@@ -68,6 +68,7 @@ func (cmd *PrintConfigCommand) parseConfig(path string) (*Config, error) {
 	if _, err := toml.DecodeFile(path, &config); err != nil {
 		return nil, err
 	}
+	config.InitTableAttrs()
 	return config, nil
 }
 
