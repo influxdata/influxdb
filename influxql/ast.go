@@ -2642,6 +2642,11 @@ func (f *Field) Name() string {
 	switch expr := f.Expr.(type) {
 	case *Call:
 		return expr.Name
+	case *BinaryExpr:
+		return BinaryExprName(expr)
+	case *ParenExpr:
+		f := Field{Expr: expr.Expr}
+		return f.Name()
 	case *VarRef:
 		return expr.Val
 	}
@@ -2920,6 +2925,27 @@ type BinaryExpr struct {
 // String returns a string representation of the binary expression.
 func (e *BinaryExpr) String() string {
 	return fmt.Sprintf("%s %s %s", e.LHS.String(), e.Op.String(), e.RHS.String())
+}
+
+func BinaryExprName(expr *BinaryExpr) string {
+	v := binaryExprNameVisitor{}
+	Walk(&v, expr)
+	return strings.Join(v.names, "_")
+}
+
+type binaryExprNameVisitor struct {
+	names []string
+}
+
+func (v *binaryExprNameVisitor) Visit(n Node) Visitor {
+	switch n := n.(type) {
+	case *VarRef:
+		v.names = append(v.names, n.Val)
+	case *Call:
+		v.names = append(v.names, n.Name)
+		return nil
+	}
+	return v
 }
 
 // ParenExpr represents a parenthesized expression.

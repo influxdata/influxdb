@@ -717,6 +717,29 @@ func TestSelectStatement_HasCountDistinct(t *testing.T) {
 	}
 }
 
+// Ensure binary expression names can be evaluated.
+func TestBinaryExprName(t *testing.T) {
+	for i, tt := range []struct {
+		expr string
+		name string
+	}{
+		{expr: `value + 1`, name: `value`},
+		{expr: `"user" / total`, name: `user_total`},
+		{expr: `("user" + total) / total`, name: `user_total_total`},
+	} {
+		expr := influxql.MustParseExpr(tt.expr)
+		switch expr := expr.(type) {
+		case *influxql.BinaryExpr:
+			name := influxql.BinaryExprName(expr)
+			if name != tt.name {
+				t.Errorf("%d. unexpected name %s, got %s", i, name, tt.name)
+			}
+		default:
+			t.Errorf("%d. unexpected expr type: %T", i, expr)
+		}
+	}
+}
+
 // Ensure the time range of an expression can be extracted.
 func TestTimeRange(t *testing.T) {
 	for i, tt := range []struct {
@@ -1070,12 +1093,12 @@ func Test_fieldsNames(t *testing.T) {
 		{ //case: binary expr(valRef)
 			in:    []string{"value+value"},
 			out:   []string{"value", "value"},
-			alias: []string{""},
+			alias: []string{"value_value"},
 		},
 		{ //case: binary expr + valRef
 			in:    []string{"value+value", "temperature"},
 			out:   []string{"value", "value", "temperature"},
-			alias: []string{"", "temperature"},
+			alias: []string{"value_value", "temperature"},
 		},
 		{ //case: aggregate expr
 			in:    []string{"mean(value)"},
@@ -1085,37 +1108,37 @@ func Test_fieldsNames(t *testing.T) {
 		{ //case: binary expr(aggregate expr)
 			in:    []string{"mean(value) + max(value)"},
 			out:   []string{"value", "value"},
-			alias: []string{""},
+			alias: []string{"mean_max"},
 		},
 		{ //case: binary expr(aggregate expr) + valRef
 			in:    []string{"mean(value) + max(value)", "temperature"},
 			out:   []string{"value", "value", "temperature"},
-			alias: []string{"", "temperature"},
+			alias: []string{"mean_max", "temperature"},
 		},
 		{ //case: mixed aggregate and varRef
 			in:    []string{"mean(value) + temperature"},
 			out:   []string{"value", "temperature"},
-			alias: []string{""},
+			alias: []string{"mean_temperature"},
 		},
 		{ //case: ParenExpr(varRef)
 			in:    []string{"(value)"},
 			out:   []string{"value"},
-			alias: []string{""},
+			alias: []string{"value"},
 		},
 		{ //case: ParenExpr(varRef + varRef)
 			in:    []string{"(value + value)"},
 			out:   []string{"value", "value"},
-			alias: []string{""},
+			alias: []string{"value_value"},
 		},
 		{ //case: ParenExpr(aggregate)
 			in:    []string{"(mean(value))"},
 			out:   []string{"value"},
-			alias: []string{""},
+			alias: []string{"mean"},
 		},
 		{ //case: ParenExpr(aggregate + aggregate)
 			in:    []string{"(mean(value) + max(value))"},
 			out:   []string{"value", "value"},
-			alias: []string{""},
+			alias: []string{"mean_max"},
 		},
 	} {
 		fields := influxql.Fields{}
@@ -1125,11 +1148,11 @@ func Test_fieldsNames(t *testing.T) {
 		}
 		got := fields.Names()
 		if !reflect.DeepEqual(got, test.out) {
-			t.Errorf("get fileds name:\nexp=%v\ngot=%v\n", test.out, got)
+			t.Errorf("get fields name:\nexp=%v\ngot=%v\n", test.out, got)
 		}
 		alias := fields.AliasNames()
 		if !reflect.DeepEqual(alias, test.alias) {
-			t.Errorf("get fileds alias name:\nexp=%v\ngot=%v\n", test.alias, alias)
+			t.Errorf("get fields alias name:\nexp=%v\ngot=%v\n", test.alias, alias)
 		}
 	}
 
