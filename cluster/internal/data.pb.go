@@ -13,6 +13,8 @@ It has these top-level messages:
 	WriteShardResponse
 	MapShardRequest
 	MapShardResponse
+	ExecuteStatementRequest
+	ExecuteStatementResponse
 */
 package internal
 
@@ -151,4 +153,61 @@ func (m *MapShardResponse) GetFields() []string {
 		return m.Fields
 	}
 	return nil
+}
+
+type ExecuteStatementRequest struct {
+	Statement        *string `protobuf:"bytes,1,req,name=Statement" json:"Statement,omitempty"`
+	Database         *string `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *ExecuteStatementRequest) Reset()         { *m = ExecuteStatementRequest{} }
+func (m *ExecuteStatementRequest) String() string { return proto.CompactTextString(m) }
+func (*ExecuteStatementRequest) ProtoMessage()    {}
+
+func (m *ExecuteStatementRequest) GetStatement() string {
+	if m != nil && m.Statement != nil {
+		return *m.Statement
+	}
+	return ""
+}
+
+func (m *ExecuteStatementRequest) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+type ExecuteStatementResponse struct {
+	Code             *int32  `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
+	Message          *string `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *ExecuteStatementResponse) Reset()         { *m = ExecuteStatementResponse{} }
+func (m *ExecuteStatementResponse) String() string { return proto.CompactTextString(m) }
+func (*ExecuteStatementResponse) ProtoMessage()    {}
+
+func (m *ExecuteStatementResponse) GetCode() int32 {
+	if m != nil && m.Code != nil {
+		return *m.Code
+	}
+	return 0
+}
+
+func (m *ExecuteStatementResponse) GetMessage() string {
+	if m != nil && m.Message != nil {
+		return *m.Message
+	}
+	return ""
+}
+
+func init() {
+	proto.RegisterType((*WriteShardRequest)(nil), "internal.WriteShardRequest")
+	proto.RegisterType((*WriteShardResponse)(nil), "internal.WriteShardResponse")
+	proto.RegisterType((*MapShardRequest)(nil), "internal.MapShardRequest")
+	proto.RegisterType((*MapShardResponse)(nil), "internal.MapShardResponse")
+	proto.RegisterType((*ExecuteStatementRequest)(nil), "internal.ExecuteStatementRequest")
+	proto.RegisterType((*ExecuteStatementResponse)(nil), "internal.ExecuteStatementResponse")
 }
