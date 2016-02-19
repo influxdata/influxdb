@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
@@ -857,6 +859,70 @@ func TestIteratorOptions_DerivativeInterval_Call(t *testing.T) {
 	actual := opt.DerivativeInterval()
 	if actual != expected {
 		t.Errorf("expected derivative interval to be %v, got %v", expected, actual)
+	}
+}
+
+// Ensure iterator options can be marshaled to and from a binary format.
+func TestIteratorOptions_MarshalBinary(t *testing.T) {
+	opt := &influxql.IteratorOptions{
+		Expr: MustParseExpr("count(value)"),
+		Aux:  []string{"a", "b", "c"},
+		Sources: []influxql.Source{
+			&influxql.Measurement{Database: "db0", RetentionPolicy: "rp0", Name: "mm0"},
+		},
+		Interval: influxql.Interval{
+			Duration: 1 * time.Hour,
+			Offset:   20 * time.Minute,
+		},
+		Dimensions: []string{"region", "host"},
+		Fill:       influxql.NumberFill,
+		FillValue:  float64(100),
+		Condition:  MustParseExpr(`foo = 'bar'`),
+		StartTime:  1000,
+		EndTime:    2000,
+		Ascending:  true,
+		Limit:      100,
+		Offset:     200,
+		SLimit:     300,
+		SOffset:    400,
+		Dedupe:     true,
+	}
+
+	// Marshal to binary.
+	buf, err := opt.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Unmarshal back to an object.
+	var other influxql.IteratorOptions
+	if err := other.UnmarshalBinary(buf); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(&other, opt) {
+		t.Fatalf("unexpected options: %s", spew.Sdump(other))
+	}
+}
+
+// Ensure iterator options with a regex measurement can be marshaled.
+func TestIteratorOptions_MarshalBinary_Measurement_Regex(t *testing.T) {
+	opt := &influxql.IteratorOptions{
+		Sources: []influxql.Source{
+			&influxql.Measurement{Database: "db1", RetentionPolicy: "rp2", Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`series.+`)}},
+		},
+	}
+
+	// Marshal to binary.
+	buf, err := opt.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Unmarshal back to an object.
+	var other influxql.IteratorOptions
+	if err := other.UnmarshalBinary(buf); err != nil {
+		t.Fatal(err)
+	} else if v := other.Sources[0].(*influxql.Measurement).Regex.Val.String(); v != `/series.+/` {
+		t.Fatalf("unexpected measurement regex: %s", v)
 	}
 }
 

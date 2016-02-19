@@ -675,9 +675,9 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 	return groups, nil
 }
 
-// ShardIDsByTimeRange returns a slice of shards that may contain data in the time range.
-func (c *Client) ShardIDsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []uint64, err error) {
-	m := make(map[uint64]struct{})
+// ShardsByTimeRange returns a slice of shards that may contain data in the time range.
+func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []ShardInfo, err error) {
+	m := make(map[*ShardInfo]struct{})
 	for _, src := range sources {
 		mm, ok := src.(*influxql.Measurement)
 		if !ok {
@@ -689,15 +689,15 @@ func (c *Client) ShardIDsByTimeRange(sources influxql.Sources, tmin, tmax time.T
 			return nil, err
 		}
 		for _, g := range groups {
-			for _, sh := range g.Shards {
-				m[sh.ID] = struct{}{}
+			for i := range g.Shards {
+				m[&g.Shards[i]] = struct{}{}
 			}
 		}
 	}
 
-	a = make([]uint64, 0, len(m))
-	for k := range m {
-		a = append(a, k)
+	a = make([]ShardInfo, 0, len(m))
+	for sh := range m {
+		a = append(a, *sh)
 	}
 
 	return a, nil

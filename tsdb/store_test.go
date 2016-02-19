@@ -215,8 +215,15 @@ func TestShards_CreateIterator(t *testing.T) {
 		`cpu,host=serverC value=3 60`,
 	)
 
+	// Retrieve shards and convert to iterator creators.
+	shards := s.Shards([]uint64{0, 1})
+	ics := make(influxql.IteratorCreators, len(shards))
+	for i := range ics {
+		ics[i] = shards[i]
+	}
+
 	// Create iterator.
-	itr, err := tsdb.Shards(s.Shards([]uint64{0, 1})).CreateIterator(influxql.IteratorOptions{
+	itr, err := ics.CreateIterator(influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
 		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
