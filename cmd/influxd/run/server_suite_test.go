@@ -97,9 +97,9 @@ func init() {
 				once:    true,
 			},
 			&Query{
-				name:    "drop database should error if it does not exists",
+				name:    "drop database should not error if it does not exists",
 				command: `DROP DATABASE db1`,
-				exp:     `{"results":[{"error":"database not found: db1"}]}`,
+				exp:     `{"results":[{}]}`,
 			},
 			&Query{
 				name:    "drop database should not error with non-existing database db1 WITH IF EXISTS",
@@ -110,11 +110,6 @@ func init() {
 				name:    "show database should have no results",
 				command: `SHOW DATABASES`,
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
-			},
-			&Query{
-				name:    "drop database should error if it doesn't exist",
-				command: `DROP DATABASE db0`,
-				exp:     `{"results":[{"error":"database not found: db0"}]}`,
 			},
 		},
 	}
@@ -376,7 +371,7 @@ func init() {
 			&Query{
 				name:    "Check error when deleting retention policy on non-existent database",
 				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
-				exp:     `{"results":[{"error":"database not found: mydatabase"}]}`,
+				exp:     `{"results":[{}]}`,
 			},
 			&Query{
 				name:    "Ensure retention policy for non existing db is not created",

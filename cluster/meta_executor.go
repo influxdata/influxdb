@@ -40,8 +40,6 @@ func NewMetaExecutor() *MetaExecutor {
 
 // ExecuteStatement executes a single InfluxQL statement on all nodes in the cluster concurrently.
 func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string) error {
-	println("MetaExecutor.ExecuteStatement start")
-	defer println("MetaExecutor.ExecuteStatement end")
 	// Get a list of all nodes the query needs to be executed on.
 	nodes, err := m.MetaClient.DataNodes()
 	if err != nil {
@@ -50,11 +48,13 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 
 	// Start a goroutine to execute the statement on each of the remote nodes.
 	var wg sync.WaitGroup
-	wg.Add(len(nodes))
-	errs := make(chan error)
-	defer close(errs)
-
+	errs := make(chan error, len(nodes)-1)
 	for _, node := range nodes {
+		if m.Node.ID == node.ID {
+			continue // Don't execute statement on ourselves.
+		}
+
+		wg.Add(1)
 		go func(node meta.NodeInfo) {
 			defer wg.Done()
 			if err := m.executeOnNode(stmt, database, &node); err != nil {
@@ -63,7 +63,7 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 		}(node)
 	}
 
-	// Wait on all nodes to execute the statement and respond.
+	// Wait on n-1 nodes to execute the statement and respond.
 	wg.Wait()
 
 	select {
@@ -76,15 +76,7 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 
 // executeOnNode executes a single InfluxQL statement on a single node.
 func (m *MetaExecutor) executeOnNode(stmt influxql.Statement, database string, node *meta.NodeInfo) error {
-	println("MetaExecutor.executeOnNode start")
-	defer println("MetaExecutor.executeOnNode end")
-	// Executing statement on the local node?
-	//if node.ID == m.Node.ID {
-	//	panic("fix me !!!!!!!!!!!!!!!!!!!")
-	//}
-
 	// We're executing on a remote node so establish a connection.
-	fmt.Printf("dialing: %v\n", node)
 	c, err := m.dial(node.ID)
 	if err != nil {
 		return err

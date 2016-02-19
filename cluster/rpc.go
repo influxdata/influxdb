@@ -240,13 +240,13 @@ func (r *ExecuteStatementRequest) Database() string { return r.pb.GetDatabase() 
 func (r *ExecuteStatementRequest) SetDatabase(database string) { r.pb.Database = proto.String(database) }
 
 // MarshalBinary encodes the object to a binary format.
-func (m *ExecuteStatementRequest) MarshalBinary() ([]byte, error) {
-	return proto.Marshal(&m.pb)
+func (r *ExecuteStatementRequest) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&r.pb)
 }
 
 // UnmarshalBinary populates ExecuteStatementRequest from a binary format.
-func (m *ExecuteStatementRequest) UnmarshalBinary(buf []byte) error {
-	if err := proto.Unmarshal(buf, &m.pb); err != nil {
+func (r *ExecuteStatementRequest) UnmarshalBinary(buf []byte) error {
+	if err := proto.Unmarshal(buf, &r.pb); err != nil {
 		return err
 	}
 	return nil
@@ -270,13 +270,13 @@ func (w *ExecuteStatementResponse) Message() string { return w.pb.GetMessage() }
 func (w *ExecuteStatementResponse) SetMessage(message string) { w.pb.Message = &message }
 
 // MarshalBinary encodes the object to a binary format.
-func (m *ExecuteStatementResponse) MarshalBinary() ([]byte, error) {
-	return proto.Marshal(&m.pb)
+func (w *ExecuteStatementResponse) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&w.pb)
 }
 
 // UnmarshalBinary populates ExecuteStatementResponse from a binary format.
-func (m *ExecuteStatementResponse) UnmarshalBinary(buf []byte) error {
-	if err := proto.Unmarshal(buf, &m.pb); err != nil {
+func (w *ExecuteStatementResponse) UnmarshalBinary(buf []byte) error {
+	if err := proto.Unmarshal(buf, &w.pb); err != nil {
 		return err
 	}
 	return nil
