@@ -218,6 +218,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		// Initialize meta executor.
 		metaExecutor := cluster.NewMetaExecutor()
 		metaExecutor.MetaClient = s.MetaClient
+		metaExecutor.Node = s.Node
 
 		// Initialize query executor.
 		s.QueryExecutor = cluster.NewQueryExecutor()
@@ -245,9 +246,6 @@ func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
 	srv.TSDBStore = s.TSDBStore
 	srv.MetaClient = s.MetaClient
-	srv.MetaWriter = cluster.NewMetaWriter()
-	srv.MetaWriter.TSDBStore = s.TSDBStore
-	srv.MetaWriter.MetaClient = s.MetaClient
 	s.Services = append(s.Services, srv)
 	s.ClusterService = srv
 }

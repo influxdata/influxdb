@@ -273,15 +273,16 @@ func (data *Data) CreateDatabase(name string) error {
 	return nil
 }
 
-// DropDatabase removes a database by name.
+// DropDatabase removes a database by name. It does not return an error
+// if the database cannot be found.
 func (data *Data) DropDatabase(name string) error {
 	for i := range data.Databases {
 		if data.Databases[i].Name == name {
 			data.Databases = append(data.Databases[:i], data.Databases[i+1:]...)
-			return nil
+			break
 		}
 	}
-	return influxdb.ErrDatabaseNotFound(name)
+	return nil
 }
 
 // RetentionPolicy returns a retention policy for a database by name.
@@ -337,7 +338,8 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
+		// no database? no problem
+		return nil
 	}
 
 	// Remove from list.

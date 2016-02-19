@@ -51,9 +51,9 @@ type Service struct {
 		WriteToShard(shardID uint64, points []models.Point) error
 		DeleteDatabase(name string) error
 		DeleteMeasurement(database, name string) error
+		DeleteSeries(database string, source []influxql.Source, condition influxql.Expr) error
+		DeleteRetentionPolicy(database, name string) error
 	}
-
-	MetaWriter *MetaWriter
 
 	Logger  *log.Logger
 	statMap *expvar.Map
@@ -191,8 +191,6 @@ func (s *Service) handleConn(conn net.Conn) {
 }
 
 func (s *Service) processExecuteStatementRequest(buf []byte) error {
-	println("cluster.Service.processExecuteStatementRequest start")
-	defer println("cluster.Service.processExecuteStatementRequest end")
 	// Unmarshal the request.
 	var req ExecuteStatementRequest
 	if err := req.UnmarshalBinary(buf); err != nil {
@@ -205,17 +203,22 @@ func (s *Service) processExecuteStatementRequest(buf []byte) error {
 		return err
 	}
 
-	return s.executeStatement(stmt)
+	return s.executeStatement(stmt, req.Database())
 }
 
-func (s *Service) executeStatement(stmt influxql.Statement) error {
+func (s *Service) executeStatement(stmt influxql.Statement, database string) error {
 	switch t := stmt.(type) {
 	case *influxql.DropDatabaseStatement:
-		s.MetaWriter.DropDatabase(t.Name)
+		return s.TSDBStore.DeleteDatabase(t.Name)
+	case *influxql.DropMeasurementStatement:
+		return s.TSDBStore.DeleteMeasurement(database, t.Name)
+	case *influxql.DropSeriesStatement:
+		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
+	case *influxql.DropRetentionPolicyStatement:
+		return s.TSDBStore.DeleteRetentionPolicy(database, t.Name)
 	default:
-		panic("statement not implemented")
+		return fmt.Errorf("%q should not be executed across a cluster", stmt.String())
 	}
-	return nil
 }
 
 func (s *Service) processWriteShardRequest(buf []byte) error {
