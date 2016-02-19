@@ -12,7 +12,7 @@ import (
 )
 
 func TestCache_NewCache(t *testing.T) {
-	c := NewCache(100)
+	c := NewCache(100, "")
 	if c == nil {
 		t.Fatalf("failed to create new cache")
 	}
@@ -35,7 +35,7 @@ func TestCache_CacheWrite(t *testing.T) {
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
-	c := NewCache(3 * valuesSize)
+	c := NewCache(3*valuesSize, "")
 
 	if err := c.Write("foo", values); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -59,7 +59,7 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
-	c := NewCache(3 * valuesSize)
+	c := NewCache(3*valuesSize, "")
 
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -80,7 +80,7 @@ func TestCache_CacheValues(t *testing.T) {
 	v3 := NewValue(time.Unix(1, 0).UTC(), 1.0)
 	v4 := NewValue(time.Unix(4, 0).UTC(), 4.0)
 
-	c := NewCache(512)
+	c := NewCache(512, "")
 	if deduped := c.Values("no such key"); deduped != nil {
 		t.Fatalf("Values returned for no such key")
 	}
@@ -106,7 +106,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	v4 := NewValue(time.Unix(6, 0).UTC(), 5.0)
 	v5 := NewValue(time.Unix(1, 0).UTC(), 5.0)
 
-	c := NewCache(512)
+	c := NewCache(512, "")
 	if err := c.Write("foo", Values{v0, v1, v2, v3}); err != nil {
 		t.Fatalf("failed to write 3 values, key foo to cache: %s", err.Error())
 	}
@@ -150,7 +150,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 }
 
 func TestCache_CacheEmptySnapshot(t *testing.T) {
-	c := NewCache(512)
+	c := NewCache(512, "")
 
 	// Grab snapshot, and ensure it's as expected.
 	snapshot := c.Snapshot()
@@ -174,7 +174,7 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	v0 := NewValue(time.Unix(1, 0).UTC(), 1.0)
 	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
 
-	c := NewCache(uint64(v1.Size()))
+	c := NewCache(uint64(v1.Size()), "")
 
 	if err := c.Write("foo", Values{v0}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -230,7 +230,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	}
 
 	// Load the cache using the segment.
-	cache := NewCache(1024)
+	cache := NewCache(1024, "")
 	loader := NewCacheLoader([]string{f.Name()})
 	if err := loader.Load(cache); err != nil {
 		t.Fatalf("failed to load cache: %s", err.Error())
@@ -253,7 +253,7 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	}
 
 	// Reload the cache using the segment.
-	cache = NewCache(1024)
+	cache = NewCache(1024, "")
 	loader = NewCacheLoader([]string{f.Name()})
 	if err := loader.Load(cache); err != nil {
 		t.Fatalf("failed to load cache: %s", err.Error())
@@ -312,7 +312,7 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	}
 
 	// Load the cache using the segments.
-	cache := NewCache(1024)
+	cache := NewCache(1024, "")
 	loader := NewCacheLoader([]string{f1.Name(), f2.Name()})
 	if err := loader.Load(cache); err != nil {
 		t.Fatalf("failed to load cache: %s", err.Error())
@@ -362,7 +362,7 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 
 func BenchmarkCacheFloatEntries(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		cache := NewCache(10000)
+		cache := NewCache(10000, "")
 		for j := 0; j < 10000; j++ {
 			v := NewValue(time.Unix(1, 0), float64(j))
 			cache.Write("test", []Value{v})
