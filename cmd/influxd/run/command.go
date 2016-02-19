@@ -94,6 +94,11 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 
+	// Propogate the top-level join options down to the meta config
+	if config.Join != "" {
+		config.Meta.JoinPeers = strings.Split(config.Join, ",")
+	}
+
 	// Command-line flags for -join and -hostname override the config
 	// and env variable
 	if options.Join != "" {
