@@ -33,6 +33,9 @@ type QueryExecutor struct {
 	// Used for rewriting points back into system for SELECT INTO statements.
 	PointsWriter *PointsWriter
 
+	// Used for executing meta statements on all data nodes.
+	MetaExecutor *MetaExecutor
+
 	// Output of all logging.
 	// Defaults to discarding all log output.
 	LogOutput io.Writer
@@ -277,6 +280,8 @@ func (e *QueryExecutor) executeDropContinuousQueryStatement(q *influxql.DropCont
 }
 
 func (e *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) error {
+	println("cluster.QueryExecutor.executeDropDatabaseStatement start")
+	defer println("cluster.QueryExecutor.executeDropDatabaseStatement end")
 	dbi, err := e.MetaClient.Database(stmt.Name)
 	if err != nil {
 		return err
@@ -293,12 +298,9 @@ func (e *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 		return err
 	}
 
-	// Remove the database from the local store
-	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
-		return err
-	}
-
-	return nil
+	// Tell all data nodes in the cluster to
+	// delete their local files for this database.
+	return e.MetaExecutor.ExecuteStatement(stmt, "")
 }
 
 // executeDropRetentionPolicy closes all local shards for the retention

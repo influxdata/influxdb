@@ -219,3 +219,65 @@ func (w *WriteShardResponse) UnmarshalBinary(buf []byte) error {
 	}
 	return nil
 }
+
+// ExecuteStatementRequest represents the a request to execute a statement on a node.
+type ExecuteStatementRequest struct {
+	pb internal.ExecuteStatementRequest
+}
+
+// Statement returns the InfluxQL statement.
+func (r *ExecuteStatementRequest) Statement() string { return r.pb.GetStatement() }
+
+// SetStatement sets the InfluxQL statement.
+func (r *ExecuteStatementRequest) SetStatement(statement string) {
+	r.pb.Statement = proto.String(statement)
+}
+
+// Database returns the database name.
+func (r *ExecuteStatementRequest) Database() string { return r.pb.GetDatabase() }
+
+// SetDatabase sets the database name.
+func (r *ExecuteStatementRequest) SetDatabase(database string) { r.pb.Database = proto.String(database) }
+
+// MarshalBinary encodes the object to a binary format.
+func (m *ExecuteStatementRequest) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&m.pb)
+}
+
+// UnmarshalBinary populates ExecuteStatementRequest from a binary format.
+func (m *ExecuteStatementRequest) UnmarshalBinary(buf []byte) error {
+	if err := proto.Unmarshal(buf, &m.pb); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ExecuteStatementResponse represents the response returned from a remote ExecuteStatementRequest call.
+type ExecuteStatementResponse struct {
+	pb internal.WriteShardResponse
+}
+
+// Code returns the response code.
+func (w *ExecuteStatementResponse) Code() int { return int(w.pb.GetCode()) }
+
+// SetCode sets the Code
+func (w *ExecuteStatementResponse) SetCode(code int) { w.pb.Code = proto.Int32(int32(code)) }
+
+// Message returns the repsonse message.
+func (w *ExecuteStatementResponse) Message() string { return w.pb.GetMessage() }
+
+// SetMessage sets the Message
+func (w *ExecuteStatementResponse) SetMessage(message string) { w.pb.Message = &message }
+
+// MarshalBinary encodes the object to a binary format.
+func (m *ExecuteStatementResponse) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&m.pb)
+}
+
+// UnmarshalBinary populates ExecuteStatementResponse from a binary format.
+func (m *ExecuteStatementResponse) UnmarshalBinary(buf []byte) error {
+	if err := proto.Unmarshal(buf, &m.pb); err != nil {
+		return err
+	}
+	return nil
+}
