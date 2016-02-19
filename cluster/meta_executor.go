@@ -55,12 +55,12 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 	defer close(errs)
 
 	for _, node := range nodes {
-		go func() {
+		go func(node meta.NodeInfo) {
 			defer wg.Done()
 			if err := m.executeOnNode(stmt, database, &node); err != nil {
 				errs <- err
 			}
-		}()
+		}(node)
 	}
 
 	// Wait on all nodes to execute the statement and respond.
@@ -84,6 +84,7 @@ func (m *MetaExecutor) executeOnNode(stmt influxql.Statement, database string, n
 	//}
 
 	// We're executing on a remote node so establish a connection.
+	fmt.Printf("dialing: %v\n", node)
 	c, err := m.dial(node.ID)
 	if err != nil {
 		return err
