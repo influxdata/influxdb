@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/toml"
 )
 
-// Ensure the shard writer can successful write a single request.
+// Ensure the shard writer can successfully write a single request.
 func TestShardWriter_WriteShard_Success(t *testing.T) {
 	ts := newTestWriteService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
