@@ -36,7 +36,7 @@ type handler struct {
 		leaderHTTP() string
 		snapshot() (*Data, error)
 		apply(b []byte) error
-		join(n *NodeInfo) error
+		join(n *NodeInfo) (*NodeInfo, error)
 		otherMetaServersHTTP() []string
 		peers() []string
 	}
@@ -141,7 +141,7 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err := h.store.join(n)
+		node, err := h.store.join(n)
 		if err == raft.ErrNotLeader {
 			l := h.store.leaderHTTP()
 			if l == "" {
@@ -162,6 +162,13 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.httpError(err, w, http.StatusInternalServerError)
 			return
+		}
+
+		// Return the node with newly assigned ID as json
+		w.Header().Add("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		if err := enc.Encode(node); err != nil {
+			h.httpError(err, w, http.StatusInternalServerError)
 		}
 
 		return
