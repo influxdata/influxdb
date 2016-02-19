@@ -64,7 +64,7 @@ func TestSelectStatement_Substatement(t *testing.T) {
 		{
 			stmt: `SELECT value FROM myseries WHERE value > 1`,
 			expr: &influxql.VarRef{Val: "value"},
-			sub:  `SELECT value FROM myseries WHERE value > 1.000`,
+			sub:  `SELECT value FROM myseries WHERE value > 1`,
 		},
 
 		// 1. Simple join
@@ -92,14 +92,14 @@ func TestSelectStatement_Substatement(t *testing.T) {
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE aa.host = 'servera' AND (bb.host = 'serverb' OR bb.host = 'serverc') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT "bb.value" FROM bb WHERE ("bb.host" = 'serverb' OR "bb.host" = 'serverc') AND 1.000 = 2.000`,
+			sub:  `SELECT "bb.value" FROM bb WHERE ("bb.host" = 'serverb' OR "bb.host" = 'serverc') AND 1 = 2`,
 		},
 
 		// 5. 4 with different condition order
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE ((bb.host = 'serverb' OR bb.host = 'serverc') AND aa.host = 'servera') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT "bb.value" FROM bb WHERE (("bb.host" = 'serverb' OR "bb.host" = 'serverc')) AND 1.000 = 2.000`,
+			sub:  `SELECT "bb.value" FROM bb WHERE (("bb.host" = 'serverb' OR "bb.host" = 'serverc')) AND 1 = 2`,
 		},
 	}
 
@@ -766,6 +766,7 @@ func TestTimeRange(t *testing.T) {
 
 		// number literal
 		{expr: `time < 10`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
+		{expr: `time < 10i`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
 
 		// Equality
 		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00.000000001Z`},
@@ -856,7 +857,7 @@ func TestRewrite(t *testing.T) {
 	})
 
 	// Verify that everything is flipped.
-	if act := act.String(); act != `2.000 = foo OR 1.000 > time` {
+	if act := act.String(); act != `2 = foo OR 1 > time` {
 		t.Fatalf("unexpected result: %s", act)
 	}
 }
@@ -877,7 +878,7 @@ func TestRewriteExpr(t *testing.T) {
 	})
 
 	// Verify that everything is flipped.
-	if act := act.String(); act != `foo = 2.000` {
+	if act := act.String(); act != `foo = 2` {
 		t.Fatalf("unexpected result: %s", act)
 	}
 }
@@ -995,7 +996,7 @@ func TestEval(t *testing.T) {
 		data map[string]interface{}
 	}{
 		// Number literals.
-		{in: `1 + 2`, out: float64(3)},
+		{in: `1 + 2`, out: int64(3)},
 		{in: `(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, out: float64(26.5), data: map[string]interface{}{"foo": float64(5)}},
 		{in: `foo / 2`, out: float64(2), data: map[string]interface{}{"foo": float64(4)}},
 		{in: `4 = 4`, out: true},
@@ -1005,6 +1006,9 @@ func TestEval(t *testing.T) {
 		{in: `4 < 6`, out: true},
 		{in: `4 <= 4`, out: true},
 		{in: `4 AND 5`, out: nil},
+		{in: `0 = 'test'`, out: false},
+		{in: `1.0 = 1`, out: true},
+		{in: `1.2 = 1`, out: false},
 
 		// Boolean literals.
 		{in: `true AND false`, out: false},
@@ -1049,17 +1053,18 @@ func TestReduce(t *testing.T) {
 		data Valuer
 	}{
 		// Number literals.
-		{in: `1 + 2`, out: `3.000`},
-		{in: `(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, out: `(foo * 2.000) + 16.500`},
-		{in: `foo(bar(2 + 3), 4)`, out: `foo(bar(5.000), 4.000)`},
+		{in: `1 + 2`, out: `3`},
+		{in: `(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, out: `(foo * 2) + 16.500`},
+		{in: `foo(bar(2 + 3), 4)`, out: `foo(bar(5), 4)`},
 		{in: `4 / 0`, out: `0.000`},
+		{in: `1 / 2`, out: `0.500`},
 		{in: `4 = 4`, out: `true`},
 		{in: `4 <> 4`, out: `false`},
 		{in: `6 > 4`, out: `true`},
 		{in: `4 >= 4`, out: `true`},
 		{in: `4 < 6`, out: `true`},
 		{in: `4 <= 4`, out: `true`},
-		{in: `4 AND 5`, out: `4.000 AND 5.000`},
+		{in: `4 AND 5`, out: `4 AND 5`},
 
 		// Boolean literals.
 		{in: `true AND false`, out: `false`},
@@ -1097,7 +1102,7 @@ func TestReduce(t *testing.T) {
 		{in: `60s >= 1m`, out: `true`},
 		{in: `60s AND 1m`, out: `1m AND 1m`},
 		{in: `60m / 0`, out: `0s`},
-		{in: `60m + 50`, out: `1h + 50.000`},
+		{in: `60m + 50`, out: `1h + 50`},
 
 		// String literals.
 		{in: `'foo' + 'bar'`, out: `'foobar'`},

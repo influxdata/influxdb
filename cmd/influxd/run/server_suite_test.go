@@ -41,7 +41,7 @@ func init() {
 			&Query{
 				name:    "create database with retention replication should error with bad retention replication number",
 				command: `CREATE DATABASE db0 WITH REPLICATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected number at line 1, char 38"}`,
+				exp:     `{"error":"error parsing query: found xyz, expected integer at line 1, char 38"}`,
 			},
 			&Query{
 				name:    "create database with retention name should error with missing retention name",

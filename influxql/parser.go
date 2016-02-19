@@ -463,13 +463,8 @@ Loop:
 // parseInt parses a string and returns an integer literal.
 func (p *Parser) parseInt(min, max int) (int, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != NUMBER {
-		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
-	}
-
-	// Return an error if the number has a fractional part.
-	if strings.Contains(lit, ".") {
-		return 0, &ParseError{Message: "number must be an integer", Pos: pos}
+	if tok != INTEGER {
+		return 0, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
 	}
 
 	// Convert string to int.
@@ -489,8 +484,8 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 // parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
 func (p *Parser) parseUInt32() (uint32, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != NUMBER {
-		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	if tok != INTEGER {
+		return 0, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
 	}
 
 	// Convert string to unsigned 32-bit integer
@@ -505,8 +500,8 @@ func (p *Parser) parseUInt32() (uint32, error) {
 // parseUInt64 parses a string and returns a 64-bit unsigned integer literal.
 func (p *Parser) parseUInt64() (uint64, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != NUMBER {
-		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	if tok != INTEGER {
+		return 0, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
 	}
 
 	// Convert string to unsigned 64-bit integer
@@ -2065,11 +2060,14 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 	case "previous":
 		return PreviousFill, nil, nil
 	default:
-		num, ok := lit.Args[0].(*NumberLiteral)
-		if !ok {
+		switch num := lit.Args[0].(type) {
+		case *IntegerLiteral:
+			return NumberFill, num.Val, nil
+		case *NumberLiteral:
+			return NumberFill, num.Val, nil
+		default:
 			return NullFill, nil, fmt.Errorf("expected number argument in fill()")
 		}
-		return NumberFill, num.Val, nil
 	}
 }
 
@@ -2084,19 +2082,12 @@ func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
 
 	// Scan the number.
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != NUMBER {
-		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
-	}
-
-	// Return an error if the number has a fractional part.
-	if strings.Contains(lit, ".") {
-		msg := fmt.Sprintf("fractional parts not allowed in %s", t.String())
-		return 0, &ParseError{Message: msg, Pos: pos}
+	if tok != INTEGER {
+		return 0, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
 	}
 
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
-
 	if n < 0 {
 		msg := fmt.Sprintf("%s must be >= 0", t.String())
 		return 0, &ParseError{Message: msg, Pos: pos}
@@ -2346,6 +2337,12 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return nil, &ParseError{Message: "unable to parse number", Pos: pos}
 		}
 		return &NumberLiteral{Val: v}, nil
+	case INTEGER:
+		v, err := strconv.ParseInt(lit, 10, 64)
+		if err != nil {
+			return nil, &ParseError{Message: "unable to parse integer", Pos: pos}
+		}
+		return &IntegerLiteral{Val: v}, nil
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
 	case DURATIONVAL:
