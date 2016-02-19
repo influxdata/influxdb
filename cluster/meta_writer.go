@@ -29,13 +29,5 @@ func NewMetaWriter() *MetaWriter {
 func (m *MetaWriter) DropDatabase(name string) error {
 	println("MetaWriter.DropDatabase start")
 	defer println("MetaWriter.DropDatabase end")
-	dbi, err := m.MetaClient.Database(name)
-	if err != nil {
-		return err
-	} else if dbi == nil {
-		return nil
-	}
-
-	// Remove the database from the local store
 	return m.TSDBStore.DeleteDatabase(name)
 }
