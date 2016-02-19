@@ -23,3 +23,13 @@ message MapShardResponse {
     repeated string TagSets = 4;
     repeated string Fields = 5;
 }
+
+message ExecuteStatementRequest {
+    required string Statement = 1;
+    required string Database = 2;
+}
+
+message ExecuteStatementResponse {
+    required int32 Code = 1;
+    optional string Message = 2;
+}

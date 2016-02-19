@@ -14,6 +14,8 @@ const (
 	writeShardResponseMessage
 	mapShardRequestMessage
 	mapShardResponseMessage
+	executeStatementRequestMessage
+	executeStatementResponseMessage
 )
 
 // ShardWriter writes a set of points to a shard.

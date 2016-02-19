@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -48,8 +49,11 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []models.Point) error
-		// CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
+		DeleteDatabase(name string) error
+		DeleteMeasurement(database, name string) error
 	}
+
+	MetaWriter *MetaWriter
 
 	Logger  *log.Logger
 	statMap *expvar.Map
@@ -174,10 +178,44 @@ func (s *Service) handleConn(conn net.Conn) {
 					}
 				}
 			*/
+		case executeStatementRequestMessage:
+			err := s.processExecuteStatementRequest(buf)
+			if err != nil {
+				s.Logger.Printf("process execute statement error: %s", err)
+			}
+			s.writeShardResponse(conn, err)
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
 	}
+}
+
+func (s *Service) processExecuteStatementRequest(buf []byte) error {
+	println("cluster.Service.processExecuteStatementRequest start")
+	defer println("cluster.Service.processExecuteStatementRequest end")
+	// Unmarshal the request.
+	var req ExecuteStatementRequest
+	if err := req.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
+	// Parse the InfluxQL statement.
+	stmt, err := influxql.ParseStatement(req.Statement())
+	if err != nil {
+		return err
+	}
+
+	return s.executeStatement(stmt)
+}
+
+func (s *Service) executeStatement(stmt influxql.Statement) error {
+	switch t := stmt.(type) {
+	case *influxql.DropDatabaseStatement:
+		s.MetaWriter.DropDatabase(t.Name)
+	default:
+		panic("statement not implemented")
+	}
+	return nil
 }
 
 func (s *Service) processWriteShardRequest(buf []byte) error {

@@ -23,11 +23,13 @@ func (m *metaClient) DataNode(nodeID uint64) (*meta.NodeInfo, error) {
 }
 
 type testService struct {
-	nodeID          uint64
-	ln              net.Listener
-	muxln           net.Listener
-	writeShardFunc  func(shardID uint64, points []models.Point) error
-	createShardFunc func(database, policy string, shardID uint64) error
+	nodeID                uint64
+	ln                    net.Listener
+	muxln                 net.Listener
+	writeShardFunc        func(shardID uint64, points []models.Point) error
+	createShardFunc       func(database, policy string, shardID uint64) error
+	deleteDatabaseFunc    func(database string) error
+	deleteMeasurementFunc func(database, name string) error
 }
 
 func newTestWriteService(f func(shardID uint64, points []models.Point) error) testService {
@@ -66,6 +68,14 @@ func (t testService) WriteToShard(shardID uint64, points []models.Point) error {
 
 func (t testService) CreateShard(database, policy string, shardID uint64) error {
 	return t.createShardFunc(database, policy, shardID)
+}
+
+func (t testService) DeleteDatabase(database string) error {
+	return t.deleteDatabaseFunc(database)
+}
+
+func (t testService) DeleteMeasurement(database, name string) error {
+	return t.deleteMeasurementFunc(database, name)
 }
 
 func writeShardSuccess(shardID uint64, points []models.Point) error {
