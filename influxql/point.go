@@ -1,6 +1,9 @@
 package influxql
 
 import (
+	"bytes"
+	"encoding/binary"
+	"io"
 	"sort"
 
 	"github.com/gogo/protobuf/proto"
@@ -164,7 +167,26 @@ func encodeTags(m map[string]string) []byte {
 }
 
 // decodeTags parses an identifier into a map of tags.
-func decodeTags(id []byte) map[string]string { panic("FIXME: implement") }
+func decodeTags(id []byte) map[string]string {
+	a := bytes.Split(id, []byte{'\x00'})
+
+	// There must be an even number of segments.
+	if len(a) > 0 && len(a)%2 == 1 {
+		a = a[:len(a)-1]
+	}
+
+	// Return nil if there are no segments.
+	if len(a) == 0 {
+		return nil
+	}
+
+	// Decode key/value tags.
+	m := make(map[string]string)
+	for i := 0; i < len(a); i += 2 {
+		m[string(a[i])] = string(a[i+1])
+	}
+	return m
+}
 
 func encodeAux(aux []interface{}) []*internal.Aux {
 	pb := make([]*internal.Aux, len(aux))
@@ -226,4 +248,47 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 		}
 	}
 	return aux
+}
+
+// NewPointDecoder decodes generic points from a reader.
+type PointDecoder struct {
+	r io.Reader
+}
+
+// NewPointDecoder returns a new instance of PointDecoder that reads from r.
+func NewPointDecoder(r io.Reader) *PointDecoder {
+	return &PointDecoder{r: r}
+}
+
+// DecodePoint reads from the underlying reader and unmarshals into p.
+func (dec *PointDecoder) DecodePoint(p *Point) error {
+	// Read length.
+	var sz uint32
+	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+
+	// Read point data.
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(dec.r, buf); err != nil {
+		return err
+	}
+
+	// Unmarshal into point.
+	var pb internal.Point
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+
+	if pb.IntegerValue != nil {
+		*p = decodeIntegerPoint(&pb)
+	} else if pb.StringValue != nil {
+		*p = decodeStringPoint(&pb)
+	} else if pb.BooleanValue != nil {
+		*p = decodeBooleanPoint(&pb)
+	} else {
+		*p = decodeFloatPoint(&pb)
+	}
+
+	return nil
 }

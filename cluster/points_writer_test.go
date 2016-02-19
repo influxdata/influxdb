@@ -13,9 +13,11 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 )
 
+// TODO(benbjohnson): Rewrite tests to use cluster_test.MetaClient.
+
 // Ensures the points writer maps a single point to a single shard.
 func TestPointsWriter_MapShards_One(t *testing.T) {
-	ms := MetaClient{}
+	ms := PointsWriterMetaClient{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 
 	ms.NodeIDFn = func() uint64 { return 1 }
@@ -50,7 +52,7 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 
 // Ensures the points writer maps a multiple points across shard group boundaries.
 func TestPointsWriter_MapShards_Multiple(t *testing.T) {
-	ms := MetaClient{}
+	ms := PointsWriterMetaClient{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 	AttachShardGroupInfo(rp, []meta.ShardOwner{
 		{NodeID: 1},
@@ -304,7 +306,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			},
 		}
 
-		ms := NewMetaClient()
+		ms := NewPointsWriterMetaClient()
 		ms.DatabaseFn = func(database string) (*meta.DatabaseInfo, error) {
 			return nil, nil
 		}
@@ -374,8 +376,8 @@ func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64
 	return f.CreateShardfn(database, retentionPolicy, shardID)
 }
 
-func NewMetaClient() *MetaClient {
-	ms := &MetaClient{}
+func NewPointsWriterMetaClient() *PointsWriterMetaClient {
+	ms := &PointsWriterMetaClient{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 	AttachShardGroupInfo(rp, []meta.ShardOwner{
 		{NodeID: 1},
@@ -403,7 +405,7 @@ func NewMetaClient() *MetaClient {
 	return ms
 }
 
-type MetaClient struct {
+type PointsWriterMetaClient struct {
 	NodeIDFn                      func() uint64
 	RetentionPolicyFn             func(database, name string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupIfNotExistsFn func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
@@ -411,21 +413,21 @@ type MetaClient struct {
 	ShardOwnerFn                  func(shardID uint64) (string, string, *meta.ShardGroupInfo)
 }
 
-func (m MetaClient) NodeID() uint64 { return m.NodeIDFn() }
+func (m PointsWriterMetaClient) NodeID() uint64 { return m.NodeIDFn() }
 
-func (m MetaClient) RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error) {
+func (m PointsWriterMetaClient) RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error) {
 	return m.RetentionPolicyFn(database, name)
 }
 
-func (m MetaClient) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
+func (m PointsWriterMetaClient) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	return m.CreateShardGroupIfNotExistsFn(database, policy, timestamp)
 }
 
-func (m MetaClient) Database(database string) (*meta.DatabaseInfo, error) {
+func (m PointsWriterMetaClient) Database(database string) (*meta.DatabaseInfo, error) {
 	return m.DatabaseFn(database)
 }
 
-func (m MetaClient) ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo) {
+func (m PointsWriterMetaClient) ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo) {
 	return m.ShardOwnerFn(shardID)
 }
 

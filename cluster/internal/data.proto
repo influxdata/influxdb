@@ -2,34 +2,51 @@ package internal;
 
 message WriteShardRequest {
     required uint64 ShardID = 1;
-    repeated bytes Points = 2;
+    repeated bytes  Points  = 2;
 }
 
 message WriteShardResponse {
-    required int32 Code = 1;
+    required int32  Code    = 1;
     optional string Message = 2;
-}
-
-message MapShardRequest {
-    required uint64 ShardID = 1;
-    required string Query = 2;
-    required int32 ChunkSize = 3;
-}
-
-message MapShardResponse {
-    required int32 Code = 1;
-    optional string Message = 2;
-    optional bytes Data = 3;
-    repeated string TagSets = 4;
-    repeated string Fields = 5;
 }
 
 message ExecuteStatementRequest {
     required string Statement = 1;
-    required string Database = 2;
+    required string Database  = 2;
 }
 
 message ExecuteStatementResponse {
-    required int32 Code = 1;
+    required int32  Code    = 1;
     optional string Message = 2;
 }
+
+message CreateIteratorRequest {
+    repeated uint64 ShardIDs = 1;
+    required bytes  Opt      = 2;
+}
+
+message CreateIteratorResponse {
+    optional string Err = 1;
+}
+
+message FieldDimensionsRequest {
+    repeated uint64 ShardIDs = 1;
+    required bytes  Sources  = 2;
+}
+
+message FieldDimensionsResponse {
+    repeated string Fields     = 1;
+    repeated string Dimensions = 2;
+    optional string Err        = 3;
+}
+
+message SeriesKeysRequest {
+    repeated uint64 ShardIDs = 1;
+    required bytes  Opt      = 2;
+}
+
+message SeriesKeysResponse {
+    optional bytes  SeriesList = 1;
+    optional string Err        = 2;
+}
+

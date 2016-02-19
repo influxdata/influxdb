@@ -16,7 +16,7 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 	ts := newTestWriteService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
-	s.TSDBStore = ts
+	s.TSDBStore = &ts.TSDBStore
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 	ts := newTestWriteService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
-	s.TSDBStore = ts
+	s.TSDBStore = &ts.TSDBStore
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 	ts := newTestWriteService(writeShardFail)
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
-	s.TSDBStore = ts
+	s.TSDBStore = &ts.TSDBStore
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	ts := newTestWriteService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
-	s.TSDBStore = ts
+	s.TSDBStore = &ts.TSDBStore
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestShardWriter_Write_PoolMax(t *testing.T) {
 		ShardWriterTimeout: toml.Duration(100 * time.Millisecond),
 	})
 	s.Listener = ts.muxln
-	s.TSDBStore = ts
+	s.TSDBStore = &ts.TSDBStore
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}

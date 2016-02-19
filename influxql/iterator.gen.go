@@ -10,6 +10,7 @@ import (
 	"container/heap"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"sort"
 	"sync"
@@ -909,6 +910,52 @@ func (itr *floatDedupeIterator) Next() *FloatPoint {
 	}
 }
 
+// floatReaderIterator represents an iterator that streams from a reader.
+type floatReaderIterator struct {
+	r     io.Reader
+	dec   *FloatPointDecoder
+	first *FloatPoint
+}
+
+// newFloatReaderIterator returns a new instance of floatReaderIterator.
+func newFloatReaderIterator(r io.Reader, first *FloatPoint) *floatReaderIterator {
+	return &floatReaderIterator{
+		r:     r,
+		dec:   NewFloatPointDecoder(r),
+		first: first,
+	}
+}
+
+// Close closes the underlying reader, if applicable.
+func (itr *floatReaderIterator) Close() error {
+	if r, ok := itr.r.(io.ReadCloser); ok {
+		return r.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *floatReaderIterator) Next() *FloatPoint {
+	// Send first point if it hasn't been sent yet.
+	if itr.first != nil {
+		p := itr.first
+		itr.first = nil
+		return p
+	}
+
+	// OPTIMIZE(benbjohnson): Reuse point on iterator.
+
+	// Unmarshal next point.
+	p := &FloatPoint{}
+	if err := itr.dec.DecodeFloatPoint(p); err == io.EOF {
+		return nil
+	} else if err != nil {
+		log.Printf("error reading iterator point: %s", err)
+		return nil
+	}
+	return p
+}
+
 // IntegerIterator represents a stream of integer points.
 type IntegerIterator interface {
 	Iterator
@@ -1796,6 +1843,52 @@ func (itr *integerDedupeIterator) Next() *IntegerPoint {
 		itr.m[string(buf)] = struct{}{}
 		return p
 	}
+}
+
+// integerReaderIterator represents an iterator that streams from a reader.
+type integerReaderIterator struct {
+	r     io.Reader
+	dec   *IntegerPointDecoder
+	first *IntegerPoint
+}
+
+// newIntegerReaderIterator returns a new instance of integerReaderIterator.
+func newIntegerReaderIterator(r io.Reader, first *IntegerPoint) *integerReaderIterator {
+	return &integerReaderIterator{
+		r:     r,
+		dec:   NewIntegerPointDecoder(r),
+		first: first,
+	}
+}
+
+// Close closes the underlying reader, if applicable.
+func (itr *integerReaderIterator) Close() error {
+	if r, ok := itr.r.(io.ReadCloser); ok {
+		return r.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *integerReaderIterator) Next() *IntegerPoint {
+	// Send first point if it hasn't been sent yet.
+	if itr.first != nil {
+		p := itr.first
+		itr.first = nil
+		return p
+	}
+
+	// OPTIMIZE(benbjohnson): Reuse point on iterator.
+
+	// Unmarshal next point.
+	p := &IntegerPoint{}
+	if err := itr.dec.DecodeIntegerPoint(p); err == io.EOF {
+		return nil
+	} else if err != nil {
+		log.Printf("error reading iterator point: %s", err)
+		return nil
+	}
+	return p
 }
 
 // StringIterator represents a stream of string points.
@@ -2687,6 +2780,52 @@ func (itr *stringDedupeIterator) Next() *StringPoint {
 	}
 }
 
+// stringReaderIterator represents an iterator that streams from a reader.
+type stringReaderIterator struct {
+	r     io.Reader
+	dec   *StringPointDecoder
+	first *StringPoint
+}
+
+// newStringReaderIterator returns a new instance of stringReaderIterator.
+func newStringReaderIterator(r io.Reader, first *StringPoint) *stringReaderIterator {
+	return &stringReaderIterator{
+		r:     r,
+		dec:   NewStringPointDecoder(r),
+		first: first,
+	}
+}
+
+// Close closes the underlying reader, if applicable.
+func (itr *stringReaderIterator) Close() error {
+	if r, ok := itr.r.(io.ReadCloser); ok {
+		return r.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *stringReaderIterator) Next() *StringPoint {
+	// Send first point if it hasn't been sent yet.
+	if itr.first != nil {
+		p := itr.first
+		itr.first = nil
+		return p
+	}
+
+	// OPTIMIZE(benbjohnson): Reuse point on iterator.
+
+	// Unmarshal next point.
+	p := &StringPoint{}
+	if err := itr.dec.DecodeStringPoint(p); err == io.EOF {
+		return nil
+	} else if err != nil {
+		log.Printf("error reading iterator point: %s", err)
+		return nil
+	}
+	return p
+}
+
 // BooleanIterator represents a stream of boolean points.
 type BooleanIterator interface {
 	Iterator
@@ -3573,5 +3712,145 @@ func (itr *booleanDedupeIterator) Next() *BooleanPoint {
 		// Otherwise mark it as emitted and return point.
 		itr.m[string(buf)] = struct{}{}
 		return p
+	}
+}
+
+// booleanReaderIterator represents an iterator that streams from a reader.
+type booleanReaderIterator struct {
+	r     io.Reader
+	dec   *BooleanPointDecoder
+	first *BooleanPoint
+}
+
+// newBooleanReaderIterator returns a new instance of booleanReaderIterator.
+func newBooleanReaderIterator(r io.Reader, first *BooleanPoint) *booleanReaderIterator {
+	return &booleanReaderIterator{
+		r:     r,
+		dec:   NewBooleanPointDecoder(r),
+		first: first,
+	}
+}
+
+// Close closes the underlying reader, if applicable.
+func (itr *booleanReaderIterator) Close() error {
+	if r, ok := itr.r.(io.ReadCloser); ok {
+		return r.Close()
+	}
+	return nil
+}
+
+// Next returns the next point from the iterator.
+func (itr *booleanReaderIterator) Next() *BooleanPoint {
+	// Send first point if it hasn't been sent yet.
+	if itr.first != nil {
+		p := itr.first
+		itr.first = nil
+		return p
+	}
+
+	// OPTIMIZE(benbjohnson): Reuse point on iterator.
+
+	// Unmarshal next point.
+	p := &BooleanPoint{}
+	if err := itr.dec.DecodeBooleanPoint(p); err == io.EOF {
+		return nil
+	} else if err != nil {
+		log.Printf("error reading iterator point: %s", err)
+		return nil
+	}
+	return p
+}
+
+// IteratorEncoder is an encoder for encoding an iterator's points to w.
+type IteratorEncoder struct {
+	w io.Writer
+}
+
+// NewIteratorEncoder encodes an iterator's points to w.
+func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
+	return &IteratorEncoder{w: w}
+}
+
+// Encode encodes and writes all of itr's points to the underlying writer.
+func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
+	switch itr := itr.(type) {
+	case FloatIterator:
+		return enc.encodeFloatIterator(itr)
+	case IntegerIterator:
+		return enc.encodeIntegerIterator(itr)
+	case StringIterator:
+		return enc.encodeStringIterator(itr)
+	case BooleanIterator:
+		return enc.encodeBooleanIterator(itr)
+	default:
+		panic(fmt.Sprintf("unsupported iterator for encoder: %T", itr))
+	}
+}
+
+// encodeFloatIterator encodes all points from itr to the underlying writer.
+func (enc *IteratorEncoder) encodeFloatIterator(itr FloatIterator) error {
+	penc := NewFloatPointEncoder(enc.w)
+	for {
+		// Retrieve the next point from the iterator.
+		p := itr.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Write the point to the point encoder.
+		if err := penc.EncodeFloatPoint(p); err != nil {
+			return err
+		}
+	}
+}
+
+// encodeIntegerIterator encodes all points from itr to the underlying writer.
+func (enc *IteratorEncoder) encodeIntegerIterator(itr IntegerIterator) error {
+	penc := NewIntegerPointEncoder(enc.w)
+	for {
+		// Retrieve the next point from the iterator.
+		p := itr.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Write the point to the point encoder.
+		if err := penc.EncodeIntegerPoint(p); err != nil {
+			return err
+		}
+	}
+}
+
+// encodeStringIterator encodes all points from itr to the underlying writer.
+func (enc *IteratorEncoder) encodeStringIterator(itr StringIterator) error {
+	penc := NewStringPointEncoder(enc.w)
+	for {
+		// Retrieve the next point from the iterator.
+		p := itr.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Write the point to the point encoder.
+		if err := penc.EncodeStringPoint(p); err != nil {
+			return err
+		}
+	}
+}
+
+// encodeBooleanIterator encodes all points from itr to the underlying writer.
+func (enc *IteratorEncoder) encodeBooleanIterator(itr BooleanIterator) error {
+	penc := NewBooleanPointEncoder(enc.w)
+	for {
+		// Retrieve the next point from the iterator.
+		p := itr.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Write the point to the point encoder.
+		if err := penc.EncodeBooleanPoint(p); err != nil {
+			return err
+		}
 	}
 }
