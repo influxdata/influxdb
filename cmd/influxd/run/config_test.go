@@ -166,3 +166,23 @@ enabled = false
 		t.Fatalf("expected error, got nil")
 	}
 }
+
+func TestConfig_ValidateMonitorStore_MetaOnly(t *testing.T) {
+	c := run.NewConfig()
+	if _, err := toml.Decode(`
+[monitor]
+store-enabled = true
+
+[meta]
+dir = "foo"
+
+[data]
+enabled = false
+`, &c); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.Validate(); err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+}
