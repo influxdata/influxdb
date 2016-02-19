@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb"
 )
 
 const (
@@ -31,6 +33,8 @@ type Service struct {
 	err      chan error
 	Logger   *log.Logger
 	store    *store
+
+	Node *influxdb.Node
 }
 
 // NewService returns a new instance of Service.
@@ -112,6 +116,7 @@ func (s *Service) Open() error {
 
 	// Open the store.  The addresses passed in are remotely accessible.
 	s.store = newStore(s.config, s.remoteAddr(s.httpAddr), s.remoteAddr(s.raftAddr))
+	s.store.node = s.Node
 
 	handler := newHandler(s.config, s)
 	handler.logger = s.Logger

@@ -796,14 +796,14 @@ func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *Shard
 
 // JoinMetaServer will add the passed in tcpAddr to the raft peers and add a MetaNode to
 // the metastore
-func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
+func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*NodeInfo, error) {
 	node := &NodeInfo{
 		Host:    httpAddr,
 		TCPHost: tcpAddr,
 	}
 	b, err := json.Marshal(node)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	currentServer := 0
@@ -834,12 +834,17 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
 			currentServer++
 			continue
 		}
-		resp.Body.Close()
 
 		// Successfully joined
 		if resp.StatusCode == http.StatusOK {
-			return nil
+			defer resp.Body.Close()
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&node); err != nil {
+				return nil, err
+			}
+			break
 		}
+		resp.Body.Close()
 
 		// We tried to join a meta node that was not the leader, rety at the node
 		// they think is the leader.
@@ -851,6 +856,8 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) error {
 		// Something failed, try the next node
 		currentServer++
 	}
+
+	return node, nil
 }
 
 func (c *Client) CreateMetaNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
