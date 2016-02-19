@@ -3,15 +3,12 @@ package enterprise
 import (
 	"fmt"
 	"log"
-	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/influxdata/enterprise-client/v2"
-	"github.com/influxdata/enterprise-client/v2/admin"
 	"github.com/influxdata/influxdb/monitor"
 )
 
@@ -36,10 +33,6 @@ type Service struct {
 
 	adminPort string
 
-	tokenAvailable chan struct{}
-	token          string
-	secretKey      string
-
 	wg   sync.WaitGroup
 	done chan struct{}
 
@@ -49,14 +42,13 @@ type Service struct {
 // NewService returns a configured enterprise service.
 func NewService(c Config, version string) (*Service, error) {
 	return &Service{
-		enabled:        c.Enabled,
-		hosts:          c.Hosts,
-		statsInterval:  time.Duration(c.StatsInterval),
-		version:        version,
-		done:           make(chan struct{}),
-		tokenAvailable: make(chan struct{}),
-		logger:         log.New(os.Stderr, "[enterprise] ", log.LstdFlags),
-		adminPort:      fmt.Sprintf(":%d", c.AdminPort),
+		enabled:       c.Enabled,
+		hosts:         c.Hosts,
+		statsInterval: time.Duration(c.StatsInterval),
+		version:       version,
+		done:          make(chan struct{}),
+		logger:        log.New(os.Stderr, "[enterprise] ", log.LstdFlags),
+		adminPort:     fmt.Sprintf(":%d", c.AdminPort),
 	}, nil
 }
 
@@ -78,7 +70,6 @@ func (s *Service) Open() error {
 
 	s.wg.Add(2)
 	go s.reportStats()
-	go s.launchAdminInterface()
 
 	return nil
 }
@@ -149,15 +140,8 @@ func (s *Service) registerServer() error {
 			s.logger.Printf("failed to register InfluxDB with %s: received code %s, error: %s", resp.Response.Request.URL.String(), resp.Status, err)
 			return
 		}
-		for _, host := range cl.Hosts {
-			if host.Primary {
-				s.token = host.Token
-				s.secretKey = host.SecretKey
-			}
-		}
 		s.hosts = cl.Hosts
 		s.updateLastContact(time.Now().UTC())
-		close(s.tokenAvailable)
 	}()
 	return nil
 }
@@ -207,42 +191,6 @@ func (s *Service) reportStats() {
 		case <-s.done:
 			return
 		}
-	}
-}
-
-func (s *Service) launchAdminInterface() {
-	defer s.wg.Done()
-
-	// block until server is registered with Enterprise
-	// otherwise die.
-	select {
-	case <-s.tokenAvailable:
-		break
-	case <-s.done:
-		return
-	}
-
-	srv := &http.Server{
-		Addr:         s.adminPort,
-		Handler:      admin.App(s.token, []byte(s.secretKey)),
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-	}
-
-	l, err := net.Listen("tcp", s.adminPort)
-	if err != nil {
-		s.logger.Printf("Unable to bind enterprise admin interface to port %s\n", s.adminPort)
-		return
-	}
-
-	s.logger.Printf("Starting enterprise admin interface on port %s\n", s.adminPort)
-	go srv.Serve(l)
-	select {
-	case <-s.done:
-		s.logger.Println("Shutting down enterprise admin interface...")
-		l.Close()
-		return
-		break
 	}
 }
 
