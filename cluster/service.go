@@ -49,9 +49,8 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []models.Point) error
-		DeleteDatabase(name string, shardIDs []uint64) error
+		DeleteDatabase(name string) error
 		DeleteMeasurement(database, name string) error
-		// CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	MetaWriter *MetaWriter
