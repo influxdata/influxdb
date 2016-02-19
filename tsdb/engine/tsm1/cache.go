@@ -1,11 +1,14 @@
 package tsm1
 
 import (
+	"expvar"
 	"fmt"
 	"log"
 	"os"
 	"sort"
 	"sync"
+
+	"github.com/influxdata/influxdb"
 )
 
 var ErrCacheMemoryExceeded = fmt.Errorf("cache maximum memory size exceeded")
@@ -62,6 +65,12 @@ func (e *entry) deduplicate() {
 	e.needSort = false
 }
 
+// Statistics gathered by the Cache.
+const (
+	statCacheMemoryBytes = "memBytes"  // Size of in-memory cache in bytes
+	statCacheDiskBytes   = "diskBytes" // Size of on-disk snapshots in bytes
+)
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
 	mu      sync.RWMutex
@@ -74,13 +83,20 @@ type Cache struct {
 	// they are read only and should never be modified
 	snapshots     []*Cache
 	snapshotsSize uint64
+
+	statMap *expvar.Map
+
+	// path is only used to track stats
+	path string
 }
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
-func NewCache(maxSize uint64) *Cache {
+func NewCache(maxSize uint64, path string) *Cache {
 	return &Cache{
 		maxSize: maxSize,
 		store:   make(map[string]*entry),
+		statMap: influxdb.NewStatistics("tsm1_cache:"+path, "tsm1_cache", map[string]string{"path": path}),
+		path:    path,
 	}
 }
 
@@ -98,6 +114,11 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	c.write(key, values)
 	c.size = newSize
+
+	// Update the memory size stat
+	sizeStat := new(expvar.Int)
+	sizeStat.Set(int64(c.size))
+	c.statMap.Set(statCacheMemoryBytes, sizeStat)
 
 	return nil
 }
@@ -126,6 +147,11 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	c.size = newSize
 	c.mu.Unlock()
 
+	// Update the memory size stat
+	sizeStat := new(expvar.Int)
+	sizeStat.Set(int64(newSize))
+	c.statMap.Set(statCacheMemoryBytes, sizeStat)
+
 	return nil
 }
 
@@ -135,7 +161,7 @@ func (c *Cache) Snapshot() *Cache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	snapshot := NewCache(c.maxSize)
+	snapshot := NewCache(c.maxSize, c.path+"!snapshot")
 	snapshot.store = c.store
 	snapshot.size = c.size
 
@@ -144,6 +170,15 @@ func (c *Cache) Snapshot() *Cache {
 
 	c.snapshots = append(c.snapshots, snapshot)
 	c.snapshotsSize += snapshot.size
+
+	// Update stats
+	memSizeStat := new(expvar.Int)
+	memSizeStat.Set(0)
+	c.statMap.Set(statCacheMemoryBytes, memSizeStat)
+
+	diskSizeStat := new(expvar.Int)
+	diskSizeStat.Set(int64(c.snapshotsSize))
+	c.statMap.Set(statCacheDiskBytes, diskSizeStat)
 
 	return snapshot
 }
@@ -169,6 +204,11 @@ func (c *Cache) ClearSnapshot(snapshot *Cache) {
 			break
 		}
 	}
+
+	// Update disk stats
+	diskSizeStat := new(expvar.Int)
+	diskSizeStat.Set(int64(c.snapshotsSize))
+	c.statMap.Set(statCacheDiskBytes, diskSizeStat)
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.

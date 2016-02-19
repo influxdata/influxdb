@@ -70,7 +70,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	fs := NewFileStore(path)
 	fs.traceLogging = opt.Config.DataLoggingEnabled
 
-	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize))
+	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
 	c := &Compactor{
 		Dir:       path,
