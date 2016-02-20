@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb"
 )
@@ -67,8 +68,17 @@ func (e *entry) deduplicate() {
 
 // Statistics gathered by the Cache.
 const (
-	statCacheMemoryBytes = "memBytes"  // Size of in-memory cache in bytes
-	statCacheDiskBytes   = "diskBytes" // Size of on-disk snapshots in bytes
+	// levels - point in time measures
+
+	statCacheMemoryBytes = "memBytes"      // level: Size of in-memory cache in bytes
+	statCacheDiskBytes   = "diskBytes"     // level: Size of on-disk snapshots in bytes
+	statSnapshots        = "snapshotCount" // level: Number of active snapshots.
+	statCacheAgeMs       = "cacheAgeMs"    // level: Number of milliseconds since cache was last snapshoted at sample time
+
+	// counters - accumulative measures
+
+	statCachedBytes         = "cachedBytes"         // counter: Total number of bytes written into snapshots.
+	statWALCompactionTimeMs = "WALCompactionTimeMs" // counter: Total number of milliseconds spent compacting snapshots
 )
 
 // Cache maintains an in-memory store of Values for a set of keys.
@@ -84,7 +94,8 @@ type Cache struct {
 	snapshots     []*Cache
 	snapshotsSize uint64
 
-	statMap *expvar.Map
+	statMap      *expvar.Map
+	lastSnapshot time.Time
 
 	// path is only used to track stats
 	path string
@@ -93,10 +104,11 @@ type Cache struct {
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 func NewCache(maxSize uint64, path string) *Cache {
 	return &Cache{
-		maxSize: maxSize,
-		store:   make(map[string]*entry),
-		statMap: influxdb.NewStatistics("tsm1_cache:"+path, "tsm1_cache", map[string]string{"path": path}),
-		path:    path,
+		maxSize:      maxSize,
+		store:        make(map[string]*entry),
+		statMap:      influxdb.NewStatistics("tsm1_cache:"+path, "tsm1_cache", map[string]string{"path": path}),
+		path:         path,
+		lastSnapshot: time.Now(),
 	}
 }
 
@@ -167,6 +179,7 @@ func (c *Cache) Snapshot() *Cache {
 
 	c.store = make(map[string]*entry)
 	c.size = 0
+	c.lastSnapshot = time.Now()
 
 	c.snapshots = append(c.snapshots, snapshot)
 	c.snapshotsSize += snapshot.size
@@ -179,6 +192,9 @@ func (c *Cache) Snapshot() *Cache {
 	diskSizeStat := new(expvar.Int)
 	diskSizeStat.Set(int64(c.snapshotsSize))
 	c.statMap.Set(statCacheDiskBytes, diskSizeStat)
+
+	c.statMap.Add(statCachedBytes, int64(snapshot.size))
+	c.statMap.Add(statSnapshots, 1)
 
 	return snapshot
 }
@@ -209,6 +225,8 @@ func (c *Cache) ClearSnapshot(snapshot *Cache) {
 	diskSizeStat := new(expvar.Int)
 	diskSizeStat.Set(int64(c.snapshotsSize))
 	c.statMap.Set(statCacheDiskBytes, diskSizeStat)
+
+	c.statMap.Add(statSnapshots, -1)
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
@@ -424,4 +442,18 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 		}
 	}
 	return nil
+}
+
+// Updates the age statistic
+func (c *Cache) UpdateAge() {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	ageStat := new(expvar.Int)
+	ageStat.Set(int64(time.Now().Sub(c.lastSnapshot) / time.Millisecond))
+	c.statMap.Set(statCacheAgeMs, ageStat)
+}
+
+// Updates WAL compaction time statistic
+func (c *Cache) UpdateCompactTime(d time.Duration) {
+	c.statMap.Add(statWALCompactionTimeMs, int64(d/time.Millisecond))
 }
