@@ -410,9 +410,21 @@ func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemen
 func (e *Engine) WriteSnapshot() error {
 	// Lock and grab the cache snapshot along with all the closed WAL
 	// filenames associated with the snapshot
+
+	var started *time.Time
+
+	defer func() {
+		if started != nil {
+			e.Cache.UpdateCompactTime(time.Now().Sub(*started))
+		}
+	}()
+
 	closedFiles, snapshot, compactor, err := func() ([]string, *Cache, *Compactor, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
+
+		now := time.Now()
+		started = &now
 
 		if err := e.WAL.CloseSegment(); err != nil {
 			return nil, nil, nil, err
@@ -477,6 +489,7 @@ func (e *Engine) compactCache() {
 			return
 
 		default:
+			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				err := e.WriteSnapshot()
 				if err != nil {
