@@ -1774,20 +1774,10 @@ t159,label=another a=2i,value=1i 1`
 }
 
 func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
-	ch := make(chan error)
-	go func() {
-		corrupted := []byte{0, 0, 0, 3, 102, 111, 111, 0, 0, 0, 4, 61, 34, 65, 34, 1, 0, 0, 0, 14, 206, 86, 119, 24, 32, 72, 233, 168, 2, 148}
-		p, err := models.NewPointFromBytes(corrupted)
-		p.Fields() // this method should always return, even if the data is corrupt.
-		ch <- err
-	}()
-	select {
-	case err := <-ch:
-		if err != nil {
-			t.Fatalf("unexpected error: got: %v, expected: nil", err)
-		}
-	case _ = <-time.NewTimer(time.Second).C:
-		t.Fatalf("probable infite loop. got: timeout, expected: return")
+	corrupted := []byte{0, 0, 0, 3, 102, 111, 111, 0, 0, 0, 4, 61, 34, 65, 34, 1, 0, 0, 0, 14, 206, 86, 119, 24, 32, 72, 233, 168, 2, 148}
+	p, err := models.NewPointFromBytes(corrupted)
+	if p != nil || err == nil {
+		t.Fatalf("NewPointFromBytes: got: (%v, %v), expected: (nil, error)", p, err)
 	}
 }
 

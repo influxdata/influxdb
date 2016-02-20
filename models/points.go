@@ -3,6 +3,7 @@ package models
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -25,6 +26,8 @@ var (
 		' ': []byte(`\ `),
 		'=': []byte(`\=`),
 	}
+
+	ErrPointMustHaveAField = errors.New("point without fields is unsupported")
 )
 
 // Point defines the values that will be written to the database
@@ -37,7 +40,6 @@ type Point interface {
 	SetTags(tags Tags)
 
 	Fields() Fields
-	AddField(name string, value interface{})
 
 	Time() time.Time
 	SetTime(t time.Time)
@@ -1063,7 +1065,7 @@ func unescapeStringField(in string) string {
 // an unsupported field value (NaN) or out of range time is passed, this function returns an error.
 func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, error) {
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("Point without fields is unsupported")
+		return nil, ErrPointMustHaveAField
 	}
 	if !time.IsZero() {
 		if err := CheckTime(time); err != nil {
@@ -1078,6 +1080,9 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 				return nil, fmt.Errorf("NaN is an unsupported value for field %s", key)
 			}
 		}
+		if len(key) == 0 {
+			return nil, fmt.Errorf("all fields must have non-empty names")
+		}
 	}
 
 	return &point{
@@ -1091,6 +1096,9 @@ func NewPointFromBytes(b []byte) (Point, error) {
 	p := &point{}
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
+	}
+	if len(p.Fields()) == 0 {
+		return nil, ErrPointMustHaveAField
 	}
 	return p, nil
 }
@@ -1210,14 +1218,6 @@ func (p *point) Fields() Fields {
 	}
 	p.cachedFields = p.unmarshalBinary()
 	return p.cachedFields
-}
-
-// AddField adds or replaces a field value for a point
-func (p *point) AddField(name string, value interface{}) {
-	fields := p.Fields()
-	fields[name] = value
-	p.fields = fields.MarshalBinary()
-	p.cachedFields = nil
 }
 
 // SetPrecision will round a time to the specified precision
@@ -1394,38 +1394,37 @@ func newFieldsFromBinary(buf []byte) Fields {
 		}
 
 		i, name = scanTo(buf, i, '=')
-		if len(name) == 0 {
-			continue
-		}
 		name = escape.Unescape(name)
 
 		i, valueBuf = scanFieldValue(buf, i+1)
-		if len(valueBuf) == 0 {
-			fields[string(name)] = nil
-			continue
-		}
-
-		// If the first char is a double-quote, then unmarshal as string
-		if valueBuf[0] == '"' {
-			value = unescapeStringField(string(valueBuf[1 : len(valueBuf)-1]))
-			// Check for numeric characters and special NaN or Inf
-		} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '+' || valueBuf[0] == '.' ||
-			valueBuf[0] == 'N' || valueBuf[0] == 'n' || // NaN
-			valueBuf[0] == 'I' || valueBuf[0] == 'i' { // Inf
-
-			value, err = parseNumber(valueBuf)
-			if err != nil {
-				panic(fmt.Sprintf("unable to parse number value '%v': %v", string(valueBuf), err))
+		if len(name) > 0 {
+			if len(valueBuf) == 0 {
+				fields[string(name)] = nil
+				continue
 			}
 
-			// Otherwise parse it as bool
-		} else {
-			value, err = strconv.ParseBool(string(valueBuf))
-			if err != nil {
-				panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
+			// If the first char is a double-quote, then unmarshal as string
+			if valueBuf[0] == '"' {
+				value = unescapeStringField(string(valueBuf[1 : len(valueBuf)-1]))
+				// Check for numeric characters and special NaN or Inf
+			} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '+' || valueBuf[0] == '.' ||
+				valueBuf[0] == 'N' || valueBuf[0] == 'n' || // NaN
+				valueBuf[0] == 'I' || valueBuf[0] == 'i' { // Inf
+
+				value, err = parseNumber(valueBuf)
+				if err != nil {
+					panic(fmt.Sprintf("unable to parse number value '%v': %v", string(valueBuf), err))
+				}
+
+				// Otherwise parse it as bool
+			} else {
+				value, err = strconv.ParseBool(string(valueBuf))
+				if err != nil {
+					panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
+				}
 			}
+			fields[string(name)] = value
 		}
-		fields[string(name)] = value
 		i++
 	}
 	return fields
