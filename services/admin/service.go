@@ -21,6 +21,7 @@ type Service struct {
 	https    bool
 	cert     string
 	err      chan error
+	version  string
 
 	logger *log.Logger
 }
@@ -28,11 +29,12 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	return &Service{
-		addr:   c.BindAddress,
-		https:  c.HTTPSEnabled,
-		cert:   c.HTTPSCertificate,
-		err:    make(chan error),
-		logger: log.New(os.Stderr, "[admin] ", log.LstdFlags),
+		addr:    c.BindAddress,
+		https:   c.HTTPSEnabled,
+		cert:    c.HTTPSCertificate,
+		err:     make(chan error),
+		version: c.Version,
+		logger:  log.New(os.Stderr, "[admin] ", log.LstdFlags),
 	}
 }
 
@@ -97,6 +99,13 @@ func (s *Service) Addr() net.Addr {
 
 // serve serves the handler from the listener.
 func (s *Service) serve() {
+	addVersionHeaderThenServe := func(h http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("X-InfluxDB-Version", s.version)
+			h.ServeHTTP(w, r)
+		}
+	}
+
 	// Instantiate file system from embedded admin.
 	statikFS, err := fs.New()
 	if err != nil {
@@ -104,7 +113,7 @@ func (s *Service) serve() {
 	}
 
 	// Run file system handler on listener.
-	err = http.Serve(s.listener, http.FileServer(statikFS))
+	err = http.Serve(s.listener, addVersionHeaderThenServe(http.FileServer(statikFS)))
 	if err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener error: addr=%s, err=%s", s.Addr(), err)
 	}

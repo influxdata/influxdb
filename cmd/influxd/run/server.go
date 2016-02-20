@@ -279,6 +279,7 @@ func (s *Server) appendAdminService(c admin.Config) {
 	if !c.Enabled {
 		return
 	}
+	c.Version = s.buildInfo.Version
 	srv := admin.NewService(c)
 	s.Services = append(s.Services, srv)
 }
