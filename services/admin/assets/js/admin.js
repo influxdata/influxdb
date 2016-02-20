@@ -343,7 +343,18 @@ var pretty = function(val) {
     }
 }
 
-var getVersion = function () {
+var getClientVersion = function () {
+    var query = $.get(window.location.origin + "/");
+
+    query.fail(handleRequestError);
+
+    query.done(function (data, status, xhr) {
+        var version = xhr.getResponseHeader('X-InfluxDB-Version');
+        $('.influxdb-client-version').html('v'+version);
+    });
+}
+
+var getServerVersion = function () {
     var query = $.get(connectionString() + "/ping");
 
     query.fail(handleRequestError);
@@ -415,7 +426,8 @@ var updateDatabaseList = function() {
 // when the page is ready, start everything up
 $(document).ready(function () {
     loadSettings();
-    getVersion();
+    getClientVersion();
+    getServerVersion();
 
     // bind to the settings cog in the navbar
     $("#action-settings").click(function (e) {
