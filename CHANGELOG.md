@@ -36,6 +36,8 @@
 - [#5656](https://github.com/influxdata/influxdb/issues/5656): influx\_tsm: panic during conversion
 - [#5696](https://github.com/influxdata/influxdb/issues/5696): Do not drop the database when creating with a retention policy
 - [#5724](https://github.com/influxdata/influxdb/issues/5724): influx\_tsm doesn't close file handles properly
+- [#5664](https://github.com/influxdata/influxdb/issues/5664): panic in model.Points.scanTo #5664
+- [#5716](https://github.com/influxdata/influxdb/pull/5716): models: improve handling of points with empty field names or with no fields.
 
 ## v0.10.1 [2016-02-18]
 
