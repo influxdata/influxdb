@@ -134,6 +134,16 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			stmt:     `SELECT sum(value) FROM cpu`,
 			expected: `[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",300]]}]`,
 		},
+		// test wildcards
+		{
+			stmt:     `SELECT * FROM cpu WHERE host='serverA' GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","region","value"],"values":[["1970-01-01T00:00:01Z","us-east",100]]}]`,
+		},
+		// issue #5766 math and wildcards
+		{
+			stmt:     `SELECT value+value as addition,* FROM cpu WHERE host='serverA' GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","addition", "region","value"],"values":[["1970-01-01T00:00:01Z",200,"us-east",100]]}]`,
+		},
 	}
 
 	for _, tt := range tests {
