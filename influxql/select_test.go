@@ -1584,3 +1584,15 @@ func TestSelect_Derivative_Integer(t *testing.T) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
+
+func TestSelect_UnsupportedCall(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{}, nil
+	}
+
+	_, err := influxql.Select(MustParseSelectStatement(`SELECT foobar(value) FROM cpu`), &ic, nil)
+	if err == nil || err.Error() != "unsupported call: foobar" {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
