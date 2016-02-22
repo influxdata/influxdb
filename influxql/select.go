@@ -321,7 +321,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			opt.StartTime, opt.EndTime = MinTime, MaxTime
 			return newDerivativeIterator(input, opt, interval, isNonNegative), nil
 		default:
-			panic(fmt.Sprintf("unsupported call: %s", expr.Name))
+			return nil, fmt.Errorf("unsupported call: %s", expr.Name)
 		}
 
 		if err != nil {
