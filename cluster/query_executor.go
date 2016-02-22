@@ -295,10 +295,7 @@ func (e *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 	}
 
 	// Execute the statement on the other data nodes in the cluster.
-	if err := e.MetaExecutor.ExecuteStatement(stmt, ""); err != nil {
-		return fmt.Errorf("partial success, node may be down (%s)", err)
-	}
-	return nil
+	return e.MetaExecutor.ExecuteStatement(stmt, "")
 }
 
 func (e *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) error {

@@ -38,6 +38,17 @@ func NewMetaExecutor() *MetaExecutor {
 	}
 }
 
+// remoteNodeError wraps an error with context about a node that
+// returned the error.
+type remoteNodeError struct {
+	id  uint64
+	err error
+}
+
+func (e remoteNodeError) Error() string {
+	return fmt.Sprintf("partial success, node %d may be down (%s)", e.id, e.err)
+}
+
 // ExecuteStatement executes a single InfluxQL statement on all nodes in the cluster concurrently.
 func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string) error {
 	// Get a list of all nodes the query needs to be executed on.
@@ -58,7 +69,7 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 		go func(node meta.NodeInfo) {
 			defer wg.Done()
 			if err := m.executeOnNode(stmt, database, &node); err != nil {
-				errs <- err
+				errs <- remoteNodeError{id: node.ID, err: err}
 			}
 		}(node)
 	}
