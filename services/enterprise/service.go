@@ -137,7 +137,7 @@ func (s *Service) registerServer() error {
 		resp, err := cl.Register(&product)
 
 		if err != nil {
-			s.logger.Printf("failed to register InfluxDB with %s: received code %s, error: %s", resp.Response.Request.URL.String(), resp.Status, err)
+			s.logger.Printf("Failed to register InfluxDB with %s: received code %s, error: %s", resp.Response.Request.URL.String(), resp.Status, err)
 			return
 		}
 		s.hosts = cl.Hosts
@@ -162,7 +162,7 @@ func (s *Service) reportStats() {
 		case <-t.C:
 			stats, err := s.Monitor.Statistics(nil)
 			if err != nil {
-				s.logger.Printf("failed to retrieve statistics: %s", err.Error())
+				s.logger.Printf("Failed to retrieve statistics: %s", err.Error())
 				continue
 			}
 
@@ -183,7 +183,7 @@ func (s *Service) reportStats() {
 
 			resp, err := cl.Save(st)
 			if err != nil {
-				s.logger.Printf("failed to post statistics to Enterprise: repsonse code: %d: error: %s", resp.StatusCode, err)
+				s.logger.Printf("Failed to post statistics to Enterprise: repsonse code: %d: error: %s", resp.StatusCode, err)
 				continue
 			}
 			s.updateLastContact(time.Now().UTC())
