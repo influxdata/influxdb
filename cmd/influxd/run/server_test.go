@@ -1296,12 +1296,12 @@ func TestServer_Query_Alias(t *testing.T) {
 		&Query{
 			name:    "double aggregate sum - SELECT sum(value), sum(steps) FROM db0.rp0.cpu",
 			command: `SELECT sum(value), sum(steps) FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum_1"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
 		},
 		&Query{
 			name:    "double aggregate sum reverse order - SELECT sum(steps), sum(value) FROM db0.rp0.cpu",
 			command: `SELECT sum(steps), sum(value) FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum_1"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
 		},
 		&Query{
 			name:    "double aggregate sum with alias - SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu",
@@ -3805,13 +3805,13 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			name:    "wildcard and field in select",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT value, * FROM wildcard`,
-			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","value","region","value","valx"],"values":[["2000-01-01T00:00:00Z",10,"us-east",10,null],["2000-01-01T00:00:10Z",null,"us-east",null,20],["2000-01-01T00:00:20Z",30,"us-east",30,40]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","value","region","value_1","valx"],"values":[["2000-01-01T00:00:00Z",10,"us-east",10,null],["2000-01-01T00:00:10Z",null,"us-east",null,20],["2000-01-01T00:00:20Z",30,"us-east",30,40]]}]}]}`,
 		},
 		&Query{
 			name:    "field and wildcard in select",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT value, * FROM wildcard`,
-			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","value","region","value","valx"],"values":[["2000-01-01T00:00:00Z",10,"us-east",10,null],["2000-01-01T00:00:10Z",null,"us-east",null,20],["2000-01-01T00:00:20Z",30,"us-east",30,40]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","value","region","value_1","valx"],"values":[["2000-01-01T00:00:00Z",10,"us-east",10,null],["2000-01-01T00:00:10Z",null,"us-east",null,20],["2000-01-01T00:00:20Z",30,"us-east",30,40]]}]}]}`,
 		},
 		&Query{
 			name:    "field and wildcard in group by",
