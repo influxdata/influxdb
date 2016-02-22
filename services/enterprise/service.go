@@ -90,8 +90,8 @@ func (s *Service) SetLogger(l *log.Logger) {
 // Diagnostics returns diagnostics information.
 func (s *Service) Diagnostics() (*monitor.Diagnostic, error) {
 	diagnostics := map[string]interface{}{
-		"Hosts":        s.hosts,
-		"last_contact": s.getLastContact().String(),
+		"hosts":        s.hosts,
+		"last_contact": s.lastContact(),
 	}
 
 	return monitor.DiagnosticFromMap(diagnostics), nil
@@ -200,8 +200,8 @@ func (s *Service) updateLastContact(t time.Time) {
 	s.lastContact = t
 }
 
-func (s *Service) getLastContact() time.Time {
+func (s *Service) lastContact() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.lastContact
+	return s.lastContact.String()
 }
