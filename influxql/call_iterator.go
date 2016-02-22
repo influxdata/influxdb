@@ -34,7 +34,7 @@ function to allow it to be included during planning.
 */
 
 // NewCallIterator returns a new iterator for a Call.
-func NewCallIterator(input Iterator, opt IteratorOptions) Iterator {
+func NewCallIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	name := opt.Expr.(*Call).Name
 	switch name {
 	case "count":
@@ -52,21 +52,21 @@ func NewCallIterator(input Iterator, opt IteratorOptions) Iterator {
 	case "mean":
 		return newMeanIterator(input, opt)
 	default:
-		panic(fmt.Sprintf("unsupported function call: %s", name))
+		return nil, fmt.Errorf("unsupported function call: %s", name)
 	}
 }
 
 // newCountIterator returns an iterator for operating on a count() call.
-func newCountIterator(input Iterator, opt IteratorOptions) Iterator {
+func newCountIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	// FIXME: Wrap iterator in int-type iterator and always output int value.
 
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatCountReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatCountReduce}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerCountReduce}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerCountReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported count iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported count iterator type: %T", input)
 	}
 }
 
@@ -87,14 +87,14 @@ func integerCountReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, in
 }
 
 // newMinIterator returns an iterator for operating on a min() call.
-func newMinIterator(input Iterator, opt IteratorOptions) Iterator {
+func newMinIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMinReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMinReduce}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMinReduce}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMinReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported min iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported min iterator type: %T", input)
 	}
 }
 
@@ -115,14 +115,14 @@ func integerMinReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int6
 }
 
 // newMaxIterator returns an iterator for operating on a max() call.
-func newMaxIterator(input Iterator, opt IteratorOptions) Iterator {
+func newMaxIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMaxReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMaxReduce}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMaxReduce}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMaxReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported max iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported max iterator type: %T", input)
 	}
 }
 
@@ -143,14 +143,14 @@ func integerMaxReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int6
 }
 
 // newSumIterator returns an iterator for operating on a sum() call.
-func newSumIterator(input Iterator, opt IteratorOptions) Iterator {
+func newSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSumReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSumReduce}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSumReduce}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSumReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported sum iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported sum iterator type: %T", input)
 	}
 }
 
@@ -171,14 +171,14 @@ func integerSumReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int6
 }
 
 // newFirstIterator returns an iterator for operating on a first() call.
-func newFirstIterator(input Iterator, opt IteratorOptions) Iterator {
+func newFirstIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatFirstReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatFirstReduce}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerFirstReduce}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerFirstReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported first iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported first iterator type: %T", input)
 	}
 }
 
@@ -199,14 +199,14 @@ func integerFirstReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, in
 }
 
 // newLastIterator returns an iterator for operating on a last() call.
-func newLastIterator(input Iterator, opt IteratorOptions) Iterator {
+func newLastIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatLastReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatLastReduce}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerLastReduce}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerLastReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported last iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported last iterator type: %T", input)
 	}
 }
 
@@ -227,16 +227,16 @@ func integerLastReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int
 }
 
 // NewDistinctIterator returns an iterator for operating on a distinct() call.
-func NewDistinctIterator(input Iterator, opt IteratorOptions) Iterator {
+func NewDistinctIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatDistinctReduceSlice}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatDistinctReduceSlice}, nil
 	case IntegerIterator:
-		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerDistinctReduceSlice}
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerDistinctReduceSlice}, nil
 	case StringIterator:
-		return &stringReduceSliceIterator{input: newBufStringIterator(input), opt: opt, fn: stringDistinctReduceSlice}
+		return &stringReduceSliceIterator{input: newBufStringIterator(input), opt: opt, fn: stringDistinctReduceSlice}, nil
 	default:
-		panic(fmt.Sprintf("unsupported distinct iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported distinct iterator type: %T", input)
 	}
 }
 
@@ -292,14 +292,14 @@ func stringDistinctReduceSlice(a []StringPoint, opt *reduceOptions) []StringPoin
 }
 
 // newMeanIterator returns an iterator for operating on a mean() call.
-func newMeanIterator(input Iterator, opt IteratorOptions) Iterator {
+func newMeanIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMeanReduce}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMeanReduce}, nil
 	case IntegerIterator:
-		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMeanReduce}
+		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMeanReduce}, nil
 	default:
-		panic(fmt.Sprintf("unsupported mean iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported mean iterator type: %T", input)
 	}
 }
 
@@ -338,14 +338,14 @@ func integerMeanReduce(prev *FloatPoint, curr *IntegerPoint, opt *reduceOptions)
 }
 
 // newMedianIterator returns an iterator for operating on a median() call.
-func newMedianIterator(input Iterator, opt IteratorOptions) Iterator {
+func newMedianIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMedianReduceSlice}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMedianReduceSlice}, nil
 	case IntegerIterator:
-		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMedianReduceSlice}
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMedianReduceSlice}, nil
 	default:
-		panic(fmt.Sprintf("unsupported median iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported median iterator type: %T", input)
 	}
 }
 
@@ -386,16 +386,16 @@ func integerMedianReduceSlice(a []IntegerPoint, opt *reduceOptions) []FloatPoint
 }
 
 // newStddevIterator returns an iterator for operating on a stddev() call.
-func newStddevIterator(input Iterator, opt IteratorOptions) Iterator {
+func newStddevIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatStddevReduceSlice}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatStddevReduceSlice}, nil
 	case IntegerIterator:
-		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerStddevReduceSlice}
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerStddevReduceSlice}, nil
 	case StringIterator:
-		return &stringReduceSliceIterator{input: newBufStringIterator(input), opt: opt, fn: stringStddevReduceSlice}
+		return &stringReduceSliceIterator{input: newBufStringIterator(input), opt: opt, fn: stringStddevReduceSlice}, nil
 	default:
-		panic(fmt.Sprintf("unsupported stddev iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported stddev iterator type: %T", input)
 	}
 }
 
@@ -463,14 +463,14 @@ func stringStddevReduceSlice(a []StringPoint, opt *reduceOptions) []StringPoint 
 }
 
 // newSpreadIterator returns an iterator for operating on a spread() call.
-func newSpreadIterator(input Iterator, opt IteratorOptions) Iterator {
+func newSpreadIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSpreadReduceSlice}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSpreadReduceSlice}, nil
 	case IntegerIterator:
-		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSpreadReduceSlice}
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSpreadReduceSlice}, nil
 	default:
-		panic(fmt.Sprintf("unsupported spread iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported spread iterator type: %T", input)
 	}
 }
 
@@ -501,14 +501,14 @@ func integerSpreadReduceSlice(a []IntegerPoint, opt *reduceOptions) []IntegerPoi
 }
 
 // newTopIterator returns an iterator for operating on a top() call.
-func newTopIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) Iterator {
+func newTopIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatTopReduceSliceFunc(int(n.Val), tags, opt.Interval)}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatTopReduceSliceFunc(int(n.Val), tags, opt.Interval)}, nil
 	case IntegerIterator:
-		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerTopReduceSliceFunc(int(n.Val), tags, opt.Interval)}
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerTopReduceSliceFunc(int(n.Val), tags, opt.Interval)}, nil
 	default:
-		panic(fmt.Sprintf("unsupported top iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported top iterator type: %T", input)
 	}
 }
 
@@ -605,14 +605,14 @@ func newIntegerTopReduceSliceFunc(n int, tags []int, interval Interval) integerR
 }
 
 // newBottomIterator returns an iterator for operating on a bottom() call.
-func newBottomIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) Iterator {
+func newBottomIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)}, nil
 	case IntegerIterator:
-		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)}
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)}, nil
 	default:
-		panic(fmt.Sprintf("unsupported bottom iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported bottom iterator type: %T", input)
 	}
 }
 
@@ -769,14 +769,14 @@ func filterIntegerByUniqueTags(a []IntegerPoint, tags []int, cmpFunc func(cur, p
 }
 
 // newPercentileIterator returns an iterator for operating on a percentile() call.
-func newPercentileIterator(input Iterator, opt IteratorOptions, percentile float64) Iterator {
+func newPercentileIterator(input Iterator, opt IteratorOptions, percentile float64) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatPercentileReduceSliceFunc(percentile)}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatPercentileReduceSliceFunc(percentile)}, nil
 	case IntegerIterator:
-		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerPercentileReduceSliceFunc(percentile)}
+		return &integerReduceSliceIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerPercentileReduceSliceFunc(percentile)}, nil
 	default:
-		panic(fmt.Sprintf("unsupported percentile iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported percentile iterator type: %T", input)
 	}
 }
 
@@ -811,14 +811,14 @@ func newIntegerPercentileReduceSliceFunc(percentile float64) integerReduceSliceF
 }
 
 // newDerivativeIterator returns an iterator for operating on a derivative() call.
-func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) Iterator {
+func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatDerivativeReduceSliceFunc(interval, isNonNegative)}
+		return &floatReduceSliceIterator{input: newBufFloatIterator(input), opt: opt, fn: newFloatDerivativeReduceSliceFunc(interval, isNonNegative)}, nil
 	case IntegerIterator:
-		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerDerivativeReduceSliceFunc(interval, isNonNegative)}
+		return &integerReduceSliceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: newIntegerDerivativeReduceSliceFunc(interval, isNonNegative)}, nil
 	default:
-		panic(fmt.Sprintf("unsupported derivative iterator type: %T", input))
+		return nil, fmt.Errorf("unsupported derivative iterator type: %T", input)
 	}
 }
 

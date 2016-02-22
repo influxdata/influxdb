@@ -673,7 +673,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 		if err != nil {
 			return nil, err
 		}
-		return influxql.NewCallIterator(influxql.NewMergeIterator(inputs, opt), opt), nil
+		return influxql.NewCallIterator(influxql.NewMergeIterator(inputs, opt), opt)
 	}
 
 	itrs, err := e.createVarRefIterator(opt)
