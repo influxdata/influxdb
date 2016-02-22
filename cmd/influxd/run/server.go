@@ -187,6 +187,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	if c.Meta.Enabled {
 		s.MetaService = meta.NewService(c.Meta)
 		s.MetaService.Version = s.buildInfo.Version
+		s.MetaService.Node = s.Node
 	}
 
 	if c.Data.Enabled {
@@ -642,16 +643,18 @@ func (s *Server) initializeMetaClient() error {
 		return nil
 	}
 
-	n, err := s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
-	for err != nil {
-		log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
-		time.Sleep(time.Second)
-		n, err = s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
-	}
-	s.Node.ID = n.ID
+	if s.config.Data.Enabled {
+		n, err := s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
+		for err != nil {
+			log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
+			time.Sleep(time.Second)
+			n, err = s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
+		}
+		s.Node.ID = n.ID
 
-	if err := s.Node.Save(); err != nil {
-		return err
+		if err := s.Node.Save(); err != nil {
+			return err
+		}
 	}
 
 	return nil

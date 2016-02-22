@@ -61,7 +61,7 @@ type Config struct {
 	HTTPSCertificate string `toml:"https-certificate"`
 
 	// JoinPeers if specified gives other metastore servers to join this server to the cluster
-	JoinPeers            []string      `toml:"join"`
+	JoinPeers            []string      `toml:"-"`
 	RetentionAutoCreate  bool          `toml:"retention-autocreate"`
 	ElectionTimeout      toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout     toml.Duration `toml:"heartbeat-timeout"`

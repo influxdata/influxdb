@@ -1330,7 +1330,11 @@ func newService(cfg *meta.Config) *testService {
 	// Multiplex listener.
 	mux := tcp.NewMux()
 
+	if err != nil {
+		panic(err)
+	}
 	s := meta.NewService(cfg)
+	s.Node = influxdb.NewNode(cfg.Dir)
 	s.RaftListener = mux.Listen(meta.MuxHeader)
 
 	go mux.Serve(ln)
