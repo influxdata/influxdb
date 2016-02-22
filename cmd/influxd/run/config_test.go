@@ -82,7 +82,7 @@ enabled = true
 	} else if c.ContinuousQuery.Enabled != true {
 		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
 	} else if exp, got := "foo:123,bar:456", c.Join; exp != got {
-		t.Fatalf("unexpected join value: exp %v, got %v", exp, got)
+		t.Fatalf("unexpected join value: got %v, exp %v", got, exp)
 	}
 }
 
@@ -163,7 +163,7 @@ enabled = false
 	}
 
 	if e := c.Validate(); e == nil {
-		t.Fatalf("expected error, got nil")
+		t.Fatalf("got nil, expected error")
 	}
 }
 
@@ -183,6 +183,6 @@ enabled = false
 	}
 
 	if err := c.Validate(); err == nil {
-		t.Fatalf("expected error, got nil")
+		t.Fatalf("got nil, expected error")
 	}
 }

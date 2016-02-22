@@ -166,8 +166,7 @@ func (h *handler) serveExec(w http.ResponseWriter, r *http.Request) {
 
 		// Return the node with newly assigned ID as json
 		w.Header().Add("Content-Type", "application/json")
-		enc := json.NewEncoder(w)
-		if err := enc.Encode(node); err != nil {
+		if err := json.NewEncoder(w).Encode(node); err != nil {
 			h.httpError(err, w, http.StatusInternalServerError)
 		}
 
