@@ -85,7 +85,7 @@ func TestCache_CacheWriteMulti_Duplicates(t *testing.T) {
 	v5 := NewValue(time.Unix(5, 0).UTC(), 3.0)
 	values1 := Values{v3, v4, v5}
 
-	c := NewCache(0)
+	c := NewCache(0, "")
 
 	if err := c.WriteMulti(map[string][]Value{"foo": values0}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
