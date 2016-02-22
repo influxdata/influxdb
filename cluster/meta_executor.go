@@ -87,7 +87,7 @@ func (m *MetaExecutor) executeOnNode(stmt influxql.Statement, database string, n
 		panic("wrong connection type in MetaExecutor")
 	}
 	// Return connection to pool by "closing" it.
-	defer func(conn net.Conn) { conn.Close() }(conn)
+	defer conn.Close()
 
 	// Build RPC request.
 	var request ExecuteStatementRequest
