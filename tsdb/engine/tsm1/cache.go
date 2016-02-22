@@ -133,6 +133,7 @@ func (c *Cache) Write(key string, values []Value) error {
 	c.mu.Unlock()
 
 	// Update the memory size stat
+	// c.assertNotSnapshot("Write")
 	c.updateMemSize(int64(addedSize))
 
 	return nil
@@ -163,6 +164,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	c.mu.Unlock()
 
 	// Update the memory size stat
+	// c.assertNotSnapshot("WriteMulti")
 	c.updateMemSize(int64(totalSz))
 
 	return nil
@@ -186,6 +188,7 @@ func (c *Cache) Snapshot() *Cache {
 	c.snapshots = append(c.snapshots, snapshot)
 	c.snapshotsSize += snapshot.size
 
+	// c.assertNotSnapshot("Snapshot")
 	c.updateMemSize(-int64(snapshot.size))
 	c.updateCachedBytes(snapshot.size)
 	c.updateSnapshots()
@@ -215,6 +218,7 @@ func (c *Cache) ClearSnapshot(snapshot *Cache) {
 		}
 	}
 
+	// c.assertNotSnapshot("ClearSnapshot")
 	c.updateSnapshots()
 }
 
@@ -432,6 +436,13 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 	}
 	return nil
 }
+
+// Assert that a code path is never called in a snapshot cache.
+// func (c *Cache) assertNotSnapshot(m string) {
+// 	if c.statMap == nil {
+// 		panic(fmt.Errorf("assertion failed: unexpected method '%s' called on a snapshot cache", m))
+// 	}
+// }
 
 // Updates the age statistic
 func (c *Cache) UpdateAge() {
