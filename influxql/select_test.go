@@ -28,7 +28,7 @@ func TestSelect_Min(t *testing.T) {
 			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
 			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
 			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.
@@ -132,6 +132,24 @@ func TestSelect_Distinct_String(t *testing.T) {
 	}
 }
 
+// Ensure a SELECT distinct() query cannot be executed on booleans.
+func TestSelect_Distinct_Boolean(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &BooleanIterator{}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT distinct(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
+	if err == nil || err.Error() != "unsupported distinct iterator type: *influxql_test.BooleanIterator" {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if itrs != nil {
+		influxql.Iterators(itrs).Close()
+	}
+}
+
 // Ensure a SELECT mean() query can be executed.
 func TestSelect_Mean_Float(t *testing.T) {
 	var ic IteratorCreator
@@ -149,7 +167,7 @@ func TestSelect_Mean_Float(t *testing.T) {
 			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
 			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
 			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.
@@ -184,7 +202,7 @@ func TestSelect_Mean_Integer(t *testing.T) {
 			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: 4},
 			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 4},
 			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: 5},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.
@@ -199,6 +217,42 @@ func TestSelect_Mean_Integer(t *testing.T) {
 		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3.2, Aggregated: 5}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure a SELECT mean() query cannot be executed on strings.
+func TestSelect_Mean_String(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&StringIterator{}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
+	if err == nil || err.Error() != "unsupported mean iterator type: *influxql_test.StringIterator" {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if itrs != nil {
+		influxql.Iterators(itrs).Close()
+	}
+}
+
+// Ensure a SELECT mean() query cannot be executed on booleans.
+func TestSelect_Mean_Boolean(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&BooleanIterator{}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
+	if err == nil || err.Error() != "unsupported mean iterator type: *influxql_test.BooleanIterator" {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if itrs != nil {
+		influxql.Iterators(itrs).Close()
 	}
 }
 
@@ -269,6 +323,42 @@ func TestSelect_Median_Integer(t *testing.T) {
 		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: 3}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure a SELECT median() query cannot be executed on strings.
+func TestSelect_Median_String(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &StringIterator{}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
+	if err == nil || err.Error() != "unsupported median iterator type: *influxql_test.StringIterator" {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if itrs != nil {
+		influxql.Iterators(itrs).Close()
+	}
+}
+
+// Ensure a SELECT median() query cannot be executed on booleans.
+func TestSelect_Median_Boolean(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &BooleanIterator{}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT median(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
+	if err == nil || err.Error() != "unsupported median iterator type: *influxql_test.BooleanIterator" {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if itrs != nil {
+		influxql.Iterators(itrs).Close()
 	}
 }
 
@@ -774,7 +864,7 @@ func TestSelect_Fill_Null_Float(t *testing.T) {
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 		return influxql.NewCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.
@@ -799,7 +889,7 @@ func TestSelect_Fill_Number_Float(t *testing.T) {
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 		return influxql.NewCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.
@@ -824,7 +914,7 @@ func TestSelect_Fill_Previous_Float(t *testing.T) {
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 		return influxql.NewCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
 			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.
@@ -1495,7 +1585,7 @@ func TestSelect_ParenExpr(t *testing.T) {
 			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: 2},
 			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: 3},
 			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: 100},
-		}}, opt), nil
+		}}, opt)
 	}
 
 	// Execute selection.

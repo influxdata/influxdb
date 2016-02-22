@@ -209,104 +209,13 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 	case *Call:
 		// FIXME(benbjohnson): Validate that only calls with 1 arg are passed to IC.
 
-		var err error
-		var itr Iterator
 		switch expr.Name {
-		case "count":
-			switch arg := expr.Args[0].(type) {
-			case *Call:
-				if arg.Name == "distinct" {
-					input, err := buildExprIterator(arg, ic, opt)
-					if err != nil {
-						return nil, err
-					}
-					itr = newCountIterator(input, opt)
-				}
-			default:
-				itr, err = ic.CreateIterator(opt)
-			}
-		case "min", "max", "sum", "first", "last", "mean":
-			itr, err = ic.CreateIterator(opt)
 		case "distinct":
 			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
 			if err != nil {
 				return nil, err
 			}
-			return NewDistinctIterator(input, opt), nil
-		case "median":
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			itr = newMedianIterator(input, opt)
-		case "stddev":
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			itr = newStddevIterator(input, opt)
-		case "spread":
-			// OPTIMIZE(benbjohnson): convert to map/reduce
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			itr = newSpreadIterator(input, opt)
-		case "top":
-			var tags []int
-			if len(expr.Args) < 2 {
-				return nil, fmt.Errorf("top() requires 2 or more arguments, got %d", len(expr.Args))
-			} else if len(expr.Args) > 2 {
-				// We need to find the indices of where the tag values are stored in Aux
-				// This section is O(n^2), but for what should be a low value.
-				for i := 1; i < len(expr.Args)-1; i++ {
-					ref := expr.Args[i].(*VarRef)
-					for index, name := range opt.Aux {
-						if name == ref.Val {
-							tags = append(tags, index)
-							break
-						}
-					}
-				}
-			}
-
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
-			itr = newTopIterator(input, opt, n, tags)
-		case "bottom":
-			var tags []int
-			if len(expr.Args) < 2 {
-				return nil, fmt.Errorf("bottom() requires 2 or more arguments, got %d", len(expr.Args))
-			} else if len(expr.Args) > 2 {
-				// We need to find the indices of where the tag values are stored in Aux
-				// This section is O(n^2), but for what should be a low value.
-				for i := 1; i < len(expr.Args)-1; i++ {
-					ref := expr.Args[i].(*VarRef)
-					for index, name := range opt.Aux {
-						if name == ref.Val {
-							tags = append(tags, index)
-							break
-						}
-					}
-				}
-			}
-
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
-			itr = newBottomIterator(input, opt, n, tags)
-		case "percentile":
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
-			if err != nil {
-				return nil, err
-			}
-			percentile := expr.Args[1].(*NumberLiteral).Val
-			itr = newPercentileIterator(input, opt, percentile)
+			return NewDistinctIterator(input, opt)
 		case "derivative", "non_negative_derivative":
 			input, err := buildExprIterator(expr.Args[0], ic, opt)
 			if err != nil {
@@ -319,19 +228,112 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			// Derivatives do not use GROUP BY intervals or time constraints, so clear these options.
 			opt.Interval = Interval{}
 			opt.StartTime, opt.EndTime = MinTime, MaxTime
-			return newDerivativeIterator(input, opt, interval, isNonNegative), nil
+			return newDerivativeIterator(input, opt, interval, isNonNegative)
 		default:
-			return nil, fmt.Errorf("unsupported call: %s", expr.Name)
-		}
+			itr, err := func() (Iterator, error) {
+				switch expr.Name {
+				case "count":
+					switch arg := expr.Args[0].(type) {
+					case *Call:
+						if arg.Name == "distinct" {
+							input, err := buildExprIterator(arg, ic, opt)
+							if err != nil {
+								return nil, err
+							}
+							return newCountIterator(input, opt)
+						}
+					}
+					return ic.CreateIterator(opt)
+				case "min", "max", "sum", "first", "last", "mean":
+					return ic.CreateIterator(opt)
+				case "median":
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+					if err != nil {
+						return nil, err
+					}
+					return newMedianIterator(input, opt)
+				case "stddev":
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+					if err != nil {
+						return nil, err
+					}
+					return newStddevIterator(input, opt)
+				case "spread":
+					// OPTIMIZE(benbjohnson): convert to map/reduce
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+					if err != nil {
+						return nil, err
+					}
+					return newSpreadIterator(input, opt)
+				case "top":
+					var tags []int
+					if len(expr.Args) < 2 {
+						return nil, fmt.Errorf("top() requires 2 or more arguments, got %d", len(expr.Args))
+					} else if len(expr.Args) > 2 {
+						// We need to find the indices of where the tag values are stored in Aux
+						// This section is O(n^2), but for what should be a low value.
+						for i := 1; i < len(expr.Args)-1; i++ {
+							ref := expr.Args[i].(*VarRef)
+							for index, name := range opt.Aux {
+								if name == ref.Val {
+									tags = append(tags, index)
+									break
+								}
+							}
+						}
+					}
 
-		if err != nil {
-			return nil, err
-		}
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+					if err != nil {
+						return nil, err
+					}
+					n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
+					return newTopIterator(input, opt, n, tags)
+				case "bottom":
+					var tags []int
+					if len(expr.Args) < 2 {
+						return nil, fmt.Errorf("bottom() requires 2 or more arguments, got %d", len(expr.Args))
+					} else if len(expr.Args) > 2 {
+						// We need to find the indices of where the tag values are stored in Aux
+						// This section is O(n^2), but for what should be a low value.
+						for i := 1; i < len(expr.Args)-1; i++ {
+							ref := expr.Args[i].(*VarRef)
+							for index, name := range opt.Aux {
+								if name == ref.Val {
+									tags = append(tags, index)
+									break
+								}
+							}
+						}
+					}
 
-		if !opt.Interval.IsZero() && opt.Fill != NoFill {
-			itr = NewFillIterator(itr, expr, opt)
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+					if err != nil {
+						return nil, err
+					}
+					n := expr.Args[len(expr.Args)-1].(*NumberLiteral)
+					return newBottomIterator(input, opt, n, tags)
+				case "percentile":
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt)
+					if err != nil {
+						return nil, err
+					}
+					percentile := expr.Args[1].(*NumberLiteral).Val
+					return newPercentileIterator(input, opt, percentile)
+				default:
+					return nil, fmt.Errorf("unsupported call: %s", expr.Name)
+				}
+			}()
+
+			if err != nil {
+				return nil, err
+			}
+
+			if !opt.Interval.IsZero() && opt.Fill != NoFill {
+				itr = NewFillIterator(itr, expr, opt)
+			}
+			return itr, nil
 		}
-		return itr, nil
 	case *BinaryExpr:
 		if rhs, ok := expr.RHS.(Literal); ok {
 			// The right hand side is a literal. It is more common to have the RHS be a literal,
