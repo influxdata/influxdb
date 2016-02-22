@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"expvar"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb"
 )
 
 type TSMFile interface {
@@ -79,6 +82,11 @@ type TSMFile interface {
 	BlockIterator() *BlockIterator
 }
 
+// Statistics gathered by the FileStore.
+const (
+	statFileStoreBytes = "diskBytes"
+)
+
 type FileStore struct {
 	mu           sync.RWMutex
 	lastModified time.Time
@@ -90,6 +98,8 @@ type FileStore struct {
 
 	Logger       *log.Logger
 	traceLogging bool
+
+	statMap *expvar.Map
 }
 
 type FileStat struct {
@@ -118,7 +128,8 @@ func NewFileStore(dir string) *FileStore {
 	return &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
-		Logger:       log.New(os.Stderr, "[filestore]", log.LstdFlags),
+		Logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
+		statMap:      influxdb.NewStatistics("tsm1_filestore:"+dir, "tsm1_filestore", map[string]string{"path": dir}),
 	}
 }
 
@@ -154,6 +165,9 @@ func (f *FileStore) NextGeneration() int {
 func (f *FileStore) Add(files ...TSMFile) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	for _, file := range files {
+		f.statMap.Add(statFileStoreBytes, int64(file.Size()))
+	}
 	f.files = append(f.files, files...)
 	sort.Sort(tsmReaders(f.files))
 }
@@ -175,6 +189,9 @@ func (f *FileStore) Remove(paths ...string) {
 
 		if keep {
 			active = append(active, file)
+		} else {
+			// Removing the file, remove the file size from the total file store bytes
+			f.statMap.Add(statFileStoreBytes, -int64(file.Size()))
 		}
 	}
 	f.files = active
@@ -261,6 +278,11 @@ func (f *FileStore) Open() error {
 		file, err := os.OpenFile(fn, os.O_RDONLY, 0666)
 		if err != nil {
 			return fmt.Errorf("error opening file %s: %v", fn, err)
+		}
+
+		// Accumulate file store size stat
+		if fi, err := file.Stat(); err == nil {
+			f.statMap.Add(statFileStoreBytes, fi.Size())
 		}
 
 		go func(idx int, file *os.File) {
@@ -411,6 +433,15 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
+
+	// Recalculate the disk size stat
+	var totalSize int64
+	for _, file := range f.files {
+		totalSize += int64(file.Size())
+	}
+	sizeStat := new(expvar.Int)
+	sizeStat.Set(totalSize)
+	f.statMap.Set(statFileStoreBytes, sizeStat)
 
 	return nil
 }
