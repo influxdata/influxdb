@@ -463,7 +463,7 @@ func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator,
 			}
 		}
 	}
-	return influxql.NewCallIterator(itr, opt), nil
+	return influxql.NewCallIterator(itr, opt)
 }
 
 // createSystemIterator returns an iterator for a system source.
