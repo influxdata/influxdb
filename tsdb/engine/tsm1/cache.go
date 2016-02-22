@@ -1,11 +1,15 @@
 package tsm1
 
 import (
+	"expvar"
 	"fmt"
 	"log"
 	"os"
 	"sort"
 	"sync"
+	"time"
+
+	"github.com/influxdata/influxdb"
 )
 
 var ErrCacheMemoryExceeded = fmt.Errorf("cache maximum memory size exceeded")
@@ -58,6 +62,21 @@ func (e *entry) deduplicate() {
 	e.needSort = false
 }
 
+// Statistics gathered by the Cache.
+const (
+	// levels - point in time measures
+
+	statCacheMemoryBytes = "memBytes"      // level: Size of in-memory cache in bytes
+	statCacheDiskBytes   = "diskBytes"     // level: Size of on-disk snapshots in bytes
+	statSnapshots        = "snapshotCount" // level: Number of active snapshots.
+	statCacheAgeMs       = "cacheAgeMs"    // level: Number of milliseconds since cache was last snapshoted at sample time
+
+	// counters - accumulative measures
+
+	statCachedBytes         = "cachedBytes"         // counter: Total number of bytes written into snapshots.
+	statWALCompactionTimeMs = "WALCompactionTimeMs" // counter: Total number of milliseconds spent compacting snapshots
+)
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
 	mu      sync.RWMutex
@@ -70,30 +89,47 @@ type Cache struct {
 	// they are read only and should never be modified
 	snapshots     []*Cache
 	snapshotsSize uint64
+
+	statMap      *expvar.Map // nil for snapshots.
+	lastSnapshot time.Time
 }
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
-func NewCache(maxSize uint64) *Cache {
-	return &Cache{
-		maxSize: maxSize,
-		store:   make(map[string]*entry),
+// Only used for engine caches, never for snapshots
+func NewCache(maxSize uint64, path string) *Cache {
+	c := &Cache{
+		maxSize:      maxSize,
+		store:        make(map[string]*entry),
+		statMap:      influxdb.NewStatistics("tsm1_cache:"+path, "tsm1_cache", map[string]string{"path": path}),
+		lastSnapshot: time.Now(),
 	}
+	c.UpdateAge()
+	c.UpdateCompactTime(0)
+	c.updateCachedBytes(0)
+	c.updateMemSize(0)
+	c.updateSnapshots()
+	return c
 }
 
 // Write writes the set of values for the key to the cache. This function is goroutine-safe.
 // It returns an error if the cache has exceeded its max size.
 func (c *Cache) Write(key string, values []Value) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	// Enough room in the cache?
-	newSize := c.size + uint64(Values(values).Size())
+	addedSize := Values(values).Size()
+	newSize := c.size + uint64(addedSize)
 	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
+		c.mu.Unlock()
 		return ErrCacheMemoryExceeded
 	}
 
 	c.write(key, values)
 	c.size = newSize
+	c.mu.Unlock()
+
+	// Update the memory size stat
+	c.updateMemSize(int64(addedSize))
 
 	return nil
 }
@@ -122,6 +158,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	c.size = newSize
 	c.mu.Unlock()
 
+	// Update the memory size stat
+	c.updateMemSize(int64(totalSz))
+
 	return nil
 }
 
@@ -131,15 +170,21 @@ func (c *Cache) Snapshot() *Cache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	snapshot := NewCache(c.maxSize)
-	snapshot.store = c.store
-	snapshot.size = c.size
+	snapshot := &Cache{
+		store: c.store,
+		size:  c.size,
+	}
 
 	c.store = make(map[string]*entry)
 	c.size = 0
+	c.lastSnapshot = time.Now()
 
 	c.snapshots = append(c.snapshots, snapshot)
 	c.snapshotsSize += snapshot.size
+
+	c.updateMemSize(-int64(snapshot.size))
+	c.updateCachedBytes(snapshot.size)
+	c.updateSnapshots()
 
 	return snapshot
 }
@@ -165,6 +210,8 @@ func (c *Cache) ClearSnapshot(snapshot *Cache) {
 			break
 		}
 	}
+
+	c.updateSnapshots()
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
@@ -380,4 +427,40 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 		}
 	}
 	return nil
+}
+
+// Updates the age statistic
+func (c *Cache) UpdateAge() {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	ageStat := new(expvar.Int)
+	ageStat.Set(int64(time.Now().Sub(c.lastSnapshot) / time.Millisecond))
+	c.statMap.Set(statCacheAgeMs, ageStat)
+}
+
+// Updates WAL compaction time statistic
+func (c *Cache) UpdateCompactTime(d time.Duration) {
+	c.statMap.Add(statWALCompactionTimeMs, int64(d/time.Millisecond))
+}
+
+// Update the cachedBytes counter
+func (c *Cache) updateCachedBytes(b uint64) {
+	c.statMap.Add(statCachedBytes, int64(b))
+}
+
+// Update the memSize level
+func (c *Cache) updateMemSize(b int64) {
+	c.statMap.Add(statCacheMemoryBytes, b)
+}
+
+// Update the snapshotsCount and the diskSize levels
+func (c *Cache) updateSnapshots() {
+	// Update disk stats
+	diskSizeStat := new(expvar.Int)
+	diskSizeStat.Set(int64(c.snapshotsSize))
+	c.statMap.Set(statCacheDiskBytes, diskSizeStat)
+
+	snapshotsStat := new(expvar.Int)
+	snapshotsStat.Set(int64(len(c.snapshots)))
+	c.statMap.Set(statSnapshots, snapshotsStat)
 }
