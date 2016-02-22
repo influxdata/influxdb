@@ -838,8 +838,7 @@ func (c *Client) JoinMetaServer(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		// Successfully joined
 		if resp.StatusCode == http.StatusOK {
 			defer resp.Body.Close()
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&node); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&node); err != nil {
 				return nil, err
 			}
 			break
