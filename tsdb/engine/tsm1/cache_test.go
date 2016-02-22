@@ -289,6 +289,79 @@ func TestCache_CacheRollbackSnapshots(t *testing.T) {
 	}
 }
 
+// Test that the commit lock prevents two threads preparing snapshots from the same
+// cache.
+func TestCache_CacheTestCommitLock(t *testing.T) {
+
+	v0 := NewValue(time.Unix(2, 0).UTC(), 0.0)
+	in := make(chan int, 0)
+
+	go func() {
+		c := NewCache(512, "")
+		out := make(chan int, 1)
+		lockTaken := make(chan struct{}, 1)
+		valueWritten := make(chan error, 0)
+
+		out <- 0
+
+		_ = c.PrepareSnapshots([]string{"sync"})
+
+		lockTaken <- struct{}{}
+
+		go func() {
+
+			_ = <-lockTaken
+
+			valueWritten <- c.Write("foo", Values{v0})
+
+			c.PrepareSnapshots([]string{"async"})
+			observedState := <-out
+			c.CommitSnapshots()
+			in <- observedState
+		}()
+
+		if err := <-valueWritten; err != nil {
+			t.Fatalf("concurrent write value failed: %s", err)
+		}
+
+		expValues := Values{v0}
+		if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+			t.Fatalf("unexpected values in cache after goroutine has written exp: %v, got %v", expValues, deduped)
+		}
+
+		select {
+		case _ = <-out:
+		default:
+			t.Fatalf("locking failed in state 0")
+		}
+		out <- 1
+
+		// give the async goroutine a small chance to see state 1
+		time.Sleep(time.Millisecond * 100)
+
+		select {
+		case _ = <-out:
+		default:
+			t.Fatalf("locking failed in state 1")
+		}
+		out <- 2
+
+		c.CommitSnapshots()
+	}()
+
+	expectedState := 2
+	select {
+	case observedState := <-in:
+		if observedState != expectedState {
+			t.Fatalf("locking failed: expected observed state: %d, got: %d", expectedState, observedState)
+		}
+	case _ = <-time.NewTimer(time.Second).C:
+		// this should never happen except on really slow machines. consider bumping the value higher.
+		t.Fatalf("unexpected deadlock encountered during locking test")
+	}
+
+}
+
 func TestCache_CacheEmptySnapshot(t *testing.T) {
 	c := NewCache(512, "")
 
