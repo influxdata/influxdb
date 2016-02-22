@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -46,6 +47,8 @@ type store struct {
 
 	raftAddr string
 	httpAddr string
+
+	node *influxdb.Node
 }
 
 // newStore will create a new metastore with the passed in config
@@ -127,9 +130,15 @@ func (s *store) open(raftln net.Listener) error {
 		}
 		defer c.Close()
 
-		if err := c.JoinMetaServer(s.httpAddr, s.raftAddr); err != nil {
+		n, err := c.JoinMetaServer(s.httpAddr, s.raftAddr)
+		if err != nil {
 			return err
 		}
+		s.node.ID = n.ID
+		if err := s.node.Save(); err != nil {
+			return err
+		}
+
 	}
 
 	// Wait for a leader to be elected so we know the raft log is loaded
@@ -364,19 +373,30 @@ func (s *store) apply(b []byte) error {
 }
 
 // join adds a new server to the metaservice and raft
-func (s *store) join(n *NodeInfo) error {
+func (s *store) join(n *NodeInfo) (*NodeInfo, error) {
 	s.mu.RLock()
 	if s.raftState == nil {
 		s.mu.RUnlock()
-		return fmt.Errorf("store not open")
+		return nil, fmt.Errorf("store not open")
 	}
 	if err := s.raftState.addPeer(n.TCPHost); err != nil {
 		s.mu.RUnlock()
-		return err
+		return nil, err
 	}
 	s.mu.RUnlock()
 
-	return s.createMetaNode(n.Host, n.TCPHost)
+	if err := s.createMetaNode(n.Host, n.TCPHost); err != nil {
+		return nil, err
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, node := range s.data.MetaNodes {
+		if node.TCPHost == n.TCPHost && node.Host == n.Host {
+			return &node, nil
+		}
+	}
+	return nil, ErrNodeNotFound
 }
 
 // leave removes a server from the metaservice and raft

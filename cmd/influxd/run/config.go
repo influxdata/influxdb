@@ -66,6 +66,8 @@ type Config struct {
 	// Hostname is the hostname portion to use when registering local
 	// addresses.  This hostname must be resolvable from other nodes.
 	Hostname string `toml:"hostname"`
+
+	Join string `toml:"join"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -140,13 +142,24 @@ func (c *Config) Validate() error {
 	if !c.Meta.Enabled && !c.Data.Enabled {
 		return errors.New("either Meta, Data, or both must be enabled")
 	}
-	if err := c.Meta.Validate(); err != nil {
-		return err
+
+	if c.Meta.Enabled {
+		if err := c.Meta.Validate(); err != nil {
+			return err
+		}
+
+		// If the config is for a meta-only node, we can't store monitor stats
+		// locally.
+		if c.Monitor.StoreEnabled && !c.Data.Enabled {
+			return fmt.Errorf("monitor storage can not be enabled on meta only nodes")
+		}
 	}
-	if err := c.Data.Validate(); err != nil {
-		return err
-	}
+
 	if c.Data.Enabled {
+		if err := c.Data.Validate(); err != nil {
+			return err
+		}
+
 		if err := c.HintedHandoff.Validate(); err != nil {
 			return err
 		}
