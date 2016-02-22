@@ -1158,6 +1158,57 @@ func Test_fieldsNames(t *testing.T) {
 
 }
 
+func TestSelect_ColumnNames(t *testing.T) {
+	for i, tt := range []struct {
+		stmt    *influxql.SelectStatement
+		columns []string
+	}{
+		{
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields([]*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "value"}},
+				}),
+			},
+			columns: []string{"time", "value"},
+		},
+		{
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields([]*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "value"}},
+					{Expr: &influxql.VarRef{Val: "value"}},
+					{Expr: &influxql.VarRef{Val: "value_1"}},
+				}),
+			},
+			columns: []string{"time", "value", "value_1", "value_1_1"},
+		},
+		{
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields([]*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "value"}},
+					{Expr: &influxql.VarRef{Val: "value_1"}},
+					{Expr: &influxql.VarRef{Val: "value"}},
+				}),
+			},
+			columns: []string{"time", "value", "value_1", "value_2"},
+		},
+		{
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields([]*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "value"}},
+					{Expr: &influxql.VarRef{Val: "total"}, Alias: "value"},
+					{Expr: &influxql.VarRef{Val: "value"}},
+				}),
+			},
+			columns: []string{"time", "value_1", "value", "value_2"},
+		},
+	} {
+		columns := tt.stmt.ColumnNames()
+		if !reflect.DeepEqual(columns, tt.columns) {
+			t.Errorf("%d. expected %s, got %s", i, tt.columns, columns)
+		}
+	}
+}
+
 func TestSources_Names(t *testing.T) {
 	sources := influxql.Sources([]influxql.Source{
 		&influxql.Measurement{

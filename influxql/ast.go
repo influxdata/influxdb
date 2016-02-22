@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/influxdata/influxdb/pkg/slices"
 )
 
 // DataType represents the primitive data types available in InfluxQL.
@@ -1036,34 +1034,70 @@ func (s *SelectStatement) RewriteTimeFields() {
 // ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
 // while maintaining order of the field names
 func (s *SelectStatement) ColumnNames() []string {
-	columnNames := []string{}
-
-	if !s.OmitTime {
-		columnNames = append(columnNames, "time")
-	}
-
-	// First walk each field
+	// First walk each field to determine the number of columns.
+	columnFields := Fields{}
 	for _, field := range s.Fields {
+		columnFields = append(columnFields, field)
+
 		switch f := field.Expr.(type) {
 		case *Call:
 			if f.Name == "top" || f.Name == "bottom" {
-				if len(f.Args) == 2 {
-					columnNames = append(columnNames, f.Name)
-					continue
+				for _, arg := range f.Args[1:] {
+					ref, ok := arg.(*VarRef)
+					if ok {
+						columnFields = append(columnFields, &Field{Expr: ref})
+					}
 				}
-				// We have a special case now where we have to add the column names for the fields TOP or BOTTOM asked for as well
-				columnNames = slices.Union(columnNames, f.Fields(), true)
-				continue
-			}
-			columnNames = append(columnNames, field.Name())
-		default:
-			// time is always first, and we already added it, so ignore it if they asked for it anywhere else.
-			if field.Name() != "time" {
-				columnNames = append(columnNames, field.Name())
 			}
 		}
 	}
 
+	// Determine if we should add an extra column for an implicit time.
+	offset := 0
+	if !s.OmitTime {
+		offset++
+	}
+
+	columnNames := make([]string, len(columnFields)+offset)
+	if !s.OmitTime {
+		// Add the implicit time if requested.
+		columnNames[0] = "time"
+	}
+
+	// Keep track of the encountered column names.
+	names := make(map[string]int)
+
+	// Resolve aliases first.
+	for i, col := range columnFields {
+		if col.Alias != "" {
+			columnNames[i+offset] = col.Alias
+			names[col.Alias] = 1
+		}
+	}
+
+	// Resolve any generated names and resolve conflicts.
+	for i, col := range columnFields {
+		if columnNames[i+offset] != "" {
+			continue
+		}
+
+		name := col.Name()
+		count, conflict := names[name]
+		if conflict {
+			for {
+				resolvedName := fmt.Sprintf("%s_%d", name, count)
+				_, conflict = names[resolvedName]
+				if !conflict {
+					names[name] = count + 1
+					name = resolvedName
+					break
+				}
+				count++
+			}
+		}
+		names[name] += 1
+		columnNames[i+offset] = name
+	}
 	return columnNames
 }
 
