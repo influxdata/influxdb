@@ -24,6 +24,16 @@ func newEntry() *entry {
 
 // add adds the given values to the entry.
 func (e *entry) add(values []Value) {
+	// See if the new values are sorted or contain duplicate timestamps
+	var prevTime int64
+	for _, v := range values {
+		if v.UnixNano() <= prevTime {
+			e.needSort = true
+			break
+		}
+		prevTime = v.UnixNano()
+	}
+
 	// if there are existing values make sure they're all less than the first of
 	// the new values being added
 	if len(e.values) == 0 {
@@ -35,20 +45,6 @@ func (e *entry) add(values []Value) {
 			e.needSort = true
 		}
 		e.values = append(e.values, values...)
-	}
-
-	// if there's only one value, we know it's sorted
-	if len(values) <= 1 || e.needSort {
-		return
-	}
-
-	// make sure the new values were in sorted order
-	min := values[0].UnixNano()
-	for _, v := range values[1:] {
-		if min >= v.UnixNano() {
-			e.needSort = true
-			break
-		}
 	}
 }
 
@@ -271,7 +267,7 @@ func (c *Cache) merged(key string) Values {
 	n := 0
 	for _, e := range entries {
 		if !needSort && n > 0 {
-			needSort = values[n-1].UnixNano() > e.values[0].UnixNano()
+			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
 		}
 		n += copy(values[n:], e.values)
 	}
