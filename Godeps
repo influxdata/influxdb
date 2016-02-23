@@ -1,7 +1,5 @@
-collectd.org/api 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
-collectd.org/cdtime 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
-collectd.org/network 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
-github.com/BurntSushi/toml 5c4df71dfe9ac89ef6287afc05e4c1b16ae65a1e
+collectd.org 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
+github.com/BurntSushi/toml a4eecd407cf4129fc902ece859a0114e4cf1a7f4
 github.com/armon/go-metrics 345426c77237ece5dab0e1605c3e4b35c3f54757
 github.com/bmizerany/pat b8a35001b773c267eb260a691f4e5499a3531600
 github.com/boltdb/bolt 2f846c3551b76d7710f159be840d66c3d064abbe
