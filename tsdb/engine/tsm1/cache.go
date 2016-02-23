@@ -198,13 +198,15 @@ func (c *Cache) Snapshot() *Cache {
 		}
 	}
 
+	snapshotBytes := c.size
+
 	// Reset the cache
 	c.store = make(map[string]*entry)
 	c.size = 0
 	c.lastSnapshot = time.Now()
 
-	c.updateMemSize(-int64(c.snapshot.Size()))
-	c.updateCachedBytes(c.snapshot.Size())
+	c.updateMemSize(-int64(snapshotBytes))
+	c.updateCachedBytes(snapshotBytes)
 	c.updateSnapshots()
 
 	return c.snapshot
