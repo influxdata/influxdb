@@ -33,9 +33,9 @@ func TestShardWriteAndIndex(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, index, tsdb.ShardConfig{Path: tmpShard, WALPath: tmpWal}, opts)
 	if err := sh.Open(); err != nil {
-		t.Fatalf("error openeing shard: %s", err.Error())
+		t.Fatalf("error opening shard: %s", err.Error())
 	}
 
 	pt := models.MustNewPoint(
@@ -76,9 +76,9 @@ func TestShardWriteAndIndex(t *testing.T) {
 	sh.Close()
 
 	index = tsdb.NewDatabaseIndex("db")
-	sh = tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh = tsdb.NewShard(1, index, tsdb.ShardConfig{Path: tmpShard, WALPath: tmpWal}, opts)
 	if err := sh.Open(); err != nil {
-		t.Fatalf("error openeing shard: %s", err.Error())
+		t.Fatalf("error opening shard: %s", err.Error())
 	}
 
 	validateIndex()
@@ -103,9 +103,9 @@ func TestShardWriteAddNewField(t *testing.T) {
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, index, tsdb.ShardConfig{Path: tmpShard, WALPath: tmpWal}, opts)
 	if err := sh.Open(); err != nil {
-		t.Fatalf("error openeing shard: %s", err.Error())
+		t.Fatalf("error opening shard: %s", err.Error())
 	}
 	defer sh.Close()
 
@@ -258,7 +258,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 		tmpDir, _ := ioutil.TempDir("", "shard_test")
 		tmpShard := path.Join(tmpDir, "shard")
 		tmpWal := path.Join(tmpDir, "wal")
-		shard := tsdb.NewShard(1, index, tmpShard, tmpWal, tsdb.NewEngineOptions())
+		shard := tsdb.NewShard(1, index, tsdb.ShardConfig{Path: tmpShard, WALPath: tmpWal}, tsdb.NewEngineOptions())
 		shard.Open()
 
 		b.StartTimer()
@@ -294,7 +294,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
-	shard := tsdb.NewShard(1, index, tmpShard, tmpWal, tsdb.NewEngineOptions())
+	shard := tsdb.NewShard(1, index, tsdb.ShardConfig{Path: tmpShard, WALPath: tmpWal}, tsdb.NewEngineOptions())
 	shard.Open()
 	defer shard.Close()
 	chunkedWrite(shard, points)
@@ -356,8 +356,10 @@ func NewShard() *Shard {
 	return &Shard{
 		Shard: tsdb.NewShard(0,
 			tsdb.NewDatabaseIndex("db"),
-			filepath.Join(path, "data"),
-			filepath.Join(path, "wal"),
+			tsdb.ShardConfig{
+				Path:    filepath.Join(path, "data"),
+				WALPath: filepath.Join(path, "wal"),
+			},
 			opt,
 		),
 		path: path,
