@@ -55,6 +55,8 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 	nodes, err := m.MetaClient.DataNodes()
 	if err != nil {
 		return err
+	} else if len(nodes) < 1 {
+		return nil
 	}
 
 	// Start a goroutine to execute the statement on each of the remote nodes.
