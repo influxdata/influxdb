@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 
@@ -17,10 +16,10 @@ func TestWALWriter_WritePoints_Single(t *testing.T) {
 	f := MustTempFile(dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
-	p2 := tsm1.NewValue(time.Unix(1, 0), int64(1))
-	p3 := tsm1.NewValue(time.Unix(1, 0), true)
-	p4 := tsm1.NewValue(time.Unix(1, 0), "string")
+	p1 := tsm1.NewValue(1, 1.1)
+	p2 := tsm1.NewValue(1, int64(1))
+	p3 := tsm1.NewValue(1, true)
+	p4 := tsm1.NewValue(1, "string")
 
 	values := map[string][]tsm1.Value{
 		"cpu,host=A#!~#float":  []tsm1.Value{p1},
@@ -78,7 +77,7 @@ func TestWALWriter_WritePoints_LargeBatch(t *testing.T) {
 
 	var points []tsm1.Value
 	for i := 0; i < 100000; i++ {
-		points = append(points, tsm1.NewValue(time.Unix(int64(i), 0), int64(1)))
+		points = append(points, tsm1.NewValue(int64(i), int64(1)))
 	}
 
 	values := map[string][]tsm1.Value{
@@ -132,8 +131,8 @@ func TestWALWriter_WritePoints_Multiple(t *testing.T) {
 	f := MustTempFile(dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
-	p2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
+	p1 := tsm1.NewValue(1, int64(1))
+	p2 := tsm1.NewValue(1, int64(2))
 
 	exp := []struct {
 		key    string
@@ -246,7 +245,7 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 	f := MustTempFile(dir)
 	w := tsm1.NewWALSegmentWriter(f)
 
-	p1 := tsm1.NewValue(time.Unix(1, 0), true)
+	p1 := tsm1.NewValue(1, true)
 	values := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{p1},
 	}
@@ -346,7 +345,7 @@ func TestWAL_ClosedSegments(t *testing.T) {
 
 	if _, err := w.WritePoints(map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.1),
+			tsm1.NewValue(1, 1.1),
 		},
 	}); err != nil {
 		t.Fatalf("error writing points: %v", err)
@@ -421,7 +420,7 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	w := tsm1.NewWALSegmentWriter(f)
 	corruption := []byte{1, 4, 0, 0, 0}
 
-	p1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	p1 := tsm1.NewValue(1, 1.1)
 	values := map[string][]tsm1.Value{
 		"cpu,host=A#!~#float": []tsm1.Value{p1},
 	}
@@ -471,7 +470,7 @@ func BenchmarkWALSegmentWriter(b *testing.B) {
 	points := map[string][]tsm1.Value{}
 	for i := 0; i < 5000; i++ {
 		k := "cpu,host=A#!~#value"
-		points[k] = append(points[k], tsm1.NewValue(time.Unix(int64(i), 0), 1.1))
+		points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
 	}
 
 	dir := MustTempDir()
@@ -496,7 +495,7 @@ func BenchmarkWALSegmentReader(b *testing.B) {
 	points := map[string][]tsm1.Value{}
 	for i := 0; i < 5000; i++ {
 		k := "cpu,host=A#!~#value"
-		points[k] = append(points[k], tsm1.NewValue(time.Unix(int64(i), 0), 1.1))
+		points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
 	}
 
 	dir := MustTempDir()

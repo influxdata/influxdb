@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -17,7 +16,7 @@ func TestTSMReader_Type(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), int64(1))}
+	values := []tsm1.Value{tsm1.NewValue(0, int64(1))}
 	if err := w.Write("cpu", values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
@@ -61,16 +60,16 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 		values []tsm1.Value
 	}{
 		{"float", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+			tsm1.NewValue(1, 1.0)},
 		},
 		{"int", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+			tsm1.NewValue(1, int64(1))},
 		},
 		{"bool", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), true)},
+			tsm1.NewValue(1, true)},
 		},
 		{"string", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), "foo")},
+			tsm1.NewValue(1, "foo")},
 		},
 	}
 
@@ -142,16 +141,16 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		values []tsm1.Value
 	}{
 		{"float", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+			tsm1.NewValue(1, 1.0)},
 		},
 		{"int", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+			tsm1.NewValue(1, int64(1))},
 		},
 		{"bool", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), true)},
+			tsm1.NewValue(1, true)},
 		},
 		{"string", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), "foo")},
+			tsm1.NewValue(1, "foo")},
 		},
 	}
 	for _, d := range data {
@@ -184,7 +183,7 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 
 	var count int
 	for _, d := range data {
-		readValues, err := r.Read(d.key, d.values[0].Time())
+		readValues, err := r.Read(d.key, d.values[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -222,16 +221,16 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 		values []tsm1.Value
 	}{
 		{"float", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+			tsm1.NewValue(1, 1.0)},
 		},
 		{"int", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+			tsm1.NewValue(1, int64(1))},
 		},
 		{"bool", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), true)},
+			tsm1.NewValue(1, true)},
 		},
 		{"string", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), "foo")},
+			tsm1.NewValue(1, "foo")},
 		},
 	}
 
@@ -265,7 +264,7 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 
 	var count int
 	for _, d := range data {
-		readValues, err := r.Read(d.key, d.values[0].Time())
+		readValues, err := r.Read(d.key, d.values[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -298,7 +297,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
 	if err := w.Write("cpu", values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
@@ -357,12 +356,12 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values1 := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	values1 := []tsm1.Value{tsm1.NewValue(0, 1.0)}
 	if err := w.Write("cpu", values1); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
 
-	values2 := []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0)}
+	values2 := []tsm1.Value{tsm1.NewValue(1, 1.0)}
 	if err := w.Write("mem", values2); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
@@ -398,11 +397,11 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 		t.Fatalf("max key mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := stats.MinTime, values1[0].Time(); got != exp {
+	if got, exp := stats.MinTime, values1[0].UnixNano(); got != exp {
 		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := stats.MaxTime, values2[0].Time(); got != exp {
+	if got, exp := stats.MaxTime, values2[0].UnixNano(); got != exp {
 		t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -432,9 +431,9 @@ func TestTSMReader_VerifiesFileType(t *testing.T) {
 
 func TestIndirectIndex_Entries(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 100)
-	index.Add("cpu", tsm1.BlockFloat64, time.Unix(2, 0), time.Unix(3, 0), 20, 200)
-	index.Add("mem", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 100)
+	index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 100)
+	index.Add("cpu", tsm1.BlockFloat64, 2, 3, 20, 200)
+	index.Add("mem", tsm1.BlockFloat64, 0, 1, 10, 100)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
@@ -474,8 +473,8 @@ func TestIndirectIndex_Entries(t *testing.T) {
 
 func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 100)
-	index.Add("cpu", tsm1.BlockFloat64, time.Unix(2, 0), time.Unix(3, 0), 20, 200)
+	index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 100)
+	index.Add("cpu", tsm1.BlockFloat64, 2, 3, 20, 200)
 
 	b, err := index.MarshalBinary()
 	if err != nil {
@@ -500,7 +499,7 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 func TestIndirectIndex_MaxBlocks(t *testing.T) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 1<<16; i++ {
-		index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+		index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 20)
 	}
 
 	if _, err := index.MarshalBinary(); err == nil {
@@ -512,7 +511,7 @@ func TestIndirectIndex_MaxBlocks(t *testing.T) {
 
 func TestIndirectIndex_Type(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", tsm1.BlockInteger, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
+	index.Add("cpu", tsm1.BlockInteger, 0, 1, 10, 20)
 
 	b, err := index.MarshalBinary()
 
@@ -533,9 +532,9 @@ func TestIndirectIndex_Type(t *testing.T) {
 
 func TestIndirectIndex_Keys(t *testing.T) {
 	index := tsm1.NewDirectIndex()
-	index.Add("cpu", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
-	index.Add("mem", tsm1.BlockFloat64, time.Unix(0, 0), time.Unix(1, 0), 10, 20)
-	index.Add("cpu", tsm1.BlockFloat64, time.Unix(1, 0), time.Unix(2, 0), 20, 30)
+	index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 20)
+	index.Add("mem", tsm1.BlockFloat64, 0, 1, 10, 20)
+	index.Add("cpu", tsm1.BlockFloat64, 1, 2, 20, 30)
 
 	keys := index.Keys()
 
@@ -561,7 +560,7 @@ func TestBlockIterator_Single(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), int64(1))}
+	values := []tsm1.Value{tsm1.NewValue(0, int64(1))}
 	if err := w.Write("cpu", values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
@@ -592,11 +591,11 @@ func TestBlockIterator_Single(t *testing.T) {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := minTime, time.Unix(0, 0); got != exp {
+		if got, exp := minTime, int64(0); got != exp {
 			t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := maxTime, time.Unix(0, 0); got != exp {
+		if got, exp := maxTime, int64(0); got != exp {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -619,12 +618,12 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values1 := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), int64(1))}
+	values1 := []tsm1.Value{tsm1.NewValue(0, int64(1))}
 	if err := w.Write("cpu", values1); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
 
-	values2 := []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), int64(2))}
+	values2 := []tsm1.Value{tsm1.NewValue(1, int64(2))}
 	if err := w.Write("cpu", values2); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 	}
@@ -657,11 +656,11 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := minTime, expData[i][0].Time(); got != exp {
+		if got, exp := minTime, expData[i][0].UnixNano(); got != exp {
 			t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
 		}
 
-		if got, exp := maxTime, expData[i][0].Time(); got != exp {
+		if got, exp := maxTime, expData[i][0].UnixNano(); got != exp {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 		}
 
@@ -685,10 +684,10 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	}
 
 	values := map[string][]tsm1.Value{
-		"mem":  []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), int64(1))},
-		"cpu":  []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), float64(2))},
-		"disk": []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), true)},
-		"load": []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), "string")},
+		"mem":  []tsm1.Value{tsm1.NewValue(0, int64(1))},
+		"cpu":  []tsm1.Value{tsm1.NewValue(1, float64(2))},
+		"disk": []tsm1.Value{tsm1.NewValue(1, true)},
+		"load": []tsm1.Value{tsm1.NewValue(1, "string")},
 	}
 
 	for k, v := range values {
@@ -751,7 +750,7 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 	}
 
 	for i := 0; i < 3280; i++ {
-		w.Write("cpu", []tsm1.Value{tsm1.NewValue(time.Unix(int64(i), 0), float64(i))})
+		w.Write("cpu", []tsm1.Value{tsm1.NewValue(int64(i), float64(i))})
 	}
 
 	if err := w.WriteIndex(); err != nil {
@@ -784,7 +783,7 @@ func TestCompacted_NotFull(t *testing.T) {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
 
-	values := []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}
+	values := []tsm1.Value{tsm1.NewValue(0, 1.0)}
 	if err := w.Write("cpu", values); err != nil {
 		t.Fatalf("unexpected error writing: %v", err)
 
@@ -833,16 +832,16 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 		values []tsm1.Value
 	}{
 		{"float", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+			tsm1.NewValue(1, 1.0)},
 		},
 		{"int", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+			tsm1.NewValue(1, int64(1))},
 		},
 		{"bool", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), true)},
+			tsm1.NewValue(1, true)},
 		},
 		{"string", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), "foo")},
+			tsm1.NewValue(1, "foo")},
 		},
 	}
 
@@ -914,16 +913,16 @@ func TestTSMReader_File_Read(t *testing.T) {
 		values []tsm1.Value
 	}{
 		{"float", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), 1.0)},
+			tsm1.NewValue(1, 1.0)},
 		},
 		{"int", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), int64(1))},
+			tsm1.NewValue(1, int64(1))},
 		},
 		{"bool", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), true)},
+			tsm1.NewValue(1, true)},
 		},
 		{"string", []tsm1.Value{
-			tsm1.NewValue(time.Unix(1, 0), "foo")},
+			tsm1.NewValue(1, "foo")},
 		},
 	}
 	for _, d := range data {
@@ -956,7 +955,7 @@ func TestTSMReader_File_Read(t *testing.T) {
 
 	var count int
 	for _, d := range data {
-		readValues, err := r.Read(d.key, d.values[0].Time())
+		readValues, err := r.Read(d.key, d.values[0].UnixNano())
 		if err != nil {
 			t.Fatalf("unexpected error readin: %v", err)
 		}
@@ -980,7 +979,7 @@ func TestTSMReader_File_Read(t *testing.T) {
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 100000; i++ {
-		index.Add(fmt.Sprintf("cpu-%d", i), tsm1.BlockFloat64, time.Unix(int64(i*2), 0), time.Unix(int64(i*2+1), 0), 10, 100)
+		index.Add(fmt.Sprintf("cpu-%d", i), tsm1.BlockFloat64, int64(i*2), int64(i*2+1), 10, 100)
 	}
 
 	bytes, err := index.MarshalBinary()

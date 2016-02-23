@@ -43,8 +43,8 @@ type tsdmDumpOpts struct {
 type tsmIndex struct {
 	series  int
 	offset  int64
-	minTime time.Time
-	maxTime time.Time
+	minTime int64
+	maxTime int64
 	blocks  []*block
 }
 
@@ -181,6 +181,7 @@ func readIds(path string) (map[string]uint64, error) {
 	}
 	return ids, err
 }
+
 func readIndex(f *os.File) (*tsmIndex, error) {
 	// Get the file size
 	stat, err := f.Stat()
@@ -201,12 +202,12 @@ func readIndex(f *os.File) (*tsmIndex, error) {
 	// Get the min time
 	f.Seek(-20, os.SEEK_END)
 	f.Read(b)
-	minTime := time.Unix(0, int64(binary.BigEndian.Uint64(b)))
+	minTime := int64(binary.BigEndian.Uint64(b))
 
 	// Get max time
 	f.Seek(-12, os.SEEK_END)
 	f.Read(b)
-	maxTime := time.Unix(0, int64(binary.BigEndian.Uint64(b)))
+	maxTime := int64(binary.BigEndian.Uint64(b))
 
 	// Figure out where the index starts
 	indexStart := stat.Size() - int64(seriesCount*12+20)
@@ -280,8 +281,8 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		// Create a stubbed out index so we can still try and read the block data directly
 		// w/o panicing ourselves.
 		index = &tsmIndex{
-			minTime: time.Unix(0, 0),
-			maxTime: time.Unix(0, 0),
+			minTime: 0,
+			maxTime: 0,
 			offset:  stat.Size(),
 		}
 	}
@@ -291,10 +292,10 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	println("Summary:")
 	fmt.Printf("  File: %s\n", opts.path)
 	fmt.Printf("  Time Range: %s - %s\n",
-		index.minTime.UTC().Format(time.RFC3339Nano),
-		index.maxTime.UTC().Format(time.RFC3339Nano),
+		time.Unix(0, index.minTime).UTC().Format(time.RFC3339Nano),
+		time.Unix(0, index.maxTime).UTC().Format(time.RFC3339Nano),
 	)
-	fmt.Printf("  Duration: %s ", index.maxTime.Sub(index.minTime))
+	fmt.Printf("  Duration: %s ", time.Unix(0, index.maxTime).Sub(time.Unix(0, index.minTime)))
 	fmt.Printf("  Series: %d ", index.series)
 	fmt.Printf("  File Size: %d\n", stat.Size())
 	println()
@@ -485,10 +486,10 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 	println("Summary:")
 	fmt.Printf("  File: %s\n", opts.path)
 	fmt.Printf("  Time Range: %s - %s\n",
-		minTime.UTC().Format(time.RFC3339Nano),
-		maxTime.UTC().Format(time.RFC3339Nano),
+		time.Unix(0, minTime).UTC().Format(time.RFC3339Nano),
+		time.Unix(0, maxTime).UTC().Format(time.RFC3339Nano),
 	)
-	fmt.Printf("  Duration: %s ", maxTime.Sub(minTime))
+	fmt.Printf("  Duration: %s ", time.Unix(0, maxTime).Sub(time.Unix(0, minTime)))
 	fmt.Printf("  Series: %d ", len(keys))
 	fmt.Printf("  File Size: %d\n", stat.Size())
 	println()
@@ -513,8 +514,8 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 			}
 			fmt.Fprintln(tw, "  "+strings.Join([]string{
 				strconv.FormatInt(int64(pos), 10),
-				e.MinTime.UTC().Format(time.RFC3339Nano),
-				e.MaxTime.UTC().Format(time.RFC3339Nano),
+				time.Unix(0, e.MinTime).UTC().Format(time.RFC3339Nano),
+				time.Unix(0, e.MaxTime).UTC().Format(time.RFC3339Nano),
 				strconv.FormatInt(int64(e.Offset), 10),
 				strconv.FormatInt(int64(e.Size), 10),
 				measurement,
@@ -561,7 +562,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 				fmt.Printf("error: %v\n", err.Error())
 				os.Exit(1)
 			}
-			startTime := v[0].Time()
+			startTime := time.Unix(0, v[0].UnixNano())
 
 			pointCount += int64(len(v))
 
