@@ -7,6 +7,8 @@ import (
 // RewriteStatement rewrites stmt into a new statement, if applicable.
 func RewriteStatement(stmt Statement) (Statement, error) {
 	switch stmt := stmt.(type) {
+	case *ShowFieldKeysStatement:
+		return rewriteShowFieldKeysStatement(stmt)
 	case *ShowMeasurementsStatement:
 		return rewriteShowMeasurementsStatement(stmt)
 	case *ShowTagKeysStatement:
@@ -14,6 +16,42 @@ func RewriteStatement(stmt Statement) (Statement, error) {
 	default:
 		return stmt, nil
 	}
+}
+
+func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, error) {
+	var condition Expr
+	if len(stmt.Sources) > 0 {
+		if source, ok := stmt.Sources[0].(*Measurement); ok {
+			if source.Regex != nil {
+				condition = &BinaryExpr{
+					Op:  EQREGEX,
+					LHS: &VarRef{Val: "name"},
+					RHS: &RegexLiteral{Val: source.Regex.Val},
+				}
+			} else if source.Name != "" {
+				condition = &BinaryExpr{
+					Op:  EQ,
+					LHS: &VarRef{Val: "name"},
+					RHS: &StringLiteral{Val: source.Name},
+				}
+			}
+		}
+	}
+
+	return &SelectStatement{
+		Fields: Fields([]*Field{
+			{Expr: &VarRef{Val: "fieldKey"}},
+		}),
+		Sources: Sources([]Source{
+			&Measurement{Name: "_fieldKeys"},
+		}),
+		Condition:  condition,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		SortFields: stmt.SortFields,
+		OmitTime:   true,
+		Dedupe:     true,
+	}, nil
 }
 
 func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statement, error) {

@@ -168,8 +168,6 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			rows, err = e.executeShowDatabasesStatement(stmt)
 		case *influxql.ShowDiagnosticsStatement:
 			rows, err = e.executeShowDiagnosticsStatement(stmt)
-		case *influxql.ShowFieldKeysStatement:
-			rows, err = e.executeShowFieldKeysStatement(stmt, database)
 		case *influxql.ShowGrantsForUserStatement:
 			rows, err = e.executeShowGrantsForUserStatement(stmt)
 		case *influxql.ShowRetentionPoliciesStatement:
