@@ -29,24 +29,22 @@ const (
 )
 
 type Value interface {
-	Time() time.Time
 	UnixNano() int64
 	Value() interface{}
 	Size() int
 	String() string
 }
 
-func NewValue(t time.Time, value interface{}) Value {
-	un := t.UnixNano()
+func NewValue(t int64, value interface{}) Value {
 	switch v := value.(type) {
 	case int64:
-		return &IntegerValue{unixnano: un, value: v}
+		return &IntegerValue{unixnano: t, value: v}
 	case float64:
-		return &FloatValue{unixnano: un, value: v}
+		return &FloatValue{unixnano: t, value: v}
 	case bool:
-		return &BooleanValue{unixnano: un, value: v}
+		return &BooleanValue{unixnano: t, value: v}
 	case string:
-		return &StringValue{unixnano: un, value: v}
+		return &StringValue{unixnano: t, value: v}
 	}
 	return &EmptyValue{}
 }
@@ -55,7 +53,6 @@ type EmptyValue struct {
 }
 
 func (e *EmptyValue) UnixNano() int64    { return tsdb.EOF }
-func (e *EmptyValue) Time() time.Time    { return time.Unix(0, tsdb.EOF) }
 func (e *EmptyValue) Value() interface{} { return nil }
 func (e *EmptyValue) Size() int          { return 0 }
 func (e *EmptyValue) String() string     { return "" }
@@ -66,11 +63,11 @@ func (e *EmptyValue) String() string     { return "" }
 type Values []Value
 
 func (a Values) MinTime() int64 {
-	return a[0].Time().UnixNano()
+	return a[0].UnixNano()
 }
 
 func (a Values) MaxTime() int64 {
-	return a[len(a)-1].Time().UnixNano()
+	return a[len(a)-1].UnixNano()
 }
 
 func (a Values) Size() int {
@@ -220,15 +217,11 @@ func (a Values) Deduplicate() Values {
 // Sort methods
 func (a Values) Len() int           { return len(a) }
 func (a Values) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a Values) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
+func (a Values) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
 type FloatValue struct {
 	unixnano int64
 	value    float64
-}
-
-func (f *FloatValue) Time() time.Time {
-	return time.Unix(0, f.unixnano)
 }
 
 func (f *FloatValue) UnixNano() int64 {
@@ -244,7 +237,7 @@ func (f *FloatValue) Size() int {
 }
 
 func (f *FloatValue) String() string {
-	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
 func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
@@ -263,7 +256,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	tsenc := NewTimeEncoder()
 
 	for _, v := range values {
-		tsenc.Write(v.Time())
+		tsenc.Write(time.Unix(0, v.UnixNano()))
 		venc.Push(v.Value().(float64))
 	}
 	venc.Finish()
@@ -352,14 +345,12 @@ func (a FloatValues) Deduplicate() FloatValues {
 // Sort methods
 func (a FloatValues) Len() int           { return len(a) }
 func (a FloatValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a FloatValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
+func (a FloatValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
 type BooleanValue struct {
 	unixnano int64
 	value    bool
 }
-
-func (b *BooleanValue) Time() time.Time { return time.Unix(0, b.unixnano) }
 
 func (b *BooleanValue) Size() int {
 	return 9
@@ -374,7 +365,7 @@ func (b *BooleanValue) Value() interface{} {
 }
 
 func (f *BooleanValue) String() string {
-	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
 func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
@@ -392,7 +383,7 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	tsenc := NewTimeEncoder()
 
 	for _, v := range values {
-		tsenc.Write(v.Time())
+		tsenc.Write(time.Unix(0, v.UnixNano()))
 		venc.Write(v.Value().(bool))
 	}
 
@@ -477,15 +468,11 @@ func (a BooleanValues) Deduplicate() BooleanValues {
 // Sort methods
 func (a BooleanValues) Len() int           { return len(a) }
 func (a BooleanValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a BooleanValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
+func (a BooleanValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
 type IntegerValue struct {
 	unixnano int64
 	value    int64
-}
-
-func (v *IntegerValue) Time() time.Time {
-	return time.Unix(0, v.unixnano)
 }
 
 func (v *IntegerValue) Value() interface{} {
@@ -501,14 +488,14 @@ func (v *IntegerValue) Size() int {
 }
 
 func (f *IntegerValue) String() string {
-	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
 func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewIntegerEncoder()
 	for _, v := range values {
-		tsEnc.Write(v.Time())
+		tsEnc.Write(time.Unix(0, v.UnixNano()))
 		vEnc.Write(v.Value().(int64))
 	}
 
@@ -592,15 +579,11 @@ func (a IntegerValues) Deduplicate() IntegerValues {
 // Sort methods
 func (a IntegerValues) Len() int           { return len(a) }
 func (a IntegerValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a IntegerValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
+func (a IntegerValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
 type StringValue struct {
 	unixnano int64
 	value    string
-}
-
-func (v *StringValue) Time() time.Time {
-	return time.Unix(0, v.unixnano)
 }
 
 func (v *StringValue) Value() interface{} {
@@ -616,14 +599,14 @@ func (v *StringValue) Size() int {
 }
 
 func (f *StringValue) String() string {
-	return fmt.Sprintf("%v %v", f.Time(), f.Value())
+	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
 func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewStringEncoder()
 	for _, v := range values {
-		tsEnc.Write(v.Time())
+		tsEnc.Write(time.Unix(0, v.UnixNano()))
 		vEnc.Write(v.Value().(string))
 	}
 
@@ -710,7 +693,7 @@ func (a StringValues) Deduplicate() StringValues {
 // Sort methods
 func (a StringValues) Len() int           { return len(a) }
 func (a StringValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a StringValues) Less(i, j int) bool { return a[i].Time().UnixNano() < a[j].Time().UnixNano() }
+func (a StringValues) Less(i, j int) bool { return a[i].UnixNano() < a[j].UnixNano() }
 
 func packBlockHeader(blockType byte) []byte {
 	return []byte{blockType}

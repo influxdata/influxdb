@@ -105,10 +105,10 @@ func (t *tsmGeneration) level() int {
 	return 4
 }
 
-func (t *tsmGeneration) lastModified() time.Time {
-	var max time.Time
+func (t *tsmGeneration) lastModified() int64 {
+	var max int64
 	for _, f := range t.files {
-		if f.LastModified.After(max) {
+		if f.LastModified > max {
 			max = f.LastModified
 		}
 	}
@@ -597,7 +597,7 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 // KeyIterator allows iteration over set of keys and values in sorted order.
 type KeyIterator interface {
 	Next() bool
-	Read() (string, time.Time, time.Time, []byte, error)
+	Read() (string, int64, int64, []byte, error)
 	Close() error
 }
 
@@ -643,7 +643,7 @@ type tsmKeyIterator struct {
 
 type block struct {
 	key              string
-	minTime, maxTime time.Time
+	minTime, maxTime int64
 	b                []byte
 }
 
@@ -653,7 +653,7 @@ func (a blocks) Len() int { return len(a) }
 
 func (a blocks) Less(i, j int) bool {
 	if a[i].key == a[j].key {
-		return a[i].minTime.Before(a[j].minTime)
+		return a[i].minTime < a[j].minTime
 	}
 	return a[i].key < a[j].key
 }
@@ -761,7 +761,7 @@ func (k *tsmKeyIterator) Next() bool {
 		// Quickly scan each block to see if any overlap with the first block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; i < len(k.blocks); i++ {
-			if k.blocks[i].minTime.Equal(k.blocks[i-1].maxTime) || k.blocks[i].minTime.Before(k.blocks[i-1].maxTime) {
+			if k.blocks[i].minTime <= k.blocks[i-1].maxTime {
 				dedup = true
 				break
 			}
@@ -846,8 +846,8 @@ func (k *tsmKeyIterator) chunk(dst blocks, values []Value) blocks {
 		}
 
 		dst = append(dst, &block{
-			minTime: values[0].Time(),
-			maxTime: values[k.size-1].Time(),
+			minTime: values[0].UnixNano(),
+			maxTime: values[k.size-1].UnixNano(),
 			key:     k.blocks[0].key,
 			b:       cb,
 		})
@@ -863,8 +863,8 @@ func (k *tsmKeyIterator) chunk(dst blocks, values []Value) blocks {
 		}
 
 		dst = append(dst, &block{
-			minTime: values[0].Time(),
-			maxTime: values[len(values)-1].Time(),
+			minTime: values[0].UnixNano(),
+			maxTime: values[len(values)-1].UnixNano(),
 			key:     k.blocks[0].key,
 			b:       cb,
 		})
@@ -872,9 +872,9 @@ func (k *tsmKeyIterator) chunk(dst blocks, values []Value) blocks {
 	return dst
 }
 
-func (k *tsmKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
+func (k *tsmKeyIterator) Read() (string, int64, int64, []byte, error) {
 	if len(k.blocks) == 0 {
-		return "", time.Unix(0, 0), time.Unix(0, 0), nil, k.err
+		return "", 0, 0, nil, k.err
 	}
 
 	block := k.blocks[0]
@@ -930,12 +930,12 @@ func (c *cacheKeyIterator) Next() bool {
 	return len(c.values) > 0
 }
 
-func (c *cacheKeyIterator) Read() (string, time.Time, time.Time, []byte, error) {
-	minTime, maxTime := c.values[0].Time(), c.values[len(c.values)-1].Time()
+func (c *cacheKeyIterator) Read() (string, int64, int64, []byte, error) {
+	minTime, maxTime := c.values[0].UnixNano(), c.values[len(c.values)-1].UnixNano()
 	var b []byte
 	var err error
 	if len(c.values) > c.size {
-		maxTime = c.values[c.size-1].Time()
+		maxTime = c.values[c.size-1].UnixNano()
 		b, err = Values(c.values[:c.size]).Encode(nil)
 	} else {
 		b, err = Values(c.values).Encode(nil)

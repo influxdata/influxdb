@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -16,7 +15,7 @@ func TestScrubValues(t *testing.T) {
 		tracker: new(tracker),
 	}
 
-	epoch := time.Unix(0, 0)
+	var epoch int64
 	simple := []tsm1.Value{tsm1.NewValue(epoch, 1.0)}
 
 	for _, tt := range []struct {

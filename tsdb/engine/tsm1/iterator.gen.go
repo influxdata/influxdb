@@ -216,14 +216,14 @@ func newFloatAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCu
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]FloatValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 
 	return c
@@ -246,7 +246,7 @@ func (c *floatAscendingCursor) peekTSM() (t int64, v float64) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(float64)
+	return item.UnixNano(), item.Value().(float64)
 }
 
 // next returns the next key/value for the cursor.
@@ -320,7 +320,7 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekCache(); t != seek {
 		c.cache.pos--
@@ -330,7 +330,7 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 	c.tsm.buf = make([]FloatValue, 1000)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekTSM(); t != seek {
 		c.tsm.pos--
@@ -356,7 +356,7 @@ func (c *floatDescendingCursor) peekTSM() (t int64, v float64) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(float64)
+	return item.UnixNano(), item.Value().(float64)
 }
 
 // next returns the next key/value for the cursor.
@@ -548,14 +548,14 @@ func newIntegerAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]IntegerValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 
 	return c
@@ -578,7 +578,7 @@ func (c *integerAscendingCursor) peekTSM() (t int64, v int64) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(int64)
+	return item.UnixNano(), item.Value().(int64)
 }
 
 // next returns the next key/value for the cursor.
@@ -652,7 +652,7 @@ func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekCache(); t != seek {
 		c.cache.pos--
@@ -662,7 +662,7 @@ func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	c.tsm.buf = make([]IntegerValue, 1000)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekTSM(); t != seek {
 		c.tsm.pos--
@@ -688,7 +688,7 @@ func (c *integerDescendingCursor) peekTSM() (t int64, v int64) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(int64)
+	return item.UnixNano(), item.Value().(int64)
 }
 
 // next returns the next key/value for the cursor.
@@ -880,14 +880,14 @@ func newStringAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]StringValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 
 	return c
@@ -910,7 +910,7 @@ func (c *stringAscendingCursor) peekTSM() (t int64, v string) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(string)
+	return item.UnixNano(), item.Value().(string)
 }
 
 // next returns the next key/value for the cursor.
@@ -984,7 +984,7 @@ func newStringDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekCache(); t != seek {
 		c.cache.pos--
@@ -994,7 +994,7 @@ func newStringDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 	c.tsm.buf = make([]StringValue, 1000)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekTSM(); t != seek {
 		c.tsm.pos--
@@ -1020,7 +1020,7 @@ func (c *stringDescendingCursor) peekTSM() (t int64, v string) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(string)
+	return item.UnixNano(), item.Value().(string)
 }
 
 // next returns the next key/value for the cursor.
@@ -1212,14 +1212,14 @@ func newBooleanAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]BooleanValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 
 	return c
@@ -1242,7 +1242,7 @@ func (c *booleanAscendingCursor) peekTSM() (t int64, v bool) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(bool)
+	return item.UnixNano(), item.Value().(bool)
 }
 
 // next returns the next key/value for the cursor.
@@ -1316,7 +1316,7 @@ func newBooleanDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 
 	c.cache.values = cacheValues
 	c.cache.pos = sort.Search(len(c.cache.values), func(i int) bool {
-		return c.cache.values[i].Time().UnixNano() >= seek
+		return c.cache.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekCache(); t != seek {
 		c.cache.pos--
@@ -1326,7 +1326,7 @@ func newBooleanDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	c.tsm.buf = make([]BooleanValue, 1000)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
-		return c.tsm.values[i].Time().UnixNano() >= seek
+		return c.tsm.values[i].UnixNano() >= seek
 	})
 	if t, _ := c.peekTSM(); t != seek {
 		c.tsm.pos--
@@ -1352,7 +1352,7 @@ func (c *booleanDescendingCursor) peekTSM() (t int64, v bool) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.Time().UnixNano(), item.Value().(bool)
+	return item.UnixNano(), item.Value().(bool)
 }
 
 // next returns the next key/value for the cursor.
