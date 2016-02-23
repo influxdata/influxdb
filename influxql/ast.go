@@ -973,38 +973,38 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 	other := s.Clone()
 
 	// Rewrite all wildcard query fields
-	rwFields := make(Fields, 0, len(s.Fields))
-	for _, f := range s.Fields {
-		switch f.Expr.(type) {
-		case *Wildcard:
-			for _, name := range fields {
-				rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+	if hasFieldWildcard {
+		// Allocate a slice assuming there is exactly one wildcard for efficiency.
+		rwFields := make(Fields, 0, len(s.Fields)+len(fields)-1)
+		for _, f := range s.Fields {
+			switch f.Expr.(type) {
+			case *Wildcard:
+				for _, name := range fields {
+					rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+				}
+			default:
+				rwFields = append(rwFields, f)
 			}
-		default:
-			rwFields = append(rwFields, f)
 		}
+		other.Fields = rwFields
 	}
-	other.Fields = rwFields
 
 	// Rewrite all wildcard GROUP BY fields
-	rwDimensions := make(Dimensions, 0, len(s.Dimensions))
-	for _, d := range s.Dimensions {
-		switch d.Expr.(type) {
-		case *Wildcard:
-			for _, name := range dimensions {
-				rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
+	if hasDimensionWildcard {
+		// Allocate a slice assuming there is exactly one wildcard for efficiency.
+		rwDimensions := make(Dimensions, 0, len(s.Dimensions)+len(dimensions)-1)
+		for _, d := range s.Dimensions {
+			switch d.Expr.(type) {
+			case *Wildcard:
+				for _, name := range dimensions {
+					rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
+				}
+			default:
+				rwDimensions = append(rwDimensions, d)
 			}
-		default:
-			rwDimensions = append(rwDimensions, d)
 		}
+		other.Dimensions = rwDimensions
 	}
-
-	if hasFieldWildcard && !hasDimensionWildcard {
-		for _, name := range dimensions {
-			rwDimensions = append(rwDimensions, &Dimension{Expr: &VarRef{Val: name}})
-		}
-	}
-	other.Dimensions = rwDimensions
 
 	return other, nil
 }
