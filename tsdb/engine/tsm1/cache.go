@@ -79,6 +79,7 @@ const (
 
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
+	commit  sync.Mutex
 	mu      sync.RWMutex
 	store   map[string]*entry
 	dirty   map[string]*entry
@@ -168,6 +169,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 // Snapshot will take a snapshot of the current cache, add it to the slice of caches that
 // are being flushed, and reset the current cache with new values
 func (c *Cache) Snapshot() *Cache {
+
+	c.commit.Lock() // released by RollbackSnapshot() or CommitSnapshot()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -226,14 +230,18 @@ func (c *Cache) UpdateStore() {
 
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and
 // adjust the size
-func (c *Cache) ClearSnapshot() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) ClearSnapshot(success bool) {
+	defer c.commit.Unlock()
 
-	c.snapshotSize = 0
-	c.snapshot = nil
+	if success {
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
-	c.updateSnapshot()
+		c.snapshotSize = 0
+		c.snapshot = nil
+
+		c.updateSnapshot()
+	}
 }
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
