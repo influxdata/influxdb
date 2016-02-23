@@ -449,6 +449,13 @@ func (e *Engine) WriteSnapshot() error {
 	// holding the engine write lock.
 	snapshot.Deduplicate()
 
+	// once we are done, we need to quickly update the snapshot's store with the dirty slice (which is now
+	// clean). We need to hold the cache write lock (rather than the snapshot write lock)
+	// since active users of the cache hold a read lock on the same object.
+	e.Cache.mu.Lock()
+	snapshot.UpdateStore()
+	e.Cache.mu.Unlock()
+
 	return e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
 }
 
