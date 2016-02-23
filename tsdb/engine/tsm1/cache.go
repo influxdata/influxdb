@@ -192,13 +192,15 @@ func (c *Cache) Snapshot() *Cache {
 		c.snapshotSize += uint64(Values(e.values).Size())
 	}
 
+	snapshotSize := c.size // record the number of bytes written into a snapshot
+
 	// Reset the cache
 	c.store = make(map[string]*entry)
 	c.size = 0
 	c.lastSnapshot = time.Now()
 
-	c.updateMemSize(-int64(c.snapshot.Size()))
-	c.updateCachedBytes(c.snapshot.Size())
+	c.updateMemSize(-int64(snapshotSize)) // decrement the number of bytes in cache
+	c.updateCachedBytes(snapshotSize)     // increment the number of bytes added to the snapshot
 	c.updateSnapshots()
 
 	return c.snapshot
