@@ -944,7 +944,7 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 		return s, nil
 	}
 
-	// Retrieve a list of unqiue field and dimensions.
+	// Retrieve a list of unique field and dimensions.
 	fieldSet, dimensionSet, err := ic.FieldDimensions(s.Sources)
 	if err != nil {
 		return s, err
@@ -952,6 +952,16 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 
 	// If there are no dimension wildcards then merge dimensions to fields.
 	if !hasDimensionWildcard {
+		// Remove the dimensions present in the group by so they don't get added as fields.
+		for _, d := range s.Dimensions {
+			switch expr := d.Expr.(type) {
+			case *VarRef:
+				if _, ok := dimensionSet[expr.Val]; ok {
+					delete(dimensionSet, expr.Val)
+				}
+			}
+		}
+
 		for k := range dimensionSet {
 			fieldSet[k] = struct{}{}
 		}

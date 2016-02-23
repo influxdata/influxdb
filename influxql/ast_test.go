@@ -356,16 +356,22 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Parser fundamentally prohibits multiple query sources
 
 		// Query wildcard with explicit
-		// {
-		//	stmt:    `SELECT *,value1 FROM cpu`,
-		//		rewrite: `SELECT value1, value2, value1 FROM cpu`,
-		//	},
+		{
+			stmt:    `SELECT *,value1 FROM cpu`,
+			rewrite: `SELECT host, region, value1, value2, value1 FROM cpu`,
+		},
 
 		// Query multiple wildcards
-		//	{
-		//			stmt:    `SELECT *,* FROM cpu`,
-		//			rewrite: `SELECT value1,value2,value1,value2 FROM cpu`,
-		//  },
+		{
+			stmt:    `SELECT *,* FROM cpu`,
+			rewrite: `SELECT host, region, value1, value2, host, region, value1, value2 FROM cpu`,
+		},
+
+		// Query wildcards with group by
+		{
+			stmt:    `SELECT * FROM cpu GROUP BY host`,
+			rewrite: `SELECT region, value1, value2 FROM cpu GROUP BY host`,
+		},
 
 		// No GROUP BY wildcards
 		{
