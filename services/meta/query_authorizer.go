@@ -10,6 +10,12 @@ type QueryAuthorizer struct {
 	Client *Client
 }
 
+func NewQueryAuthorizer(c *Client) *QueryAuthorizer {
+	return &QueryAuthorizer{
+		Client: c,
+	}
+}
+
 // AuthorizeQuery authorizes u to execute q on database.
 // Database can be "" for queries that do not require a database.
 // If no user is provided it will return an error unless the query's first statement is to create
