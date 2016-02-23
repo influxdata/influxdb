@@ -28,8 +28,8 @@ type Service struct {
 	statsInterval time.Duration
 	version       string
 
-	mu          sync.Mutex
-	lastContact time.Time
+	mu         sync.Mutex
+	lstContact time.Time
 
 	adminPort string
 
@@ -197,11 +197,11 @@ func (s *Service) reportStats() {
 func (s *Service) updateLastContact(t time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.lastContact = t
+	s.lstContact = t
 }
 
 func (s *Service) lastContact() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.lastContact.String()
+	return s.lstContact.String()
 }
