@@ -420,6 +420,8 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 
 	m := opt.Sources[0].(*influxql.Measurement)
 	switch m.Name {
+	case "_fieldKeys":
+		return NewFieldKeysIterator(s, opt)
 	case "_measurements":
 		return NewMeasurementIterator(s, opt)
 	case "_tagKeys":
@@ -824,6 +826,15 @@ func (ic *shardIteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influx
 	return ic.sh.SeriesKeys(opt)
 }
 
+func NewFieldKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	fn := func(m *Measurement) []string {
+		keys := m.FieldNames()
+		sort.Strings(keys)
+		return keys
+	}
+	return newMeasurementKeysIterator(sh, fn, opt)
+}
+
 // MeasurementIterator represents a string iterator that emits all measurement names in a shard.
 type MeasurementIterator struct {
 	mms    Measurements
@@ -872,18 +883,19 @@ func (itr *MeasurementIterator) Next() *influxql.FloatPoint {
 	}
 }
 
-// TagKeysIterator represents a string iterator that emits all tag keys in a shard.
-type TagKeysIterator struct {
-	mms Measurements // remaining measurements
-	buf struct {
-		mm   *Measurement // current measurement
-		keys []string     // current measurement's keys
+// NewTagKeysIterator returns a new instance of TagKeysIterator.
+func NewTagKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	fn := func(m *Measurement) []string {
+		return m.TagKeys()
 	}
+	return newMeasurementKeysIterator(sh, fn, opt)
 }
 
-// NewTagKeysIterator returns a new instance of TagKeysIterator.
-func NewTagKeysIterator(sh *Shard, opt influxql.IteratorOptions) (*TagKeysIterator, error) {
-	itr := &TagKeysIterator{}
+// measurementKeyFunc is the function called by measurementKeysIterator.
+type measurementKeyFunc func(m *Measurement) []string
+
+func newMeasurementKeysIterator(sh *Shard, fn measurementKeyFunc, opt influxql.IteratorOptions) (*measurementKeysIterator, error) {
+	itr := &measurementKeysIterator{fn: fn}
 
 	// Retrieve measurements from shard. Filter if condition specified.
 	if opt.Condition == nil {
@@ -902,11 +914,21 @@ func NewTagKeysIterator(sh *Shard, opt influxql.IteratorOptions) (*TagKeysIterat
 	return itr, nil
 }
 
+// measurementKeysIterator iterates over measurements and gets keys from each measurement.
+type measurementKeysIterator struct {
+	mms Measurements // remaining measurements
+	buf struct {
+		mm   *Measurement // current measurement
+		keys []string     // current measurement's keys
+	}
+	fn measurementKeyFunc
+}
+
 // Close closes the iterator.
-func (itr *TagKeysIterator) Close() error { return nil }
+func (itr *measurementKeysIterator) Close() error { return nil }
 
 // Next emits the next tag key name.
-func (itr *TagKeysIterator) Next() *influxql.FloatPoint {
+func (itr *measurementKeysIterator) Next() *influxql.FloatPoint {
 	for {
 		// If there are no more keys then move to the next measurements.
 		if len(itr.buf.keys) == 0 {
@@ -915,7 +937,7 @@ func (itr *TagKeysIterator) Next() *influxql.FloatPoint {
 			}
 
 			itr.buf.mm = itr.mms[0]
-			itr.buf.keys = itr.buf.mm.TagKeys()
+			itr.buf.keys = itr.fn(itr.buf.mm)
 			itr.mms = itr.mms[1:]
 			continue
 		}
