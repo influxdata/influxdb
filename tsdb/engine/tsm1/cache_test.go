@@ -134,6 +134,7 @@ func TestCache_CacheValues(t *testing.T) {
 }
 
 func TestCache_CacheSnapshot(t *testing.T) {
+	segment1 := "segment1.wal"
 	v0 := NewValue(time.Unix(2, 0).UTC(), 0.0)
 	v1 := NewValue(time.Unix(3, 0).UTC(), 2.0)
 	v2 := NewValue(time.Unix(4, 0).UTC(), 3.0)
@@ -147,7 +148,23 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshot := c.Snapshot()
+	snapshots := c.PrepareSnapshots([]string{segment1})
+	if length := len(snapshots); length != 1 {
+		t.Fatalf("invalid snapshots length, exp %d, got %d", 1, length)
+	}
+
+	// check that the snapshot we got is not nil
+	snapshot := snapshots[0]
+	if snapshot == nil {
+		t.Fatalf("snapshot is nil")
+	}
+
+	// check that the snapshot has captured the segment files
+	expFiles := [][]string{[]string{segment1}}
+	if files := [][]string{snapshot.Files()}; !reflect.DeepEqual(expFiles, files) {
+		t.Fatalf("files is incorrect, exp: %v, got %v", expFiles, files)
+	}
+
 	expValues := Values{v0, v1, v2, v3}
 	if deduped := snapshot.values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", expValues, deduped)
@@ -177,19 +194,180 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot, ensuring non-snapshot data untouched.
-	c.ClearSnapshot(snapshot)
+	c.CommitSnapshots()
+
 	expValues = Values{v5, v4}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
-		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
+		t.Fatalf("post-commit values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
+}
+
+func TestCache_CacheRollbackSnapshots(t *testing.T) {
+	segment2 := "segment2.wal"
+	segment3 := "segment3.wal"
+	segment4 := "segment4.wal"
+	segment5 := "segment5.wal"
+	v4 := NewValue(time.Unix(6, 0).UTC(), 5.0)
+	v5 := NewValue(time.Unix(1, 0).UTC(), 5.0)
+	v6 := NewValue(time.Unix(7, 0).UTC(), 5.0)
+
+	c := NewCache(512, "")
+
+	// Write a new value to the cache.
+	if err := c.Write("foo", Values{v4, v5}); err != nil {
+		t.Fatalf("failed to write value, key foo to cache: %s", err.Error())
+	}
+
+	expValues := Values{v5, v4}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("pre-snapshot write values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	snapshots := c.PrepareSnapshots([]string{segment2})
+
+	if err := c.Write("foo", Values{v6}); err != nil {
+		t.Fatalf("failed to write post-prepare-snapshots key foo to cache: %s", err.Error())
+	}
+
+	expValues = Values{v5, v4, v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-prepare-snapshots values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	c.RollbackSnapshots(snapshots)
+
+	expValues = Values{v5, v4, v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-rollback values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	snapshots = c.PrepareSnapshots([]string{segment2, segment3, segment4})
+	expLength := 2
+	if length := len(snapshots); length != expLength {
+		t.Fatalf("post-prepare-snap-shots: length of snaphots incorrect, exp: %v, got %v", expLength, length)
+	}
+
+	expFiles := [][]string{[]string{segment2}, []string{segment3, segment4}}
+	if files := [][]string{snapshots[0].Files(), snapshots[1].Files()}; !reflect.DeepEqual(expFiles, files) {
+		t.Fatalf("files is incorrect, exp: %v, got %v", expFiles, files)
+	}
+
+	expFooValues := []Values{Values{v5, v4}, Values{v6}}
+	if fooValues := []Values{snapshots[0].Values("foo"), snapshots[1].Values("foo")}; !reflect.DeepEqual(expFooValues, fooValues) {
+		t.Fatalf("snapshot values are incorrect, exp: %v, got %v", expFooValues, fooValues)
+	}
+
+	snapshots[0] = nil
+	c.RollbackSnapshots(snapshots)
+
+	expValues = Values{v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-rollback values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	snapshots = c.PrepareSnapshots([]string{segment3, segment4, segment5})
+	expLength = 2
+	if length := len(snapshots); length != expLength {
+		t.Fatalf("post-prepare-snap-shots: length of snaphots incorrect, exp: %v, got %v", expLength, length)
+	}
+
+	expFiles = [][]string{[]string{segment3, segment4}, []string{segment5}}
+	if files := [][]string{snapshots[0].Files(), snapshots[1].Files()}; !reflect.DeepEqual(expFiles, files) {
+		t.Fatalf("snapshot files are incorrect, exp: %v, got %v", expFiles, files)
+	}
+
+	expFooValues = []Values{Values{v6}, nil}
+	if fooValues := []Values{snapshots[0].Values("foo"), snapshots[1].Values("foo")}; !reflect.DeepEqual(expFooValues, fooValues) {
+		t.Fatalf("snapshot values are incorrect, exp: %v, got %v", expFooValues, fooValues)
+	}
+
+	c.CommitSnapshots()
+
+	expValues = nil
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-commit values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+}
+
+// Test that the commit lock prevents two threads preparing snapshots from the same
+// cache.
+func TestCache_CacheTestCommitLock(t *testing.T) {
+
+	v0 := NewValue(time.Unix(2, 0).UTC(), 0.0)
+	in := make(chan int, 0)
+
+	go func() {
+		c := NewCache(512, "")
+		out := make(chan int, 1)
+		lockTaken := make(chan struct{}, 1)
+		valueWritten := make(chan error, 0)
+
+		out <- 0
+
+		_ = c.PrepareSnapshots([]string{"sync"})
+
+		lockTaken <- struct{}{}
+
+		go func() {
+
+			_ = <-lockTaken
+
+			valueWritten <- c.Write("foo", Values{v0})
+
+			c.PrepareSnapshots([]string{"async"})
+			observedState := <-out
+			c.CommitSnapshots()
+			in <- observedState
+		}()
+
+		if err := <-valueWritten; err != nil {
+			t.Fatalf("concurrent write value failed: %s", err)
+		}
+
+		expValues := Values{v0}
+		if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+			t.Fatalf("unexpected values in cache after goroutine has written exp: %v, got %v", expValues, deduped)
+		}
+
+		select {
+		case _ = <-out:
+		default:
+			t.Fatalf("locking failed in state 0")
+		}
+		out <- 1
+
+		// give the async goroutine a small chance to see state 1
+		time.Sleep(time.Millisecond * 100)
+
+		select {
+		case _ = <-out:
+		default:
+			t.Fatalf("locking failed in state 1")
+		}
+		out <- 2
+
+		c.CommitSnapshots()
+	}()
+
+	expectedState := 2
+	select {
+	case observedState := <-in:
+		if observedState != expectedState {
+			t.Fatalf("locking failed: expected observed state: %d, got: %d", expectedState, observedState)
+		}
+	case _ = <-time.NewTimer(time.Second).C:
+		// this should never happen except on really slow machines. consider bumping the value higher.
+		t.Fatalf("unexpected deadlock encountered during locking test")
+	}
+
 }
 
 func TestCache_CacheEmptySnapshot(t *testing.T) {
 	c := NewCache(512, "")
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshot := c.Snapshot()
-	if deduped := snapshot.values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
+	snapshots := c.PrepareSnapshots([]string{"foo.wal"})
+	if deduped := snapshots[0].Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", nil, deduped)
 	}
 
@@ -199,7 +377,7 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot.
-	c.ClearSnapshot(snapshot)
+	c.CommitSnapshots()
 	if deduped := c.Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("post-snapshot-clear values for foo incorrect, exp: %v, got %v", Values(nil), deduped)
 	}
@@ -222,13 +400,13 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	}
 
 	// Grab snapshot, write should still fail since we're still using the memory.
-	snapshot := c.Snapshot()
+	_ = c.PrepareSnapshots([]string{"foobar.wal"})
 	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 
 	// Clear the snapshot and the write should now succeed.
-	c.ClearSnapshot(snapshot)
+	c.CommitSnapshots()
 	if err := c.Write("bar", Values{v1}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
