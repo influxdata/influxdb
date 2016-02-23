@@ -87,8 +87,8 @@ type Cache struct {
 	// snapshots are the cache objects that are currently being written to tsm files
 	// they're kept in memory while flushing so they can be queried along with the cache.
 	// they are read only and should never be modified
-	snapshots     []*Cache
-	snapshotsSize uint64
+	snapshot     *Cache
+	snapshotSize uint64
 
 	statMap      *expvar.Map // nil for snapshots.
 	lastSnapshot time.Time
@@ -119,7 +119,7 @@ func (c *Cache) Write(key string, values []Value) error {
 	// Enough room in the cache?
 	addedSize := Values(values).Size()
 	newSize := c.size + uint64(addedSize)
-	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
+	if c.maxSize > 0 && newSize+c.snapshotSize > c.maxSize {
 		c.mu.Unlock()
 		return ErrCacheMemoryExceeded
 	}
@@ -145,7 +145,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// Enough room in the cache?
 	c.mu.RLock()
 	newSize := c.size + uint64(totalSz)
-	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
+	if c.maxSize > 0 && newSize+c.snapshotSize > c.maxSize {
 		c.mu.RUnlock()
 		return ErrCacheMemoryExceeded
 	}
@@ -170,23 +170,33 @@ func (c *Cache) Snapshot() *Cache {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	snapshot := &Cache{
-		store: c.store,
-		size:  c.size,
+	// If no snapshot exists, create a new one, otherwise update the existing snapshot
+	if c.snapshot == nil {
+		c.snapshot = &Cache{
+			store: make(map[string]*entry),
+		}
 	}
 
+	// Append the current cache values to the snapshot
+	for k, e := range c.store {
+		if _, ok := c.snapshot.store[k]; ok {
+			c.snapshot.store[k].add(e.values)
+		} else {
+			c.snapshot.store[k] = e
+		}
+		c.snapshotSize += uint64(Values(e.values).Size())
+	}
+
+	// Reset the cache
 	c.store = make(map[string]*entry)
 	c.size = 0
 	c.lastSnapshot = time.Now()
 
-	c.snapshots = append(c.snapshots, snapshot)
-	c.snapshotsSize += snapshot.size
-
-	c.updateMemSize(-int64(snapshot.size))
-	c.updateCachedBytes(snapshot.size)
+	c.updateMemSize(-int64(c.snapshot.Size()))
+	c.updateCachedBytes(c.snapshot.Size())
 	c.updateSnapshots()
 
-	return snapshot
+	return c.snapshot
 }
 
 // Deduplicate sorts the snapshot before returning it. The compactor and any queries
@@ -199,17 +209,12 @@ func (c *Cache) Deduplicate() {
 
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and
 // adjust the size
-func (c *Cache) ClearSnapshot(snapshot *Cache) {
+func (c *Cache) ClearSnapshot() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for i, cache := range c.snapshots {
-		if cache == snapshot {
-			c.snapshots = append(c.snapshots[:i], c.snapshots[i+1:]...)
-			c.snapshotsSize -= snapshot.size
-			break
-		}
-	}
+	c.snapshotSize = 0
+	c.snapshot = nil
 
 	c.updateSnapshots()
 }
@@ -277,7 +282,7 @@ func (c *Cache) Delete(keys []string) {
 func (c *Cache) merged(key string) Values {
 	e := c.store[key]
 	if e == nil {
-		if len(c.snapshots) == 0 {
+		if c.snapshot == nil {
 			// No values in hot cache or snapshots.
 			return nil
 		}
@@ -289,13 +294,15 @@ func (c *Cache) merged(key string) Values {
 	// Calculate the required size of the destination buffer.
 	var entries []*entry
 	sz := 0
-	for _, s := range c.snapshots {
-		e := s.store[key]
-		if e != nil {
-			entries = append(entries, e)
-			sz += len(e.values)
+
+	if c.snapshot != nil {
+		snapShotEntries := c.snapshot.store[key]
+		if snapShotEntries != nil {
+			entries = append(entries, snapShotEntries)
+			sz += len(snapShotEntries.values)
 		}
 	}
+
 	if e != nil {
 		entries = append(entries, e)
 		sz += len(e.values)
@@ -457,10 +464,10 @@ func (c *Cache) updateMemSize(b int64) {
 func (c *Cache) updateSnapshots() {
 	// Update disk stats
 	diskSizeStat := new(expvar.Int)
-	diskSizeStat.Set(int64(c.snapshotsSize))
+	diskSizeStat.Set(int64(c.snapshotSize))
 	c.statMap.Set(statCacheDiskBytes, diskSizeStat)
 
 	snapshotsStat := new(expvar.Int)
-	snapshotsStat.Set(int64(len(c.snapshots)))
+	snapshotsStat.Set(int64(1))
 	c.statMap.Set(statSnapshots, snapshotsStat)
 }
