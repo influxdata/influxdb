@@ -637,13 +637,17 @@ func (s *Server) initializeMetaClient() error {
 		return err
 	}
 
-	// if the node ID is > 0 then we just need to initialize the metaclient
+	// if the node ID is > 0 then we need to initialize the metaclient
 	if s.Node.ID > 0 {
 		s.MetaClient.WaitForDataChanged()
-		return nil
 	}
 
 	if s.config.Data.Enabled {
+		// If we've already created a data node for our id, we're done
+		if _, err := s.MetaClient.DataNode(s.Node.ID); err == nil {
+			return nil
+		}
+
 		n, err := s.MetaClient.CreateDataNode(s.HTTPAddr(), s.TCPAddr())
 		for err != nil {
 			log.Printf("Unable to create data node. retry in 1s: %s", err.Error())
