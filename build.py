@@ -128,18 +128,9 @@ def package_scripts(build_root):
     os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"), 0644)
 
 def run_generate():
-    # TODO - Port this functionality to InfluxDB, currently a NOOP
-    print "NOTE: The `--generate` flag is currently a NNOP. Skipping..."
-    # print "Running generate..."
-    # command = "go generate ./..."
-    # code = os.system(command)
-    # if code != 0:
-    #     print "Generate Failed"
-    #     return False
-    # else:
-    #     print "Generate Succeeded"
-    # return True
-    pass
+    print "Running go generate to rebuild admin UI static filesystem..."
+    run("go generate services/admin")
+    return True
 
 ################
 #### All InfluxDB-specific content above this line
@@ -590,7 +581,7 @@ def print_usage():
     print "\t --update \n\t\t- Whether dependencies should be updated prior to building."
     print "\t --test \n\t\t- Run Go tests. Will not produce a build."
     print "\t --parallel \n\t\t- Run Go tests in parallel up to the count specified."
-    print "\t --generate \n\t\t- Run `go generate` (currently a NOOP)."
+    print "\t --generate \n\t\t- Run `go generate` to rebuild admin UI static filesystem."
     print "\t --timeout \n\t\t- Timeout for Go tests. Defaults to 480s."
     print "\t --clean \n\t\t- Clean the build output directory prior to creating build."
     print "\t --no-get \n\t\t- Do not run `go get` before building."
@@ -697,8 +688,7 @@ def main():
             # The bucket to upload the packages to, relies on boto
             upload_bucket = arg.split("=")[1]
         elif '--generate' in arg:
-            # Run go generate ./...
-            # TODO - this currently does nothing for InfluxDB
+            # Run go generate services/admin
             generate = True
         elif '--debug' in arg:
             print "[DEBUG] Using debug output"
