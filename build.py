@@ -129,7 +129,7 @@ def package_scripts(build_root):
 
 def run_generate():
     print "Running go generate to rebuild admin UI static filesystem..."
-    run("go generate services/admin")
+    run("go generate ./services/admin")
     return True
 
 ################
@@ -407,7 +407,7 @@ def build(version=None,
         if "arm" in arch:
             if arch == "armel":
                 build_command += "GOARM=5 "
-            elif arch == "armhf":
+            elif arch == "armhf" or arch == "arm":
                 build_command += "GOARM=6 "
             elif arch == "arm64":
                 build_command += "GOARM=arm64 "
@@ -465,7 +465,7 @@ def go_get(branch, update=False):
         run(get_command)
     print "Retrieving dependencies with `gdm`..."
     sys.stdout.flush()
-    run("gdm restore")
+    run("{}/bin/gdm restore".format(os.environ.get("GOPATH")))
 
 def generate_md5_from_file(path):
     m = hashlib.md5()
