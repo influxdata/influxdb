@@ -177,7 +177,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot, ensuring non-snapshot data untouched.
-	c.ClearSnapshot()
+	c.ClearSnapshot(true)
 	expValues = Values{v5, v4}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
@@ -199,7 +199,7 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot.
-	c.ClearSnapshot()
+	c.ClearSnapshot(true)
 	if deduped := c.Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("post-snapshot-clear values for foo incorrect, exp: %v, got %v", Values(nil), deduped)
 	}
@@ -228,7 +228,7 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	}
 
 	// Clear the snapshot and the write should now succeed.
-	c.ClearSnapshot()
+	c.ClearSnapshot(true)
 	if err := c.Write("bar", Values{v1}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
