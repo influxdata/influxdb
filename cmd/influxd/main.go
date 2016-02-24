@@ -23,7 +23,6 @@ var (
 	version   = "0.9"
 	commit    string
 	branch    string
-	buildTime string
 )
 
 func init() {
@@ -33,9 +32,6 @@ func init() {
 	}
 	if branch == "" {
 		branch = "unknown"
-	}
-	if buildTime == "" {
-		buildTime = "unknown"
 	}
 }
 
@@ -81,7 +77,6 @@ func (m *Main) Run(args ...string) error {
 		cmd.Version = version
 		cmd.Commit = commit
 		cmd.Branch = branch
-		cmd.BuildTime = buildTime
 
 		if err := cmd.Run(args...); err != nil {
 			return fmt.Errorf("run: %s", err)
@@ -193,7 +188,7 @@ func (cmd *VersionCommand) Run(args ...string) error {
 	}
 
 	// Print version info.
-	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s %s, built %s)\n", version, branch, commit, buildTime)
+	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s %s)\n", version, branch, commit)
 
 	return nil
 }
