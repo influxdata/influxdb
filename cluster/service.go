@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -48,7 +49,10 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []models.Point) error
-		// CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
+		DeleteDatabase(name string) error
+		DeleteMeasurement(database, name string) error
+		DeleteSeries(database string, source []influxql.Source, condition influxql.Expr) error
+		DeleteRetentionPolicy(database, name string) error
 	}
 
 	Logger  *log.Logger
@@ -174,9 +178,46 @@ func (s *Service) handleConn(conn net.Conn) {
 					}
 				}
 			*/
+		case executeStatementRequestMessage:
+			err := s.processExecuteStatementRequest(buf)
+			if err != nil {
+				s.Logger.Printf("process execute statement error: %s", err)
+			}
+			s.writeShardResponse(conn, err)
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
+	}
+}
+
+func (s *Service) processExecuteStatementRequest(buf []byte) error {
+	// Unmarshal the request.
+	var req ExecuteStatementRequest
+	if err := req.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
+	// Parse the InfluxQL statement.
+	stmt, err := influxql.ParseStatement(req.Statement())
+	if err != nil {
+		return err
+	}
+
+	return s.executeStatement(stmt, req.Database())
+}
+
+func (s *Service) executeStatement(stmt influxql.Statement, database string) error {
+	switch t := stmt.(type) {
+	case *influxql.DropDatabaseStatement:
+		return s.TSDBStore.DeleteDatabase(t.Name)
+	case *influxql.DropMeasurementStatement:
+		return s.TSDBStore.DeleteMeasurement(database, t.Name)
+	case *influxql.DropSeriesStatement:
+		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
+	case *influxql.DropRetentionPolicyStatement:
+		return s.TSDBStore.DeleteRetentionPolicy(database, t.Name)
+	default:
+		return fmt.Errorf("%q should not be executed across a cluster", stmt.String())
 	}
 }
 

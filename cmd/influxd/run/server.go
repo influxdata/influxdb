@@ -215,12 +215,18 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		s.PointsWriter.Subscriber = s.Subscriber
 		s.PointsWriter.Node = s.Node
 
+		// Initialize meta executor.
+		metaExecutor := cluster.NewMetaExecutor()
+		metaExecutor.MetaClient = s.MetaClient
+		metaExecutor.Node = s.Node
+
 		// Initialize query executor.
 		s.QueryExecutor = cluster.NewQueryExecutor()
 		s.QueryExecutor.MetaClient = s.MetaClient
 		s.QueryExecutor.TSDBStore = s.TSDBStore
 		s.QueryExecutor.Monitor = s.Monitor
 		s.QueryExecutor.PointsWriter = s.PointsWriter
+		s.QueryExecutor.MetaExecutor = metaExecutor
 		if c.Data.QueryLogEnabled {
 			s.QueryExecutor.LogOutput = os.Stderr
 		}
