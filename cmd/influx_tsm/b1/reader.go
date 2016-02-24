@@ -11,8 +11,10 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
+// DefaultChunkSize is the size of chunks read from the b1 shard
 const DefaultChunkSize = 1000
 
+// NoFieldsFiltered is the number of nil fields filtered
 var NoFieldsFiltered uint64
 
 var excludedBuckets = map[string]bool{

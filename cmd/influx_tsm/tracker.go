@@ -24,6 +24,7 @@ type tracker struct {
 	wg sync.WaitGroup
 }
 
+// Stats are the statistics captured while converting non-TSM shards to TSM
 type Stats struct {
 	NanFiltered     uint64
 	InfFiltered     uint64

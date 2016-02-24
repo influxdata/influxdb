@@ -12,12 +12,14 @@ import (
 	"github.com/influxdata/influxdb/pkg/slices"
 )
 
+// Flags for differentiating between engines
 const (
 	B1 = iota
 	BZ1
 	TSM1
 )
 
+// EngineFormat holds the flag for the engine
 type EngineFormat int
 
 // String returns the string format of the engine.
@@ -53,6 +55,7 @@ func (s *ShardInfo) FullPath(dataPath string) string {
 	return filepath.Join(dataPath, s.Database, s.RetentionPolicy, s.Path)
 }
 
+// ShardInfos is an array of ShardInfo
 type ShardInfos []*ShardInfo
 
 func (s ShardInfos) Len() int      { return len(s) }
@@ -61,10 +64,11 @@ func (s ShardInfos) Less(i, j int) bool {
 	if s[i].Database == s[j].Database {
 		if s[i].RetentionPolicy == s[j].RetentionPolicy {
 			return s[i].Path < s[i].Path
-		} else {
-			return s[i].RetentionPolicy < s[j].RetentionPolicy
 		}
+
+		return s[i].RetentionPolicy < s[j].RetentionPolicy
 	}
+
 	return s[i].Database < s[j].Database
 }
 
@@ -76,7 +80,7 @@ func (s ShardInfos) Databases() []string {
 	}
 
 	var dbs []string
-	for k, _ := range dbm {
+	for k := range dbm {
 		dbs = append(dbs, k)
 	}
 	sort.Strings(dbs)
