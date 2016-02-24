@@ -226,25 +226,8 @@ func (c *Cache) Keys() []string {
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key string) Values {
 	c.mu.RLock()
-	e := c.store[key]
-	if e != nil && e.needSort {
-		// Sorting is needed, so unlock and run the merge operation with
-		// a write-lock. It is actually possible that the data will be
-		// sorted by the time the merge runs, which would mean very occasionally
-		// a write-lock will be held when only a read-lock is required.
-		c.mu.RUnlock()
-		return func() Values {
-			c.mu.Lock()
-			defer c.mu.Unlock()
-			return c.merged(key)
-		}()
-	}
-
-	// No sorting required for key, so just merge while continuing to hold read-lock.
-	return func() Values {
-		defer c.mu.RUnlock()
-		return c.merged(key)
-	}()
+	defer c.mu.RUnlock()
+	return c.merged(key)
 }
 
 // Delete will remove the keys from the cache
