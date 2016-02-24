@@ -20,13 +20,16 @@ import (
 
 // These variables are populated via the Go linker.
 var (
-	version   = "0.9"
-	commit    string
-	branch    string
+	version string
+	commit  string
+	branch  string
 )
 
 func init() {
 	// If commit, branch, or build time are not set, make that clear.
+	if version == "" {
+		version = "unknown"
+	}
 	if commit == "" {
 		commit = "unknown"
 	}
