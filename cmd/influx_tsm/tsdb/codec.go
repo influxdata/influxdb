@@ -260,6 +260,7 @@ func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
 	return f.DecodeByID(fi.ID, b)
 }
 
+// Fields returns the array of fields in the FieldCodec
 func (f *FieldCodec) Fields() (a []*Field) {
 	for _, f := range f.fieldsByID {
 		a = append(a, f)

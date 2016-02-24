@@ -132,9 +132,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
-		} else {
-			node = influxdb.NewNode(c.Meta.Dir)
 		}
+
+		node = influxdb.NewNode(c.Meta.Dir)
 	}
 
 	// In 0.11 we removed MetaServers from node.json.  To avoid confusion for

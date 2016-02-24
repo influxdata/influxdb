@@ -122,7 +122,7 @@ func (cmd *Command) parseFlags(args []string) error {
 func (cmd *Command) ensureStopped() error {
 	ln, err := net.Listen("tcp", cmd.MetaConfig.BindAddress)
 	if err != nil {
-		return fmt.Errorf("influxd running on %s: aborting.", cmd.MetaConfig.BindAddress)
+		return fmt.Errorf("influxd running on %s: aborting", cmd.MetaConfig.BindAddress)
 	}
 	defer ln.Close()
 	return nil

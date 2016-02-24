@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
+// KeyIterator is used to iterate over b* keys for conversion to tsm keys
 type KeyIterator interface {
 	Next() bool
 	Read() (string, []tsm1.Value, error)
