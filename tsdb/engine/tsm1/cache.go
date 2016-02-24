@@ -13,6 +13,7 @@ var ErrCacheInvalidCheckpoint = fmt.Errorf("invalid checkpoint")
 
 // entry is a set of values and some metadata.
 type entry struct {
+	mu       sync.RWMutex
 	values   Values // All stored values.
 	needSort bool   // true if the values are out of order and require deduping.
 }
@@ -24,6 +25,8 @@ func newEntry() *entry {
 
 // add adds the given values to the entry.
 func (e *entry) add(values []Value) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	// See if the new values are sorted or contain duplicate timestamps
 	var prevTime int64
 	for _, v := range values {
@@ -51,11 +54,20 @@ func (e *entry) add(values []Value) {
 // deduplicate sorts and orders the entry's values. If values are already deduped and
 // and sorted, the function does no work and simply returns.
 func (e *entry) deduplicate() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	if !e.needSort || len(e.values) == 0 {
 		return
 	}
 	e.values = e.values.Deduplicate()
 	e.needSort = false
+}
+
+func (e *entry) count() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.values)
 }
 
 // Cache maintains an in-memory store of Values for a set of keys.
@@ -142,12 +154,17 @@ func (c *Cache) Snapshot() *Cache {
 
 	// Append the current cache values to the snapshot
 	for k, e := range c.store {
+		e.mu.RLock()
 		if _, ok := c.snapshot.store[k]; ok {
 			c.snapshot.store[k].add(e.values)
 		} else {
 			c.snapshot.store[k] = e
 		}
 		c.snapshotSize += uint64(Values(e.values).Size())
+		if e.needSort {
+			c.snapshot.store[k].needSort = true
+		}
+		e.mu.RUnlock()
 	}
 
 	// Reset the cache
@@ -195,6 +212,9 @@ func (c *Cache) MaxSize() uint64 {
 
 // Keys returns a sorted slice of all keys under management by the cache.
 func (c *Cache) Keys() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	var a []string
 	for k, _ := range c.store {
 		a = append(a, k)
@@ -261,13 +281,13 @@ func (c *Cache) merged(key string) Values {
 		snapshotEntries := c.snapshot.store[key]
 		if snapshotEntries != nil {
 			entries = append(entries, snapshotEntries)
-			sz += len(snapshotEntries.values)
+			sz += snapshotEntries.count()
 		}
 	}
 
 	if e != nil {
 		entries = append(entries, e)
-		sz += len(e.values)
+		sz += e.count()
 	}
 
 	// Any entries? If not, return.
@@ -282,10 +302,12 @@ func (c *Cache) merged(key string) Values {
 	values := make(Values, sz)
 	n := 0
 	for _, e := range entries {
+		e.mu.RLock()
 		if !needSort && n > 0 {
 			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
 		}
 		n += copy(values[n:], e.values)
+		e.mu.RUnlock()
 	}
 
 	if needSort {
