@@ -93,7 +93,7 @@ func TestCacheRace(t *testing.T) {
 		<-ch
 		s := c.Snapshot()
 		s.Deduplicate()
-		c.ClearSnapshot()
+		c.ClearSnapshot(true)
 	}()
 	close(ch)
 	wg.Wait()
@@ -148,7 +148,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 			}
 			mu.Unlock()
 			s.Deduplicate()
-			c.ClearSnapshot()
+			c.ClearSnapshot(true)
 			mu.Lock()
 			defer mu.Unlock()
 			for k, _ := range myFiles {
