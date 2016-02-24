@@ -163,8 +163,9 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		for _, cq := range db.ContinuousQueries {
 			if name == "" || cq.Name == name {
 				// Remove the last run time for the CQ
-				if _, ok := s.lastRuns[cq.Name]; ok {
-					delete(s.lastRuns, cq.Name)
+				id := fmt.Sprintf("%s:%s", db.Name, cq.Name)
+				if _, ok := s.lastRuns[id]; ok {
+					delete(s.lastRuns, id)
 				}
 			}
 		}
@@ -260,7 +261,8 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	// Get the last time this CQ was run from the service's cache.
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cq.LastRun, cq.HasRun = s.lastRuns[cqi.Name]
+	id := fmt.Sprintf("%s:%s", dbi.Name, cqi.Name)
+	cq.LastRun, cq.HasRun = s.lastRuns[id]
 
 	// Set the retention policy to default if it wasn't specified in the query.
 	if cq.intoRP() == "" {
@@ -291,7 +293,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	// We're about to run the query so store the current time closest to the nearest interval.
 	// If all is going well, this time should be the same as nextRun.
 	cq.LastRun = now.Truncate(resampleEvery)
-	s.lastRuns[cqi.Name] = cq.LastRun
+	s.lastRuns[id] = cq.LastRun
 
 	// Retrieve the oldest interval we should calculate based on the next time
 	// interval. We do this instead of using the current time just in case any
