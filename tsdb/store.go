@@ -148,7 +148,7 @@ func (s *Store) loadShards() error {
 				shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
 				err = shard.Open()
 				if err != nil {
-					return fmt.Errorf("failed to open shard %d: %s", shardID, err)
+					return err
 				}
 
 				s.shardLocations[shardID] = &shardLocation{Database: db, RetentionPolicy: rp.Name(), Shard: shard}
