@@ -43,6 +43,7 @@
 - [#5754](https://github.com/influxdata/influxdb/issues/5754): Adding a node as meta only results in a data node also being registered
 - [#5787](https://github.com/influxdata/influxdb/pull/5787): HTTP: Add QueryAuthorizer instance to httpd service’s handler. @chris-ramon
 - [#5753](https://github.com/influxdata/influxdb/pull/5753): ensures that drop-type commands work correctly in a cluster
+- [#5814](https://github.com/influxdata/influxdb/issues/5814): Run CQs with the same name from different databases
 
 ## v0.10.1 [2016-02-18]
 
