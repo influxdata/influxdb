@@ -22,6 +22,10 @@ type MetaExecutor struct {
 	Logger         *log.Logger
 	Node           *influxdb.Node
 
+	nodeExecutor interface {
+		executeOnNode(stmt influxql.Statement, database string, node *meta.NodeInfo) error
+	}
+
 	MetaClient interface {
 		DataNode(id uint64) (ni *meta.NodeInfo, err error)
 		DataNodes() ([]meta.NodeInfo, error)
@@ -30,12 +34,15 @@ type MetaExecutor struct {
 
 // NewMetaExecutor returns a new initialized *MetaExecutor.
 func NewMetaExecutor() *MetaExecutor {
-	return &MetaExecutor{
+	m := &MetaExecutor{
 		timeout:        DefaultWriteTimeout,
 		pool:           newClientPool(),
-		maxConnections: 1000,
+		maxConnections: 10,
 		Logger:         log.New(os.Stderr, "[meta-executor] ", log.LstdFlags),
 	}
+	m.nodeExecutor = m
+
+	return m
 }
 
 // remoteNodeError wraps an error with context about a node that
@@ -70,7 +77,7 @@ func (m *MetaExecutor) ExecuteStatement(stmt influxql.Statement, database string
 		wg.Add(1)
 		go func(node meta.NodeInfo) {
 			defer wg.Done()
-			if err := m.executeOnNode(stmt, database, &node); err != nil {
+			if err := m.nodeExecutor.executeOnNode(stmt, database, &node); err != nil {
 				errs <- remoteNodeError{id: node.ID, err: err}
 			}
 		}(node)
