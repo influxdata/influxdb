@@ -364,8 +364,7 @@ def build(version=None,
           rc=None,
           race=False,
           clean=False,
-          outdir=".",
-          goarm_version="6"):
+          outdir="."):
     print ""
     print "-------------------------"
     print ""
@@ -400,18 +399,26 @@ def build(version=None,
         if "arm" in arch:
             build_command += "GOOS={} GOARCH={} ".format(platform, "arm")
         else:
+            if arch == 'i386':
+                arch = '386'
+            elif arch == 'x86_64':
+                arch = 'amd64'
             build_command += "GOOS={} GOARCH={} ".format(platform, arch)
         if "arm" in arch:
             if arch == "armel":
                 build_command += "GOARM=5 "
-            if arch == "armhf":
+            elif arch == "armhf":
                 build_command += "GOARM=6 "
-            if arch == "arm64":
+            elif arch == "arm64":
                 build_command += "GOARM=arm64 "
             else:
                 print "!! Invalid ARM architecture specifed: {}".format(arch)
                 print "Please specify either 'armel', 'armhf', or 'arm64'"
-        build_command += "go build -o {} ".format(os.path.join(outdir, b))
+                return 1
+        if platform == 'windows':
+            build_command += "go build -o {} ".format(os.path.join(outdir, b + '.exe'))
+        else:
+            build_command += "go build -o {} ".format(os.path.join(outdir, b))
         if race:
             build_command += "-race "
         go_version = get_go_version()
@@ -426,7 +433,7 @@ def build(version=None,
                                                                                                            get_current_commit())
         build_command += c
         run(build_command, shell=True)
-    print ""
+    return 0
 
 def create_dir(path):
     try:
@@ -467,7 +474,7 @@ def generate_md5_from_file(path):
             m.update(chunk)
     return m.hexdigest()
 
-def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iteration=1):
+def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
     outfiles = []
     tmp_build_dir = create_temp_dir()
     if debug:
@@ -545,18 +552,6 @@ def build_packages(build_output, version, pkg_arch, nightly=False, rc=None, iter
                         # Set iteration to 0 since it's a release candidate
                         package_iteration = "0.rc{}".format(rc)
 
-                    if "arm" in arch:
-                        if arch == "armel":
-                            build_command += "GOARM=5 "
-                        if arch == "armhf":
-                            build_command += "GOARM=6 "
-                        if arch == "arm64":
-                            build_command += "GOARM=arm64 "
-                        else:
-                            print "!! Invalid ARM architecture specifed: {}".format(arch)
-                            print "Please specify either 'armel', 'armhf', or 'arm64'"
-                            return None
-
                     fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
                         fpm_common_args,
                         name,
@@ -598,10 +593,8 @@ def print_usage():
     print "Options:"
     print "\t --outdir=<path> \n\t\t- Send build output to a specified path. Defaults to ./build."
     print "\t --arch=<arch> \n\t\t- Build for specified architecture. Acceptable values: x86_64|amd64, 386|i386, arm, or all"
-    print "\t --goarm=<arm version> \n\t\t- Build for specified ARM version (when building for ARM). Default value is: 6"
     print "\t --platform=<platform> \n\t\t- Build for specified platform. Acceptable values: linux, windows, darwin, or all"
     print "\t --version=<version> \n\t\t- Version information to apply to build metadata. If not specified, will be pulled from repo tag."
-    print "\t --pkgarch=<package-arch> \n\t\t- Package architecture if different from <arch>"
     print "\t --commit=<commit> \n\t\t- Use specific commit for build (currently a NOOP)."
     print "\t --branch=<branch> \n\t\t- Build from a specific branch (currently a NOOP)."
     print "\t --rc=<rc number> \n\t\t- Whether or not the build is a release candidate (affects version information)."
@@ -631,7 +624,6 @@ def main():
     commit = None
     target_platform = None
     target_arch = None
-    package_arch = None
     nightly = False
     race = False
     branch = None
@@ -646,7 +638,6 @@ def main():
     timeout = None
     iteration = 1
     no_vet = False
-    goarm_version = "6"
     run_get = True
     upload_bucket = None
     generate = False
@@ -671,9 +662,6 @@ def main():
         elif '--version' in arg:
             # Version to assign to this build (0.9.5, etc)
             version = arg.split("=")[1]
-        elif '--pkgarch' in arg:
-            # Package architecture if different from <arch> (armhf, etc)
-            package_arch = arg.split("=")[1]
         elif '--rc' in arg:
             # Signifies that this is a release candidate build.
             rc = arg.split("=")[1]
@@ -712,9 +700,6 @@ def main():
             no_vet = True
         elif '--no-get' in arg:
             run_get = False
-        elif '--goarm' in arg:
-            # Signifies GOARM flag to pass to build command when compiling for ARM
-            goarm_version = arg.split("=")[1]
         elif '--bucket' in arg:
             # The bucket to upload the packages to, relies on boto
             upload_bucket = arg.split("=")[1]
@@ -768,9 +753,13 @@ def main():
                 target_arch = 'i386'
             elif target_arch == 'x86_64':
                 target_arch = 'amd64'
-    if not target_platform:
+    if target_platform:
+        if target_platform not in supported_builds and target_platform != 'all':
+            print "! Invalid build platform: {}".format(target_platform)
+            return 1
+    else:
         target_platform = get_system_platform()
-
+        
     build_output = {}
 
     if generate:
@@ -806,17 +795,17 @@ def main():
             od = outdir
             if not single_build:
                 od = os.path.join(outdir, platform, arch)
-            build(version=version,
-                  branch=branch,
-                  commit=commit,
-                  platform=platform,
-                  arch=arch,
-                  nightly=nightly,
-                  rc=rc,
-                  race=race,
-                  clean=clean,
-                  outdir=od,
-                  goarm_version=goarm_version)
+            if build(version=version,
+                     branch=branch,
+                     commit=commit,
+                     platform=platform,
+                     arch=arch,
+                     nightly=nightly,
+                     rc=rc,
+                     race=race,
+                     clean=clean,
+                     outdir=od):
+                return 1
             build_output.get(platform).update( { arch : od } )
 
     # Build packages
@@ -825,7 +814,7 @@ def main():
             print "!! Cannot package without command 'fpm'."
             return 1
 
-        packages = build_packages(build_output, version, package_arch, nightly=nightly, rc=rc, iteration=iteration)
+        packages = build_packages(build_output, version, nightly=nightly, rc=rc, iteration=iteration)
         if upload:
             upload_packages(packages, bucket_name=upload_bucket, nightly=nightly)
     print "Done!"
