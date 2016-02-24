@@ -29,7 +29,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex()
+	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 
@@ -75,7 +75,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	// ensure the index gets loaded after closing and opening the shard
 	sh.Close()
 
-	index = tsdb.NewDatabaseIndex()
+	index = tsdb.NewDatabaseIndex("db")
 	sh = tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
@@ -99,7 +99,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex()
+	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 
@@ -239,7 +239,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
 	// Create index for the shard to use.
-	index := tsdb.NewDatabaseIndex()
+	index := tsdb.NewDatabaseIndex("db")
 	// Generate point data to write to the shard.
 	points := []models.Point{}
 	for _, s := range series {
@@ -280,7 +280,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
 	// Create index for the shard to use.
-	index := tsdb.NewDatabaseIndex()
+	index := tsdb.NewDatabaseIndex("db")
 	// Generate point data to write to the shard.
 	points := []models.Point{}
 	for _, s := range series {
@@ -355,7 +355,7 @@ func NewShard() *Shard {
 
 	return &Shard{
 		Shard: tsdb.NewShard(0,
-			tsdb.NewDatabaseIndex(),
+			tsdb.NewDatabaseIndex("db"),
 			filepath.Join(path, "data"),
 			filepath.Join(path, "wal"),
 			opt,
