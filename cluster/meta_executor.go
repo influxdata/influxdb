@@ -13,6 +13,11 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 )
 
+const (
+	metaExecutorWriteTimeout        = 5 * time.Second
+	metaExecutorMaxWriteConnections = 10
+)
+
 // MetaExecutor executes meta queries on all data nodes.
 type MetaExecutor struct {
 	mu             sync.RWMutex
@@ -35,9 +40,9 @@ type MetaExecutor struct {
 // NewMetaExecutor returns a new initialized *MetaExecutor.
 func NewMetaExecutor() *MetaExecutor {
 	m := &MetaExecutor{
-		timeout:        DefaultWriteTimeout,
+		timeout:        metaExecutorWriteTimeout,
 		pool:           newClientPool(),
-		maxConnections: 10,
+		maxConnections: metaExecutorMaxWriteConnections,
 		Logger:         log.New(os.Stderr, "[meta-executor] ", log.LstdFlags),
 	}
 	m.nodeExecutor = m
