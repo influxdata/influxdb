@@ -20,7 +20,8 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-// QueryExecutor
+// A QueryExecutor is responsible for processing a influxql.Query and
+// executing all of the statements within, on nodes in a cluster.
 type QueryExecutor struct {
 	MetaClient *meta.Client
 
@@ -32,6 +33,9 @@ type QueryExecutor struct {
 
 	// Used for rewriting points back into system for SELECT INTO statements.
 	PointsWriter *PointsWriter
+
+	// Used for executing meta statements on all data nodes.
+	MetaExecutor *MetaExecutor
 
 	// Output of all logging.
 	// Defaults to discarding all log output.
@@ -276,60 +280,59 @@ func (e *QueryExecutor) executeDropContinuousQueryStatement(q *influxql.DropCont
 	return e.MetaClient.DropContinuousQuery(q.Database, q.Name)
 }
 
+// executeDropDatabaseStatement drops a database from the cluster.
+// It does not return an error if the database was not found on any of
+// the nodes, or in the Meta store.
 func (e *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) error {
-	dbi, err := e.MetaClient.Database(stmt.Name)
-	if err != nil {
-		return err
-	} else if dbi == nil {
-		if stmt.IfExists {
-			return nil
-		}
-		return influxql.ErrDatabaseNotFound(stmt.Name)
-	}
-
-	// Remove database from meta-store first so that in-flight writes can
-	// complete without error, but new ones will be rejected.
+	// Remove the database from the Meta Store.
 	if err := e.MetaClient.DropDatabase(stmt.Name); err != nil {
 		return err
 	}
 
-	// Remove the database from the local store
+	// Locally delete the datababse.
 	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-// executeDropRetentionPolicy closes all local shards for the retention
-// policy and removes the directory.
-func (q *QueryExecutor) executeDropRetentionPolicy(stmt *influxql.DropRetentionPolicyStatement) error {
-	// Check if the database and retention policy exist.
-	if _, err := q.MetaClient.RetentionPolicy(stmt.Database, stmt.Name); err != nil {
-		return err
-	}
-
-	// Remove the retention policy from the local store.
-	if err := q.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
-		return err
-	}
-	return q.MetaClient.DropRetentionPolicy(stmt.Database, stmt.Name)
+	// Execute the statement on the other data nodes in the cluster.
+	return e.MetaExecutor.ExecuteStatement(stmt, "")
 }
 
 func (e *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) error {
-	return e.TSDBStore.DeleteMeasurement(database, stmt.Name)
+	if dbi, err := e.MetaClient.Database(database); err != nil {
+		return err
+	} else if dbi == nil {
+		return influxql.ErrDatabaseNotFound(database)
+	}
+
+	// Locally drop the measurement
+	if err := e.TSDBStore.DeleteMeasurement(database, stmt.Name); err != nil {
+		return err
+	}
+
+	// Execute the statement on the other data nodes in the cluster.
+	return e.MetaExecutor.ExecuteStatement(stmt, database)
 }
 
 func (e *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) error {
+	if dbi, err := e.MetaClient.Database(database); err != nil {
+		return err
+	} else if dbi == nil {
+		return influxql.ErrDatabaseNotFound(database)
+	}
+
 	// Check for time in WHERE clause (not supported).
 	if influxql.HasTimeExpr(stmt.Condition) {
 		return errors.New("DROP SERIES doesn't support time in WHERE clause")
 	}
 
+	// Locally drop the series.
 	if err := e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition); err != nil {
 		return err
 	}
-	return nil
+
+	// Execute the statement on the other data nodes in the cluster.
+	return e.MetaExecutor.ExecuteStatement(stmt, database)
 }
 
 func (e *QueryExecutor) executeDropServerStatement(q *influxql.DropServerStatement) error {
@@ -339,8 +342,18 @@ func (e *QueryExecutor) executeDropServerStatement(q *influxql.DropServerStateme
 	return e.MetaClient.DeleteDataNode(q.NodeID)
 }
 
-func (e *QueryExecutor) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement) error {
-	return e.MetaClient.DropRetentionPolicy(q.Database, q.Name)
+func (e *QueryExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
+	if err := e.MetaClient.DropRetentionPolicy(stmt.Database, stmt.Name); err != nil {
+		return err
+	}
+
+	// Locally drop the retention policy.
+	if err := e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
+		return err
+	}
+
+	// Execute the statement on the other data nodes in the cluster.
+	return e.MetaExecutor.ExecuteStatement(stmt, stmt.Database)
 }
 
 func (e *QueryExecutor) executeDropSubscriptionStatement(q *influxql.DropSubscriptionStatement) error {

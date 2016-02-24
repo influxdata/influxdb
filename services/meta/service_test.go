@@ -171,6 +171,11 @@ func TestMetaService_DropDatabase(t *testing.T) {
 	if db, _ = c.Database("db0"); db != nil {
 		t.Fatalf("expected database to not return: %v", db)
 	}
+
+	// Dropping a database that does not exist is not an error.
+	if err := c.DropDatabase("db foo"); err != nil {
+		t.Fatalf("got %v error, but expected no error", err)
+	}
 }
 
 func TestMetaService_CreateRetentionPolicy(t *testing.T) {
