@@ -139,10 +139,10 @@ The binaries will be located in `$GOPATH/bin`. Please note that the InfluxDB bin
 To set the version and commit flags during the build pass the following to the **install** command:
 
 ```bash
--ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT -X main.buildTime=$TIME"
+-ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT"
 ```
 
-where `$VERSION` is the version, `$BRANCH` is the branch, `$COMMIT` is the git commit hash, and `$TIME` is the build timestamp.
+where `$VERSION` is the version, `$BRANCH` is the branch, and `$COMMIT` is the git commit hash.
 
 If you want to build packages, see `package.sh` help:
 ```bash
