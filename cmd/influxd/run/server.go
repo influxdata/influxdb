@@ -442,6 +442,11 @@ func (s *Server) Open() error {
 
 		// Open TSDB store.
 		if err := s.TSDBStore.Open(); err != nil {
+			// Provide helpful error if user needs to upgrade shards to
+			// tsm1.
+			if serr, ok := err.(tsdb.ShardError); ok && serr.Err == tsdb.ErrUnknownEngineFormat {
+				return influxdb.ErrUpgradeEngine
+			}
 			return fmt.Errorf("open tsdb store: %s", err)
 		}
 
