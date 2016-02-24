@@ -34,5 +34,6 @@ tools:
 	go get github.com/opennota/check/...
 	go get github.com/golang/lint/golint
 	go get github.com/kisielk/errcheck
+	go get github.com/sparrc/gdm
 
 .PHONY: default,metalint,deadcode,cyclo,aligncheck,defercheck,structcheck,lint,errcheck,tools
