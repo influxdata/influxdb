@@ -52,9 +52,9 @@ type ShardError struct {
 }
 
 // NewShardError returns a new ShardError.
-func NewShardError(id uint64, err error) ShardError {
+func NewShardError(id uint64, err error) error {
 	if err == nil {
-		err = errors.New("unknown error")
+		return nil
 	}
 	return ShardError{id: id, Err: err}
 }
