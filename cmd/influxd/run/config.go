@@ -100,7 +100,7 @@ func NewConfig() *Config {
 	return c
 }
 
-// Init all ARRAY attributes if it's empty
+// InitTableAttrs initialises all ARRAY attributes if empty
 func (c *Config) InitTableAttrs() {
 	if len(c.UDPs) == 0 {
 		c.UDPs = []udp.Config{udp.NewConfig()}
