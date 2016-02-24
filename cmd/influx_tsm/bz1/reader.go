@@ -15,8 +15,10 @@ import (
 	tsm "github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
+// DefaultChunkSize is the size of chunks read from the bz1 shard
 const DefaultChunkSize = 1000
 
+// NoFieldsFiltered is the number of nil fields filtered
 var NoFieldsFiltered uint64
 
 // Reader is used to read all data from a bz1 shard.

@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tsm/tsdb"
 )
 
+// ShardReader reads b* shards and converts to tsm shards
 type ShardReader interface {
 	KeyIterator
 	Open() error
@@ -116,7 +117,7 @@ func (o *options) Parse() error {
 
 		if strings.HasPrefix(o.BackupPath, o.DataPath) {
 			fmt.Println(o.BackupPath, o.DataPath)
-			return errors.New("backup directory cannot be contained within data directory.")
+			return errors.New("backup directory cannot be contained within data directory")
 		}
 	}
 
@@ -359,6 +360,7 @@ func NewParallelGroup(n int) ParallelGroup {
 	return make(chan struct{}, n)
 }
 
+// Do executes one operation of the ParallelGroup
 func (p ParallelGroup) Do(f func()) {
 	p <- struct{}{} // acquire working slot
 	defer func() { <-p }()
