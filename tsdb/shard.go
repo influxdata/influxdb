@@ -44,6 +44,25 @@ var (
 	ErrFieldUnmappedID = errors.New("field ID not mapped")
 )
 
+// A ShardError implements the error interface, and contains extra
+// context about the shard that generated the error.
+type ShardError struct {
+	id  uint64
+	Err error
+}
+
+// NewShardError returns a new ShardError.
+func NewShardError(id uint64, err error) ShardError {
+	if err == nil {
+		err = errors.New("unknown error")
+	}
+	return ShardError{id: id, Err: err}
+}
+
+func (e ShardError) Error() string {
+	return fmt.Sprintf("[shard %d] %s", e.id, e.Err)
+}
+
 // Shard represents a self-contained time series database. An inverted index of
 // the measurement and tag data is kept along with the raw time series data.
 // Data can be split across many shards. The query engine in TSDB is responsible
@@ -126,7 +145,7 @@ func (s *Shard) Open() error {
 		// Initialize underlying engine.
 		e, err := NewEngine(s.path, s.walPath, s.options)
 		if err != nil {
-			return fmt.Errorf("new engine: %s", err)
+			return err
 		}
 		s.engine = e
 
@@ -135,18 +154,18 @@ func (s *Shard) Open() error {
 
 		// Open engine.
 		if err := s.engine.Open(); err != nil {
-			return fmt.Errorf("open engine: %s", err)
+			return err
 		}
 
 		// Load metadata index.
 		if err := s.engine.LoadMetadataIndex(s, s.index, s.measurementFields); err != nil {
-			return fmt.Errorf("load metadata index: %s", err)
+			return err
 		}
 
 		return nil
 	}(); err != nil {
 		s.close()
-		return err
+		return NewShardError(s.id, err)
 	}
 
 	return nil
