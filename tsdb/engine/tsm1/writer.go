@@ -116,7 +116,7 @@ type TSMWriter interface {
 	// responsible for ensuring keys and blocks are sorted appropriately, and that the
 	// block and index information is correct for the block.  The minTime and maxTime
 	// timestamp values are used as the minimum and maximum values for the index entry.
-	WriteBlock(key string, minTime, maxTime time.Time, block []byte) error
+	WriteBlock(key string, minTime, maxTime int64, block []byte) error
 
 	// WriteIndex finishes the TSM write streams and writes the index.
 	WriteIndex() error
@@ -133,7 +133,7 @@ type TSMWriter interface {
 type TSMIndex interface {
 
 	// Add records a new block entry for a key in the index.
-	Add(key string, blockType byte, minTime, maxTime time.Time, offset int64, size uint32)
+	Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32)
 
 	// Delete removes the given keys from the index.
 	Delete(keys []string)
@@ -144,14 +144,14 @@ type TSMIndex interface {
 	// ContainsValue returns true if key and time might exists in this file.  This function could
 	// return true even though the actual point does not exists.  For example, the key may
 	// exists in this file, but not have point exactly at time t.
-	ContainsValue(key string, timestamp time.Time) bool
+	ContainsValue(key string, timestamp int64) bool
 
 	// Entries returns all index entries for a key.
 	Entries(key string) []*IndexEntry
 
 	// Entry returns the index entry for the specified key and timestamp.  If no entry
 	// matches the key and timestamp, nil is returned.
-	Entry(key string, timestamp time.Time) *IndexEntry
+	Entry(key string, timestamp int64) *IndexEntry
 
 	// Keys returns the unique set of keys in the index.
 	Keys() []string
@@ -169,7 +169,7 @@ type TSMIndex interface {
 	Size() uint32
 
 	// TimeRange returns the min and max time across all keys in the file.
-	TimeRange() (time.Time, time.Time)
+	TimeRange() (int64, int64)
 
 	// KeyRange returns the min and max keys in the file.
 	KeyRange() (string, string)
@@ -194,7 +194,7 @@ type TSMIndex interface {
 type IndexEntry struct {
 
 	// The min and max time of all points stored in the block.
-	MinTime, MaxTime time.Time
+	MinTime, MaxTime int64
 
 	// The absolute position in the file where this block is located.
 	Offset int64
@@ -208,8 +208,8 @@ func (e *IndexEntry) UnmarshalBinary(b []byte) error {
 	if len(b) != indexEntrySize {
 		return fmt.Errorf("unmarshalBinary: short buf: %v != %v", indexEntrySize, len(b))
 	}
-	e.MinTime = time.Unix(0, int64(binary.BigEndian.Uint64(b[:8])))
-	e.MaxTime = time.Unix(0, int64(binary.BigEndian.Uint64(b[8:16])))
+	e.MinTime = int64(binary.BigEndian.Uint64(b[:8]))
+	e.MaxTime = int64(binary.BigEndian.Uint64(b[8:16]))
 	e.Offset = int64(binary.BigEndian.Uint64(b[16:24]))
 	e.Size = binary.BigEndian.Uint32(b[24:28])
 	return nil
@@ -226,8 +226,8 @@ func (e *IndexEntry) AppendTo(b []byte) []byte {
 		}
 	}
 
-	binary.BigEndian.PutUint64(b[:8], uint64(e.MinTime.UnixNano()))
-	binary.BigEndian.PutUint64(b[8:16], uint64(e.MaxTime.UnixNano()))
+	binary.BigEndian.PutUint64(b[:8], uint64(e.MinTime))
+	binary.BigEndian.PutUint64(b[8:16], uint64(e.MaxTime))
 	binary.BigEndian.PutUint64(b[16:24], uint64(e.Offset))
 	binary.BigEndian.PutUint32(b[24:28], uint32(e.Size))
 
@@ -236,18 +236,17 @@ func (e *IndexEntry) AppendTo(b []byte) []byte {
 
 // Returns true if this IndexEntry may contain values for the given time.  The min and max
 // times are inclusive.
-func (e *IndexEntry) Contains(t time.Time) bool {
-	return (e.MinTime.Equal(t) || e.MinTime.Before(t)) &&
-		(e.MaxTime.Equal(t) || e.MaxTime.After(t))
+func (e *IndexEntry) Contains(t int64) bool {
+	return e.MinTime <= t && e.MaxTime >= t
 }
 
-func (e *IndexEntry) OverlapsTimeRange(min, max time.Time) bool {
-	return (e.MinTime.Equal(max) || e.MinTime.Before(max)) &&
-		(e.MaxTime.Equal(min) || e.MaxTime.After(min))
+func (e *IndexEntry) OverlapsTimeRange(min, max int64) bool {
+	return e.MinTime <= max && e.MaxTime >= min
 }
 
 func (e *IndexEntry) String() string {
-	return fmt.Sprintf("min=%s max=%s ofs=%d siz=%d", e.MinTime.UTC(), e.MaxTime.UTC(), e.Offset, e.Size)
+	return fmt.Sprintf("min=%s max=%s ofs=%d siz=%d",
+		time.Unix(0, e.MinTime).UTC(), time.Unix(0, e.MaxTime).UTC(), e.Offset, e.Size)
 }
 
 func NewDirectIndex() TSMIndex {
@@ -264,7 +263,7 @@ type directIndex struct {
 	blocks map[string]*indexEntries
 }
 
-func (d *directIndex) Add(key string, blockType byte, minTime, maxTime time.Time, offset int64, size uint32) {
+func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -289,7 +288,6 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime time.Time
 
 	// size of the encoded index entry
 	d.size += indexEntrySize
-
 }
 
 func (d *directIndex) Entries(key string) []*IndexEntry {
@@ -303,7 +301,7 @@ func (d *directIndex) Entries(key string) []*IndexEntry {
 	return d.blocks[key].entries
 }
 
-func (d *directIndex) Entry(key string, t time.Time) *IndexEntry {
+func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -330,7 +328,7 @@ func (d *directIndex) Contains(key string) bool {
 	return len(d.Entries(key)) > 0
 }
 
-func (d *directIndex) ContainsValue(key string, t time.Time) bool {
+func (d *directIndex) ContainsValue(key string, t int64) bool {
 	return d.Entry(key, t) != nil
 }
 
@@ -388,14 +386,14 @@ func (d *directIndex) KeyRange() (string, string) {
 	return min, max
 }
 
-func (d *directIndex) TimeRange() (time.Time, time.Time) {
-	min, max := time.Unix(0, math.MaxInt64), time.Unix(0, math.MinInt64)
+func (d *directIndex) TimeRange() (int64, int64) {
+	min, max := int64(math.MaxInt64), int64(math.MinInt64)
 	for _, entries := range d.blocks {
 		for _, e := range entries.entries {
-			if e.MinTime.Before(min) {
+			if e.MinTime < min {
 				min = e.MinTime
 			}
-			if e.MaxTime.After(max) {
+			if e.MaxTime > max {
 				max = e.MaxTime
 			}
 		}
@@ -566,14 +564,14 @@ func (t *tsmWriter) Write(key string, values Values) error {
 	n += len(checksum)
 
 	// Record this block in index
-	t.index.Add(key, blockType, values[0].Time(), values[len(values)-1].Time(), t.n, uint32(n))
+	t.index.Add(key, blockType, values[0].UnixNano(), values[len(values)-1].UnixNano(), t.n, uint32(n))
 
 	// Increment file position pointer
 	t.n += int64(n)
 	return nil
 }
 
-func (t *tsmWriter) WriteBlock(key string, minTime, maxTime time.Time, block []byte) error {
+func (t *tsmWriter) WriteBlock(key string, minTime, maxTime int64, block []byte) error {
 	// Nothing to write
 	if len(block) == 0 {
 		return nil

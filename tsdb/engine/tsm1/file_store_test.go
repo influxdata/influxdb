@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -17,9 +16,9 @@ func TestFileStore_Read(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"mem", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -30,7 +29,7 @@ func TestFileStore_Read(t *testing.T) {
 	fs.Add(files...)
 
 	// Search for an entry that exists in the second file
-	values, err := fs.Read("cpu", time.Unix(1, 0))
+	values, err := fs.Read("cpu", 1)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -52,9 +51,9 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -65,7 +64,7 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(0, 0), true)
+	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
@@ -89,10 +88,10 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 4.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 4.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -103,7 +102,7 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(0, 0), true)
+	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
@@ -144,9 +143,9 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(3, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -158,7 +157,7 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 
 	// Search for an entry that exists in the second file
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(0, 0), true)
+	c := fs.KeyCursor("cpu", 0, true)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -181,10 +180,10 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0),
-			tsm1.NewValue(time.Unix(2, 0), 2.0),
-			tsm1.NewValue(time.Unix(3, 0), 3.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(4, 0), 4.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 1.0),
+			tsm1.NewValue(2, 2.0),
+			tsm1.NewValue(3, 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(4, 4.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -196,7 +195,7 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 
 	// Search for an entry that exists in the second file
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(3, 0), true)
+	c := fs.KeyCursor("cpu", 3, true)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -219,9 +218,9 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -232,7 +231,7 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(2, 0), true)
+	c := fs.KeyCursor("cpu", 2, true)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -255,9 +254,9 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -269,7 +268,7 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 
 	// Search for an entry that exists in the second file
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(0, 0), false)
+	c := fs.KeyCursor("cpu", 0, false)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -291,10 +290,10 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 4.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 4.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -306,7 +305,7 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 
 	// Search for an entry that exists in the second file
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(2, 0), false)
+	c := fs.KeyCursor("cpu", 2, false)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -344,9 +343,9 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(3, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -357,7 +356,7 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(4, 0), false)
+	c := fs.KeyCursor("cpu", 4, false)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -380,11 +379,11 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 1.0)}},
 		keyValues{"cpu", []tsm1.Value{
-			tsm1.NewValue(time.Unix(2, 0), 2.0),
-			tsm1.NewValue(time.Unix(3, 0), 3.0),
-			tsm1.NewValue(time.Unix(4, 0), 4.0)},
+			tsm1.NewValue(2, 2.0),
+			tsm1.NewValue(3, 3.0),
+			tsm1.NewValue(4, 4.0)},
 		},
 	}
 
@@ -397,7 +396,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 
 	// Search for an entry that exists in the second file
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(3, 0), false)
+	c := fs.KeyCursor("cpu", 3, false)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -420,9 +419,9 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(2, 0), 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -433,7 +432,7 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make(tsm1.FloatValues, 1000)
-	c := fs.KeyCursor("cpu", time.Unix(2, 0), false)
+	c := fs.KeyCursor("cpu", 2, false)
 	values, err := c.ReadFloatBlock(buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -457,9 +456,9 @@ func TestFileStore_Open(t *testing.T) {
 
 	// Create 3 TSM files...
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"mem", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
 	_, err := newFileDir(dir, data...)
@@ -488,9 +487,9 @@ func TestFileStore_Remove(t *testing.T) {
 
 	// Create 3 TSM files...
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"mem", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
 	files, err := newFileDir(dir, data...)
@@ -529,9 +528,9 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 
 	// Create 3 TSM files...
 	data := []keyValues{
-		keyValues{"cpu,host=server2!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu,host=server2!~#!value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
 	_, err := newFileDir(dir, data...)
@@ -569,9 +568,9 @@ func TestFileStore_Delete(t *testing.T) {
 
 	// Setup 3 files
 	data := []keyValues{
-		keyValues{"cpu,host=server2!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu,host=server2!~#!value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
 	files, err := newFiles(data...)
@@ -602,9 +601,9 @@ func TestFileStore_Stats(t *testing.T) {
 
 	// Create 3 TSM files...
 	data := []keyValues{
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(time.Unix(1, 0), 2.0)}},
-		keyValues{"mem", []tsm1.Value{tsm1.NewValue(time.Unix(0, 0), 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
 	_, err := newFileDir(dir, data...)

@@ -16,9 +16,9 @@ func TestCompactor_Snapshot(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	v1 := tsm1.NewValue(time.Unix(1, 0), float64(1))
-	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
-	v3 := tsm1.NewValue(time.Unix(2, 0), float64(2))
+	v1 := tsm1.NewValue(1, float64(1))
+	v2 := tsm1.NewValue(1, float64(1))
+	v3 := tsm1.NewValue(2, float64(2))
 
 	points1 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
@@ -83,22 +83,22 @@ func TestCompactor_CompactFull(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// write 3 TSM files with different data and one new point
-	a1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	a1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a1},
 	}
 	f1 := MustWriteTSM(dir, 1, writes)
 
-	a2 := tsm1.NewValue(time.Unix(2, 0), 1.2)
-	b1 := tsm1.NewValue(time.Unix(1, 0), 2.1)
+	a2 := tsm1.NewValue(2, 1.2)
+	b1 := tsm1.NewValue(1, 2.1)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a2},
 		"cpu,host=B#!~#value": []tsm1.Value{b1},
 	}
 	f2 := MustWriteTSM(dir, 2, writes)
 
-	a3 := tsm1.NewValue(time.Unix(1, 0), 1.3)
-	c1 := tsm1.NewValue(time.Unix(1, 0), 3.1)
+	a3 := tsm1.NewValue(1, 1.3)
+	c1 := tsm1.NewValue(1, 3.1)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a3},
 		"cpu,host=C#!~#value": []tsm1.Value{c1},
@@ -176,20 +176,20 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// write 3 TSM files with different data and one new point
-	a1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
-	a2 := tsm1.NewValue(time.Unix(2, 0), 1.2)
+	a1 := tsm1.NewValue(1, 1.1)
+	a2 := tsm1.NewValue(2, 1.2)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a1, a2},
 	}
 	f1 := MustWriteTSM(dir, 1, writes)
 
-	a3 := tsm1.NewValue(time.Unix(3, 0), 1.3)
+	a3 := tsm1.NewValue(3, 1.3)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a3},
 	}
 	f2 := MustWriteTSM(dir, 2, writes)
 
-	a4 := tsm1.NewValue(time.Unix(4, 0), 1.4)
+	a4 := tsm1.NewValue(4, 1.4)
 	writes = map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{a4},
 	}
@@ -268,7 +268,7 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	v1 := tsm1.NewValue(time.Unix(1, 0), 1.1)
+	v1 := tsm1.NewValue(1, 1.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
 	}
@@ -317,8 +317,8 @@ func TestTSMKeyIterator_Chunked(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	v0 := tsm1.NewValue(time.Unix(1, 0), 1.1)
-	v1 := tsm1.NewValue(time.Unix(2, 0), 2.1)
+	v0 := tsm1.NewValue(1, 1.1)
+	v1 := tsm1.NewValue(2, 2.1)
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
 	}
@@ -372,8 +372,8 @@ func TestTSMKeyIterator_Duplicate(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	v1 := tsm1.NewValue(time.Unix(1, 0), int64(1))
-	v2 := tsm1.NewValue(time.Unix(1, 0), int64(2))
+	v1 := tsm1.NewValue(1, int64(1))
+	v2 := tsm1.NewValue(1, int64(2))
 
 	writes1 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
@@ -427,7 +427,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
 
-	v1 := tsm1.NewValue(time.Unix(2, 0), int64(1))
+	v1 := tsm1.NewValue(2, int64(1))
 	points1 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v1},
 	}
@@ -437,8 +437,8 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 		t.Fatal(e)
 	}
 
-	v2 := tsm1.NewValue(time.Unix(1, 0), float64(1))
-	v3 := tsm1.NewValue(time.Unix(1, 0), float64(1))
+	v2 := tsm1.NewValue(1, float64(1))
+	v3 := tsm1.NewValue(1, float64(1))
 
 	points2 := map[string][]tsm1.Value{
 		"cpu,host=A#!~#count": []tsm1.Value{v2},
@@ -491,7 +491,7 @@ func TestTSMKeyIterator_MultipleKeysDeleted(t *testing.T) {
 }
 
 func TestCacheKeyIterator_Single(t *testing.T) {
-	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
+	v0 := tsm1.NewValue(1, 1.0)
 
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v0},
@@ -538,8 +538,8 @@ func TestCacheKeyIterator_Single(t *testing.T) {
 }
 
 func TestCacheKeyIterator_Chunked(t *testing.T) {
-	v0 := tsm1.NewValue(time.Unix(1, 0).UTC(), 1.0)
-	v1 := tsm1.NewValue(time.Unix(2, 0).UTC(), 2.0)
+	v0 := tsm1.NewValue(1, 1.0)
+	v1 := tsm1.NewValue(2, 2.0)
 
 	writes := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
@@ -1066,7 +1066,7 @@ func TestDefaultPlanner_Plan_CompactsMiddleSteps(t *testing.T) {
 }
 
 func assertValueEqual(t *testing.T, a, b tsm1.Value) {
-	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
+	if got, exp := a.UnixNano(), b.UnixNano(); got != exp {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
 	}
 	if got, exp := a.Value(), b.Value(); got != exp {
@@ -1075,7 +1075,7 @@ func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 }
 
 func assertEqual(t *testing.T, a tsm1.Value, b models.Point, field string) {
-	if got, exp := a.Time(), b.Time(); !got.Equal(exp) {
+	if got, exp := a.UnixNano(), b.UnixNano(); got != exp {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
 	}
 	if got, exp := a.Value(), b.Fields()[field]; got != exp {

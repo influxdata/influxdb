@@ -250,11 +250,11 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 
 	// grab all the files and tombstones that have a modified time after since
 	for _, f := range e.FileStore.files {
-		if stat := f.Stats(); stat.LastModified.After(since) {
+		if stat := f.Stats(); stat.LastModified > since.UnixNano() {
 			files = append(files, f.Stats())
 		}
 		for _, t := range f.TombstoneFiles() {
-			if t.LastModified.After(since) {
+			if t.LastModified > since.UnixNano() {
 				files = append(files, f.Stats())
 			}
 		}
@@ -277,7 +277,7 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 func (e *Engine) writeFileToBackup(f FileStat, shardRelativePath string, tw *tar.Writer) error {
 	h := &tar.Header{
 		Name:    filepath.Join(shardRelativePath, filepath.Base(f.Path)),
-		ModTime: f.LastModified,
+		ModTime: time.Unix(0, f.LastModified),
 		Size:    int64(f.Size),
 	}
 	if err := tw.WriteHeader(h); err != nil {
@@ -335,7 +335,7 @@ func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[
 	for _, p := range points {
 		for k, v := range p.Fields() {
 			key := string(p.Key()) + keyFieldSeparator + k
-			values[key] = append(values[key], NewValue(p.Time(), v))
+			values[key] = append(values[key], NewValue(p.Time().UnixNano(), v))
 		}
 	}
 
@@ -665,7 +665,7 @@ func (e *Engine) cleanup() error {
 	return nil
 }
 
-func (e *Engine) KeyCursor(key string, t time.Time, ascending bool) *KeyCursor {
+func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.FileStore.KeyCursor(key, t, ascending)
@@ -911,28 +911,28 @@ func (e *Engine) buildCursor(measurement, seriesKey, field string, opt influxql.
 // buildFloatCursor creates a cursor for a float field.
 func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) floatCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
-	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
 	return newFloatCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // buildIntegerCursor creates a cursor for an integer field.
 func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) integerCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
-	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
 	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // buildStringCursor creates a cursor for a string field.
 func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) stringCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
-	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
 	return newStringCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
 // buildBooleanCursor creates a cursor for a boolean field.
 func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) booleanCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
-	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), time.Unix(0, opt.SeekTime()).UTC(), opt.Ascending)
+	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
 	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 

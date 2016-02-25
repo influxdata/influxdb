@@ -21,7 +21,7 @@ type TSMFile interface {
 	Path() string
 
 	// Read returns all the values in the block where time t resides
-	Read(key string, t time.Time) ([]Value, error)
+	Read(key string, t int64) ([]Value, error)
 
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
@@ -35,14 +35,14 @@ type TSMFile interface {
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time
-	ContainsValue(key string, t time.Time) bool
+	ContainsValue(key string, t int64) bool
 
 	// Contains returns true if the file contains any values for the given
 	// key.
 	Contains(key string) bool
 
 	// TimeRange returns the min and max time across all keys in the file.
-	TimeRange() (time.Time, time.Time)
+	TimeRange() (int64, int64)
 
 	// KeyRange returns the min and max keys in the file.
 	KeyRange() (string, string)
@@ -106,14 +106,13 @@ type FileStat struct {
 	Path             string
 	HasTombstone     bool
 	Size             uint32
-	LastModified     time.Time
-	MinTime, MaxTime time.Time
+	LastModified     int64
+	MinTime, MaxTime int64
 	MinKey, MaxKey   string
 }
 
-func (f FileStat) OverlapsTimeRange(min, max time.Time) bool {
-	return (f.MinTime.Equal(max) || f.MinTime.Before(max)) &&
-		(f.MaxTime.Equal(min) || f.MaxTime.After(min))
+func (f FileStat) OverlapsTimeRange(min, max int64) bool {
+	return f.MinTime <= max && f.MaxTime >= min
 }
 
 func (f FileStat) OverlapsKeyRange(min, max string) bool {
@@ -328,7 +327,7 @@ func (f *FileStore) Close() error {
 	return nil
 }
 
-func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
+func (f *FileStore) Read(key string, t int64) ([]Value, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -351,7 +350,7 @@ func (f *FileStore) Read(key string, t time.Time) ([]Value, error) {
 	return nil, nil
 }
 
-func (f *FileStore) KeyCursor(key string, t time.Time, ascending bool) *KeyCursor {
+func (f *FileStore) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return newKeyCursor(f, key, t, ascending)
@@ -484,7 +483,7 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
-func (f *FileStore) locations(key string, t time.Time, ascending bool) []*location {
+func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 	var locations []*location
 
 	f.mu.RLock()
@@ -499,11 +498,11 @@ func (f *FileStore) locations(key string, t time.Time, ascending bool) []*locati
 
 		// If we ascending and the max time of the file is before where we want to start
 		// skip it.
-		if ascending && maxTime.Before(t) {
+		if ascending && maxTime < t {
 			continue
 			// If we are descending and the min time fo the file is after where we want to start,
 			// then skip it.
-		} else if !ascending && minTime.After(t) {
+		} else if !ascending && minTime > t {
 			continue
 		}
 
@@ -512,11 +511,11 @@ func (f *FileStore) locations(key string, t time.Time, ascending bool) []*locati
 		for _, ie := range fd.Entries(key) {
 			// If we ascending and the max time of a block is before where we are looking, skip
 			// it since the data is out of our range
-			if ascending && ie.MaxTime.Before(t) {
+			if ascending && ie.MaxTime < t {
 				continue
 				// If we descending and the min time of a block is after where we are looking, skip
 				// it since the data is out of our range
-			} else if !ascending && minTime.After(t) {
+			} else if !ascending && ie.MinTime > t {
 				continue
 			}
 
@@ -585,7 +584,7 @@ type location struct {
 }
 
 // newKeyCursor returns a new instance of KeyCursor.
-func newKeyCursor(fs *FileStore, key string, t time.Time, ascending bool) *KeyCursor {
+func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor {
 	c := &KeyCursor{
 		key:       key,
 		fs:        fs,
@@ -615,7 +614,7 @@ func (c *KeyCursor) hasOverlappingBlocks() bool {
 	for i := 1; i < len(c.seeks); i++ {
 		prev := c.seeks[i-1]
 		cur := c.seeks[i]
-		if prev.entry.MaxTime.Equal(cur.entry.MinTime) || prev.entry.MaxTime.After(cur.entry.MinTime) {
+		if prev.entry.MaxTime >= cur.entry.MinTime {
 			return true
 		}
 	}
@@ -623,7 +622,7 @@ func (c *KeyCursor) hasOverlappingBlocks() bool {
 }
 
 // seek positions the cursor at the given time.
-func (c *KeyCursor) seek(t time.Time) {
+func (c *KeyCursor) seek(t int64) {
 	if len(c.seeks) == 0 {
 		return
 	}
@@ -636,9 +635,9 @@ func (c *KeyCursor) seek(t time.Time) {
 	}
 }
 
-func (c *KeyCursor) seekAscending(t time.Time) {
+func (c *KeyCursor) seekAscending(t int64) {
 	for i, e := range c.seeks {
-		if t.Before(e.entry.MinTime) || e.entry.Contains(t) {
+		if t < e.entry.MinTime || e.entry.Contains(t) {
 			// Record the position of the first block matching our seek time
 			if len(c.current) == 0 {
 				c.pos = i
@@ -655,10 +654,10 @@ func (c *KeyCursor) seekAscending(t time.Time) {
 	}
 }
 
-func (c *KeyCursor) seekDescending(t time.Time) {
+func (c *KeyCursor) seekDescending(t int64) {
 	for i := len(c.seeks) - 1; i >= 0; i-- {
 		e := c.seeks[i]
-		if t.After(e.entry.MaxTime) || e.entry.Contains(t) {
+		if t > e.entry.MaxTime || e.entry.Contains(t) {
 			// Record the position of the first block matching our seek time
 			if len(c.current) == 0 {
 				c.pos = i
@@ -710,7 +709,7 @@ func (c *KeyCursor) nextAscending() {
 			continue
 		}
 
-		if c.seeks[i].entry.MinTime.Before(first.entry.MaxTime) || c.seeks[i].entry.MinTime.Equal(first.entry.MaxTime) {
+		if c.seeks[i].entry.MinTime <= first.entry.MaxTime {
 			c.current = append(c.current, c.seeks[i])
 		}
 	}
@@ -740,7 +739,7 @@ func (c *KeyCursor) nextDescending() {
 		if c.seeks[i].read {
 			continue
 		}
-		if c.seeks[i].entry.MaxTime.After(first.entry.MinTime) || c.seeks[i].entry.MaxTime.Equal(first.entry.MinTime) {
+		if c.seeks[i].entry.MaxTime >= first.entry.MinTime {
 			c.current = append(c.current, c.seeks[i])
 		}
 	}
