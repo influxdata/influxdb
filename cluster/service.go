@@ -187,12 +187,15 @@ func (s *Service) handleConn(conn net.Conn) {
 		case createIteratorRequestMessage:
 			s.statMap.Add(createIteratorReq, 1)
 			s.processCreateIteratorRequest(conn)
+			return
 		case fieldDimensionsRequestMessage:
 			s.statMap.Add(fieldDimensionsReq, 1)
 			s.processFieldDimensionsRequest(conn)
+			return
 		case seriesKeysRequestMessage:
 			s.statMap.Add(seriesKeysReq, 1)
 			s.processSeriesKeysRequest(conn)
+			return
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
