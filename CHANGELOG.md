@@ -2,6 +2,7 @@
 
 ### Features
 
+- [#5596](https://github.com/influxdata/influxdb/pull/5596): Build improvements for ARM architectures. Also removed `--goarm` and `--pkgarch` build flags.
 - [#5541](https://github.com/influxdata/influxdb/pull/5541): Client: Support for adding custom TLS Config for HTTP client.
 - [#4299](https://github.com/influxdata/influxdb/pull/4299): Client: Reject uint64 Client.Point.Field values. Thanks @arussellsaw
 - [#5550](https://github.com/influxdata/influxdb/pull/5550): Enabled golint for tsdb/engine/wal. @gabelev
