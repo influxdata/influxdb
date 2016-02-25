@@ -140,6 +140,8 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	v3 := NewValue(time.Unix(5, 0).UTC(), 4.0)
 	v4 := NewValue(time.Unix(6, 0).UTC(), 5.0)
 	v5 := NewValue(time.Unix(1, 0).UTC(), 5.0)
+	v6 := NewValue(time.Unix(7, 0).UTC(), 5.0)
+	v7 := NewValue(time.Unix(2, 0).UTC(), 5.0)
 
 	c := NewCache(512, "")
 	if err := c.Write("foo", Values{v0, v1, v2, v3}); err != nil {
@@ -178,9 +180,30 @@ func TestCache_CacheSnapshot(t *testing.T) {
 
 	// Clear snapshot, ensuring non-snapshot data untouched.
 	c.ClearSnapshot(true)
+
 	expValues = Values{v5, v4}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+
+	// Create another snapshot
+	snapshot = c.Snapshot()
+
+	if err := c.Write("foo", Values{v4, v5}); err != nil {
+		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
+	}
+
+	c.ClearSnapshot(true)
+
+	snapshot = c.Snapshot()
+
+	if err := c.Write("foo", Values{v6, v7}); err != nil {
+		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
+	}
+
+	expValues = Values{v5, v7, v4, v6}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+		t.Fatalf("post-snapshot out-of-order write values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 }
 
