@@ -9,6 +9,8 @@ func RewriteStatement(stmt Statement) (Statement, error) {
 		return rewriteShowFieldKeysStatement(stmt)
 	case *ShowMeasurementsStatement:
 		return rewriteShowMeasurementsStatement(stmt)
+	case *ShowSeriesStatement:
+		return rewriteShowSeriesStatement(stmt)
 	case *ShowTagKeysStatement:
 		return rewriteShowTagKeysStatement(stmt)
 	case *ShowTagValuesStatement:
@@ -81,21 +83,20 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 	}, nil
 }
 
-func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) {
+func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 	// Check for time in WHERE clause (not supported).
 	if HasTimeExpr(stmt.Condition) {
-		return nil, errors.New("SHOW TAG KEYS doesn't support time in WHERE clause")
+		return nil, errors.New("SHOW SERIES doesn't support time in WHERE clause")
 	}
 
-	condition := rewriteSourcesCondition(stmt.Sources, stmt.Condition)
 	return &SelectStatement{
 		Fields: []*Field{
-			{Expr: &VarRef{Val: "tagKey"}},
+			{Expr: &VarRef{Val: "key"}},
 		},
 		Sources: []Source{
-			&Measurement{Name: "_tagKeys"},
+			&Measurement{Name: "_series"},
 		},
-		Condition:  condition,
+		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
@@ -153,6 +154,28 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 			&Measurement{Name: "_tags"},
 		},
 		Condition:  condition,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		SortFields: stmt.SortFields,
+		OmitTime:   true,
+		Dedupe:     true,
+	}, nil
+}
+
+func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW TAG KEYS doesn't support time in WHERE clause")
+	}
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{Expr: &VarRef{Val: "tagKey"}},
+		},
+		Sources: []Source{
+			&Measurement{Name: "_tagKeys"},
+		},
+		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
