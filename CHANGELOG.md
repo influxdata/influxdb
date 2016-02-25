@@ -43,8 +43,9 @@
 - [#5719](https://github.com/influxdata/influxdb/issues/5719): Fix cache not deduplicating points
 - [#5754](https://github.com/influxdata/influxdb/issues/5754): Adding a node as meta only results in a data node also being registered
 - [#5787](https://github.com/influxdata/influxdb/pull/5787): HTTP: Add QueryAuthorizer instance to httpd service’s handler. @chris-ramon
-- [#5753](https://github.com/influxdata/influxdb/pull/5753): ensures that drop-type commands work correctly in a cluster
+- [#5753](https://github.com/influxdata/influxdb/pull/5753): Ensures that drop-type commands work correctly in a cluster
 - [#5814](https://github.com/influxdata/influxdb/issues/5814): Run CQs with the same name from different databases
+- [#5699](https://github.com/influxdata/influxdb/issues/5699): Fix potential thread safety issue in cache @jonseymour
 
 ## v0.10.1 [2016-02-18]
 
