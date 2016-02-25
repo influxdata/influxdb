@@ -263,6 +263,7 @@ func (c *Cache) merged(key string) Values {
 	if c.snapshot != nil {
 		snapshotEntries := c.snapshot.store[key]
 		if snapshotEntries != nil {
+			snapshotEntries.deduplicate() // guarantee we are deduplicated
 			entries = append(entries, snapshotEntries)
 			sz += snapshotEntries.count()
 		}
