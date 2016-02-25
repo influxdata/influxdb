@@ -71,8 +71,8 @@ func (cmd *Command) Run(args ...string) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Mark start-up in log.
-	log.Printf("InfluxDB starting, version %s, branch %s, commit %s, built %s",
-		cmd.Version, cmd.Branch, cmd.Commit, cmd.BuildTime)
+	log.Printf("InfluxDB starting, version %s, branch %s, commit %s",
+		cmd.Version, cmd.Branch, cmd.Commit)
 	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
 
 	// Write the PID file.

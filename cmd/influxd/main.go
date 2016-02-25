@@ -20,22 +20,21 @@ import (
 
 // These variables are populated via the Go linker.
 var (
-	version   = "0.9"
-	commit    string
-	branch    string
-	buildTime string
+	version string
+	commit  string
+	branch  string
 )
 
 func init() {
 	// If commit, branch, or build time are not set, make that clear.
+	if version == "" {
+		version = "unknown"
+	}
 	if commit == "" {
 		commit = "unknown"
 	}
 	if branch == "" {
 		branch = "unknown"
-	}
-	if buildTime == "" {
-		buildTime = "unknown"
 	}
 }
 
@@ -81,7 +80,6 @@ func (m *Main) Run(args ...string) error {
 		cmd.Version = version
 		cmd.Commit = commit
 		cmd.Branch = branch
-		cmd.BuildTime = buildTime
 
 		if err := cmd.Run(args...); err != nil {
 			return fmt.Errorf("run: %s", err)
@@ -193,7 +191,7 @@ func (cmd *VersionCommand) Run(args ...string) error {
 	}
 
 	// Print version info.
-	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s %s, built %s)\n", version, branch, commit, buildTime)
+	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s %s)\n", version, branch, commit)
 
 	return nil
 }
