@@ -110,7 +110,7 @@ func (s *Store) loadIndexes() error {
 			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
 			continue
 		}
-		s.databaseIndexes[db.Name()] = NewDatabaseIndex()
+		s.databaseIndexes[db.Name()] = NewDatabaseIndex(db.Name())
 	}
 	return nil
 }
@@ -252,7 +252,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	// create the database index if it does not exist
 	db, ok := s.databaseIndexes[database]
 	if !ok {
-		db = NewDatabaseIndex()
+		db = NewDatabaseIndex(database)
 		s.databaseIndexes[database] = db
 	}
 

@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"expvar"
 	"fmt"
 	"regexp"
 	"sort"
@@ -8,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/pkg/escape"
 	"github.com/influxdata/influxdb/tsdb/internal"
@@ -19,6 +21,9 @@ import (
 
 const (
 	maxStringLength = 64 * 1024
+
+	statDatabaseSeries       = "numSeries"       // number of series in this database
+	statDatabaseMeasurements = "numMeasurements" // number of measurements in this database
 )
 
 // DatabaseIndex is the in memory index of a collection of measurements, time series, and their tags.
@@ -29,13 +34,19 @@ type DatabaseIndex struct {
 	measurements map[string]*Measurement // measurement name to object and index
 	series       map[string]*Series      // map series key to the Series object
 	lastID       uint64                  // last used series ID. They're in memory only for this shard
+
+	name string // name of the database represented by this index
+
+	statMap *expvar.Map
 }
 
 // NewDatabaseIndex returns a new initialized DatabaseIndex.
-func NewDatabaseIndex() *DatabaseIndex {
+func NewDatabaseIndex(name string) *DatabaseIndex {
 	return &DatabaseIndex{
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
+		name:         name,
+		statMap:      influxdb.NewStatistics("database:"+name, "database", map[string]string{"database": name}),
 	}
 }
 
@@ -103,6 +114,8 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 	m.AddSeries(series)
 
+	d.statMap.Add(statDatabaseSeries, 1)
+
 	return series
 }
 
@@ -113,6 +126,7 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurem
 	if m == nil {
 		m = NewMeasurement(name, d)
 		d.measurements[name] = m
+		d.statMap.Add(statDatabaseMeasurements, 1)
 	}
 	return m
 }
@@ -311,12 +325,19 @@ func (d *DatabaseIndex) DropMeasurement(name string) {
 	for _, s := range m.seriesByID {
 		delete(d.series, s.Key)
 	}
+
+	m.drop()
+
+	d.statMap.Add(statDatabaseSeries, int64(-len(m.seriesByID)))
+	d.statMap.Add(statDatabaseMeasurements, -1)
 }
 
 // DropSeries removes the series keys and their tags from the index
 func (d *DatabaseIndex) DropSeries(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	var nDeleted int64
 	for _, k := range keys {
 		series := d.series[k]
 		if series == nil {
@@ -324,8 +345,15 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 		}
 		series.measurement.DropSeries(series.id)
 		delete(d.series, k)
+		nDeleted++
 	}
+
+	d.statMap.Add(statDatabaseSeries, -nDeleted)
 }
+
+const (
+	statMeasurementSeries = "numSeries" // number of series contained in this measurement
+)
 
 // Measurement represents a collection of time series in a database. It also contains in memory
 // structures for indexing tags. Exported functions are goroutine safe while un-exported functions
@@ -341,6 +369,8 @@ type Measurement struct {
 	measurement         *Measurement
 	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
 	seriesIDs           SeriesIDs                       // sorted list of series IDs in this measurement
+
+	statMap *expvar.Map
 }
 
 // NewMeasurement allocates and initializes a new Measurement.
@@ -353,6 +383,12 @@ func NewMeasurement(name string, idx *DatabaseIndex) *Measurement {
 		seriesByID:          make(map[uint64]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
 		seriesIDs:           make(SeriesIDs, 0),
+
+		statMap: influxdb.NewStatistics(
+			fmt.Sprintf("measurement:%s.%s", name, idx.name),
+			"measurement",
+			map[string]string{"database": idx.name, "measurement": name},
+		),
 	}
 }
 
@@ -445,6 +481,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 		valueMap[v] = ids
 	}
 
+	m.statMap.Add(statMeasurementSeries, 1)
 	return true
 }
 
@@ -492,7 +529,15 @@ func (m *Measurement) DropSeries(seriesID uint64) {
 		}
 	}
 
+	m.statMap.Add(statMeasurementSeries, -1)
+
 	return
+}
+
+// drop handles any cleanup for when a measurement is dropped.
+// Currently only cleans up stats.
+func (m *Measurement) drop() {
+	m.statMap.Add(statMeasurementSeries, int64(-len(m.seriesIDs)))
 }
 
 // filters walks the where clause of a select statement and returns a map with all series ids

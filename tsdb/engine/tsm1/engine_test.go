@@ -33,7 +33,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Load metadata index.
-	index := tsdb.NewDatabaseIndex()
+	index := tsdb.NewDatabaseIndex("db")
 	if err := e.LoadMetadataIndex(nil, index, make(map[string]*tsdb.MeasurementFields)); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Load metadata index.
-	index = tsdb.NewDatabaseIndex()
+	index = tsdb.NewDatabaseIndex("db")
 	if err := e.LoadMetadataIndex(nil, index, make(map[string]*tsdb.MeasurementFields)); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Load metadata index.
-	index = tsdb.NewDatabaseIndex()
+	index = tsdb.NewDatabaseIndex("db")
 	if err := e.LoadMetadataIndex(nil, index, make(map[string]*tsdb.MeasurementFields)); err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ func MustOpenEngine() *Engine {
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
-	if err := e.LoadMetadataIndex(nil, tsdb.NewDatabaseIndex(), make(map[string]*tsdb.MeasurementFields)); err != nil {
+	if err := e.LoadMetadataIndex(nil, tsdb.NewDatabaseIndex("db"), make(map[string]*tsdb.MeasurementFields)); err != nil {
 		panic(err)
 	}
 	return e
