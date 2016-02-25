@@ -164,8 +164,10 @@ func MustOpenShard(id uint64) *Shard {
 	sh := &Shard{
 		Shard: tsdb.NewShard(id,
 			tsdb.NewDatabaseIndex("db"),
-			filepath.Join(path, "data"),
-			filepath.Join(path, "wal"),
+			tsdb.ShardConfig{
+				Path:    filepath.Join(path, "data"),
+				WALPath: filepath.Join(path, "wal"),
+			},
 			tsdb.NewEngineOptions(),
 		),
 		path: path,
