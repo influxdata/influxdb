@@ -4,19 +4,19 @@ package tsm1_test
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"math/rand"
 	"sync"
 	"testing"
-	"time"
+
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func TestCheckConcurrentReadsAreSafe(t *testing.T) {
 	values := make(tsm1.Values, 1000)
-	timestamps := make([]time.Time, len(values))
+	timestamps := make([]int64, len(values))
 	series := make([]string, 100)
 	for i := range timestamps {
-		timestamps[i] = time.Unix(int64(rand.Int63n(int64(len(values)))), 0).UTC()
+		timestamps[i] = int64(rand.Int63n(int64(len(values))))
 	}
 
 	for i := range values {
@@ -58,10 +58,10 @@ func TestCheckConcurrentReadsAreSafe(t *testing.T) {
 
 func TestCacheRace(t *testing.T) {
 	values := make(tsm1.Values, 1000)
-	timestamps := make([]time.Time, len(values))
+	timestamps := make([]int64, len(values))
 	series := make([]string, 100)
 	for i := range timestamps {
-		timestamps[i] = time.Unix(int64(rand.Int63n(int64(len(values)))), 0).UTC()
+		timestamps[i] = int64(rand.Int63n(int64(len(values))))
 	}
 
 	for i := range values {
@@ -101,10 +101,10 @@ func TestCacheRace(t *testing.T) {
 
 func TestCacheRace2Compacters(t *testing.T) {
 	values := make(tsm1.Values, 1000)
-	timestamps := make([]time.Time, len(values))
+	timestamps := make([]int64, len(values))
 	series := make([]string, 100)
 	for i := range timestamps {
-		timestamps[i] = time.Unix(int64(rand.Int63n(int64(len(values)))), 0).UTC()
+		timestamps[i] = int64(rand.Int63n(int64(len(values))))
 	}
 
 	for i := range values {

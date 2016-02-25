@@ -37,7 +37,7 @@ func TestEncoding_FloatBlock(t *testing.T) {
 func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
 	values := make([]tsm1.Value, 3)
 	for i := 0; i < 3; i++ {
-		values[i] = tsm1.NewValue(time.Unix(0, 0), float64(i))
+		values[i] = tsm1.NewValue(0, float64(i))
 	}
 
 	b, err := tsm1.Values(values).Encode(nil)
@@ -58,11 +58,11 @@ func TestEncoding_FloatBlock_ZeroTime(t *testing.T) {
 
 func TestEncoding_FloatBlock_SimilarFloats(t *testing.T) {
 	values := make([]tsm1.Value, 5)
-	values[0] = tsm1.NewValue(time.Unix(0, 1444238178437870000), 6.00065e+06)
-	values[1] = tsm1.NewValue(time.Unix(0, 1444238185286830000), 6.000656e+06)
-	values[2] = tsm1.NewValue(time.Unix(0, 1444238188441501000), 6.000657e+06)
-	values[3] = tsm1.NewValue(time.Unix(0, 1444238195286811000), 6.000659e+06)
-	values[4] = tsm1.NewValue(time.Unix(0, 1444238198439917000), 6.000661e+06)
+	values[0] = tsm1.NewValue(1444238178437870000, 6.00065e+06)
+	values[1] = tsm1.NewValue(1444238185286830000, 6.000656e+06)
+	values[2] = tsm1.NewValue(1444238188441501000, 6.000657e+06)
+	values[3] = tsm1.NewValue(1444238195286811000, 6.000659e+06)
+	values[4] = tsm1.NewValue(1444238198439917000, 6.000661e+06)
 
 	b, err := tsm1.Values(values).Encode(nil)
 	if err != nil {
@@ -104,9 +104,8 @@ func TestEncoding_IntBlock_Basic(t *testing.T) {
 	}
 
 	for i := 0; i < len(decodedValues); i++ {
-
-		if decodedValues[i].Time() != values[i].Time() {
-			t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues[i].Time(), values[i].Time())
+		if decodedValues[i].UnixNano() != values[i].UnixNano() {
+			t.Fatalf("unexpected results:\n\tgot: %v\n\texp: %v\n", decodedValues[i].UnixNano(), values[i].UnixNano())
 		}
 
 		if decodedValues[i].Value() != values[i].Value() {
@@ -208,7 +207,7 @@ func TestEncoding_BlockType(t *testing.T) {
 
 	for _, test := range tests {
 		var values []tsm1.Value
-		values = append(values, tsm1.NewValue(time.Unix(0, 0), test.value))
+		values = append(values, tsm1.NewValue(0, test.value))
 
 		b, err := tsm1.Values(values).Encode(nil)
 		if err != nil {
@@ -244,7 +243,7 @@ func TestEncoding_Count(t *testing.T) {
 
 	for _, test := range tests {
 		var values []tsm1.Value
-		values = append(values, tsm1.NewValue(time.Unix(0, 0), test.value))
+		values = append(values, tsm1.NewValue(0, test.value))
 
 		b, err := tsm1.Values(values).Encode(nil)
 		if err != nil {
@@ -257,11 +256,11 @@ func TestEncoding_Count(t *testing.T) {
 	}
 }
 
-func getTimes(n, step int, precision time.Duration) []time.Time {
-	t := time.Now().Round(precision)
-	a := make([]time.Time, n)
+func getTimes(n, step int, precision time.Duration) []int64 {
+	t := time.Now().Round(precision).UnixNano()
+	a := make([]int64, n)
 	for i := 0; i < n; i++ {
-		a[i] = t.Add(time.Duration(i*60) * precision)
+		a[i] = t + (time.Duration(i*60) * precision).Nanoseconds()
 	}
 	return a
 }

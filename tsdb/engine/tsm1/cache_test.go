@@ -6,7 +6,6 @@ import (
 	"os"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/golang/snappy"
 )
@@ -29,9 +28,9 @@ func TestCache_NewCache(t *testing.T) {
 }
 
 func TestCache_CacheWrite(t *testing.T) {
-	v0 := NewValue(time.Unix(1, 0).UTC(), 1.0)
-	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
-	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, 3.0)
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
@@ -53,9 +52,9 @@ func TestCache_CacheWrite(t *testing.T) {
 }
 
 func TestCache_CacheWriteMulti(t *testing.T) {
-	v0 := NewValue(time.Unix(1, 0).UTC(), 1.0)
-	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
-	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, 3.0)
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
@@ -76,13 +75,13 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 // This tests writing two batches to the same series.  The first batch
 // is sorted.  The second batch is also sorted but contains duplicates.
 func TestCache_CacheWriteMulti_Duplicates(t *testing.T) {
-	v0 := NewValue(time.Unix(2, 0).UTC(), 1.0)
-	v1 := NewValue(time.Unix(3, 0).UTC(), 1.0)
+	v0 := NewValue(2, 1.0)
+	v1 := NewValue(3, 1.0)
 	values0 := Values{v0, v1}
 
-	v3 := NewValue(time.Unix(4, 0).UTC(), 2.0)
-	v4 := NewValue(time.Unix(5, 0).UTC(), 3.0)
-	v5 := NewValue(time.Unix(5, 0).UTC(), 3.0)
+	v3 := NewValue(4, 2.0)
+	v4 := NewValue(5, 3.0)
+	v5 := NewValue(5, 3.0)
 	values1 := Values{v3, v4, v5}
 
 	c := NewCache(0, "")
@@ -109,11 +108,11 @@ func TestCache_CacheWriteMulti_Duplicates(t *testing.T) {
 }
 
 func TestCache_CacheValues(t *testing.T) {
-	v0 := NewValue(time.Unix(1, 0).UTC(), 0.0)
-	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
-	v2 := NewValue(time.Unix(3, 0).UTC(), 3.0)
-	v3 := NewValue(time.Unix(1, 0).UTC(), 1.0)
-	v4 := NewValue(time.Unix(4, 0).UTC(), 4.0)
+	v0 := NewValue(1, 0.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, 3.0)
+	v3 := NewValue(1, 1.0)
+	v4 := NewValue(4, 4.0)
 
 	c := NewCache(512, "")
 	if deduped := c.Values("no such key"); deduped != nil {
@@ -134,14 +133,14 @@ func TestCache_CacheValues(t *testing.T) {
 }
 
 func TestCache_CacheSnapshot(t *testing.T) {
-	v0 := NewValue(time.Unix(2, 0).UTC(), 0.0)
-	v1 := NewValue(time.Unix(3, 0).UTC(), 2.0)
-	v2 := NewValue(time.Unix(4, 0).UTC(), 3.0)
-	v3 := NewValue(time.Unix(5, 0).UTC(), 4.0)
-	v4 := NewValue(time.Unix(6, 0).UTC(), 5.0)
-	v5 := NewValue(time.Unix(1, 0).UTC(), 5.0)
-	v6 := NewValue(time.Unix(7, 0).UTC(), 5.0)
-	v7 := NewValue(time.Unix(2, 0).UTC(), 5.0)
+	v0 := NewValue(2, 0.0)
+	v1 := NewValue(3, 2.0)
+	v2 := NewValue(4, 3.0)
+	v3 := NewValue(5, 4.0)
+	v4 := NewValue(6, 5.0)
+	v5 := NewValue(1, 5.0)
+	v6 := NewValue(7, 5.0)
+	v7 := NewValue(2, 5.0)
 
 	c := NewCache(512, "")
 	if err := c.Write("foo", Values{v0, v1, v2, v3}); err != nil {
@@ -229,8 +228,8 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 }
 
 func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
-	v0 := NewValue(time.Unix(1, 0).UTC(), 1.0)
-	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
 
 	c := NewCache(uint64(v1.Size()), "")
 
@@ -269,9 +268,9 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	f := mustTempFile(dir)
 	w := NewWALSegmentWriter(f)
 
-	p1 := NewValue(time.Unix(1, 0), 1.1)
-	p2 := NewValue(time.Unix(1, 0), int64(1))
-	p3 := NewValue(time.Unix(1, 0), true)
+	p1 := NewValue(1, 1.1)
+	p2 := NewValue(1, int64(1))
+	p3 := NewValue(1, true)
 
 	values := map[string][]Value{
 		"foo": []Value{p1},
@@ -337,10 +336,10 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	f1, f2 := mustTempFile(dir), mustTempFile(dir)
 	w1, w2 := NewWALSegmentWriter(f1), NewWALSegmentWriter(f2)
 
-	p1 := NewValue(time.Unix(1, 0), 1.1)
-	p2 := NewValue(time.Unix(1, 0), int64(1))
-	p3 := NewValue(time.Unix(1, 0), true)
-	p4 := NewValue(time.Unix(1, 0), "string")
+	p1 := NewValue(1, 1.1)
+	p2 := NewValue(1, int64(1))
+	p3 := NewValue(1, true)
+	p4 := NewValue(1, "string")
 
 	// Write first and second segment.
 
@@ -422,7 +421,7 @@ func BenchmarkCacheFloatEntries(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		cache := NewCache(10000, "")
 		for j := 0; j < 10000; j++ {
-			v := NewValue(time.Unix(1, 0), float64(j))
+			v := NewValue(1, float64(j))
 			cache.Write("test", []Value{v})
 		}
 	}

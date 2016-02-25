@@ -9,7 +9,6 @@ import (
 	"os"
 	"sort"
 	"sync"
-	"time"
 )
 
 type TSMReader struct {
@@ -28,7 +27,7 @@ type TSMReader struct {
 	size int64
 
 	// lastModified is the last time this file was modified on disk
-	lastModified time.Time
+	lastModified int64
 }
 
 // BlockIterator allows iterating over each block in a TSM file in order.  It provides
@@ -78,14 +77,14 @@ func (b *BlockIterator) Next() bool {
 	return false
 }
 
-func (b *BlockIterator) Read() (string, time.Time, time.Time, []byte, error) {
+func (b *BlockIterator) Read() (string, int64, int64, []byte, error) {
 	if b.err != nil {
-		return "", time.Unix(0, 0), time.Unix(0, 0), nil, b.err
+		return "", 0, 0, nil, b.err
 	}
 
 	buf, err := b.r.readBytes(b.entries[0], nil)
 	if err != nil {
-		return "", time.Unix(0, 0), time.Unix(0, 0), nil, err
+		return "", 0, 0, nil, err
 	}
 	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, buf, err
 }
@@ -94,7 +93,7 @@ func (b *BlockIterator) Read() (string, time.Time, time.Time, []byte, error) {
 // TSM file.
 type blockAccessor interface {
 	init() (TSMIndex, error)
-	read(key string, timestamp time.Time) ([]Value, error)
+	read(key string, timestamp int64) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
 	readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
@@ -136,7 +135,7 @@ func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
 				return nil, err
 			}
 
-			t.lastModified = stat.ModTime()
+			t.lastModified = stat.ModTime().UnixNano()
 		}
 		t.accessor = &fileAccessor{
 			r: opt.Reader,
@@ -148,7 +147,7 @@ func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
 			return nil, err
 		}
 		t.size = stat.Size()
-		t.lastModified = stat.ModTime()
+		t.lastModified = stat.ModTime().UnixNano()
 		t.accessor = &mmapAccessor{
 			f: opt.MMAPFile,
 		}
@@ -233,7 +232,7 @@ func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, vals []BooleanValue) (
 	return t.accessor.readBooleanBlock(entry, vals)
 }
 
-func (t *TSMReader) Read(key string, timestamp time.Time) ([]Value, error) {
+func (t *TSMReader) Read(key string, timestamp int64) ([]Value, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
@@ -288,7 +287,7 @@ func (t *TSMReader) Contains(key string) bool {
 // ContainsValue returns true if key and time might exists in this file.  This function could
 // return true even though the actual point does not exists.  For example, the key may
 // exists in this file, but not have point exactly at time t.
-func (t *TSMReader) ContainsValue(key string, ts time.Time) bool {
+func (t *TSMReader) ContainsValue(key string, ts int64) bool {
 	return t.index.ContainsValue(key, ts)
 }
 
@@ -302,7 +301,7 @@ func (t *TSMReader) Delete(keys []string) error {
 }
 
 // TimeRange returns the min and max time across all keys in the file.
-func (t *TSMReader) TimeRange() (time.Time, time.Time) {
+func (t *TSMReader) TimeRange() (int64, int64) {
 	return t.index.TimeRange()
 }
 
@@ -329,7 +328,7 @@ func (t *TSMReader) Size() uint32 {
 	return uint32(t.size)
 }
 
-func (t *TSMReader) LastModified() time.Time {
+func (t *TSMReader) LastModified() int64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.lastModified
@@ -422,7 +421,7 @@ type indirectIndex struct {
 
 	// minTime, maxTime are the minimum and maximum times contained in the file across all
 	// series.
-	minTime, maxTime time.Time
+	minTime, maxTime int64
 }
 
 func NewIndirectIndex() TSMIndex {
@@ -430,7 +429,7 @@ func NewIndirectIndex() TSMIndex {
 }
 
 // Add records a new block entry for a key in the index.
-func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime time.Time, offset int64, size uint32) {
+func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
 	panic("unsupported operation")
 }
 
@@ -514,7 +513,7 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 
 // Entry returns the index entry for the specified key and timestamp.  If no entry
 // matches the key an timestamp, nil is returned.
-func (d *indirectIndex) Entry(key string, timestamp time.Time) *IndexEntry {
+func (d *indirectIndex) Entry(key string, timestamp int64) *IndexEntry {
 	entries := d.Entries(key)
 	for _, entry := range entries {
 		if entry.Contains(timestamp) {
@@ -595,7 +594,7 @@ func (d *indirectIndex) Contains(key string) bool {
 	return len(d.Entries(key)) > 0
 }
 
-func (d *indirectIndex) ContainsValue(key string, timestamp time.Time) bool {
+func (d *indirectIndex) ContainsValue(key string, timestamp int64) bool {
 	return d.Entry(key, timestamp) != nil
 }
 
@@ -621,7 +620,7 @@ func (d *indirectIndex) KeyRange() (string, string) {
 	return d.minKey, d.maxKey
 }
 
-func (d *indirectIndex) TimeRange() (time.Time, time.Time) {
+func (d *indirectIndex) TimeRange() (int64, int64) {
 	return d.minTime, d.maxTime
 }
 
@@ -693,8 +692,8 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	}
 	d.maxKey = string(key)
 
-	d.minTime = time.Unix(0, minTime)
-	d.maxTime = time.Unix(0, maxTime)
+	d.minTime = minTime
+	d.maxTime = maxTime
 
 	return nil
 }
@@ -768,7 +767,7 @@ func (f *fileAccessor) init() (TSMIndex, error) {
 	return f.index, nil
 }
 
-func (f *fileAccessor) read(key string, timestamp time.Time) ([]Value, error) {
+func (f *fileAccessor) read(key string, timestamp int64) ([]Value, error) {
 	entry := f.index.Entry(key, timestamp)
 
 	if entry == nil {
@@ -975,7 +974,7 @@ func (m *mmapAccessor) init() (TSMIndex, error) {
 	return m.index, nil
 }
 
-func (m *mmapAccessor) read(key string, timestamp time.Time) ([]Value, error) {
+func (m *mmapAccessor) read(key string, timestamp int64) ([]Value, error) {
 	entry := m.index.Entry(key, timestamp)
 	if entry == nil {
 		return nil, nil
@@ -1140,7 +1139,7 @@ type indexEntries struct {
 func (a *indexEntries) Len() int      { return len(a.entries) }
 func (a *indexEntries) Swap(i, j int) { a.entries[i], a.entries[j] = a.entries[j], a.entries[i] }
 func (a *indexEntries) Less(i, j int) bool {
-	return a.entries[i].MinTime.UnixNano() < a.entries[j].MinTime.UnixNano()
+	return a.entries[i].MinTime < a.entries[j].MinTime
 }
 
 func (a *indexEntries) Append(entry ...*IndexEntry) {

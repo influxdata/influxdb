@@ -493,7 +493,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		n += 4
 
 		for _, vv := range v {
-			binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.Time().UnixNano()))
+			binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.UnixNano()))
 			n += 8
 
 			switch t := vv.Value().(type) {
