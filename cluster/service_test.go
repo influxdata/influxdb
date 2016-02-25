@@ -2,11 +2,11 @@ package cluster_test
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"time"
 
 	"github.com/influxdata/influxdb/cluster"
-	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tcp"
@@ -24,15 +24,11 @@ func (m *metaClient) DataNode(nodeID uint64) (*meta.NodeInfo, error) {
 }
 
 type testService struct {
-	nodeID                    uint64
-	ln                        net.Listener
-	muxln                     net.Listener
-	writeShardFunc            func(shardID uint64, points []models.Point) error
-	createShardFunc           func(database, policy string, shardID uint64) error
-	deleteDatabaseFunc        func(database string) error
-	deleteMeasurementFunc     func(database, name string) error
-	deleteSeriesFunc          func(database string, sources []influxql.Source, condition influxql.Expr) error
-	deleteRetentionPolicyFunc func(database, name string) error
+	nodeID uint64
+	ln     net.Listener
+	muxln  net.Listener
+
+	TSDBStore TSDBStore
 }
 
 func newTestWriteService(f func(shardID uint64, points []models.Point) error) testService {
@@ -45,11 +41,12 @@ func newTestWriteService(f func(shardID uint64, points []models.Point) error) te
 	muxln := mux.Listen(cluster.MuxHeader)
 	go mux.Serve(ln)
 
-	return testService{
-		writeShardFunc: f,
-		ln:             ln,
-		muxln:          muxln,
+	s := testService{
+		ln:    ln,
+		muxln: muxln,
 	}
+	s.TSDBStore.WriteToShardFn = f
+	return s
 }
 
 func (ts *testService) Close() {
@@ -63,30 +60,6 @@ type serviceResponse struct {
 	shardID uint64
 	ownerID uint64
 	points  []models.Point
-}
-
-func (t testService) WriteToShard(shardID uint64, points []models.Point) error {
-	return t.writeShardFunc(shardID, points)
-}
-
-func (t testService) CreateShard(database, policy string, shardID uint64) error {
-	return t.createShardFunc(database, policy, shardID)
-}
-
-func (t testService) DeleteDatabase(database string) error {
-	return t.deleteDatabaseFunc(database)
-}
-
-func (t testService) DeleteMeasurement(database, name string) error {
-	return t.deleteMeasurementFunc(database, name)
-}
-
-func (t testService) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
-	return t.deleteSeriesFunc(database, sources, condition)
-}
-
-func (t testService) DeleteRetentionPolicy(database, name string) error {
-	return t.deleteRetentionPolicyFunc(database, name)
 }
 
 func writeShardSuccess(shardID uint64, points []models.Point) error {
@@ -121,4 +94,77 @@ func (testService) ResponseN(n int) ([]*serviceResponse, error) {
 			return a, fmt.Errorf("unexpected response count: expected: %d, actual: %d", n, len(a))
 		}
 	}
+}
+
+// Service is a test wrapper for cluster.Service.
+type Service struct {
+	*cluster.Service
+
+	ln        net.Listener
+	TSDBStore TSDBStore
+}
+
+// NewService returns a new instance of Service.
+func NewService() *Service {
+	s := &Service{
+		Service: cluster.NewService(cluster.Config{}),
+	}
+	s.Service.TSDBStore = &s.TSDBStore
+	return s
+}
+
+// MustOpenService returns a new, open service on a random port. Panic on error.
+func MustOpenService() *Service {
+	s := NewService()
+	s.ln = MustListen("tcp", "127.0.0.1:0")
+	s.Listener = &muxListener{s.ln}
+	if err := s.Open(); err != nil {
+		panic(err)
+	}
+	return s
+}
+
+// Close closes the listener and waits for the service to close.
+func (s *Service) Close() error {
+	if s.ln != nil {
+		s.ln.Close()
+	}
+	return s.Service.Close()
+}
+
+// Addr returns the network address of the service.
+func (s *Service) Addr() net.Addr { return s.ln.Addr() }
+
+// muxListener is a net.Listener implementation that strips off the first byte.
+// This is used to simulate the listener from pkg/mux.
+type muxListener struct {
+	net.Listener
+}
+
+// Accept accepts the next connection and removes the first byte.
+func (ln *muxListener) Accept() (net.Conn, error) {
+	conn, err := ln.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	var buf [1]byte
+	if _, err := io.ReadFull(conn, buf[:]); err != nil {
+		conn.Close()
+		return nil, err
+	} else if buf[0] != cluster.MuxHeader {
+		conn.Close()
+		panic(fmt.Sprintf("unexpected mux header byte: %d", buf[0]))
+	}
+
+	return conn, nil
+}
+
+// MustListen opens a listener. Panic on error.
+func MustListen(network, laddr string) net.Listener {
+	ln, err := net.Listen(network, laddr)
+	if err != nil {
+		panic(err)
+	}
+	return ln
 }

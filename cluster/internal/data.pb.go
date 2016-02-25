@@ -11,25 +11,27 @@ It is generated from these files:
 It has these top-level messages:
 	WriteShardRequest
 	WriteShardResponse
-	MapShardRequest
-	MapShardResponse
 	ExecuteStatementRequest
 	ExecuteStatementResponse
+	CreateIteratorRequest
+	CreateIteratorResponse
+	FieldDimensionsRequest
+	FieldDimensionsResponse
+	SeriesKeysRequest
+	SeriesKeysResponse
 */
 package internal
 
 import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = fmt.Errorf
 var _ = math.Inf
 
 type WriteShardRequest struct {
-	ShardID          *uint64  `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	Points           [][]byte `protobuf:"bytes,2,rep,name=Points" json:"Points,omitempty"`
+	ShardID          *uint64  `protobuf:"varint,1,req" json:"ShardID,omitempty"`
+	Points           [][]byte `protobuf:"bytes,2,rep" json:"Points,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -52,8 +54,8 @@ func (m *WriteShardRequest) GetPoints() [][]byte {
 }
 
 type WriteShardResponse struct {
-	Code             *int32  `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
+	Code             *int32  `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string `protobuf:"bytes,2,opt" json:"Message,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -75,89 +77,9 @@ func (m *WriteShardResponse) GetMessage() string {
 	return ""
 }
 
-type MapShardRequest struct {
-	ShardID          *uint64 `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
-	Query            *string `protobuf:"bytes,2,req,name=Query" json:"Query,omitempty"`
-	ChunkSize        *int32  `protobuf:"varint,3,req,name=ChunkSize" json:"ChunkSize,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *MapShardRequest) Reset()         { *m = MapShardRequest{} }
-func (m *MapShardRequest) String() string { return proto.CompactTextString(m) }
-func (*MapShardRequest) ProtoMessage()    {}
-
-func (m *MapShardRequest) GetShardID() uint64 {
-	if m != nil && m.ShardID != nil {
-		return *m.ShardID
-	}
-	return 0
-}
-
-func (m *MapShardRequest) GetQuery() string {
-	if m != nil && m.Query != nil {
-		return *m.Query
-	}
-	return ""
-}
-
-func (m *MapShardRequest) GetChunkSize() int32 {
-	if m != nil && m.ChunkSize != nil {
-		return *m.ChunkSize
-	}
-	return 0
-}
-
-type MapShardResponse struct {
-	Code             *int32   `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string  `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
-	Data             []byte   `protobuf:"bytes,3,opt,name=Data" json:"Data,omitempty"`
-	TagSets          []string `protobuf:"bytes,4,rep,name=TagSets" json:"TagSets,omitempty"`
-	Fields           []string `protobuf:"bytes,5,rep,name=Fields" json:"Fields,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
-}
-
-func (m *MapShardResponse) Reset()         { *m = MapShardResponse{} }
-func (m *MapShardResponse) String() string { return proto.CompactTextString(m) }
-func (*MapShardResponse) ProtoMessage()    {}
-
-func (m *MapShardResponse) GetCode() int32 {
-	if m != nil && m.Code != nil {
-		return *m.Code
-	}
-	return 0
-}
-
-func (m *MapShardResponse) GetMessage() string {
-	if m != nil && m.Message != nil {
-		return *m.Message
-	}
-	return ""
-}
-
-func (m *MapShardResponse) GetData() []byte {
-	if m != nil {
-		return m.Data
-	}
-	return nil
-}
-
-func (m *MapShardResponse) GetTagSets() []string {
-	if m != nil {
-		return m.TagSets
-	}
-	return nil
-}
-
-func (m *MapShardResponse) GetFields() []string {
-	if m != nil {
-		return m.Fields
-	}
-	return nil
-}
-
 type ExecuteStatementRequest struct {
-	Statement        *string `protobuf:"bytes,1,req,name=Statement" json:"Statement,omitempty"`
-	Database         *string `protobuf:"bytes,2,req,name=Database" json:"Database,omitempty"`
+	Statement        *string `protobuf:"bytes,1,req" json:"Statement,omitempty"`
+	Database         *string `protobuf:"bytes,2,req" json:"Database,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -180,8 +102,8 @@ func (m *ExecuteStatementRequest) GetDatabase() string {
 }
 
 type ExecuteStatementResponse struct {
-	Code             *int32  `protobuf:"varint,1,req,name=Code" json:"Code,omitempty"`
-	Message          *string `protobuf:"bytes,2,opt,name=Message" json:"Message,omitempty"`
+	Code             *int32  `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string `protobuf:"bytes,2,opt" json:"Message,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -203,11 +125,149 @@ func (m *ExecuteStatementResponse) GetMessage() string {
 	return ""
 }
 
+type CreateIteratorRequest struct {
+	ShardIDs         []uint64 `protobuf:"varint,1,rep" json:"ShardIDs,omitempty"`
+	Opt              []byte   `protobuf:"bytes,2,req" json:"Opt,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *CreateIteratorRequest) Reset()         { *m = CreateIteratorRequest{} }
+func (m *CreateIteratorRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateIteratorRequest) ProtoMessage()    {}
+
+func (m *CreateIteratorRequest) GetShardIDs() []uint64 {
+	if m != nil {
+		return m.ShardIDs
+	}
+	return nil
+}
+
+func (m *CreateIteratorRequest) GetOpt() []byte {
+	if m != nil {
+		return m.Opt
+	}
+	return nil
+}
+
+type CreateIteratorResponse struct {
+	Err              *string `protobuf:"bytes,1,opt" json:"Err,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *CreateIteratorResponse) Reset()         { *m = CreateIteratorResponse{} }
+func (m *CreateIteratorResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateIteratorResponse) ProtoMessage()    {}
+
+func (m *CreateIteratorResponse) GetErr() string {
+	if m != nil && m.Err != nil {
+		return *m.Err
+	}
+	return ""
+}
+
+type FieldDimensionsRequest struct {
+	ShardIDs         []uint64 `protobuf:"varint,1,rep" json:"ShardIDs,omitempty"`
+	Sources          []byte   `protobuf:"bytes,2,req" json:"Sources,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *FieldDimensionsRequest) Reset()         { *m = FieldDimensionsRequest{} }
+func (m *FieldDimensionsRequest) String() string { return proto.CompactTextString(m) }
+func (*FieldDimensionsRequest) ProtoMessage()    {}
+
+func (m *FieldDimensionsRequest) GetShardIDs() []uint64 {
+	if m != nil {
+		return m.ShardIDs
+	}
+	return nil
+}
+
+func (m *FieldDimensionsRequest) GetSources() []byte {
+	if m != nil {
+		return m.Sources
+	}
+	return nil
+}
+
+type FieldDimensionsResponse struct {
+	Fields           []string `protobuf:"bytes,1,rep" json:"Fields,omitempty"`
+	Dimensions       []string `protobuf:"bytes,2,rep" json:"Dimensions,omitempty"`
+	Err              *string  `protobuf:"bytes,3,opt" json:"Err,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *FieldDimensionsResponse) Reset()         { *m = FieldDimensionsResponse{} }
+func (m *FieldDimensionsResponse) String() string { return proto.CompactTextString(m) }
+func (*FieldDimensionsResponse) ProtoMessage()    {}
+
+func (m *FieldDimensionsResponse) GetFields() []string {
+	if m != nil {
+		return m.Fields
+	}
+	return nil
+}
+
+func (m *FieldDimensionsResponse) GetDimensions() []string {
+	if m != nil {
+		return m.Dimensions
+	}
+	return nil
+}
+
+func (m *FieldDimensionsResponse) GetErr() string {
+	if m != nil && m.Err != nil {
+		return *m.Err
+	}
+	return ""
+}
+
+type SeriesKeysRequest struct {
+	ShardIDs         []uint64 `protobuf:"varint,1,rep" json:"ShardIDs,omitempty"`
+	Opt              []byte   `protobuf:"bytes,2,req" json:"Opt,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *SeriesKeysRequest) Reset()         { *m = SeriesKeysRequest{} }
+func (m *SeriesKeysRequest) String() string { return proto.CompactTextString(m) }
+func (*SeriesKeysRequest) ProtoMessage()    {}
+
+func (m *SeriesKeysRequest) GetShardIDs() []uint64 {
+	if m != nil {
+		return m.ShardIDs
+	}
+	return nil
+}
+
+func (m *SeriesKeysRequest) GetOpt() []byte {
+	if m != nil {
+		return m.Opt
+	}
+	return nil
+}
+
+type SeriesKeysResponse struct {
+	SeriesList       []byte  `protobuf:"bytes,1,opt" json:"SeriesList,omitempty"`
+	Err              *string `protobuf:"bytes,2,opt" json:"Err,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *SeriesKeysResponse) Reset()         { *m = SeriesKeysResponse{} }
+func (m *SeriesKeysResponse) String() string { return proto.CompactTextString(m) }
+func (*SeriesKeysResponse) ProtoMessage()    {}
+
+func (m *SeriesKeysResponse) GetSeriesList() []byte {
+	if m != nil {
+		return m.SeriesList
+	}
+	return nil
+}
+
+func (m *SeriesKeysResponse) GetErr() string {
+	if m != nil && m.Err != nil {
+		return *m.Err
+	}
+	return ""
+}
+
 func init() {
-	proto.RegisterType((*WriteShardRequest)(nil), "internal.WriteShardRequest")
-	proto.RegisterType((*WriteShardResponse)(nil), "internal.WriteShardResponse")
-	proto.RegisterType((*MapShardRequest)(nil), "internal.MapShardRequest")
-	proto.RegisterType((*MapShardResponse)(nil), "internal.MapShardResponse")
-	proto.RegisterType((*ExecuteStatementRequest)(nil), "internal.ExecuteStatementRequest")
-	proto.RegisterType((*ExecuteStatementResponse)(nil), "internal.ExecuteStatementResponse")
 }

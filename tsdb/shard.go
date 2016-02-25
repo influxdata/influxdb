@@ -384,7 +384,28 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if influxql.Sources(opt.Sources).HasSystemSource() {
+		return s.createSystemIterator(opt)
+	}
 	return s.engine.CreateIterator(opt)
+}
+
+// createSystemIterator returns an iterator for a system source.
+func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	// Only support a single system source.
+	if len(opt.Sources) > 1 {
+		return nil, errors.New("cannot select from multiple system sources")
+	}
+
+	m := opt.Sources[0].(*influxql.Measurement)
+	switch m.Name {
+	case "_measurements":
+		return NewMeasurementIterator(s, opt)
+	case "_tagKeys":
+		return NewTagKeysIterator(s, opt)
+	default:
+		return nil, fmt.Errorf("unknown system source: %s", m.Name)
+	}
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
@@ -416,78 +437,6 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields, dimensions ma
 
 // SeriesKeys returns a list of series in the shard.
 func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-	return s.engine.SeriesKeys(opt)
-}
-
-// Shards represents a sortable list of shards.
-type Shards []*Shard
-
-func (a Shards) Len() int           { return len(a) }
-func (a Shards) Less(i, j int) bool { return a[i].id < a[j].id }
-func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// CreateIterator returns a single combined iterator for the shards.
-func (a Shards) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	if influxql.Sources(opt.Sources).HasSystemSource() {
-		return a.createSystemIterator(opt)
-	}
-
-	// Create iterators for each shard.
-	// Ensure that they are closed if an error occurs.
-	itrs := make([]influxql.Iterator, 0, len(a))
-	if err := func() error {
-		for _, sh := range a {
-			itr, err := sh.CreateIterator(opt)
-			if err != nil {
-				return err
-			}
-			itrs = append(itrs, itr)
-		}
-		return nil
-	}(); err != nil {
-		influxql.Iterators(itrs).Close()
-		return nil, err
-	}
-
-	// Merge into a single iterator.
-	if opt.MergeSorted() {
-		return influxql.NewSortedMergeIterator(itrs, opt), nil
-	}
-
-	itr := influxql.NewMergeIterator(itrs, opt)
-	if opt.Expr != nil {
-		if expr, ok := opt.Expr.(*influxql.Call); ok && expr.Name == "count" {
-			opt.Expr = &influxql.Call{
-				Name: "sum",
-				Args: expr.Args,
-			}
-		}
-	}
-	return influxql.NewCallIterator(itr, opt)
-}
-
-// createSystemIterator returns an iterator for a system source.
-func (a Shards) createSystemIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	// Only support a single system source.
-	if len(opt.Sources) > 1 {
-		return nil, errors.New("cannot select from multiple system sources")
-	}
-
-	m := opt.Sources[0].(*influxql.Measurement)
-	switch m.Name {
-	case "_measurements":
-		return a.createMeasurementsIterator(opt)
-	case "_tagKeys":
-		return a.createTagKeysIterator(opt)
-	default:
-		return nil, fmt.Errorf("unknown system source: %s", m.Name)
-	}
-}
-
-// SeriesKeys returns a list of series in in all shards in a. If a series
-// exists in multiple shards in a, all instances will be combined into a single
-// Series by calling Combine on it.
-func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
 	if influxql.Sources(opt.Sources).HasSystemSource() {
 		// Only support a single system source.
 		if len(opt.Sources) > 1 {
@@ -497,88 +446,15 @@ func (a Shards) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, e
 		return []influxql.Series{{Aux: []influxql.DataType{influxql.String}}}, nil
 	}
 
-	seriesMap := make(map[string]influxql.Series)
-	for _, sh := range a {
-		series, err := sh.SeriesKeys(opt)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, s := range series {
-			cur, ok := seriesMap[s.ID()]
-			if ok {
-				cur.Combine(&s)
-			} else {
-				seriesMap[s.ID()] = s
-			}
-		}
-	}
-
-	seriesList := make([]influxql.Series, 0, len(seriesMap))
-	for _, s := range seriesMap {
-		seriesList = append(seriesList, s)
-	}
-	sort.Sort(influxql.SeriesList(seriesList))
-	return influxql.SeriesList(seriesList), nil
+	return s.engine.SeriesKeys(opt)
 }
 
-// createMeasurementsIterator returns an iterator for all measurement names.
-func (a Shards) createMeasurementsIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	itrs := make([]influxql.Iterator, 0, len(a))
-	if err := func() error {
-		for _, sh := range a {
-			itr, err := NewMeasurementIterator(sh, opt)
-			if err != nil {
-				return err
-			}
-			itrs = append(itrs, itr)
-		}
-		return nil
-	}(); err != nil {
-		influxql.Iterators(itrs).Close()
-		return nil, err
-	}
-	return influxql.NewMergeIterator(itrs, opt), nil
-}
+// Shards represents a sortable list of shards.
+type Shards []*Shard
 
-// createTagKeysIterator returns an iterator for all tag keys across measurements.
-func (a Shards) createTagKeysIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	itrs := make([]influxql.Iterator, 0, len(a))
-	if err := func() error {
-		for _, sh := range a {
-			itr, err := NewTagKeysIterator(sh, opt)
-			if err != nil {
-				return err
-			}
-			itrs = append(itrs, itr)
-		}
-		return nil
-	}(); err != nil {
-		influxql.Iterators(itrs).Close()
-		return nil, err
-	}
-	return influxql.NewMergeIterator(itrs, opt), nil
-}
-
-// FieldDimensions returns the unique fields and dimensions across a list of sources.
-func (a Shards) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
-	fields = make(map[string]struct{})
-	dimensions = make(map[string]struct{})
-
-	for _, sh := range a {
-		f, d, err := sh.FieldDimensions(sources)
-		if err != nil {
-			return nil, nil, err
-		}
-		for k := range f {
-			fields[k] = struct{}{}
-		}
-		for k := range d {
-			dimensions[k] = struct{}{}
-		}
-	}
-	return
-}
+func (a Shards) Len() int           { return len(a) }
+func (a Shards) Less(i, j int) bool { return a[i].id < a[j].id }
+func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {
@@ -907,6 +783,24 @@ func (f *FieldCodec) Fields() []*Field {
 // FieldByName returns the field by its name. It will return a nil if not found
 func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
+}
+
+// shardIteratorCreator creates iterators for a local shard.
+// This simply wraps the shard so that Close() does not close the underlying shard.
+type shardIteratorCreator struct {
+	sh *Shard
+}
+
+func (ic *shardIteratorCreator) Close() error { return nil }
+
+func (ic *shardIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return ic.sh.CreateIterator(opt)
+}
+func (ic *shardIteratorCreator) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+	return ic.sh.FieldDimensions(sources)
+}
+func (ic *shardIteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	return ic.sh.SeriesKeys(opt)
 }
 
 // MeasurementIterator represents a string iterator that emits all measurement names in a shard.

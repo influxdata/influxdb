@@ -299,8 +299,16 @@ func (s *Store) deleteShard(shardID uint64) error {
 	return nil
 }
 
-// DeleteDatabase will close all shards associated with a database and
-// remove the directory and files from disk.
+// ShardIteratorCreator returns an iterator creator for a shard.
+func (s *Store) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
+	sh := s.Shard(id)
+	if sh == nil {
+		return nil
+	}
+	return &shardIteratorCreator{sh: sh}
+}
+
+// DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

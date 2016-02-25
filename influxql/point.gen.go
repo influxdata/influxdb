@@ -7,6 +7,9 @@
 package influxql
 
 import (
+	"encoding/binary"
+	"io"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql/internal"
 )
@@ -123,6 +126,70 @@ func floatPointsSortBy(points []FloatPoint, cmp func(a, b *FloatPoint) bool) *fl
 	}
 }
 
+// NewFloatPointEncoder encodes FloatPoint points to a writer.
+type FloatPointEncoder struct {
+	w io.Writer
+}
+
+// NewFloatPointEncoder returns a new instance of FloatPointEncoder that writes to w.
+func NewFloatPointEncoder(w io.Writer) *FloatPointEncoder {
+	return &FloatPointEncoder{w: w}
+}
+
+// EncodeFloatPoint marshals and writes p to the underlying writer.
+func (enc *FloatPointEncoder) EncodeFloatPoint(p *FloatPoint) error {
+	// Marshal to bytes.
+	buf, err := proto.Marshal(encodeFloatPoint(p))
+	if err != nil {
+		return err
+	}
+
+	// Write the length.
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+
+	// Write the encoded point.
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewFloatPointDecoder decodes FloatPoint points from a reader.
+type FloatPointDecoder struct {
+	r io.Reader
+}
+
+// NewFloatPointDecoder returns a new instance of FloatPointDecoder that reads from r.
+func NewFloatPointDecoder(r io.Reader) *FloatPointDecoder {
+	return &FloatPointDecoder{r: r}
+}
+
+// DecodeFloatPoint reads from the underlying reader and unmarshals into p.
+func (dec *FloatPointDecoder) DecodeFloatPoint(p *FloatPoint) error {
+	// Read length.
+	var sz uint32
+	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+
+	// Read point data.
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(dec.r, buf); err != nil {
+		return err
+	}
+
+	// Unmarshal into point.
+	var pb internal.Point
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	*p = *decodeFloatPoint(&pb)
+
+	return nil
+}
+
 // IntegerPoint represents a point with a int64 value.
 // DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
 // See TestPoint_Fields in influxql/point_test.go for more details.
@@ -233,6 +300,70 @@ func integerPointsSortBy(points []IntegerPoint, cmp func(a, b *IntegerPoint) boo
 		points: points,
 		cmp:    cmp,
 	}
+}
+
+// NewIntegerPointEncoder encodes IntegerPoint points to a writer.
+type IntegerPointEncoder struct {
+	w io.Writer
+}
+
+// NewIntegerPointEncoder returns a new instance of IntegerPointEncoder that writes to w.
+func NewIntegerPointEncoder(w io.Writer) *IntegerPointEncoder {
+	return &IntegerPointEncoder{w: w}
+}
+
+// EncodeIntegerPoint marshals and writes p to the underlying writer.
+func (enc *IntegerPointEncoder) EncodeIntegerPoint(p *IntegerPoint) error {
+	// Marshal to bytes.
+	buf, err := proto.Marshal(encodeIntegerPoint(p))
+	if err != nil {
+		return err
+	}
+
+	// Write the length.
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+
+	// Write the encoded point.
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewIntegerPointDecoder decodes IntegerPoint points from a reader.
+type IntegerPointDecoder struct {
+	r io.Reader
+}
+
+// NewIntegerPointDecoder returns a new instance of IntegerPointDecoder that reads from r.
+func NewIntegerPointDecoder(r io.Reader) *IntegerPointDecoder {
+	return &IntegerPointDecoder{r: r}
+}
+
+// DecodeIntegerPoint reads from the underlying reader and unmarshals into p.
+func (dec *IntegerPointDecoder) DecodeIntegerPoint(p *IntegerPoint) error {
+	// Read length.
+	var sz uint32
+	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+
+	// Read point data.
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(dec.r, buf); err != nil {
+		return err
+	}
+
+	// Unmarshal into point.
+	var pb internal.Point
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	*p = *decodeIntegerPoint(&pb)
+
+	return nil
 }
 
 // StringPoint represents a point with a string value.
@@ -347,6 +478,70 @@ func stringPointsSortBy(points []StringPoint, cmp func(a, b *StringPoint) bool) 
 	}
 }
 
+// NewStringPointEncoder encodes StringPoint points to a writer.
+type StringPointEncoder struct {
+	w io.Writer
+}
+
+// NewStringPointEncoder returns a new instance of StringPointEncoder that writes to w.
+func NewStringPointEncoder(w io.Writer) *StringPointEncoder {
+	return &StringPointEncoder{w: w}
+}
+
+// EncodeStringPoint marshals and writes p to the underlying writer.
+func (enc *StringPointEncoder) EncodeStringPoint(p *StringPoint) error {
+	// Marshal to bytes.
+	buf, err := proto.Marshal(encodeStringPoint(p))
+	if err != nil {
+		return err
+	}
+
+	// Write the length.
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+
+	// Write the encoded point.
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewStringPointDecoder decodes StringPoint points from a reader.
+type StringPointDecoder struct {
+	r io.Reader
+}
+
+// NewStringPointDecoder returns a new instance of StringPointDecoder that reads from r.
+func NewStringPointDecoder(r io.Reader) *StringPointDecoder {
+	return &StringPointDecoder{r: r}
+}
+
+// DecodeStringPoint reads from the underlying reader and unmarshals into p.
+func (dec *StringPointDecoder) DecodeStringPoint(p *StringPoint) error {
+	// Read length.
+	var sz uint32
+	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+
+	// Read point data.
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(dec.r, buf); err != nil {
+		return err
+	}
+
+	// Unmarshal into point.
+	var pb internal.Point
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	*p = *decodeStringPoint(&pb)
+
+	return nil
+}
+
 // BooleanPoint represents a point with a bool value.
 // DO NOT ADD ADDITIONAL FIELDS TO THIS STRUCT.
 // See TestPoint_Fields in influxql/point_test.go for more details.
@@ -457,4 +652,68 @@ func booleanPointsSortBy(points []BooleanPoint, cmp func(a, b *BooleanPoint) boo
 		points: points,
 		cmp:    cmp,
 	}
+}
+
+// NewBooleanPointEncoder encodes BooleanPoint points to a writer.
+type BooleanPointEncoder struct {
+	w io.Writer
+}
+
+// NewBooleanPointEncoder returns a new instance of BooleanPointEncoder that writes to w.
+func NewBooleanPointEncoder(w io.Writer) *BooleanPointEncoder {
+	return &BooleanPointEncoder{w: w}
+}
+
+// EncodeBooleanPoint marshals and writes p to the underlying writer.
+func (enc *BooleanPointEncoder) EncodeBooleanPoint(p *BooleanPoint) error {
+	// Marshal to bytes.
+	buf, err := proto.Marshal(encodeBooleanPoint(p))
+	if err != nil {
+		return err
+	}
+
+	// Write the length.
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+
+	// Write the encoded point.
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+// NewBooleanPointDecoder decodes BooleanPoint points from a reader.
+type BooleanPointDecoder struct {
+	r io.Reader
+}
+
+// NewBooleanPointDecoder returns a new instance of BooleanPointDecoder that reads from r.
+func NewBooleanPointDecoder(r io.Reader) *BooleanPointDecoder {
+	return &BooleanPointDecoder{r: r}
+}
+
+// DecodeBooleanPoint reads from the underlying reader and unmarshals into p.
+func (dec *BooleanPointDecoder) DecodeBooleanPoint(p *BooleanPoint) error {
+	// Read length.
+	var sz uint32
+	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+		return err
+	}
+
+	// Read point data.
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(dec.r, buf); err != nil {
+		return err
+	}
+
+	// Unmarshal into point.
+	var pb internal.Point
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	*p = *decodeBooleanPoint(&pb)
+
+	return nil
 }
