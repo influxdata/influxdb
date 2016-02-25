@@ -1,0 +1,4 @@
+- [ ] CHANGELOG.md updated
+- [ ] Rebased/mergable
+- [ ] Tests pass
+- [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
