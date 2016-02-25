@@ -398,7 +398,9 @@ func drainIterator(itr Iterator) {
 // NewReaderIterator returns an iterator that streams from a reader.
 func NewReaderIterator(r io.Reader) (Iterator, error) {
 	var p Point
-	if err := NewPointDecoder(r).DecodePoint(&p); err != nil {
+	if err := NewPointDecoder(r).DecodePoint(&p); err == io.EOF {
+		return &nilFloatIterator{}, nil
+	} else if err != nil {
 		return nil, err
 	}
 
@@ -502,8 +504,8 @@ func (a IteratorCreators) FieldDimensions(sources Sources) (fields, dimensions m
 // into a single Series by calling Combine on it.
 func (a IteratorCreators) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
 	seriesMap := make(map[string]Series)
-	for _, sh := range a {
-		series, err := sh.SeriesKeys(opt)
+	for _, ic := range a {
+		series, err := ic.SeriesKeys(opt)
 		if err != nil {
 			return nil, err
 		}
