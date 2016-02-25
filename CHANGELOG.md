@@ -46,6 +46,7 @@
 - [#5753](https://github.com/influxdata/influxdb/pull/5753): Ensures that drop-type commands work correctly in a cluster
 - [#5814](https://github.com/influxdata/influxdb/issues/5814): Run CQs with the same name from different databases
 - [#5699](https://github.com/influxdata/influxdb/issues/5699): Fix potential thread safety issue in cache @jonseymour
+- [#5832](https://github.com/influxdata/influxdb/issues/5832): tsm: cache: need to check that snapshot has been sorted @jonseymour
 
 ## v0.10.1 [2016-02-18]
 
