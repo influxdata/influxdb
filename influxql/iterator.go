@@ -3,8 +3,13 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"io"
+	"sort"
 	"sync"
 	"time"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/influxdata/influxdb/influxql/internal"
 )
 
 // ErrUnknownCall is returned when operating on an unknown function call.
@@ -390,6 +395,27 @@ func drainIterator(itr Iterator) {
 	}
 }
 
+// NewReaderIterator returns an iterator that streams from a reader.
+func NewReaderIterator(r io.Reader) (Iterator, error) {
+	var p Point
+	if err := NewPointDecoder(r).DecodePoint(&p); err != nil {
+		return nil, err
+	}
+
+	switch p := p.(type) {
+	case *FloatPoint:
+		return newFloatReaderIterator(r, p), nil
+	case *IntegerPoint:
+		return newIntegerReaderIterator(r, p), nil
+	case *StringPoint:
+		return newStringReaderIterator(r, p), nil
+	case *BooleanPoint:
+		return newBooleanReaderIterator(r, p), nil
+	default:
+		panic(fmt.Sprintf("unsupported point for reader iterator: %T", p))
+	}
+}
+
 // IteratorCreator represents an interface for objects that can create Iterators.
 type IteratorCreator interface {
 	// Creates a simple iterator for use in an InfluxQL query.
@@ -400,6 +426,104 @@ type IteratorCreator interface {
 
 	// Returns the series keys that will be returned by this iterator.
 	SeriesKeys(opt IteratorOptions) (SeriesList, error)
+}
+
+// IteratorCreators represents a list of iterator creators.
+type IteratorCreators []IteratorCreator
+
+// Close closes all iterator creators that implement io.Closer.
+func (a IteratorCreators) Close() error {
+	for _, ic := range a {
+		if ic, ok := ic.(io.Closer); ok {
+			ic.Close()
+		}
+	}
+	return nil
+}
+
+// CreateIterator returns a single combined iterator from multiple iterator creators.
+func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) {
+	// Create iterators for each shard.
+	// Ensure that they are closed if an error occurs.
+	itrs := make([]Iterator, 0, len(a))
+	if err := func() error {
+		for _, ic := range a {
+			itr, err := ic.CreateIterator(opt)
+			if err != nil {
+				return err
+			}
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		Iterators(itrs).Close()
+		return nil, err
+	}
+
+	// Merge into a single iterator.
+	if opt.MergeSorted() {
+		return NewSortedMergeIterator(itrs, opt), nil
+	}
+
+	itr := NewMergeIterator(itrs, opt)
+	if opt.Expr != nil {
+		if expr, ok := opt.Expr.(*Call); ok && expr.Name == "count" {
+			opt.Expr = &Call{
+				Name: "sum",
+				Args: expr.Args,
+			}
+		}
+	}
+	return NewCallIterator(itr, opt)
+}
+
+// FieldDimensions returns unique fields and dimensions from multiple iterator creators.
+func (a IteratorCreators) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
+	fields = make(map[string]struct{})
+	dimensions = make(map[string]struct{})
+
+	for _, ic := range a {
+		f, d, err := ic.FieldDimensions(sources)
+		if err != nil {
+			return nil, nil, err
+		}
+		for k := range f {
+			fields[k] = struct{}{}
+		}
+		for k := range d {
+			dimensions[k] = struct{}{}
+		}
+	}
+	return
+}
+
+// SeriesKeys returns a list of series in all iterator creators in a.
+// If a series exists in multiple creators in a, all instances will be combined
+// into a single Series by calling Combine on it.
+func (a IteratorCreators) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	seriesMap := make(map[string]Series)
+	for _, sh := range a {
+		series, err := sh.SeriesKeys(opt)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, s := range series {
+			cur, ok := seriesMap[s.ID()]
+			if ok {
+				cur.Combine(&s)
+			} else {
+				seriesMap[s.ID()] = s
+			}
+		}
+	}
+
+	seriesList := make([]Series, 0, len(seriesMap))
+	for _, s := range seriesMap {
+		seriesList = append(seriesList, s)
+	}
+	sort.Sort(SeriesList(seriesList))
+	return SeriesList(seriesList), nil
 }
 
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
@@ -547,6 +671,118 @@ func (opt IteratorOptions) DerivativeInterval() Interval {
 	return Interval{Duration: time.Second}
 }
 
+// MarshalBinary encodes opt into a binary format.
+func (opt *IteratorOptions) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(encodeIteratorOptions(opt))
+}
+
+// UnmarshalBinary decodes from a binary format in to opt.
+func (opt *IteratorOptions) UnmarshalBinary(buf []byte) error {
+	var pb internal.IteratorOptions
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+
+	other, err := decodeIteratorOptions(&pb)
+	if err != nil {
+		return err
+	}
+	*opt = *other
+
+	return nil
+}
+
+func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
+	pb := &internal.IteratorOptions{
+		Aux:        opt.Aux,
+		Interval:   encodeInterval(opt.Interval),
+		Dimensions: opt.Dimensions,
+		Fill:       proto.Int32(int32(opt.Fill)),
+		StartTime:  proto.Int64(opt.StartTime),
+		EndTime:    proto.Int64(opt.EndTime),
+		Ascending:  proto.Bool(opt.Ascending),
+		Limit:      proto.Int64(int64(opt.Limit)),
+		Offset:     proto.Int64(int64(opt.Offset)),
+		SLimit:     proto.Int64(int64(opt.SLimit)),
+		SOffset:    proto.Int64(int64(opt.SOffset)),
+		Dedupe:     proto.Bool(opt.Dedupe),
+	}
+
+	// Set expression, if set.
+	if opt.Expr != nil {
+		pb.Expr = proto.String(opt.Expr.String())
+	}
+
+	// Convert and encode sources to measurements.
+	sources := make([]*internal.Measurement, len(opt.Sources))
+	for i, source := range opt.Sources {
+		mm := source.(*Measurement)
+		sources[i] = encodeMeasurement(mm)
+	}
+	pb.Sources = sources
+
+	// Fill value can only be a number. Set it if available.
+	if v, ok := opt.FillValue.(float64); ok {
+		pb.FillValue = proto.Float64(v)
+	}
+
+	// Set condition, if set.
+	if opt.Condition != nil {
+		pb.Condition = proto.String(opt.Condition.String())
+	}
+
+	return pb
+}
+
+func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, error) {
+	opt := &IteratorOptions{
+		Aux:        pb.GetAux(),
+		Interval:   decodeInterval(pb.GetInterval()),
+		Dimensions: pb.GetDimensions(),
+		Fill:       FillOption(pb.GetFill()),
+		FillValue:  pb.GetFillValue(),
+		StartTime:  pb.GetStartTime(),
+		EndTime:    pb.GetEndTime(),
+		Ascending:  pb.GetAscending(),
+		Limit:      int(pb.GetLimit()),
+		Offset:     int(pb.GetOffset()),
+		SLimit:     int(pb.GetSLimit()),
+		SOffset:    int(pb.GetSOffset()),
+		Dedupe:     pb.GetDedupe(),
+	}
+
+	// Set expression, if set.
+	if pb.Expr != nil {
+		expr, err := ParseExpr(pb.GetExpr())
+		if err != nil {
+			return nil, err
+		}
+		opt.Expr = expr
+	}
+
+	// Convert and encode sources to measurements.
+	sources := make([]Source, len(pb.GetSources()))
+	for i, source := range pb.GetSources() {
+		mm, err := decodeMeasurement(source)
+		if err != nil {
+			return nil, err
+		}
+		sources[i] = mm
+	}
+	opt.Sources = sources
+
+	// Set condition, if set.
+	if pb.Condition != nil {
+		expr, err := ParseExpr(pb.GetCondition())
+		if err != nil {
+			return nil, err
+		}
+		opt.Condition = expr
+	}
+
+	return opt, nil
+}
+
 // selectInfo represents an object that stores info about select fields.
 type selectInfo struct {
 	calls map[*Call]struct{}
@@ -622,6 +858,20 @@ type Interval struct {
 
 // IsZero returns true if the interval has no duration.
 func (i Interval) IsZero() bool { return i.Duration == 0 }
+
+func encodeInterval(i Interval) *internal.Interval {
+	return &internal.Interval{
+		Duration: proto.Int64(i.Duration.Nanoseconds()),
+		Offset:   proto.Int64(i.Offset.Nanoseconds()),
+	}
+}
+
+func decodeInterval(pb *internal.Interval) Interval {
+	return Interval{
+		Duration: time.Duration(pb.GetDuration()),
+		Offset:   time.Duration(pb.GetOffset()),
+	}
+}
 
 // reduceOptions represents options for performing reductions on windows of points.
 type reduceOptions struct {

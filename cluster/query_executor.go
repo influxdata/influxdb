@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
+	"net"
 	"sort"
 	"strconv"
 	"time"
@@ -17,16 +19,18 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 // A QueryExecutor is responsible for processing a influxql.Query and
 // executing all of the statements within, on nodes in a cluster.
 type QueryExecutor struct {
-	MetaClient *meta.Client
+	// Reference to local node.
+	Node *influxdb.Node
+
+	MetaClient MetaClient
 
 	// TSDB storage for local node.
-	TSDBStore *tsdb.Store
+	TSDBStore TSDBStore
 
 	// Holds monitoring data for SHOW STATS and SHOW DIAGNOSTICS.
 	Monitor *monitor.Monitor
@@ -36,6 +40,9 @@ type QueryExecutor struct {
 
 	// Used for executing meta statements on all data nodes.
 	MetaExecutor *MetaExecutor
+
+	// Remote execution timeout
+	Timeout time.Duration
 
 	// Output of all logging.
 	// Defaults to discarding all log output.
@@ -54,6 +61,7 @@ const (
 // NewQueryExecutor returns a new instance of QueryExecutor.
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
+		Timeout:   DefaultShardMapperTimeout,
 		LogOutput: ioutil.Discard,
 		statMap:   influxdb.NewStatistics("queryExecutor", "queryExecutor", nil),
 	}
@@ -424,22 +432,21 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	// Remove "time" from fields list.
 	stmt.RewriteTimeFields()
 
-	// Filter only shards that contain date range.
-	shardIDs, err := e.MetaClient.ShardIDsByTimeRange(stmt.Sources, opt.MinTime, opt.MaxTime)
+	// Create an iterator creator based on the shards in the cluster.
+	ic, err := e.iteratorCreator(stmt, &opt)
 	if err != nil {
 		return err
 	}
-	shards := e.TSDBStore.Shards(shardIDs)
 
 	// Rewrite wildcards, if any exist.
-	tmp, err := stmt.RewriteWildcards(tsdb.Shards(shards))
+	tmp, err := stmt.RewriteWildcards(ic)
 	if err != nil {
 		return err
 	}
 	stmt = tmp
 
 	// Create a set of iterators from a selection.
-	itrs, err := influxql.Select(stmt, tsdb.Shards(shards), &opt)
+	itrs, err := influxql.Select(stmt, ic, &opt)
 	if err != nil {
 		return err
 	}
@@ -505,6 +512,70 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	}
 
 	return nil
+}
+
+// iteratorCreator returns a new instance of IteratorCreator based on stmt.
+func (e *QueryExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
+	// Retrieve a list of shard IDs.
+	shards, err := e.MetaClient.ShardsByTimeRange(stmt.Sources, opt.MinTime, opt.MaxTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// Map shards to nodes.
+	shardIDsByNodeID := make(map[uint64][]uint64)
+	for _, si := range shards {
+		// Always assign to local node if it has the shard.
+		// Otherwise randomly select a remote node.
+		var nodeID uint64
+		if si.OwnedBy(e.Node.ID) {
+			nodeID = e.Node.ID
+		} else if len(si.Owners) > 0 {
+			nodeID = si.Owners[rand.Intn(len(si.Owners))].NodeID
+		} else {
+			// This should not occur but if the shard has no owners then
+			// we don't want this to panic by trying to randomly select a node.
+			continue
+		}
+
+		// Otherwise assign it to a remote shard randomly.
+		shardIDsByNodeID[nodeID] = append(shardIDsByNodeID[nodeID], si.ID)
+	}
+
+	// Generate iterators for each node.
+	ics := make([]influxql.IteratorCreator, 0)
+	if err := func() error {
+		for nodeID, shardIDs := range shardIDsByNodeID {
+			// Sort shard IDs so we get more predicable execution.
+			sort.Sort(uint64Slice(shardIDs))
+
+			// Create iterator creators from TSDB if local.
+			if nodeID == e.Node.ID {
+				for _, shardID := range shardIDs {
+					ic := e.TSDBStore.ShardIteratorCreator(shardID)
+					if ic == nil {
+						continue
+					}
+					ics = append(ics, ic)
+				}
+				continue
+			}
+
+			// Otherwise create iterator creator remotely.
+			dialer := &NodeDialer{
+				MetaClient: e.MetaClient,
+				Timeout:    e.Timeout,
+			}
+			ics = append(ics, newRemoteIteratorCreator(dialer, nodeID, shardIDs))
+		}
+
+		return nil
+	}(); err != nil {
+		influxql.IteratorCreators(ics).Close()
+		return nil, err
+	}
+
+	return influxql.IteratorCreators(ics), nil
 }
 
 func (e *QueryExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
@@ -896,6 +967,147 @@ type IntoWriteRequest struct {
 	Points          []models.Point
 }
 
+// remoteIteratorCreator creates iterators for remote shards.
+type remoteIteratorCreator struct {
+	dialer   *NodeDialer
+	nodeID   uint64
+	shardIDs []uint64
+}
+
+// newRemoteIteratorCreator returns a new instance of remoteIteratorCreator for a remote shard.
+func newRemoteIteratorCreator(dialer *NodeDialer, nodeID uint64, shardIDs []uint64) *remoteIteratorCreator {
+	return &remoteIteratorCreator{
+		dialer:   dialer,
+		nodeID:   nodeID,
+		shardIDs: shardIDs,
+	}
+}
+
+// CreateIterator creates a remote streaming iterator.
+func (ic *remoteIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	conn, err := ic.dialer.DialNode(ic.nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := func() error {
+		// Write request.
+		if err := EncodeTLV(conn, createIteratorRequestMessage, &CreateIteratorRequest{
+			ShardIDs: ic.shardIDs,
+			Opt:      opt,
+		}); err != nil {
+			return err
+		}
+
+		// Read the response.
+		var resp CreateIteratorResponse
+		if _, err := DecodeTLV(conn, &resp); err != nil {
+			return err
+		} else if resp.Err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return influxql.NewReaderIterator(conn)
+}
+
+// FieldDimensions returns the unique fields and dimensions across a list of sources.
+func (ic *remoteIteratorCreator) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+	conn, err := ic.dialer.DialNode(ic.nodeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer conn.Close()
+
+	// Write request.
+	if err := EncodeTLV(conn, fieldDimensionsRequestMessage, &FieldDimensionsRequest{
+		ShardIDs: ic.shardIDs,
+		Sources:  sources,
+	}); err != nil {
+		return nil, nil, err
+	}
+
+	// Read the response.
+	var resp FieldDimensionsResponse
+	if _, err := DecodeTLV(conn, &resp); err != nil {
+		return nil, nil, err
+	}
+	return resp.Fields, resp.Dimensions, resp.Err
+}
+
+// SeriesKeys returns a list of series keys from the underlying shard.
+func (ic *remoteIteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	conn, err := ic.dialer.DialNode(ic.nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	// Write request.
+	if err := EncodeTLV(conn, seriesKeysRequestMessage, &SeriesKeysRequest{
+		ShardIDs: ic.shardIDs,
+		Opt:      opt,
+	}); err != nil {
+		return nil, err
+	}
+
+	// Read the response.
+	var resp SeriesKeysResponse
+	if _, err := DecodeTLV(conn, &resp); err != nil {
+		return nil, err
+	}
+	return resp.SeriesList, resp.Err
+}
+
+// NodeDialer dials connections to a given node.
+type NodeDialer struct {
+	MetaClient MetaClient
+	Timeout    time.Duration
+}
+
+// DialNode returns a connection to a node.
+func (d *NodeDialer) DialNode(nodeID uint64) (net.Conn, error) {
+	ni, err := d.MetaClient.DataNode(nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("tcp", ni.TCPHost)
+	if err != nil {
+		return nil, err
+	}
+	conn.SetDeadline(time.Now().Add(d.Timeout))
+
+	// Write the cluster multiplexing header byte
+	if _, err := conn.Write([]byte{MuxHeader}); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// TSDBStore is an interface for accessing the time series data store.
+type TSDBStore interface {
+	CreateShard(database, policy string, shardID uint64) error
+	WriteToShard(shardID uint64, points []models.Point) error
+
+	DeleteDatabase(name string) error
+	DeleteMeasurement(database, name string) error
+	DeleteRetentionPolicy(database, name string) error
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
+	ExecuteShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) (models.Rows, error)
+	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
+	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
+	ShardIteratorCreator(id uint64) influxql.IteratorCreator
+}
+
 // joinUint64 returns a comma-delimited string of uint64 numbers.
 func joinUint64(a []uint64) string {
 	var buf bytes.Buffer
@@ -966,3 +1178,9 @@ func (s stringSet) intersect(o stringSet) stringSet {
 	}
 	return ns
 }
+
+type uint64Slice []uint64
+
+func (a uint64Slice) Len() int           { return len(a) }
+func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }

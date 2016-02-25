@@ -62,13 +62,12 @@ type Server struct {
 	MetaClient  *meta.Client
 	MetaService *meta.Service
 
-	TSDBStore       *tsdb.Store
-	QueryExecutor   *cluster.QueryExecutor
-	PointsWriter    *cluster.PointsWriter
-	ShardWriter     *cluster.ShardWriter
-	IteratorCreator *cluster.IteratorCreator
-	HintedHandoff   *hh.Service
-	Subscriber      *subscriber.Service
+	TSDBStore     *tsdb.Store
+	QueryExecutor *cluster.QueryExecutor
+	PointsWriter  *cluster.PointsWriter
+	ShardWriter   *cluster.ShardWriter
+	HintedHandoff *hh.Service
+	Subscriber    *subscriber.Service
 
 	Services []Service
 
@@ -434,6 +433,8 @@ func (s *Server) Open() error {
 				return err
 			}
 		}
+
+		s.QueryExecutor.Node = s.Node
 
 		s.Subscriber.MetaClient = s.MetaClient
 		s.ShardWriter.MetaClient = s.MetaClient
