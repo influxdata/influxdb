@@ -1,5 +1,8 @@
 package httpd
 
+// DefaultBindAddress is the default address to bind to.
+const DefaultBindAddress = ":8086"
+
 // Config represents a configuration for a HTTP service.
 type Config struct {
 	Enabled          bool   `toml:"enabled"`
