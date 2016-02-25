@@ -31,26 +31,26 @@ http://username:password@localhost:8086/cluster/shard_spaces
 Then, to export a database with then name "metrics" and a shard space with the name "default", issue the following curl command:
 
 ```sh
-curl -o export http://username:password@http://localhost:8086/export/metrics/default
+curl -o export http://username:password@localhost:8086/export/metrics/default
 ```
 
 Compression is supported, and will result in a significantly smaller file size.
 
 Use the following command for compression:
 ```sh
-curl -o export.gz --compressed http://username:password@http://localhost:8086/export/metrics/default
+curl -o export.gz --compressed http://username:password@localhost:8086/export/metrics/default
 ```
 
 You can also export just the `DDL` with this option:
 
 ```sh
-curl -o export.ddl http://username:password@http://localhost:8086/export/metrics/default?l=ddl
+curl -o export.ddl http://username:password@localhost:8086/export/metrics/default?l=ddl
 ```
 
 Or just the `DML` with this option:
 
 ```sh
-curl -o export.dml.gz --compressed http://username:password@http://localhost:8086/export/metrics/default?l=dml
+curl -o export.dml.gz --compressed http://username:password@localhost:8086/export/metrics/default?l=dml
 ```
 
 ### Assumptions
