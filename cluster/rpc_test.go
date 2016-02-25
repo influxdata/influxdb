@@ -1,8 +1,13 @@
 package cluster
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb/influxql"
 )
 
 func TestWriteShardRequestBinary(t *testing.T) {
@@ -107,4 +112,28 @@ func TestWriteShardResponseBinary(t *testing.T) {
 		t.Errorf("Message mismatch: got %v, exp %v", got.Message(), sr.Message())
 	}
 
+}
+
+// Ensure series list response can be marshaled into and out of a binary format.
+func TestSeriesKeysResponse_MarshalBinary(t *testing.T) {
+	resp := &SeriesKeysResponse{
+		SeriesList: []influxql.Series{
+			{Name: "cpu", Aux: []influxql.DataType{influxql.Float}},
+		},
+		Err: errors.New("marker"),
+	}
+
+	// Marshal to binary.
+	buf, err := resp.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Unmarshal back to an object.
+	var other SeriesKeysResponse
+	if err := other.UnmarshalBinary(buf); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(&other, resp) {
+		t.Fatalf("unexpected response: %s", spew.Sdump(other))
+	}
 }
