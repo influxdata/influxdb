@@ -926,6 +926,30 @@ func TestIteratorOptions_MarshalBinary_Measurement_Regex(t *testing.T) {
 	}
 }
 
+// Ensure series list can be marshaled into and out of a binary format.
+func TestSeriesList_MarshalBinary(t *testing.T) {
+	a := []influxql.Series{
+		{Name: "cpu", Tags: ParseTags("foo=bar"), Aux: []influxql.DataType{influxql.Float, influxql.String}},
+		{Name: "mem", Aux: []influxql.DataType{influxql.Integer}},
+		{Name: "disk"},
+		{},
+	}
+
+	// Marshal to binary.
+	buf, err := influxql.SeriesList(a).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Unmarshal back to an object.
+	var other influxql.SeriesList
+	if err := other.UnmarshalBinary(buf); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(other, influxql.SeriesList(a)) {
+		t.Fatalf("unexpected series list: %s", spew.Sdump(other))
+	}
+}
+
 // IteratorCreator is a mockable implementation of SelectStatementExecutor.IteratorCreator.
 type IteratorCreator struct {
 	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
