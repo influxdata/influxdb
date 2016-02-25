@@ -837,6 +837,35 @@ func (s *Series) Combine(other *Series) {
 	}
 }
 
+func encodeSeries(s Series) *internal.Series {
+	aux := make([]uint32, len(s.Aux))
+	for i := range s.Aux {
+		aux[i] = uint32(s.Aux[i])
+	}
+
+	return &internal.Series{
+		Name: proto.String(s.Name),
+		Tags: encodeTags(s.Tags.KeyValues()),
+		Aux:  aux,
+	}
+}
+
+func decodeSeries(pb *internal.Series) Series {
+	var aux []DataType
+	if len(pb.GetAux()) > 0 {
+		aux = make([]DataType, len(pb.GetAux()))
+		for i := range pb.GetAux() {
+			aux[i] = DataType(pb.GetAux()[i])
+		}
+	}
+
+	return Series{
+		Name: pb.GetName(),
+		Tags: newTagsID(string(pb.GetTags())),
+		Aux:  aux,
+	}
+}
+
 // SeriesList is a list of series that will be returned by an iterator.
 type SeriesList []Series
 
@@ -848,6 +877,42 @@ func (a SeriesList) Less(i, j int) bool {
 		return a[i].Name < a[j].Name
 	}
 	return a[i].Tags.ID() < a[j].Tags.ID()
+}
+
+// MarshalBinary encodes list into a binary format.
+func (a SeriesList) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(encodeSeriesList(a))
+}
+
+// UnmarshalBinary decodes from a binary format.
+func (a *SeriesList) UnmarshalBinary(buf []byte) error {
+	var pb internal.SeriesList
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+
+	(*a) = decodeSeriesList(&pb)
+
+	return nil
+}
+
+func encodeSeriesList(a SeriesList) *internal.SeriesList {
+	pb := make([]*internal.Series, len(a))
+	for i := range a {
+		pb[i] = encodeSeries(a[i])
+	}
+
+	return &internal.SeriesList{
+		Items: pb,
+	}
+}
+
+func decodeSeriesList(pb *internal.SeriesList) SeriesList {
+	a := make([]Series, len(pb.GetItems()))
+	for i := range pb.GetItems() {
+		a[i] = decodeSeries(pb.GetItems()[i])
+	}
+	return SeriesList(a)
 }
 
 // Interval represents a repeating interval for a query.

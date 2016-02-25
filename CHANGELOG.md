@@ -48,6 +48,7 @@
 - [#5699](https://github.com/influxdata/influxdb/issues/5699): Fix potential thread safety issue in cache @jonseymour
 - [#5832](https://github.com/influxdata/influxdb/issues/5832): tsm: cache: need to check that snapshot has been sorted @jonseymour
 - [#5841](https://github.com/influxdata/influxdb/pull/5841): Reduce tsm allocations by converting time.Time to int64
+- [#5842](https://github.com/influxdata/influxdb/issues/5842): Add SeriesList binary marshaling
 
 ## v0.10.1 [2016-02-18]
 

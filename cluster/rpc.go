@@ -372,7 +372,14 @@ type SeriesKeysResponse struct {
 
 // MarshalBinary encodes r to a binary format.
 func (r *SeriesKeysResponse) MarshalBinary() ([]byte, error) {
-	var pb internal.CreateIteratorResponse
+	var pb internal.SeriesKeysResponse
+
+	buf, err := r.SeriesList.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	pb.SeriesList = buf
+
 	if r.Err != nil {
 		pb.Err = proto.String(r.Err.Error())
 	}
@@ -381,12 +388,18 @@ func (r *SeriesKeysResponse) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes data into r.
 func (r *SeriesKeysResponse) UnmarshalBinary(data []byte) error {
-	var pb internal.CreateIteratorResponse
+	var pb internal.SeriesKeysResponse
 	if err := proto.Unmarshal(data, &pb); err != nil {
 		return err
 	}
+
+	if err := r.SeriesList.UnmarshalBinary(pb.GetSeriesList()); err != nil {
+		return err
+	}
+
 	if pb.Err != nil {
 		r.Err = errors.New(pb.GetErr())
 	}
+
 	return nil
 }

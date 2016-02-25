@@ -15,27 +15,31 @@ It has these top-level messages:
 	Measurements
 	Measurement
 	Interval
+	Series
+	SeriesList
 */
 package internal
 
 import proto "github.com/gogo/protobuf/proto"
+import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
 var _ = math.Inf
 
 type Point struct {
-	Name             *string  `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Tags             *string  `protobuf:"bytes,2,req" json:"Tags,omitempty"`
-	Time             *int64   `protobuf:"varint,3,req" json:"Time,omitempty"`
-	Nil              *bool    `protobuf:"varint,4,req" json:"Nil,omitempty"`
-	Aux              []*Aux   `protobuf:"bytes,5,rep" json:"Aux,omitempty"`
-	Aggregated       *uint32  `protobuf:"varint,6,opt" json:"Aggregated,omitempty"`
-	FloatValue       *float64 `protobuf:"fixed64,7,opt" json:"FloatValue,omitempty"`
-	IntegerValue     *int64   `protobuf:"varint,8,opt" json:"IntegerValue,omitempty"`
-	StringValue      *string  `protobuf:"bytes,9,opt" json:"StringValue,omitempty"`
-	BooleanValue     *bool    `protobuf:"varint,10,opt" json:"BooleanValue,omitempty"`
+	Name             *string  `protobuf:"bytes,1,req,name=Name" json:"Name,omitempty"`
+	Tags             *string  `protobuf:"bytes,2,req,name=Tags" json:"Tags,omitempty"`
+	Time             *int64   `protobuf:"varint,3,req,name=Time" json:"Time,omitempty"`
+	Nil              *bool    `protobuf:"varint,4,req,name=Nil" json:"Nil,omitempty"`
+	Aux              []*Aux   `protobuf:"bytes,5,rep,name=Aux" json:"Aux,omitempty"`
+	Aggregated       *uint32  `protobuf:"varint,6,opt,name=Aggregated" json:"Aggregated,omitempty"`
+	FloatValue       *float64 `protobuf:"fixed64,7,opt,name=FloatValue" json:"FloatValue,omitempty"`
+	IntegerValue     *int64   `protobuf:"varint,8,opt,name=IntegerValue" json:"IntegerValue,omitempty"`
+	StringValue      *string  `protobuf:"bytes,9,opt,name=StringValue" json:"StringValue,omitempty"`
+	BooleanValue     *bool    `protobuf:"varint,10,opt,name=BooleanValue" json:"BooleanValue,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -114,11 +118,11 @@ func (m *Point) GetBooleanValue() bool {
 }
 
 type Aux struct {
-	DataType         *int32   `protobuf:"varint,1,req" json:"DataType,omitempty"`
-	FloatValue       *float64 `protobuf:"fixed64,2,opt" json:"FloatValue,omitempty"`
-	IntegerValue     *int64   `protobuf:"varint,3,opt" json:"IntegerValue,omitempty"`
-	StringValue      *string  `protobuf:"bytes,4,opt" json:"StringValue,omitempty"`
-	BooleanValue     *bool    `protobuf:"varint,5,opt" json:"BooleanValue,omitempty"`
+	DataType         *int32   `protobuf:"varint,1,req,name=DataType" json:"DataType,omitempty"`
+	FloatValue       *float64 `protobuf:"fixed64,2,opt,name=FloatValue" json:"FloatValue,omitempty"`
+	IntegerValue     *int64   `protobuf:"varint,3,opt,name=IntegerValue" json:"IntegerValue,omitempty"`
+	StringValue      *string  `protobuf:"bytes,4,opt,name=StringValue" json:"StringValue,omitempty"`
+	BooleanValue     *bool    `protobuf:"varint,5,opt,name=BooleanValue" json:"BooleanValue,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -162,22 +166,22 @@ func (m *Aux) GetBooleanValue() bool {
 }
 
 type IteratorOptions struct {
-	Expr             *string        `protobuf:"bytes,1,opt" json:"Expr,omitempty"`
-	Aux              []string       `protobuf:"bytes,2,rep" json:"Aux,omitempty"`
-	Sources          []*Measurement `protobuf:"bytes,3,rep" json:"Sources,omitempty"`
-	Interval         *Interval      `protobuf:"bytes,4,opt" json:"Interval,omitempty"`
-	Dimensions       []string       `protobuf:"bytes,5,rep" json:"Dimensions,omitempty"`
-	Fill             *int32         `protobuf:"varint,6,opt" json:"Fill,omitempty"`
-	FillValue        *float64       `protobuf:"fixed64,7,opt" json:"FillValue,omitempty"`
-	Condition        *string        `protobuf:"bytes,8,opt" json:"Condition,omitempty"`
-	StartTime        *int64         `protobuf:"varint,9,opt" json:"StartTime,omitempty"`
-	EndTime          *int64         `protobuf:"varint,10,opt" json:"EndTime,omitempty"`
-	Ascending        *bool          `protobuf:"varint,11,opt" json:"Ascending,omitempty"`
-	Limit            *int64         `protobuf:"varint,12,opt" json:"Limit,omitempty"`
-	Offset           *int64         `protobuf:"varint,13,opt" json:"Offset,omitempty"`
-	SLimit           *int64         `protobuf:"varint,14,opt" json:"SLimit,omitempty"`
-	SOffset          *int64         `protobuf:"varint,15,opt" json:"SOffset,omitempty"`
-	Dedupe           *bool          `protobuf:"varint,16,opt" json:"Dedupe,omitempty"`
+	Expr             *string        `protobuf:"bytes,1,opt,name=Expr" json:"Expr,omitempty"`
+	Aux              []string       `protobuf:"bytes,2,rep,name=Aux" json:"Aux,omitempty"`
+	Sources          []*Measurement `protobuf:"bytes,3,rep,name=Sources" json:"Sources,omitempty"`
+	Interval         *Interval      `protobuf:"bytes,4,opt,name=Interval" json:"Interval,omitempty"`
+	Dimensions       []string       `protobuf:"bytes,5,rep,name=Dimensions" json:"Dimensions,omitempty"`
+	Fill             *int32         `protobuf:"varint,6,opt,name=Fill" json:"Fill,omitempty"`
+	FillValue        *float64       `protobuf:"fixed64,7,opt,name=FillValue" json:"FillValue,omitempty"`
+	Condition        *string        `protobuf:"bytes,8,opt,name=Condition" json:"Condition,omitempty"`
+	StartTime        *int64         `protobuf:"varint,9,opt,name=StartTime" json:"StartTime,omitempty"`
+	EndTime          *int64         `protobuf:"varint,10,opt,name=EndTime" json:"EndTime,omitempty"`
+	Ascending        *bool          `protobuf:"varint,11,opt,name=Ascending" json:"Ascending,omitempty"`
+	Limit            *int64         `protobuf:"varint,12,opt,name=Limit" json:"Limit,omitempty"`
+	Offset           *int64         `protobuf:"varint,13,opt,name=Offset" json:"Offset,omitempty"`
+	SLimit           *int64         `protobuf:"varint,14,opt,name=SLimit" json:"SLimit,omitempty"`
+	SOffset          *int64         `protobuf:"varint,15,opt,name=SOffset" json:"SOffset,omitempty"`
+	Dedupe           *bool          `protobuf:"varint,16,opt,name=Dedupe" json:"Dedupe,omitempty"`
 	XXX_unrecognized []byte         `json:"-"`
 }
 
@@ -298,7 +302,7 @@ func (m *IteratorOptions) GetDedupe() bool {
 }
 
 type Measurements struct {
-	Items            []*Measurement `protobuf:"bytes,1,rep" json:"Items,omitempty"`
+	Items            []*Measurement `protobuf:"bytes,1,rep,name=Items" json:"Items,omitempty"`
 	XXX_unrecognized []byte         `json:"-"`
 }
 
@@ -314,11 +318,11 @@ func (m *Measurements) GetItems() []*Measurement {
 }
 
 type Measurement struct {
-	Database         *string `protobuf:"bytes,1,opt" json:"Database,omitempty"`
-	RetentionPolicy  *string `protobuf:"bytes,2,opt" json:"RetentionPolicy,omitempty"`
-	Name             *string `protobuf:"bytes,3,opt" json:"Name,omitempty"`
-	Regex            *string `protobuf:"bytes,4,opt" json:"Regex,omitempty"`
-	IsTarget         *bool   `protobuf:"varint,5,opt" json:"IsTarget,omitempty"`
+	Database         *string `protobuf:"bytes,1,opt,name=Database" json:"Database,omitempty"`
+	RetentionPolicy  *string `protobuf:"bytes,2,opt,name=RetentionPolicy" json:"RetentionPolicy,omitempty"`
+	Name             *string `protobuf:"bytes,3,opt,name=Name" json:"Name,omitempty"`
+	Regex            *string `protobuf:"bytes,4,opt,name=Regex" json:"Regex,omitempty"`
+	IsTarget         *bool   `protobuf:"varint,5,opt,name=IsTarget" json:"IsTarget,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -362,8 +366,8 @@ func (m *Measurement) GetIsTarget() bool {
 }
 
 type Interval struct {
-	Duration         *int64 `protobuf:"varint,1,opt" json:"Duration,omitempty"`
-	Offset           *int64 `protobuf:"varint,2,opt" json:"Offset,omitempty"`
+	Duration         *int64 `protobuf:"varint,1,opt,name=Duration" json:"Duration,omitempty"`
+	Offset           *int64 `protobuf:"varint,2,opt,name=Offset" json:"Offset,omitempty"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
@@ -385,5 +389,61 @@ func (m *Interval) GetOffset() int64 {
 	return 0
 }
 
+type Series struct {
+	Name             *string  `protobuf:"bytes,1,opt,name=Name" json:"Name,omitempty"`
+	Tags             []byte   `protobuf:"bytes,2,opt,name=Tags" json:"Tags,omitempty"`
+	Aux              []uint32 `protobuf:"varint,3,rep,name=Aux" json:"Aux,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *Series) Reset()         { *m = Series{} }
+func (m *Series) String() string { return proto.CompactTextString(m) }
+func (*Series) ProtoMessage()    {}
+
+func (m *Series) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
+
+func (m *Series) GetTags() []byte {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+func (m *Series) GetAux() []uint32 {
+	if m != nil {
+		return m.Aux
+	}
+	return nil
+}
+
+type SeriesList struct {
+	Items            []*Series `protobuf:"bytes,1,rep,name=Items" json:"Items,omitempty"`
+	XXX_unrecognized []byte    `json:"-"`
+}
+
+func (m *SeriesList) Reset()         { *m = SeriesList{} }
+func (m *SeriesList) String() string { return proto.CompactTextString(m) }
+func (*SeriesList) ProtoMessage()    {}
+
+func (m *SeriesList) GetItems() []*Series {
+	if m != nil {
+		return m.Items
+	}
+	return nil
+}
+
 func init() {
+	proto.RegisterType((*Point)(nil), "internal.Point")
+	proto.RegisterType((*Aux)(nil), "internal.Aux")
+	proto.RegisterType((*IteratorOptions)(nil), "internal.IteratorOptions")
+	proto.RegisterType((*Measurements)(nil), "internal.Measurements")
+	proto.RegisterType((*Measurement)(nil), "internal.Measurement")
+	proto.RegisterType((*Interval)(nil), "internal.Interval")
+	proto.RegisterType((*Series)(nil), "internal.Series")
+	proto.RegisterType((*SeriesList)(nil), "internal.SeriesList")
 }
