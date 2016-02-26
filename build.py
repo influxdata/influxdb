@@ -1,11 +1,4 @@
-#!/usr/bin/env python2.7
-#
-# This is the InfluxDB build script.
-#
-# Current caveats:
-#   - Does not checkout the correct commit/branch (for now, you will need to do so manually)
-#   - Has external dependencies for packaging (fpm) and uploading (boto)
-#
+#!/usr/bin/python2.7 -u
 
 import sys
 import os
@@ -132,6 +125,16 @@ def run_generate():
     run("go generate ./services/admin")
     return True
 
+def go_get(branch, update=False, no_stash=False):
+    if not check_path_for("gdm"):
+        print "Downloading `gdm`..."
+        get_command = "go get github.com/sparrc/gdm"
+        run(get_command)
+    print "Retrieving dependencies with `gdm`..."
+    sys.stdout.flush()
+    run("{}/bin/gdm restore -v".format(os.environ.get("GOPATH")))
+    return True
+
 ################
 #### All InfluxDB-specific content above this line
 ################
@@ -145,6 +148,7 @@ def run(command, allow_failure=False, shell=False):
             out = subprocess.check_output(command, stderr=subprocess.STDOUT, shell=shell)
         else:
             out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
+        print "[DEBUG] command output: \n{}\n".format(out)
     except subprocess.CalledProcessError as e:
         print ""
         print ""
@@ -390,7 +394,7 @@ def build(version=None,
     if rc:
         # If a release candidate, update the version information accordingly
         version = "{}rc{}".format(version, rc)
-    
+
     print "Starting build..."
     tmp_build_dir = create_temp_dir()
     for b, c in targets.iteritems():
@@ -458,15 +462,6 @@ def copy_file(fr, to):
     except OSError as e:
         print e
 
-def go_get(branch, update=False):
-    if not check_path_for("gdm"):
-        print "Downloading `gdm`..."
-        get_command = "go get github.com/sparrc/gdm"
-        run(get_command)
-    print "Retrieving dependencies with `gdm`..."
-    sys.stdout.flush()
-    run("{}/bin/gdm restore".format(os.environ.get("GOPATH")))
-
 def generate_md5_from_file(path):
     m = hashlib.md5()
     with open(path, 'rb') as f:
@@ -489,7 +484,7 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
             for arch in build_output[platform]:
                 # Create second-level directory displaying the architecture (amd64, etc)
                 current_location = build_output[platform][arch]
-                
+
                 # Create directory tree to mimic file system of package
                 build_root = os.path.join(tmp_build_dir,
                                           platform,
@@ -605,7 +600,7 @@ def print_usage():
     print "\t --update \n\t\t- Whether dependencies should be updated prior to building."
     print "\t --test \n\t\t- Run Go tests. Will not produce a build."
     print "\t --parallel \n\t\t- Run Go tests in parallel up to the count specified."
-    print "\t --generate \n\t\t- Run `go generate` to rebuild admin UI static filesystem."
+    print "\t --generate \n\t\t- Run `go generate`."
     print "\t --timeout \n\t\t- Timeout for Go tests. Defaults to 480s."
     print "\t --clean \n\t\t- Clean the build output directory prior to creating build."
     print "\t --no-get \n\t\t- Do not run `go get` before building."
@@ -708,7 +703,6 @@ def main():
             # Fail if uncommited changes exist
             no_stash = True
         elif '--generate' in arg:
-            # Run go generate services/admin
             generate = True
         elif '--debug' in arg:
             print "[DEBUG] Using debug output"
@@ -724,7 +718,7 @@ def main():
     if nightly and rc:
         print "!! Cannot be both nightly and a release candidate! Stopping."
         return 1
-    
+
     if nightly:
         # In order to cleanly delineate nightly version, we are adding the epoch timestamp
         # to the version so that version numbers are always greater than the previous nightly.
@@ -732,7 +726,7 @@ def main():
         iteration = 0
     elif rc:
         iteration = 0
-    
+
     # Pre-build checks
     check_environ()
     if not check_prereqs():
@@ -759,7 +753,7 @@ def main():
             return 1
     else:
         target_platform = get_system_platform()
-        
+
     build_output = {}
 
     if generate:
@@ -767,7 +761,8 @@ def main():
             return 1
 
     if run_get:
-        go_get(branch, update=update)
+        if not go_get(branch, update=update, no_stash=no_stash):
+            return 1
 
     if test:
         if not run_tests(race, parallel, timeout, no_vet):
