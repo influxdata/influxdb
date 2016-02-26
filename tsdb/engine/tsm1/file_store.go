@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 type TSMFile interface {
@@ -124,11 +125,16 @@ func (f FileStat) ContainsKey(key string) bool {
 }
 
 func NewFileStore(dir string) *FileStore {
+	db, rp := tsdb.DecodeStorePath(dir)
 	return &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
 		Logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
-		statMap:      influxdb.NewStatistics("tsm1_filestore:"+dir, "tsm1_filestore", map[string]string{"path": dir}),
+		statMap: influxdb.NewStatistics(
+			"tsm1_filestore:"+dir,
+			"tsm1_filestore",
+			map[string]string{"path": dir, "database": db, "retentionPolicy": rp},
+		),
 	}
 }
 

@@ -18,6 +18,7 @@
 - [#5706](https://github.com/influxdata/influxdb/pull/5706): Cluster setup cleanup
 - [#5691](https://github.com/influxdata/influxdb/pull/5691): Remove associated shard data when retention policies are dropped.
 - [#5758](https://github.com/influxdata/influxdb/pull/5758): TSM engine stats for cache, WAL, and filestore. Thanks @jonseymour
+- [#5844](https://github.com/influxdata/influxdb/pull/5844): Tag TSM engine stats with database and retention policy
 
 ### Bugfixes
 
