@@ -96,16 +96,20 @@ func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries in
 
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
 func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.mu.RLock()
 	// if there is a measurement for this id, it's already been added
 	ss := d.series[series.Key]
 	if ss != nil {
+		d.mu.RUnlock()
 		return ss
 	}
+	d.mu.RUnlock()
 
 	// get or create the measurement index
-	m := d.createMeasurementIndexIfNotExists(measurementName)
+	m := d.CreateMeasurementIndexIfNotExists(measurementName)
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	// set the in memory ID for query processing on this shard
 	series.id = d.lastID + 1
@@ -123,15 +127,24 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
 func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
+	name = escape.UnescapeString(name)
+
+	// See if the measurement exists using a read-lock
+	d.mu.RLock()
+	m := d.measurements[name]
+	if m != nil {
+		d.mu.RUnlock()
+		return m
+	}
+	d.mu.RUnlock()
+
+	// Doesn't exist, so lock the index to create it
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.createMeasurementIndexIfNotExists(name)
-}
 
-// createMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
-func (d *DatabaseIndex) createMeasurementIndexIfNotExists(name string) *Measurement {
-	name = escape.UnescapeString(name)
-	m := d.measurements[name]
+	// Make sure it was created in between the time we released our read-lock
+	// and acquire the write lock
+	m = d.measurements[name]
 	if m == nil {
 		m = NewMeasurement(name, d)
 		d.measurements[name] = m
@@ -1534,6 +1547,13 @@ func (m *Measurement) TagValues(key string) []string {
 
 // SetFieldName adds the field name to the measurement.
 func (m *Measurement) SetFieldName(name string) {
+	m.mu.RLock()
+	if _, ok := m.fieldNames[name]; ok {
+		m.mu.RUnlock()
+		return
+	}
+	m.mu.RUnlock()
+
 	m.mu.Lock()
 	m.fieldNames[name] = struct{}{}
 	m.mu.Unlock()
