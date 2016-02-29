@@ -196,12 +196,7 @@ func (d *Database) Shards() ([]*ShardInfo, error) {
 // shardFormat returns the format and size on disk of the shard at path.
 func shardFormat(path string) (EngineFormat, int64, error) {
 	// If it's a directory then it's a tsm1 engine
-	f, err := os.Open(path)
-	if err != nil {
-		return 0, 0, err
-	}
-	fi, err := f.Stat()
-	f.Close()
+	fi, err := os.Stat(path)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -228,13 +223,13 @@ func shardFormat(path string) (EngineFormat, int64, error) {
 		}
 
 		// There is an actual format indicator.
-		switch string(b.Get([]byte("format"))) {
+		switch f := string(b.Get([]byte("format"))); f {
 		case "b1", "v1":
 			format = B1
 		case "bz1":
 			format = BZ1
 		default:
-			return fmt.Errorf("unrecognized engine format: %s", string(b.Get([]byte("format"))))
+			return fmt.Errorf("unrecognized engine format: %s", f)
 		}
 
 		return nil
