@@ -141,13 +141,7 @@ func (s *Store) loadShards() error {
 					continue
 				}
 
-				sc := ShardConfig{
-					Path:            path,
-					WALPath:         walPath,
-					Database:        db,
-					RetentionPolicy: rp.Name(),
-				}
-				shard := NewShard(shardID, s.databaseIndexes[db], sc, s.EngineOptions)
+				shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
 				err = shard.Open()
 				if err != nil {
 					return fmt.Errorf("failed to open shard %d: %s", shardID, err)
@@ -258,13 +252,8 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 		s.databaseIndexes[database] = db
 	}
 
-	sc := ShardConfig{
-		Path:            filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10)),
-		WALPath:         walPath,
-		Database:        database,
-		RetentionPolicy: retentionPolicy,
-	}
-	shard := NewShard(shardID, db, sc, s.EngineOptions)
+	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
+	shard := NewShard(shardID, db, path, walPath, s.EngineOptions)
 	if err := shard.Open(); err != nil {
 		return err
 	}
@@ -294,11 +283,11 @@ func (s *Store) deleteShard(shardID uint64) error {
 		return err
 	}
 
-	if err := os.RemoveAll(sh.config.Path); err != nil {
+	if err := os.RemoveAll(sh.path); err != nil {
 		return err
 	}
 
-	if err := os.RemoveAll(sh.config.WALPath); err != nil {
+	if err := os.RemoveAll(sh.walPath); err != nil {
 		return err
 	}
 
@@ -322,7 +311,7 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	// Close and delete all shards on the database.
 	for shardID, sh := range s.shards {
-		if sh.config.Database == name {
+		if sh.database == name {
 			// Delete the shard from disk.
 			if err := s.deleteShard(shardID); err != nil {
 				return err
@@ -351,7 +340,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	// Close and delete all shards under the retention policy on the
 	// database.
 	for shardID, sh := range s.shards {
-		if sh.config.Database == database && sh.config.RetentionPolicy == name {
+		if sh.database == database && sh.retentionPolicy == name {
 			// Delete the shard from disk.
 			if err := s.deleteShard(shardID); err != nil {
 				return err
@@ -390,7 +379,7 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 
 	// Remove underlying data.
 	for _, sh := range s.shards {
-		if sh.config.Database != database {
+		if sh.database != database {
 			continue
 		}
 
@@ -479,7 +468,7 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 		return fmt.Errorf("shard %d doesn't exist on this server", id)
 	}
 
-	path, err := relativePath(s.path, shard.config.Path)
+	path, err := relativePath(s.path, shard.path)
 	if err != nil {
 		return err
 	}
@@ -493,7 +482,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 	if shard == nil {
 		return "", fmt.Errorf("shard %d doesn't exist on this server", id)
 	}
-	return relativePath(s.path, shard.config.Path)
+	return relativePath(s.path, shard.path)
 }
 
 // DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
@@ -568,7 +557,7 @@ func (s *Store) deleteSeries(database string, seriesKeys []string) error {
 	}
 
 	for _, sh := range s.shards {
-		if sh.config.Database != database {
+		if sh.database != database {
 			continue
 		}
 		if err := sh.DeleteSeries(seriesKeys); err != nil {
@@ -955,6 +944,20 @@ func IsRetryable(err error) bool {
 		return false
 	}
 	return true
+}
+
+// DecodeStorePath extracts the database and retention policy names
+// from a given shard or WAL path.
+func DecodeStorePath(shardOrWALPath string) (database, retentionPolicy string) {
+	// shardOrWALPath format: /maybe/absolute/base/then/:database/:retentionPolicy/:nameOfShardOrWAL
+
+	// Discard the last part of the path (the shard name or the wal name).
+	path, _ := filepath.Split(filepath.Clean(shardOrWALPath))
+
+	// Extract the database and retention policy.
+	path, rp := filepath.Split(filepath.Clean(path))
+	_, db := filepath.Split(filepath.Clean(path))
+	return db, rp
 }
 
 // relativePath will expand out the full paths passed in and return

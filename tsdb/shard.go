@@ -48,10 +48,13 @@ var (
 // Data can be split across many shards. The query engine in TSDB is responsible
 // for combining the output of many shards into a single query result.
 type Shard struct {
-	index *DatabaseIndex
-	id    uint64
+	index   *DatabaseIndex
+	path    string
+	walPath string
+	id      uint64
 
-	config ShardConfig
+	database        string
+	retentionPolicy string
 
 	engine  Engine
 	options EngineOptions
@@ -66,41 +69,30 @@ type Shard struct {
 	LogOutput io.Writer
 }
 
-// ShardConfig is passed to NewShard to specify the shard's
-// database, retention policy, and location of files on disk.
-type ShardConfig struct {
-	// Name of the database this shard belongs to
-	Database string
-
-	// Name of the retention policy this shard belongs to
-	RetentionPolicy string
-
-	// Path to this shard's location on disk
-	Path string
-
-	// Path to this shard's WAL location
-	WALPath string
-}
-
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
-func NewShard(id uint64, index *DatabaseIndex, config ShardConfig, options EngineOptions) *Shard {
+func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, options EngineOptions) *Shard {
 	// Configure statistics collection.
-	key := fmt.Sprintf("shard:%s:%d", config.Path, id)
+	key := fmt.Sprintf("shard:%s:%d", path, id)
+	db, rp := DecodeStorePath(path)
 	tags := map[string]string{
-		"path":            config.Path,
+		"path":            path,
 		"id":              fmt.Sprintf("%d", id),
 		"engine":          options.EngineVersion,
-		"database":        config.Database,
-		"retentionPolicy": config.RetentionPolicy,
+		"database":        db,
+		"retentionPolicy": rp,
 	}
 	statMap := influxdb.NewStatistics(key, "shard", tags)
 
 	return &Shard{
 		index:             index,
 		id:                id,
-		config:            config,
+		path:              path,
+		walPath:           walPath,
 		options:           options,
 		measurementFields: make(map[string]*MeasurementFields),
+
+		database:        db,
+		retentionPolicy: rp,
 
 		statMap:   statMap,
 		LogOutput: os.Stderr,
@@ -108,7 +100,7 @@ func NewShard(id uint64, index *DatabaseIndex, config ShardConfig, options Engin
 }
 
 // Path returns the path set on the shard when it was created.
-func (s *Shard) Path() string { return s.config.Path }
+func (s *Shard) Path() string { return s.path }
 
 // PerformMaintenance gets called periodically to have the engine perform
 // any maintenance tasks like WAL flushing and compaction
@@ -131,7 +123,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.config.Path, s.config.WALPath, s.options)
+		e, err := NewEngine(s.path, s.walPath, s.options)
 		if err != nil {
 			return fmt.Errorf("new engine: %s", err)
 		}
@@ -175,9 +167,7 @@ func (s *Shard) close() error {
 
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	stats, err := os.Stat(s.config.Path)
+	stats, err := os.Stat(s.path)
 	if err != nil {
 		return 0, err
 	}

@@ -344,6 +344,7 @@ func (s *Store) Reopen() error {
 		return err
 	}
 	s.Store = tsdb.NewStore(s.Path())
+	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
 	return s.Open()
 }
 
