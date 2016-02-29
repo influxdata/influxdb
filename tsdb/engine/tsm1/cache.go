@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 var ErrCacheMemoryExceeded = fmt.Errorf("cache maximum memory size exceeded")
@@ -113,10 +114,15 @@ type Cache struct {
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
 // Only used for engine caches, never for snapshots
 func NewCache(maxSize uint64, path string) *Cache {
+	db, rp := tsdb.DecodeStorePath(path)
 	c := &Cache{
-		maxSize:      maxSize,
-		store:        make(map[string]*entry),
-		statMap:      influxdb.NewStatistics("tsm1_cache:"+path, "tsm1_cache", map[string]string{"path": path}),
+		maxSize: maxSize,
+		store:   make(map[string]*entry),
+		statMap: influxdb.NewStatistics(
+			"tsm1_cache:"+path,
+			"tsm1_cache",
+			map[string]string{"path": path, "database": db, "retentionPolicy": rp},
+		),
 		lastSnapshot: time.Now(),
 	}
 	c.UpdateAge()

@@ -18,6 +18,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -89,6 +90,7 @@ type WAL struct {
 }
 
 func NewWAL(path string) *WAL {
+	db, rp := tsdb.DecodeStorePath(path)
 	return &WAL{
 		path: path,
 
@@ -98,7 +100,11 @@ func NewWAL(path string) *WAL {
 		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 
-		statMap: influxdb.NewStatistics("tsm1_wal:"+path, "tsm1_wal", map[string]string{"path": path}),
+		statMap: influxdb.NewStatistics(
+			"tsm1_wal:"+path,
+			"tsm1_wal",
+			map[string]string{"path": path, "database": db, "retentionPolicy": rp},
+		),
 	}
 }
 
