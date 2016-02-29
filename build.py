@@ -315,9 +315,6 @@ def upload_packages(packages, bucket_name=None, nightly=False):
     return 0
 
 def run_tests(race, parallel, timeout, no_vet):
-    print "Downloading vet tool..."
-    sys.stdout.flush()
-    run("go get golang.org/x/tools/cmd/vet")
     print "Running tests:"
     print "\tRace: ", race
     if parallel is not None:
@@ -333,6 +330,8 @@ def run_tests(race, parallel, timeout, no_vet):
         print err
         return False
     if not no_vet:
+        print "Installing 'go vet' tool..."
+        run("go install golang.org/x/tools/cmd/vet")
         p = subprocess.Popen(go_vet_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
         if len(out) > 0 or len(err) > 0:
