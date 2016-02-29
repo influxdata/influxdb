@@ -9,8 +9,7 @@
 #      1: tsm 64bit tests
 #      2: race enabled 64bit tests
 #      3: normal 32bit tests
-#      4: normal 64bit tests against Go tip
-#      5: normal 64bit tests against Go 1.6beta1
+#      4: normal 64bit tests against Go 1.6
 #      save: build the docker images and save them to DOCKER_SAVE_DIR. Do not run tests.
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
@@ -36,7 +35,7 @@ TIMEOUT=${TIMEOUT-480s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=6
+ENV_COUNT=5
 
 # Default return code 0
 rc=0
@@ -153,13 +152,8 @@ case $ENVIRONMENT_INDEX in
         rc=$?
         ;;
     4)
-        # 64 bit tests on golang tip
-        run_test_docker Dockerfile_build_ubuntu64_git test_64bit_gotip --debug --test --no-vet
-        rc=$?
-        ;;
-    5)
         # 64 bit tests on golang go1.6
-        GO_CHECKOUT=go1.6beta1
+        GO_CHECKOUT=go1.6
         run_test_docker Dockerfile_build_ubuntu64_git test_64bit_go1.6 --debug --test --no-vet
         rc=$?
         ;;
