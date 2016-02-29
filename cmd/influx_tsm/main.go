@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -54,6 +55,8 @@ type options struct {
 	Parallel       bool
 	SkipBackup     bool
 	UpdateInterval time.Duration
+	Yes            bool
+	CpuFile        string
 }
 
 func (o *options) Parse() error {
@@ -68,6 +71,8 @@ func (o *options) Parse() error {
 	fs.StringVar(&opts.BackupPath, "backup", "", "The location to backup up the current databases. Must not be within the data directoryi.")
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
+	fs.BoolVar(&opts.Yes, "y", false, "Don't ask, just convert")
+	fs.StringVar(&opts.CpuFile, "profile", "", "CPU Profile location")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "%v\n\nOptions:\n", description)
@@ -194,18 +199,31 @@ func main() {
 	}
 	w.Flush()
 
-	// Get confirmation from user.
-	fmt.Printf("\nThese shards will be converted. Proceed? y/N: ")
-	liner := bufio.NewReader(os.Stdin)
-	yn, err := liner.ReadString('\n')
-	if err != nil {
-		log.Fatalf("failed to read response: %v", err)
-	}
-	yn = strings.TrimRight(strings.ToLower(yn), "\n")
-	if yn != "y" {
-		log.Fatal("Conversion aborted.")
+	if !opts.Yes {
+		// Get confirmation from user.
+		fmt.Printf("\nThese shards will be converted. Proceed? y/N: ")
+		liner := bufio.NewReader(os.Stdin)
+		yn, err := liner.ReadString('\n')
+		if err != nil {
+			log.Fatalf("failed to read response: %v", err)
+		}
+		yn = strings.TrimRight(strings.ToLower(yn), "\n")
+		if yn != "y" {
+			log.Fatal("Conversion aborted.")
+		}
 	}
 	fmt.Println("Conversion starting....")
+
+	if opts.CpuFile != "" {
+		f, err := os.Create(opts.CpuFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err = pprof.StartCPUProfile(f); err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	tr := newTracker(shards, opts)
 
@@ -314,9 +332,9 @@ func convertShard(si *tsdb.ShardInfo, tr *tracker) error {
 	var reader ShardReader
 	switch si.Format {
 	case tsdb.BZ1:
-		reader = bz1.NewReader(src)
+		reader = bz1.NewReader(src, &tr.Stats, 0)
 	case tsdb.B1:
-		reader = b1.NewReader(src)
+		reader = b1.NewReader(src, &tr.Stats, 0)
 	default:
 		return fmt.Errorf("Unsupported shard format: %v", si.FormatAsString())
 	}
@@ -326,7 +344,7 @@ func convertShard(si *tsdb.ShardInfo, tr *tracker) error {
 		return fmt.Errorf("Failed to open %v for conversion: %v", src, err)
 	}
 	defer reader.Close()
-	converter := NewConverter(dst, uint32(opts.TSMSize), tr)
+	converter := NewConverter(dst, uint32(opts.TSMSize), &tr.Stats)
 
 	// Perform the conversion.
 	if err := converter.Process(reader); err != nil {

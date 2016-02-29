@@ -8,31 +8,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdb/influxdb/cmd/influx_tsm/b1"
-	"github.com/influxdb/influxdb/cmd/influx_tsm/bz1"
+	"github.com/influxdb/influxdb/cmd/influx_tsm/stats"
 	"github.com/influxdb/influxdb/cmd/influx_tsm/tsdb"
 )
 
 // tracker will orchestrate and track the conversions of non-TSM shards to TSM
 type tracker struct {
-	stats Stats
+	Stats stats.Stats
 
 	shards tsdb.ShardInfos
 	opts   options
 
 	pg ParallelGroup
 	wg sync.WaitGroup
-}
-
-type Stats struct {
-	NanFiltered     uint64
-	InfFiltered     uint64
-	PointsWritten   uint64
-	PointsRead      uint64
-	TsmFilesCreated uint64
-	TsmBytesWritten uint64
-	CompletedShards uint64
-	TotalTime       time.Duration
 }
 
 // newTracker will setup and return a clean tracker instance
@@ -44,10 +32,6 @@ func newTracker(shards tsdb.ShardInfos, opts options) *tracker {
 	}
 
 	return t
-}
-
-func (t *tracker) Errorf(str string, args ...interface{}) {
-
 }
 
 func (t *tracker) Run() error {
@@ -82,7 +66,7 @@ func (t *tracker) Run() error {
 		si := t.shards[i]
 		go t.pg.Do(func() {
 			defer func() {
-				atomic.AddUint64(&t.stats.CompletedShards, 1)
+				atomic.AddUint64(&t.Stats.CompletedShards, 1)
 				t.wg.Done()
 			}()
 
@@ -111,60 +95,36 @@ WAIT_LOOP:
 		}
 	}
 
-	t.stats.TotalTime = time.Since(conversionStart)
+	t.Stats.TotalTime = time.Since(conversionStart)
 
 	return nil
 }
 
 func (t *tracker) StatusUpdate() {
-	shardCount := atomic.LoadUint64(&t.stats.CompletedShards)
-	pointCount := atomic.LoadUint64(&t.stats.PointsRead)
-	pointWritten := atomic.LoadUint64(&t.stats.PointsWritten)
+	shardCount := atomic.LoadUint64(&t.Stats.CompletedShards)
+	pointCount := atomic.LoadUint64(&t.Stats.PointsRead)
+	pointWritten := atomic.LoadUint64(&t.Stats.PointsWritten)
 
 	log.Printf("Still Working: Completed Shards: %d/%d Points read/written: %d/%d", shardCount, len(t.shards), pointCount, pointWritten)
 }
 
 func (t *tracker) PrintStats() {
 	preSize := t.shards.Size()
-	postSize := int64(t.stats.TsmBytesWritten)
+	postSize := int64(t.Stats.TsmBytesWritten)
 
 	fmt.Printf("\nSummary statistics\n========================================\n")
 	fmt.Printf("Databases converted:                 %d\n", len(t.shards.Databases()))
 	fmt.Printf("Shards converted:                    %d\n", len(t.shards))
-	fmt.Printf("TSM files created:                   %d\n", t.stats.TsmFilesCreated)
-	fmt.Printf("Points read:                         %d\n", t.stats.PointsRead)
-	fmt.Printf("Points written:                      %d\n", t.stats.PointsWritten)
-	fmt.Printf("NaN filtered:                        %d\n", t.stats.NanFiltered)
-	fmt.Printf("Inf filtered:                        %d\n", t.stats.InfFiltered)
-	fmt.Printf("Points without fields filtered:      %d\n", b1.NoFieldsFiltered+bz1.NoFieldsFiltered)
+	fmt.Printf("TSM files created:                   %d\n", t.Stats.TsmFilesCreated)
+	fmt.Printf("Points read:                         %d\n", t.Stats.PointsRead)
+	fmt.Printf("Points written:                      %d\n", t.Stats.PointsWritten)
+	fmt.Printf("NaN filtered:                        %d\n", t.Stats.NanFiltered)
+	fmt.Printf("Inf filtered:                        %d\n", t.Stats.InfFiltered)
+	fmt.Printf("Points without fields filtered:      %d\n", t.Stats.FieldsFiltered)
 	fmt.Printf("Disk usage pre-conversion (bytes):   %d\n", preSize)
 	fmt.Printf("Disk usage post-conversion (bytes):  %d\n", postSize)
 	fmt.Printf("Reduction factor:                    %d%%\n", 100*(preSize-postSize)/preSize)
-	fmt.Printf("Bytes per TSM point:                 %.2f\n", float64(postSize)/float64(t.stats.PointsWritten))
-	fmt.Printf("Total conversion time:               %v\n", t.stats.TotalTime)
+	fmt.Printf("Bytes per TSM point:                 %.2f\n", float64(postSize)/float64(t.Stats.PointsWritten))
+	fmt.Printf("Total conversion time:               %v\n", t.Stats.TotalTime)
 	fmt.Println()
-}
-
-func (t *tracker) AddPointsRead(n int) {
-	atomic.AddUint64(&t.stats.PointsRead, uint64(n))
-}
-
-func (t *tracker) AddPointsWritten(n int) {
-	atomic.AddUint64(&t.stats.PointsWritten, uint64(n))
-}
-
-func (t *tracker) AddTSMBytes(n uint32) {
-	atomic.AddUint64(&t.stats.TsmBytesWritten, uint64(n))
-}
-
-func (t *tracker) IncrTSMFileCount() {
-	atomic.AddUint64(&t.stats.TsmFilesCreated, 1)
-}
-
-func (t *tracker) IncrNaN() {
-	atomic.AddUint64(&t.stats.NanFiltered, 1)
-}
-
-func (t *tracker) IncrInf() {
-	atomic.AddUint64(&t.stats.InfFiltered, 1)
 }
