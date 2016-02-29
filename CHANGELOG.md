@@ -49,6 +49,7 @@
 - [#5832](https://github.com/influxdata/influxdb/issues/5832): tsm: cache: need to check that snapshot has been sorted @jonseymour
 - [#5841](https://github.com/influxdata/influxdb/pull/5841): Reduce tsm allocations by converting time.Time to int64
 - [#5842](https://github.com/influxdata/influxdb/issues/5842): Add SeriesList binary marshaling
+- [#5854](https://github.com/influxdata/influxdb/issues/5854): failures of tests in tsdb/engine/tsm1 when compiled with go master
 
 ## v0.10.1 [2016-02-18]
 
