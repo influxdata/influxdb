@@ -416,6 +416,11 @@ func Test_Int64Encoder_MinMax(t *testing.T) {
 
 func Test_Int64Encoder_Quick(t *testing.T) {
 	quick.Check(func(values []int64) bool {
+		expected := values
+		if values == nil {
+			expected = []int64{} // is this really expected?
+		}
+
 		// Write values to encoder.
 		enc := NewInt64Encoder()
 		for _, v := range values {
@@ -439,8 +444,8 @@ func Test_Int64Encoder_Quick(t *testing.T) {
 		}
 
 		// Verify that input and output values match.
-		if !reflect.DeepEqual(values, got) {
-			t.Fatalf("mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", values, got)
+		if !reflect.DeepEqual(expected, got) {
+			t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", expected, got)
 		}
 
 		return true

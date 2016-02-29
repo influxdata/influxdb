@@ -73,6 +73,41 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 	}
 }
 
+// This tests writing two batches to the same series.  The first batch
+// is sorted.  The second batch is also sorted but contains duplicates.
+func TestCache_CacheWriteMulti_Duplicates(t *testing.T) {
+	v0 := NewValue(time.Unix(2, 0).UTC(), 1.0)
+	v1 := NewValue(time.Unix(3, 0).UTC(), 1.0)
+	values0 := Values{v0, v1}
+
+	v3 := NewValue(time.Unix(4, 0).UTC(), 2.0)
+	v4 := NewValue(time.Unix(5, 0).UTC(), 3.0)
+	v5 := NewValue(time.Unix(5, 0).UTC(), 3.0)
+	values1 := Values{v3, v4, v5}
+
+	c := NewCache(0)
+
+	if err := c.WriteMulti(map[string][]Value{"foo": values0}); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+
+	if err := c.WriteMulti(map[string][]Value{"foo": values1}); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+
+	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+
+	expAscValues := Values{v0, v1, v3, v5}
+	if exp, got := len(expAscValues), len(c.Values("foo")); exp != got {
+		t.Fatalf("value count mismatch: exp: %v, got %v", exp, got)
+	}
+	if deduped := c.Values("foo"); !reflect.DeepEqual(expAscValues, deduped) {
+		t.Fatalf("deduped ascending values for foo incorrect, exp: %v, got %v", expAscValues, deduped)
+	}
+}
+
 func TestCache_CacheValues(t *testing.T) {
 	v0 := NewValue(time.Unix(1, 0).UTC(), 0.0)
 	v1 := NewValue(time.Unix(2, 0).UTC(), 2.0)
@@ -142,7 +177,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot, ensuring non-snapshot data untouched.
-	c.ClearSnapshot(snapshot)
+	c.ClearSnapshot(true)
 	expValues = Values{v5, v4}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
@@ -164,7 +199,7 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	}
 
 	// Clear snapshot.
-	c.ClearSnapshot(snapshot)
+	c.ClearSnapshot(true)
 	if deduped := c.Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("post-snapshot-clear values for foo incorrect, exp: %v, got %v", Values(nil), deduped)
 	}
@@ -187,13 +222,13 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	}
 
 	// Grab snapshot, write should still fail since we're still using the memory.
-	snapshot := c.Snapshot()
+	_ = c.Snapshot()
 	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 
 	// Clear the snapshot and the write should now succeed.
-	c.ClearSnapshot(snapshot)
+	c.ClearSnapshot(true)
 	if err := c.Write("bar", Values{v1}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}

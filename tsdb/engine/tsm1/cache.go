@@ -13,6 +13,7 @@ var ErrCacheInvalidCheckpoint = fmt.Errorf("invalid checkpoint")
 
 // entry is a set of values and some metadata.
 type entry struct {
+	mu       sync.RWMutex
 	values   Values // All stored values.
 	needSort bool   // true if the values are out of order and require deduping.
 }
@@ -24,6 +25,18 @@ func newEntry() *entry {
 
 // add adds the given values to the entry.
 func (e *entry) add(values []Value) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	// See if the new values are sorted or contain duplicate timestamps
+	var prevTime int64
+	for _, v := range values {
+		if v.UnixNano() <= prevTime {
+			e.needSort = true
+			break
+		}
+		prevTime = v.UnixNano()
+	}
+
 	// if there are existing values make sure they're all less than the first of
 	// the new values being added
 	if len(e.values) == 0 {
@@ -36,25 +49,14 @@ func (e *entry) add(values []Value) {
 		}
 		e.values = append(e.values, values...)
 	}
-
-	// if there's only one value, we know it's sorted
-	if len(values) <= 1 || e.needSort {
-		return
-	}
-
-	// make sure the new values were in sorted order
-	min := values[0].UnixNano()
-	for _, v := range values[1:] {
-		if min >= v.UnixNano() {
-			e.needSort = true
-			break
-		}
-	}
 }
 
 // deduplicate sorts and orders the entry's values. If values are already deduped and
 // and sorted, the function does no work and simply returns.
 func (e *entry) deduplicate() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	if !e.needSort || len(e.values) == 0 {
 		return
 	}
@@ -62,8 +64,15 @@ func (e *entry) deduplicate() {
 	e.needSort = false
 }
 
+func (e *entry) count() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.values)
+}
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
+	commit  sync.Mutex
 	mu      sync.RWMutex
 	store   map[string]*entry
 	size    uint64
@@ -72,8 +81,8 @@ type Cache struct {
 	// snapshots are the cache objects that are currently being written to tsm files
 	// they're kept in memory while flushing so they can be queried along with the cache.
 	// they are read only and should never be modified
-	snapshots     []*Cache
-	snapshotsSize uint64
+	snapshot     *Cache
+	snapshotSize uint64
 }
 
 // NewCache returns an instance of a cache which will use a maximum of maxSize bytes of memory.
@@ -92,7 +101,7 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	// Enough room in the cache?
 	newSize := c.size + uint64(Values(values).Size())
-	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
+	if c.maxSize > 0 && newSize+c.snapshotSize > c.maxSize {
 		return ErrCacheMemoryExceeded
 	}
 
@@ -113,7 +122,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	// Enough room in the cache?
 	c.mu.RLock()
 	newSize := c.size + uint64(totalSz)
-	if c.maxSize > 0 && newSize+c.snapshotsSize > c.maxSize {
+	if c.maxSize > 0 && newSize+c.snapshotSize > c.maxSize {
 		c.mu.RUnlock()
 		return ErrCacheMemoryExceeded
 	}
@@ -132,20 +141,39 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 // Snapshot will take a snapshot of the current cache, add it to the slice of caches that
 // are being flushed, and reset the current cache with new values
 func (c *Cache) Snapshot() *Cache {
+	c.commit.Lock() // must be released by a subsequent call to ClearSnapshot.
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	snapshot := NewCache(c.maxSize)
-	snapshot.store = c.store
-	snapshot.size = c.size
+	if c.snapshot == nil {
+		c.snapshot = &Cache{
+			store: make(map[string]*entry),
+		}
+	}
 
+	// Append the current cache values to the snapshot
+	for k, e := range c.store {
+		e.mu.RLock()
+		if _, ok := c.snapshot.store[k]; ok {
+			c.snapshot.store[k].add(e.values)
+		} else {
+			c.snapshot.store[k] = e
+		}
+		c.snapshotSize += uint64(Values(e.values).Size())
+		if e.needSort {
+			c.snapshot.store[k].needSort = true
+		}
+		e.mu.RUnlock()
+	}
+
+	// Reset the cache
 	c.store = make(map[string]*entry)
 	c.size = 0
 
-	c.snapshots = append(c.snapshots, snapshot)
-	c.snapshotsSize += snapshot.size
+	c.snapshotSize += c.snapshot.size
 
-	return snapshot
+	return c.snapshot
 }
 
 // Deduplicate sorts the snapshot before returning it. The compactor and any queries
@@ -158,16 +186,15 @@ func (c *Cache) Deduplicate() {
 
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and
 // adjust the size
-func (c *Cache) ClearSnapshot(snapshot *Cache) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) ClearSnapshot(success bool) {
+	defer c.commit.Unlock()
 
-	for i, cache := range c.snapshots {
-		if cache == snapshot {
-			c.snapshots = append(c.snapshots[:i], c.snapshots[i+1:]...)
-			c.snapshotsSize -= snapshot.size
-			break
-		}
+	if success {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		c.snapshotSize = 0
+		c.snapshot = nil
 	}
 }
 
@@ -185,6 +212,9 @@ func (c *Cache) MaxSize() uint64 {
 
 // Keys returns a sorted slice of all keys under management by the cache.
 func (c *Cache) Keys() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	var a []string
 	for k, _ := range c.store {
 		a = append(a, k)
@@ -196,25 +226,8 @@ func (c *Cache) Keys() []string {
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key string) Values {
 	c.mu.RLock()
-	e := c.store[key]
-	if e != nil && e.needSort {
-		// Sorting is needed, so unlock and run the merge operation with
-		// a write-lock. It is actually possible that the data will be
-		// sorted by the time the merge runs, which would mean very occasionally
-		// a write-lock will be held when only a read-lock is required.
-		c.mu.RUnlock()
-		return func() Values {
-			c.mu.Lock()
-			defer c.mu.Unlock()
-			return c.merged(key)
-		}()
-	}
-
-	// No sorting required for key, so just merge while continuing to hold read-lock.
-	return func() Values {
-		defer c.mu.RUnlock()
-		return c.merged(key)
-	}()
+	defer c.mu.RUnlock()
+	return c.merged(key)
 }
 
 // Delete will remove the keys from the cache
@@ -234,7 +247,7 @@ func (c *Cache) Delete(keys []string) {
 func (c *Cache) merged(key string) Values {
 	e := c.store[key]
 	if e == nil {
-		if len(c.snapshots) == 0 {
+		if c.snapshot == nil {
 			// No values in hot cache or snapshots.
 			return nil
 		}
@@ -246,16 +259,19 @@ func (c *Cache) merged(key string) Values {
 	// Calculate the required size of the destination buffer.
 	var entries []*entry
 	sz := 0
-	for _, s := range c.snapshots {
-		e := s.store[key]
-		if e != nil {
-			entries = append(entries, e)
-			sz += len(e.values)
+
+	if c.snapshot != nil {
+		snapshotEntries := c.snapshot.store[key]
+		if snapshotEntries != nil {
+			snapshotEntries.deduplicate() // guarantee we are deduplicated
+			entries = append(entries, snapshotEntries)
+			sz += snapshotEntries.count()
 		}
 	}
+
 	if e != nil {
 		entries = append(entries, e)
-		sz += len(e.values)
+		sz += e.count()
 	}
 
 	// Any entries? If not, return.
@@ -270,10 +286,12 @@ func (c *Cache) merged(key string) Values {
 	values := make(Values, sz)
 	n := 0
 	for _, e := range entries {
+		e.mu.RLock()
 		if !needSort && n > 0 {
-			needSort = values[n-1].UnixNano() > e.values[0].UnixNano()
+			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
 		}
 		n += copy(values[n:], e.values)
+		e.mu.RUnlock()
 	}
 
 	if needSort {
