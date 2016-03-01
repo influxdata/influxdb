@@ -48,6 +48,14 @@ func (w *WriteShardRequest) SetShardID(id uint64) { w.pb.ShardID = &id }
 // ShardID gets the ShardID
 func (w *WriteShardRequest) ShardID() uint64 { return w.pb.GetShardID() }
 
+func (w *WriteShardRequest) SetDatabase(db string) { w.pb.Database = &db }
+
+func (w *WriteShardRequest) SetRetentionPolicy(rp string) { w.pb.RetentionPolicy = &rp }
+
+func (w *WriteShardRequest) Database() string { return w.pb.GetDatabase() }
+
+func (w *WriteShardRequest) RetentionPolicy() string { return w.pb.GetRetentionPolicy() }
+
 // Points returns the time series Points
 func (w *WriteShardRequest) Points() []models.Point { return w.unmarshalPoints() }
 

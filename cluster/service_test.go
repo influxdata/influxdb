@@ -23,10 +23,15 @@ func (m *metaClient) DataNode(nodeID uint64) (*meta.NodeInfo, error) {
 	}, nil
 }
 
+func (m *metaClient) ShardOwner(shardID uint64) (db, rp string, sgi *meta.ShardGroupInfo) {
+	return "db", "rp", &meta.ShardGroupInfo{}
+}
+
 type testService struct {
-	nodeID uint64
-	ln     net.Listener
-	muxln  net.Listener
+	nodeID    uint64
+	ln        net.Listener
+	muxln     net.Listener
+	responses chan *serviceResponse
 
 	TSDBStore TSDBStore
 }
@@ -46,6 +51,7 @@ func newTestWriteService(f func(shardID uint64, points []models.Point) error) te
 		muxln: muxln,
 	}
 	s.TSDBStore.WriteToShardFn = f
+	s.responses = make(chan *serviceResponse, 1024)
 	return s
 }
 
@@ -62,8 +68,8 @@ type serviceResponse struct {
 	points  []models.Point
 }
 
-func writeShardSuccess(shardID uint64, points []models.Point) error {
-	responses <- &serviceResponse{
+func (ts *testService) writeShardSuccess(shardID uint64, points []models.Point) error {
+	ts.responses <- &serviceResponse{
 		shardID: shardID,
 		points:  points,
 	}
@@ -79,13 +85,11 @@ func writeShardSlow(shardID uint64, points []models.Point) error {
 	return nil
 }
 
-var responses = make(chan *serviceResponse, 1024)
-
-func (testService) ResponseN(n int) ([]*serviceResponse, error) {
+func (ts *testService) ResponseN(n int) ([]*serviceResponse, error) {
 	var a []*serviceResponse
 	for {
 		select {
-		case r := <-responses:
+		case r := <-ts.responses:
 			a = append(a, r)
 			if len(a) == n {
 				return a, nil
