@@ -581,11 +581,6 @@ func (fsm *storeFSM) applyDeleteDataNodeCommand(cmd *internal.Command) interface
 	v := ext.(*internal.DeleteDataNodeCommand)
 
 	other := fsm.data.Clone()
-	node := other.DataNode(v.GetID())
-	if node == nil {
-		return ErrNodeNotFound
-	}
-
 	if err := other.DeleteDataNode(v.GetID()); err != nil {
 		return err
 	}
