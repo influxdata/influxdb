@@ -148,7 +148,8 @@ def run(command, allow_failure=False, shell=False):
             out = subprocess.check_output(command, stderr=subprocess.STDOUT, shell=shell)
         else:
             out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
-        print "[DEBUG] command output: \n{}\n".format(out)
+        if debug:
+            print "[DEBUG] command output: \n{}\n".format(out)
     except subprocess.CalledProcessError as e:
         print ""
         print ""
