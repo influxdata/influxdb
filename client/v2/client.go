@@ -324,7 +324,7 @@ func (bp *batchpoints) SetRetentionPolicy(rp string) {
 
 // Point represents a single data point
 type Point struct {
-	pt models.Point
+	models.Point
 }
 
 // NewPoint returns a point with the given timestamp. If a timestamp is not
@@ -347,43 +347,43 @@ func NewPoint(
 		return nil, err
 	}
 	return &Point{
-		pt: pt,
+		Point: pt,
 	}, nil
 }
 
 // String returns a line-protocol string of the Point
 func (p *Point) String() string {
-	return p.pt.String()
+	return p.Point.String()
 }
 
 // PrecisionString returns a line-protocol string of the Point, at precision
 func (p *Point) PrecisionString(precison string) string {
-	return p.pt.PrecisionString(precison)
+	return p.Point.PrecisionString(precison)
 }
 
 // Name returns the measurement name of the point
 func (p *Point) Name() string {
-	return p.pt.Name()
+	return p.Point.Name()
 }
 
 // Tags returns the tags associated with the point
 func (p *Point) Tags() map[string]string {
-	return p.pt.Tags()
+	return p.Point.Tags()
 }
 
 // Time return the timestamp for the point
 func (p *Point) Time() time.Time {
-	return p.pt.Time()
+	return p.Point.Time()
 }
 
 // UnixNano returns the unix nano time of the point
 func (p *Point) UnixNano() int64 {
-	return p.pt.UnixNano()
+	return p.Point.UnixNano()
 }
 
 // Fields returns the fields for the point
 func (p *Point) Fields() map[string]interface{} {
-	return p.pt.Fields()
+	return p.Point.Fields()
 }
 
 func (uc *udpclient) Write(bp BatchPoints) error {
@@ -392,7 +392,7 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 	d, _ = time.ParseDuration("1" + bp.Precision())
 
 	for _, p := range bp.Points() {
-		pointstring := p.pt.RoundedString(d) + "\n"
+		pointstring := p.Point.RoundedString(d) + "\n"
 
 		// Write and reset the buffer if we reach the max size
 		if b.Len()+len(pointstring) >= uc.payloadSize {
@@ -415,7 +415,7 @@ func (c *client) Write(bp BatchPoints) error {
 	var b bytes.Buffer
 
 	for _, p := range bp.Points() {
-		if _, err := b.WriteString(p.pt.PrecisionString(bp.Precision())); err != nil {
+		if _, err := b.WriteString(p.Point.PrecisionString(bp.Precision())); err != nil {
 			return err
 		}
 
