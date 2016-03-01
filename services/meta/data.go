@@ -53,7 +53,7 @@ func (data *Data) DataNode(id uint64) *NodeInfo {
 func (data *Data) CreateDataNode(host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.DataNodes {
-		if n.Host == host {
+		if n.TCPHost == tcpHost {
 			return ErrNodeExists
 		}
 	}
