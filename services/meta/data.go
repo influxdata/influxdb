@@ -105,47 +105,120 @@ func (data *Data) setDataNode(nodeID uint64, host, tcpHost string) error {
 	return nil
 }
 
-// DeleteDataNode removes a node from the metadata.
+// DeleteDataNode removes a node from the Meta store.
+//
+// If necessary, DeleteDataNode reassigns ownership of any shards that
+// would otherwise become orphaned by the removal of the node from the
+// cluster.
 func (data *Data) DeleteDataNode(id uint64) error {
-	// Node has to be larger than 0 to be real
-	if id == 0 {
-		return ErrNodeIDRequired
-	}
-
-	// Remove node id from all shard infos
-	for di, d := range data.Databases {
-		for ri, rp := range d.RetentionPolicies {
-			for sgi, sg := range rp.ShardGroups {
-				for si, s := range sg.Shards {
-					if s.OwnedBy(id) {
-						var owners []ShardOwner
-						for _, o := range s.Owners {
-							if o.NodeID != id {
-								owners = append(owners, o)
-							}
-						}
-						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = owners
-					}
-				}
-			}
-		}
-	}
-
-	// Remove this node from the in memory nodes
 	var nodes []NodeInfo
+
+	// Remove the data node from the store's list.
 	for _, n := range data.DataNodes {
-		if n.ID == id {
-			continue
+		if n.ID != id {
+			nodes = append(nodes, n)
 		}
-		nodes = append(nodes, n)
 	}
 
 	if len(nodes) == len(data.DataNodes) {
 		return ErrNodeNotFound
 	}
-
 	data.DataNodes = nodes
+
+	// Remove node id from all shard infos
+	for di, d := range data.Databases {
+		for ri, rp := range d.RetentionPolicies {
+			for sgi, sg := range rp.ShardGroups {
+				var (
+					nodeOwnerFreqs = make(map[int]int)
+					orphanedShards []ShardInfo
+				)
+				// Look through all shards in the shard group and
+				// determine (1) if a shard no longer has any owners
+				// (orphaned); (2) if all shards in the shard group
+				// are orphaned; and (3) the number of shards in this
+				// group owned by each data node in the cluster.
+				for si, s := range sg.Shards {
+					// Track of how many shards in the group are
+					// owned by each data node in the cluster.
+					var nodeIdx = -1
+					for i, owner := range s.Owners {
+						if owner.NodeID == id {
+							nodeIdx = i
+						}
+						nodeOwnerFreqs[int(owner.NodeID)]++
+					}
+
+					if nodeIdx > -1 {
+						// Data node owns shard, so relinquish ownership
+						// and set new owners on the shard.
+						s.Owners = append(s.Owners[:nodeIdx], s.Owners[nodeIdx+1:]...)
+						data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards[si].Owners = s.Owners
+					}
+
+					// Shard no longer owned. Will need reassigning
+					// an owner.
+					if len(s.Owners) == 0 {
+						orphanedShards = append(orphanedShards, s)
+					}
+				}
+
+				// Mark the shard group as deleted if it has no shards,
+				// or all of its shards are orphaned.
+				if len(sg.Shards) == 0 || len(orphanedShards) == len(sg.Shards) {
+					data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].DeletedAt = time.Now().UTC()
+					continue
+				}
+
+				// Reassign any orphaned shards. Delete the node we're
+				// dropping from the list of potential new owners.
+				delete(nodeOwnerFreqs, int(id))
+
+				for _, orphan := range orphanedShards {
+					newOwnerID, err := newShardOwner(orphan, nodeOwnerFreqs)
+					if err != nil {
+						return err
+					}
+
+					for si, s := range sg.Shards {
+						if s.ID == orphan.ID {
+							sg.Shards[si].Owners = append(sg.Shards[si].Owners, ShardOwner{NodeID: newOwnerID})
+							data.Databases[di].RetentionPolicies[ri].ShardGroups[sgi].Shards = sg.Shards
+							break
+						}
+					}
+
+				}
+			}
+		}
+	}
 	return nil
+}
+
+// newShardOwner sets the owner of the provided shard to the data node
+// that currently owns the fewest number of shards. If multiple nodes
+// own the same (fewest) number of shards, then one of those nodes
+// becomes the new shard owner.
+func newShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
+	var (
+		minId   = -1
+		minFreq int
+	)
+
+	for id, freq := range ownerFreqs {
+		if minId == -1 || freq < minFreq {
+			minId, minFreq = int(id), freq
+		}
+	}
+
+	if minId < 0 {
+		return 0, fmt.Errorf("cannot reassign shard %d due to lack of data nodes", s.ID)
+	}
+
+	// Update the shard owner frequencies and set the new owner on the
+	// shard.
+	ownerFreqs[minId]++
+	return uint64(minId), nil
 }
 
 // MetaNode returns a node by id.
@@ -1148,7 +1221,8 @@ type ShardGroupInfo struct {
 	Shards    []ShardInfo
 }
 
-// ShardGroupInfos is a collection of ShardGroupInfo
+// ShardGroupInfos implements sort.Interface on []ShardGroupInfo, based
+// on the StartTime field.
 type ShardGroupInfos []ShardGroupInfo
 
 func (a ShardGroupInfos) Len() int           { return len(a) }
@@ -1227,7 +1301,7 @@ type ShardInfo struct {
 	Owners []ShardOwner
 }
 
-// OwnedBy returns whether the shard's owner IDs includes nodeID.
+// OwnedBy determines whether the shard's owner IDs includes nodeID.
 func (si ShardInfo) OwnedBy(nodeID uint64) bool {
 	for _, so := range si.Owners {
 		if so.NodeID == nodeID {
