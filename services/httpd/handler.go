@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/stats"
 	"github.com/influxdata/influxdb/uuid"
 )
 
@@ -632,14 +633,22 @@ func MarshalJSON(v interface{}, pretty bool) []byte {
 func serveExpvar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	fmt.Fprintf(w, "{\n")
+
 	first := true
-	expvar.Do(func(kv expvar.KeyValue) {
+	visitor := func(kv expvar.KeyValue) {
 		if !first {
 			fmt.Fprintf(w, ",\n")
 		}
 		first = false
 		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
-	})
+	}
+
+	expvar.Do(visitor)
+	stats.Root.
+		Open().
+		Do(func(s stats.Statistics) { visitor(expvar.KeyValue{Key: s.Key(), Value: s}) }).
+		Close()
+
 	fmt.Fprintf(w, "\n}\n")
 }
 
