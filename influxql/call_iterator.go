@@ -295,46 +295,12 @@ func stringDistinctReduceSlice(a []StringPoint, opt *reduceOptions) []StringPoin
 func newMeanIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMeanReduce}, nil
+		return &floatMeanIterator{input: newBufFloatIterator(input), opt: opt}, nil
 	case IntegerIterator:
-		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMeanReduce}, nil
+		return &integerMeanIterator{input: newBufIntegerIterator(input), opt: opt}, nil
 	default:
 		return nil, fmt.Errorf("unsupported mean iterator type: %T", input)
 	}
-}
-
-// floatMeanReduce returns the mean value within a window.
-func floatMeanReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
-	if prev == nil {
-		return opt.startTime, curr.Value, nil
-	}
-
-	value := prev.Value * float64(prev.Aggregated)
-	if curr.Aggregated > 1 {
-		value += curr.Value * float64(curr.Aggregated)
-		value /= float64(prev.Aggregated + curr.Aggregated)
-	} else {
-		value += curr.Value
-		value /= float64(prev.Aggregated + 1)
-	}
-	return prev.Time, value, prev.Aux
-}
-
-// integerMeanReduceSlice returns the mean value within a window.
-func integerMeanReduce(prev *FloatPoint, curr *IntegerPoint, opt *reduceOptions) (int64, float64, []interface{}) {
-	if prev == nil {
-		return opt.startTime, float64(curr.Value), nil
-	}
-
-	value := prev.Value * float64(prev.Aggregated)
-	if curr.Aggregated > 1 {
-		value += float64(curr.Value) * float64(curr.Aggregated)
-		value /= float64(prev.Aggregated + curr.Aggregated)
-	} else {
-		value += float64(curr.Value)
-		value /= float64(prev.Aggregated + 1)
-	}
-	return prev.Time, value, prev.Aux
 }
 
 // newMedianIterator returns an iterator for operating on a median() call.

@@ -956,6 +956,90 @@ func (itr *floatReaderIterator) Next() *FloatPoint {
 	return p
 }
 
+// floatMeanIterator returns the mean of values for every interval.
+type floatMeanIterator struct {
+	input  *bufFloatIterator
+	opt    IteratorOptions
+	points []*FloatPoint
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *floatMeanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value.
+func (itr *floatMeanIterator) Next() *FloatPoint {
+	// Calculate the next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.next()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+func (itr *floatMeanIterator) next() []*FloatPoint {
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	// Create points by tags.
+	m := make(map[string]struct {
+		Name  string
+		Tags  Tags
+		Sum   float64
+		Count uint32
+	})
+	for {
+		// Read next point.
+		curr := itr.input.NextInWindow(startTime, endTime)
+		if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
+
+		prev, ok := m[id]
+		if !ok {
+			prev.Name = curr.Name
+			prev.Tags = tags
+		}
+
+		if curr.Aggregated != 0 {
+			prev.Sum += curr.Value * float64(curr.Aggregated)
+			prev.Count += curr.Aggregated
+		} else {
+			prev.Sum += curr.Value
+			prev.Count++
+		}
+		m[id] = prev
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	a := make([]*FloatPoint, len(m))
+	for i, k := range keys {
+		val := m[k]
+		a[i] = &FloatPoint{
+			Name:       val.Name,
+			Tags:       val.Tags,
+			Value:      float64(val.Sum) / float64(val.Count),
+			Aggregated: val.Count,
+			Time:       startTime,
+		}
+	}
+	return a
+}
+
 // IntegerIterator represents a stream of integer points.
 type IntegerIterator interface {
 	Iterator
@@ -1889,6 +1973,90 @@ func (itr *integerReaderIterator) Next() *IntegerPoint {
 		return nil
 	}
 	return p
+}
+
+// integerMeanIterator returns the mean of values for every interval.
+type integerMeanIterator struct {
+	input  *bufIntegerIterator
+	opt    IteratorOptions
+	points []*FloatPoint
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerMeanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value.
+func (itr *integerMeanIterator) Next() *FloatPoint {
+	// Calculate the next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.next()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+func (itr *integerMeanIterator) next() []*FloatPoint {
+	startTime, endTime := itr.opt.Window(itr.input.peekTime())
+
+	// Create points by tags.
+	m := make(map[string]struct {
+		Name  string
+		Tags  Tags
+		Sum   int64
+		Count uint32
+	})
+	for {
+		// Read next point.
+		curr := itr.input.NextInWindow(startTime, endTime)
+		if curr == nil {
+			break
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		id := curr.Name + "\x00" + tags.ID()
+
+		prev, ok := m[id]
+		if !ok {
+			prev.Name = curr.Name
+			prev.Tags = tags
+		}
+
+		if curr.Aggregated != 0 {
+			prev.Sum += curr.Value * int64(curr.Aggregated)
+			prev.Count += curr.Aggregated
+		} else {
+			prev.Sum += curr.Value
+			prev.Count++
+		}
+		m[id] = prev
+	}
+
+	// Reverse sort points by name & tag.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
+	a := make([]*FloatPoint, len(m))
+	for i, k := range keys {
+		val := m[k]
+		a[i] = &FloatPoint{
+			Name:       val.Name,
+			Tags:       val.Tags,
+			Value:      float64(val.Sum) / float64(val.Count),
+			Aggregated: val.Count,
+			Time:       startTime,
+		}
+	}
+	return a
 }
 
 // StringIterator represents a stream of string points.
