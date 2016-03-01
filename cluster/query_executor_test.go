@@ -202,6 +202,9 @@ type TSDBStore struct {
 }
 
 func (s *TSDBStore) CreateShard(database, policy string, shardID uint64) error {
+	if s.CreateShardFn == nil {
+		return nil
+	}
 	return s.CreateShardFn(database, policy, shardID)
 }
 

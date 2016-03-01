@@ -3,6 +3,8 @@ package internal;
 message WriteShardRequest {
     required uint64 ShardID = 1;
     repeated bytes  Points  = 2;
+    optional string Database = 3;
+    optional string RetentionPolicy = 4;
 }
 
 message WriteShardResponse {
