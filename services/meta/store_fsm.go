@@ -150,7 +150,7 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command, peers []strin
 	if len(other.MetaNodes) == 1 {
 		metaNode := other.MetaNodes[0]
 
-		if err := other.setDataNode(metaNode.ID, v.GetHost(), v.GetHost()); err != nil {
+		if err := other.SetDataNode(metaNode.ID, v.GetHost(), v.GetHost()); err != nil {
 			return err
 		}
 	} else {
@@ -566,7 +566,7 @@ func (fsm *storeFSM) applyCreateDataNodeCommand(cmd *internal.Command) interface
 	if len(other.MetaNodes) == 1 && len(other.DataNodes) == 0 {
 		metaNode := other.MetaNodes[0]
 
-		if err := other.setDataNode(metaNode.ID, v.GetHTTPAddr(), v.GetTCPAddr()); err != nil {
+		if err := other.SetDataNode(metaNode.ID, v.GetHTTPAddr(), v.GetTCPAddr()); err != nil {
 			return err
 		}
 	} else {

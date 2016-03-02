@@ -85,9 +85,9 @@ func (data *Data) CreateDataNode(host, tcpHost string) error {
 	return nil
 }
 
-// setDataNode adds a data node with a pre-specified nodeID.
+// SetDataNode adds a data node with a pre-specified nodeID.
 // this should only be used when the cluster is upgrading from 0.9 to 0.10
-func (data *Data) setDataNode(nodeID uint64, host, tcpHost string) error {
+func (data *Data) SetDataNode(nodeID uint64, host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.DataNodes {
 		if n.Host == host {
@@ -1197,6 +1197,21 @@ func (rpi RetentionPolicyInfo) clone() RetentionPolicyInfo {
 	}
 
 	return other
+}
+
+// MarshalBinary encodes rpi to a binary format.
+func (rpi *RetentionPolicyInfo) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(rpi.marshal())
+}
+
+// UnmarshalBinary decodes rpi from a binary format.
+func (rpi *RetentionPolicyInfo) UnmarshalBinary(data []byte) error {
+	var pb internal.RetentionPolicyInfo
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	rpi.unmarshal(&pb)
+	return nil
 }
 
 // shardGroupDuration returns the duration for a shard group based on a policy duration.
