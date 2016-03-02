@@ -1,8 +1,10 @@
 package meta
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -1522,6 +1524,50 @@ func (ui *UserInfo) unmarshal(pb *internal.UserInfo) {
 	for _, p := range pb.GetPrivileges() {
 		ui.Privileges[p.GetDatabase()] = influxql.Privilege(p.GetPrivilege())
 	}
+}
+
+type Lease struct {
+	Name       string    `json:"name"`
+	Expiration time.Time `json:"expiration"`
+	Owner      uint64    `json:"owner"`
+}
+
+type Leases struct {
+	mu sync.Mutex
+	m  map[string]*Lease
+	d  time.Duration
+}
+
+func NewLeases(d time.Duration) *Leases {
+	return &Leases{
+		m: make(map[string]*Lease),
+		d: d,
+	}
+}
+
+func (leases *Leases) Acquire(name string, nodeID uint64) (*Lease, error) {
+	leases.mu.Lock()
+	defer leases.mu.Unlock()
+
+	l, ok := leases.m[name]
+	if ok {
+		if time.Now().After(l.Expiration) || l.Owner == nodeID {
+			l.Expiration = time.Now().Add(leases.d)
+			l.Owner = nodeID
+			return l, nil
+		}
+		return l, errors.New("another node has the lease")
+	}
+
+	l = &Lease{
+		Name:       name,
+		Expiration: time.Now().Add(leases.d),
+		Owner:      nodeID,
+	}
+
+	leases.m[name] = l
+
+	return l, nil
 }
 
 // MarshalTime converts t to nanoseconds since epoch. A zero time returns 0.
