@@ -644,6 +644,24 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
+
+}
+
+func TestWAL_Reopen(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	wal := tsm1.NewWAL(dir)
+
+	cycle := func() {
+		if err := wal.Open(); err != nil {
+			t.Fatalf("failed to open WAL. got: %v, expecting: %v", err, nil)
+		}
+		if err := wal.Close(); err != nil {
+			t.Fatalf("failed to close WAL. got: %v, expecting: %v", err, nil)
+		}
+	}
+	cycle()
+	cycle()
 }
 
 func BenchmarkWALSegmentWriter(b *testing.B) {

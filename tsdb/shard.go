@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -17,9 +16,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/stats"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 )
 
@@ -100,7 +99,7 @@ type Shard struct {
 	enabled bool
 
 	// expvar-based stats.
-	statMap *expvar.Map
+	stats stats.Recorder
 
 	logger *log.Logger
 
@@ -121,7 +120,6 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		"database":        db,
 		"retentionPolicy": rp,
 	}
-	statMap := influxdb.NewStatistics(key, "shard", tags)
 
 	s := &Shard{
 		index:   index,
@@ -134,9 +132,18 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		database:        db,
 		retentionPolicy: rp,
 
-		statMap:      statMap,
 		LogOutput:    os.Stderr,
 		EnableOnOpen: true,
+		stats: stats.Root.
+			NewBuilder(key, "shard", tags).
+			DeclareInt(statWritePointsFail, 0).
+			DeclareInt(statFieldsCreate, 0).
+			DeclareInt(statSeriesCreate, 0).
+			DeclareInt(statWriteBytes, 0).
+			DeclareInt(statWritePointsOK, 0).
+			DeclareInt(statWriteReq, 0).
+			DeclareInt(statDiskBytes, 0).
+			MustBuild(),
 	}
 	s.SetLogOutput(os.Stderr)
 	return s
@@ -170,7 +177,7 @@ func (s *Shard) Path() string { return s.path }
 
 // Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
-	if err := func() error {
+	if err := func() (err error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -203,13 +210,16 @@ func (s *Shard) Open() error {
 		}
 
 		count := s.index.SeriesShardN(s.id)
-		s.statMap.Add(statSeriesCreate, int64(count))
+		s.stats.AddInt(statSeriesCreate, int64(count))
 
 		s.engine = e
 
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
 		go s.monitorSize()
+		if !s.stats.IsOpen() {
+			s.stats.Open()
+		}
 
 		return nil
 	}(); err != nil {
@@ -242,6 +252,10 @@ func (s *Shard) close() error {
 	case <-s.closing:
 	default:
 		close(s.closing)
+	}
+
+	if s.stats.IsOpen() {
+		s.stats.Close()
 	}
 
 	// Don't leak our shard ID and series keys in the index
@@ -332,13 +346,13 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.statMap.Add(statWriteReq, 1)
+	s.stats.AddInt(statWriteReq, 1)
 
 	fieldsToCreate, err := s.validateSeriesAndFields(points)
 	if err != nil {
 		return err
 	}
-	s.statMap.Add(statFieldsCreate, int64(len(fieldsToCreate)))
+	s.stats.AddInt(statFieldsCreate, int64(len(fieldsToCreate)))
 
 	// add any new fields and keep track of what needs to be saved
 	if err := s.createFieldsAndMeasurements(fieldsToCreate); err != nil {
@@ -347,10 +361,10 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 	// Write to the engine.
 	if err := s.engine.WritePoints(points); err != nil {
-		s.statMap.Add(statWritePointsFail, 1)
+		s.stats.AddInt(statWritePointsFail, 1)
 		return fmt.Errorf("engine: %s", err)
 	}
-	s.statMap.Add(statWritePointsOK, int64(len(points)))
+	s.stats.AddInt(statWritePointsOK, int64(len(points)))
 
 	return nil
 }
@@ -433,7 +447,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		ss := s.index.Series(key)
 		if ss == nil {
 			ss = NewSeries(key, p.Tags())
-			s.statMap.Add(statSeriesCreate, 1)
+			s.stats.AddInt(statSeriesCreate, 1)
 		}
 
 		ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), ss)
@@ -481,7 +495,7 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 	n, err := s.engine.WriteTo(w)
-	s.statMap.Add(statWriteBytes, int64(n))
+	s.stats.AddInt(statWriteBytes, int64(n))
 	return n, err
 }
 
@@ -672,9 +686,7 @@ func (s *Shard) monitorSize() {
 				s.logger.Printf("Error collecting shard size: %v", err)
 				continue
 			}
-			sizeStat := new(expvar.Int)
-			sizeStat.Set(size)
-			s.statMap.Set(statDiskBytes, sizeStat)
+			s.stats.SetInt(statDiskBytes, size)
 		}
 	}
 }
