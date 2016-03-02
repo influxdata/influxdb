@@ -385,9 +385,9 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 			return
 		}
+		defer b.Close()
 		body = b
 	}
-	defer body.Close()
 
 	b, err := ioutil.ReadAll(body)
 	if err != nil {
