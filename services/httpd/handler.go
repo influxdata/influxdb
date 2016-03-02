@@ -64,8 +64,11 @@ type Handler struct {
 		Ping(checkAllMetaServers bool) error
 	}
 
-	QueryAuthorizer *meta.QueryAuthorizer
-	QueryExecutor   influxql.QueryExecutor
+	QueryAuthorizer interface {
+		AuthorizeQuery(u *meta.UserInfo, query *influxql.Query, database string) error
+	}
+
+	QueryExecutor influxql.QueryExecutor
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
