@@ -76,6 +76,10 @@ func Test_BooleanEncoder_Multi_Compressed(t *testing.T) {
 
 func Test_BooleanEncoder_Quick(t *testing.T) {
 	if err := quick.Check(func(values []bool) bool {
+		expected := values
+		if values == nil {
+			expected = []bool{}
+		}
 		// Write values to encoder.
 		enc := tsm1.NewBooleanEncoder()
 		for _, v := range values {
@@ -96,8 +100,8 @@ func Test_BooleanEncoder_Quick(t *testing.T) {
 		}
 
 		// Verify that input and output values match.
-		if !reflect.DeepEqual(values, got) {
-			t.Fatalf("mismatch:\n\nexp=%+v\n\ngot=%+v\n\n", values, got)
+		if !reflect.DeepEqual(expected, got) {
+			t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", expected, got)
 		}
 
 		return true
