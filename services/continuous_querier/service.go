@@ -40,7 +40,6 @@ type metaClient interface {
 	AcquireLease(name string) (l *meta.Lease, err error)
 	Databases() ([]meta.DatabaseInfo, error)
 	Database(name string) (*meta.DatabaseInfo, error)
-	NodeID() uint64
 }
 
 // RunRequest is a request to run one or more CQs.
