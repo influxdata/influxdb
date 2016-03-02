@@ -406,8 +406,8 @@ func (itr *{{.name}}LimitIterator) Next() *{{.Name}}Point {
 
 		// Read next point if we're beyond the limit.
 		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
-			// If there's no interval and no groups then simply exit.
-			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 {
+			// If there's no interval, no groups, and a single source then simply exit.
+			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 && len(itr.opt.Sources) == 1 {
 				return nil
 			}
 			continue
