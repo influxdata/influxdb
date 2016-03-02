@@ -1327,7 +1327,6 @@ func TestMetaService_AcquireLease(t *testing.T) {
 		t.Fatalf("owner ID wrong. exp %d got %d", n1.ID, l.Owner)
 	}
 
-	t.Logf("c1: %d, c2: %d", c1.NodeID(), c2.NodeID())
 	// Client 2 attempts to acquire the same lease.  Should fail.
 	l, err = c2.AcquireLease("foo")
 	if err == nil {
