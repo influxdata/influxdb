@@ -5,11 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"math"
-
-	"github.com/influxdb/influxdb/influxql"
 )
 
 const maxStringLength = 64 * 1024
+
+const (
+	fieldFloat   = 1
+	fieldInteger = 2
+	fieldBoolean = 3
+	fieldString  = 4
+)
 
 var (
 	// ErrFieldNotFound is returned when a field cannot be found.
@@ -71,14 +76,13 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 	}
 
 	switch field.Type {
-	case influxql.Float:
-		// Move bytes forward.
+	case fieldFloat:
 		return math.Float64frombits(binary.BigEndian.Uint64(b[1:9])), nil
-	case influxql.Integer:
+	case fieldInteger:
 		return int64(binary.BigEndian.Uint64(b[1:9])), nil
-	case influxql.Boolean:
+	case fieldBoolean:
 		return b[1] == 1, nil
-	case influxql.String:
+	case fieldString:
 		return string(b[3 : 3+binary.BigEndian.Uint16(b[1:3])]), nil
 	default:
 		panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))

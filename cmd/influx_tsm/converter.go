@@ -9,6 +9,11 @@ import (
 	"github.com/influxdb/influxdb/tsdb/engine/tsm1"
 )
 
+const (
+	maxBlocksPerKey = 65535
+)
+
+// KeyIterator is used to iterate over b* keys for conversion to tsm keys
 type KeyIterator interface {
 	Next() bool
 	Read() (string, []tsm1.Value, error)
@@ -40,6 +45,8 @@ func (c *Converter) Process(iter KeyIterator) error {
 
 	// Iterate until no more data remains.
 	var w tsm1.TSMWriter
+	var keyCount map[string]int
+
 	for iter.Next() {
 		k, v, err := iter.Read()
 		if err != nil {
@@ -51,16 +58,18 @@ func (c *Converter) Process(iter KeyIterator) error {
 			if err != nil {
 				return err
 			}
+			keyCount = map[string]int{}
 		}
 		if err := w.Write(k, v); err != nil {
 			return err
 		}
+		keyCount[k]++
 
 		c.stats.AddPointsRead(len(v))
 		c.stats.AddPointsWritten(len(v))
 
 		// If we have a max file size configured and we're over it, start a new TSM file.
-		if w.Size() > c.maxTSMFileSize {
+		if w.Size() > c.maxTSMFileSize || keyCount[k] == maxBlocksPerKey {
 			if err := w.WriteIndex(); err != nil && err != tsm1.ErrNoValues {
 				return err
 			}

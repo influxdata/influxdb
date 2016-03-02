@@ -6,6 +6,7 @@
 - [#5857](https://github.com/influxdata/influxdb/issues/5857): panic in tsm1.Values.Deduplicate
 - [#5861](https://github.com/influxdata/influxdb/pull/5861): Fix panic when dropping subscription for unknown retention policy.
 - [#5880](https://github.com/influxdata/influxdb/issues/5880): TCP connection closed after write (regression/change from 0.9.6)
+- [#5865](https://github.com/influxdata/influxdb/issues/5865): Conversion to tsm fails with exceeds max index value
 
 ## v0.10.1 [2016-02-18]
 
