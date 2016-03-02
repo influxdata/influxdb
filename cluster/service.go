@@ -250,22 +250,23 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 	// to check the metastore to determine what database and retention policy this
 	// shard should reside within.
 	if err == tsdb.ErrShardNotFound {
-
-		// Query the metastore for the owner of this shard
-		database, retentionPolicy, sgi := s.MetaClient.ShardOwner(req.ShardID())
-		if sgi == nil {
-			// If we can't find it, then we need to drop this request
-			// as it is no longer valid.  This could happen if writes were queued via
-			// hinted handoff and delivered after a shard group was deleted.
-			s.Logger.Printf("drop write request: shard=%d. shard group does not exist or was deleted", req.ShardID())
+		db, rp := req.Database(), req.RetentionPolicy()
+		if db == "" || rp == "" {
+			s.Logger.Printf("drop write request: shard=%d. no database or rentention policy received", req.ShardID())
 			return nil
 		}
 
-		err = s.TSDBStore.CreateShard(database, retentionPolicy, req.ShardID())
+		err = s.TSDBStore.CreateShard(req.Database(), req.RetentionPolicy(), req.ShardID())
 		if err != nil {
-			return err
+			s.statMap.Add(writeShardFail, 1)
+			return fmt.Errorf("create shard %d: %s", req.ShardID(), err)
 		}
-		return s.TSDBStore.WriteToShard(req.ShardID(), points)
+
+		err = s.TSDBStore.WriteToShard(req.ShardID(), points)
+		if err != nil {
+			s.statMap.Add(writeShardFail, 1)
+			return fmt.Errorf("write shard %d: %s", req.ShardID(), err)
+		}
 	}
 
 	if err != nil {

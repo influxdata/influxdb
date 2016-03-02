@@ -256,7 +256,7 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 		return nil, err
 	}
 
-	n, err := c.DataNodeByHTTPHost(httpAddr)
+	n, err := c.DataNodeByTCPHost(tcpAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +271,18 @@ func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.Host == httpAddr {
+			return &n, nil
+		}
+	}
+
+	return nil, ErrNodeNotFound
+}
+
+// DataNodeByTCPHost returns the data node with the give http bind address
+func (c *Client) DataNodeByTCPHost(tcpAddr string) (*NodeInfo, error) {
+	nodes, _ := c.DataNodes()
+	for _, n := range nodes {
+		if n.TCPHost == tcpAddr {
 			return &n, nil
 		}
 	}
