@@ -34,6 +34,7 @@ type ShardWriter struct {
 
 	MetaClient interface {
 		DataNode(id uint64) (ni *meta.NodeInfo, err error)
+		ShardOwner(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo)
 	}
 }
 
@@ -61,9 +62,20 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point)
 		conn.Close() // return to pool
 	}(conn)
 
+	// Determine the location of this shard and whether it still exists
+	db, rp, sgi := w.MetaClient.ShardOwner(shardID)
+	if sgi == nil {
+		// If we can't get the shard group for this shard, then we need to drop this request
+		// as it is no longer valid.  This could happen if writes were queued via
+		// hinted handoff and we're processing the queue after a shard group was deleted.
+		return nil
+	}
+
 	// Build write request.
 	var request WriteShardRequest
 	request.SetShardID(shardID)
+	request.SetDatabase(db)
+	request.SetRetentionPolicy(rp)
 	request.AddPoints(points)
 
 	// Marshal into protocol buffers.

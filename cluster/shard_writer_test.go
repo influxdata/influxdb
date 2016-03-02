@@ -13,7 +13,8 @@ import (
 
 // Ensure the shard writer can successfully write a single request.
 func TestShardWriter_WriteShard_Success(t *testing.T) {
-	ts := newTestWriteService(writeShardSuccess)
+	ts := newTestWriteService(nil)
+	ts.TSDBStore.WriteToShardFn = ts.writeShardSuccess
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
 	s.TSDBStore = &ts.TSDBStore
@@ -60,7 +61,8 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 
 // Ensure the shard writer can successful write a multiple requests.
 func TestShardWriter_WriteShard_Multiple(t *testing.T) {
-	ts := newTestWriteService(writeShardSuccess)
+	ts := newTestWriteService(nil)
+	ts.TSDBStore.WriteToShardFn = ts.writeShardSuccess
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
 	s.TSDBStore = &ts.TSDBStore
@@ -137,7 +139,8 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 
 // Ensure the shard writer returns an error when dialing times out.
 func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
-	ts := newTestWriteService(writeShardSuccess)
+	ts := newTestWriteService(nil)
+	ts.TSDBStore.WriteToShardFn = ts.writeShardSuccess
 	s := cluster.NewService(cluster.Config{})
 	s.Listener = ts.muxln
 	s.TSDBStore = &ts.TSDBStore
