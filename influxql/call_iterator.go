@@ -62,44 +62,60 @@ func newCountIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatCountReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(floatCountReduce)
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerCountReduce}, nil
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(integerCountReduce)
+			return fn, fn
+		}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported count iterator type: %T", input)
 	}
 }
 
 // floatCountReduce returns the count of points.
-func floatCountReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+func floatCountReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil {
-		return opt.startTime, 1, nil
+		return ZeroTime, 1, nil
 	}
-	return prev.Time, prev.Value + 1, nil
+	return ZeroTime, prev.Value + 1, nil
 }
 
 // integerCountReduce returns the count of points.
-func integerCountReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+func integerCountReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil {
-		return opt.startTime, 1, nil
+		return ZeroTime, 1, nil
 	}
-	return prev.Time, prev.Value + 1, nil
+	return ZeroTime, prev.Value + 1, nil
 }
 
 // newMinIterator returns an iterator for operating on a min() call.
 func newMinIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMinReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(floatMinReduce)
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMinReduce}, nil
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(integerMinReduce)
+			return fn, fn
+		}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported min iterator type: %T", input)
 	}
 }
 
 // floatMinReduce returns the minimum value between prev & curr.
-func floatMinReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+func floatMinReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil || curr.Value < prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -107,7 +123,7 @@ func floatMinReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64,
 }
 
 // integerMinReduce returns the minimum value between prev & curr.
-func integerMinReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+func integerMinReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil || curr.Value < prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -118,16 +134,24 @@ func integerMinReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int6
 func newMaxIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMaxReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(floatMaxReduce)
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMaxReduce}, nil
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(integerMaxReduce)
+			return fn, fn
+		}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported max iterator type: %T", input)
 	}
 }
 
 // floatMaxReduce returns the maximum value between prev & curr.
-func floatMaxReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+func floatMaxReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil || curr.Value > prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -135,7 +159,7 @@ func floatMaxReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64,
 }
 
 // integerMaxReduce returns the maximum value between prev & curr.
-func integerMaxReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+func integerMaxReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil || curr.Value > prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -146,26 +170,34 @@ func integerMaxReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int6
 func newSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatSumReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(floatSumReduce)
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerSumReduce}, nil
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(integerSumReduce)
+			return fn, fn
+		}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported sum iterator type: %T", input)
 	}
 }
 
 // floatSumReduce returns the sum prev value & curr value.
-func floatSumReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+func floatSumReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil {
-		return curr.Time, curr.Value, nil
+		return ZeroTime, curr.Value, nil
 	}
 	return prev.Time, prev.Value + curr.Value, nil
 }
 
 // integerSumReduce returns the sum prev value & curr value.
-func integerSumReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+func integerSumReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil {
-		return curr.Time, curr.Value, nil
+		return ZeroTime, curr.Value, nil
 	}
 	return prev.Time, prev.Value + curr.Value, nil
 }
@@ -174,16 +206,24 @@ func integerSumReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int6
 func newFirstIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatFirstReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(floatFirstReduce)
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerFirstReduce}, nil
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(integerFirstReduce)
+			return fn, fn
+		}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported first iterator type: %T", input)
 	}
 }
 
 // floatFirstReduce returns the first point sorted by time.
-func floatFirstReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+func floatFirstReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil || curr.Time < prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -191,7 +231,7 @@ func floatFirstReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float6
 }
 
 // integerFirstReduce returns the first point sorted by time.
-func integerFirstReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+func integerFirstReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil || curr.Time < prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -202,16 +242,24 @@ func integerFirstReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, in
 func newLastIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatLastReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatFuncReducer(floatLastReduce)
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerLastReduce}, nil
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerFuncReducer(integerLastReduce)
+			return fn, fn
+		}
+		return &integerReduceIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported last iterator type: %T", input)
 	}
 }
 
 // floatLastReduce returns the last point sorted by time.
-func floatLastReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
+func floatLastReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 	if prev == nil || curr.Time > prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -219,7 +267,7 @@ func floatLastReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64
 }
 
 // integerLastReduce returns the last point sorted by time.
-func integerLastReduce(prev, curr *IntegerPoint, opt *reduceOptions) (int64, int64, []interface{}) {
+func integerLastReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil || curr.Time > prev.Time || (curr.Time == prev.Time && curr.Value > prev.Value) {
 		return curr.Time, curr.Value, curr.Aux
 	}
@@ -295,46 +343,20 @@ func stringDistinctReduceSlice(a []StringPoint, opt *reduceOptions) []StringPoin
 func newMeanIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
-		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, fn: floatMeanReduce}, nil
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatMeanReducer()
+			return fn, fn
+		}
+		return &floatReduceIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
-		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, fn: integerMeanReduce}, nil
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerMeanReducer()
+			return fn, fn
+		}
+		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported mean iterator type: %T", input)
 	}
-}
-
-// floatMeanReduce returns the mean value within a window.
-func floatMeanReduce(prev, curr *FloatPoint, opt *reduceOptions) (int64, float64, []interface{}) {
-	if prev == nil {
-		return opt.startTime, curr.Value, nil
-	}
-
-	value := prev.Value * float64(prev.Aggregated)
-	if curr.Aggregated > 1 {
-		value += curr.Value * float64(curr.Aggregated)
-		value /= float64(prev.Aggregated + curr.Aggregated)
-	} else {
-		value += curr.Value
-		value /= float64(prev.Aggregated + 1)
-	}
-	return prev.Time, value, prev.Aux
-}
-
-// integerMeanReduceSlice returns the mean value within a window.
-func integerMeanReduce(prev *FloatPoint, curr *IntegerPoint, opt *reduceOptions) (int64, float64, []interface{}) {
-	if prev == nil {
-		return opt.startTime, float64(curr.Value), nil
-	}
-
-	value := prev.Value * float64(prev.Aggregated)
-	if curr.Aggregated > 1 {
-		value += float64(curr.Value) * float64(curr.Aggregated)
-		value /= float64(prev.Aggregated + curr.Aggregated)
-	} else {
-		value += float64(curr.Value)
-		value /= float64(prev.Aggregated + 1)
-	}
-	return prev.Time, value, prev.Aux
 }
 
 // newMedianIterator returns an iterator for operating on a median() call.
@@ -908,7 +930,7 @@ func newIntegerDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) 
 
 type integerReduceFloatIterator struct {
 	input  *bufIntegerIterator
-	fn     integerReduceFloatFunc
+	create func() (IntegerPointAggregator, FloatPointEmitter)
 	opt    IteratorOptions
 	points []*FloatPoint
 }
@@ -932,19 +954,22 @@ func (itr *integerReduceFloatIterator) Next() *FloatPoint {
 	return p
 }
 
+// floatReduceIntegerPoint stores the reduced data for a name/tag combination.
+type integerReduceFloatPoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator IntegerPointAggregator
+	Emitter    FloatPointEmitter
+}
+
 // reduce executes fn once for every point in the next window.
 // The previous value for the dimension is passed to fn.
 func (itr *integerReduceFloatIterator) reduce() []*FloatPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
-	}
-
 	// Create points by tags.
-	m := make(map[string]*FloatPoint)
+	m := make(map[string]*integerReduceFloatPoint)
 	for {
 		// Read next point.
 		curr := itr.input.NextInWindow(startTime, endTime)
@@ -956,22 +981,19 @@ func (itr *integerReduceFloatIterator) reduce() []*FloatPoint {
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
 		id := curr.Name + "\x00" + tags.ID()
 
-		// Pass previous and current points to reducer.
-		prev := m[id]
-		t, v, aux := itr.fn(prev, curr, &reduceOptions)
-		if t == ZeroTime {
-			continue
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
 		}
-
-		// If previous value didn't exist, create it and copy values.
-		if prev == nil {
-			prev = &FloatPoint{Name: curr.Name, Tags: tags}
-			m[id] = prev
-		}
-		prev.Time = t
-		prev.Value = v
-		prev.Aux = aux
-		prev.Aggregated++
+		rp.Aggregator.Aggregate(curr)
 	}
 
 	// Reverse sort points by name & tag.
@@ -983,18 +1005,16 @@ func (itr *integerReduceFloatIterator) reduce() []*FloatPoint {
 
 	a := make([]*FloatPoint, len(m))
 	for i, k := range keys {
-		a[i] = m[k]
-	}
-
-	// Set the time on each point to the beginning of the interval.
-	for _, p := range a {
+		rp := m[k]
+		p := rp.Emitter.Emit()
+		p.Name = rp.Name
+		p.Tags = rp.Tags
 		p.Time = startTime
+		a[i] = p
 	}
 
 	return a
 }
-
-type integerReduceFloatFunc func(prev *FloatPoint, curr *IntegerPoint, opt *reduceOptions) (int64, float64, []interface{})
 
 // integerReduceSliceFloatIterator executes a reducer on all points in a window and buffers the result.
 // This iterator receives an integer iterator but produces a float iterator.
