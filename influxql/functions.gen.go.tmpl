@@ -1,0 +1,41 @@
+package influxql
+
+{{range .}}
+
+// {{.Name}}PointAggregator aggregates points to produce a single point.
+type {{.Name}}PointAggregator interface {
+	Aggregate(p *{{.Name}}Point)
+}
+
+// {{.Name}}PointEmitter produces a single point from an aggregate.
+type {{.Name}}PointEmitter interface {
+	Emit() *{{.Name}}Point
+}
+
+// {{.Name}}ReduceFunc is the function called by a {{.Name}}Point reducer.
+type {{.Name}}ReduceFunc func(prev, curr *{{.Name}}Point) (t int64, v {{.Type}}, aux []interface{})
+
+type {{.Name}}FuncReducer struct {
+	prev *{{.Name}}Point
+	fn   {{.Name}}ReduceFunc
+}
+
+func New{{.Name}}FuncReducer(fn {{.Name}}ReduceFunc) *{{.Name}}FuncReducer {
+	return &{{.Name}}FuncReducer{fn: fn}
+}
+
+func (r *{{.Name}}FuncReducer) Aggregate(p *{{.Name}}Point) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &{{.Name}}Point{}
+	}
+  r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *{{.Name}}FuncReducer) Emit() *{{.Name}}Point {
+	return r.prev
+}
+{{end}}

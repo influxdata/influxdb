@@ -626,7 +626,7 @@ func (itr *floatChanIterator) Next() *FloatPoint { return <-itr.c }
 // floatReduceIterator executes a reducer for every interval and buffers the result.
 type floatReduceIterator struct {
 	input  *bufFloatIterator
-	fn     floatReduceFunc
+	create func() (FloatPointAggregator, FloatPointEmitter)
 	opt    IteratorOptions
 	points []*FloatPoint
 }
@@ -650,19 +650,22 @@ func (itr *floatReduceIterator) Next() *FloatPoint {
 	return p
 }
 
+// floatReducePoint stores the reduced data for a name/tag combination.
+type floatReducePoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator FloatPointAggregator
+	Emitter    FloatPointEmitter
+}
+
 // reduce executes fn once for every point in the next window.
 // The previous value for the dimension is passed to fn.
 func (itr *floatReduceIterator) reduce() []*FloatPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
-	}
-
 	// Create points by tags.
-	m := make(map[string]*FloatPoint)
+	m := make(map[string]*floatReducePoint)
 	for {
 		// Read next point.
 		curr := itr.input.NextInWindow(startTime, endTime)
@@ -674,22 +677,19 @@ func (itr *floatReduceIterator) reduce() []*FloatPoint {
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
 		id := curr.Name + "\x00" + tags.ID()
 
-		// Pass previous and current points to reducer.
-		prev := m[id]
-		t, v, aux := itr.fn(prev, curr, &reduceOptions)
-		if t == ZeroTime {
-			continue
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReducePoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
 		}
-
-		// If previous value didn't exist, create it and copy values.
-		if prev == nil {
-			prev = &FloatPoint{Name: curr.Name, Tags: tags}
-			m[id] = prev
-		}
-		prev.Time = t
-		prev.Value = v
-		prev.Aux = aux
-		prev.Aggregated++
+		rp.Aggregator.Aggregate(curr)
 	}
 
 	// Reverse sort points by name & tag.
@@ -701,19 +701,16 @@ func (itr *floatReduceIterator) reduce() []*FloatPoint {
 
 	a := make([]*FloatPoint, len(m))
 	for i, k := range keys {
-		a[i] = m[k]
-	}
-
-	// Set the time on each point to the beginning of the interval.
-	for _, p := range a {
+		rp := m[k]
+		p := rp.Emitter.Emit()
+		p.Name = rp.Name
+		p.Tags = rp.Tags
 		p.Time = startTime
+		a[i] = p
 	}
 
 	return a
 }
-
-// floatReduceFunc is the function called by a FloatPoint reducer.
-type floatReduceFunc func(prev, curr *FloatPoint, opt *reduceOptions) (t int64, v float64, aux []interface{})
 
 // floatReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type floatReduceSliceIterator struct {
@@ -954,90 +951,6 @@ func (itr *floatReaderIterator) Next() *FloatPoint {
 		return nil
 	}
 	return p
-}
-
-// floatMeanIterator returns the mean of values for every interval.
-type floatMeanIterator struct {
-	input  *bufFloatIterator
-	opt    IteratorOptions
-	points []*FloatPoint
-}
-
-// Close closes the iterator and all child iterators.
-func (itr *floatMeanIterator) Close() error { return itr.input.Close() }
-
-// Next returns the next value.
-func (itr *floatMeanIterator) Next() *FloatPoint {
-	// Calculate the next window if we have no more points.
-	if len(itr.points) == 0 {
-		itr.points = itr.next()
-		if len(itr.points) == 0 {
-			return nil
-		}
-	}
-
-	// Pop next point off the stack.
-	p := itr.points[len(itr.points)-1]
-	itr.points = itr.points[:len(itr.points)-1]
-	return p
-}
-
-func (itr *floatMeanIterator) next() []*FloatPoint {
-	startTime, endTime := itr.opt.Window(itr.input.peekTime())
-
-	// Create points by tags.
-	m := make(map[string]struct {
-		Name  string
-		Tags  Tags
-		Sum   float64
-		Count uint32
-	})
-	for {
-		// Read next point.
-		curr := itr.input.NextInWindow(startTime, endTime)
-		if curr == nil {
-			break
-		} else if curr.Nil {
-			continue
-		}
-		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
-
-		prev, ok := m[id]
-		if !ok {
-			prev.Name = curr.Name
-			prev.Tags = tags
-		}
-
-		if curr.Aggregated != 0 {
-			prev.Sum += curr.Value * float64(curr.Aggregated)
-			prev.Count += curr.Aggregated
-		} else {
-			prev.Sum += curr.Value
-			prev.Count++
-		}
-		m[id] = prev
-	}
-
-	// Reverse sort points by name & tag.
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
-
-	a := make([]*FloatPoint, len(m))
-	for i, k := range keys {
-		val := m[k]
-		a[i] = &FloatPoint{
-			Name:       val.Name,
-			Tags:       val.Tags,
-			Value:      float64(val.Sum) / float64(val.Count),
-			Aggregated: val.Count,
-			Time:       startTime,
-		}
-	}
-	return a
 }
 
 // IntegerIterator represents a stream of integer points.
@@ -1645,7 +1558,7 @@ func (itr *integerChanIterator) Next() *IntegerPoint { return <-itr.c }
 // integerReduceIterator executes a reducer for every interval and buffers the result.
 type integerReduceIterator struct {
 	input  *bufIntegerIterator
-	fn     integerReduceFunc
+	create func() (IntegerPointAggregator, IntegerPointEmitter)
 	opt    IteratorOptions
 	points []*IntegerPoint
 }
@@ -1669,19 +1582,22 @@ func (itr *integerReduceIterator) Next() *IntegerPoint {
 	return p
 }
 
+// integerReducePoint stores the reduced data for a name/tag combination.
+type integerReducePoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator IntegerPointAggregator
+	Emitter    IntegerPointEmitter
+}
+
 // reduce executes fn once for every point in the next window.
 // The previous value for the dimension is passed to fn.
 func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
-	}
-
 	// Create points by tags.
-	m := make(map[string]*IntegerPoint)
+	m := make(map[string]*integerReducePoint)
 	for {
 		// Read next point.
 		curr := itr.input.NextInWindow(startTime, endTime)
@@ -1693,22 +1609,19 @@ func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
 		id := curr.Name + "\x00" + tags.ID()
 
-		// Pass previous and current points to reducer.
-		prev := m[id]
-		t, v, aux := itr.fn(prev, curr, &reduceOptions)
-		if t == ZeroTime {
-			continue
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReducePoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
 		}
-
-		// If previous value didn't exist, create it and copy values.
-		if prev == nil {
-			prev = &IntegerPoint{Name: curr.Name, Tags: tags}
-			m[id] = prev
-		}
-		prev.Time = t
-		prev.Value = v
-		prev.Aux = aux
-		prev.Aggregated++
+		rp.Aggregator.Aggregate(curr)
 	}
 
 	// Reverse sort points by name & tag.
@@ -1720,19 +1633,16 @@ func (itr *integerReduceIterator) reduce() []*IntegerPoint {
 
 	a := make([]*IntegerPoint, len(m))
 	for i, k := range keys {
-		a[i] = m[k]
-	}
-
-	// Set the time on each point to the beginning of the interval.
-	for _, p := range a {
+		rp := m[k]
+		p := rp.Emitter.Emit()
+		p.Name = rp.Name
+		p.Tags = rp.Tags
 		p.Time = startTime
+		a[i] = p
 	}
 
 	return a
 }
-
-// integerReduceFunc is the function called by a IntegerPoint reducer.
-type integerReduceFunc func(prev, curr *IntegerPoint, opt *reduceOptions) (t int64, v int64, aux []interface{})
 
 // integerReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type integerReduceSliceIterator struct {
@@ -1973,90 +1883,6 @@ func (itr *integerReaderIterator) Next() *IntegerPoint {
 		return nil
 	}
 	return p
-}
-
-// integerMeanIterator returns the mean of values for every interval.
-type integerMeanIterator struct {
-	input  *bufIntegerIterator
-	opt    IteratorOptions
-	points []*FloatPoint
-}
-
-// Close closes the iterator and all child iterators.
-func (itr *integerMeanIterator) Close() error { return itr.input.Close() }
-
-// Next returns the next value.
-func (itr *integerMeanIterator) Next() *FloatPoint {
-	// Calculate the next window if we have no more points.
-	if len(itr.points) == 0 {
-		itr.points = itr.next()
-		if len(itr.points) == 0 {
-			return nil
-		}
-	}
-
-	// Pop next point off the stack.
-	p := itr.points[len(itr.points)-1]
-	itr.points = itr.points[:len(itr.points)-1]
-	return p
-}
-
-func (itr *integerMeanIterator) next() []*FloatPoint {
-	startTime, endTime := itr.opt.Window(itr.input.peekTime())
-
-	// Create points by tags.
-	m := make(map[string]struct {
-		Name  string
-		Tags  Tags
-		Sum   int64
-		Count uint32
-	})
-	for {
-		// Read next point.
-		curr := itr.input.NextInWindow(startTime, endTime)
-		if curr == nil {
-			break
-		} else if curr.Nil {
-			continue
-		}
-		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
-
-		prev, ok := m[id]
-		if !ok {
-			prev.Name = curr.Name
-			prev.Tags = tags
-		}
-
-		if curr.Aggregated != 0 {
-			prev.Sum += curr.Value * int64(curr.Aggregated)
-			prev.Count += curr.Aggregated
-		} else {
-			prev.Sum += curr.Value
-			prev.Count++
-		}
-		m[id] = prev
-	}
-
-	// Reverse sort points by name & tag.
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
-
-	a := make([]*FloatPoint, len(m))
-	for i, k := range keys {
-		val := m[k]
-		a[i] = &FloatPoint{
-			Name:       val.Name,
-			Tags:       val.Tags,
-			Value:      float64(val.Sum) / float64(val.Count),
-			Aggregated: val.Count,
-			Time:       startTime,
-		}
-	}
-	return a
 }
 
 // StringIterator represents a stream of string points.
@@ -2664,7 +2490,7 @@ func (itr *stringChanIterator) Next() *StringPoint { return <-itr.c }
 // stringReduceIterator executes a reducer for every interval and buffers the result.
 type stringReduceIterator struct {
 	input  *bufStringIterator
-	fn     stringReduceFunc
+	create func() (StringPointAggregator, StringPointEmitter)
 	opt    IteratorOptions
 	points []*StringPoint
 }
@@ -2688,19 +2514,22 @@ func (itr *stringReduceIterator) Next() *StringPoint {
 	return p
 }
 
+// stringReducePoint stores the reduced data for a name/tag combination.
+type stringReducePoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator StringPointAggregator
+	Emitter    StringPointEmitter
+}
+
 // reduce executes fn once for every point in the next window.
 // The previous value for the dimension is passed to fn.
 func (itr *stringReduceIterator) reduce() []*StringPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
-	}
-
 	// Create points by tags.
-	m := make(map[string]*StringPoint)
+	m := make(map[string]*stringReducePoint)
 	for {
 		// Read next point.
 		curr := itr.input.NextInWindow(startTime, endTime)
@@ -2712,22 +2541,19 @@ func (itr *stringReduceIterator) reduce() []*StringPoint {
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
 		id := curr.Name + "\x00" + tags.ID()
 
-		// Pass previous and current points to reducer.
-		prev := m[id]
-		t, v, aux := itr.fn(prev, curr, &reduceOptions)
-		if t == ZeroTime {
-			continue
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReducePoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
 		}
-
-		// If previous value didn't exist, create it and copy values.
-		if prev == nil {
-			prev = &StringPoint{Name: curr.Name, Tags: tags}
-			m[id] = prev
-		}
-		prev.Time = t
-		prev.Value = v
-		prev.Aux = aux
-		prev.Aggregated++
+		rp.Aggregator.Aggregate(curr)
 	}
 
 	// Reverse sort points by name & tag.
@@ -2739,19 +2565,16 @@ func (itr *stringReduceIterator) reduce() []*StringPoint {
 
 	a := make([]*StringPoint, len(m))
 	for i, k := range keys {
-		a[i] = m[k]
-	}
-
-	// Set the time on each point to the beginning of the interval.
-	for _, p := range a {
+		rp := m[k]
+		p := rp.Emitter.Emit()
+		p.Name = rp.Name
+		p.Tags = rp.Tags
 		p.Time = startTime
+		a[i] = p
 	}
 
 	return a
 }
-
-// stringReduceFunc is the function called by a StringPoint reducer.
-type stringReduceFunc func(prev, curr *StringPoint, opt *reduceOptions) (t int64, v string, aux []interface{})
 
 // stringReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type stringReduceSliceIterator struct {
@@ -3599,7 +3422,7 @@ func (itr *booleanChanIterator) Next() *BooleanPoint { return <-itr.c }
 // booleanReduceIterator executes a reducer for every interval and buffers the result.
 type booleanReduceIterator struct {
 	input  *bufBooleanIterator
-	fn     booleanReduceFunc
+	create func() (BooleanPointAggregator, BooleanPointEmitter)
 	opt    IteratorOptions
 	points []*BooleanPoint
 }
@@ -3623,19 +3446,22 @@ func (itr *booleanReduceIterator) Next() *BooleanPoint {
 	return p
 }
 
+// booleanReducePoint stores the reduced data for a name/tag combination.
+type booleanReducePoint struct {
+	Name       string
+	Tags       Tags
+	Aggregator BooleanPointAggregator
+	Emitter    BooleanPointEmitter
+}
+
 // reduce executes fn once for every point in the next window.
 // The previous value for the dimension is passed to fn.
 func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
-	}
-
 	// Create points by tags.
-	m := make(map[string]*BooleanPoint)
+	m := make(map[string]*booleanReducePoint)
 	for {
 		// Read next point.
 		curr := itr.input.NextInWindow(startTime, endTime)
@@ -3647,22 +3473,19 @@ func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
 		id := curr.Name + "\x00" + tags.ID()
 
-		// Pass previous and current points to reducer.
-		prev := m[id]
-		t, v, aux := itr.fn(prev, curr, &reduceOptions)
-		if t == ZeroTime {
-			continue
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReducePoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			m[id] = rp
 		}
-
-		// If previous value didn't exist, create it and copy values.
-		if prev == nil {
-			prev = &BooleanPoint{Name: curr.Name, Tags: tags}
-			m[id] = prev
-		}
-		prev.Time = t
-		prev.Value = v
-		prev.Aux = aux
-		prev.Aggregated++
+		rp.Aggregator.Aggregate(curr)
 	}
 
 	// Reverse sort points by name & tag.
@@ -3674,19 +3497,16 @@ func (itr *booleanReduceIterator) reduce() []*BooleanPoint {
 
 	a := make([]*BooleanPoint, len(m))
 	for i, k := range keys {
-		a[i] = m[k]
-	}
-
-	// Set the time on each point to the beginning of the interval.
-	for _, p := range a {
+		rp := m[k]
+		p := rp.Emitter.Emit()
+		p.Name = rp.Name
+		p.Tags = rp.Tags
 		p.Time = startTime
+		a[i] = p
 	}
 
 	return a
 }
-
-// booleanReduceFunc is the function called by a BooleanPoint reducer.
-type booleanReduceFunc func(prev, curr *BooleanPoint, opt *reduceOptions) (t int64, v bool, aux []interface{})
 
 // booleanReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type booleanReduceSliceIterator struct {
