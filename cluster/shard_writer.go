@@ -65,7 +65,7 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point)
 	// Determine the location of this shard and whether it still exists
 	db, rp, sgi := w.MetaClient.ShardOwner(shardID)
 	if sgi == nil {
-		// If we can't the shard group for this shard, then we need to drop this request
+		// If we can't get the shard group for this shard, then we need to drop this request
 		// as it is no longer valid.  This could happen if writes were queued via
 		// hinted handoff and we're processing the queue after a shard group was deleted.
 		return nil
