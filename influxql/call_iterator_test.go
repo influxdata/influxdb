@@ -32,11 +32,11 @@ func TestCallIterator_Count_Float(t *testing.T) {
 	)
 
 	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
-		{&influxql.FloatPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
@@ -55,6 +55,70 @@ func TestCallIterator_Count_Integer(t *testing.T) {
 
 			{Name: "cpu", Time: 23, Value: 8, Tags: ParseTags("region=us-west,host=hostB")},
 			{Name: "mem", Time: 23, Value: 10, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`count("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a string iterator can be created for a count() call.
+func TestCallIterator_Count_String(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&StringIterator{Points: []influxql.StringPoint{
+			{Name: "cpu", Time: 0, Value: "d", Tags: ParseTags("region=us-east,host=hostA")},
+			{Name: "cpu", Time: 1, Value: "c", Tags: ParseTags("region=us-west,host=hostB")},
+			{Name: "cpu", Time: 2, Value: "b", Tags: ParseTags("region=us-east,host=hostA")},
+			{Name: "cpu", Time: 1, Value: "b", Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Name: "cpu", Time: 5, Value: "e", Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Name: "cpu", Time: 23, Value: "a", Tags: ParseTags("region=us-west,host=hostB")},
+			{Name: "mem", Time: 23, Value: "b", Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`count("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 3, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 0, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 5, Value: 1, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "mem", Time: 20, Value: 1, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a boolean iterator can be created for a count() call.
+func TestCallIterator_Count_Boolean(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&BooleanIterator{Points: []influxql.BooleanPoint{
+			{Name: "cpu", Time: 0, Value: true, Tags: ParseTags("region=us-east,host=hostA")},
+			{Name: "cpu", Time: 1, Value: true, Tags: ParseTags("region=us-west,host=hostB")},
+			{Name: "cpu", Time: 2, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+			{Name: "cpu", Time: 1, Value: true, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Name: "cpu", Time: 5, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Name: "cpu", Time: 23, Value: false, Tags: ParseTags("region=us-west,host=hostB")},
+			{Name: "mem", Time: 23, Value: true, Tags: ParseTags("region=us-west,host=hostB")},
 		}},
 		influxql.IteratorOptions{
 			Expr:       MustParseExpr(`count("value")`),
@@ -276,12 +340,12 @@ func TestCallIterator_First_Float(t *testing.T) {
 		},
 	)
 
-	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.FloatPoint{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.FloatPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.FloatPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
@@ -306,12 +370,72 @@ func TestCallIterator_First_Integer(t *testing.T) {
 		},
 	)
 
-	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Time: 0, Value: 15, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.IntegerPoint{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a string iterator can be created for a first() call.
+func TestCallIterator_First_String(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&StringIterator{Points: []influxql.StringPoint{
+			{Time: 1, Value: "c", Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: "b", Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: "d", Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: "b", Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 6, Value: "e", Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: "a", Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`first("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.StringPoint{Time: 0, Value: "d", Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.StringPoint{Time: 0, Value: "c", Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.StringPoint{Time: 5, Value: "e", Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.StringPoint{Time: 20, Value: "a", Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a boolean iterator can be created for a first() call.
+func TestCallIterator_First_Boolean(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&BooleanIterator{Points: []influxql.BooleanPoint{
+			{Time: 1, Value: true, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: true, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: false, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 6, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: false, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`first("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.BooleanPoint{Time: 0, Value: true, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.BooleanPoint{Time: 0, Value: true, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 5, Value: false, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 20, Value: false, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
@@ -336,12 +460,12 @@ func TestCallIterator_Last_Float(t *testing.T) {
 		},
 	)
 
-	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.FloatPoint{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.FloatPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.FloatPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
@@ -366,12 +490,72 @@ func TestCallIterator_Last_Integer(t *testing.T) {
 		},
 	)
 
-	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3},
-		{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1},
-		{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1},
-		{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Time: 0, Value: 10, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.IntegerPoint{Time: 0, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.IntegerPoint{Time: 20, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a string iterator can be created for a last() call.
+func TestCallIterator_Last_String(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&StringIterator{Points: []influxql.StringPoint{
+			{Time: 1, Value: "c", Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: "b", Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: "d", Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: "b", Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 6, Value: "e", Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: "a", Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`last("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.StringPoint{Time: 0, Value: "b", Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.StringPoint{Time: 0, Value: "c", Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.StringPoint{Time: 5, Value: "e", Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.StringPoint{Time: 20, Value: "a", Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a boolean iterator can be created for a last() call.
+func TestCallIterator_Last_Boolean(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&BooleanIterator{Points: []influxql.BooleanPoint{
+			{Time: 1, Value: true, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 0, Value: true, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: false, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 6, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: false, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`last("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.BooleanPoint{Time: 0, Value: false, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.BooleanPoint{Time: 0, Value: true, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 5, Value: false, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 20, Value: false, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
