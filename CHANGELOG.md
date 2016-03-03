@@ -1,4 +1,4 @@
-## v0.10.2 [unreleased]
+## v0.10.2 [2016-03-03]
 ### Bugfixes
 - [#5719](https://github.com/influxdata/influxdb/issues/5719): Fix cache not deduplicating points
 - [#5699](https://github.com/influxdata/influxdb/issues/5699): Fix potential thread safety issue in cache @jonseymour
