@@ -534,6 +534,34 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 				return p
 			},
 		}, nil
+	case func(int64, int64) float64:
+		left, ok := lhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a IntegerIterator", lhs)
+		}
+		right, ok := rhs.(IntegerIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a IntegerIterator", rhs)
+		}
+		return &integerFloatTransformIterator{
+			input: left,
+			fn: func(p *IntegerPoint) *FloatPoint {
+				if p == nil {
+					return nil
+				}
+				p2 := right.Next()
+				if p2 == nil {
+					return nil
+				}
+				return &FloatPoint{
+					Name:  p.Name,
+					Tags:  p.Tags,
+					Time:  p.Time,
+					Value: fn(p.Value, p2.Value),
+					Aux:   p.Aux,
+				}
+			},
+		}, nil
 	case func(int64, int64) int64:
 		left, ok := lhs.(IntegerIterator)
 		if !ok {
@@ -712,11 +740,11 @@ func integerBinaryExprFunc(op Token) interface{} {
 	case MUL:
 		return func(lhs, rhs int64) int64 { return lhs * rhs }
 	case DIV:
-		return func(lhs, rhs int64) int64 {
+		return func(lhs, rhs int64) float64 {
 			if rhs == 0 {
-				return int64(0)
+				return float64(0)
 			}
-			return lhs / rhs
+			return float64(lhs) / float64(rhs)
 		}
 	case EQ:
 		return func(lhs, rhs int64) bool { return lhs == rhs }

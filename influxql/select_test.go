@@ -1493,9 +1493,9 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			Name:      "two variable binary division",
 			Statement: `SELECT value / value FROM cpu`,
 			Points: [][]influxql.Point{
-				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
-				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
-				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 1}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
 			},
 		},
 	} {
