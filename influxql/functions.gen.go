@@ -17,7 +17,7 @@ type FloatPointEmitter interface {
 }
 
 // FloatReduceFunc is the function called by a FloatPoint reducer.
-type FloatReduceFunc func(prev, curr *FloatPoint) (t int64, v float64, aux []interface{})
+type FloatReduceFunc func(prev *FloatPoint, curr *FloatPoint) (t int64, v float64, aux []interface{})
 
 type FloatFuncReducer struct {
 	prev *FloatPoint
@@ -43,6 +43,87 @@ func (r *FloatFuncReducer) Emit() *FloatPoint {
 	return r.prev
 }
 
+// FloatReduceIntegerFunc is the function called by a FloatPoint reducer.
+type FloatReduceIntegerFunc func(prev *IntegerPoint, curr *FloatPoint) (t int64, v int64, aux []interface{})
+
+type FloatFuncIntegerReducer struct {
+	prev *IntegerPoint
+	fn   FloatReduceIntegerFunc
+}
+
+func NewFloatFuncIntegerReducer(fn FloatReduceIntegerFunc) *FloatFuncIntegerReducer {
+	return &FloatFuncIntegerReducer{fn: fn}
+}
+
+func (r *FloatFuncIntegerReducer) Aggregate(p *FloatPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &IntegerPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *FloatFuncIntegerReducer) Emit() *IntegerPoint {
+	return r.prev
+}
+
+// FloatReduceStringFunc is the function called by a FloatPoint reducer.
+type FloatReduceStringFunc func(prev *StringPoint, curr *FloatPoint) (t int64, v string, aux []interface{})
+
+type FloatFuncStringReducer struct {
+	prev *StringPoint
+	fn   FloatReduceStringFunc
+}
+
+func NewFloatFuncStringReducer(fn FloatReduceStringFunc) *FloatFuncStringReducer {
+	return &FloatFuncStringReducer{fn: fn}
+}
+
+func (r *FloatFuncStringReducer) Aggregate(p *FloatPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &StringPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *FloatFuncStringReducer) Emit() *StringPoint {
+	return r.prev
+}
+
+// FloatReduceBooleanFunc is the function called by a FloatPoint reducer.
+type FloatReduceBooleanFunc func(prev *BooleanPoint, curr *FloatPoint) (t int64, v bool, aux []interface{})
+
+type FloatFuncBooleanReducer struct {
+	prev *BooleanPoint
+	fn   FloatReduceBooleanFunc
+}
+
+func NewFloatFuncBooleanReducer(fn FloatReduceBooleanFunc) *FloatFuncBooleanReducer {
+	return &FloatFuncBooleanReducer{fn: fn}
+}
+
+func (r *FloatFuncBooleanReducer) Aggregate(p *FloatPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &BooleanPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *FloatFuncBooleanReducer) Emit() *BooleanPoint {
+	return r.prev
+}
+
 // IntegerPointAggregator aggregates points to produce a single point.
 type IntegerPointAggregator interface {
 	Aggregate(p *IntegerPoint)
@@ -53,8 +134,35 @@ type IntegerPointEmitter interface {
 	Emit() *IntegerPoint
 }
 
+// IntegerReduceFloatFunc is the function called by a IntegerPoint reducer.
+type IntegerReduceFloatFunc func(prev *FloatPoint, curr *IntegerPoint) (t int64, v float64, aux []interface{})
+
+type IntegerFuncFloatReducer struct {
+	prev *FloatPoint
+	fn   IntegerReduceFloatFunc
+}
+
+func NewIntegerFuncFloatReducer(fn IntegerReduceFloatFunc) *IntegerFuncFloatReducer {
+	return &IntegerFuncFloatReducer{fn: fn}
+}
+
+func (r *IntegerFuncFloatReducer) Aggregate(p *IntegerPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &FloatPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *IntegerFuncFloatReducer) Emit() *FloatPoint {
+	return r.prev
+}
+
 // IntegerReduceFunc is the function called by a IntegerPoint reducer.
-type IntegerReduceFunc func(prev, curr *IntegerPoint) (t int64, v int64, aux []interface{})
+type IntegerReduceFunc func(prev *IntegerPoint, curr *IntegerPoint) (t int64, v int64, aux []interface{})
 
 type IntegerFuncReducer struct {
 	prev *IntegerPoint
@@ -80,6 +188,60 @@ func (r *IntegerFuncReducer) Emit() *IntegerPoint {
 	return r.prev
 }
 
+// IntegerReduceStringFunc is the function called by a IntegerPoint reducer.
+type IntegerReduceStringFunc func(prev *StringPoint, curr *IntegerPoint) (t int64, v string, aux []interface{})
+
+type IntegerFuncStringReducer struct {
+	prev *StringPoint
+	fn   IntegerReduceStringFunc
+}
+
+func NewIntegerFuncStringReducer(fn IntegerReduceStringFunc) *IntegerFuncStringReducer {
+	return &IntegerFuncStringReducer{fn: fn}
+}
+
+func (r *IntegerFuncStringReducer) Aggregate(p *IntegerPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &StringPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *IntegerFuncStringReducer) Emit() *StringPoint {
+	return r.prev
+}
+
+// IntegerReduceBooleanFunc is the function called by a IntegerPoint reducer.
+type IntegerReduceBooleanFunc func(prev *BooleanPoint, curr *IntegerPoint) (t int64, v bool, aux []interface{})
+
+type IntegerFuncBooleanReducer struct {
+	prev *BooleanPoint
+	fn   IntegerReduceBooleanFunc
+}
+
+func NewIntegerFuncBooleanReducer(fn IntegerReduceBooleanFunc) *IntegerFuncBooleanReducer {
+	return &IntegerFuncBooleanReducer{fn: fn}
+}
+
+func (r *IntegerFuncBooleanReducer) Aggregate(p *IntegerPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &BooleanPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *IntegerFuncBooleanReducer) Emit() *BooleanPoint {
+	return r.prev
+}
+
 // StringPointAggregator aggregates points to produce a single point.
 type StringPointAggregator interface {
 	Aggregate(p *StringPoint)
@@ -90,8 +252,62 @@ type StringPointEmitter interface {
 	Emit() *StringPoint
 }
 
+// StringReduceFloatFunc is the function called by a StringPoint reducer.
+type StringReduceFloatFunc func(prev *FloatPoint, curr *StringPoint) (t int64, v float64, aux []interface{})
+
+type StringFuncFloatReducer struct {
+	prev *FloatPoint
+	fn   StringReduceFloatFunc
+}
+
+func NewStringFuncFloatReducer(fn StringReduceFloatFunc) *StringFuncFloatReducer {
+	return &StringFuncFloatReducer{fn: fn}
+}
+
+func (r *StringFuncFloatReducer) Aggregate(p *StringPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &FloatPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *StringFuncFloatReducer) Emit() *FloatPoint {
+	return r.prev
+}
+
+// StringReduceIntegerFunc is the function called by a StringPoint reducer.
+type StringReduceIntegerFunc func(prev *IntegerPoint, curr *StringPoint) (t int64, v int64, aux []interface{})
+
+type StringFuncIntegerReducer struct {
+	prev *IntegerPoint
+	fn   StringReduceIntegerFunc
+}
+
+func NewStringFuncIntegerReducer(fn StringReduceIntegerFunc) *StringFuncIntegerReducer {
+	return &StringFuncIntegerReducer{fn: fn}
+}
+
+func (r *StringFuncIntegerReducer) Aggregate(p *StringPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &IntegerPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *StringFuncIntegerReducer) Emit() *IntegerPoint {
+	return r.prev
+}
+
 // StringReduceFunc is the function called by a StringPoint reducer.
-type StringReduceFunc func(prev, curr *StringPoint) (t int64, v string, aux []interface{})
+type StringReduceFunc func(prev *StringPoint, curr *StringPoint) (t int64, v string, aux []interface{})
 
 type StringFuncReducer struct {
 	prev *StringPoint
@@ -117,6 +333,33 @@ func (r *StringFuncReducer) Emit() *StringPoint {
 	return r.prev
 }
 
+// StringReduceBooleanFunc is the function called by a StringPoint reducer.
+type StringReduceBooleanFunc func(prev *BooleanPoint, curr *StringPoint) (t int64, v bool, aux []interface{})
+
+type StringFuncBooleanReducer struct {
+	prev *BooleanPoint
+	fn   StringReduceBooleanFunc
+}
+
+func NewStringFuncBooleanReducer(fn StringReduceBooleanFunc) *StringFuncBooleanReducer {
+	return &StringFuncBooleanReducer{fn: fn}
+}
+
+func (r *StringFuncBooleanReducer) Aggregate(p *StringPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &BooleanPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *StringFuncBooleanReducer) Emit() *BooleanPoint {
+	return r.prev
+}
+
 // BooleanPointAggregator aggregates points to produce a single point.
 type BooleanPointAggregator interface {
 	Aggregate(p *BooleanPoint)
@@ -127,8 +370,89 @@ type BooleanPointEmitter interface {
 	Emit() *BooleanPoint
 }
 
+// BooleanReduceFloatFunc is the function called by a BooleanPoint reducer.
+type BooleanReduceFloatFunc func(prev *FloatPoint, curr *BooleanPoint) (t int64, v float64, aux []interface{})
+
+type BooleanFuncFloatReducer struct {
+	prev *FloatPoint
+	fn   BooleanReduceFloatFunc
+}
+
+func NewBooleanFuncFloatReducer(fn BooleanReduceFloatFunc) *BooleanFuncFloatReducer {
+	return &BooleanFuncFloatReducer{fn: fn}
+}
+
+func (r *BooleanFuncFloatReducer) Aggregate(p *BooleanPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &FloatPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *BooleanFuncFloatReducer) Emit() *FloatPoint {
+	return r.prev
+}
+
+// BooleanReduceIntegerFunc is the function called by a BooleanPoint reducer.
+type BooleanReduceIntegerFunc func(prev *IntegerPoint, curr *BooleanPoint) (t int64, v int64, aux []interface{})
+
+type BooleanFuncIntegerReducer struct {
+	prev *IntegerPoint
+	fn   BooleanReduceIntegerFunc
+}
+
+func NewBooleanFuncIntegerReducer(fn BooleanReduceIntegerFunc) *BooleanFuncIntegerReducer {
+	return &BooleanFuncIntegerReducer{fn: fn}
+}
+
+func (r *BooleanFuncIntegerReducer) Aggregate(p *BooleanPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &IntegerPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *BooleanFuncIntegerReducer) Emit() *IntegerPoint {
+	return r.prev
+}
+
+// BooleanReduceStringFunc is the function called by a BooleanPoint reducer.
+type BooleanReduceStringFunc func(prev *StringPoint, curr *BooleanPoint) (t int64, v string, aux []interface{})
+
+type BooleanFuncStringReducer struct {
+	prev *StringPoint
+	fn   BooleanReduceStringFunc
+}
+
+func NewBooleanFuncStringReducer(fn BooleanReduceStringFunc) *BooleanFuncStringReducer {
+	return &BooleanFuncStringReducer{fn: fn}
+}
+
+func (r *BooleanFuncStringReducer) Aggregate(p *BooleanPoint) {
+	t, v, aux := r.fn(r.prev, p)
+	if r.prev == nil {
+		r.prev = &StringPoint{}
+	}
+	r.prev.Time = t
+	r.prev.Value = v
+	r.prev.Aux = aux
+	r.prev.Aggregated++
+}
+
+func (r *BooleanFuncStringReducer) Emit() *StringPoint {
+	return r.prev
+}
+
 // BooleanReduceFunc is the function called by a BooleanPoint reducer.
-type BooleanReduceFunc func(prev, curr *BooleanPoint) (t int64, v bool, aux []interface{})
+type BooleanReduceFunc func(prev *BooleanPoint, curr *BooleanPoint) (t int64, v bool, aux []interface{})
 
 type BooleanFuncReducer struct {
 	prev *BooleanPoint

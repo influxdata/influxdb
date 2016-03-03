@@ -1,33 +1,35 @@
 package influxql
 
-{{range .}}
+{{with $types := .}}{{range $k := $types}}
 
-// {{.Name}}PointAggregator aggregates points to produce a single point.
-type {{.Name}}PointAggregator interface {
+// {{$k.Name}}PointAggregator aggregates points to produce a single point.
+type {{$k.Name}}PointAggregator interface {
 	Aggregate(p *{{.Name}}Point)
 }
 
-// {{.Name}}PointEmitter produces a single point from an aggregate.
-type {{.Name}}PointEmitter interface {
-	Emit() *{{.Name}}Point
+// {{$k.Name}}PointEmitter produces a single point from an aggregate.
+type {{$k.Name}}PointEmitter interface {
+	Emit() *{{$k.Name}}Point
 }
 
-// {{.Name}}ReduceFunc is the function called by a {{.Name}}Point reducer.
-type {{.Name}}ReduceFunc func(prev, curr *{{.Name}}Point) (t int64, v {{.Type}}, aux []interface{})
+{{range $v := $types}}
 
-type {{.Name}}FuncReducer struct {
-	prev *{{.Name}}Point
-	fn   {{.Name}}ReduceFunc
+// {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func is the function called by a {{$k.Name}}Point reducer.
+type {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func func(prev *{{$v.Name}}Point, curr *{{$k.Name}}Point) (t int64, v {{$v.Type}}, aux []interface{})
+
+type {{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer struct {
+	prev *{{$v.Name}}Point
+	fn   {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func
 }
 
-func New{{.Name}}FuncReducer(fn {{.Name}}ReduceFunc) *{{.Name}}FuncReducer {
-	return &{{.Name}}FuncReducer{fn: fn}
+func New{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer(fn {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func) *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer {
+	return &{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer{fn: fn}
 }
 
-func (r *{{.Name}}FuncReducer) Aggregate(p *{{.Name}}Point) {
+func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggregate(p *{{$k.Name}}Point) {
 	t, v, aux := r.fn(r.prev, p)
 	if r.prev == nil {
-		r.prev = &{{.Name}}Point{}
+		r.prev = &{{$v.Name}}Point{}
 	}
   r.prev.Time = t
 	r.prev.Value = v
@@ -35,7 +37,7 @@ func (r *{{.Name}}FuncReducer) Aggregate(p *{{.Name}}Point) {
 	r.prev.Aggregated++
 }
 
-func (r *{{.Name}}FuncReducer) Emit() *{{.Name}}Point {
+func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit() *{{$v.Name}}Point {
 	return r.prev
 }
-{{end}}
+{{end}}{{end}}{{end}}
