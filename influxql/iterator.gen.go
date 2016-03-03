@@ -980,7 +980,7 @@ func (itr *floatReduceBooleanIterator) reduce() []*BooleanPoint {
 // floatReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type floatReduceSliceIterator struct {
 	input  *bufFloatIterator
-	fn     floatReduceSliceFunc
+	create func() (FloatPointSliceAggregator, FloatPointSliceEmitter)
 	opt    IteratorOptions
 	points []FloatPoint
 }
@@ -1010,9 +1010,8 @@ func (itr *floatReduceSliceIterator) reduce() []FloatPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
+	var reduceOptions = ReduceOptions{
+		StartTime: startTime,
 	}
 
 	// Group points by name and tagset.
@@ -1043,7 +1042,9 @@ func (itr *floatReduceSliceIterator) reduce() []FloatPoint {
 	// Reduce each set into a set of values.
 	results := make(map[string][]FloatPoint)
 	for key, g := range groups {
-		a := itr.fn(g.points, &reduceOptions)
+		aggregator, emitter := itr.create()
+		aggregator.AggregateSlice(g.points)
+		a := emitter.Emit(&reduceOptions)
 		if len(a) == 0 {
 			continue
 		}
@@ -1074,10 +1075,7 @@ func (itr *floatReduceSliceIterator) reduce() []FloatPoint {
 	return a
 }
 
-// floatReduceSliceFunc is the function called by a FloatPoint slice reducer.
-type floatReduceSliceFunc func(a []FloatPoint, opt *reduceOptions) []FloatPoint
-
-// floatReduceIterator executes a function to modify an existing point for every
+// floatTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type floatTransformIterator struct {
 	input FloatIterator
@@ -2177,7 +2175,7 @@ func (itr *integerReduceBooleanIterator) reduce() []*BooleanPoint {
 // integerReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type integerReduceSliceIterator struct {
 	input  *bufIntegerIterator
-	fn     integerReduceSliceFunc
+	create func() (IntegerPointSliceAggregator, IntegerPointSliceEmitter)
 	opt    IteratorOptions
 	points []IntegerPoint
 }
@@ -2207,9 +2205,8 @@ func (itr *integerReduceSliceIterator) reduce() []IntegerPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
+	var reduceOptions = ReduceOptions{
+		StartTime: startTime,
 	}
 
 	// Group points by name and tagset.
@@ -2240,7 +2237,9 @@ func (itr *integerReduceSliceIterator) reduce() []IntegerPoint {
 	// Reduce each set into a set of values.
 	results := make(map[string][]IntegerPoint)
 	for key, g := range groups {
-		a := itr.fn(g.points, &reduceOptions)
+		aggregator, emitter := itr.create()
+		aggregator.AggregateSlice(g.points)
+		a := emitter.Emit(&reduceOptions)
 		if len(a) == 0 {
 			continue
 		}
@@ -2271,10 +2270,7 @@ func (itr *integerReduceSliceIterator) reduce() []IntegerPoint {
 	return a
 }
 
-// integerReduceSliceFunc is the function called by a IntegerPoint slice reducer.
-type integerReduceSliceFunc func(a []IntegerPoint, opt *reduceOptions) []IntegerPoint
-
-// integerReduceIterator executes a function to modify an existing point for every
+// integerTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type integerTransformIterator struct {
 	input IntegerIterator
@@ -3374,7 +3370,7 @@ func (itr *stringReduceBooleanIterator) reduce() []*BooleanPoint {
 // stringReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type stringReduceSliceIterator struct {
 	input  *bufStringIterator
-	fn     stringReduceSliceFunc
+	create func() (StringPointSliceAggregator, StringPointSliceEmitter)
 	opt    IteratorOptions
 	points []StringPoint
 }
@@ -3404,9 +3400,8 @@ func (itr *stringReduceSliceIterator) reduce() []StringPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
+	var reduceOptions = ReduceOptions{
+		StartTime: startTime,
 	}
 
 	// Group points by name and tagset.
@@ -3437,7 +3432,9 @@ func (itr *stringReduceSliceIterator) reduce() []StringPoint {
 	// Reduce each set into a set of values.
 	results := make(map[string][]StringPoint)
 	for key, g := range groups {
-		a := itr.fn(g.points, &reduceOptions)
+		aggregator, emitter := itr.create()
+		aggregator.AggregateSlice(g.points)
+		a := emitter.Emit(&reduceOptions)
 		if len(a) == 0 {
 			continue
 		}
@@ -3468,10 +3465,7 @@ func (itr *stringReduceSliceIterator) reduce() []StringPoint {
 	return a
 }
 
-// stringReduceSliceFunc is the function called by a StringPoint slice reducer.
-type stringReduceSliceFunc func(a []StringPoint, opt *reduceOptions) []StringPoint
-
-// stringReduceIterator executes a function to modify an existing point for every
+// stringTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type stringTransformIterator struct {
 	input StringIterator
@@ -4571,7 +4565,7 @@ func (itr *booleanReduceBooleanIterator) reduce() []*BooleanPoint {
 // booleanReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type booleanReduceSliceIterator struct {
 	input  *bufBooleanIterator
-	fn     booleanReduceSliceFunc
+	create func() (BooleanPointSliceAggregator, BooleanPointSliceEmitter)
 	opt    IteratorOptions
 	points []BooleanPoint
 }
@@ -4601,9 +4595,8 @@ func (itr *booleanReduceSliceIterator) reduce() []BooleanPoint {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
+	var reduceOptions = ReduceOptions{
+		StartTime: startTime,
 	}
 
 	// Group points by name and tagset.
@@ -4634,7 +4627,9 @@ func (itr *booleanReduceSliceIterator) reduce() []BooleanPoint {
 	// Reduce each set into a set of values.
 	results := make(map[string][]BooleanPoint)
 	for key, g := range groups {
-		a := itr.fn(g.points, &reduceOptions)
+		aggregator, emitter := itr.create()
+		aggregator.AggregateSlice(g.points)
+		a := emitter.Emit(&reduceOptions)
 		if len(a) == 0 {
 			continue
 		}
@@ -4665,10 +4660,7 @@ func (itr *booleanReduceSliceIterator) reduce() []BooleanPoint {
 	return a
 }
 
-// booleanReduceSliceFunc is the function called by a BooleanPoint slice reducer.
-type booleanReduceSliceFunc func(a []BooleanPoint, opt *reduceOptions) []BooleanPoint
-
-// booleanReduceIterator executes a function to modify an existing point for every
+// booleanTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type booleanTransformIterator struct {
 	input BooleanIterator

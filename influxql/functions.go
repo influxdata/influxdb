@@ -51,3 +51,27 @@ func (r *IntegerMeanReducer) Emit() *FloatPoint {
 		Aggregated: r.count,
 	}
 }
+
+type IntegerSliceFloatFuncReducer struct {
+	slice []IntegerPoint
+	fn    IntegerReduceSliceFloatFunc
+}
+
+// NewIntegerDerivativeReducer returns the derivative value within a window.
+func NewIntegerSliceFloatFuncReducer(fn IntegerReduceSliceFloatFunc) *IntegerSliceFloatFuncReducer {
+	return &IntegerSliceFloatFuncReducer{
+		fn: fn,
+	}
+}
+
+func (r *IntegerSliceFloatFuncReducer) Aggregate(a IntegerPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *IntegerSliceFloatFuncReducer) AggregateSlice(a []IntegerPoint) {
+	r.slice = a
+}
+
+func (r *IntegerSliceFloatFuncReducer) Emit(opt *ReduceOptions) []FloatPoint {
+	return r.fn(r.slice, opt)
+}

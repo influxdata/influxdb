@@ -12,6 +12,18 @@ type {{$k.Name}}PointEmitter interface {
 	Emit() *{{$k.Name}}Point
 }
 
+// {{.Name}}PointSliceAggregator aggregates a slice of to produce a slice of points.
+type {{.Name}}PointSliceAggregator interface {
+	Aggregate(a {{.Name}}Point)
+	AggregateSlice(a []{{.Name}}Point)
+}
+
+// {{.Name}}PointSliceEmitter produces a slice of points from an aggregate.
+type {{.Name}}PointSliceEmitter interface {
+	Emit(opt *ReduceOptions) []{{.Name}}Point
+}
+
+
 {{range $v := $types}}
 
 // {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func is the function called by a {{$k.Name}}Point reducer.
@@ -39,5 +51,30 @@ func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggr
 
 func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit() *{{$v.Name}}Point {
 	return r.prev
+}
+
+
+// {{$k.Name}}ReduceSliceFunc is the function called by a {{$k.Name}}Point slice reducer.
+type {{$k.Name}}ReduceSlice{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func func(a []{{$k.Name}}Point, opt *ReduceOptions) []{{$v.Name}}Point
+
+type {{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer struct {
+	slice []{{$k.Name}}Point
+	fn    {{$k.Name}}ReduceSlice{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func
+}
+
+func New{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer(fn {{$k.Name}}ReduceSlice{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func) *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer {
+	return &{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer{fn: fn}
+}
+
+func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggregate(a {{$k.Name}}Point) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) AggregateSlice(a []{{$k.Name}}Point) {
+	r.slice = a
+}
+
+func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit(opt *ReduceOptions) []{{$v.Name}}Point {
+    return r.fn(r.slice, opt)
 }
 {{end}}{{end}}{{end}}

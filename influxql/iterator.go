@@ -941,15 +941,35 @@ func decodeInterval(pb *internal.Interval) Interval {
 }
 
 // reduceOptions represents options for performing reductions on windows of points.
-type reduceOptions struct {
-	startTime int64
-	endTime   int64
+type ReduceOptions struct {
+	StartTime int64
 }
 
 type nilFloatIterator struct{}
 
 func (*nilFloatIterator) Close() error      { return nil }
 func (*nilFloatIterator) Next() *FloatPoint { return nil }
+
+type integerFloatCastIterator struct {
+	input IntegerIterator
+}
+
+func (itr *integerFloatCastIterator) Close() error { return itr.input.Close() }
+func (itr *integerFloatCastIterator) Next() *FloatPoint {
+	p := itr.input.Next()
+	if p == nil {
+		return nil
+	}
+
+	return &FloatPoint{
+		Name:  p.Name,
+		Tags:  p.Tags,
+		Time:  p.Time,
+		Nil:   p.Nil,
+		Value: float64(p.Value),
+		Aux:   p.Aux,
+	}
+}
 
 // integerFloatTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
@@ -974,24 +994,3 @@ func (itr *integerFloatTransformIterator) Next() *FloatPoint {
 // The point passed in may be modified and returned rather than allocating a
 // new point if possible.
 type integerFloatTransformFunc func(p *IntegerPoint) *FloatPoint
-
-type integerFloatCastIterator struct {
-	input IntegerIterator
-}
-
-func (itr *integerFloatCastIterator) Close() error { return itr.input.Close() }
-func (itr *integerFloatCastIterator) Next() *FloatPoint {
-	p := itr.input.Next()
-	if p == nil {
-		return nil
-	}
-
-	return &FloatPoint{
-		Name:  p.Name,
-		Tags:  p.Tags,
-		Time:  p.Time,
-		Nil:   p.Nil,
-		Value: float64(p.Value),
-		Aux:   p.Aux,
-	}
-}
