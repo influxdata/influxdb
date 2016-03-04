@@ -206,6 +206,22 @@ func NewFillIterator(input Iterator, expr Expr, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewIntervalIterator returns an iterator that sets the time on each point to the interval.
+func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatIntervalIterator(input, opt)
+	case IntegerIterator:
+		return newIntegerIntervalIterator(input, opt)
+	case StringIterator:
+		return newStringIntervalIterator(input, opt)
+	case BooleanIterator:
+		return newBooleanIntervalIterator(input, opt)
+	default:
+		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
+	}
+}
+
 // AuxIterator represents an iterator that can split off separate auxilary iterators.
 type AuxIterator interface {
 	Iterator
