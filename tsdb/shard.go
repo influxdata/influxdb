@@ -491,6 +491,53 @@ func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, e
 	return s.engine.SeriesKeys(opt)
 }
 
+// ExpandSources expands regex sources and removes duplicates.
+// NOTE: sources must be normalized (db and rp set) before calling this function.
+func (s *Shard) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+	// Use a map as a set to prevent duplicates.
+	set := map[string]influxql.Source{}
+
+	// Iterate all sources, expanding regexes when they're found.
+	for _, source := range sources {
+		switch src := source.(type) {
+		case *influxql.Measurement:
+			// Add non-regex measurements directly to the set.
+			if src.Regex == nil {
+				set[src.String()] = src
+				continue
+			}
+
+			// Loop over matching measurements.
+			for _, m := range s.index.MeasurementsByRegex(src.Regex.Val) {
+				other := &influxql.Measurement{
+					Database:        src.Database,
+					RetentionPolicy: src.RetentionPolicy,
+					Name:            m.Name,
+				}
+				set[other.String()] = other
+			}
+
+		default:
+			return nil, fmt.Errorf("expandSources: unsupported source type: %T", source)
+		}
+	}
+
+	// Convert set to sorted slice.
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Convert set to a list of Sources.
+	expanded := make(influxql.Sources, 0, len(set))
+	for _, name := range names {
+		expanded = append(expanded, set[name])
+	}
+
+	return expanded, nil
+}
+
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 
@@ -843,6 +890,9 @@ func (ic *shardIteratorCreator) FieldDimensions(sources influxql.Sources) (field
 }
 func (ic *shardIteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
 	return ic.sh.SeriesKeys(opt)
+}
+func (ic *shardIteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+	return ic.sh.ExpandSources(sources)
 }
 
 func NewFieldKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {

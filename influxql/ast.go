@@ -309,6 +309,19 @@ func (a Sources) HasSystemSource() bool {
 	return false
 }
 
+// HasRegex returns true if any of the sources are regex measurements.
+func (a Sources) HasRegex() bool {
+	for _, s := range a {
+		switch s := s.(type) {
+		case *Measurement:
+			if s.Regex != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // String returns a string representation of a Sources array.
 func (a Sources) String() string {
 	var buf bytes.Buffer

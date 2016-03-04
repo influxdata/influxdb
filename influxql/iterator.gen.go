@@ -612,6 +612,10 @@ func (itr *floatAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error)
 	return nil, errors.New("not implemented")
 }
 
+func (itr *floatAuxIterator) ExpandSources(sources Sources) (Sources, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (itr *floatAuxIterator) stream() {
 	for {
 		// Read next point.
@@ -1747,6 +1751,10 @@ func (itr *integerAuxIterator) FieldDimensions(sources Sources) (fields, dimensi
 }
 
 func (itr *integerAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (itr *integerAuxIterator) ExpandSources(sources Sources) (Sources, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -2888,6 +2896,10 @@ func (itr *stringAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error
 	return nil, errors.New("not implemented")
 }
 
+func (itr *stringAuxIterator) ExpandSources(sources Sources) (Sources, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (itr *stringAuxIterator) stream() {
 	for {
 		// Read next point.
@@ -4023,6 +4035,10 @@ func (itr *booleanAuxIterator) FieldDimensions(sources Sources) (fields, dimensi
 }
 
 func (itr *booleanAuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (itr *booleanAuxIterator) ExpandSources(sources Sources) (Sources, error) {
 	return nil, errors.New("not implemented")
 }
 
