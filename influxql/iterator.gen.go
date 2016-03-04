@@ -549,6 +549,27 @@ func (itr *floatFillIterator) Next() *FloatPoint {
 	return p
 }
 
+// floatIntervalIterator represents a float implementation of IntervalIterator.
+type floatIntervalIterator struct {
+	input FloatIterator
+	opt   IteratorOptions
+}
+
+func newFloatIntervalIterator(input FloatIterator, opt IteratorOptions) *floatIntervalIterator {
+	return &floatIntervalIterator{input: input, opt: opt}
+}
+
+func (itr *floatIntervalIterator) Close() error { return itr.input.Close() }
+
+func (itr *floatIntervalIterator) Next() *FloatPoint {
+	p := itr.input.Next()
+	if p == nil {
+		return p
+	}
+	p.Time, _ = itr.opt.Window(p.Time)
+	return p
+}
+
 // floatAuxIterator represents a float implementation of AuxIterator.
 type floatAuxIterator struct {
 	input  *bufFloatIterator
@@ -703,7 +724,10 @@ func (itr *floatReduceFloatIterator) reduce() []*FloatPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -792,7 +816,10 @@ func (itr *floatReduceIntegerIterator) reduce() []*IntegerPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -881,7 +908,10 @@ func (itr *floatReduceStringIterator) reduce() []*StringPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -970,7 +1000,10 @@ func (itr *floatReduceBooleanIterator) reduce() []*BooleanPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -1746,6 +1779,27 @@ func (itr *integerFillIterator) Next() *IntegerPoint {
 	return p
 }
 
+// integerIntervalIterator represents a integer implementation of IntervalIterator.
+type integerIntervalIterator struct {
+	input IntegerIterator
+	opt   IteratorOptions
+}
+
+func newIntegerIntervalIterator(input IntegerIterator, opt IteratorOptions) *integerIntervalIterator {
+	return &integerIntervalIterator{input: input, opt: opt}
+}
+
+func (itr *integerIntervalIterator) Close() error { return itr.input.Close() }
+
+func (itr *integerIntervalIterator) Next() *IntegerPoint {
+	p := itr.input.Next()
+	if p == nil {
+		return p
+	}
+	p.Time, _ = itr.opt.Window(p.Time)
+	return p
+}
+
 // integerAuxIterator represents a integer implementation of AuxIterator.
 type integerAuxIterator struct {
 	input  *bufIntegerIterator
@@ -1900,7 +1954,10 @@ func (itr *integerReduceFloatIterator) reduce() []*FloatPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -1989,7 +2046,10 @@ func (itr *integerReduceIntegerIterator) reduce() []*IntegerPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -2078,7 +2138,10 @@ func (itr *integerReduceStringIterator) reduce() []*StringPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -2167,7 +2230,10 @@ func (itr *integerReduceBooleanIterator) reduce() []*BooleanPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -2943,6 +3009,27 @@ func (itr *stringFillIterator) Next() *StringPoint {
 	return p
 }
 
+// stringIntervalIterator represents a string implementation of IntervalIterator.
+type stringIntervalIterator struct {
+	input StringIterator
+	opt   IteratorOptions
+}
+
+func newStringIntervalIterator(input StringIterator, opt IteratorOptions) *stringIntervalIterator {
+	return &stringIntervalIterator{input: input, opt: opt}
+}
+
+func (itr *stringIntervalIterator) Close() error { return itr.input.Close() }
+
+func (itr *stringIntervalIterator) Next() *StringPoint {
+	p := itr.input.Next()
+	if p == nil {
+		return p
+	}
+	p.Time, _ = itr.opt.Window(p.Time)
+	return p
+}
+
 // stringAuxIterator represents a string implementation of AuxIterator.
 type stringAuxIterator struct {
 	input  *bufStringIterator
@@ -3097,7 +3184,10 @@ func (itr *stringReduceFloatIterator) reduce() []*FloatPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -3186,7 +3276,10 @@ func (itr *stringReduceIntegerIterator) reduce() []*IntegerPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -3275,7 +3368,10 @@ func (itr *stringReduceStringIterator) reduce() []*StringPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -3364,7 +3460,10 @@ func (itr *stringReduceBooleanIterator) reduce() []*BooleanPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -4140,6 +4239,27 @@ func (itr *booleanFillIterator) Next() *BooleanPoint {
 	return p
 }
 
+// booleanIntervalIterator represents a boolean implementation of IntervalIterator.
+type booleanIntervalIterator struct {
+	input BooleanIterator
+	opt   IteratorOptions
+}
+
+func newBooleanIntervalIterator(input BooleanIterator, opt IteratorOptions) *booleanIntervalIterator {
+	return &booleanIntervalIterator{input: input, opt: opt}
+}
+
+func (itr *booleanIntervalIterator) Close() error { return itr.input.Close() }
+
+func (itr *booleanIntervalIterator) Next() *BooleanPoint {
+	p := itr.input.Next()
+	if p == nil {
+		return p
+	}
+	p.Time, _ = itr.opt.Window(p.Time)
+	return p
+}
+
 // booleanAuxIterator represents a boolean implementation of AuxIterator.
 type booleanAuxIterator struct {
 	input  *bufBooleanIterator
@@ -4294,7 +4414,10 @@ func (itr *booleanReduceFloatIterator) reduce() []*FloatPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -4383,7 +4506,10 @@ func (itr *booleanReduceIntegerIterator) reduce() []*IntegerPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -4472,7 +4598,10 @@ func (itr *booleanReduceStringIterator) reduce() []*StringPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
@@ -4561,7 +4690,10 @@ func (itr *booleanReduceBooleanIterator) reduce() []*BooleanPoint {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 

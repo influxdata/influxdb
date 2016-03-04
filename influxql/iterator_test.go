@@ -282,17 +282,17 @@ func TestSortedMergeIterator_Float(t *testing.T) {
 		},
 		Ascending: true,
 	})
-	if a, ok := CompareFloatIterator(itr, []influxql.FloatPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-		{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
-		{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
+		{&influxql.FloatPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
+		{&influxql.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8}},
+	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
 
@@ -327,17 +327,17 @@ func TestSortedMergeIterator_Integer(t *testing.T) {
 		},
 		Ascending: true,
 	})
-	if a, ok := CompareIntegerIterator(itr, []influxql.IntegerPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6},
-		{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9},
-		{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: 3}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: 7}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: 4}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: 2}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: 5}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: 6}},
+		{&influxql.IntegerPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: 9}},
+		{&influxql.IntegerPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: 8}},
+	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
 
@@ -372,17 +372,17 @@ func TestSortedMergeIterator_String(t *testing.T) {
 		},
 		Ascending: true,
 	})
-	if a, ok := CompareStringIterator(itr, []influxql.StringPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: "c"},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: "g"},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: "d"},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: "b"},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: "e"},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: "f"},
-		{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: "i"},
-		{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: "h"},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: "a"}},
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: "c"}},
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: "g"}},
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: "d"}},
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: "b"}},
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: "e"}},
+		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: "f"}},
+		{&influxql.StringPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: "i"}},
+		{&influxql.StringPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: "h"}},
+	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
 
@@ -417,17 +417,17 @@ func TestSortedMergeIterator_Boolean(t *testing.T) {
 		},
 		Ascending: true,
 	})
-	if a, ok := CompareBooleanIterator(itr, []influxql.BooleanPoint{
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: true},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: true},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: true},
-		{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: false},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: false},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: true},
-		{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: false},
-		{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: true},
-		{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: true},
-	}); !ok {
+	if a := Iterators([]influxql.Iterator{itr}).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: true}},
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 12, Value: true}},
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20, Value: true}},
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30, Value: false}},
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 1, Value: false}},
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 11, Value: true}},
+		{&influxql.BooleanPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 13, Value: false}},
+		{&influxql.BooleanPoint{Name: "mem", Tags: ParseTags("host=A"), Time: 25, Value: true}},
+		{&influxql.BooleanPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 4, Value: true}},
+	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}
 
@@ -1038,16 +1038,6 @@ func FloatIterators(inputs []*FloatIterator) []influxql.Iterator {
 	return itrs
 }
 
-func CompareFloatIterator(input influxql.Iterator, expected []influxql.FloatPoint) ([]influxql.FloatPoint, bool) {
-	itr := input.(influxql.FloatIterator)
-	points := make([]influxql.FloatPoint, 0, len(expected))
-	for p := itr.Next(); p != nil; p = itr.Next() {
-		points = append(points, *p)
-	}
-	itr.Close()
-	return points, deep.Equal(points, expected)
-}
-
 // GenerateFloatIterator creates a FloatIterator with random data.
 func GenerateFloatIterator(rand *rand.Rand, valueN int) *FloatIterator {
 	const interval = 10 * time.Second
@@ -1098,16 +1088,6 @@ func IntegerIterators(inputs []*IntegerIterator) []influxql.Iterator {
 	return itrs
 }
 
-func CompareIntegerIterator(input influxql.Iterator, expected []influxql.IntegerPoint) ([]influxql.IntegerPoint, bool) {
-	itr := input.(influxql.IntegerIterator)
-	points := make([]influxql.IntegerPoint, 0, len(expected))
-	for p := itr.Next(); p != nil; p = itr.Next() {
-		points = append(points, *p)
-	}
-	itr.Close()
-	return points, deep.Equal(points, expected)
-}
-
 // Test implementation of influxql.StringIterator
 type StringIterator struct {
 	Points []influxql.StringPoint
@@ -1136,16 +1116,6 @@ func StringIterators(inputs []*StringIterator) []influxql.Iterator {
 	return itrs
 }
 
-func CompareStringIterator(input influxql.Iterator, expected []influxql.StringPoint) ([]influxql.StringPoint, bool) {
-	itr := input.(influxql.StringIterator)
-	points := make([]influxql.StringPoint, 0, len(expected))
-	for p := itr.Next(); p != nil; p = itr.Next() {
-		points = append(points, *p)
-	}
-	itr.Close()
-	return points, deep.Equal(points, expected)
-}
-
 // Test implementation of influxql.BooleanIterator
 type BooleanIterator struct {
 	Points []influxql.BooleanPoint
@@ -1172,14 +1142,4 @@ func BooleanIterators(inputs []*BooleanIterator) []influxql.Iterator {
 		itrs[i] = influxql.Iterator(inputs[i])
 	}
 	return itrs
-}
-
-func CompareBooleanIterator(input influxql.Iterator, expected []influxql.BooleanPoint) ([]influxql.BooleanPoint, bool) {
-	itr := input.(influxql.BooleanIterator)
-	points := make([]influxql.BooleanPoint, 0, len(expected))
-	for p := itr.Next(); p != nil; p = itr.Next() {
-		points = append(points, *p)
-	}
-	itr.Close()
-	return points, deep.Equal(points, expected)
 }

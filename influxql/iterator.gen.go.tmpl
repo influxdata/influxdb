@@ -548,6 +548,27 @@ func (itr *{{$k.name}}FillIterator) Next() *{{$k.Name}}Point {
 	return p
 }
 
+// {{$k.name}}IntervalIterator represents a {{$k.name}} implementation of IntervalIterator.
+type {{$k.name}}IntervalIterator struct {
+	input {{$k.Name}}Iterator
+	opt   IteratorOptions
+}
+
+func new{{$k.Name}}IntervalIterator(input {{$k.Name}}Iterator, opt IteratorOptions) *{{$k.name}}IntervalIterator {
+	return &{{$k.name}}IntervalIterator{input: input, opt: opt}
+}
+
+func (itr *{{$k.name}}IntervalIterator) Close() error { return itr.input.Close() }
+
+func (itr *{{$k.name}}IntervalIterator) Next() *{{$k.Name}}Point {
+	p := itr.input.Next()
+	if p == nil {
+		return p
+	}
+	p.Time, _ = itr.opt.Window(p.Time)
+	return p
+}
+
 // {{$k.name}}AuxIterator represents a {{$k.name}} implementation of AuxIterator.
 type {{$k.name}}AuxIterator struct {
 	input  *buf{{$k.Name}}Iterator
@@ -704,7 +725,10 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []*{{$v.Name}}Point {
 		p := rp.Emitter.Emit()
 		p.Name = rp.Name
 		p.Tags = rp.Tags
-		p.Time = startTime
+		// Set the points time to the interval time if the reducer didn't provide one.
+		if p.Time == ZeroTime {
+			p.Time = startTime
+		}
 		a[i] = p
 	}
 
