@@ -487,6 +487,15 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 
 // DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
 func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
+	// Expand regex expressions in the FROM clause.
+	a, err := s.ExpandSources(sources)
+	if err != nil {
+		return err
+	} else if sources != nil && len(sources) != 0 && len(a) == 0 {
+		return nil
+	}
+	sources = a
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -495,15 +504,6 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	if db == nil {
 		return nil
 	}
-
-	// Expand regex expressions in the FROM clause.
-	a, err := s.expandSources(sources)
-	if err != nil {
-		return err
-	} else if sources != nil && len(sources) != 0 && len(a) == 0 {
-		return nil
-	}
-	sources = a
 
 	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
@@ -567,6 +567,23 @@ func (s *Store) deleteSeries(database string, seriesKeys []string) error {
 	return nil
 }
 
+// ExpandSources expands sources against all local shards.
+func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+	return s.IteratorCreators().ExpandSources(sources)
+}
+
+// IteratorCreators returns a set of all local shards as iterator creators.
+func (s *Store) IteratorCreators() influxql.IteratorCreators {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	a := make(influxql.IteratorCreators, 0, len(s.shards))
+	for _, sh := range s.shards {
+		a = append(a, sh)
+	}
+	return a
+}
+
 // periodicMaintenance is the method called in a goroutine on the opening of the store
 // to perform periodic maintenance of the shards.
 func (s *Store) periodicMaintenance() {
@@ -600,65 +617,6 @@ func (s *Store) performMaintenanceOnShard(shard *Shard) {
 		}
 	}()
 	shard.PerformMaintenance()
-}
-
-// ExpandSources expands regex sources and removes duplicates.
-// NOTE: sources must be normalized (db and rp set) before calling this function.
-func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.expandSources(sources)
-}
-
-func (s *Store) expandSources(sources influxql.Sources) (influxql.Sources, error) {
-	// Use a map as a set to prevent duplicates.
-	set := map[string]influxql.Source{}
-
-	// Iterate all sources, expanding regexes when they're found.
-	for _, source := range sources {
-		switch src := source.(type) {
-		case *influxql.Measurement:
-			// Add non-regex measurements directly to the set.
-			if src.Regex == nil {
-				set[src.String()] = src
-				continue
-			}
-
-			// Lookup the database.
-			db := s.databaseIndexes[src.Database]
-			if db == nil {
-				return nil, nil
-			}
-
-			// Loop over matching measurements.
-			for _, m := range db.measurementsByRegex(src.Regex.Val) {
-				other := &influxql.Measurement{
-					Database:        src.Database,
-					RetentionPolicy: src.RetentionPolicy,
-					Name:            m.Name,
-				}
-				set[other.String()] = other
-			}
-
-		default:
-			return nil, fmt.Errorf("expandSources: unsupported source type: %T", source)
-		}
-	}
-
-	// Convert set to sorted slice.
-	names := make([]string, 0, len(set))
-	for name := range set {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	// Convert set to a list of Sources.
-	expanded := make(influxql.Sources, 0, len(set))
-	for _, name := range names {
-		expanded = append(expanded, set[name])
-	}
-
-	return expanded, nil
 }
 
 // WriteToShard writes a list of points to a shard identified by its ID.

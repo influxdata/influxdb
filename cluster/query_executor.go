@@ -417,13 +417,6 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 		opt.MinTime = time.Unix(0, 0)
 	}
 
-	// Expand regex sources to their actual source names.
-	sources, err := e.TSDBStore.ExpandSources(stmt.Sources)
-	if err != nil {
-		return err
-	}
-	stmt.Sources = sources
-
 	// Convert DISTINCT into a call.
 	stmt.RewriteDistinct()
 
@@ -434,6 +427,15 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	ic, err := e.iteratorCreator(stmt, &opt)
 	if err != nil {
 		return err
+	}
+
+	// Expand regex sources to their actual source names.
+	if stmt.Sources.HasRegex() {
+		sources, err := ic.ExpandSources(stmt.Sources)
+		if err != nil {
+			return err
+		}
+		stmt.Sources = sources
 	}
 
 	// Rewrite wildcards, if any exist.
@@ -1060,6 +1062,30 @@ func (ic *remoteIteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influ
 		return nil, err
 	}
 	return resp.SeriesList, resp.Err
+}
+
+// ExpandSources expands regex sources on a remote iterator creator.
+func (ic *remoteIteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+	conn, err := ic.dialer.DialNode(ic.nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	// Write request.
+	if err := EncodeTLV(conn, expandSourcesRequestMessage, &ExpandSourcesRequest{
+		ShardIDs: ic.shardIDs,
+		Sources:  sources,
+	}); err != nil {
+		return nil, err
+	}
+
+	// Read the response.
+	var resp ExpandSourcesResponse
+	if _, err := DecodeTLV(conn, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Sources, resp.Err
 }
 
 // NodeDialer dials connections to a given node.

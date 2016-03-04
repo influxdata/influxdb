@@ -411,3 +411,72 @@ func (r *SeriesKeysResponse) UnmarshalBinary(data []byte) error {
 
 	return nil
 }
+
+// ExpandSourcesRequest represents a request to expand regex sources.
+type ExpandSourcesRequest struct {
+	ShardIDs []uint64
+	Sources  influxql.Sources
+}
+
+// MarshalBinary encodes r to a binary format.
+func (r *ExpandSourcesRequest) MarshalBinary() ([]byte, error) {
+	buf, err := r.Sources.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(&internal.ExpandSourcesRequest{
+		ShardIDs: r.ShardIDs,
+		Sources:  buf,
+	})
+}
+
+// UnmarshalBinary decodes data into r.
+func (r *ExpandSourcesRequest) UnmarshalBinary(data []byte) error {
+	var pb internal.ExpandSourcesRequest
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	r.ShardIDs = pb.GetShardIDs()
+	if err := r.Sources.UnmarshalBinary(pb.GetSources()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ExpandSourcesResponse represents a response from source expansion.
+type ExpandSourcesResponse struct {
+	Sources influxql.Sources
+	Err     error
+}
+
+// MarshalBinary encodes r to a binary format.
+func (r *ExpandSourcesResponse) MarshalBinary() ([]byte, error) {
+	var pb internal.ExpandSourcesResponse
+	buf, err := r.Sources.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	pb.Sources = buf
+
+	if r.Err != nil {
+		pb.Err = proto.String(r.Err.Error())
+	}
+	return proto.Marshal(&pb)
+}
+
+// UnmarshalBinary decodes data into r.
+func (r *ExpandSourcesResponse) UnmarshalBinary(data []byte) error {
+	var pb internal.ExpandSourcesResponse
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	if err := r.Sources.UnmarshalBinary(pb.GetSources()); err != nil {
+		return err
+	}
+
+	if pb.Err != nil {
+		r.Err = errors.New(pb.GetErr())
+	}
+	return nil
+}
