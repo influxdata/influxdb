@@ -122,7 +122,16 @@ def package_scripts(build_root):
 
 def run_generate():
     print "Running go generate to rebuild admin UI static filesystem..."
+    if not check_path_for("statik"):
+        run("go install github.com/rakyll/statik")
+    orig_path = None
+    if os.path.join(os.environ.get("GOPATH"), "bin") not in os.environ["PATH"].split(os.pathsep):
+        orig_path = os.environ["PATH"].split(os.pathsep)
+        os.environ["PATH"] = os.environ["PATH"].split(os.pathsep).append(os.path.join(os.environ.get("GOPATH"), "bin"))
+    run("rm -f ./services/admin/statik/statik.go")
     run("go generate ./services/admin")
+    if orig_path is not None:
+        os.environ["PATH"] = orig_path
     return True
 
 def go_get(branch, update=False, no_stash=False):
@@ -149,7 +158,7 @@ def run(command, allow_failure=False, shell=False):
         else:
             out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
         if debug:
-            print "[DEBUG] command output: \n{}\n".format(out)
+            print "[DEBUG] command output:\n {}".format(out)
     except subprocess.CalledProcessError as e:
         print ""
         print ""
@@ -414,7 +423,7 @@ def build(version=None,
             elif arch == "armhf" or arch == "arm":
                 build_command += "GOARM=6 "
             elif arch == "arm64":
-                build_command += "GOARM=arm64 "
+                build_command += "GOARM=7 "
             else:
                 print "!! Invalid ARM architecture specifed: {}".format(arch)
                 print "Please specify either 'armel', 'armhf', or 'arm64'"
@@ -756,12 +765,12 @@ def main():
 
     build_output = {}
 
-    if generate:
-        if not run_generate():
-            return 1
-
     if run_get:
         if not go_get(branch, update=update, no_stash=no_stash):
+            return 1
+
+    if generate:
+        if not run_generate():
             return 1
 
     if test:
