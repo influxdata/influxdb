@@ -21,6 +21,7 @@ func (r *FloatMeanReducer) Aggregate(p *FloatPoint) {
 
 func (r *FloatMeanReducer) Emit() *FloatPoint {
 	return &FloatPoint{
+		Time:       ZeroTime,
 		Value:      r.sum / float64(r.count),
 		Aggregated: r.count,
 	}
@@ -47,6 +48,7 @@ func (r *IntegerMeanReducer) Aggregate(p *IntegerPoint) {
 
 func (r *IntegerMeanReducer) Emit() *FloatPoint {
 	return &FloatPoint{
+		Time:       ZeroTime,
 		Value:      float64(r.sum) / float64(r.count),
 		Aggregated: r.count,
 	}
