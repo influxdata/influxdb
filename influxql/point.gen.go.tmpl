@@ -90,9 +90,14 @@ func decode{{.Name}}Point(pb *internal.Point) *{{.Name}}Point {
 // {{.name}}Points represents a slice of points sortable by value.
 type {{.name}}Points []{{.Name}}Point
 
-func (a {{.name}}Points) Len() int           { return len(a) }
-func (a {{.name}}Points) Less(i, j int) bool { return a[i].Time < a[j].Time }
-func (a {{.name}}Points) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a {{.name}}Points) Len() int { return len(a) }
+func (a {{.name}}Points) Less(i, j int) bool {
+	if a[i].Time != a[j].Time {
+		return a[i].Time < a[j].Time
+	}
+	return {{if ne .Name "Boolean"}}a[i].Value < a[j].Value{{else}}!a[i].Value{{end}}
+}
+func (a {{.name}}Points) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 // {{.name}}PointsByValue represents a slice of points sortable by value.
 type {{.name}}PointsByValue []{{.Name}}Point
@@ -104,6 +109,13 @@ func (a {{.name}}PointsByValue) Less(i, j int) bool { return !a[i].Value }
 func (a {{.name}}PointsByValue) Less(i, j int) bool { return a[i].Value < a[j].Value }
 {{end}}
 func (a {{.name}}PointsByValue) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// {{.name}}PointsByTime represents a slice of points sortable by value.
+type {{.name}}PointsByTime []{{.Name}}Point
+
+func (a {{.name}}PointsByTime) Len() int           { return len(a) }
+func (a {{.name}}PointsByTime) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a {{.name}}PointsByTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // {{.name}}PointByFunc represents a slice of points sortable by a function.
 type {{.name}}PointsByFunc struct {
