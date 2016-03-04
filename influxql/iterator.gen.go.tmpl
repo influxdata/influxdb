@@ -615,6 +615,10 @@ func (itr *{{.name}}AuxIterator) ExpandSources(sources Sources) (Sources, error)
 	return nil, errors.New("not implemented")
 }
 
+func (itr *{{.name}}AuxIterator) ExpandSources(sources Sources) (Sources, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (itr *{{.name}}AuxIterator) stream() {
 	for {
 		// Read next point.
