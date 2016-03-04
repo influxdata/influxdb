@@ -611,7 +611,11 @@ func (itr *{{$k.name}}AuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, 
 	return nil, errors.New("not implemented")
 }
 
-func (itr *{{$k.name}}AuxIterator) stream() {
+func (itr *{{.name}}AuxIterator) ExpandSources(sources Sources) (Sources, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (itr *{{.name}}AuxIterator) stream() {
 	for {
 		// Read next point.
 		p := itr.input.Next()

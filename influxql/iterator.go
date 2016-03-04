@@ -444,6 +444,9 @@ type IteratorCreator interface {
 
 	// Returns the series keys that will be returned by this iterator.
 	SeriesKeys(opt IteratorOptions) (SeriesList, error)
+
+	// Expands regex sources to all matching sources.
+	ExpandSources(sources Sources) (Sources, error)
 }
 
 // IteratorCreators represents a list of iterator creators.
@@ -542,6 +545,42 @@ func (a IteratorCreators) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
 	}
 	sort.Sort(SeriesList(seriesList))
 	return SeriesList(seriesList), nil
+}
+
+// ExpandSources expands sources across all iterator creators and returns a unique result.
+func (a IteratorCreators) ExpandSources(sources Sources) (Sources, error) {
+	m := make(map[string]Source)
+
+	for _, ic := range a {
+		expanded, err := ic.ExpandSources(sources)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, src := range expanded {
+			switch src := src.(type) {
+			case *Measurement:
+				m[src.String()] = src
+			default:
+				return nil, fmt.Errorf("IteratorCreators.ExpandSources: unsupported source type: %T", src)
+			}
+		}
+	}
+
+	// Convert set to sorted slice.
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Convert set to a list of Sources.
+	sorted := make(Sources, 0, len(m))
+	for _, name := range names {
+		sorted = append(sorted, m[name])
+	}
+
+	return sorted, nil
 }
 
 // IteratorOptions is an object passed to CreateIterator to specify creation options.

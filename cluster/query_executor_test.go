@@ -275,6 +275,7 @@ type IteratorCreator struct {
 	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	FieldDimensionsFn func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error)
 	SeriesKeysFn      func(opt influxql.IteratorOptions) (influxql.SeriesList, error)
+	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
 }
 
 func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
@@ -287,6 +288,10 @@ func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields, di
 
 func (ic *IteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
 	return ic.SeriesKeysFn(opt)
+}
+
+func (ic *IteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+	return ic.ExpandSourcesFn(sources)
 }
 
 // FloatIterator is a represents an iterator that reads from a slice.
