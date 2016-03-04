@@ -329,6 +329,9 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 				return nil, err
 			}
 
+			if expr.Name != "top" && expr.Name != "bottom" {
+				itr = NewIntervalIterator(itr, opt)
+			}
 			if !opt.Interval.IsZero() && opt.Fill != NoFill {
 				itr = NewFillIterator(itr, expr, opt)
 			}
