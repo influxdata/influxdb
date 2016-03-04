@@ -951,6 +951,30 @@ type nilFloatIterator struct{}
 func (*nilFloatIterator) Close() error      { return nil }
 func (*nilFloatIterator) Next() *FloatPoint { return nil }
 
+// integerFloatTransformIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type integerFloatTransformIterator struct {
+	input IntegerIterator
+	fn    integerFloatTransformFunc
+}
+
+// Close closes the iterator and all child iterators.
+func (itr *integerFloatTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *integerFloatTransformIterator) Next() *FloatPoint {
+	p := itr.input.Next()
+	if p != nil {
+		return itr.fn(p)
+	}
+	return nil
+}
+
+// integerFloatTransformFunc creates or modifies a point.
+// The point passed in may be modified and returned rather than allocating a
+// new point if possible.
+type integerFloatTransformFunc func(p *IntegerPoint) *FloatPoint
+
 type integerFloatCastIterator struct {
 	input IntegerIterator
 }
