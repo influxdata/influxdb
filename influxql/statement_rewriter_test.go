@@ -41,7 +41,7 @@ func TestRewriteStatement(t *testing.T) {
 		},
 		{
 			stmt: `SHOW MEASUREMENTS WITH MEASUREMENT = cpu WHERE region = 'uswest'`,
-			s:    `SELECT "name" FROM _measurements WHERE "name" = 'cpu' AND region = 'uswest'`,
+			s:    `SELECT "name" FROM _measurements WHERE ("name" = 'cpu') AND (region = 'uswest')`,
 		},
 		{
 			stmt: `SHOW TAG KEYS`,
@@ -57,7 +57,19 @@ func TestRewriteStatement(t *testing.T) {
 		},
 		{
 			stmt: `SHOW TAG KEYS FROM cpu WHERE region = 'uswest'`,
-			s:    `SELECT tagKey FROM _tagKeys WHERE "name" = 'cpu' AND region = 'uswest'`,
+			s:    `SELECT tagKey FROM _tagKeys WHERE ("name" = 'cpu') AND (region = 'uswest')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES WITH KEY = region`,
+			s:    `SELECT _tagKey AS "key", value FROM _tags WHERE _tagKey = 'region'`,
+		},
+		{
+			stmt: `SHOW TAG VALUES FROM cpu WITH KEY = region`,
+			s:    `SELECT _tagKey AS "key", value FROM _tags WHERE ("name" = 'cpu') AND (_tagKey = 'region')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES FROM cpu WITH KEY IN (region, host)`,
+			s:    `SELECT _tagKey AS "key", value FROM _tags WHERE ("name" = 'cpu') AND (_tagKey = 'region' OR _tagKey = 'host')`,
 		},
 		{
 			stmt: `SELECT value FROM cpu`,

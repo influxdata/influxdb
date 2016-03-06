@@ -1,8 +1,6 @@
 package influxql
 
-import (
-	"errors"
-)
+import "errors"
 
 // RewriteStatement rewrites stmt into a new statement, if applicable.
 func RewriteStatement(stmt Statement) (Statement, error) {
@@ -13,6 +11,8 @@ func RewriteStatement(stmt Statement) (Statement, error) {
 		return rewriteShowMeasurementsStatement(stmt)
 	case *ShowTagKeysStatement:
 		return rewriteShowTagKeysStatement(stmt)
+	case *ShowTagValuesStatement:
+		return rewriteShowTagValuesStatement(stmt)
 	default:
 		return stmt, nil
 	}
@@ -61,28 +61,8 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 	}
 
 	condition := stmt.Condition
-	if source, ok := stmt.Source.(*Measurement); ok {
-		var expr Expr
-		if source.Regex != nil {
-			expr = &BinaryExpr{
-				Op:  EQREGEX,
-				LHS: &VarRef{Val: "name"},
-				RHS: &RegexLiteral{Val: source.Regex.Val},
-			}
-		} else if source.Name != "" {
-			expr = &BinaryExpr{
-				Op:  EQ,
-				LHS: &VarRef{Val: "name"},
-				RHS: &StringLiteral{Val: source.Name},
-			}
-		}
-
-		// Set condition or "AND" together.
-		if condition == nil {
-			condition = expr
-		} else {
-			condition = &BinaryExpr{Op: AND, LHS: expr, RHS: condition}
-		}
+	if stmt.Source != nil {
+		condition = rewriteSourcesCondition(Sources([]Source{stmt.Source}), stmt.Condition)
 	}
 
 	return &SelectStatement{
@@ -107,33 +87,7 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		return nil, errors.New("SHOW TAG KEYS doesn't support time in WHERE clause")
 	}
 
-	condition := stmt.Condition
-	if len(stmt.Sources) > 0 {
-		if source, ok := stmt.Sources[0].(*Measurement); ok {
-			var expr Expr
-			if source.Regex != nil {
-				expr = &BinaryExpr{
-					Op:  EQREGEX,
-					LHS: &VarRef{Val: "name"},
-					RHS: &RegexLiteral{Val: source.Regex.Val},
-				}
-			} else if source.Name != "" {
-				expr = &BinaryExpr{
-					Op:  EQ,
-					LHS: &VarRef{Val: "name"},
-					RHS: &StringLiteral{Val: source.Name},
-				}
-			}
-
-			// Set condition or "AND" together.
-			if condition == nil {
-				condition = expr
-			} else {
-				condition = &BinaryExpr{Op: AND, LHS: expr, RHS: condition}
-			}
-		}
-	}
-
+	condition := rewriteSourcesCondition(stmt.Sources, stmt.Condition)
 	return &SelectStatement{
 		Fields: []*Field{
 			{Expr: &VarRef{Val: "tagKey"}},
@@ -148,4 +102,110 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		OmitTime:   true,
 		Dedupe:     true,
 	}, nil
+}
+
+func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, error) {
+	// Check for time in WHERE clause (not supported).
+	if HasTimeExpr(stmt.Condition) {
+		return nil, errors.New("SHOW TAG VALUES doesn't support time in WHERE clause")
+	}
+
+	condition := stmt.Condition
+	if len(stmt.TagKeys) > 0 {
+		var expr Expr
+		for _, tagKey := range stmt.TagKeys {
+			tagExpr := &BinaryExpr{
+				Op:  EQ,
+				LHS: &VarRef{Val: "_tagKey"},
+				RHS: &StringLiteral{Val: tagKey},
+			}
+
+			if expr != nil {
+				expr = &BinaryExpr{
+					Op:  OR,
+					LHS: expr,
+					RHS: tagExpr,
+				}
+			} else {
+				expr = tagExpr
+			}
+		}
+
+		// Set condition or "AND" together.
+		if condition == nil {
+			condition = expr
+		} else {
+			condition = &BinaryExpr{
+				Op:  AND,
+				LHS: &ParenExpr{Expr: condition},
+				RHS: &ParenExpr{Expr: expr},
+			}
+		}
+	}
+	condition = rewriteSourcesCondition(stmt.Sources, condition)
+
+	return &SelectStatement{
+		Fields: []*Field{
+			{Expr: &VarRef{Val: "_tagKey"}, Alias: "key"},
+			{Expr: &VarRef{Val: "value"}},
+		},
+		Sources: []Source{
+			&Measurement{Name: "_tags"},
+		},
+		Condition:  condition,
+		Offset:     stmt.Offset,
+		Limit:      stmt.Limit,
+		SortFields: stmt.SortFields,
+		OmitTime:   true,
+		Dedupe:     true,
+	}, nil
+}
+
+// rewriteSourcesCondition rewrites sources into `name` expressions.
+// Merges with cond and returns a new condition.
+func rewriteSourcesCondition(sources Sources, cond Expr) Expr {
+	if len(sources) == 0 {
+		return cond
+	}
+
+	// Generate an OR'd set of filters on source name.
+	var scond Expr
+	for _, source := range sources {
+		mm := source.(*Measurement)
+
+		// Generate a filtering expression on the measurement name.
+		var expr Expr
+		if mm.Regex != nil {
+			expr = &BinaryExpr{
+				Op:  EQREGEX,
+				LHS: &VarRef{Val: "name"},
+				RHS: &RegexLiteral{Val: mm.Regex.Val},
+			}
+		} else if mm.Name != "" {
+			expr = &BinaryExpr{
+				Op:  EQ,
+				LHS: &VarRef{Val: "name"},
+				RHS: &StringLiteral{Val: mm.Name},
+			}
+		}
+
+		if scond == nil {
+			scond = expr
+		} else {
+			scond = &BinaryExpr{
+				Op:  OR,
+				LHS: scond,
+				RHS: expr,
+			}
+		}
+	}
+
+	if cond != nil {
+		return &BinaryExpr{
+			Op:  AND,
+			LHS: &ParenExpr{Expr: scond},
+			RHS: &ParenExpr{Expr: cond},
+		}
+	}
+	return scond
 }

@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
@@ -416,6 +417,8 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 		return NewMeasurementIterator(s, opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
+	case "_tags":
+		return NewTagValuesIterator(s, opt)
 	default:
 		return nil, fmt.Errorf("unknown system source: %s", m.Name)
 	}
@@ -455,8 +458,14 @@ func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, e
 		if len(opt.Sources) > 1 {
 			return nil, errors.New("cannot select from multiple system sources")
 		}
-		// Meta queries don't need to know the series name and always have a single string.
-		return []influxql.Series{{Aux: []influxql.DataType{influxql.String}}}, nil
+
+		// Meta queries don't need to know the series name and
+		// always have a single series of strings.
+		auxFields := make([]influxql.DataType, len(opt.Aux))
+		for i := range auxFields {
+			auxFields[i] = influxql.String
+		}
+		return []influxql.Series{{Aux: auxFields}}, nil
 	}
 
 	return s.engine.SeriesKeys(opt)
@@ -844,7 +853,7 @@ func NewMeasurementIterator(sh *Shard, opt influxql.IteratorOptions) (*Measureme
 	if opt.Condition == nil {
 		itr.mms = sh.index.Measurements()
 	} else {
-		mms, err := sh.index.measurementsByExpr(opt.Condition)
+		mms, _, err := sh.index.measurementsByExpr(opt.Condition)
 		if err != nil {
 			return nil, err
 		}
@@ -881,6 +890,122 @@ func NewTagKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Itera
 	return newMeasurementKeysIterator(sh, fn, opt)
 }
 
+// tagValuesIterator emits key/tag values
+type tagValuesIterator struct {
+	series []*Series // remaining series
+	keys   []string  // tag keys to select from a series
+	fields []string  // fields to emit (key or value)
+	buf    struct {
+		s    *Series  // current series
+		keys []string // current tag's keys
+	}
+}
+
+// NewTagValuesIterator returns a new instance of TagValuesIterator.
+func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if opt.Condition == nil {
+		return nil, errors.New("a condition is required")
+	}
+
+	mms, ok, err := sh.index.measurementsByExpr(opt.Condition)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		mms = sh.index.Measurements()
+		sort.Sort(mms)
+	}
+
+	filterExpr := influxql.CloneExpr(opt.Condition)
+	filterExpr = influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val == "name" || strings.HasPrefix(tag.Val, "_") {
+					return nil
+				}
+			}
+		}
+		return e
+	})
+
+	var series []*Series
+	keys := newStringSet()
+	for _, mm := range mms {
+		ss, ok, err := mm.tagKeysByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			keys.add(mm.TagKeys()...)
+		} else {
+			keys = keys.union(ss)
+		}
+
+		ids, err := mm.seriesIDsAllOrByExpr(filterExpr)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, id := range ids {
+			series = append(series, mm.SeriesByID(id))
+		}
+	}
+
+	return &tagValuesIterator{
+		series: series,
+		keys:   keys.list(),
+		fields: opt.Aux,
+	}, nil
+}
+
+// Close closes the iterator.
+func (itr *tagValuesIterator) Close() error { return nil }
+
+// Next emits the next point in the iterator.
+func (itr *tagValuesIterator) Next() *influxql.FloatPoint {
+	for {
+		// If there are no more values then move to the next key.
+		if len(itr.buf.keys) == 0 {
+			if len(itr.series) == 0 {
+				return nil
+			}
+
+			itr.buf.s = itr.series[0]
+			itr.buf.keys = itr.keys
+			itr.series = itr.series[1:]
+			continue
+		}
+
+		key := itr.buf.keys[0]
+		value, ok := itr.buf.s.Tags[key]
+		if !ok {
+			itr.buf.keys = itr.buf.keys[1:]
+			continue
+		}
+
+		// Prepare auxiliary fields.
+		auxFields := make([]interface{}, len(itr.fields))
+		for i, f := range itr.fields {
+			switch f {
+			case "_tagKey":
+				auxFields[i] = key
+			case "value":
+				auxFields[i] = value
+			}
+		}
+
+		// Return next key.
+		p := &influxql.FloatPoint{
+			Name: itr.buf.s.measurement.Name,
+			Aux:  auxFields,
+		}
+		itr.buf.keys = itr.buf.keys[1:]
+
+		return p
+	}
+}
+
 // measurementKeyFunc is the function called by measurementKeysIterator.
 type measurementKeyFunc func(m *Measurement) []string
 
@@ -891,7 +1016,7 @@ func newMeasurementKeysIterator(sh *Shard, fn measurementKeyFunc, opt influxql.I
 	if opt.Condition == nil {
 		itr.mms = sh.index.Measurements()
 	} else {
-		mms, err := sh.index.measurementsByExpr(opt.Condition)
+		mms, _, err := sh.index.measurementsByExpr(opt.Condition)
 		if err != nil {
 			return nil, err
 		}
