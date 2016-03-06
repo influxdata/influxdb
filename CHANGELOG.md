@@ -19,6 +19,7 @@
 - [#5691](https://github.com/influxdata/influxdb/pull/5691): Remove associated shard data when retention policies are dropped.
 - [#5758](https://github.com/influxdata/influxdb/pull/5758): TSM engine stats for cache, WAL, and filestore. Thanks @jonseymour
 - [#5844](https://github.com/influxdata/influxdb/pull/5844): Tag TSM engine stats with database and retention policy
+- [#5593](https://github.com/influxdata/influxdb/issues/5593): Modify `SHOW TAG VALUES` output for the new query engine to normalize the output.
 
 ### Bugfixes
 

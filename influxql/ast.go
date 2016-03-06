@@ -3440,6 +3440,36 @@ type rewriterFunc func(Node) Node
 
 func (fn rewriterFunc) Rewrite(n Node) Node { return fn(n) }
 
+// RewriteExpr recursively invokes the function to replace each expr.
+// Nodes are traversed depth-first and rewritten from leaf to root.
+func RewriteExpr(expr Expr, fn func(Expr) Expr) Expr {
+	switch e := expr.(type) {
+	case *BinaryExpr:
+		e.LHS = RewriteExpr(e.LHS, fn)
+		e.RHS = RewriteExpr(e.RHS, fn)
+		if e.LHS != nil && e.RHS == nil {
+			expr = e.LHS
+		} else if e.RHS != nil && e.LHS == nil {
+			expr = e.RHS
+		} else if e.LHS == nil && e.RHS == nil {
+			return nil
+		}
+
+	case *ParenExpr:
+		e.Expr = RewriteExpr(e.Expr, fn)
+		if e.Expr == nil {
+			return nil
+		}
+
+	case *Call:
+		for i, expr := range e.Args {
+			e.Args[i] = RewriteExpr(expr, fn)
+		}
+	}
+
+	return fn(expr)
+}
+
 // Eval evaluates expr against a map.
 func Eval(expr Expr, m map[string]interface{}) interface{} {
 	if expr == nil {
