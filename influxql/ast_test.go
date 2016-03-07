@@ -861,6 +861,27 @@ func TestRewrite(t *testing.T) {
 	}
 }
 
+// Ensure an Expr can be rewritten handling nils.
+func TestRewriteExpr(t *testing.T) {
+	expr := MustParseExpr(`(time > 1 AND time < 10) OR foo = 2`)
+
+	// Remove all time expressions.
+	act := influxql.RewriteExpr(expr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			if lhs, ok := e.LHS.(*influxql.VarRef); ok && lhs.Val == "time" {
+				return nil
+			}
+		}
+		return e
+	})
+
+	// Verify that everything is flipped.
+	if act := act.String(); act != `foo = 2.000` {
+		t.Fatalf("unexpected result: %s", act)
+	}
+}
+
 // Ensure that the String() value of a statement is parseable
 func TestParseString(t *testing.T) {
 	var tests = []struct {
