@@ -739,7 +739,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []*{{$v.Name}}Point {
 // {{$k.name}}ReduceSliceIterator executes a reducer on all points in a window and buffers the result.
 type {{$k.name}}ReduceSliceIterator struct {
 	input  *buf{{$k.Name}}Iterator
-	fn     {{$k.name}}ReduceSliceFunc
+    create func() ({{$k.Name}}PointSliceAggregator, {{$k.Name}}PointSliceEmitter)
 	opt    IteratorOptions
 	points []{{$k.Name}}Point
 }
@@ -769,9 +769,8 @@ func (itr *{{$k.name}}ReduceSliceIterator) reduce() []{{$k.Name}}Point {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
+	var reduceOptions = ReduceOptions{
+		StartTime: startTime,
 	}
 
 	// Group points by name and tagset.
@@ -802,7 +801,9 @@ func (itr *{{$k.name}}ReduceSliceIterator) reduce() []{{$k.Name}}Point {
 	// Reduce each set into a set of values.
 	results := make(map[string][]{{$k.Name}}Point)
 	for key, g := range groups {
-		a := itr.fn(g.points, &reduceOptions)
+		aggregator, emitter := itr.create()
+		aggregator.AggregateSlice(g.points)
+		a := emitter.Emit(&reduceOptions)
 		if len(a) == 0 {
 			continue
 		}
@@ -833,10 +834,7 @@ func (itr *{{$k.name}}ReduceSliceIterator) reduce() []{{$k.Name}}Point {
 	return a
 }
 
-// {{$k.name}}ReduceSliceFunc is the function called by a {{$k.Name}}Point slice reducer.
-type {{$k.name}}ReduceSliceFunc func(a []{{$k.Name}}Point, opt *reduceOptions) []{{$k.Name}}Point
-
-// {{$k.name}}ReduceIterator executes a function to modify an existing point for every
+// {{$k.name}}TransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type {{$k.name}}TransformIterator struct {
 	input {{$k.Name}}Iterator

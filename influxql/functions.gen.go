@@ -16,6 +16,17 @@ type FloatPointEmitter interface {
 	Emit() *FloatPoint
 }
 
+// FloatPointSliceAggregator aggregates a slice of to produce a slice of points.
+type FloatPointSliceAggregator interface {
+	Aggregate(a FloatPoint)
+	AggregateSlice(a []FloatPoint)
+}
+
+// FloatPointSliceEmitter produces a slice of points from an aggregate.
+type FloatPointSliceEmitter interface {
+	Emit(opt *ReduceOptions) []FloatPoint
+}
+
 // FloatReduceFunc is the function called by a FloatPoint reducer.
 type FloatReduceFunc func(prev *FloatPoint, curr *FloatPoint) (t int64, v float64, aux []interface{})
 
@@ -41,6 +52,30 @@ func (r *FloatFuncReducer) Aggregate(p *FloatPoint) {
 
 func (r *FloatFuncReducer) Emit() *FloatPoint {
 	return r.prev
+}
+
+// FloatReduceSliceFunc is the function called by a FloatPoint slice reducer.
+type FloatReduceSliceFunc func(a []FloatPoint, opt *ReduceOptions) []FloatPoint
+
+type FloatSliceFuncReducer struct {
+	slice []FloatPoint
+	fn    FloatReduceSliceFunc
+}
+
+func NewFloatSliceFuncReducer(fn FloatReduceSliceFunc) *FloatSliceFuncReducer {
+	return &FloatSliceFuncReducer{fn: fn}
+}
+
+func (r *FloatSliceFuncReducer) Aggregate(a FloatPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *FloatSliceFuncReducer) AggregateSlice(a []FloatPoint) {
+	r.slice = a
+}
+
+func (r *FloatSliceFuncReducer) Emit(opt *ReduceOptions) []FloatPoint {
+	return r.fn(r.slice, opt)
 }
 
 // FloatReduceIntegerFunc is the function called by a FloatPoint reducer.
@@ -70,6 +105,30 @@ func (r *FloatFuncIntegerReducer) Emit() *IntegerPoint {
 	return r.prev
 }
 
+// FloatReduceSliceFunc is the function called by a FloatPoint slice reducer.
+type FloatReduceSliceIntegerFunc func(a []FloatPoint, opt *ReduceOptions) []IntegerPoint
+
+type FloatSliceFuncIntegerReducer struct {
+	slice []FloatPoint
+	fn    FloatReduceSliceIntegerFunc
+}
+
+func NewFloatSliceFuncIntegerReducer(fn FloatReduceSliceIntegerFunc) *FloatSliceFuncIntegerReducer {
+	return &FloatSliceFuncIntegerReducer{fn: fn}
+}
+
+func (r *FloatSliceFuncIntegerReducer) Aggregate(a FloatPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *FloatSliceFuncIntegerReducer) AggregateSlice(a []FloatPoint) {
+	r.slice = a
+}
+
+func (r *FloatSliceFuncIntegerReducer) Emit(opt *ReduceOptions) []IntegerPoint {
+	return r.fn(r.slice, opt)
+}
+
 // FloatReduceStringFunc is the function called by a FloatPoint reducer.
 type FloatReduceStringFunc func(prev *StringPoint, curr *FloatPoint) (t int64, v string, aux []interface{})
 
@@ -95,6 +154,30 @@ func (r *FloatFuncStringReducer) Aggregate(p *FloatPoint) {
 
 func (r *FloatFuncStringReducer) Emit() *StringPoint {
 	return r.prev
+}
+
+// FloatReduceSliceFunc is the function called by a FloatPoint slice reducer.
+type FloatReduceSliceStringFunc func(a []FloatPoint, opt *ReduceOptions) []StringPoint
+
+type FloatSliceFuncStringReducer struct {
+	slice []FloatPoint
+	fn    FloatReduceSliceStringFunc
+}
+
+func NewFloatSliceFuncStringReducer(fn FloatReduceSliceStringFunc) *FloatSliceFuncStringReducer {
+	return &FloatSliceFuncStringReducer{fn: fn}
+}
+
+func (r *FloatSliceFuncStringReducer) Aggregate(a FloatPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *FloatSliceFuncStringReducer) AggregateSlice(a []FloatPoint) {
+	r.slice = a
+}
+
+func (r *FloatSliceFuncStringReducer) Emit(opt *ReduceOptions) []StringPoint {
+	return r.fn(r.slice, opt)
 }
 
 // FloatReduceBooleanFunc is the function called by a FloatPoint reducer.
@@ -124,6 +207,30 @@ func (r *FloatFuncBooleanReducer) Emit() *BooleanPoint {
 	return r.prev
 }
 
+// FloatReduceSliceFunc is the function called by a FloatPoint slice reducer.
+type FloatReduceSliceBooleanFunc func(a []FloatPoint, opt *ReduceOptions) []BooleanPoint
+
+type FloatSliceFuncBooleanReducer struct {
+	slice []FloatPoint
+	fn    FloatReduceSliceBooleanFunc
+}
+
+func NewFloatSliceFuncBooleanReducer(fn FloatReduceSliceBooleanFunc) *FloatSliceFuncBooleanReducer {
+	return &FloatSliceFuncBooleanReducer{fn: fn}
+}
+
+func (r *FloatSliceFuncBooleanReducer) Aggregate(a FloatPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *FloatSliceFuncBooleanReducer) AggregateSlice(a []FloatPoint) {
+	r.slice = a
+}
+
+func (r *FloatSliceFuncBooleanReducer) Emit(opt *ReduceOptions) []BooleanPoint {
+	return r.fn(r.slice, opt)
+}
+
 // IntegerPointAggregator aggregates points to produce a single point.
 type IntegerPointAggregator interface {
 	Aggregate(p *IntegerPoint)
@@ -132,6 +239,17 @@ type IntegerPointAggregator interface {
 // IntegerPointEmitter produces a single point from an aggregate.
 type IntegerPointEmitter interface {
 	Emit() *IntegerPoint
+}
+
+// IntegerPointSliceAggregator aggregates a slice of to produce a slice of points.
+type IntegerPointSliceAggregator interface {
+	Aggregate(a IntegerPoint)
+	AggregateSlice(a []IntegerPoint)
+}
+
+// IntegerPointSliceEmitter produces a slice of points from an aggregate.
+type IntegerPointSliceEmitter interface {
+	Emit(opt *ReduceOptions) []IntegerPoint
 }
 
 // IntegerReduceFloatFunc is the function called by a IntegerPoint reducer.
@@ -161,6 +279,30 @@ func (r *IntegerFuncFloatReducer) Emit() *FloatPoint {
 	return r.prev
 }
 
+// IntegerReduceSliceFunc is the function called by a IntegerPoint slice reducer.
+type IntegerReduceSliceFloatFunc func(a []IntegerPoint, opt *ReduceOptions) []FloatPoint
+
+type IntegerSliceFuncFloatReducer struct {
+	slice []IntegerPoint
+	fn    IntegerReduceSliceFloatFunc
+}
+
+func NewIntegerSliceFuncFloatReducer(fn IntegerReduceSliceFloatFunc) *IntegerSliceFuncFloatReducer {
+	return &IntegerSliceFuncFloatReducer{fn: fn}
+}
+
+func (r *IntegerSliceFuncFloatReducer) Aggregate(a IntegerPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *IntegerSliceFuncFloatReducer) AggregateSlice(a []IntegerPoint) {
+	r.slice = a
+}
+
+func (r *IntegerSliceFuncFloatReducer) Emit(opt *ReduceOptions) []FloatPoint {
+	return r.fn(r.slice, opt)
+}
+
 // IntegerReduceFunc is the function called by a IntegerPoint reducer.
 type IntegerReduceFunc func(prev *IntegerPoint, curr *IntegerPoint) (t int64, v int64, aux []interface{})
 
@@ -186,6 +328,30 @@ func (r *IntegerFuncReducer) Aggregate(p *IntegerPoint) {
 
 func (r *IntegerFuncReducer) Emit() *IntegerPoint {
 	return r.prev
+}
+
+// IntegerReduceSliceFunc is the function called by a IntegerPoint slice reducer.
+type IntegerReduceSliceFunc func(a []IntegerPoint, opt *ReduceOptions) []IntegerPoint
+
+type IntegerSliceFuncReducer struct {
+	slice []IntegerPoint
+	fn    IntegerReduceSliceFunc
+}
+
+func NewIntegerSliceFuncReducer(fn IntegerReduceSliceFunc) *IntegerSliceFuncReducer {
+	return &IntegerSliceFuncReducer{fn: fn}
+}
+
+func (r *IntegerSliceFuncReducer) Aggregate(a IntegerPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *IntegerSliceFuncReducer) AggregateSlice(a []IntegerPoint) {
+	r.slice = a
+}
+
+func (r *IntegerSliceFuncReducer) Emit(opt *ReduceOptions) []IntegerPoint {
+	return r.fn(r.slice, opt)
 }
 
 // IntegerReduceStringFunc is the function called by a IntegerPoint reducer.
@@ -215,6 +381,30 @@ func (r *IntegerFuncStringReducer) Emit() *StringPoint {
 	return r.prev
 }
 
+// IntegerReduceSliceFunc is the function called by a IntegerPoint slice reducer.
+type IntegerReduceSliceStringFunc func(a []IntegerPoint, opt *ReduceOptions) []StringPoint
+
+type IntegerSliceFuncStringReducer struct {
+	slice []IntegerPoint
+	fn    IntegerReduceSliceStringFunc
+}
+
+func NewIntegerSliceFuncStringReducer(fn IntegerReduceSliceStringFunc) *IntegerSliceFuncStringReducer {
+	return &IntegerSliceFuncStringReducer{fn: fn}
+}
+
+func (r *IntegerSliceFuncStringReducer) Aggregate(a IntegerPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *IntegerSliceFuncStringReducer) AggregateSlice(a []IntegerPoint) {
+	r.slice = a
+}
+
+func (r *IntegerSliceFuncStringReducer) Emit(opt *ReduceOptions) []StringPoint {
+	return r.fn(r.slice, opt)
+}
+
 // IntegerReduceBooleanFunc is the function called by a IntegerPoint reducer.
 type IntegerReduceBooleanFunc func(prev *BooleanPoint, curr *IntegerPoint) (t int64, v bool, aux []interface{})
 
@@ -242,6 +432,30 @@ func (r *IntegerFuncBooleanReducer) Emit() *BooleanPoint {
 	return r.prev
 }
 
+// IntegerReduceSliceFunc is the function called by a IntegerPoint slice reducer.
+type IntegerReduceSliceBooleanFunc func(a []IntegerPoint, opt *ReduceOptions) []BooleanPoint
+
+type IntegerSliceFuncBooleanReducer struct {
+	slice []IntegerPoint
+	fn    IntegerReduceSliceBooleanFunc
+}
+
+func NewIntegerSliceFuncBooleanReducer(fn IntegerReduceSliceBooleanFunc) *IntegerSliceFuncBooleanReducer {
+	return &IntegerSliceFuncBooleanReducer{fn: fn}
+}
+
+func (r *IntegerSliceFuncBooleanReducer) Aggregate(a IntegerPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *IntegerSliceFuncBooleanReducer) AggregateSlice(a []IntegerPoint) {
+	r.slice = a
+}
+
+func (r *IntegerSliceFuncBooleanReducer) Emit(opt *ReduceOptions) []BooleanPoint {
+	return r.fn(r.slice, opt)
+}
+
 // StringPointAggregator aggregates points to produce a single point.
 type StringPointAggregator interface {
 	Aggregate(p *StringPoint)
@@ -250,6 +464,17 @@ type StringPointAggregator interface {
 // StringPointEmitter produces a single point from an aggregate.
 type StringPointEmitter interface {
 	Emit() *StringPoint
+}
+
+// StringPointSliceAggregator aggregates a slice of to produce a slice of points.
+type StringPointSliceAggregator interface {
+	Aggregate(a StringPoint)
+	AggregateSlice(a []StringPoint)
+}
+
+// StringPointSliceEmitter produces a slice of points from an aggregate.
+type StringPointSliceEmitter interface {
+	Emit(opt *ReduceOptions) []StringPoint
 }
 
 // StringReduceFloatFunc is the function called by a StringPoint reducer.
@@ -279,6 +504,30 @@ func (r *StringFuncFloatReducer) Emit() *FloatPoint {
 	return r.prev
 }
 
+// StringReduceSliceFunc is the function called by a StringPoint slice reducer.
+type StringReduceSliceFloatFunc func(a []StringPoint, opt *ReduceOptions) []FloatPoint
+
+type StringSliceFuncFloatReducer struct {
+	slice []StringPoint
+	fn    StringReduceSliceFloatFunc
+}
+
+func NewStringSliceFuncFloatReducer(fn StringReduceSliceFloatFunc) *StringSliceFuncFloatReducer {
+	return &StringSliceFuncFloatReducer{fn: fn}
+}
+
+func (r *StringSliceFuncFloatReducer) Aggregate(a StringPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *StringSliceFuncFloatReducer) AggregateSlice(a []StringPoint) {
+	r.slice = a
+}
+
+func (r *StringSliceFuncFloatReducer) Emit(opt *ReduceOptions) []FloatPoint {
+	return r.fn(r.slice, opt)
+}
+
 // StringReduceIntegerFunc is the function called by a StringPoint reducer.
 type StringReduceIntegerFunc func(prev *IntegerPoint, curr *StringPoint) (t int64, v int64, aux []interface{})
 
@@ -304,6 +553,30 @@ func (r *StringFuncIntegerReducer) Aggregate(p *StringPoint) {
 
 func (r *StringFuncIntegerReducer) Emit() *IntegerPoint {
 	return r.prev
+}
+
+// StringReduceSliceFunc is the function called by a StringPoint slice reducer.
+type StringReduceSliceIntegerFunc func(a []StringPoint, opt *ReduceOptions) []IntegerPoint
+
+type StringSliceFuncIntegerReducer struct {
+	slice []StringPoint
+	fn    StringReduceSliceIntegerFunc
+}
+
+func NewStringSliceFuncIntegerReducer(fn StringReduceSliceIntegerFunc) *StringSliceFuncIntegerReducer {
+	return &StringSliceFuncIntegerReducer{fn: fn}
+}
+
+func (r *StringSliceFuncIntegerReducer) Aggregate(a StringPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *StringSliceFuncIntegerReducer) AggregateSlice(a []StringPoint) {
+	r.slice = a
+}
+
+func (r *StringSliceFuncIntegerReducer) Emit(opt *ReduceOptions) []IntegerPoint {
+	return r.fn(r.slice, opt)
 }
 
 // StringReduceFunc is the function called by a StringPoint reducer.
@@ -333,6 +606,30 @@ func (r *StringFuncReducer) Emit() *StringPoint {
 	return r.prev
 }
 
+// StringReduceSliceFunc is the function called by a StringPoint slice reducer.
+type StringReduceSliceFunc func(a []StringPoint, opt *ReduceOptions) []StringPoint
+
+type StringSliceFuncReducer struct {
+	slice []StringPoint
+	fn    StringReduceSliceFunc
+}
+
+func NewStringSliceFuncReducer(fn StringReduceSliceFunc) *StringSliceFuncReducer {
+	return &StringSliceFuncReducer{fn: fn}
+}
+
+func (r *StringSliceFuncReducer) Aggregate(a StringPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *StringSliceFuncReducer) AggregateSlice(a []StringPoint) {
+	r.slice = a
+}
+
+func (r *StringSliceFuncReducer) Emit(opt *ReduceOptions) []StringPoint {
+	return r.fn(r.slice, opt)
+}
+
 // StringReduceBooleanFunc is the function called by a StringPoint reducer.
 type StringReduceBooleanFunc func(prev *BooleanPoint, curr *StringPoint) (t int64, v bool, aux []interface{})
 
@@ -360,6 +657,30 @@ func (r *StringFuncBooleanReducer) Emit() *BooleanPoint {
 	return r.prev
 }
 
+// StringReduceSliceFunc is the function called by a StringPoint slice reducer.
+type StringReduceSliceBooleanFunc func(a []StringPoint, opt *ReduceOptions) []BooleanPoint
+
+type StringSliceFuncBooleanReducer struct {
+	slice []StringPoint
+	fn    StringReduceSliceBooleanFunc
+}
+
+func NewStringSliceFuncBooleanReducer(fn StringReduceSliceBooleanFunc) *StringSliceFuncBooleanReducer {
+	return &StringSliceFuncBooleanReducer{fn: fn}
+}
+
+func (r *StringSliceFuncBooleanReducer) Aggregate(a StringPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *StringSliceFuncBooleanReducer) AggregateSlice(a []StringPoint) {
+	r.slice = a
+}
+
+func (r *StringSliceFuncBooleanReducer) Emit(opt *ReduceOptions) []BooleanPoint {
+	return r.fn(r.slice, opt)
+}
+
 // BooleanPointAggregator aggregates points to produce a single point.
 type BooleanPointAggregator interface {
 	Aggregate(p *BooleanPoint)
@@ -368,6 +689,17 @@ type BooleanPointAggregator interface {
 // BooleanPointEmitter produces a single point from an aggregate.
 type BooleanPointEmitter interface {
 	Emit() *BooleanPoint
+}
+
+// BooleanPointSliceAggregator aggregates a slice of to produce a slice of points.
+type BooleanPointSliceAggregator interface {
+	Aggregate(a BooleanPoint)
+	AggregateSlice(a []BooleanPoint)
+}
+
+// BooleanPointSliceEmitter produces a slice of points from an aggregate.
+type BooleanPointSliceEmitter interface {
+	Emit(opt *ReduceOptions) []BooleanPoint
 }
 
 // BooleanReduceFloatFunc is the function called by a BooleanPoint reducer.
@@ -397,6 +729,30 @@ func (r *BooleanFuncFloatReducer) Emit() *FloatPoint {
 	return r.prev
 }
 
+// BooleanReduceSliceFunc is the function called by a BooleanPoint slice reducer.
+type BooleanReduceSliceFloatFunc func(a []BooleanPoint, opt *ReduceOptions) []FloatPoint
+
+type BooleanSliceFuncFloatReducer struct {
+	slice []BooleanPoint
+	fn    BooleanReduceSliceFloatFunc
+}
+
+func NewBooleanSliceFuncFloatReducer(fn BooleanReduceSliceFloatFunc) *BooleanSliceFuncFloatReducer {
+	return &BooleanSliceFuncFloatReducer{fn: fn}
+}
+
+func (r *BooleanSliceFuncFloatReducer) Aggregate(a BooleanPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *BooleanSliceFuncFloatReducer) AggregateSlice(a []BooleanPoint) {
+	r.slice = a
+}
+
+func (r *BooleanSliceFuncFloatReducer) Emit(opt *ReduceOptions) []FloatPoint {
+	return r.fn(r.slice, opt)
+}
+
 // BooleanReduceIntegerFunc is the function called by a BooleanPoint reducer.
 type BooleanReduceIntegerFunc func(prev *IntegerPoint, curr *BooleanPoint) (t int64, v int64, aux []interface{})
 
@@ -422,6 +778,30 @@ func (r *BooleanFuncIntegerReducer) Aggregate(p *BooleanPoint) {
 
 func (r *BooleanFuncIntegerReducer) Emit() *IntegerPoint {
 	return r.prev
+}
+
+// BooleanReduceSliceFunc is the function called by a BooleanPoint slice reducer.
+type BooleanReduceSliceIntegerFunc func(a []BooleanPoint, opt *ReduceOptions) []IntegerPoint
+
+type BooleanSliceFuncIntegerReducer struct {
+	slice []BooleanPoint
+	fn    BooleanReduceSliceIntegerFunc
+}
+
+func NewBooleanSliceFuncIntegerReducer(fn BooleanReduceSliceIntegerFunc) *BooleanSliceFuncIntegerReducer {
+	return &BooleanSliceFuncIntegerReducer{fn: fn}
+}
+
+func (r *BooleanSliceFuncIntegerReducer) Aggregate(a BooleanPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *BooleanSliceFuncIntegerReducer) AggregateSlice(a []BooleanPoint) {
+	r.slice = a
+}
+
+func (r *BooleanSliceFuncIntegerReducer) Emit(opt *ReduceOptions) []IntegerPoint {
+	return r.fn(r.slice, opt)
 }
 
 // BooleanReduceStringFunc is the function called by a BooleanPoint reducer.
@@ -451,6 +831,30 @@ func (r *BooleanFuncStringReducer) Emit() *StringPoint {
 	return r.prev
 }
 
+// BooleanReduceSliceFunc is the function called by a BooleanPoint slice reducer.
+type BooleanReduceSliceStringFunc func(a []BooleanPoint, opt *ReduceOptions) []StringPoint
+
+type BooleanSliceFuncStringReducer struct {
+	slice []BooleanPoint
+	fn    BooleanReduceSliceStringFunc
+}
+
+func NewBooleanSliceFuncStringReducer(fn BooleanReduceSliceStringFunc) *BooleanSliceFuncStringReducer {
+	return &BooleanSliceFuncStringReducer{fn: fn}
+}
+
+func (r *BooleanSliceFuncStringReducer) Aggregate(a BooleanPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *BooleanSliceFuncStringReducer) AggregateSlice(a []BooleanPoint) {
+	r.slice = a
+}
+
+func (r *BooleanSliceFuncStringReducer) Emit(opt *ReduceOptions) []StringPoint {
+	return r.fn(r.slice, opt)
+}
+
 // BooleanReduceFunc is the function called by a BooleanPoint reducer.
 type BooleanReduceFunc func(prev *BooleanPoint, curr *BooleanPoint) (t int64, v bool, aux []interface{})
 
@@ -476,4 +880,28 @@ func (r *BooleanFuncReducer) Aggregate(p *BooleanPoint) {
 
 func (r *BooleanFuncReducer) Emit() *BooleanPoint {
 	return r.prev
+}
+
+// BooleanReduceSliceFunc is the function called by a BooleanPoint slice reducer.
+type BooleanReduceSliceFunc func(a []BooleanPoint, opt *ReduceOptions) []BooleanPoint
+
+type BooleanSliceFuncReducer struct {
+	slice []BooleanPoint
+	fn    BooleanReduceSliceFunc
+}
+
+func NewBooleanSliceFuncReducer(fn BooleanReduceSliceFunc) *BooleanSliceFuncReducer {
+	return &BooleanSliceFuncReducer{fn: fn}
+}
+
+func (r *BooleanSliceFuncReducer) Aggregate(a BooleanPoint) {
+	r.slice = append(r.slice, a)
+}
+
+func (r *BooleanSliceFuncReducer) AggregateSlice(a []BooleanPoint) {
+	r.slice = a
+}
+
+func (r *BooleanSliceFuncReducer) Emit(opt *ReduceOptions) []BooleanPoint {
+	return r.fn(r.slice, opt)
 }
