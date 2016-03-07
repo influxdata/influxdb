@@ -119,7 +119,7 @@ func new{{$k.Name}}MergeIterator(inputs []{{$k.Name}}Iterator, opt IteratorOptio
 		inputs: inputs,
 		heap: &{{$k.name}}MergeHeap{
 			items: make([]*{{$k.name}}MergeHeapItem, 0, len(inputs)),
-  		opt: opt,
+			opt: opt,
 		},
 	}
 
@@ -416,13 +416,13 @@ func (itr *{{$k.name}}LimitIterator) Next() *{{$k.Name}}Point {
 }
 
 type {{$k.name}}FillIterator struct {
-	input      *buf{{$k.Name}}Iterator
-	prev       *{{$k.Name}}Point
-	startTime  int64
-	endTime    int64
-	auxFields  []interface{}
-	done       bool
-	opt        IteratorOptions
+	input     *buf{{$k.Name}}Iterator
+	prev      *{{$k.Name}}Point
+	startTime int64
+	endTime   int64
+	auxFields []interface{}
+	done      bool
+	opt       IteratorOptions
 
 	window struct {
 		name string
@@ -454,11 +454,11 @@ func new{{$k.Name}}FillIterator(input {{$k.Name}}Iterator, expr Expr, opt Iterat
 	}
 
 	itr := &{{$k.name}}FillIterator{
-		input:      newBuf{{$k.Name}}Iterator(input),
-		startTime:  startTime,
-		endTime:    endTime,
-		auxFields:  auxFields,
-		opt:        opt,
+		input:     newBuf{{$k.Name}}Iterator(input),
+		startTime: startTime,
+		endTime:   endTime,
+		auxFields: auxFields,
+		opt:       opt,
 	}
 
 	p := itr.input.peek()
@@ -586,7 +586,7 @@ func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, seriesKeys SeriesList,
 
 func (itr *{{$k.name}}AuxIterator) Start()                        { go itr.stream() }
 func (itr *{{$k.name}}AuxIterator) Close() error                  { return itr.input.Close() }
-func (itr *{{$k.name}}AuxIterator) Next() *{{$k.Name}}Point         { return <-itr.output }
+func (itr *{{$k.name}}AuxIterator) Next() *{{$k.Name}}Point       { return <-itr.output }
 func (itr *{{$k.name}}AuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
 
 func (itr *{{$k.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator, error) {
@@ -648,7 +648,7 @@ type {{$k.name}}Reduce{{$v.Name}}Iterator struct {
 	input  *buf{{$k.Name}}Iterator
 	create func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
 	opt    IteratorOptions
-	points []*{{$v.Name}}Point
+	points []{{$v.Name}}Point
 }
 
 // Close closes the iterator and all child iterators.
@@ -665,7 +665,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Next() *{{.Name}}Point {
 	}
 
 	// Pop next point off the stack.
-	p := itr.points[len(itr.points)-1]
+	p := &itr.points[len(itr.points)-1]
 	itr.points = itr.points[:len(itr.points)-1]
 	return p
 }
@@ -680,7 +680,7 @@ type {{$k.name}}Reduce{{$v.Name}}Point struct {
 
 // reduce executes fn once for every point in the next window.
 // The previous value for the dimension is passed to fn.
-func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []*{{$v.Name}}Point {
+func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 	// Calculate next window.
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
@@ -709,7 +709,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []*{{$v.Name}}Point {
 			}
 			m[id] = rp
 		}
-		rp.Aggregator.Aggregate(curr)
+		rp.Aggregator.Aggregate{{$k.Name}}(curr)
 	}
 
 	// Reverse sort points by name & tag.
@@ -719,124 +719,26 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []*{{$v.Name}}Point {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
 
-	a := make([]*{{$v.Name}}Point, len(m))
-	for i, k := range keys {
+	a := make([]{{$v.Name}}Point, 0, len(m))
+	for _, k := range keys {
 		rp := m[k]
-		p := rp.Emitter.Emit()
-		p.Name = rp.Name
-		p.Tags = rp.Tags
-		// Set the points time to the interval time if the reducer didn't provide one.
-		if p.Time == ZeroTime {
-			p.Time = startTime
+		points := rp.Emitter.Emit()
+		for i := len(points)-1; i >= 0; i-- {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+			// Set the points time to the interval time if the reducer didn't provide one.
+			if points[i].Time == ZeroTime {
+				points[i].Time = startTime
+			}
+			a = append(a, points[i])
 		}
-		a[i] = p
 	}
 
 	return a
 }
 {{end}}
 
-// {{$k.name}}ReduceSliceIterator executes a reducer on all points in a window and buffers the result.
-type {{$k.name}}ReduceSliceIterator struct {
-	input  *buf{{$k.Name}}Iterator
-	fn     {{$k.name}}ReduceSliceFunc
-	opt    IteratorOptions
-	points []{{$k.Name}}Point
-}
-
-// Close closes the iterator and all child iterators.
-func (itr *{{$k.name}}ReduceSliceIterator) Close() error { return itr.input.Close() }
-
-// Next returns the minimum value for the next available interval.
-func (itr *{{$k.name}}ReduceSliceIterator) Next() *{{$k.Name}}Point {
-	// Calculate next window if we have no more points.
-	if len(itr.points) == 0 {
-		itr.points = itr.reduce()
-		if len(itr.points) == 0 {
-			return nil
-		}
-	}
-
-	// Pop next point off the stack.
-	p := itr.points[len(itr.points)-1]
-	itr.points = itr.points[:len(itr.points)-1]
-	return &p
-}
-
-// reduce executes fn once for every point in the next window.
-// The previous value for the dimension is passed to fn.
-func (itr *{{$k.name}}ReduceSliceIterator) reduce() []{{$k.Name}}Point {
-	// Calculate next window.
-	startTime, endTime := itr.opt.Window(itr.input.peekTime())
-
-	var reduceOptions = reduceOptions{
-		startTime: startTime,
-		endTime:   endTime,
-	}
-
-	// Group points by name and tagset.
-	groups := make(map[string]struct {
-		name   string
-		tags   Tags
-		points []{{$k.Name}}Point
-	})
-	for {
-		// Read next point.
-		p := itr.input.NextInWindow(startTime, endTime)
-		if p == nil {
-			break
-		} else if p.Nil {
-			continue
-		}
-		tags := p.Tags.Subset(itr.opt.Dimensions)
-
-		// Append point to dimension.
-		id := p.Name + "\x00" + tags.ID()
-		g := groups[id]
-		g.name = p.Name
-		g.tags = tags
-		g.points = append(g.points, *p)
-		groups[id] = g
-	}
-
-	// Reduce each set into a set of values.
-	results := make(map[string][]{{$k.Name}}Point)
-	for key, g := range groups {
-		a := itr.fn(g.points, &reduceOptions)
-		if len(a) == 0 {
-			continue
-		}
-
-		// Update name and tags for each returned point.
-		for i := range a {
-			a[i].Name = g.name
-			a[i].Tags = g.tags
-		}
-		results[key] = a
-	}
-
-	// Reverse sort points by name & tag.
-	keys := make([]string, 0, len(results))
-	for k := range results {
-		keys = append(keys, k)
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
-
-	// Reverse order points within each key.
-	a := make([]{{$k.Name}}Point, 0, len(results))
-	for _, k := range keys {
-		for i := len(results[k]) - 1; i >= 0; i-- {
-			a = append(a, results[k][i])
-		}
-	}
-
-	return a
-}
-
-// {{$k.name}}ReduceSliceFunc is the function called by a {{$k.Name}}Point slice reducer.
-type {{$k.name}}ReduceSliceFunc func(a []{{$k.Name}}Point, opt *reduceOptions) []{{$k.Name}}Point
-
-// {{$k.name}}ReduceIterator executes a function to modify an existing point for every
+// {{$k.name}}TransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type {{$k.name}}TransformIterator struct {
 	input {{$k.Name}}Iterator
@@ -889,15 +791,15 @@ type {{$k.name}}BoolTransformFunc func(p *{{$k.Name}}Point) *BooleanPoint
 // This iterator is relatively inefficient and should only be used on small
 // datasets such as meta query results.
 type {{$k.name}}DedupeIterator struct {
-	input  {{$k.Name}}Iterator
-	m      map[string]struct{} // lookup of points already sent
+	input {{$k.Name}}Iterator
+	m     map[string]struct{} // lookup of points already sent
 }
 
 // new{{$k.Name}}DedupeIterator returns a new instance of {{$k.name}}DedupeIterator.
 func new{{$k.Name}}DedupeIterator(input {{$k.Name}}Iterator) *{{$k.name}}DedupeIterator {
 	return &{{$k.name}}DedupeIterator{
 		input: input,
-		m: make(map[string]struct{}),
+		m:     make(map[string]struct{}),
 	}
 }
 
