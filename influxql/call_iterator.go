@@ -672,7 +672,7 @@ func newTopIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags 
 func NewFloatTopReduceSliceFunc(n int, tags []int, interval Interval) FloatReduceSliceFunc {
 	return func(a []FloatPoint) []FloatPoint {
 		// Filter by tags if they exist.
-		if tags != nil {
+		if len(tags) > 0 {
 			a = filterFloatByUniqueTags(a, tags, func(cur, p *FloatPoint) bool {
 				return p.Value > cur.Value || (p.Value == cur.Value && p.Time < cur.Time)
 			})
@@ -718,7 +718,7 @@ func NewFloatTopReduceSliceFunc(n int, tags []int, interval Interval) FloatReduc
 func NewIntegerTopReduceSliceFunc(n int, tags []int, interval Interval) IntegerReduceSliceFunc {
 	return func(a []IntegerPoint) []IntegerPoint {
 		// Filter by tags if they exist.
-		if tags != nil {
+		if len(tags) > 0 {
 			a = filterIntegerByUniqueTags(a, tags, func(cur, p *IntegerPoint) bool {
 				return p.Value > cur.Value || (p.Value == cur.Value && p.Time < cur.Time)
 			})
@@ -786,7 +786,7 @@ func newBottomIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, ta
 func NewFloatBottomReduceSliceFunc(n int, tags []int, interval Interval) FloatReduceSliceFunc {
 	return func(a []FloatPoint) []FloatPoint {
 		// Filter by tags if they exist.
-		if tags != nil {
+		if len(tags) > 0 {
 			a = filterFloatByUniqueTags(a, tags, func(cur, p *FloatPoint) bool {
 				return p.Value < cur.Value || (p.Value == cur.Value && p.Time < cur.Time)
 			})
@@ -832,7 +832,7 @@ func NewFloatBottomReduceSliceFunc(n int, tags []int, interval Interval) FloatRe
 func NewIntegerBottomReduceSliceFunc(n int, tags []int, interval Interval) IntegerReduceSliceFunc {
 	return func(a []IntegerPoint) []IntegerPoint {
 		// Filter by tags if they exist.
-		if tags != nil {
+		if len(tags) > 0 {
 			a = filterIntegerByUniqueTags(a, tags, func(cur, p *IntegerPoint) bool {
 				return p.Value < cur.Value || (p.Value == cur.Value && p.Time < cur.Time)
 			})
