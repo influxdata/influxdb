@@ -19,9 +19,8 @@ import (
 
 // Handler is an http.Handler for the service.
 type Handler struct {
-	Database         string
-	RetentionPolicy  string
-	ConsistencyLevel cluster.ConsistencyLevel
+	Database        string
+	RetentionPolicy string
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -124,10 +123,9 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 
 	// Write points.
 	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-		Database:         h.Database,
-		RetentionPolicy:  h.RetentionPolicy,
-		ConsistencyLevel: h.ConsistencyLevel,
-		Points:           points,
+		Database:        h.Database,
+		RetentionPolicy: h.RetentionPolicy,
+		Points:          points,
 	}); influxdb.IsClientError(err) {
 		h.Logger.Println("write series error: ", err)
 		http.Error(w, "write series error: "+err.Error(), http.StatusBadRequest)

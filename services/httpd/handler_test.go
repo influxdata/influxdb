@@ -340,20 +340,6 @@ func TestHandler_Version(t *testing.T) {
 	}
 }
 
-// Ensure the handler handles status requests correctly.
-func TestHandler_Status(t *testing.T) {
-	h := NewHandler(false)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewRequest("GET", "/status", nil))
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("unexpected status: %d", w.Code)
-	}
-	h.ServeHTTP(w, MustNewRequest("HEAD", "/status", nil))
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("unexpected status: %d", w.Code)
-	}
-}
-
 // Ensure write endpoint can handle bad requests
 func TestHandler_HandleBadRequestBody(t *testing.T) {
 	b := bytes.NewReader(make([]byte, 10))

@@ -8,8 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
-	"net"
 	"sort"
 	"strconv"
 	"time"
@@ -37,9 +35,6 @@ type QueryExecutor struct {
 
 	// Used for rewriting points back into system for SELECT INTO statements.
 	PointsWriter *PointsWriter
-
-	// Used for executing meta statements on all data nodes.
-	MetaExecutor *MetaExecutor
 
 	// Remote execution timeout
 	Timeout time.Duration
@@ -149,7 +144,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		case *influxql.DropRetentionPolicyStatement:
 			err = e.executeDropRetentionPolicyStatement(stmt)
 		case *influxql.DropServerStatement:
-			err = e.executeDropServerStatement(stmt)
+			err = influxql.ErrInvalidQuery
 		case *influxql.DropSubscriptionStatement:
 			err = e.executeDropSubscriptionStatement(stmt)
 		case *influxql.DropUserStatement:
@@ -173,7 +168,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		case *influxql.ShowRetentionPoliciesStatement:
 			rows, err = e.executeShowRetentionPoliciesStatement(stmt)
 		case *influxql.ShowServersStatement:
-			rows, err = e.executeShowServersStatement(stmt)
+			// TODO: corylanou add this back for single node
+			err = influxql.ErrInvalidQuery
 		case *influxql.ShowShardsStatement:
 			rows, err = e.executeShowShardsStatement(stmt)
 		case *influxql.ShowShardGroupsStatement:
@@ -294,12 +290,7 @@ func (e *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 	}
 
 	// Locally delete the datababse.
-	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
-		return err
-	}
-
-	// Execute the statement on the other data nodes in the cluster.
-	return e.MetaExecutor.ExecuteStatement(stmt, "")
+	return e.TSDBStore.DeleteDatabase(stmt.Name)
 }
 
 func (e *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) error {
@@ -310,12 +301,7 @@ func (e *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 	}
 
 	// Locally drop the measurement
-	if err := e.TSDBStore.DeleteMeasurement(database, stmt.Name); err != nil {
-		return err
-	}
-
-	// Execute the statement on the other data nodes in the cluster.
-	return e.MetaExecutor.ExecuteStatement(stmt, database)
+	return e.TSDBStore.DeleteMeasurement(database, stmt.Name)
 }
 
 func (e *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) error {
@@ -331,19 +317,7 @@ func (e *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 	}
 
 	// Locally drop the series.
-	if err := e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition); err != nil {
-		return err
-	}
-
-	// Execute the statement on the other data nodes in the cluster.
-	return e.MetaExecutor.ExecuteStatement(stmt, database)
-}
-
-func (e *QueryExecutor) executeDropServerStatement(q *influxql.DropServerStatement) error {
-	if q.Meta {
-		return e.MetaClient.DeleteMetaNode(q.NodeID)
-	}
-	return e.MetaClient.DeleteDataNode(q.NodeID)
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
 }
 
 func (e *QueryExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
@@ -352,12 +326,7 @@ func (e *QueryExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropR
 	}
 
 	// Locally drop the retention policy.
-	if err := e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
-		return err
-	}
-
-	// Execute the statement on the other data nodes in the cluster.
-	return e.MetaExecutor.ExecuteStatement(stmt, stmt.Database)
+	return e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name)
 }
 
 func (e *QueryExecutor) executeDropSubscriptionStatement(q *influxql.DropSubscriptionStatement) error {
@@ -520,51 +489,15 @@ func (e *QueryExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt *inf
 		return nil, err
 	}
 
-	// Map shards to nodes.
-	shardIDsByNodeID := make(map[uint64][]uint64)
-	for _, si := range shards {
-		// Always assign to local node if it has the shard.
-		// Otherwise randomly select a remote node.
-		var nodeID uint64
-		if si.OwnedBy(e.Node.ID) {
-			nodeID = e.Node.ID
-		} else if len(si.Owners) > 0 {
-			nodeID = si.Owners[rand.Intn(len(si.Owners))].NodeID
-		} else {
-			// This should not occur but if the shard has no owners then
-			// we don't want this to panic by trying to randomly select a node.
-			continue
-		}
-
-		// Otherwise assign it to a remote shard randomly.
-		shardIDsByNodeID[nodeID] = append(shardIDsByNodeID[nodeID], si.ID)
-	}
-
 	// Generate iterators for each node.
 	ics := make([]influxql.IteratorCreator, 0)
 	if err := func() error {
-		for nodeID, shardIDs := range shardIDsByNodeID {
-			// Sort shard IDs so we get more predicable execution.
-			sort.Sort(uint64Slice(shardIDs))
-
-			// Create iterator creators from TSDB if local.
-			if nodeID == e.Node.ID {
-				for _, shardID := range shardIDs {
-					ic := e.TSDBStore.ShardIteratorCreator(shardID)
-					if ic == nil {
-						continue
-					}
-					ics = append(ics, ic)
-				}
+		for _, shard := range shards {
+			ic := e.TSDBStore.ShardIteratorCreator(shard.ID)
+			if ic == nil {
 				continue
 			}
-
-			// Otherwise create iterator creator remotely.
-			dialer := &NodeDialer{
-				MetaClient: e.MetaClient,
-				Timeout:    e.Timeout,
-			}
-			ics = append(ics, newRemoteIteratorCreator(dialer, nodeID, shardIDs))
+			ics = append(ics, ic)
 		}
 
 		return nil
@@ -665,32 +598,6 @@ func (e *QueryExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRe
 		row.Values = append(row.Values, []interface{}{rpi.Name, rpi.Duration.String(), rpi.ReplicaN, di.DefaultRetentionPolicy == rpi.Name})
 	}
 	return []*models.Row{row}, nil
-}
-
-func (e *QueryExecutor) executeShowServersStatement(q *influxql.ShowServersStatement) (models.Rows, error) {
-	nis, err := e.MetaClient.DataNodes()
-	if err != nil {
-		return nil, err
-	}
-
-	dataNodes := &models.Row{Columns: []string{"id", "http_addr", "tcp_addr"}}
-	dataNodes.Name = "data_nodes"
-	for _, ni := range nis {
-		dataNodes.Values = append(dataNodes.Values, []interface{}{ni.ID, ni.Host, ni.TCPHost})
-	}
-
-	nis, err = e.MetaClient.MetaNodes()
-	if err != nil {
-		return nil, err
-	}
-
-	metaNodes := &models.Row{Columns: []string{"id", "http_addr", "tcp_addr"}}
-	metaNodes.Name = "meta_nodes"
-	for _, ni := range nis {
-		metaNodes.Values = append(metaNodes.Values, []interface{}{ni.ID, ni.Host, ni.TCPHost})
-	}
-
-	return []*models.Row{dataNodes, metaNodes}, nil
 }
 
 func (e *QueryExecutor) executeShowShardsStatement(stmt *influxql.ShowShardsStatement) (models.Rows, error) {
@@ -959,155 +866,6 @@ type IntoWriteRequest struct {
 	Database        string
 	RetentionPolicy string
 	Points          []models.Point
-}
-
-// remoteIteratorCreator creates iterators for remote shards.
-type remoteIteratorCreator struct {
-	dialer   *NodeDialer
-	nodeID   uint64
-	shardIDs []uint64
-}
-
-// newRemoteIteratorCreator returns a new instance of remoteIteratorCreator for a remote shard.
-func newRemoteIteratorCreator(dialer *NodeDialer, nodeID uint64, shardIDs []uint64) *remoteIteratorCreator {
-	return &remoteIteratorCreator{
-		dialer:   dialer,
-		nodeID:   nodeID,
-		shardIDs: shardIDs,
-	}
-}
-
-// CreateIterator creates a remote streaming iterator.
-func (ic *remoteIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	conn, err := ic.dialer.DialNode(ic.nodeID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := func() error {
-		// Write request.
-		if err := EncodeTLV(conn, createIteratorRequestMessage, &CreateIteratorRequest{
-			ShardIDs: ic.shardIDs,
-			Opt:      opt,
-		}); err != nil {
-			return err
-		}
-
-		// Read the response.
-		var resp CreateIteratorResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != nil {
-			return err
-		}
-
-		return nil
-	}(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	return influxql.NewReaderIterator(conn)
-}
-
-// FieldDimensions returns the unique fields and dimensions across a list of sources.
-func (ic *remoteIteratorCreator) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
-	conn, err := ic.dialer.DialNode(ic.nodeID)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer conn.Close()
-
-	// Write request.
-	if err := EncodeTLV(conn, fieldDimensionsRequestMessage, &FieldDimensionsRequest{
-		ShardIDs: ic.shardIDs,
-		Sources:  sources,
-	}); err != nil {
-		return nil, nil, err
-	}
-
-	// Read the response.
-	var resp FieldDimensionsResponse
-	if _, err := DecodeTLV(conn, &resp); err != nil {
-		return nil, nil, err
-	}
-	return resp.Fields, resp.Dimensions, resp.Err
-}
-
-// SeriesKeys returns a list of series keys from the underlying shard.
-func (ic *remoteIteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-	conn, err := ic.dialer.DialNode(ic.nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	// Write request.
-	if err := EncodeTLV(conn, seriesKeysRequestMessage, &SeriesKeysRequest{
-		ShardIDs: ic.shardIDs,
-		Opt:      opt,
-	}); err != nil {
-		return nil, err
-	}
-
-	// Read the response.
-	var resp SeriesKeysResponse
-	if _, err := DecodeTLV(conn, &resp); err != nil {
-		return nil, err
-	}
-	return resp.SeriesList, resp.Err
-}
-
-// ExpandSources expands regex sources on a remote iterator creator.
-func (ic *remoteIteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	conn, err := ic.dialer.DialNode(ic.nodeID)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	// Write request.
-	if err := EncodeTLV(conn, expandSourcesRequestMessage, &ExpandSourcesRequest{
-		ShardIDs: ic.shardIDs,
-		Sources:  sources,
-	}); err != nil {
-		return nil, err
-	}
-
-	// Read the response.
-	var resp ExpandSourcesResponse
-	if _, err := DecodeTLV(conn, &resp); err != nil {
-		return nil, err
-	}
-	return resp.Sources, resp.Err
-}
-
-// NodeDialer dials connections to a given node.
-type NodeDialer struct {
-	MetaClient MetaClient
-	Timeout    time.Duration
-}
-
-// DialNode returns a connection to a node.
-func (d *NodeDialer) DialNode(nodeID uint64) (net.Conn, error) {
-	ni, err := d.MetaClient.DataNode(nodeID)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.Dial("tcp", ni.TCPHost)
-	if err != nil {
-		return nil, err
-	}
-	conn.SetDeadline(time.Now().Add(d.Timeout))
-
-	// Write the cluster multiplexing header byte
-	if _, err := conn.Write([]byte{MuxHeader}); err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	return conn, nil
 }
 
 // TSDBStore is an interface for accessing the time series data store.

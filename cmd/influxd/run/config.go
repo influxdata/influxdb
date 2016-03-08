@@ -1,7 +1,6 @@
 package run
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -17,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
-	"github.com/influxdata/influxdb/services/hh"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/opentsdb"
@@ -55,7 +53,6 @@ type Config struct {
 	UDPs       []udp.Config      `toml:"udp"`
 
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
-	HintedHandoff   hh.Config                 `toml:"hinted-handoff"`
 
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
@@ -87,7 +84,6 @@ func NewConfig() *Config {
 
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
-	c.HintedHandoff = hh.NewConfig()
 	c.BindAddress = DefaultBindAddress
 
 	// All ARRAY attributes have to be init after toml decode
@@ -128,10 +124,8 @@ func NewDemoConfig() (*Config, error) {
 
 	c.Meta.Dir = filepath.Join(homeDir, ".influxdb/meta")
 	c.Data.Dir = filepath.Join(homeDir, ".influxdb/data")
-	c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
 	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 
-	c.HintedHandoff.Enabled = true
 	c.Admin.Enabled = true
 
 	return c, nil
@@ -139,34 +133,23 @@ func NewDemoConfig() (*Config, error) {
 
 // Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
-	if !c.Meta.Enabled && !c.Data.Enabled {
-		return errors.New("either Meta, Data, or both must be enabled")
+	if err := c.Meta.Validate(); err != nil {
+		return err
 	}
 
-	if c.Meta.Enabled {
-		if err := c.Meta.Validate(); err != nil {
-			return err
-		}
-
-		// If the config is for a meta-only node, we can't store monitor stats
-		// locally.
-		if c.Monitor.StoreEnabled && !c.Data.Enabled {
-			return fmt.Errorf("monitor storage can not be enabled on meta only nodes")
-		}
+	// If the config is for a meta-only node, we can't store monitor stats
+	// locally.
+	if c.Monitor.StoreEnabled {
+		return fmt.Errorf("monitor storage can not be enabled on meta only nodes")
 	}
 
-	if c.Data.Enabled {
-		if err := c.Data.Validate(); err != nil {
-			return err
-		}
+	if err := c.Data.Validate(); err != nil {
+		return err
+	}
 
-		if err := c.HintedHandoff.Validate(); err != nil {
-			return err
-		}
-		for _, g := range c.Graphites {
-			if err := g.Validate(); err != nil {
-				return fmt.Errorf("invalid graphite config: %v", err)
-			}
+	for _, g := range c.Graphites {
+		if err := g.Validate(); err != nil {
+			return fmt.Errorf("invalid graphite config: %v", err)
 		}
 	}
 

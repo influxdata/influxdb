@@ -245,10 +245,9 @@ func (s *Service) writePoints() {
 			return
 		case batch := <-s.batcher.Out():
 			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:         s.Config.Database,
-				RetentionPolicy:  s.Config.RetentionPolicy,
-				ConsistencyLevel: cluster.ConsistencyLevelAny,
-				Points:           batch,
+				Database:        s.Config.Database,
+				RetentionPolicy: s.Config.RetentionPolicy,
+				Points:          batch,
 			}); err == nil {
 				s.statMap.Add(statBatchesTrasmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))

@@ -20,8 +20,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdata/influxdb/client"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/importer/v8"
+	"github.com/influxdata/influxdb/models"
 	"github.com/peterh/liner"
 )
 
@@ -409,7 +409,7 @@ func (c *CommandLine) SetWriteConsistency(cmd string) {
 	// normalize cmd
 	cmd = strings.ToLower(cmd)
 
-	_, err := cluster.ParseConsistencyLevel(cmd)
+	_, err := models.ParseConsistencyLevel(cmd)
 	if err != nil {
 		fmt.Printf("Unknown consistency level %q. Please use any, one, quorum, or all.\n", cmd)
 		return

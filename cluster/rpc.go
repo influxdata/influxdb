@@ -15,10 +15,9 @@ import (
 
 // WritePointsRequest represents a request to write point data to the cluster
 type WritePointsRequest struct {
-	Database         string
-	RetentionPolicy  string
-	ConsistencyLevel ConsistencyLevel
-	Points           []models.Point
+	Database        string
+	RetentionPolicy string
+	Points          []models.Point
 }
 
 // AddPoint adds a point to the WritePointRequest with field key 'value'

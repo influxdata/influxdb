@@ -14,7 +14,6 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -38,9 +37,23 @@ const (
 
 	seriesKeysReq  = "seriesKeysReq"
 	seriesKeysResp = "seriesKeysResp"
+)
 
-	expandSourcesReq  = "expandSourcesReq"
-	expandSourcesResp = "expandSourcesResp"
+const (
+	writeShardRequestMessage byte = iota + 1
+	writeShardResponseMessage
+
+	executeStatementRequestMessage
+	executeStatementResponseMessage
+
+	createIteratorRequestMessage
+	createIteratorResponseMessage
+
+	fieldDimensionsRequestMessage
+	fieldDimensionsResponseMessage
+
+	seriesKeysRequestMessage
+	seriesKeysResponseMessage
 )
 
 // Service processes data received over raw TCP connections.
@@ -51,10 +64,6 @@ type Service struct {
 	closing chan struct{}
 
 	Listener net.Listener
-
-	MetaClient interface {
-		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
-	}
 
 	TSDBStore TSDBStore
 
@@ -198,10 +207,6 @@ func (s *Service) handleConn(conn net.Conn) {
 		case seriesKeysRequestMessage:
 			s.statMap.Add(seriesKeysReq, 1)
 			s.processSeriesKeysRequest(conn)
-			return
-		case expandSourcesRequestMessage:
-			s.statMap.Add(expandSourcesReq, 1)
-			s.processExpandSourcesRequest(conn)
 			return
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
@@ -442,48 +447,6 @@ func (s *Service) processSeriesKeysRequest(conn net.Conn) {
 		SeriesList: seriesList,
 	}); err != nil {
 		s.Logger.Printf("error writing SeriesKeys response: %s", err)
-		return
-	}
-}
-
-func (s *Service) processExpandSourcesRequest(conn net.Conn) {
-	var sources influxql.Sources
-	if err := func() error {
-		// Parse request.
-		var req ExpandSourcesRequest
-		if err := DecodeLV(conn, &req); err != nil {
-			return err
-		}
-
-		// Collect iterator creators for each shard.
-		ics := make([]influxql.IteratorCreator, 0, len(req.ShardIDs))
-		for _, shardID := range req.ShardIDs {
-			ic := s.TSDBStore.ShardIteratorCreator(shardID)
-			if ic == nil {
-				return nil
-			}
-			ics = append(ics, ic)
-		}
-
-		// Expand sources from all shards.
-		a, err := influxql.IteratorCreators(ics).ExpandSources(req.Sources)
-		if err != nil {
-			return err
-		}
-		sources = a
-
-		return nil
-	}(); err != nil {
-		s.Logger.Printf("error reading ExpandSources request: %s", err)
-		EncodeTLV(conn, expandSourcesResponseMessage, &ExpandSourcesResponse{Err: err})
-		return
-	}
-
-	// Encode success response.
-	if err := EncodeTLV(conn, expandSourcesResponseMessage, &ExpandSourcesResponse{
-		Sources: sources,
-	}); err != nil {
-		s.Logger.Printf("error writing ExpandSources response: %s", err)
 		return
 	}
 }
