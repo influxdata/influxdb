@@ -56,6 +56,7 @@
 - [#5610](https://github.com/influxdata/influxdb/issues/5610): Write into fully-replicated cluster is not replicated across all shards
 - [#5880](https://github.com/influxdata/influxdb/issues/5880): TCP connection closed after write (regression/change from 0.9.6)
 - [#5865](https://github.com/influxdata/influxdb/issues/5865): Conversion to tsm fails with exceeds max index value
+- [#5924](https://github.com/influxdata/influxdb/issues/5924): Missing data after using influx\_tsm
 
 ## v0.10.2 [2016-03-03]
 ### Bugfixes
