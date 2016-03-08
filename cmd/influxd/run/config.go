@@ -137,12 +137,6 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	// If the config is for a meta-only node, we can't store monitor stats
-	// locally.
-	if c.Monitor.StoreEnabled {
-		return fmt.Errorf("monitor storage can not be enabled on meta only nodes")
-	}
-
 	if err := c.Data.Validate(); err != nil {
 		return err
 	}
