@@ -195,7 +195,6 @@ type TSDBStore struct {
 	DeleteRetentionPolicyFn         func(database, name string) error
 	DeleteSeriesFn                  func(database string, sources []influxql.Source, condition influxql.Expr) error
 	ExecuteShowFieldKeysStatementFn func(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
-	ExecuteShowSeriesStatementFn    func(stmt *influxql.ShowSeriesStatement, database string) (models.Rows, error)
 	ExecuteShowTagValuesStatementFn func(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
 	ExpandSourcesFn                 func(sources influxql.Sources) (influxql.Sources, error)
 	ShardIteratorCreatorFn          func(id uint64) influxql.IteratorCreator
@@ -230,10 +229,6 @@ func (s *TSDBStore) DeleteSeries(database string, sources []influxql.Source, con
 
 func (s *TSDBStore) ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error) {
 	return s.ExecuteShowFieldKeysStatementFn(stmt, database)
-}
-
-func (s *TSDBStore) ExecuteShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) (models.Rows, error) {
-	return s.ExecuteShowSeriesStatementFn(stmt, database)
 }
 
 func (s *TSDBStore) ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error) {

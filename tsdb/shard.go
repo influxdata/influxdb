@@ -415,6 +415,8 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 		return NewFieldKeysIterator(s, opt)
 	case "_measurements":
 		return NewMeasurementIterator(s, opt)
+	case "_series":
+		return NewSeriesIterator(s, opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
 	case "_tags":
@@ -880,6 +882,82 @@ func (itr *MeasurementIterator) Next() *influxql.FloatPoint {
 		Name: "measurements",
 		Aux:  []interface{}{mm.Name},
 	}
+}
+
+// seriesIterator emits series ids.
+type seriesIterator struct {
+	keys   []string // remaining series
+	fields []string // fields to emit (key)
+}
+
+// NewSeriesIterator returns a new instance of SeriesIterator.
+func NewSeriesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	// Retrieve a list of all measurements.
+	mms := sh.index.Measurements()
+	sort.Sort(mms)
+
+	// Only equality operators are allowed.
+	var err error
+	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
+		switch n := n.(type) {
+		case *influxql.BinaryExpr:
+			switch n.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX,
+				influxql.OR, influxql.AND:
+			default:
+				err = errors.New("invalid tag comparison operator")
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate a list of all series keys.
+	keys := newStringSet()
+	for _, mm := range mms {
+		ids, err := mm.seriesIDsAllOrByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, id := range ids {
+			keys.add(mm.SeriesByID(id).Key)
+		}
+	}
+
+	return &seriesIterator{
+		keys:   keys.list(),
+		fields: opt.Aux,
+	}, nil
+}
+
+// Close closes the iterator.
+func (itr *seriesIterator) Close() error { return nil }
+
+// Next emits the next point in the iterator.
+func (itr *seriesIterator) Next() *influxql.FloatPoint {
+	// If there are no more keys then return nil.
+	if len(itr.keys) == 0 {
+		return nil
+	}
+
+	// Prepare auxiliary fields.
+	aux := make([]interface{}, len(itr.fields))
+	for i, f := range itr.fields {
+		switch f {
+		case "key":
+			aux[i] = itr.keys[0]
+		}
+	}
+
+	// Return next key.
+	p := &influxql.FloatPoint{
+		Aux: aux,
+	}
+	itr.keys = itr.keys[1:]
+
+	return p
 }
 
 // NewTagKeysIterator returns a new instance of TagKeysIterator.
