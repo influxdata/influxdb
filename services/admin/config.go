@@ -11,6 +11,7 @@ type Config struct {
 	BindAddress      string `toml:"bind-address"`
 	HTTPSEnabled     bool   `toml:"https-enabled"`
 	HTTPSCertificate string `toml:"https-certificate"`
+	Version          string
 }
 
 // NewConfig returns an instance of Config with defaults.
