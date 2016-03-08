@@ -252,6 +252,11 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	w.statMap.Add(statPointWriteReqLocal, int64(len(points)))
 
 	err := w.TSDBStore.WriteToShard(shard.ID, points)
+	if err == nil {
+		w.statMap.Add(statWriteOK, 1)
+		return nil
+	}
+
 	// If we've written to shard that should exist on the current node, but the store has
 	// not actually created this shard, tell it to create it and retry the write
 	if err == tsdb.ErrShardNotFound {
