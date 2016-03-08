@@ -172,8 +172,6 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			rows, err = e.executeShowGrantsForUserStatement(stmt)
 		case *influxql.ShowRetentionPoliciesStatement:
 			rows, err = e.executeShowRetentionPoliciesStatement(stmt)
-		case *influxql.ShowSeriesStatement:
-			rows, err = e.executeShowSeriesStatement(stmt, database)
 		case *influxql.ShowServersStatement:
 			rows, err = e.executeShowServersStatement(stmt)
 		case *influxql.ShowShardsStatement:
@@ -667,10 +665,6 @@ func (e *QueryExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRe
 	return []*models.Row{row}, nil
 }
 
-func (e *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) (models.Rows, error) {
-	return e.TSDBStore.ExecuteShowSeriesStatement(stmt, database)
-}
-
 func (e *QueryExecutor) executeShowServersStatement(q *influxql.ShowServersStatement) (models.Rows, error) {
 	nis, err := e.MetaClient.DataNodes()
 	if err != nil {
@@ -1100,7 +1094,6 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
-	ExecuteShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) (models.Rows, error)
 	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
 	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
 	ShardIteratorCreator(id uint64) influxql.IteratorCreator

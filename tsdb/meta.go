@@ -209,7 +209,7 @@ func (d *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, bo
 			}
 			return nil, false, nil
 		default:
-			return nil, false, fmt.Errorf("invalid operator")
+			return nil, false, fmt.Errorf("invalid tag comparison operator")
 		}
 	case *influxql.ParenExpr:
 		return d.measurementsByExpr(e.Expr)
@@ -740,18 +740,26 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 
 	// For fields, return all series IDs from this measurement and return
 	// the expression passed in, as the filter.
-	if m.HasField(name.Val) {
+	if name.Val != "name" && m.HasField(name.Val) {
 		return m.seriesIDs, n, nil
 	}
 
 	tagVals, ok := m.seriesByTagKeyValue[name.Val]
-	if !ok {
+	if name.Val != "name" && !ok {
 		return nil, nil, nil
 	}
 
 	// if we're looking for series with a specific tag value
 	if str, ok := value.(*influxql.StringLiteral); ok {
 		var ids SeriesIDs
+
+		// Special handling for "name" to match measurement name.
+		if name.Val == "name" {
+			if (n.Op == influxql.EQ && str.Val == m.Name) || (n.Op == influxql.NEQ && str.Val != m.Name) {
+				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+			}
+			return nil, &influxql.BooleanLiteral{Val: true}, nil
+		}
 
 		if n.Op == influxql.EQ {
 			// return series that have a tag of specific value.
@@ -765,6 +773,15 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	// if we're looking for series with a tag value that matches a regex
 	if re, ok := value.(*influxql.RegexLiteral); ok {
 		var ids SeriesIDs
+
+		// Special handling for "name" to match measurement name.
+		if name.Val == "name" {
+			match := re.Val.MatchString(m.Name)
+			if (n.Op == influxql.EQREGEX && match) || (n.Op == influxql.NEQREGEX && !match) {
+				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+			}
+			return nil, &influxql.BooleanLiteral{Val: true}, nil
+		}
 
 		// The operation is a NEQREGEX, code must start by assuming all match, even
 		// series without any tags.

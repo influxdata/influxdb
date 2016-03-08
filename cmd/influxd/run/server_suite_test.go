@@ -205,7 +205,7 @@ func init() {
 			&Query{
 				name:    "Show series is present",
 				command: `SHOW SERIES`,
-				exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
@@ -239,7 +239,7 @@ func init() {
 			&Query{
 				name:    "Show series is present again after re-write",
 				command: `SHOW SERIES`,
-				exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 		},
@@ -260,7 +260,7 @@ func init() {
 			&Query{
 				name:    "Show series is present",
 				command: `SHOW SERIES`,
-				exp:     `{"results":[{"series":[{"name":"a","columns":["_key","host","region"],"values":[["a,host=serverA,region=uswest","serverA","uswest"]]},{"name":"aa","columns":["_key","host","region"],"values":[["aa,host=serverA,region=uswest","serverA","uswest"]]},{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["a,host=serverA,region=uswest"],["aa,host=serverA,region=uswest"],["b,host=serverA,region=uswest"],["c,host=serverA,region=uswest"]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
@@ -273,7 +273,7 @@ func init() {
 			&Query{
 				name:    "Show series is gone",
 				command: `SHOW SERIES`,
-				exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["b,host=serverA,region=uswest"],["c,host=serverA,region=uswest"]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
@@ -286,7 +286,7 @@ func init() {
 			&Query{
 				name:    "make sure DROP SERIES doesn't delete anything when regex doesn't match",
 				command: `SHOW SERIES`,
-				exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["b,host=serverA,region=uswest"],["c,host=serverA,region=uswest"]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
@@ -298,7 +298,7 @@ func init() {
 			&Query{
 				name:    "make sure DROP SERIES with field in WHERE didn't delete data",
 				command: `SHOW SERIES`,
-				exp:     `{"results":[{"series":[{"name":"b","columns":["_key","host","region"],"values":[["b,host=serverA,region=uswest","serverA","uswest"]]},{"name":"c","columns":["_key","host","region"],"values":[["c,host=serverA,region=uswest","serverA","uswest"]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["b,host=serverA,region=uswest"],["c,host=serverA,region=uswest"]]}]}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{
