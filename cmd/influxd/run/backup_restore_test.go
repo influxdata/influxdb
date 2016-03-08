@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
-	"github.com/influxdata/influxdb/services/meta"
 )
 
 func TestServer_BackupAndRestore(t *testing.T) {
@@ -19,8 +18,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	config.Data.Engine = "tsm1"
 	config.Data.Dir, _ = ioutil.TempDir("", "data_backup")
 	config.Meta.Dir, _ = ioutil.TempDir("", "meta_backup")
-	config.Meta.BindAddress = freePort()
-	config.Meta.HTTPBindAddress = freePort()
+	config.BindAddress = freePort()
 
 	backupDir, _ := ioutil.TempDir("", "backup")
 	defer os.RemoveAll(backupDir)
@@ -33,7 +31,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	config.Data.CacheSnapshotMemorySize = 1
 
 	func() {
-		s := OpenServer(config, "")
+		s := OpenServer(config)
 		defer s.Close()
 
 		if err := s.CreateDatabaseAndRetentionPolicy(db, newRetentionPolicyInfo(rp, 1, 0)); err != nil {
@@ -43,7 +41,9 @@ func TestServer_BackupAndRestore(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		s.MustWrite(db, rp, "myseries,host=A value=23 1000000", nil)
+		if _, err := s.Write(db, rp, "myseries,host=A value=23 1000000", nil); err != nil {
+			t.Fatalf("failed to write: %s", err)
+		}
 
 		// wait for the snapshot to write
 		time.Sleep(time.Second)
@@ -58,9 +58,9 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 		// now backup
 		cmd := backup.NewCommand()
-		hostAddress, _ := meta.DefaultHost(run.DefaultHostname, config.Meta.BindAddress)
+		hostAddress, _ := run.DefaultHost(run.DefaultHostname, config.BindAddress)
 		if err := cmd.Run("-host", hostAddress, "-database", "mydb", backupDir); err != nil {
-			t.Fatalf("error backing up: %s", err.Error())
+			t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 		}
 	}()
 
@@ -74,7 +74,6 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 	// restore
 	cmd := restore.NewCommand()
-	cmd.MetaConfig.BindAddress = config.Meta.BindAddress
 
 	if err := cmd.Run("-metadir", config.Meta.Dir, "-datadir", config.Data.Dir, "-database", "mydb", backupDir); err != nil {
 		t.Fatalf("error restoring: %s", err.Error())
@@ -87,7 +86,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	}
 
 	// now open it up and verify we're good
-	s := OpenServer(config, "")
+	s := OpenServer(config)
 	defer s.Close()
 
 	res, err := s.Query(`select * from "mydb"."forever"."myseries"`)

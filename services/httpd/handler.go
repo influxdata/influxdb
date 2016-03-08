@@ -61,7 +61,6 @@ type Handler struct {
 		Database(name string) (*meta.DatabaseInfo, error)
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		Users() []meta.UserInfo
-		Ping(checkAllMetaServers bool) error
 	}
 
 	QueryAuthorizer interface {
@@ -119,14 +118,6 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace, JSONWriteEnab
 		route{ // Ping
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
-		},
-		route{ // Ping w/ status
-			"status",
-			"GET", "/status", true, true, h.serveStatus,
-		},
-		route{ // Ping w/ status
-			"status-head",
-			"HEAD", "/status", true, true, h.serveStatus,
 		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
@@ -464,10 +455,9 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 
 	// Convert the json batch struct to a points writer struct
 	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-		Database:         bp.Database,
-		RetentionPolicy:  bp.RetentionPolicy,
-		ConsistencyLevel: cluster.ConsistencyLevelOne,
-		Points:           points,
+		Database:        bp.Database,
+		RetentionPolicy: bp.RetentionPolicy,
+		Points:          points,
 	}); err != nil {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		if influxdb.IsClientError(err) {
@@ -543,25 +533,11 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 		return
 	}
 
-	// Determine required consistency level.
-	consistency := cluster.ConsistencyLevelOne
-	switch r.Form.Get("consistency") {
-	case "all":
-		consistency = cluster.ConsistencyLevelAll
-	case "any":
-		consistency = cluster.ConsistencyLevelAny
-	case "one":
-		consistency = cluster.ConsistencyLevelOne
-	case "quorum":
-		consistency = cluster.ConsistencyLevelQuorum
-	}
-
 	// Write points.
 	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-		Database:         database,
-		RetentionPolicy:  r.FormValue("rp"),
-		ConsistencyLevel: consistency,
-		Points:           points,
+		Database:        database,
+		RetentionPolicy: r.FormValue("rp"),
+		Points:          points,
 	}); influxdb.IsClientError(err) {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
@@ -591,18 +567,6 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	h.statMap.Add(statPingRequest, 1)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// serveStatus returns a simple response to let the client know the whole cluster is running.
-func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
-	h.statMap.Add(statStatusRequest, 1)
-
-	if err := h.MetaClient.Ping(false); err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-
 	w.WriteHeader(http.StatusNoContent)
 }
 

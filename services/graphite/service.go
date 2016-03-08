@@ -51,14 +51,13 @@ func (c *tcpConnection) Close() {
 type Service struct {
 	mu sync.Mutex
 
-	bindAddress      string
-	database         string
-	protocol         string
-	batchSize        int
-	batchPending     int
-	batchTimeout     time.Duration
-	consistencyLevel cluster.ConsistencyLevel
-	udpReadBuffer    int
+	bindAddress   string
+	database      string
+	protocol      string
+	batchSize     int
+	batchPending  int
+	batchTimeout  time.Duration
+	udpReadBuffer int
 
 	batcher *tsdb.PointBatcher
 	parser  *Parser
@@ -106,12 +105,6 @@ func NewService(c Config) (*Service, error) {
 		done:           make(chan struct{}),
 		diagsKey:       strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
-
-	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
-	if err != nil {
-		return nil, err
-	}
-	s.consistencyLevel = consistencyLevel
 
 	parser, err := NewParserWithOptions(Options{
 		Templates:   d.Templates,
@@ -361,10 +354,9 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 		select {
 		case batch := <-batcher.Out():
 			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:         s.database,
-				RetentionPolicy:  "",
-				ConsistencyLevel: s.consistencyLevel,
-				Points:           batch,
+				Database:        s.database,
+				RetentionPolicy: "",
+				Points:          batch,
 			}); err == nil {
 				s.statMap.Add(statBatchesTransmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))

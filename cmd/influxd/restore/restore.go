@@ -52,11 +52,6 @@ func (cmd *Command) Run(args ...string) error {
 		return err
 	}
 
-	if err := cmd.ensureStopped(); err != nil {
-		fmt.Fprintln(cmd.Stderr, "influxd cannot be running during a restore.  Please stop any running instances and try again.")
-		return err
-	}
-
 	if cmd.metadir != "" {
 		if err := cmd.unpackMeta(); err != nil {
 			return err
@@ -119,15 +114,6 @@ func (cmd *Command) parseFlags(args []string) error {
 	return nil
 }
 
-func (cmd *Command) ensureStopped() error {
-	ln, err := net.Listen("tcp", cmd.MetaConfig.BindAddress)
-	if err != nil {
-		return fmt.Errorf("influxd running on %s: aborting", cmd.MetaConfig.BindAddress)
-	}
-	defer ln.Close()
-	return nil
-}
-
 // unpackMeta reads the metadata from the backup directory and initializes a raft
 // cluster and replaces the root metadata.
 func (cmd *Command) unpackMeta() error {
@@ -184,7 +170,6 @@ func (cmd *Command) unpackMeta() error {
 
 	// Copy meta config and remove peers so it starts in single mode.
 	c := cmd.MetaConfig
-	c.JoinPeers = nil
 	c.LoggingEnabled = false
 
 	// Create the meta dir
@@ -197,26 +182,7 @@ func (cmd *Command) unpackMeta() error {
 		return err
 	}
 
-	// Initialize meta store.
-	store := meta.NewService(c)
-	store.RaftListener = newNopListener()
-
-	// Open the meta store.
-	if err := store.Open(); err != nil {
-		return fmt.Errorf("open store: %s", err)
-	}
-	defer store.Close()
-
-	// Wait for the store to be ready or error.
-	select {
-	case err := <-store.Err():
-		return err
-	default:
-	}
-
-	client := meta.NewClient()
-	client.SetMetaServers([]string{store.HTTPAddr()})
-	client.SetTLS(false)
+	client := meta.NewClient(c)
 	client.SetLogger(log.New(ioutil.Discard, "", 0))
 	if err := client.Open(); err != nil {
 		return err

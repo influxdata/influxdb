@@ -28,7 +28,7 @@ func TestServer_HTTPResponseVersion(t *testing.T) {
 // Ensure the database commands work.
 func TestServer_DatabaseCommands(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	test := tests.load(t, "database_commands")
@@ -48,7 +48,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 
 func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	test := tests.load(t, "drop_and_recreate_database")
@@ -80,7 +80,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 
 func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	test := tests.load(t, "drop_database_isolated")
@@ -115,7 +115,7 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 
 func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	test := tests.load(t, "drop_and_recreate_series")
@@ -167,7 +167,7 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 
 func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	test := tests.load(t, "drop_series_from_regex")
@@ -202,7 +202,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	t.Parallel()
 	c := NewConfig()
 	c.Meta.RetentionAutoCreate = false
-	s := OpenServer(c, "")
+	s := OpenServer(c)
 	defer s.Close()
 
 	test := tests.load(t, "retention_policy_commands")
@@ -228,7 +228,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 // Ensure the autocreation of retention policy works.
 func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	test := tests.load(t, "retention_policy_auto_create")
@@ -249,7 +249,7 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 // Ensure user commands work.
 func TestServer_UserCommands(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	// Create a database.
@@ -343,7 +343,7 @@ func TestServer_UserCommands(t *testing.T) {
 // Ensure the server rejects a single point via json protocol by default.
 func TestServer_Write_JSON(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -372,7 +372,7 @@ func TestServer_Write_JSON_Enabled(t *testing.T) {
 	t.Parallel()
 	c := NewConfig()
 	c.HTTPD.JSONWriteEnabled = true
-	s := OpenServer(c, "")
+	s := OpenServer(c)
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -397,7 +397,7 @@ func TestServer_Write_JSON_Enabled(t *testing.T) {
 // Ensure the server can create a single point via line protocol with float type and read it back.
 func TestServer_Write_LineProtocol_Float(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -422,7 +422,7 @@ func TestServer_Write_LineProtocol_Float(t *testing.T) {
 // Ensure the server can create a single point via line protocol with bool type and read it back.
 func TestServer_Write_LineProtocol_Bool(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -447,7 +447,7 @@ func TestServer_Write_LineProtocol_Bool(t *testing.T) {
 // Ensure the server can create a single point via line protocol with string type and read it back.
 func TestServer_Write_LineProtocol_String(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -472,7 +472,7 @@ func TestServer_Write_LineProtocol_String(t *testing.T) {
 // Ensure the server can create a single point via line protocol with integer type and read it back.
 func TestServer_Write_LineProtocol_Integer(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -494,43 +494,10 @@ func TestServer_Write_LineProtocol_Integer(t *testing.T) {
 	}
 }
 
-// Ensure the server returns a partial write response when some points fail to parse. Also validate that
-// the successfully parsed points can be queried.
-func TestServer_Write_LineProtocol_Partial(t *testing.T) {
-	t.Parallel()
-	s := OpenServer(NewConfig(), "")
-	defer s.Close()
-
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-
-	now := now()
-	points := []string{
-		"cpu,host=server01 value=100 " + strconv.FormatInt(now.UnixNano(), 10),
-		"cpu,host=server01 value=NaN " + strconv.FormatInt(now.UnixNano(), 20),
-		"cpu,host=server01 value=NaN " + strconv.FormatInt(now.UnixNano(), 30),
-	}
-	if res, err := s.Write("db0", "rp0", strings.Join(points, "\n"), nil); err == nil {
-		t.Fatal("expected error. got nil", err)
-	} else if exp := ``; exp != res {
-		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
-	} else if exp := "partial write"; !strings.Contains(err.Error(), exp) {
-		t.Fatalf("unexpected error: exp\nexp: %v\ngot: %v", exp, err)
-	}
-
-	// Verify the data was written.
-	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu GROUP BY *`); err != nil {
-		t.Fatal(err)
-	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
-		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
-	}
-}
-
 // Ensure the server can query with default databases (via param) and default retention policy
 func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -591,7 +558,7 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 // Ensure the server can have a database with multiple measurements.
 func TestServer_Query_Multiple_Measurements(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -641,7 +608,7 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 // Ensure the server correctly supports data with identical tag values.
 func TestServer_Query_IdenticalTagValues(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -696,7 +663,7 @@ func TestServer_Query_IdenticalTagValues(t *testing.T) {
 // Ensure the server can handle a query that involves accessing no shards.
 func TestServer_Query_NoShards(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -738,7 +705,7 @@ func TestServer_Query_NoShards(t *testing.T) {
 // Ensure the server can query a non-existent field
 func TestServer_Query_NonExistent(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -785,7 +752,7 @@ func TestServer_Query_NonExistent(t *testing.T) {
 // Ensure the server can perform basic math
 func TestServer_Query_Math(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db", newRetentionPolicyInfo("rp", 1, 1*time.Hour)); err != nil {
@@ -881,7 +848,7 @@ func TestServer_Query_Math(t *testing.T) {
 // Ensure the server can query with the count aggregate function
 func TestServer_Query_Count(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -955,7 +922,7 @@ func TestServer_Query_Count(t *testing.T) {
 // Ensure the server can query with Now().
 func TestServer_Query_Now(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1012,7 +979,7 @@ func TestServer_Query_Now(t *testing.T) {
 // Ensure the server can query with epoch precisions.
 func TestServer_Query_EpochPrecision(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1085,7 +1052,7 @@ func TestServer_Query_EpochPrecision(t *testing.T) {
 // Ensure the server works with tag queries.
 func TestServer_Query_Tags(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1266,7 +1233,7 @@ func TestServer_Query_Tags(t *testing.T) {
 // Ensure the server correctly queries with an alias.
 func TestServer_Query_Alias(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1345,7 +1312,7 @@ func TestServer_Query_Alias(t *testing.T) {
 // Ensure the server will succeed and error for common scenarios.
 func TestServer_Query_Common(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1422,7 +1389,7 @@ func TestServer_Query_Common(t *testing.T) {
 // Ensure the server can query two points.
 func TestServer_Query_SelectTwoPoints(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1470,7 +1437,7 @@ func TestServer_Query_SelectTwoPoints(t *testing.T) {
 // Ensure the server can query two negative points.
 func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1511,7 +1478,7 @@ func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 // Ensure the server can query with relative time.
 func TestServer_Query_SelectRelativeTime(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1560,7 +1527,7 @@ func TestServer_Query_SelectRelativeTime(t *testing.T) {
 // Ensure the server can handle various simple derivative queries.
 func TestServer_Query_SelectRawDerivative(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1606,7 +1573,7 @@ func TestServer_Query_SelectRawDerivative(t *testing.T) {
 // Ensure the server can handle various simple non_negative_derivative queries.
 func TestServer_Query_SelectRawNonNegativeDerivative(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1656,7 +1623,7 @@ cpu value=20 1278010024000000000
 // Ensure the server can handle various group by time derivative queries.
 func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -1786,7 +1753,7 @@ cpu value=25 1278010023000000000
 // Ensure the server can handle various group by time derivative queries.
 func TestServer_Query_SelectGroupByTimeDerivativeWithFill(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
@@ -2005,7 +1972,7 @@ cpu value=20 1278010021000000000
 // of points than others in a group by interval the results are correct
 func TestServer_Query_MergeMany(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	// set infinite retention policy as we are inserting data in the past and don't want retention policy enforcement to make this test racy
@@ -2065,7 +2032,7 @@ func TestServer_Query_MergeMany(t *testing.T) {
 
 func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	// set infinite retention policy as we are inserting data in the past and don't want retention policy enforcement to make this test racy
@@ -2122,7 +2089,7 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 
 func TestServer_Query_Regex(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -2194,7 +2161,7 @@ func TestServer_Query_Regex(t *testing.T) {
 
 func TestServer_Query_Aggregates_Int(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2234,7 +2201,7 @@ func TestServer_Query_Aggregates_Int(t *testing.T) {
 
 func TestServer_Query_Aggregates_IntMax(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2274,7 +2241,7 @@ func TestServer_Query_Aggregates_IntMax(t *testing.T) {
 
 func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2408,7 +2375,7 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 
 func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2502,7 +2469,7 @@ func TestServer_Query_Aggregates_IntMany_GroupBy(t *testing.T) {
 
 func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2548,7 +2515,7 @@ func TestServer_Query_Aggregates_IntMany_OrderByDesc(t *testing.T) {
 
 func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2615,7 +2582,7 @@ func TestServer_Query_Aggregates_IntOverlap(t *testing.T) {
 
 func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2654,7 +2621,7 @@ func TestServer_Query_Aggregates_FloatSingle(t *testing.T) {
 
 func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2782,7 +2749,7 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 
 func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2848,7 +2815,7 @@ func TestServer_Query_Aggregates_FloatOverlap(t *testing.T) {
 
 func TestServer_Query_Aggregates_Load(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2901,7 +2868,7 @@ func TestServer_Query_Aggregates_Load(t *testing.T) {
 
 func TestServer_Query_Aggregates_CPU(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -2941,7 +2908,7 @@ func TestServer_Query_Aggregates_CPU(t *testing.T) {
 
 func TestServer_Query_Aggregates_String(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	test := NewTest("db0", "rp0")
@@ -3018,7 +2985,7 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 
 func TestServer_Query_AggregateSelectors(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3314,7 +3281,7 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 
 func TestServer_Query_TopInt(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3481,7 +3448,7 @@ func TestServer_Query_TopInt(t *testing.T) {
 // Test various aggregates when different series only have data for the same timestamp.
 func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3549,7 +3516,7 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 // but will only put the values in the bucket that match the time range
 func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3631,7 +3598,7 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 
 func TestServer_Write_Precision(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3748,7 +3715,7 @@ func TestServer_Write_Precision(t *testing.T) {
 
 func TestServer_Query_Wildcards(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3866,7 +3833,7 @@ func TestServer_Query_Wildcards(t *testing.T) {
 
 func TestServer_Query_WildcardExpansion(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -3946,7 +3913,7 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 
 func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4020,7 +3987,7 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 
 func TestServer_Query_Where_Fields(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4242,7 +4209,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 
 func TestServer_Query_Where_With_Tags(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4300,7 +4267,7 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 
 func TestServer_Query_LimitAndOffset(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4405,7 +4372,7 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 
 func TestServer_Query_Fill(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4504,7 +4471,7 @@ func TestServer_Query_Fill(t *testing.T) {
 
 func TestServer_Query_Chunk(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4556,7 +4523,7 @@ func TestServer_Query_Chunk(t *testing.T) {
 
 func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4722,7 +4689,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 
 func TestServer_Query_ShowSeries(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4824,7 +4791,7 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 
 func TestServer_Query_ShowMeasurements(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -4914,7 +4881,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 
 func TestServer_Query_ShowTagKeys(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5034,7 +5001,7 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 
 func TestServer_Query_ShowFieldKeys(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5101,7 +5068,7 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 func TestServer_ContinuousQuery(t *testing.T) {
 	t.Skip()
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5230,7 +5197,7 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 		t.Skip("skipping CQ deadlock test")
 	}
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer func() {
 		s.Close()
 		// Nil the server so our deadlock detector goroutine can determine if we completed writes
@@ -5308,7 +5275,7 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 
 func TestServer_Query_EvilIdentifiers(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5352,7 +5319,7 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 
 func TestServer_Query_OrderByTime(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5414,7 +5381,7 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 
 func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5468,7 +5435,7 @@ func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
 
 func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5522,7 +5489,7 @@ func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.
 
 func TestServer_Query_IntoTarget(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
@@ -5581,7 +5548,7 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 // Subscriber points channel while writes were in-flight in the PointsWriter.
 func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	t.Parallel()
-	s := OpenDefaultServer(NewConfig(), "")
+	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
 	// goroutine to write points
@@ -5610,7 +5577,7 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 // Ensure time in where clause is inclusive
 func TestServer_WhereTimeInclusive(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	s := OpenServer(NewConfig())
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
