@@ -1,3 +1,12 @@
+## v0.10.3 [unreleased]
+
+### Features
+
+
+### Bugfixes
+
+- [#5924](https://github.com/influxdata/influxdb/issues/5924): Missing data after using influx\_tsm
+
 ## v0.10.2 [2016-03-03]
 ### Bugfixes
 - [#5719](https://github.com/influxdata/influxdb/issues/5719): Fix cache not deduplicating points
