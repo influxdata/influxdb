@@ -47,6 +47,7 @@ var loadSettings = function() {
     document.getElementById('password').value = connectionSettings.password;
     document.getElementById('ssl').checked = connectionSettings.ssl;
 
+    getClientVersion();
     getDatabases();
 }
 
@@ -343,14 +344,17 @@ var pretty = function(val) {
     }
 }
 
-var getVersion = function () {
-    var query = $.get(connectionString() + "/ping");
+var getClientVersion = function () {
+    var query = $.get(window.location.origin + "/");
 
     query.fail(handleRequestError);
 
     query.done(function (data, status, xhr) {
         var version = xhr.getResponseHeader('X-InfluxDB-Version');
-        $('.influxdb-version').html(' (Server v'+version+')');
+        if (version.indexOf("unknown") == -1) {
+            version = 'v' + version;
+        }
+        $('.influxdb-client-version').html(version);
     });
 }
 
@@ -365,7 +369,14 @@ var getDatabases = function () {
 
     query.fail(handleRequestError);
 
-    query.done(function (data) {
+    query.done(function (data, status, xhr) {
+        // Set version of the InfluxDB server
+        var version = xhr.getResponseHeader('X-InfluxDB-Version');
+        if (version.indexOf("unknown") == -1) {
+            version = "v" + version;
+        }
+        $('.influxdb-version').html(version);
+
         hideSettings();
         hideDatabaseWarning();
 
@@ -415,7 +426,6 @@ var updateDatabaseList = function() {
 // when the page is ready, start everything up
 $(document).ready(function () {
     loadSettings();
-    getVersion();
 
     // bind to the settings cog in the navbar
     $("#action-settings").click(function (e) {
