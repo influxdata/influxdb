@@ -56,37 +56,55 @@ func (f *FieldCodec) FieldIDByName(s string) (uint8, error) {
 // DecodeByID scans a byte slice for a field with the given ID, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
-	if len(b) == 0 {
-		// No more bytes.
-		return nil, ErrFieldNotFound
+	var value interface{}
+	for {
+		if len(b) == 0 {
+			// No more bytes.
+			return nil, ErrFieldNotFound
+		}
+
+		field := f.fieldsByID[b[0]]
+		if field == nil {
+			// This can happen, though is very unlikely. If this node receives encoded data, to be written
+			// to disk, and is queried for that data before its metastore is updated, there will be no field
+			// mapping for the data during decode. All this can happen because data is encoded by the node
+			// that first received the write request, not the node that actually writes the data to disk.
+			// So if this happens, the read must be aborted.
+			return nil, ErrFieldUnmappedID
+		}
+
+		switch field.Type {
+		case fieldFloat:
+			if field.ID == targetID {
+				value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			}
+			b = b[9:]
+		case fieldInteger:
+			if field.ID == targetID {
+				value = int64(binary.BigEndian.Uint64(b[1:9]))
+			}
+			b = b[9:]
+		case fieldBoolean:
+			if field.ID == targetID {
+				value = b[1] == 1
+			}
+			b = b[2:]
+		case fieldString:
+			length := binary.BigEndian.Uint16(b[1:3])
+			if field.ID == targetID {
+				value = string(b[3 : 3+length])
+			}
+			b = b[3+length:]
+		default:
+			panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))
+		}
+
+		if value != nil {
+			return value, nil
+		}
 	}
 
-	field := f.fieldsByID[b[0]]
-	if field == nil {
-		// This can happen, though is very unlikely. If this node receives encoded data, to be written
-		// to disk, and is queried for that data before its metastore is updated, there will be no field
-		// mapping for the data during decode. All this can happen because data is encoded by the node
-		// that first received the write request, not the node that actually writes the data to disk.
-		// So if this happens, the read must be aborted.
-		return nil, ErrFieldUnmappedID
-	}
-
-	if field.ID != targetID {
-		return nil, ErrFieldNotFound
-	}
-
-	switch field.Type {
-	case fieldFloat:
-		return math.Float64frombits(binary.BigEndian.Uint64(b[1:9])), nil
-	case fieldInteger:
-		return int64(binary.BigEndian.Uint64(b[1:9])), nil
-	case fieldBoolean:
-		return b[1] == 1, nil
-	case fieldString:
-		return string(b[3 : 3+binary.BigEndian.Uint16(b[1:3])]), nil
-	default:
-		panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))
-	}
+	return nil, ErrFieldNotFound
 }
 
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
