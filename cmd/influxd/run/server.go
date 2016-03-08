@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/copier"
@@ -166,6 +167,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.TSDBStore = s.TSDBStore
 	s.QueryExecutor.Monitor = s.Monitor
 	s.QueryExecutor.PointsWriter = s.PointsWriter
+	s.QueryExecutor.QueryManager = influxql.DefaultQueryManager()
 	if c.Data.QueryLogEnabled {
 		s.QueryExecutor.LogOutput = os.Stderr
 	}

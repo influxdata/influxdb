@@ -295,6 +295,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			<-notify
 			close(closing)
 		}()
+	} else {
+		defer close(closing)
 	}
 
 	// Execute query.
