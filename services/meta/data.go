@@ -497,6 +497,38 @@ func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	return nil
 }
 
+// DropShard removes a shard by ID.
+func (data *Data) DropShard(id uint64) error {
+	found := -1
+	for dbidx, dbi := range data.Databases {
+		for rpidx, rpi := range dbi.RetentionPolicies {
+			for sgidx, sg := range rpi.ShardGroups {
+				for sidx, s := range sg.Shards {
+					if s.ID == id {
+						found = sidx
+						break
+					}
+				}
+
+				if found > -1 {
+					shards := sg.Shards
+					data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Shards = append(shards[:found], shards[found+1:]...)
+
+					if len(shards) == 1 {
+						// We just deleted the last shard in the shard group.
+						data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].DeletedAt = time.Now()
+					}
+					return nil
+				}
+			}
+		}
+	}
+	// Don't return an error if the shard can't be found. This allows
+	// the command to be re-run in the case that the meta store succeeds
+	// but a data node fails (and the command need to be re-run).
+	return nil
+}
+
 // ShardGroups returns a list of all shard groups on a database and policy.
 func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error) {
 	// Find retention policy.
