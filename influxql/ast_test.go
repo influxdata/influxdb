@@ -1014,11 +1014,19 @@ func TestEval(t *testing.T) {
 		{in: `'foo' = 'bar'`, out: false},
 		{in: `'foo' = 'foo'`, out: true},
 
+		// Regex literals.
+		{in: `'foo' =~ /f.*/`, out: true},
+		{in: `'foo' =~ /b.*/`, out: false},
+		{in: `'foo' !~ /f.*/`, out: false},
+		{in: `'foo' !~ /b.*/`, out: true},
+
 		// Variable references.
 		{in: `foo`, out: "bar", data: map[string]interface{}{"foo": "bar"}},
 		{in: `foo = 'bar'`, out: true, data: map[string]interface{}{"foo": "bar"}},
 		{in: `foo = 'bar'`, out: nil, data: map[string]interface{}{"foo": nil}},
 		{in: `foo <> 'bar'`, out: true, data: map[string]interface{}{"foo": "xxx"}},
+		{in: `foo =~ /b.*/`, out: true, data: map[string]interface{}{"foo": "bar"}},
+		{in: `foo !~ /b.*/`, out: false, data: map[string]interface{}{"foo": "bar"}},
 	} {
 		// Evaluate expression.
 		out := influxql.Eval(MustParseExpr(tt.in), tt.data)
