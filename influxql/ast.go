@@ -3485,6 +3485,8 @@ func Eval(expr Expr, m map[string]interface{}) interface{} {
 		return expr.Val
 	case *ParenExpr:
 		return Eval(expr.Expr, m)
+	case *RegexLiteral:
+		return expr.Val
 	case *StringLiteral:
 		return expr.Val
 	case *VarRef:
@@ -3570,12 +3572,19 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return lhs / rhs
 		}
 	case string:
-		rhs, _ := rhs.(string)
 		switch expr.Op {
 		case EQ:
-			return lhs == rhs
+			rhs, ok := rhs.(string)
+			return ok && lhs == rhs
 		case NEQ:
-			return lhs != rhs
+			rhs, ok := rhs.(string)
+			return ok && lhs != rhs
+		case EQREGEX:
+			rhs, ok := rhs.(*regexp.Regexp)
+			return ok && rhs.MatchString(lhs)
+		case NEQREGEX:
+			rhs, ok := rhs.(*regexp.Regexp)
+			return ok && !rhs.MatchString(lhs)
 		}
 	}
 	return nil
