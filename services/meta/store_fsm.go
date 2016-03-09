@@ -52,6 +52,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applySetDefaultRetentionPolicyCommand(&cmd)
 		case internal.Command_UpdateRetentionPolicyCommand:
 			return fsm.applyUpdateRetentionPolicyCommand(&cmd)
+		case internal.Command_DeleteShardCommand:
+			return fsm.applyDeleteShardCommand(&cmd)
 		case internal.Command_CreateShardGroupCommand:
 			return fsm.applyCreateShardGroupCommand(&cmd)
 		case internal.Command_DeleteShardGroupCommand:
@@ -335,6 +337,20 @@ func (fsm *storeFSM) applyUpdateRetentionPolicyCommand(cmd *internal.Command) in
 	// Copy data and update.
 	other := fsm.data.Clone()
 	if err := other.UpdateRetentionPolicy(v.GetDatabase(), v.GetName(), &rpu); err != nil {
+		return err
+	}
+	fsm.data = other
+
+	return nil
+}
+
+func (fsm *storeFSM) applyDeleteShardCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_DeleteShardCommand_Command)
+	v := ext.(*internal.DeleteShardCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	if err := other.DeleteShard(v.GetID()); err != nil {
 		return err
 	}
 	fsm.data = other

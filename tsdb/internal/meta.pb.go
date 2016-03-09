@@ -120,3 +120,10 @@ func (m *Field) GetType() int32 {
 	}
 	return 0
 }
+
+func init() {
+	proto.RegisterType((*Series)(nil), "internal.Series")
+	proto.RegisterType((*Tag)(nil), "internal.Tag")
+	proto.RegisterType((*MeasurementFields)(nil), "internal.MeasurementFields")
+	proto.RegisterType((*Field)(nil), "internal.Field")
+}

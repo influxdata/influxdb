@@ -126,6 +126,7 @@ message Command {
 		DeleteMetaNodeCommand            = 27;
 		DeleteDataNodeCommand            = 28;
 		SetMetaNodeCommand               = 29;
+        DeleteShardCommand               = 30;
     }
 
     required Type type = 1;
@@ -374,4 +375,11 @@ message SetMetaNodeCommand {
     required string HTTPAddr = 1;
     required string TCPAddr = 2;
     required uint64 Rand = 3;
+}
+
+message DeleteShardCommand {
+    extend Command {
+        optional DeleteShardCommand command = 130;
+    }
+    required uint64 ID = 1;
 }

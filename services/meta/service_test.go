@@ -625,6 +625,85 @@ func TestMetaService_Subscriptions_Drop(t *testing.T) {
 	}
 }
 
+func TestMetaService_DeleteShard(t *testing.T) {
+	t.Parallel()
+
+	d, s, c := newServiceAndClient()
+	defer os.RemoveAll(d)
+	defer s.Close()
+	defer c.Close()
+
+	// Attempting to delete a shard that doesn't exist results in an
+	// error.
+	if err := c.DeleteShard(0); err == nil || err.Error() != meta.ErrShardNotFound.Error() {
+		t.Fatal(err)
+	}
+
+	if _, err := c.CreateDataNode("foo1:8180", "foo1:8181"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.CreateDataNode("foo2:8180", "foo2:8181"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a shard group. Due to replication factor on rp0 it should
+	// have two shards.
+	tme := time.Now().Add(time.Hour)
+	sg, err := c.CreateShardGroup("db0", "rp0", tme)
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	ids := c.ShardIDs()
+	if len(ids) < 2 {
+		t.Fatalf("Only %d shards, should be 2", len(ids))
+	}
+
+	// When we delete a shard, it should be removed from the shard group
+	id0 := ids[0]
+	if err := c.DeleteShard(id0); err != nil {
+		t.Fatal(err)
+	} else if got, exp := c.ShardIDs(), ids[1:]; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// Since the shard group has another shard it should still be active
+	sgs, err := c.ShardGroupsByTimeRange("db0", "rp0", tme, tme)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(sgs) != 1 {
+		t.Fatalf("got %d shard groups, expected %d", len(sgs), 1)
+	}
+
+	if sgs[0].Deleted() {
+		t.Fatal("shard group has been deleted")
+	}
+
+	// Delete the last shard in the group, it should be removed from
+	// the shard group.
+	id1 := ids[1]
+	if err := c.DeleteShard(id1); err != nil {
+		t.Fatal(err)
+	} else if got, exp := c.ShardIDs(), []uint64(nil); !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// Since that's the last shard, the shard group should be marked as
+	// deleted.
+	if sgs, err = c.ShardGroupsByTimeRange("db0", "rp0", tme, tme); err != nil {
+		t.Fatal(err)
+	} else if len(sgs) > 0 {
+		t.Fatalf("got shard group %v, but should not have got one", sgs)
+	}
+}
+
 func TestMetaService_Shards(t *testing.T) {
 	t.Parallel()
 
