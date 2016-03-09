@@ -21,6 +21,7 @@
 - [#5844](https://github.com/influxdata/influxdb/pull/5844): Tag TSM engine stats with database and retention policy
 - [#5593](https://github.com/influxdata/influxdb/issues/5593): Modify `SHOW TAG VALUES` output for the new query engine to normalize the output.
 - [#5862](https://github.com/influxdata/influxdb/pull/5862): Make Admin UI dynamically fetch both client and server versions
+- [#2715](https://github.com/influxdata/influxdb/issues/2715): Support using field regex comparisons in the WHERE clause
 
 ### Bugfixes
 
