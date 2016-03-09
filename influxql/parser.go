@@ -105,8 +105,10 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseAlterStatement()
 	case SET:
 		return p.parseSetPasswordUserStatement()
+	case KILL:
+		return p.parseKillQueryStatement()
 	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET", "KILL"}, pos)
 	}
 }
 
@@ -288,6 +290,20 @@ func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, err
 	stmt.Password = ident
 
 	return stmt, nil
+}
+
+// parseKillQueryStatement parses a string and returns a kill statement.
+// This function assumes the KILL token has already been consumed.
+func (p *Parser) parseKillQueryStatement() (*KillQueryStatement, error) {
+	if err := p.parseTokens([]Token{QUERY}); err != nil {
+		return nil, err
+	}
+
+	qid, err := p.parseUInt64()
+	if err != nil {
+		return nil, err
+	}
+	return &KillQueryStatement{QueryID: qid}, nil
 }
 
 // parseCreateSubscriptionStatement parses a string and returns a CreatesubScriptionStatement.

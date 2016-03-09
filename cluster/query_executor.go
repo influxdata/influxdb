@@ -171,6 +171,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			err = e.executeGrantStatement(stmt)
 		case *influxql.GrantAdminStatement:
 			err = e.executeGrantAdminStatement(stmt)
+		case *influxql.KillQueryStatement:
+			err = e.executeKillQueryStatement(stmt)
 		case *influxql.RevokeStatement:
 			err = e.executeRevokeStatement(stmt)
 		case *influxql.RevokeAdminStatement:
@@ -373,6 +375,13 @@ func (e *QueryExecutor) executeGrantStatement(stmt *influxql.GrantStatement) err
 
 func (e *QueryExecutor) executeGrantAdminStatement(stmt *influxql.GrantAdminStatement) error {
 	return e.MetaClient.SetAdminPrivilege(stmt.User, true)
+}
+
+func (e *QueryExecutor) executeKillQueryStatement(stmt *influxql.KillQueryStatement) error {
+	if e.QueryManager == nil {
+		return influxql.ErrNoQueryManager
+	}
+	return e.QueryManager.KillQuery(stmt.QueryID)
 }
 
 func (e *QueryExecutor) executeRevokeStatement(stmt *influxql.RevokeStatement) error {

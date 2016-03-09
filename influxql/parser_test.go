@@ -755,6 +755,14 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowQueriesStatement{},
 		},
 
+		// KILL QUERY 4
+		{
+			s: `KILL QUERY 4`,
+			stmt: &influxql.KillQueryStatement{
+				QueryID: 4,
+			},
+		},
+
 		// SHOW RETENTION POLICIES
 		{
 			s: `SHOW RETENTION POLICIES ON mydb`,
@@ -1639,10 +1647,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		},
 
 		// Errors
-		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET at line 1, char 1`},
+		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
 		{s: `SELECT time FROM myseries`, err: `at least 1 non-time field must be queried`},
-		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET at line 1, char 1`},
+		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL at line 1, char 1`},
 		{s: `SELECT field1 X`, err: `found X, expected FROM at line 1, char 15`},
 		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
@@ -1833,6 +1841,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `GRANT ALL PRIVILEGES ON testdb TO`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `GRANT ALL TO`, err: `found EOF, expected identifier at line 1, char 14`},
 		{s: `GRANT ALL PRIVILEGES TO`, err: `found EOF, expected identifier at line 1, char 25`},
+		{s: `KILL`, err: `found EOF, expected QUERY at line 1, char 6`},
+		{s: `KILL QUERY 10s`, err: `found 10s, expected integer at line 1, char 12`},
 		{s: `REVOKE`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 8`},
 		{s: `REVOKE BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 8`},
 		{s: `REVOKE READ`, err: `found EOF, expected ON at line 1, char 13`},

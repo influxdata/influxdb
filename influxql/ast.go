@@ -108,6 +108,7 @@ func (*DropSubscriptionStatement) node()      {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
+func (*KillQueryStatement) node()             {}
 func (*RevokeStatement) node()                {}
 func (*RevokeAdminStatement) node()           {}
 func (*SelectStatement) node()                {}
@@ -221,6 +222,7 @@ func (*DropSubscriptionStatement) stmt()      {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
+func (*KillQueryStatement) stmt()             {}
 func (*ShowContinuousQueriesStatement) stmt() {}
 func (*ShowGrantsForUserStatement) stmt()     {}
 func (*ShowServersStatement) stmt()           {}
@@ -645,6 +647,19 @@ func (s *GrantAdminStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a GrantAdminStatement.
 func (s *GrantAdminStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+type KillQueryStatement struct {
+	// The query to kill.
+	QueryID uint64
+}
+
+func (s *KillQueryStatement) String() string {
+	return fmt.Sprintf("KILL QUERY %d", s.QueryID)
+}
+
+func (s *KillQueryStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
