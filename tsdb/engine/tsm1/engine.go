@@ -686,14 +686,23 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 		if err != nil {
 			return nil, err
 		}
-		return influxql.NewCallIterator(influxql.NewMergeIterator(inputs, opt), opt)
+
+		input := influxql.NewMergeIterator(inputs, opt)
+		if opt.InterruptCh != nil {
+			input = influxql.NewInterruptIterator(input, opt.InterruptCh)
+		}
+		return influxql.NewCallIterator(input, opt)
 	}
 
 	itrs, err := e.createVarRefIterator(opt)
 	if err != nil {
 		return nil, err
 	}
-	return influxql.NewSortedMergeIterator(itrs, opt), nil
+	itr := influxql.NewSortedMergeIterator(itrs, opt)
+	if opt.InterruptCh != nil {
+		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+	}
+	return itr, nil
 }
 
 func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {

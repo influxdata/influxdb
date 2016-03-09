@@ -569,6 +569,39 @@ func (itr *{{$k.name}}IntervalIterator) Next() *{{$k.Name}}Point {
 	return p
 }
 
+// {{$k.name}}InterruptIterator represents a {{$k.name}} implementation of InterruptIterator.
+type {{$k.name}}InterruptIterator struct {
+	input   {{$k.Name}}Iterator
+	closing <-chan struct{}
+	count   int
+}
+
+func new{{$k.Name}}InterruptIterator(input {{$k.Name}}Iterator, closing <-chan struct{}) *{{$k.name}}InterruptIterator {
+	return &{{$k.name}}InterruptIterator{input: input, closing: closing}
+}
+
+func (itr *{{$k.name}}InterruptIterator) Close() error { return itr.input.Close() }
+
+func (itr *{{$k.name}}InterruptIterator) Next() *{{$k.Name}}Point {
+	// Only check if the channel is closed every 256 points. This
+	// intentionally checks on both 0 and 256 so that if the iterator
+	// has been interrupted before the first point is emitted it will
+	// not emit any points.
+	if itr.count&0x100 == 0 {
+		select {
+		case <-itr.closing:
+			return nil
+		default:
+			// Reset iterator count to zero and fall through to emit the next point.
+			itr.count = 0
+		}
+	}
+
+	// Increment the counter for every point read.
+	itr.count++
+	return itr.input.Next()
+}
+
 // {{$k.name}}AuxIterator represents a {{$k.name}} implementation of AuxIterator.
 type {{$k.name}}AuxIterator struct {
 	input      *buf{{$k.Name}}Iterator

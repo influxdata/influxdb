@@ -222,6 +222,23 @@ func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewInterruptIterator returns an iterator that will stop producing output when a channel
+// has been closed on the passed in channel.
+func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatInterruptIterator(input, closing)
+	case IntegerIterator:
+		return newIntegerInterruptIterator(input, closing)
+	case StringIterator:
+		return newStringInterruptIterator(input, closing)
+	case BooleanIterator:
+		return newBooleanInterruptIterator(input, closing)
+	default:
+		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
+	}
+}
+
 // AuxIterator represents an iterator that can split off separate auxilary iterators.
 type AuxIterator interface {
 	Iterator
@@ -466,7 +483,11 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 
 	// Merge into a single iterator.
 	if opt.MergeSorted() {
-		return NewSortedMergeIterator(itrs, opt), nil
+		itr := NewSortedMergeIterator(itrs, opt)
+		if opt.InterruptCh != nil {
+			itr = NewInterruptIterator(itr, opt.InterruptCh)
+		}
+		return itr, nil
 	}
 
 	itr := NewMergeIterator(itrs, opt)
@@ -477,6 +498,10 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 				Args: expr.Args,
 			}
 		}
+	}
+
+	if opt.InterruptCh != nil {
+		itr = NewInterruptIterator(itr, opt.InterruptCh)
 	}
 	return NewCallIterator(itr, opt)
 }
@@ -604,6 +629,10 @@ type IteratorOptions struct {
 
 	// Removes duplicate rows from raw queries.
 	Dedupe bool
+
+	// If this channel is set and is closed, the iterator should try to exit
+	// and close as soon as possible.
+	InterruptCh <-chan struct{}
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.
@@ -655,6 +684,9 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 	opt.Fill, opt.FillValue = stmt.Fill, stmt.FillValue
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
+	if sopt != nil {
+		opt.InterruptCh = sopt.InterruptCh
+	}
 
 	return opt, nil
 }

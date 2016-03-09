@@ -411,7 +411,7 @@ func (e *QueryExecutor) executeSetPasswordUserStatement(q *influxql.SetPasswordU
 func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, chunkSize, statementID int, results chan *influxql.Result, closing <-chan struct{}) error {
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
-	opt := influxql.SelectOptions{}
+	opt := influxql.SelectOptions{InterruptCh: closing}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
