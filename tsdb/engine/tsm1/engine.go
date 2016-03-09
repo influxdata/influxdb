@@ -163,8 +163,15 @@ func (e *Engine) Open() error {
 	return nil
 }
 
-// Close closes the engine.
+// Close closes the engine. Subsequent calls to Close are a nop.
 func (e *Engine) Close() error {
+	e.mu.RLock()
+	if e.done == nil {
+		e.mu.RUnlock()
+		return nil
+	}
+	e.mu.RUnlock()
+
 	// Shutdown goroutines and wait.
 	close(e.done)
 	e.wg.Wait()
@@ -172,6 +179,7 @@ func (e *Engine) Close() error {
 	// Lock now and close everything else down.
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.done = nil // Ensures that the channel will not be closed again.
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
