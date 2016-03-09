@@ -372,7 +372,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 	case *ParenExpr:
 		return buildExprIterator(expr.Expr, ic, opt)
 	default:
-		panic(fmt.Sprintf("invalid expression type: %T", expr)) // FIXME
+		return nil, fmt.Errorf("invalid expression type: %T", expr)
 	}
 }
 
