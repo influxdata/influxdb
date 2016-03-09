@@ -1276,6 +1276,17 @@ func (s *SelectStatement) validateFields() error {
 	if len(ns) == 1 && ns[0] == "time" {
 		return fmt.Errorf("at least 1 non-time field must be queried")
 	}
+
+	for _, f := range s.Fields {
+		switch expr := f.Expr.(type) {
+		case *BinaryExpr:
+			for _, call := range walkFunctionCalls(expr) {
+				if call.Name == "top" || call.Name == "bottom" {
+					return fmt.Errorf("cannot use %s() inside of a binary expression", call.Name)
+				}
+			}
+		}
+	}
 	return nil
 }
 
