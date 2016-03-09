@@ -2,14 +2,12 @@ package run
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -36,6 +34,12 @@ import (
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 )
+
+var startTime time.Time
+
+func init() {
+	startTime = time.Now().UTC()
+}
 
 // BuildInfo represents the build details for the server code.
 type BuildInfo struct {
@@ -124,9 +128,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	// 0.11 we no longer use peers.json.  Remove the file if we have one on disk.
-	os.RemoveAll(filepath.Join(c.Meta.Dir, "peers.json"))
-
 	node, err := influxdb.LoadNode(c.Meta.Dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -134,14 +135,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 
 		node = influxdb.NewNode(c.Meta.Dir)
-	}
-
-	// In 0.11 we removed MetaServers from node.json.  To avoid confusion for
-	// existing users, force a re-save of the node.json file to remove that property
-	// if it happens to exist.
-	nodeContents, err := ioutil.ReadFile(filepath.Join(c.Meta.Dir, "node.json"))
-	if err == nil && strings.Contains(string(nodeContents), "MetaServers") {
-		node.Save()
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check
@@ -596,6 +589,7 @@ func (s *Server) reportServer() {
 					"num_series":       numSeries,
 					"num_measurements": numMeasurements,
 					"num_databases":    numDatabases,
+					"uptime":           time.Since(startTime).Seconds(),
 				},
 			},
 		},
