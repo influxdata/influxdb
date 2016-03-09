@@ -58,6 +58,7 @@
 - [#5865](https://github.com/influxdata/influxdb/issues/5865): Conversion to tsm fails with exceeds max index value
 - [#5924](https://github.com/influxdata/influxdb/issues/5924): Missing data after using influx\_tsm
 - [#5937](https://github.com/influxdata/influxdb/pull/5937): Rewrite SHOW SERIES to use query engine
+- [#5949](https://github.com/influxdata/influxdb/issues/5949): Return error message when improper types are used in SELECT
 
 ## v0.10.2 [2016-03-03]
 ### Bugfixes

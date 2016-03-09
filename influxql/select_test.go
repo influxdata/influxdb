@@ -1686,3 +1686,32 @@ func TestSelect_UnsupportedCall(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 }
+
+func TestSelect_InvalidQueries(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{}, nil
+	}
+
+	tests := []struct {
+		q   string
+		err string
+	}{
+		{
+			q:   `SELECT foobar(value) FROM cpu`,
+			err: `unsupported call: foobar`,
+		},
+		{
+			q:   `SELECT 'value' FROM cpu`,
+			err: `invalid expression type: *influxql.StringLiteral`,
+		},
+	}
+
+	for i, tt := range tests {
+		itrs, err := influxql.Select(MustParseSelectStatement(tt.q), &ic, nil)
+		if err == nil || err.Error() != tt.err {
+			t.Errorf("%d. expected error '%s', got '%s'", i, tt.err, err)
+		}
+		influxql.Iterators(itrs).Close()
+	}
+}
