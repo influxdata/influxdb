@@ -1772,3 +1772,17 @@ t159,label=another a=2i,value=1i 1`
 		t.Fatalf("expected 2 points, got %d", len(points))
 	}
 }
+
+func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
+	corrupted := []byte{0, 0, 0, 3, 102, 111, 111, 0, 0, 0, 4, 61, 34, 65, 34, 1, 0, 0, 0, 14, 206, 86, 119, 24, 32, 72, 233, 168, 2, 148}
+	p, err := models.NewPointFromBytes(corrupted)
+	if p != nil || err == nil {
+		t.Fatalf("NewPointFromBytes: got: (%v, %v), expected: (nil, error)", p, err)
+	}
+}
+
+func TestNewPointsRejectsEmptyFieldNames(t *testing.T) {
+	if _, err := models.NewPoint("foo", nil, models.Fields{"": 1}, time.Now()); err == nil {
+		t.Fatalf("new point with empty field name. got: nil, expected: error")
+	}
+}
