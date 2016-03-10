@@ -19,6 +19,7 @@ It has these top-level messages:
 	FieldDimensionsResponse
 	SeriesKeysRequest
 	SeriesKeysResponse
+	DeleteShardRequest
 */
 package internal
 
@@ -287,6 +288,22 @@ func (m *SeriesKeysResponse) GetErr() string {
 	return ""
 }
 
+type DeleteShardRequest struct {
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DeleteShardRequest) Reset()         { *m = DeleteShardRequest{} }
+func (m *DeleteShardRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteShardRequest) ProtoMessage()    {}
+
+func (m *DeleteShardRequest) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*WriteShardRequest)(nil), "internal.WriteShardRequest")
 	proto.RegisterType((*WriteShardResponse)(nil), "internal.WriteShardResponse")
@@ -298,4 +315,5 @@ func init() {
 	proto.RegisterType((*FieldDimensionsResponse)(nil), "internal.FieldDimensionsResponse")
 	proto.RegisterType((*SeriesKeysRequest)(nil), "internal.SeriesKeysRequest")
 	proto.RegisterType((*SeriesKeysResponse)(nil), "internal.SeriesKeysResponse")
+	proto.RegisterType((*DeleteShardRequest)(nil), "internal.DeleteShardRequest")
 }

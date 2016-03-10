@@ -24,6 +24,8 @@ const (
 
 	seriesKeysRequestMessage
 	seriesKeysResponseMessage
+
+	dropShardRequestMessage
 )
 
 // ShardWriter writes a set of points to a shard.

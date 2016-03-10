@@ -411,3 +411,18 @@ func (r *SeriesKeysResponse) UnmarshalBinary(data []byte) error {
 
 	return nil
 }
+
+// DeleteShardRequest represents a request to delete a shard.
+type DeleteShardRequest struct {
+	pb internal.DeleteShardRequest
+}
+
+// MarshalBinary encodes the object to a binary format.
+func (r *DeleteShardRequest) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&r.pb)
+}
+
+// UnmarshalBinary populates DeleteShardRequest from a binary format.
+func (r *DeleteShardRequest) UnmarshalBinary(buf []byte) error {
+	return proto.Unmarshal(buf, &r.pb)
+}

@@ -196,6 +196,17 @@ func (s *Service) handleConn(conn net.Conn) {
 			s.statMap.Add(seriesKeysReq, 1)
 			s.processSeriesKeysRequest(conn)
 			return
+		case dropShardRequestMessage:
+			buf, err := ReadLV(conn)
+			if err != nil {
+				s.Logger.Printf("unable to read length-value: %s", err)
+				return
+			}
+
+			if err = s.processDropShardRequest(buf); err != nil {
+				s.Logger.Printf("dropping shard error: %v", err)
+			}
+			s.writeShardResponse(conn, err)
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -437,6 +448,16 @@ func (s *Service) processSeriesKeysRequest(conn net.Conn) {
 		s.Logger.Printf("error writing SeriesKeys response: %s", err)
 		return
 	}
+}
+
+func (s *Service) processDropShardRequest(buf []byte) error {
+	// Unmarshal request
+	var req DeleteShardRequest
+	if err := req.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+	// Delete the shard.
+	return s.TSDBStore.DeleteShard(req.pb.GetID())
 }
 
 // ReadTLV reads a type-length-value record from r.
