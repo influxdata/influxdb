@@ -630,16 +630,73 @@ func (itr *{{$k.name}}AuxIterator) stream() {
 
 // {{$k.name}}ChanIterator represents a new instance of {{$k.name}}ChanIterator.
 type {{$k.name}}ChanIterator struct {
-	c    chan *{{$k.Name}}Point
-	once sync.Once
+	buf  *{{$k.Name}}Point
+	cond *sync.Cond
+	done bool
 }
 
 func (itr *{{$k.name}}ChanIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
 	return nil
 }
 
-func (itr *{{$k.name}}ChanIterator) Next() *{{$k.Name}}Point { return <-itr.c }
+func (itr *{{$k.name}}ChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf != nil {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case {{$k.Type}}:
+		itr.buf = &{{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: v}
+{{if eq $k.Name "Float"}}
+	case int64:
+		itr.buf = &{{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: float64(v)}
+{{end}}
+	default:
+		itr.buf = &{{$k.Name}}Point{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *{{$k.name}}ChanIterator) Next() *{{$k.Name}}Point {
+	itr.cond.L.Lock()
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && itr.buf == nil {
+		itr.cond.Wait()
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := itr.buf
+	itr.buf = nil
+	itr.cond.Signal()
+
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return p
+}
 
 {{range $v := $types}}
 
