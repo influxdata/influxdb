@@ -312,19 +312,19 @@ func (a auxIteratorFields) iterator(name string) Iterator {
 		// Create channel iterator by data type.
 		switch f.typ {
 		case Float:
-			itr := &floatChanIterator{c: make(chan *FloatPoint, 1)}
+			itr := &floatChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
 		case Integer:
-			itr := &integerChanIterator{c: make(chan *IntegerPoint, 1)}
+			itr := &integerChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
 		case String:
-			itr := &stringChanIterator{c: make(chan *StringPoint, 1)}
+			itr := &stringChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
 		case Boolean:
-			itr := &booleanChanIterator{c: make(chan *BooleanPoint, 1)}
+			itr := &booleanChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
 		default:
@@ -349,35 +349,13 @@ func (a auxIteratorFields) send(p Point) {
 		for _, itr := range f.itrs {
 			switch itr := itr.(type) {
 			case *floatChanIterator:
-				switch v := v.(type) {
-				case float64:
-					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-				case int64:
-					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: float64(v)}
-				default:
-					itr.c <- &FloatPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-				}
+				itr.setBuf(p.name(), tags, p.time(), v)
 			case *integerChanIterator:
-				switch v := v.(type) {
-				case int64:
-					itr.c <- &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-				default:
-					itr.c <- &IntegerPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-				}
+				itr.setBuf(p.name(), tags, p.time(), v)
 			case *stringChanIterator:
-				switch v := v.(type) {
-				case string:
-					itr.c <- &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-				default:
-					itr.c <- &StringPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-				}
+				itr.setBuf(p.name(), tags, p.time(), v)
 			case *booleanChanIterator:
-				switch v := v.(type) {
-				case bool:
-					itr.c <- &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Value: v}
-				default:
-					itr.c <- &BooleanPoint{Name: p.name(), Tags: tags, Time: p.time(), Nil: true}
-				}
+				itr.setBuf(p.name(), tags, p.time(), v)
 			default:
 				panic(fmt.Sprintf("invalid aux itr type: %T", itr))
 			}
