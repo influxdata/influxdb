@@ -38,11 +38,11 @@ type Data struct {
 	MaxShardID      uint64
 }
 
-// newShardOwner sets the owner of the provided shard to the data node
+// NewShardOwner sets the owner of the provided shard to the data node
 // that currently owns the fewest number of shards. If multiple nodes
 // own the same (fewest) number of shards, then one of those nodes
 // becomes the new shard owner.
-func newShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
+func NewShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
 	var (
 		minId   = -1
 		minFreq int
@@ -495,6 +495,19 @@ func (data *Data) UpdateUser(name, hash string) error {
 	return ErrUserNotFound
 }
 
+// CloneUserInfos returns a copy of the user infos
+func (data *Data) CloneUserInfos() []UserInfo {
+	if len(data.Users) == 0 {
+		return []UserInfo{}
+	}
+	users := make([]UserInfo, len(data.Users))
+	for i := range data.Users {
+		users[i] = data.Users[i].clone()
+	}
+
+	return users
+}
+
 // SetPrivilege sets a privilege for a user on a database.
 func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) error {
 	ui := data.User(name)
@@ -552,21 +565,8 @@ func (data *Data) UserPrivilege(name, database string) (*influxql.Privilege, err
 func (data *Data) Clone() *Data {
 	other := *data
 
-	// Deep copy databases.
-	if data.Databases != nil {
-		other.Databases = make([]DatabaseInfo, len(data.Databases))
-		for i := range data.Databases {
-			other.Databases[i] = data.Databases[i].clone()
-		}
-	}
-
-	// Copy users.
-	if data.Users != nil {
-		other.Users = make([]UserInfo, len(data.Users))
-		for i := range data.Users {
-			other.Users[i] = data.Users[i].clone()
-		}
-	}
+	other.Databases = data.CloneDatabases()
+	other.Users = data.CloneUserInfos()
 
 	return &other
 }

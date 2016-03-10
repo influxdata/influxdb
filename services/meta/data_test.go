@@ -8,13 +8,13 @@ import (
 
 func TestnewShardOwner(t *testing.T) {
 	// An error is returned if there are no data nodes available.
-	_, err := newShardOwner(ShardInfo{}, map[int]int{})
+	_, err := NewShardOwner(ShardInfo{}, map[int]int{})
 	if err == nil {
 		t.Error("got no error, but expected one")
 	}
 
 	ownerFreqs := map[int]int{1: 15, 2: 11, 3: 12}
-	id, err := newShardOwner(ShardInfo{ID: 4}, ownerFreqs)
+	id, err := NewShardOwner(ShardInfo{ID: 4}, ownerFreqs)
 	if err != nil {
 		t.Fatal(err)
 	}
