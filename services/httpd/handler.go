@@ -640,6 +640,10 @@ func (w gzipResponseWriter) Flush() {
 	w.Writer.(*gzip.Writer).Flush()
 }
 
+func (w gzipResponseWriter) CloseNotify() <-chan bool {
+	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
+}
+
 // determines if the client can accept compressed responses, and encodes accordingly
 func gzipFilter(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
