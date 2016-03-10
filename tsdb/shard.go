@@ -122,12 +122,6 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 // Path returns the path set on the shard when it was created.
 func (s *Shard) Path() string { return s.path }
 
-// PerformMaintenance gets called periodically to have the engine perform
-// any maintenance tasks like WAL flushing and compaction
-func (s *Shard) PerformMaintenance() {
-	s.engine.PerformMaintenance()
-}
-
 // Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
 	if err := func() error {
