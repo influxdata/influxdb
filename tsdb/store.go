@@ -605,8 +605,8 @@ func (s *Store) performMaintenanceOnShard(shard *Shard) {
 // ExpandSources expands regex sources and removes duplicates.
 // NOTE: sources must be normalized (db and rp set) before calling this function.
 func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.expandSources(sources)
 }
 
