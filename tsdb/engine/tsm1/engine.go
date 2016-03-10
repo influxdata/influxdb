@@ -102,10 +102,6 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-// PerformMaintenance is for periodic maintenance of the store. A no-op for b1
-func (e *Engine) PerformMaintenance() {
-}
-
 // Index returns the database index.
 func (e *Engine) Index() *tsdb.DatabaseIndex {
 	e.mu.Lock()

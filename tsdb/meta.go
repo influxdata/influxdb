@@ -304,8 +304,11 @@ func (d *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measureme
 	return measurements
 }
 
-// measurementsByRegex returns the measurements that match the regex.
-func (d *DatabaseIndex) measurementsByRegex(re *regexp.Regexp) Measurements {
+// MeasurementsByRegex returns the measurements that match the regex.
+func (d *DatabaseIndex) MeasurementsByRegex(re *regexp.Regexp) Measurements {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	var matches Measurements
 	for _, m := range d.measurements {
 		if re.MatchString(m.Name) {
