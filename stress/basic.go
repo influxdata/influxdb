@@ -659,7 +659,9 @@ func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Ti
 			Precision: "ns",
 		})
 		for p := range r {
+			o.mu.Lock()
 			tags := o.tags
+			o.mu.Unlock()
 			tags["method"] = method
 			fields := map[string]interface{}{
 				"response_time": float64(p.Timer.Elapsed()),
@@ -668,10 +670,12 @@ func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Ti
 			bp.AddPoint(pt)
 			if len(bp.Points())%1000 == 0 && len(bp.Points()) != 0 {
 				c.Write(bp)
+				o.mu.Lock()
 				bp, _ = client.NewBatchPoints(client.BatchPointsConfig{
 					Database:  o.database,
 					Precision: "ns",
 				})
+				o.mu.Unlock()
 			}
 		}
 

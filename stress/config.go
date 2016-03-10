@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"strings"
+	"sync"
 )
 
 // Config is a struct for the Stress test configuration
@@ -102,6 +103,7 @@ type outputConfig struct {
 	tags     map[string]string
 	addr     string
 	database string
+	mu       sync.Mutex
 }
 
 func (t *outputConfig) SetParams(addr, db string) {
