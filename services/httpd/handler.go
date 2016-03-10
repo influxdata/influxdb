@@ -20,7 +20,6 @@ import (
 	"github.com/bmizerany/pat"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/client"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/continuous_querier"
@@ -70,7 +69,7 @@ type Handler struct {
 	QueryExecutor influxql.QueryExecutor
 
 	PointsWriter interface {
-		WritePoints(p *cluster.WritePointsRequest) error
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 
 	ContinuousQuerier continuous_querier.ContinuousQuerier
@@ -454,11 +453,7 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 	}
 
 	// Convert the json batch struct to a points writer struct
-	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-		Database:        bp.Database,
-		RetentionPolicy: bp.RetentionPolicy,
-		Points:          points,
-	}); err != nil {
+	if err := h.PointsWriter.WritePoints(bp.Database, bp.RetentionPolicy, models.ConsistencyLevelAny, points); err != nil {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		if influxdb.IsClientError(err) {
 			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
@@ -534,11 +529,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 	}
 
 	// Write points.
-	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-		Database:        database,
-		RetentionPolicy: r.FormValue("rp"),
-		Points:          points,
-	}); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePoints(database, r.FormValue("rp"), models.ConsistencyLevelAny, points); influxdb.IsClientError(err) {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return

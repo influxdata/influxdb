@@ -181,30 +181,25 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 // WritePointsInto is a copy of WritePoints that uses a tsdb structure instead of
 // a cluster structure for information. This is to avoid a circular dependency
 func (w *PointsWriter) WritePointsInto(p *IntoWriteRequest) error {
-	req := WritePointsRequest{
-		Database:        p.Database,
-		RetentionPolicy: p.RetentionPolicy,
-		Points:          p.Points,
-	}
-	return w.WritePoints(&req)
+	return w.WritePoints(p.Database, p.RetentionPolicy, models.ConsistencyLevelAny, p.Points)
 }
 
 // WritePoints writes across multiple local and remote data nodes according the consistency level.
-func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
+func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	w.statMap.Add(statWriteReq, 1)
-	w.statMap.Add(statPointWriteReq, int64(len(p.Points)))
+	w.statMap.Add(statPointWriteReq, int64(len(points)))
 
-	if p.RetentionPolicy == "" {
-		db, err := w.MetaClient.Database(p.Database)
+	if retentionPolicy == "" {
+		db, err := w.MetaClient.Database(database)
 		if err != nil {
 			return err
 		} else if db == nil {
-			return influxdb.ErrDatabaseNotFound(p.Database)
+			return influxdb.ErrDatabaseNotFound(database)
 		}
-		p.RetentionPolicy = db.DefaultRetentionPolicy
+		retentionPolicy = db.DefaultRetentionPolicy
 	}
 
-	shardMappings, err := w.MapShards(p)
+	shardMappings, err := w.MapShards(&WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points})
 	if err != nil {
 		return err
 	}
@@ -214,8 +209,8 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
 		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
-			ch <- w.writeToShard(shard, p.Database, p.RetentionPolicy, points)
-		}(shardMappings.Shards[shardID], p.Database, p.RetentionPolicy, points)
+			ch <- w.writeToShard(shard, database, retentionPolicy, points)
+		}(shardMappings.Shards[shardID], database, retentionPolicy, points)
 	}
 
 	// Send points to subscriptions if possible.
@@ -223,7 +218,7 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 	// We need to lock just in case the channel is about to be nil'ed
 	w.mu.RLock()
 	select {
-	case w.subPoints <- p:
+	case w.subPoints <- &WritePointsRequest{Database: database, RetentionPolicy: retentionPolicy, Points: points}:
 		ok = true
 	default:
 	}

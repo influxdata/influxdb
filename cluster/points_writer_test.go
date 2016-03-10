@@ -2,6 +2,7 @@ package cluster_test
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -233,7 +234,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.Open()
 		defer c.Close()
 
-		err := c.WritePoints(pr)
+		err := c.WritePoints(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelAny, pr.Points)
 		if err == nil && test.expErr != nil {
 			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
@@ -247,7 +248,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		if test.expErr == nil {
 			select {
 			case p := <-subPoints:
-				if p != pr {
+				if !reflect.DeepEqual(p, pr) {
 					t.Errorf("PointsWriter.WritePoints(): '%s' error: unexpected WritePointsRequest got %v, exp %v", test.name, p, pr)
 				}
 			default:

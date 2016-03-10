@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -49,7 +48,7 @@ type Service struct {
 	config     Config
 
 	PointsWriter interface {
-		WritePoints(p *cluster.WritePointsRequest) error
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 
 	MetaClient interface {
@@ -128,11 +127,7 @@ func (s *Service) writer() {
 	for {
 		select {
 		case batch := <-s.batcher.Out():
-			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:        s.config.Database,
-				RetentionPolicy: s.config.RetentionPolicy,
-				Points:          batch,
-			}); err == nil {
+			if err := s.PointsWriter.WritePoints(s.config.Database, s.config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				s.statMap.Add(statBatchesTrasmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
 			} else {
