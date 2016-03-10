@@ -595,7 +595,7 @@ func (s *Store) expandSources(sources influxql.Sources) (influxql.Sources, error
 			}
 
 			// Loop over matching measurements.
-			for _, m := range db.measurementsByRegex(src.Regex.Val) {
+			for _, m := range db.MeasurementsByRegex(src.Regex.Val) {
 				other := &influxql.Measurement{
 					Database:        src.Database,
 					RetentionPolicy: src.RetentionPolicy,
