@@ -176,7 +176,7 @@ func (s *Service) Close() error {
 
 // HTTPAddr returns the bind address for the HTTP API
 func (s *Service) HTTPAddr() string {
-	return s.httpAddr
+	return s.remoteAddr(s.httpAddr)
 }
 
 // RaftAddr returns the bind address for the Raft TCP listener
