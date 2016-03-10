@@ -61,9 +61,12 @@
 - [#5937](https://github.com/influxdata/influxdb/pull/5937): Rewrite SHOW SERIES to use query engine
 - [#5949](https://github.com/influxdata/influxdb/issues/5949): Return error message when improper types are used in SELECT
 - [#5244](https://github.com/influxdata/influxdb/issues/5244): panic: ensure it's safe to close engine multiple times.
+- [#5963](https://github.com/influxdata/influxdb/pull/5963): Fix possible deadlock
 
 ## v0.10.2 [2016-03-03]
+
 ### Bugfixes
+
 - [#5719](https://github.com/influxdata/influxdb/issues/5719): Fix cache not deduplicating points
 - [#5699](https://github.com/influxdata/influxdb/issues/5699): Fix potential thread safety issue in cache @jonseymour
 - [#5832](https://github.com/influxdata/influxdb/issues/5832): tsm: cache: need to check that snapshot has been sorted @jonseymour
