@@ -85,6 +85,10 @@ var (
 	// ErrShardNotReplicated is returned if the node requested to be dropped has
 	// the last copy of a shard present and the force keyword was not used
 	ErrShardNotReplicated = errors.New("shard not replicated")
+
+	// ErrShardNotFound is returned if the shard requested to be deleted
+	// does not exist.
+	ErrShardNotFound = errors.New("shard not found")
 )
 
 var (

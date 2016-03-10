@@ -715,6 +715,15 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 	return a, nil
 }
 
+// DeleteShard deletes a shard by ID.
+func (c *Client) DeleteShard(id uint64) error {
+	cmd := &internal.DeleteShardCommand{
+		ID: proto.Uint64(id),
+	}
+
+	return c.retryUntilExec(internal.Command_DeleteShardCommand, internal.E_DeleteShardCommand_Command, cmd)
+}
+
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
 	if sg, _ := c.data().ShardGroupByTimestamp(database, policy, timestamp); sg != nil {

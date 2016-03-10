@@ -54,3 +54,8 @@ func (m *Response) GetError() string {
 	}
 	return ""
 }
+
+func init() {
+	proto.RegisterType((*Request)(nil), "internal.Request")
+	proto.RegisterType((*Response)(nil), "internal.Response")
+}

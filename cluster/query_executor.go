@@ -1091,6 +1091,7 @@ type TSDBStore interface {
 
 	DeleteDatabase(name string) error
 	DeleteMeasurement(database, name string) error
+	DeleteShard(shardID uint64) error
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)

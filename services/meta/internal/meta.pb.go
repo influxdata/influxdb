@@ -50,6 +50,7 @@ It has these top-level messages:
 	DeleteDataNodeCommand
 	Response
 	SetMetaNodeCommand
+	DeleteShardCommand
 */
 package internal
 
@@ -93,6 +94,7 @@ const (
 	Command_DeleteMetaNodeCommand            Command_Type = 27
 	Command_DeleteDataNodeCommand            Command_Type = 28
 	Command_SetMetaNodeCommand               Command_Type = 29
+	Command_DeleteShardCommand               Command_Type = 30
 )
 
 var Command_Type_name = map[int32]string{
@@ -124,6 +126,7 @@ var Command_Type_name = map[int32]string{
 	27: "DeleteMetaNodeCommand",
 	28: "DeleteDataNodeCommand",
 	29: "SetMetaNodeCommand",
+	30: "DeleteShardCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -154,6 +157,7 @@ var Command_Type_value = map[string]int32{
 	"DeleteMetaNodeCommand":            27,
 	"DeleteDataNodeCommand":            28,
 	"SetMetaNodeCommand":               29,
+	"DeleteShardCommand":               30,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1657,6 +1661,30 @@ var E_SetMetaNodeCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,129,opt,name=command",
 }
 
+type DeleteShardCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req,name=ID" json:"ID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DeleteShardCommand) Reset()         { *m = DeleteShardCommand{} }
+func (m *DeleteShardCommand) String() string { return proto.CompactTextString(m) }
+func (*DeleteShardCommand) ProtoMessage()    {}
+
+func (m *DeleteShardCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+var E_DeleteShardCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DeleteShardCommand)(nil),
+	Field:         130,
+	Name:          "internal.DeleteShardCommand.command",
+	Tag:           "bytes,130,opt,name=command",
+}
+
 func init() {
 	proto.RegisterType((*Data)(nil), "internal.Data")
 	proto.RegisterType((*NodeInfo)(nil), "internal.NodeInfo")
@@ -1699,6 +1727,7 @@ func init() {
 	proto.RegisterType((*DeleteDataNodeCommand)(nil), "internal.DeleteDataNodeCommand")
 	proto.RegisterType((*Response)(nil), "internal.Response")
 	proto.RegisterType((*SetMetaNodeCommand)(nil), "internal.SetMetaNodeCommand")
+	proto.RegisterType((*DeleteShardCommand)(nil), "internal.DeleteShardCommand")
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
@@ -1728,4 +1757,5 @@ func init() {
 	proto.RegisterExtension(E_DeleteMetaNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteDataNodeCommand_Command)
 	proto.RegisterExtension(E_SetMetaNodeCommand_Command)
+	proto.RegisterExtension(E_DeleteShardCommand_Command)
 }
