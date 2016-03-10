@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -34,7 +33,7 @@ const (
 
 // pointsWriter is an internal interface to make testing easier.
 type pointsWriter interface {
-	WritePoints(p *cluster.WritePointsRequest) error
+	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
 // metaStore is an internal interface to make testing easier.
@@ -244,11 +243,7 @@ func (s *Service) writePoints() {
 		case <-s.stop:
 			return
 		case batch := <-s.batcher.Out():
-			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:        s.Config.Database,
-				RetentionPolicy: s.Config.RetentionPolicy,
-				Points:          batch,
-			}); err == nil {
+			if err := s.PointsWriter.WritePoints(s.Config.Database, s.Config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				s.statMap.Add(statBatchesTrasmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
 			} else {

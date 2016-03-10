@@ -620,11 +620,7 @@ func (a *tcpaddr) String() string  { return a.host }
 type monitorPointsWriter cluster.PointsWriter
 
 func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
-	return (*cluster.PointsWriter)(pw).WritePoints(&cluster.WritePointsRequest{
-		Database:        database,
-		RetentionPolicy: retentionPolicy,
-		Points:          points,
-	})
+	return (*cluster.PointsWriter)(pw).WritePoints(database, retentionPolicy, models.ConsistencyLevelAny, points)
 }
 
 func (s *Server) remoteAddr(addr string) string {

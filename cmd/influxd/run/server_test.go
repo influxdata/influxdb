@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/models"
 )
 
 // Ensure that HTTP responses include the InfluxDB version.
@@ -5563,7 +5564,7 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 					Database:        "db0",
 					RetentionPolicy: "rp0",
 				}
-				s.PointsWriter.WritePoints(wpr)
+				s.PointsWriter.WritePoints(wpr.Database, wpr.RetentionPolicy, models.ConsistencyLevelAny, wpr.Points)
 			}
 		}
 	}()

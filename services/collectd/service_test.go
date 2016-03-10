@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
@@ -56,12 +55,12 @@ func TestService_BatchSize(t *testing.T) {
 
 			pointCh := make(chan models.Point)
 			s.MetaClient.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) { return nil, nil }
-			s.PointsWriter.WritePointsFn = func(req *cluster.WritePointsRequest) error {
-				if len(req.Points) != batchSize {
-					t.Errorf("\n\texp = %d\n\tgot = %d\n", batchSize, len(req.Points))
+			s.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+				if len(points) != batchSize {
+					t.Errorf("\n\texp = %d\n\tgot = %d\n", batchSize, len(points))
 				}
 
-				for _, p := range req.Points {
+				for _, p := range points {
 					pointCh <- p
 				}
 				return nil
@@ -125,8 +124,8 @@ func TestService_BatchDuration(t *testing.T) {
 
 	pointCh := make(chan models.Point, 1000)
 	s.MetaClient.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) { return nil, nil }
-	s.PointsWriter.WritePointsFn = func(req *cluster.WritePointsRequest) error {
-		for _, p := range req.Points {
+	s.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+		for _, p := range points {
 			pointCh <- p
 		}
 		return nil
@@ -209,11 +208,11 @@ func newTestService(batchSize int, batchDuration time.Duration) *testService {
 }
 
 type testPointsWriter struct {
-	WritePointsFn func(*cluster.WritePointsRequest) error
+	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-func (w *testPointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
-	return w.WritePointsFn(p)
+func (w *testPointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }
 
 type testMetaClient struct {

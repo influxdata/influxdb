@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/graphite"
 	"github.com/influxdata/influxdb/services/meta"
@@ -35,7 +34,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	wg.Add(1)
 
 	pointsWriter := PointsWriter{
-		WritePointsFn: func(req *cluster.WritePointsRequest) error {
+		WritePointsFn: func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 			defer wg.Done()
 
 			pt, _ := models.NewPoint(
@@ -44,14 +43,14 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 				map[string]interface{}{"value": 23.456},
 				time.Unix(now.Unix(), 0))
 
-			if req.Database != "graphitedb" {
-				t.Fatalf("unexpected database: %s", req.Database)
-			} else if req.RetentionPolicy != "" {
-				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-			} else if len(req.Points) != 1 {
-				t.Fatalf("expected 1 point, got %d", len(req.Points))
-			} else if req.Points[0].String() != pt.String() {
-				t.Fatalf("expected point %v, got %v", pt.String(), req.Points[0].String())
+			if database != "graphitedb" {
+				t.Fatalf("unexpected database: %s", database)
+			} else if retentionPolicy != "" {
+				t.Fatalf("unexpected retention policy: %s", retentionPolicy)
+			} else if len(points) != 1 {
+				t.Fatalf("expected 1 point, got %d", len(points))
+			} else if points[0].String() != pt.String() {
+				t.Fatalf("expected point %v, got %v", pt.String(), points[0].String())
 			}
 			return nil
 		},
@@ -111,7 +110,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 	wg.Add(1)
 
 	pointsWriter := PointsWriter{
-		WritePointsFn: func(req *cluster.WritePointsRequest) error {
+		WritePointsFn: func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 			defer wg.Done()
 
 			pt, _ := models.NewPoint(
@@ -119,12 +118,12 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 				map[string]string{},
 				map[string]interface{}{"value": 23.456},
 				time.Unix(now.Unix(), 0))
-			if req.Database != "graphitedb" {
-				t.Fatalf("unexpected database: %s", req.Database)
-			} else if req.RetentionPolicy != "" {
-				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-			} else if req.Points[0].String() != pt.String() {
-				t.Fatalf("unexpected points: %#v", req.Points[0].String())
+			if database != "graphitedb" {
+				t.Fatalf("unexpected database: %s", database)
+			} else if retentionPolicy != "" {
+				t.Fatalf("unexpected retention policy: %s", retentionPolicy)
+			} else if points[0].String() != pt.String() {
+				t.Fatalf("unexpected points: %#v", points[0].String())
 			}
 			return nil
 		},
@@ -161,11 +160,11 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 
 // PointsWriter represents a mock impl of PointsWriter.
 type PointsWriter struct {
-	WritePointsFn func(*cluster.WritePointsRequest) error
+	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-func (w *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
-	return w.WritePointsFn(p)
+func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }
 
 type DatabaseCreator struct {
