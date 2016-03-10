@@ -90,7 +90,6 @@ func (s *Store) Open() error {
 		return err
 	}
 
-	go s.periodicMaintenance()
 	s.opened = true
 
 	return nil
@@ -567,46 +566,11 @@ func (s *Store) deleteSeries(database string, seriesKeys []string) error {
 	return nil
 }
 
-// periodicMaintenance is the method called in a goroutine on the opening of the store
-// to perform periodic maintenance of the shards.
-func (s *Store) periodicMaintenance() {
-	t := time.NewTicker(maintenanceCheckInterval)
-	for {
-		select {
-		case <-t.C:
-			s.performMaintenance()
-		case <-s.closing:
-			t.Stop()
-			return
-		}
-	}
-}
-
-// performMaintenance loops through shards and executes any maintenance
-// tasks. Those tasks should run in their own goroutines if they will
-// take significant time.
-func (s *Store) performMaintenance() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, sh := range s.shards {
-		s.performMaintenanceOnShard(sh)
-	}
-}
-
-func (s *Store) performMaintenanceOnShard(shard *Shard) {
-	defer func() {
-		if r := recover(); r != nil {
-			s.Logger.Printf("recovered error in maintenance on shard %d", shard.id)
-		}
-	}()
-	shard.PerformMaintenance()
-}
-
 // ExpandSources expands regex sources and removes duplicates.
 // NOTE: sources must be normalized (db and rp set) before calling this function.
 func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.expandSources(sources)
 }
 
@@ -631,7 +595,7 @@ func (s *Store) expandSources(sources influxql.Sources) (influxql.Sources, error
 			}
 
 			// Loop over matching measurements.
-			for _, m := range db.measurementsByRegex(src.Regex.Val) {
+			for _, m := range db.MeasurementsByRegex(src.Regex.Val) {
 				other := &influxql.Measurement{
 					Database:        src.Database,
 					RetentionPolicy: src.RetentionPolicy,
