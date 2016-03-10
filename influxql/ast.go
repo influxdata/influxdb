@@ -1420,11 +1420,12 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				if err != nil {
 					return fmt.Errorf("invalid group interval: %v", err)
 				}
-				if groupByInterval > 0 {
-					c, ok := expr.Args[0].(*Call)
-					if !ok {
-						return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
-					}
+
+				if c, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 {
+					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
+				} else if !ok && groupByInterval > 0 {
+					return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
+				} else if ok {
 					switch c.Name {
 					case "top", "bottom":
 						if err := s.validTopBottomAggr(c); err != nil {
@@ -1437,6 +1438,21 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					default:
 						if exp, got := 1, len(c.Args); got != exp {
 							return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+						}
+
+						switch fc := c.Args[0].(type) {
+						case *VarRef:
+							// do nothing
+						case *Call:
+							if fc.Name != "distinct" {
+								return fmt.Errorf("expected field argument in %s()", c.Name)
+							}
+						case *Distinct:
+							if expr.Name != "count" {
+								return fmt.Errorf("expected field argument in %s()", c.Name)
+							}
+						default:
+							return fmt.Errorf("expected field argument in %s()", c.Name)
 						}
 					}
 				}
