@@ -772,7 +772,7 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
 			v, err := cur.r.ReadFloatBlockAt(cur.entry, nil)
@@ -780,7 +780,7 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 				return nil, err
 			}
 			values = append(values, v...)
-		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
 
@@ -816,7 +816,7 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
 			v, err := cur.r.ReadIntegerBlockAt(cur.entry, nil)
@@ -824,7 +824,7 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 				return nil, err
 			}
 			values = append(values, v...)
-		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
 
@@ -860,7 +860,7 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
 			v, err := cur.r.ReadStringBlockAt(cur.entry, nil)
@@ -868,7 +868,7 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 				return nil, err
 			}
 			values = append(values, v...)
-		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
 
@@ -904,7 +904,7 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		if c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
 			v, err := cur.r.ReadBooleanBlockAt(cur.entry, nil)
@@ -912,7 +912,7 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 				return nil, err
 			}
 			values = append(values, v...)
-		} else if !c.ascending && cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) && !cur.read {
+		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
 
