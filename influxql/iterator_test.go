@@ -984,21 +984,33 @@ func (ic *IteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.Se
 	case influxql.FloatIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
 			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
+			if series, ok := seriesMap[s.ID()]; ok {
+				s.Combine(&series)
+			}
 			seriesMap[s.ID()] = s
 		}
 	case influxql.IntegerIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
 			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
+			if series, ok := seriesMap[s.ID()]; ok {
+				s.Combine(&series)
+			}
 			seriesMap[s.ID()] = s
 		}
 	case influxql.StringIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
 			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
+			if series, ok := seriesMap[s.ID()]; ok {
+				s.Combine(&series)
+			}
 			seriesMap[s.ID()] = s
 		}
 	case influxql.BooleanIterator:
 		for p := itr.Next(); p != nil; p = itr.Next() {
 			s := influxql.Series{Name: p.Name, Tags: p.Tags, Aux: influxql.InspectDataTypes(p.Aux)}
+			if series, ok := seriesMap[s.ID()]; ok {
+				s.Combine(&series)
+			}
 			seriesMap[s.ID()] = s
 		}
 	}

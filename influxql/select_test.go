@@ -1570,6 +1570,70 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 	}
 }
 
+// Ensure a SELECT binary expr with nil values can be executed.
+// Nil values may be present when a field is missing from one iterator,
+// but not the other.
+func TestSelect_BinaryExpr_NilValues(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{float64(20), nil}},
+			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{float64(10), float64(15)}},
+			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{nil, int64(5)}},
+		}}, nil
+	}
+
+	for _, test := range []struct {
+		Name      string
+		Statement string
+		Points    [][]influxql.Point
+	}{
+		{
+			Name:      "nil binary add",
+			Statement: `SELECT total + value FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 25}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 5}},
+			},
+		},
+		{
+			Name:      "nil binary subtract",
+			Statement: `SELECT total - value FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -5}},
+			},
+		},
+		{
+			Name:      "nil binary multiply",
+			Statement: `SELECT total * value FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 150}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+		{
+			Name:      "nil binary division",
+			Statement: `SELECT total / value FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(15)}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
+	} {
+		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
+		if err != nil {
+			t.Errorf("%s: parse error: %s", test.Name, err)
+		} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, test.Points) {
+			t.Errorf("%s: unexpected points: %s", test.Name, spew.Sdump(a))
+		}
+	}
+}
+
 // Ensure a SELECT (...) query can be executed.
 func TestSelect_ParenExpr(t *testing.T) {
 	var ic IteratorCreator
