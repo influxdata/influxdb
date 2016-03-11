@@ -1280,10 +1280,8 @@ func (s *SelectStatement) validateFields() error {
 	for _, f := range s.Fields {
 		switch expr := f.Expr.(type) {
 		case *BinaryExpr:
-			for _, call := range walkFunctionCalls(expr) {
-				if call.Name == "top" || call.Name == "bottom" {
-					return fmt.Errorf("cannot use %s() inside of a binary expression", call.Name)
-				}
+			if err := expr.validate(); err != nil {
+				return err
 			}
 		}
 	}
@@ -3058,6 +3056,52 @@ type BinaryExpr struct {
 // String returns a string representation of the binary expression.
 func (e *BinaryExpr) String() string {
 	return fmt.Sprintf("%s %s %s", e.LHS.String(), e.Op.String(), e.RHS.String())
+}
+
+func (e *BinaryExpr) validate() error {
+	v := binaryExprValidator{}
+	Walk(&v, e)
+	if v.err != nil {
+		return v.err
+	} else if v.calls && v.refs {
+		return errors.New("binary expressions cannot mix aggregates and raw fields")
+	}
+	return nil
+}
+
+type binaryExprValidator struct {
+	calls bool
+	refs  bool
+	err   error
+}
+
+func (v *binaryExprValidator) Visit(n Node) Visitor {
+	if v.err != nil {
+		return nil
+	}
+
+	switch n := n.(type) {
+	case *Call:
+		v.calls = true
+
+		if n.Name == "top" || n.Name == "bottom" {
+			v.err = fmt.Errorf("cannot use %s() inside of a binary expression", n.Name)
+			return nil
+		}
+
+		for _, expr := range n.Args {
+			switch e := expr.(type) {
+			case *BinaryExpr:
+				v.err = e.validate()
+				return nil
+			}
+		}
+		return nil
+	case *VarRef:
+		v.refs = true
+		return nil
+	}
+	return v
 }
 
 func BinaryExprName(expr *BinaryExpr) string {
