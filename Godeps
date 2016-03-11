@@ -11,8 +11,8 @@ github.com/golang/snappy 5979233c5d6225d4a8e438cdd0b411888449ddab
 github.com/hashicorp/go-msgpack fa3f63826f7c23912c15263591e65d54d080b458
 github.com/hashicorp/raft 8fd9a2fdfd154f4b393aa24cff91e3c317efe839
 github.com/hashicorp/raft-boltdb d1e82c1ec3f15ee991f7cc7ffd5b67ff6f5bbaee
-github.com/influxdata/config 45e0b9a7d1805982fca48b9c753c3b2541aea2bd
-github.com/influxdata/toml 51291e16df98ff89f93f3b949ff023ca1ad599b4
+github.com/influxdata/config 8ec4638a81500c20be24855812bc8498ebe2dc92
+github.com/influxdata/toml ff2a26079d60c4a832804b5fdfeca9245f8062f4
 github.com/influxdata/usage-client 475977e68d79883d9c8d67131c84e4241523f452
 github.com/jwilder/encoding 07d88d4f35eec497617bee0c7bfe651a796dae13
 github.com/kimor79/gollectd 61d0deeb4ffcc167b2a1baa8efd72365692811bc
