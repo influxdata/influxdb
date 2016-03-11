@@ -152,6 +152,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			err = e.executeDropServerStatement(stmt)
 		case *influxql.DropSubscriptionStatement:
 			err = e.executeDropSubscriptionStatement(stmt)
+		case *influxql.DropShardStatement:
+			err = e.executeDropShardStatement(stmt)
 		case *influxql.DropUserStatement:
 			err = e.executeDropUserStatement(stmt)
 		case *influxql.GrantStatement:
@@ -337,6 +339,23 @@ func (e *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 
 	// Execute the statement on the other data nodes in the cluster.
 	return e.MetaExecutor.ExecuteStatement(stmt, database)
+}
+
+// executeDropShardStatement drops a shard from the cluster.
+// It does not return an error if the shard could not be found.
+func (e *QueryExecutor) executeDropShardStatement(stmt *influxql.DropShardStatement) error {
+	// Remove the shard reference from the Meta Store.
+	if err := e.MetaClient.DropShard(stmt.ID); err != nil {
+		return err
+	}
+
+	// Locally delete the shard.
+	if err := e.TSDBStore.DeleteShard(stmt.ID); err != nil {
+		return err
+	}
+
+	// Execute the statement on the other data nodes in the cluster.
+	return e.MetaExecutor.ExecuteStatement(stmt, "")
 }
 
 func (e *QueryExecutor) executeDropServerStatement(q *influxql.DropServerStatement) error {
@@ -1093,6 +1112,7 @@ type TSDBStore interface {
 	DeleteMeasurement(database, name string) error
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteShard(id uint64) error
 	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
 	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
 	ExpandSources(sources influxql.Sources) (influxql.Sources, error)

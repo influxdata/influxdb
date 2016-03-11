@@ -21,6 +21,7 @@ type MetaClient interface {
 	DataNodes() ([]meta.NodeInfo, error)
 	DeleteDataNode(id uint64) error
 	DeleteMetaNode(id uint64) error
+	DropShard(id uint64) error
 	DropContinuousQuery(database, name string) error
 	DropDatabase(name string) error
 	DropRetentionPolicy(database, name string) error
