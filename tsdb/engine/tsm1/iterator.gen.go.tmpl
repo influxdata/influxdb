@@ -232,7 +232,7 @@ func (c *{{.name}}AscendingCursor) peekCache() (t int64, v {{.Type}}) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.Value().({{.Type}})
+	return item.UnixNano(), item.({{.ValueType}}).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -242,7 +242,7 @@ func (c *{{.name}}AscendingCursor) peekTSM() (t int64, v {{.Type}}) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.UnixNano(), item.Value().({{.Type}})
+	return item.UnixNano(), item.value
 }
 
 // next returns the next key/value for the cursor.
@@ -342,7 +342,7 @@ func (c *{{.name}}DescendingCursor) peekCache() (t int64, v {{.Type}}) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.Value().({{.Type}})
+	return item.UnixNano(), item.({{.ValueType}}).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -352,7 +352,7 @@ func (c *{{.name}}DescendingCursor) peekTSM() (t int64, v {{.Type}}) {
 	}
 
 	item := c.tsm.values[c.tsm.pos]
-	return item.UnixNano(), item.Value().({{.Type}})
+	return item.UnixNano(), item.value
 }
 
 // next returns the next key/value for the cursor.

@@ -446,21 +446,21 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 
 		encLen += 8 * len(v) // timestamps (8)
 
-		switch v[0].Value().(type) {
-		case float64, int64:
+		switch v[0].(type) {
+		case *FloatValue, *IntegerValue:
 			encLen += 8 * len(v)
-		case bool:
+		case *BooleanValue:
 			encLen += 1 * len(v)
-		case string:
+		case *StringValue:
 			for _, vv := range v {
-				str, ok := vv.Value().(string)
+				str, ok := vv.(*StringValue)
 				if !ok {
-					return nil, fmt.Errorf("non-string found in string value slice: %T", vv.Value())
+					return nil, fmt.Errorf("non-string found in string value slice: %T", vv)
 				}
-				encLen += 4 + len(str)
+				encLen += 4 + len(str.value)
 			}
 		default:
-			return nil, fmt.Errorf("unsupported value type: %T", v[0].Value())
+			return nil, fmt.Errorf("unsupported value type: %T", v[0])
 		}
 	}
 
@@ -476,17 +476,17 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 	var curType byte
 
 	for k, v := range w.Values {
-		switch v[0].Value().(type) {
-		case float64:
+		switch v[0].(type) {
+		case *FloatValue:
 			curType = float64EntryType
-		case int64:
+		case *IntegerValue:
 			curType = integerEntryType
-		case bool:
+		case *BooleanValue:
 			curType = booleanEntryType
-		case string:
+		case *StringValue:
 			curType = stringEntryType
 		default:
-			return nil, fmt.Errorf("unsupported value type: %T", v[0].Value())
+			return nil, fmt.Errorf("unsupported value type: %T", v[0])
 		}
 		dst[n] = curType
 		n++
@@ -502,38 +502,38 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 			binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.UnixNano()))
 			n += 8
 
-			switch t := vv.Value().(type) {
-			case float64:
+			switch vv := vv.(type) {
+			case *FloatValue:
 				if curType != float64EntryType {
-					return nil, fmt.Errorf("incorrect value found in float64 slice: %T", t)
+					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(t))
+				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(vv.value))
 				n += 8
-			case int64:
+			case *IntegerValue:
 				if curType != integerEntryType {
-					return nil, fmt.Errorf("incorrect value found in int64 slice: %T", t)
+					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint64(dst[n:n+8], uint64(t))
+				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.value))
 				n += 8
-			case bool:
+			case *BooleanValue:
 				if curType != booleanEntryType {
-					return nil, fmt.Errorf("incorrect value found in bool slice: %T", t)
+					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				if t {
+				if vv.value {
 					dst[n] = 1
 				} else {
 					dst[n] = 0
 				}
 				n++
-			case string:
+			case *StringValue:
 				if curType != stringEntryType {
-					return nil, fmt.Errorf("incorrect value found in string slice: %T", t)
+					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
-				binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(t)))
+				binary.BigEndian.PutUint32(dst[n:n+4], uint32(len(vv.value)))
 				n += 4
-				n += copy(dst[n:], t)
+				n += copy(dst[n:], vv.value)
 			default:
-				return nil, fmt.Errorf("unsupported value found in value slice: %T", t)
+				return nil, fmt.Errorf("unsupported value found in %T slice: %T", v[0].Value(), vv)
 			}
 		}
 	}
