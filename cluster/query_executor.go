@@ -1120,6 +1120,8 @@ func (d *NodeDialer) DialNode(nodeID uint64) (net.Conn, error) {
 type TSDBStore interface {
 	CreateShard(database, policy string, shardID uint64) error
 	WriteToShard(shardID uint64, points []models.Point) error
+	RestoreShard(id uint64, r io.Reader) error
+	BackupShard(id uint64, since time.Time, w io.Writer) error
 
 	DeleteDatabase(name string) error
 	DeleteMeasurement(database, name string) error

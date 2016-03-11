@@ -110,42 +110,40 @@ func (s *Shard) PerformMaintenance() {
 
 // Open initializes and opens the shard's store.
 func (s *Shard) Open() error {
-	if err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-		s.index.mu.Lock()
-		defer s.index.mu.Unlock()
-
-		// Return if the shard is already open
-		if s.engine != nil {
-			return nil
-		}
-
-		// Initialize underlying engine.
-		e, err := NewEngine(s.path, s.walPath, s.options)
-		if err != nil {
-			return fmt.Errorf("new engine: %s", err)
-		}
-		s.engine = e
-
-		// Set log output on the engine.
-		s.engine.SetLogOutput(s.LogOutput)
-
-		// Open engine.
-		if err := s.engine.Open(); err != nil {
-			return fmt.Errorf("open engine: %s", err)
-		}
-
-		// Load metadata index.
-		if err := s.engine.LoadMetadataIndex(s, s.index, s.measurementFields); err != nil {
-			return fmt.Errorf("load metadata index: %s", err)
-		}
-
+	// Return if the shard is already open
+	if s.engine != nil {
 		return nil
-	}(); err != nil {
+	}
+
+	if err := s.open(); err != nil {
 		s.close()
 		return err
+	}
+	return nil
+}
+
+func (s *Shard) open() error {
+	// Initialize underlying engine.
+	e, err := NewEngine(s.path, s.walPath, s.options)
+	if err != nil {
+		return fmt.Errorf("new engine: %s", err)
+	}
+	s.engine = e
+
+	// Set log output on the engine.
+	s.engine.SetLogOutput(s.LogOutput)
+
+	// Open engine.
+	if err := s.engine.Open(); err != nil {
+		return fmt.Errorf("open engine: %s", err)
+	}
+
+	// Load metadata index.
+	if err := s.engine.LoadMetadataIndex(s, s.index, s.measurementFields); err != nil {
+		return fmt.Errorf("load metadata index: %s", err)
 	}
 
 	return nil
@@ -507,6 +505,31 @@ func (s *Shard) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 	}
 
 	return expanded, nil
+}
+
+// Restore restores data to the underlying engine for the shard.
+// The shard is reopened after restore.
+func (s *Shard) Restore(r io.Reader, basePath string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Close shard.
+	if err := s.close(); err != nil {
+		return err
+	}
+
+	// Restore to engine.
+	if err := s.engine.Restore(r, basePath); err != nil {
+		s.open() // attempt to reopen
+		return err
+	}
+
+	// Reopen engine.
+	if err := s.open(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Shards represents a sortable list of shards.
