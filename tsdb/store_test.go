@@ -1,6 +1,7 @@
 package tsdb_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -259,6 +260,55 @@ func TestShards_CreateIterator(t *testing.T) {
 	// Then an EOF should occur.
 	if p := fitr.Next(); p != nil {
 		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
+	}
+}
+
+// Ensure the store can backup a shard and another store can restore it.
+func TestStore_BackupRestoreShard(t *testing.T) {
+	s0, s1 := MustOpenStore(), MustOpenStore()
+	defer s0.Close()
+	defer s1.Close()
+
+	// Create shard with data.
+	s0.MustCreateShardWithData("db0", "rp0", 100,
+		`cpu value=1 0`,
+		`cpu value=2 10`,
+		`cpu value=3 20`,
+	)
+
+	// Backup shard to a buffer.
+	var buf bytes.Buffer
+	if err := s0.BackupShard(100, time.Time{}, &buf); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create the shard on the other store and restore from buffer.
+	if err := s1.CreateShard("db0", "rp0", 100); err != nil {
+		t.Fatal(err)
+	} else if err := s1.RestoreShard(100, &buf); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read data from
+	itr, err := s1.Shard(100).CreateIterator(influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr(`value`),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fitr := itr.(influxql.FloatIterator)
+
+	// Read values from iterator. The host=serverA points should come first.
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	} else if p = fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
+		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	} else if p = fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
+		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
 }
 

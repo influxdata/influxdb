@@ -27,6 +27,12 @@ const (
 
 	expandSourcesRequestMessage
 	expandSourcesResponseMessage
+
+	backupShardRequestMessage
+	backupShardResponseMessage
+
+	copyShardRequestMessage
+	copyShardResponseMessage
 )
 
 // ShardWriter writes a set of points to a shard.

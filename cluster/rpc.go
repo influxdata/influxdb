@@ -480,3 +480,90 @@ func (r *ExpandSourcesResponse) UnmarshalBinary(data []byte) error {
 	}
 	return nil
 }
+
+// BackupShardRequest represents a request to stream a backup of a single shard.
+type BackupShardRequest struct {
+	ShardID uint64
+	Since   time.Time
+}
+
+// MarshalBinary encodes r to a binary format.
+func (r *BackupShardRequest) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&internal.BackupShardRequest{
+		ShardID: proto.Uint64(r.ShardID),
+		Since:   proto.Int64(r.Since.UnixNano()),
+	})
+}
+
+// UnmarshalBinary decodes data into r.
+func (r *BackupShardRequest) UnmarshalBinary(data []byte) error {
+	var pb internal.BackupShardRequest
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	r.ShardID = pb.GetShardID()
+	r.Since = time.Unix(0, pb.GetSince())
+	return nil
+}
+
+// CopyShardRequest represents a request to copy a shard from another host.
+type CopyShardRequest struct {
+	Host     string
+	Database string
+	Policy   string
+	ShardID  uint64
+	Since    time.Time
+}
+
+// MarshalBinary encodes r to a binary format.
+func (r *CopyShardRequest) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&internal.CopyShardRequest{
+		Host:     proto.String(r.Host),
+		Database: proto.String(r.Database),
+		Policy:   proto.String(r.Policy),
+		ShardID:  proto.Uint64(r.ShardID),
+		Since:    proto.Int64(r.Since.UnixNano()),
+	})
+}
+
+// UnmarshalBinary decodes data into r.
+func (r *CopyShardRequest) UnmarshalBinary(data []byte) error {
+	var pb internal.CopyShardRequest
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	r.Host = pb.GetHost()
+	r.Database = pb.GetDatabase()
+	r.Policy = pb.GetPolicy()
+	r.ShardID = pb.GetShardID()
+	r.Since = time.Unix(0, pb.GetSince())
+	return nil
+}
+
+// CopyShardResponse represents a response from a shard Copy.
+type CopyShardResponse struct {
+	Err error
+}
+
+// MarshalBinary encodes r to a binary format.
+func (r *CopyShardResponse) MarshalBinary() ([]byte, error) {
+	var pb internal.CopyShardResponse
+	if r.Err != nil {
+		pb.Err = proto.String(r.Err.Error())
+	}
+	return proto.Marshal(&pb)
+}
+
+// UnmarshalBinary decodes data into r.
+func (r *CopyShardResponse) UnmarshalBinary(data []byte) error {
+	var pb internal.CopyShardResponse
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	if pb.Err != nil {
+		r.Err = errors.New(pb.GetErr())
+	}
+	return nil
+}

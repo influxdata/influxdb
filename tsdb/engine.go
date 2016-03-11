@@ -42,6 +42,7 @@ type Engine interface {
 	io.WriterTo
 
 	Backup(w io.Writer, basePath string, since time.Time) error
+	Restore(r io.Reader, basePath string) error
 }
 
 // EngineFormat represents the format for an engine.
