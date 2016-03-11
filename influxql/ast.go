@@ -103,6 +103,7 @@ func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
 func (*DropServerStatement) node()            {}
+func (*DropShardStatement) node()             {}
 func (*DropSubscriptionStatement) node()      {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
@@ -229,6 +230,7 @@ func (*ShowSeriesStatement) stmt()            {}
 func (*ShowShardGroupsStatement) stmt()       {}
 func (*ShowShardsStatement) stmt()            {}
 func (*ShowStatsStatement) stmt()             {}
+func (*DropShardStatement) stmt()             {}
 func (*ShowSubscriptionsStatement) stmt()     {}
 func (*ShowDiagnosticsStatement) stmt()       {}
 func (*ShowTagKeysStatement) stmt()           {}
@@ -2132,6 +2134,30 @@ func (s *DropServerStatement) String() string {
 // RequiredPrivileges returns the privilege required to execute a DropServerStatement.
 func (s *DropServerStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
+// DropShardStatement represents a command for removing a shard from
+// the node.
+type DropShardStatement struct {
+	// ID of the shard to be dropped.
+	ID uint64
+
+	// Meta indicates if the server being dropped is a meta or data node
+	Meta bool
+}
+
+// String returns a string representation of the drop series statement.
+func (s *DropShardStatement) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("DROP SHARD ")
+	buf.WriteString(strconv.FormatUint(s.ID, 10))
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a
+// DropShardStatement.
+func (s *DropShardStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
