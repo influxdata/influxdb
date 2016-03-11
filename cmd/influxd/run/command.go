@@ -67,6 +67,10 @@ func (cmd *Command) Run(args ...string) error {
 	// Print sweet InfluxDB logo.
 	fmt.Print(logo)
 
+	// Configure default logging.
+	log.SetPrefix("[run] ")
+	log.SetFlags(log.LstdFlags)
+
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
