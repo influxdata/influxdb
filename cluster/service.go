@@ -240,6 +240,8 @@ func (s *Service) executeStatement(stmt influxql.Statement, database string) err
 		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
 	case *influxql.DropRetentionPolicyStatement:
 		return s.TSDBStore.DeleteRetentionPolicy(database, t.Name)
+	case *influxql.DropShardStatement:
+		return s.TSDBStore.DeleteShard(t.ID)
 	default:
 		return fmt.Errorf("%q should not be executed across a cluster", stmt.String())
 	}

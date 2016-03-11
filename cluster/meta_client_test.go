@@ -25,6 +25,7 @@ type MetaClient struct {
 	DropDatabaseFn                      func(name string) error
 	DropRetentionPolicyFn               func(database, name string) error
 	DropSubscriptionFn                  func(database, rp, name string) error
+	DropShardFn                         func(id uint64) error
 	DropUserFn                          func(name string) error
 	MetaNodesFn                         func() ([]meta.NodeInfo, error)
 	RetentionPolicyFn                   func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
@@ -53,6 +54,9 @@ func (c *MetaClient) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.Re
 
 func (c *MetaClient) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
 	return c.CreateRetentionPolicyFn(database, rpi)
+}
+func (c *MetaClient) DropShard(id uint64) error {
+	return c.DropShardFn(id)
 }
 
 func (c *MetaClient) CreateSubscription(database, rp, name, mode string, destinations []string) error {
