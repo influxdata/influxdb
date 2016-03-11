@@ -103,8 +103,6 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 			return value, nil
 		}
 	}
-
-	return nil, ErrFieldNotFound
 }
 
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
