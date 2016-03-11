@@ -229,6 +229,8 @@ type udpclient struct {
 type BatchPoints interface {
 	// AddPoint adds the given point to the Batch of points
 	AddPoint(p *Point)
+	// AddPoints adds the given points to the Batch of points
+	AddPoints(ps []*Point)
 	// Points lists the points in the Batch
 	Points() []*Point
 
@@ -280,6 +282,10 @@ type batchpoints struct {
 
 func (bp *batchpoints) AddPoint(p *Point) {
 	bp.points = append(bp.points, p)
+}
+
+func (bp *batchpoints) AddPoints(ps []*Point) {
+	bp.points = append(bp.points, ps...)
 }
 
 func (bp *batchpoints) Points() []*Point {
