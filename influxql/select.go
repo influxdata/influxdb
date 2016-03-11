@@ -399,6 +399,8 @@ func buildRHSTransformIterator(lhs Iterator, rhs Literal, op Token, ic IteratorC
 			fn: func(p *FloatPoint) *FloatPoint {
 				if p == nil {
 					return nil
+				} else if p.Nil {
+					return p
 				}
 				p.Value = fn(p.Value, lit.Val)
 				return p
@@ -425,13 +427,19 @@ func buildRHSTransformIterator(lhs Iterator, rhs Literal, op Token, ic IteratorC
 				if p == nil {
 					return nil
 				}
-				return &BooleanPoint{
-					Name:  p.Name,
-					Tags:  p.Tags,
-					Time:  p.Time,
-					Value: fn(p.Value, lit.Val),
-					Aux:   p.Aux,
+
+				bp := &BooleanPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
 				}
+				if p.Nil {
+					bp.Nil = true
+				} else {
+					bp.Value = fn(p.Value, lit.Val)
+				}
+				return bp
 			},
 		}, nil
 	}
@@ -461,6 +469,8 @@ func buildLHSTransformIterator(lhs Literal, rhs Iterator, op Token, ic IteratorC
 			fn: func(p *FloatPoint) *FloatPoint {
 				if p == nil {
 					return nil
+				} else if p.Nil {
+					return p
 				}
 				p.Value = fn(lit.Val, p.Value)
 				return p
@@ -487,13 +497,19 @@ func buildLHSTransformIterator(lhs Literal, rhs Iterator, op Token, ic IteratorC
 				if p == nil {
 					return nil
 				}
-				return &BooleanPoint{
-					Name:  p.Name,
-					Tags:  p.Tags,
-					Time:  p.Time,
-					Value: fn(lit.Val, p.Value),
-					Aux:   p.Aux,
+
+				bp := &BooleanPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
 				}
+				if p.Nil {
+					bp.Nil = true
+				} else {
+					bp.Value = fn(lit.Val, p.Value)
+				}
+				return bp
 			},
 		}, nil
 	}
@@ -523,18 +539,27 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
-		return &floatTransformIterator{
-			input: left,
-			fn: func(p *FloatPoint) *FloatPoint {
-				if p == nil {
-					return nil
+		return &floatCombineTransformIterator{
+			left:  newBufFloatIterator(left),
+			right: newBufFloatIterator(right),
+			fn: func(a *FloatPoint, b *FloatPoint) *FloatPoint {
+				if a != nil && b != nil {
+					if !a.Nil || !b.Nil {
+						a.Value = fn(a.Value, b.Value)
+						a.Nil = false
+					}
+					return a
+				} else if a != nil {
+					if !a.Nil {
+						a.Value = fn(a.Value, 0)
+					}
+					return a
+				} else {
+					if !b.Nil {
+						b.Value = fn(0, b.Value)
+					}
+					return b
 				}
-				p2 := right.Next()
-				if p2 == nil {
-					return nil
-				}
-				p.Value = fn(p.Value, p2.Value)
-				return p
 			},
 		}, nil
 	case func(int64, int64) float64:

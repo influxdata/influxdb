@@ -786,6 +786,35 @@ func (itr *{{$k.name}}BoolTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type {{$k.name}}BoolTransformFunc func(p *{{$k.Name}}Point) *BooleanPoint
 
+// {{$k.name}}CombineTransformIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type {{$k.name}}CombineTransformIterator struct {
+	left  *buf{{$k.Name}}Iterator
+	right *buf{{$k.Name}}Iterator
+	fn    {{$k.name}}CombineTransformFunc
+}
+
+func (itr *{{$k.name}}CombineTransformIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *{{$k.name}}CombineTransformIterator) Next() *{{$k.Name}}Point {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// {{$k.name}}CombineTransformFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible.
+// One of the points may be nil, but at least one of the points will be non-nil.
+type {{$k.name}}CombineTransformFunc func(a *{{$k.Name}}Point, b *{{$k.Name}}Point) *{{$k.Name}}Point
+
 // {{$k.name}}DedupeIterator only outputs unique points.
 // This differs from the DistinctIterator in that it compares all aux fields too.
 // This iterator is relatively inefficient and should only be used on small
