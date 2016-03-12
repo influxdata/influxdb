@@ -179,6 +179,11 @@ func (s *Service) HTTPAddr() string {
 	return s.httpAddr
 }
 
+// RemoteHTTPAddr returns the bind address for the HTTP API with host name
+func (s *Service) RemoteHTTPAddr() string {
+	return s.remoteAddr(s.httpAddr)
+}
+
 // RaftAddr returns the bind address for the Raft TCP listener
 func (s *Service) RaftAddr() string {
 	return s.raftAddr
