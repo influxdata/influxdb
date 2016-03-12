@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
+	"github.com/influxdata/influxdb/services/enterprise"
 	"github.com/influxdata/influxdb/services/graphite"
 	"github.com/influxdata/influxdb/services/hh"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -43,6 +44,7 @@ type Config struct {
 	Data       tsdb.Config       `toml:"data"`
 	Cluster    cluster.Config    `toml:"cluster"`
 	Retention  retention.Config  `toml:"retention"`
+	Enterprise enterprise.Config `toml:"enterprise"`
 	Precreator precreator.Config `toml:"shard-precreation"`
 
 	Admin      admin.Config      `toml:"admin"`
@@ -76,6 +78,7 @@ func NewConfig() *Config {
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
 	c.Cluster = cluster.NewConfig()
+	c.Enterprise = enterprise.NewConfig()
 	c.Precreator = precreator.NewConfig()
 
 	c.Admin = admin.NewConfig()

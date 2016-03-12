@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/copier"
+	"github.com/influxdata/influxdb/services/enterprise"
 	"github.com/influxdata/influxdb/services/graphite"
 	"github.com/influxdata/influxdb/services/hh"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -352,6 +353,21 @@ func (s *Server) appendPrecreatorService(c precreator.Config) error {
 	return nil
 }
 
+func (s *Server) appendEnterpriseService(c enterprise.Config) error {
+	if !c.Enabled {
+		return nil
+	}
+	srv, err := enterprise.NewService(c, s.buildInfo.Version)
+	if err != nil {
+		return err
+	}
+
+	srv.MetaStore = s.MetaClient
+	srv.Monitor = s.Monitor
+	s.Services = append(s.Services, srv)
+	return nil
+}
+
 func (s *Server) appendUDPService(c udp.Config) {
 	if !c.Enabled {
 		return
@@ -415,6 +431,7 @@ func (s *Server) Open() error {
 		s.appendContinuousQueryService(s.config.ContinuousQuery)
 		s.appendHTTPDService(s.config.HTTPD)
 		s.appendCollectdService(s.config.Collectd)
+		s.appendEnterpriseService(s.config.Enterprise)
 		if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
 			return err
 		}
@@ -600,7 +617,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
+	log.Printf("Sending anonymous usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
