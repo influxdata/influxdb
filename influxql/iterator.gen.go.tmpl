@@ -571,9 +571,10 @@ func (itr *{{$k.name}}IntervalIterator) Next() *{{$k.Name}}Point {
 
 // {{$k.name}}AuxIterator represents a {{$k.name}} implementation of AuxIterator.
 type {{$k.name}}AuxIterator struct {
-	input  *buf{{$k.Name}}Iterator
-	output chan *{{$k.Name}}Point
-	fields auxIteratorFields
+	input      *buf{{$k.Name}}Iterator
+	output     chan *{{$k.Name}}Point
+	fields     auxIteratorFields
+	background bool
 }
 
 func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, seriesKeys SeriesList, opt IteratorOptions) *{{$k.name}}AuxIterator {
@@ -582,6 +583,12 @@ func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, seriesKeys SeriesList,
 		output: make(chan *{{$k.Name}}Point, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
+}
+
+func (itr *{{$k.name}}AuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go drainIterator(itr)
 }
 
 func (itr *{{$k.name}}AuxIterator) Start()                        { go itr.stream() }
@@ -621,7 +628,9 @@ func (itr *{{$k.name}}AuxIterator) stream() {
 
 		// Send point to output and to each field iterator.
 		itr.output <- p
-		itr.fields.send(p)
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
 	}
 
 	close(itr.output)

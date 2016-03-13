@@ -232,6 +232,10 @@ type AuxIterator interface {
 
 	// Start starts writing to the created iterators.
 	Start()
+
+	// Backgrounds the iterator so that, when start is called, it will
+	// continuously read from the iterator.
+	Background()
 }
 
 // NewAuxIterator returns a new instance of AuxIterator.
@@ -336,7 +340,7 @@ func (a auxIteratorFields) iterator(name string) Iterator {
 }
 
 // send sends a point to all field iterators.
-func (a auxIteratorFields) send(p Point) {
+func (a auxIteratorFields) send(p Point) (ok bool) {
 	values := p.aux()
 	for i, f := range a {
 		v := values[i]
@@ -349,18 +353,19 @@ func (a auxIteratorFields) send(p Point) {
 		for _, itr := range f.itrs {
 			switch itr := itr.(type) {
 			case *floatChanIterator:
-				itr.setBuf(p.name(), tags, p.time(), v)
+				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *integerChanIterator:
-				itr.setBuf(p.name(), tags, p.time(), v)
+				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *stringChanIterator:
-				itr.setBuf(p.name(), tags, p.time(), v)
+				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			case *booleanChanIterator:
-				itr.setBuf(p.name(), tags, p.time(), v)
+				ok = itr.setBuf(p.name(), tags, p.time(), v) || ok
 			default:
 				panic(fmt.Sprintf("invalid aux itr type: %T", itr))
 			}
 		}
 	}
+	return ok
 }
 
 // drainIterator reads all points from an iterator.

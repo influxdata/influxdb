@@ -121,10 +121,9 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 			panic("unreachable")
 		}
 	}
-	aitr.Start()
 
-	// Drain primary aux iterator since there is no reader for it.
-	go drainIterator(aitr)
+	// Background the primary iterator since there is no reader for it.
+	aitr.Background()
 
 	return itrs, nil
 }
