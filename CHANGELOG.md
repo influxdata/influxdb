@@ -62,6 +62,8 @@
 - [#5949](https://github.com/influxdata/influxdb/issues/5949): Return error message when improper types are used in SELECT
 - [#5244](https://github.com/influxdata/influxdb/issues/5244): panic: ensure it's safe to close engine multiple times.
 - [#5963](https://github.com/influxdata/influxdb/pull/5963): Fix possible deadlock
+- [#4688](https://github.com/influxdata/influxdb/issues/4688): admin UI doesn't display results for some SHOW queries
+- [#6006](https://github.com/influxdata/influxdb/pull/6006): Fix deadlock while running backups
 
 ## v0.10.2 [2016-03-03]
 
