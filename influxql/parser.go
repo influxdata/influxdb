@@ -214,28 +214,31 @@ func (p *Parser) parseCreateStatement() (Statement, error) {
 // This function assumes the DROP token has already been consumed.
 func (p *Parser) parseDropStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == SERIES {
-		return p.parseDropSeriesStatement()
-	} else if tok == MEASUREMENT {
-		return p.parseDropMeasurementStatement()
-	} else if tok == CONTINUOUS {
+	switch tok {
+	case CONTINUOUS:
 		return p.parseDropContinuousQueryStatement()
-	} else if tok == DATABASE {
+	case DATA, META:
+		return p.parseDropServerStatement(tok)
+	case DATABASE:
 		return p.parseDropDatabaseStatement()
-	} else if tok == RETENTION {
+	case MEASUREMENT:
+		return p.parseDropMeasurementStatement()
+	case RETENTION:
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != POLICY {
 			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
 		}
 		return p.parseDropRetentionPolicyStatement()
-	} else if tok == USER {
-		return p.parseDropUserStatement()
-	} else if tok == META || tok == DATA {
-		return p.parseDropServerStatement(tok)
-	} else if tok == SUBSCRIPTION {
+	case SERIES:
+		return p.parseDropSeriesStatement()
+	case SHARD:
+		return p.parseDropShardStatement()
+	case SUBSCRIPTION:
 		return p.parseDropSubscriptionStatement()
+	case USER:
+		return p.parseDropUserStatement()
+	default:
+		return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATA", "MEASUREMENT", "META", "RETENTION", "SERIES", "SHARD", "SUBSCRIPTION", "USER"}, pos)
 	}
-
-	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT", "SERVER", "SUBSCRIPTION"}, pos)
 }
 
 // parseAlterStatement parses a string and returns an alter statement.
@@ -1313,6 +1316,20 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM", "WHERE"}, pos)
 	}
 
+	return stmt, nil
+}
+
+// parseDropShardStatement parses a string and returns a
+// DropShardStatement. This function assumes the "DROP SHARD" tokens
+// have already been consumed.
+func (p *Parser) parseDropShardStatement() (*DropShardStatement, error) {
+	var err error
+	stmt := &DropShardStatement{}
+
+	// Parse the ID of the shard to be dropped.
+	if stmt.ID, err = p.parseUInt64(); err != nil {
+		return nil, err
+	}
 	return stmt, nil
 }
 

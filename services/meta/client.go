@@ -429,6 +429,14 @@ func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error
 
 	data := c.cacheData.Clone()
 
+	// See if the user already exists.
+	if u := data.User(name); u != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil || u.Admin != admin {
+			return nil, ErrUserExists
+		}
+		return u, nil
+	}
+
 	// Hash the password before serializing it.
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
@@ -673,6 +681,16 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 	}
 
 	return a, nil
+}
+
+// DropShard deletes a shard by ID.
+func (c *Client) DropShard(id uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	data := c.cacheData.Clone()
+	data.DropShard(id)
+	return c.commit(data)
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.

@@ -572,9 +572,10 @@ func (itr *floatIntervalIterator) Next() *FloatPoint {
 
 // floatAuxIterator represents a float implementation of AuxIterator.
 type floatAuxIterator struct {
-	input  *bufFloatIterator
-	output chan *FloatPoint
-	fields auxIteratorFields
+	input      *bufFloatIterator
+	output     chan *FloatPoint
+	fields     auxIteratorFields
+	background bool
 }
 
 func newFloatAuxIterator(input FloatIterator, seriesKeys SeriesList, opt IteratorOptions) *floatAuxIterator {
@@ -583,6 +584,12 @@ func newFloatAuxIterator(input FloatIterator, seriesKeys SeriesList, opt Iterato
 		output: make(chan *FloatPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
+}
+
+func (itr *floatAuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go drainIterator(itr)
 }
 
 func (itr *floatAuxIterator) Start()                        { go itr.stream() }
@@ -626,7 +633,9 @@ func (itr *floatAuxIterator) stream() {
 
 		// Send point to output and to each field iterator.
 		itr.output <- p
-		itr.fields.send(p)
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
 	}
 
 	close(itr.output)
@@ -635,16 +644,73 @@ func (itr *floatAuxIterator) stream() {
 
 // floatChanIterator represents a new instance of floatChanIterator.
 type floatChanIterator struct {
-	c    chan *FloatPoint
-	once sync.Once
+	buf  *FloatPoint
+	cond *sync.Cond
+	done bool
 }
 
 func (itr *floatChanIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
 	return nil
 }
 
-func (itr *floatChanIterator) Next() *FloatPoint { return <-itr.c }
+func (itr *floatChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf != nil {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case float64:
+		itr.buf = &FloatPoint{Name: name, Tags: tags, Time: time, Value: v}
+
+	case int64:
+		itr.buf = &FloatPoint{Name: name, Tags: tags, Time: time, Value: float64(v)}
+
+	default:
+		itr.buf = &FloatPoint{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *floatChanIterator) Next() *FloatPoint {
+	itr.cond.L.Lock()
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && itr.buf == nil {
+		itr.cond.Wait()
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := itr.buf
+	itr.buf = nil
+	itr.cond.Signal()
+
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return p
+}
 
 // floatReduceFloatIterator executes a reducer for every interval and buffers the result.
 type floatReduceFloatIterator struct {
@@ -740,6 +806,35 @@ func (itr *floatReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// floatExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type floatExprIterator struct {
+	left  *bufFloatIterator
+	right *bufFloatIterator
+	fn    floatExprFunc
+}
+
+func (itr *floatExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *floatExprIterator) Next() *FloatPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// floatExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type floatExprFunc func(a *FloatPoint, b *FloatPoint) *FloatPoint
+
 // floatReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type floatReduceIntegerIterator struct {
 	input  *bufFloatIterator
@@ -833,6 +928,35 @@ func (itr *floatReduceIntegerIterator) reduce() []IntegerPoint {
 
 	return a
 }
+
+// floatIntegerExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type floatIntegerExprIterator struct {
+	left  *bufFloatIterator
+	right *bufFloatIterator
+	fn    floatIntegerExprFunc
+}
+
+func (itr *floatIntegerExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *floatIntegerExprIterator) Next() *IntegerPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// floatIntegerExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type floatIntegerExprFunc func(a *FloatPoint, b *FloatPoint) *IntegerPoint
 
 // floatReduceStringIterator executes a reducer for every interval and buffers the result.
 type floatReduceStringIterator struct {
@@ -928,6 +1052,35 @@ func (itr *floatReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// floatStringExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type floatStringExprIterator struct {
+	left  *bufFloatIterator
+	right *bufFloatIterator
+	fn    floatStringExprFunc
+}
+
+func (itr *floatStringExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *floatStringExprIterator) Next() *StringPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// floatStringExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type floatStringExprFunc func(a *FloatPoint, b *FloatPoint) *StringPoint
+
 // floatReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type floatReduceBooleanIterator struct {
 	input  *bufFloatIterator
@@ -1021,6 +1174,35 @@ func (itr *floatReduceBooleanIterator) reduce() []BooleanPoint {
 
 	return a
 }
+
+// floatBooleanExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type floatBooleanExprIterator struct {
+	left  *bufFloatIterator
+	right *bufFloatIterator
+	fn    floatBooleanExprFunc
+}
+
+func (itr *floatBooleanExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *floatBooleanExprIterator) Next() *BooleanPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// floatBooleanExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type floatBooleanExprFunc func(a *FloatPoint, b *FloatPoint) *BooleanPoint
 
 // floatTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
@@ -1714,9 +1896,10 @@ func (itr *integerIntervalIterator) Next() *IntegerPoint {
 
 // integerAuxIterator represents a integer implementation of AuxIterator.
 type integerAuxIterator struct {
-	input  *bufIntegerIterator
-	output chan *IntegerPoint
-	fields auxIteratorFields
+	input      *bufIntegerIterator
+	output     chan *IntegerPoint
+	fields     auxIteratorFields
+	background bool
 }
 
 func newIntegerAuxIterator(input IntegerIterator, seriesKeys SeriesList, opt IteratorOptions) *integerAuxIterator {
@@ -1725,6 +1908,12 @@ func newIntegerAuxIterator(input IntegerIterator, seriesKeys SeriesList, opt Ite
 		output: make(chan *IntegerPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
+}
+
+func (itr *integerAuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go drainIterator(itr)
 }
 
 func (itr *integerAuxIterator) Start()                        { go itr.stream() }
@@ -1768,7 +1957,9 @@ func (itr *integerAuxIterator) stream() {
 
 		// Send point to output and to each field iterator.
 		itr.output <- p
-		itr.fields.send(p)
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
 	}
 
 	close(itr.output)
@@ -1777,16 +1968,70 @@ func (itr *integerAuxIterator) stream() {
 
 // integerChanIterator represents a new instance of integerChanIterator.
 type integerChanIterator struct {
-	c    chan *IntegerPoint
-	once sync.Once
+	buf  *IntegerPoint
+	cond *sync.Cond
+	done bool
 }
 
 func (itr *integerChanIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
 	return nil
 }
 
-func (itr *integerChanIterator) Next() *IntegerPoint { return <-itr.c }
+func (itr *integerChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf != nil {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case int64:
+		itr.buf = &IntegerPoint{Name: name, Tags: tags, Time: time, Value: v}
+
+	default:
+		itr.buf = &IntegerPoint{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *integerChanIterator) Next() *IntegerPoint {
+	itr.cond.L.Lock()
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && itr.buf == nil {
+		itr.cond.Wait()
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := itr.buf
+	itr.buf = nil
+	itr.cond.Signal()
+
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return p
+}
 
 // integerReduceFloatIterator executes a reducer for every interval and buffers the result.
 type integerReduceFloatIterator struct {
@@ -1882,6 +2127,35 @@ func (itr *integerReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// integerFloatExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type integerFloatExprIterator struct {
+	left  *bufIntegerIterator
+	right *bufIntegerIterator
+	fn    integerFloatExprFunc
+}
+
+func (itr *integerFloatExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *integerFloatExprIterator) Next() *FloatPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// integerFloatExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type integerFloatExprFunc func(a *IntegerPoint, b *IntegerPoint) *FloatPoint
+
 // integerReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type integerReduceIntegerIterator struct {
 	input  *bufIntegerIterator
@@ -1975,6 +2249,35 @@ func (itr *integerReduceIntegerIterator) reduce() []IntegerPoint {
 
 	return a
 }
+
+// integerExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type integerExprIterator struct {
+	left  *bufIntegerIterator
+	right *bufIntegerIterator
+	fn    integerExprFunc
+}
+
+func (itr *integerExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *integerExprIterator) Next() *IntegerPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// integerExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type integerExprFunc func(a *IntegerPoint, b *IntegerPoint) *IntegerPoint
 
 // integerReduceStringIterator executes a reducer for every interval and buffers the result.
 type integerReduceStringIterator struct {
@@ -2070,6 +2373,35 @@ func (itr *integerReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// integerStringExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type integerStringExprIterator struct {
+	left  *bufIntegerIterator
+	right *bufIntegerIterator
+	fn    integerStringExprFunc
+}
+
+func (itr *integerStringExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *integerStringExprIterator) Next() *StringPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// integerStringExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type integerStringExprFunc func(a *IntegerPoint, b *IntegerPoint) *StringPoint
+
 // integerReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type integerReduceBooleanIterator struct {
 	input  *bufIntegerIterator
@@ -2163,6 +2495,35 @@ func (itr *integerReduceBooleanIterator) reduce() []BooleanPoint {
 
 	return a
 }
+
+// integerBooleanExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type integerBooleanExprIterator struct {
+	left  *bufIntegerIterator
+	right *bufIntegerIterator
+	fn    integerBooleanExprFunc
+}
+
+func (itr *integerBooleanExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *integerBooleanExprIterator) Next() *BooleanPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// integerBooleanExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type integerBooleanExprFunc func(a *IntegerPoint, b *IntegerPoint) *BooleanPoint
 
 // integerTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
@@ -2856,9 +3217,10 @@ func (itr *stringIntervalIterator) Next() *StringPoint {
 
 // stringAuxIterator represents a string implementation of AuxIterator.
 type stringAuxIterator struct {
-	input  *bufStringIterator
-	output chan *StringPoint
-	fields auxIteratorFields
+	input      *bufStringIterator
+	output     chan *StringPoint
+	fields     auxIteratorFields
+	background bool
 }
 
 func newStringAuxIterator(input StringIterator, seriesKeys SeriesList, opt IteratorOptions) *stringAuxIterator {
@@ -2867,6 +3229,12 @@ func newStringAuxIterator(input StringIterator, seriesKeys SeriesList, opt Itera
 		output: make(chan *StringPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
+}
+
+func (itr *stringAuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go drainIterator(itr)
 }
 
 func (itr *stringAuxIterator) Start()                        { go itr.stream() }
@@ -2910,7 +3278,9 @@ func (itr *stringAuxIterator) stream() {
 
 		// Send point to output and to each field iterator.
 		itr.output <- p
-		itr.fields.send(p)
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
 	}
 
 	close(itr.output)
@@ -2919,16 +3289,70 @@ func (itr *stringAuxIterator) stream() {
 
 // stringChanIterator represents a new instance of stringChanIterator.
 type stringChanIterator struct {
-	c    chan *StringPoint
-	once sync.Once
+	buf  *StringPoint
+	cond *sync.Cond
+	done bool
 }
 
 func (itr *stringChanIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
 	return nil
 }
 
-func (itr *stringChanIterator) Next() *StringPoint { return <-itr.c }
+func (itr *stringChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf != nil {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case string:
+		itr.buf = &StringPoint{Name: name, Tags: tags, Time: time, Value: v}
+
+	default:
+		itr.buf = &StringPoint{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *stringChanIterator) Next() *StringPoint {
+	itr.cond.L.Lock()
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && itr.buf == nil {
+		itr.cond.Wait()
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := itr.buf
+	itr.buf = nil
+	itr.cond.Signal()
+
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return p
+}
 
 // stringReduceFloatIterator executes a reducer for every interval and buffers the result.
 type stringReduceFloatIterator struct {
@@ -3024,6 +3448,35 @@ func (itr *stringReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// stringFloatExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type stringFloatExprIterator struct {
+	left  *bufStringIterator
+	right *bufStringIterator
+	fn    stringFloatExprFunc
+}
+
+func (itr *stringFloatExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *stringFloatExprIterator) Next() *FloatPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// stringFloatExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type stringFloatExprFunc func(a *StringPoint, b *StringPoint) *FloatPoint
+
 // stringReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type stringReduceIntegerIterator struct {
 	input  *bufStringIterator
@@ -3117,6 +3570,35 @@ func (itr *stringReduceIntegerIterator) reduce() []IntegerPoint {
 
 	return a
 }
+
+// stringIntegerExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type stringIntegerExprIterator struct {
+	left  *bufStringIterator
+	right *bufStringIterator
+	fn    stringIntegerExprFunc
+}
+
+func (itr *stringIntegerExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *stringIntegerExprIterator) Next() *IntegerPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// stringIntegerExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type stringIntegerExprFunc func(a *StringPoint, b *StringPoint) *IntegerPoint
 
 // stringReduceStringIterator executes a reducer for every interval and buffers the result.
 type stringReduceStringIterator struct {
@@ -3212,6 +3694,35 @@ func (itr *stringReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// stringExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type stringExprIterator struct {
+	left  *bufStringIterator
+	right *bufStringIterator
+	fn    stringExprFunc
+}
+
+func (itr *stringExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *stringExprIterator) Next() *StringPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// stringExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type stringExprFunc func(a *StringPoint, b *StringPoint) *StringPoint
+
 // stringReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type stringReduceBooleanIterator struct {
 	input  *bufStringIterator
@@ -3305,6 +3816,35 @@ func (itr *stringReduceBooleanIterator) reduce() []BooleanPoint {
 
 	return a
 }
+
+// stringBooleanExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type stringBooleanExprIterator struct {
+	left  *bufStringIterator
+	right *bufStringIterator
+	fn    stringBooleanExprFunc
+}
+
+func (itr *stringBooleanExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *stringBooleanExprIterator) Next() *BooleanPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// stringBooleanExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type stringBooleanExprFunc func(a *StringPoint, b *StringPoint) *BooleanPoint
 
 // stringTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
@@ -3998,9 +4538,10 @@ func (itr *booleanIntervalIterator) Next() *BooleanPoint {
 
 // booleanAuxIterator represents a boolean implementation of AuxIterator.
 type booleanAuxIterator struct {
-	input  *bufBooleanIterator
-	output chan *BooleanPoint
-	fields auxIteratorFields
+	input      *bufBooleanIterator
+	output     chan *BooleanPoint
+	fields     auxIteratorFields
+	background bool
 }
 
 func newBooleanAuxIterator(input BooleanIterator, seriesKeys SeriesList, opt IteratorOptions) *booleanAuxIterator {
@@ -4009,6 +4550,12 @@ func newBooleanAuxIterator(input BooleanIterator, seriesKeys SeriesList, opt Ite
 		output: make(chan *BooleanPoint, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
+}
+
+func (itr *booleanAuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go drainIterator(itr)
 }
 
 func (itr *booleanAuxIterator) Start()                        { go itr.stream() }
@@ -4052,7 +4599,9 @@ func (itr *booleanAuxIterator) stream() {
 
 		// Send point to output and to each field iterator.
 		itr.output <- p
-		itr.fields.send(p)
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
 	}
 
 	close(itr.output)
@@ -4061,16 +4610,70 @@ func (itr *booleanAuxIterator) stream() {
 
 // booleanChanIterator represents a new instance of booleanChanIterator.
 type booleanChanIterator struct {
-	c    chan *BooleanPoint
-	once sync.Once
+	buf  *BooleanPoint
+	cond *sync.Cond
+	done bool
 }
 
 func (itr *booleanChanIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
 	return nil
 }
 
-func (itr *booleanChanIterator) Next() *BooleanPoint { return <-itr.c }
+func (itr *booleanChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf != nil {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case bool:
+		itr.buf = &BooleanPoint{Name: name, Tags: tags, Time: time, Value: v}
+
+	default:
+		itr.buf = &BooleanPoint{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *booleanChanIterator) Next() *BooleanPoint {
+	itr.cond.L.Lock()
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && itr.buf == nil {
+		itr.cond.Wait()
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := itr.buf
+	itr.buf = nil
+	itr.cond.Signal()
+
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return p
+}
 
 // booleanReduceFloatIterator executes a reducer for every interval and buffers the result.
 type booleanReduceFloatIterator struct {
@@ -4166,6 +4769,35 @@ func (itr *booleanReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// booleanFloatExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type booleanFloatExprIterator struct {
+	left  *bufBooleanIterator
+	right *bufBooleanIterator
+	fn    booleanFloatExprFunc
+}
+
+func (itr *booleanFloatExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *booleanFloatExprIterator) Next() *FloatPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// booleanFloatExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type booleanFloatExprFunc func(a *BooleanPoint, b *BooleanPoint) *FloatPoint
+
 // booleanReduceIntegerIterator executes a reducer for every interval and buffers the result.
 type booleanReduceIntegerIterator struct {
 	input  *bufBooleanIterator
@@ -4259,6 +4891,35 @@ func (itr *booleanReduceIntegerIterator) reduce() []IntegerPoint {
 
 	return a
 }
+
+// booleanIntegerExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type booleanIntegerExprIterator struct {
+	left  *bufBooleanIterator
+	right *bufBooleanIterator
+	fn    booleanIntegerExprFunc
+}
+
+func (itr *booleanIntegerExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *booleanIntegerExprIterator) Next() *IntegerPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// booleanIntegerExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type booleanIntegerExprFunc func(a *BooleanPoint, b *BooleanPoint) *IntegerPoint
 
 // booleanReduceStringIterator executes a reducer for every interval and buffers the result.
 type booleanReduceStringIterator struct {
@@ -4354,6 +5015,35 @@ func (itr *booleanReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// booleanStringExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type booleanStringExprIterator struct {
+	left  *bufBooleanIterator
+	right *bufBooleanIterator
+	fn    booleanStringExprFunc
+}
+
+func (itr *booleanStringExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *booleanStringExprIterator) Next() *StringPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// booleanStringExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type booleanStringExprFunc func(a *BooleanPoint, b *BooleanPoint) *StringPoint
+
 // booleanReduceBooleanIterator executes a reducer for every interval and buffers the result.
 type booleanReduceBooleanIterator struct {
 	input  *bufBooleanIterator
@@ -4447,6 +5137,35 @@ func (itr *booleanReduceBooleanIterator) reduce() []BooleanPoint {
 
 	return a
 }
+
+// booleanExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type booleanExprIterator struct {
+	left  *bufBooleanIterator
+	right *bufBooleanIterator
+	fn    booleanExprFunc
+}
+
+func (itr *booleanExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *booleanExprIterator) Next() *BooleanPoint {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// booleanExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type booleanExprFunc func(a *BooleanPoint, b *BooleanPoint) *BooleanPoint
 
 // booleanTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.

@@ -8,7 +8,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -390,7 +389,17 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		body = b
 	}
 
-	b, err := ioutil.ReadAll(body)
+	var bs []byte
+	if clStr := r.Header.Get("Content-Length"); clStr != "" {
+		if length, err := strconv.Atoi(clStr); err == nil {
+			// This will just be an initial hint for the gzip reader, as the
+			// bytes.Buffer will grow as needed when ReadFrom is called
+			bs = make([]byte, 0, length)
+		}
+	}
+	buf := bytes.NewBuffer(bs)
+
+	_, err := buf.ReadFrom(body)
 	if err != nil {
 		if h.WriteTrace {
 			h.Logger.Print("write handler unable to read bytes from request body")
@@ -398,16 +407,17 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
-	h.statMap.Add(statWriteRequestBytesReceived, int64(len(b)))
+	h.statMap.Add(statWriteRequestBytesReceived, int64(buf.Len()))
+
 	if h.WriteTrace {
-		h.Logger.Printf("write body received by handler: %s", string(b))
+		h.Logger.Printf("write body received by handler: %s", buf.Bytes())
 	}
 
 	if r.Header.Get("Content-Type") == "application/json" {
-		h.serveWriteJSON(w, r, b, user)
+		h.serveWriteJSON(w, r, buf.Bytes(), user)
 		return
 	}
-	h.serveWriteLine(w, r, b, user)
+	h.serveWriteLine(w, r, buf.Bytes(), user)
 }
 
 // serveWriteJSON receives incoming series data in JSON and writes it to the database.

@@ -571,9 +571,10 @@ func (itr *{{$k.name}}IntervalIterator) Next() *{{$k.Name}}Point {
 
 // {{$k.name}}AuxIterator represents a {{$k.name}} implementation of AuxIterator.
 type {{$k.name}}AuxIterator struct {
-	input  *buf{{$k.Name}}Iterator
-	output chan *{{$k.Name}}Point
-	fields auxIteratorFields
+	input      *buf{{$k.Name}}Iterator
+	output     chan *{{$k.Name}}Point
+	fields     auxIteratorFields
+	background bool
 }
 
 func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, seriesKeys SeriesList, opt IteratorOptions) *{{$k.name}}AuxIterator {
@@ -582,6 +583,12 @@ func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, seriesKeys SeriesList,
 		output: make(chan *{{$k.Name}}Point, 1),
 		fields: newAuxIteratorFields(seriesKeys, opt),
 	}
+}
+
+func (itr *{{$k.name}}AuxIterator) Background() {
+	itr.background = true
+	itr.Start()
+	go drainIterator(itr)
 }
 
 func (itr *{{$k.name}}AuxIterator) Start()                        { go itr.stream() }
@@ -629,7 +636,9 @@ func (itr *{{.name}}AuxIterator) stream() {
 
 		// Send point to output and to each field iterator.
 		itr.output <- p
-		itr.fields.send(p)
+		if ok := itr.fields.send(p); !ok && itr.background {
+			break
+		}
 	}
 
 	close(itr.output)
@@ -638,16 +647,73 @@ func (itr *{{.name}}AuxIterator) stream() {
 
 // {{$k.name}}ChanIterator represents a new instance of {{$k.name}}ChanIterator.
 type {{$k.name}}ChanIterator struct {
-	c    chan *{{$k.Name}}Point
-	once sync.Once
+	buf  *{{$k.Name}}Point
+	cond *sync.Cond
+	done bool
 }
 
 func (itr *{{$k.name}}ChanIterator) Close() error {
-	itr.once.Do(func() { close(itr.c) })
+	itr.cond.L.Lock()
+	// Mark the channel iterator as done and signal all waiting goroutines to start again.
+	itr.done = true
+	itr.cond.Broadcast()
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
 	return nil
 }
 
-func (itr *{{$k.name}}ChanIterator) Next() *{{$k.Name}}Point { return <-itr.c }
+func (itr *{{$k.name}}ChanIterator) setBuf(name string, tags Tags, time int64, value interface{}) bool {
+	itr.cond.L.Lock()
+	defer itr.cond.L.Unlock()
+
+	// Wait for either the iterator to be done (so we don't have to set the value)
+	// or for the buffer to have been read and ready for another write.
+	for !itr.done && itr.buf != nil {
+		itr.cond.Wait()
+	}
+
+	// Do not set the value and return false to signal that the iterator is closed.
+	// Do this after the above wait as the above for loop may have exited because
+	// the iterator was closed.
+	if itr.done {
+		return false
+	}
+
+	switch v := value.(type) {
+	case {{$k.Type}}:
+		itr.buf = &{{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: v}
+{{if eq $k.Name "Float"}}
+	case int64:
+		itr.buf = &{{$k.Name}}Point{Name: name, Tags: tags, Time: time, Value: float64(v)}
+{{end}}
+	default:
+		itr.buf = &{{$k.Name}}Point{Name: name, Tags: tags, Time: time, Nil: true}
+	}
+	// Signal to all waiting goroutines that a new value is ready to read.
+	itr.cond.Signal()
+	return true
+}
+
+func (itr *{{$k.name}}ChanIterator) Next() *{{$k.Name}}Point {
+	itr.cond.L.Lock()
+
+	// Wait until either a value is available in the buffer or
+	// the iterator is closed.
+	for !itr.done && itr.buf == nil {
+		itr.cond.Wait()
+	}
+
+	// Always read from the buffer if it exists, even if the iterator
+	// is closed. This prevents the last value from being truncated by
+	// the parent iterator.
+	p := itr.buf
+	itr.buf = nil
+	itr.cond.Signal()
+
+	// Do not defer the unlock so we don't create an unnecessary allocation.
+	itr.cond.L.Unlock()
+	return p
+}
 
 {{range $v := $types}}
 
@@ -744,6 +810,35 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 
 	return a
 }
+
+// {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator executes a function to modify an existing point
+// for every output of the input iterator.
+type {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator struct {
+	left  *buf{{$k.Name}}Iterator
+	right *buf{{$k.Name}}Iterator
+	fn    {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc
+}
+
+func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Close() error {
+	itr.left.Close()
+	itr.right.Close()
+	return nil
+}
+
+func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Next() *{{$v.Name}}Point {
+	a := itr.left.Next()
+	b := itr.right.Next()
+	if a == nil && b == nil {
+		return nil
+	}
+	return itr.fn(a, b)
+}
+
+// {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc creates or modifies a point by combining two
+// points. The point passed in may be modified and returned rather than
+// allocating a new point if possible. One of the points may be nil, but at
+// least one of the points will be non-nil.
+type {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc func(a *{{$k.Name}}Point, b *{{$k.Name}}Point) *{{$v.Name}}Point
 {{end}}
 
 // {{$k.name}}TransformIterator executes a function to modify an existing point for every

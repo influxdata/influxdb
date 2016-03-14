@@ -2,6 +2,8 @@
 
 ### Features
 
+- [#6001](https://github.com/influxdata/influxdb/pull/6001): Add DROP SHARD support.
+
 ### Bugfixes
 
 ## v0.11.0 [unreleased]
@@ -68,6 +70,10 @@
 - [#5937](https://github.com/influxdata/influxdb/pull/5937): Rewrite SHOW SERIES to use query engine
 - [#5949](https://github.com/influxdata/influxdb/issues/5949): Return error message when improper types are used in SELECT
 - [#5963](https://github.com/influxdata/influxdb/pull/5963): Fix possible deadlock
+- [#4688](https://github.com/influxdata/influxdb/issues/4688): admin UI doesn't display results for some SHOW queries
+- [#6006](https://github.com/influxdata/influxdb/pull/6006): Fix deadlock while running backups
+- [#5965](https://github.com/influxdata/influxdb/issues/5965): InfluxDB panic crashes while parsing "-" as Float
+- [#5835](https://github.com/influxdata/influxdb/issues/5835): Make CREATE USER default to IF NOT EXISTS
 
 ## v0.10.2 [2016-03-03]
 

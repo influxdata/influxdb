@@ -320,6 +320,16 @@ func (e *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
 }
 
+func (e *QueryExecutor) executeDropShardStatement(stmt *influxql.DropShardStatement) error {
+	// Remove the shard reference from the Meta Store.
+	if err := e.MetaClient.DropShard(stmt.ID); err != nil {
+		return err
+	}
+
+	// Locally delete the shard.
+	return e.TSDBStore.DeleteShard(stmt.ID)
+}
+
 func (e *QueryExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
 	if err := e.MetaClient.DropRetentionPolicy(stmt.Database, stmt.Name); err != nil {
 		return err
@@ -877,6 +887,7 @@ type TSDBStore interface {
 	DeleteMeasurement(database, name string) error
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteShard(id uint64) error
 	ExecuteShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string) (models.Rows, error)
 	ExecuteShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) (models.Rows, error)
 	ExpandSources(sources influxql.Sources) (influxql.Sources, error)

@@ -180,21 +180,11 @@ var handleSubmit = function(e) {
             return
         }
 
-        var values = series[0].values;
-
-        if ((values == null) || (values.length == 0)) {
-            showQueryError("Query returned no results!");
-        } else {
-            availableDatabases = values.map(function(value) {
-                return value[0];
-            });
-
-            hideDatabaseWarning();
-            React.render(
-              React.createElement(DataTable, {series: series}),
-              document.getElementById('table')
-            );
-        }
+        hideDatabaseWarning();
+        React.render(
+            React.createElement(DataTable, {series: series}),
+            document.getElementById('table')
+        );
     });
 
     if (e != null) { e.preventDefault(); }
