@@ -64,6 +64,7 @@
 - [#5963](https://github.com/influxdata/influxdb/pull/5963): Fix possible deadlock
 - [#4688](https://github.com/influxdata/influxdb/issues/4688): admin UI doesn't display results for some SHOW queries
 - [#6006](https://github.com/influxdata/influxdb/pull/6006): Fix deadlock while running backups
+- [#5965](https://github.com/influxdata/influxdb/issues/5965): InfluxDB panic crashes while parsing "-" as Float
 
 ## v0.10.2 [2016-03-03]
 
