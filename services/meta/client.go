@@ -527,9 +527,6 @@ func (c *Client) saltedHash(password string) (salt, hash []byte, err error) {
 }
 
 func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	data := c.cacheData.Clone()
 
 	// See if the user already exists.
