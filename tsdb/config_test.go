@@ -16,9 +16,5 @@ enabled = false
 		t.Fatal(err)
 	}
 
-	// Validate configuration.
-	if c.Enabled == true {
-		t.Fatalf("unexpected enabled: %v", c.Enabled)
-	}
 	// TODO: add remaining config tests
 }

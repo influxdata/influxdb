@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -57,13 +56,12 @@ type Service struct {
 	tls  bool
 	cert string
 
-	BindAddress      string
-	Database         string
-	RetentionPolicy  string
-	ConsistencyLevel cluster.ConsistencyLevel
+	BindAddress     string
+	Database        string
+	RetentionPolicy string
 
 	PointsWriter interface {
-		WritePoints(p *cluster.WritePointsRequest) error
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 	MetaClient interface {
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
@@ -82,25 +80,19 @@ type Service struct {
 
 // NewService returns a new instance of Service.
 func NewService(c Config) (*Service, error) {
-	consistencyLevel, err := cluster.ParseConsistencyLevel(c.ConsistencyLevel)
-	if err != nil {
-		return nil, err
-	}
-
 	s := &Service{
-		done:             make(chan struct{}),
-		tls:              c.TLSEnabled,
-		cert:             c.Certificate,
-		err:              make(chan error),
-		BindAddress:      c.BindAddress,
-		Database:         c.Database,
-		RetentionPolicy:  c.RetentionPolicy,
-		ConsistencyLevel: consistencyLevel,
-		batchSize:        c.BatchSize,
-		batchPending:     c.BatchPending,
-		batchTimeout:     time.Duration(c.BatchTimeout),
-		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
-		LogPointErrors:   c.LogPointErrors,
+		done:            make(chan struct{}),
+		tls:             c.TLSEnabled,
+		cert:            c.Certificate,
+		err:             make(chan error),
+		BindAddress:     c.BindAddress,
+		Database:        c.Database,
+		RetentionPolicy: c.RetentionPolicy,
+		batchSize:       c.BatchSize,
+		batchPending:    c.BatchPending,
+		batchTimeout:    time.Duration(c.BatchTimeout),
+		Logger:          log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
+		LogPointErrors:  c.LogPointErrors,
 	}
 	return s, nil
 }
@@ -357,12 +349,11 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 // serveHTTP handles connections in HTTP format.
 func (s *Service) serveHTTP() {
 	srv := &http.Server{Handler: &Handler{
-		Database:         s.Database,
-		RetentionPolicy:  s.RetentionPolicy,
-		ConsistencyLevel: s.ConsistencyLevel,
-		PointsWriter:     s.PointsWriter,
-		Logger:           s.Logger,
-		statMap:          s.statMap,
+		Database:        s.Database,
+		RetentionPolicy: s.RetentionPolicy,
+		PointsWriter:    s.PointsWriter,
+		Logger:          s.Logger,
+		statMap:         s.statMap,
 	}}
 	srv.Serve(s.httpln)
 }
@@ -373,12 +364,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
-			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:         s.Database,
-				RetentionPolicy:  s.RetentionPolicy,
-				ConsistencyLevel: s.ConsistencyLevel,
-				Points:           batch,
-			}); err == nil {
+			if err := s.PointsWriter.WritePoints(s.Database, s.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				s.statMap.Add(statBatchesTrasmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
 			} else {

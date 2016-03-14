@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/opentsdb"
@@ -30,14 +29,14 @@ func TestService_Telnet(t *testing.T) {
 
 	// Mock points writer.
 	var called int32
-	s.PointsWriter.WritePointsFn = func(req *cluster.WritePointsRequest) error {
+	s.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 		atomic.StoreInt32(&called, 1)
 
-		if req.Database != "db0" {
-			t.Fatalf("unexpected database: %s", req.Database)
-		} else if req.RetentionPolicy != "" {
-			t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-		} else if !reflect.DeepEqual(req.Points, []models.Point{
+		if database != "db0" {
+			t.Fatalf("unexpected database: %s", database)
+		} else if retentionPolicy != "" {
+			t.Fatalf("unexpected retention policy: %s", retentionPolicy)
+		} else if !reflect.DeepEqual(points, []models.Point{
 			models.MustNewPoint(
 				"sys.cpu.user",
 				map[string]string{"host": "webserver01", "cpu": "0"},
@@ -45,8 +44,7 @@ func TestService_Telnet(t *testing.T) {
 				time.Unix(1356998400, 0),
 			),
 		}) {
-			spew.Dump(req.Points)
-			t.Fatalf("unexpected points: %#v", req.Points)
+			t.Fatalf("unexpected points: %#v", points)
 		}
 		return nil
 	}
@@ -94,13 +92,13 @@ func TestService_HTTP(t *testing.T) {
 
 	// Mock points writer.
 	var called bool
-	s.PointsWriter.WritePointsFn = func(req *cluster.WritePointsRequest) error {
+	s.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 		called = true
-		if req.Database != "db0" {
-			t.Fatalf("unexpected database: %s", req.Database)
-		} else if req.RetentionPolicy != "" {
-			t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-		} else if !reflect.DeepEqual(req.Points, []models.Point{
+		if database != "db0" {
+			t.Fatalf("unexpected database: %s", database)
+		} else if retentionPolicy != "" {
+			t.Fatalf("unexpected retention policy: %s", retentionPolicy)
+		} else if !reflect.DeepEqual(points, []models.Point{
 			models.MustNewPoint(
 				"sys.cpu.nice",
 				map[string]string{"dc": "lga", "host": "web01"},
@@ -108,8 +106,8 @@ func TestService_HTTP(t *testing.T) {
 				time.Unix(1346846400, 0),
 			),
 		}) {
-			spew.Dump(req.Points)
-			t.Fatalf("unexpected points: %#v", req.Points)
+			spew.Dump(points)
+			t.Fatalf("unexpected points: %#v", points)
 		}
 		return nil
 	}
@@ -157,11 +155,11 @@ func NewService(database string) *Service {
 
 // PointsWriter represents a mock impl of PointsWriter.
 type PointsWriter struct {
-	WritePointsFn func(*cluster.WritePointsRequest) error
+	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-func (w *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
-	return w.WritePointsFn(p)
+func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }
 
 type DatabaseCreator struct {

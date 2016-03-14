@@ -49,10 +49,7 @@ func NewServer(c *run.Config) *Server {
 }
 
 // OpenServer opens a test server.
-func OpenServer(c *run.Config, joinURLs string) *Server {
-	if len(joinURLs) > 0 {
-		c.Meta.JoinPeers = strings.Split(joinURLs, ",")
-	}
+func OpenServer(c *run.Config) *Server {
 	s := NewServer(c)
 	configureLogging(s)
 	if err := s.Open(); err != nil {
@@ -68,7 +65,6 @@ func OpenServerWithVersion(c *run.Config, version string) *Server {
 		Commit:  "",
 		Branch:  "",
 	}
-	fmt.Println(">>> ", c.Data.Enabled)
 	srv, _ := run.NewServer(c, buildInfo)
 	s := Server{
 		Server: srv,
@@ -83,8 +79,8 @@ func OpenServerWithVersion(c *run.Config, version string) *Server {
 }
 
 // OpenDefaultServer opens a test server with a default database & retention policy.
-func OpenDefaultServer(c *run.Config, joinURLs string) *Server {
-	s := OpenServer(c, joinURLs)
+func OpenDefaultServer(c *run.Config) *Server {
+	s := OpenServer(c)
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
 		panic(err)
 	}
@@ -103,9 +99,6 @@ func (s *Server) Close() {
 		panic(err.Error())
 	}
 	if err := os.RemoveAll(s.Config.Data.Dir); err != nil {
-		panic(err.Error())
-	}
-	if err := os.RemoveAll(s.Config.HintedHandoff.Dir); err != nil {
 		panic(err.Error())
 	}
 }
@@ -238,16 +231,11 @@ func (s *Server) MustWrite(db, rp, body string, params url.Values) string {
 // NewConfig returns the default config with temporary paths.
 func NewConfig() *run.Config {
 	c := run.NewConfig()
+	c.BindAddress = "127.0.0.1:0"
 	c.ReportingDisabled = true
 	c.Cluster.ShardWriterTimeout = toml.Duration(30 * time.Second)
 	c.Cluster.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
-	c.Meta.BindAddress = "127.0.0.1:0"
-	c.Meta.HTTPBindAddress = "127.0.0.1:0"
-	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
 
 	if !testing.Verbose() {
 		c.Meta.LoggingEnabled = false
@@ -256,8 +244,6 @@ func NewConfig() *run.Config {
 	c.Data.Dir = MustTempFile()
 	c.Data.WALDir = MustTempFile()
 	c.Data.WALLoggingEnabled = false
-
-	c.HintedHandoff.Dir = MustTempFile()
 
 	c.HTTPD.Enabled = true
 	c.HTTPD.BindAddress = "127.0.0.1:0"
@@ -499,7 +485,6 @@ func configureLogging(s *Server) {
 		}
 		nullLogger := log.New(ioutil.Discard, "", 0)
 		s.TSDBStore.Logger = nullLogger
-		s.HintedHandoff.SetLogger(nullLogger)
 		s.Monitor.SetLogger(nullLogger)
 		s.QueryExecutor.LogOutput = ioutil.Discard
 		s.Subscriber.SetLogger(nullLogger)
@@ -517,11 +502,10 @@ type Cluster struct {
 
 func NewCluster(size int) (*Cluster, error) {
 	c := Cluster{}
-	c.Servers = append(c.Servers, OpenServer(NewConfig(), ""))
-	metaServiceAddr := c.Servers[0].MetaServers()[0]
+	c.Servers = append(c.Servers, OpenServer(NewConfig()))
 
 	for i := 1; i < size; i++ {
-		c.Servers = append(c.Servers, OpenServer(NewConfig(), metaServiceAddr))
+		c.Servers = append(c.Servers, OpenServer(NewConfig()))
 	}
 
 	for _, s := range c.Servers {
@@ -593,13 +577,12 @@ func NewClusterCustom(size int, cb func(index int, config *run.Config)) (*Cluste
 	config := NewConfig()
 	cb(0, config)
 
-	c.Servers = append(c.Servers, OpenServer(config, ""))
-	metaServiceAddr := c.Servers[0].MetaServers()[0]
+	c.Servers = append(c.Servers, OpenServer(config))
 
 	for i := 1; i < size; i++ {
 		config := NewConfig()
 		cb(i, config)
-		c.Servers = append(c.Servers, OpenServer(config, metaServiceAddr))
+		c.Servers = append(c.Servers, OpenServer(config))
 	}
 
 	for _, s := range c.Servers {

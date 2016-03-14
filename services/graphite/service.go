@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
@@ -51,14 +51,13 @@ func (c *tcpConnection) Close() {
 type Service struct {
 	mu sync.Mutex
 
-	bindAddress      string
-	database         string
-	protocol         string
-	batchSize        int
-	batchPending     int
-	batchTimeout     time.Duration
-	consistencyLevel cluster.ConsistencyLevel
-	udpReadBuffer    int
+	bindAddress   string
+	database      string
+	protocol      string
+	batchSize     int
+	batchPending  int
+	batchTimeout  time.Duration
+	udpReadBuffer int
 
 	batcher *tsdb.PointBatcher
 	parser  *Parser
@@ -81,7 +80,7 @@ type Service struct {
 		DeregisterDiagnosticsClient(name string)
 	}
 	PointsWriter interface {
-		WritePoints(p *cluster.WritePointsRequest) error
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 	MetaClient interface {
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
@@ -106,12 +105,6 @@ func NewService(c Config) (*Service, error) {
 		done:           make(chan struct{}),
 		diagsKey:       strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
-
-	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
-	if err != nil {
-		return nil, err
-	}
-	s.consistencyLevel = consistencyLevel
 
 	parser, err := NewParserWithOptions(Options{
 		Templates:   d.Templates,
@@ -360,12 +353,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
-			if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-				Database:         s.database,
-				RetentionPolicy:  "",
-				ConsistencyLevel: s.consistencyLevel,
-				Points:           batch,
-			}); err == nil {
+			if err := s.PointsWriter.WritePoints(s.database, "", models.ConsistencyLevelAny, batch); err == nil {
 				s.statMap.Add(statBatchesTransmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
 			} else {

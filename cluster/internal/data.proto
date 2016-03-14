@@ -52,3 +52,12 @@ message SeriesKeysResponse {
     optional string Err        = 2;
 }
 
+message ExpandSourcesRequest {
+    repeated uint64 ShardIDs = 1;
+    required bytes  Sources  = 2;
+}
+
+message ExpandSourcesResponse {
+    required bytes  Sources  = 1;
+    optional string Err      = 2;
+}

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -98,23 +97,9 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 
-	// Propogate the top-level join options down to the meta config
-	if config.Join != "" {
-		config.Meta.JoinPeers = strings.Split(config.Join, ",")
-	}
-
-	// Command-line flags for -join and -hostname override the config
-	// and env variable
-	if options.Join != "" {
-		config.Meta.JoinPeers = strings.Split(options.Join, ",")
-	}
-
 	if options.Hostname != "" {
 		config.Hostname = options.Hostname
 	}
-
-	// Propogate the top-level hostname down to dependendent configs
-	config.Meta.RemoteHostname = config.Hostname
 
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
@@ -173,7 +158,6 @@ func (cmd *Command) ParseFlags(args ...string) (Options, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.StringVar(&options.ConfigPath, "config", "", "")
 	fs.StringVar(&options.PIDFile, "pidfile", "", "")
-	fs.StringVar(&options.Join, "join", "", "")
 	fs.StringVar(&options.Hostname, "hostname", "", "")
 	fs.StringVar(&options.CPUProfile, "cpuprofile", "", "")
 	fs.StringVar(&options.MemProfile, "memprofile", "", "")
@@ -233,10 +217,6 @@ then a new cluster will be initialized unless the -join argument is used.
         -config <path>
                           Set the path to the configuration file.
 
-        -join <host:port>
-                          Joins the server to an existing cluster. Should be
-                          the HTTP bind address of an existing meta server
-
         -hostname <name>
                           Override the hostname, the 'hostname' configuration
                           option will be overridden.
@@ -255,7 +235,6 @@ then a new cluster will be initialized unless the -join argument is used.
 type Options struct {
 	ConfigPath string
 	PIDFile    string
-	Join       string
 	Hostname   string
 	CPUProfile string
 	MemProfile string
