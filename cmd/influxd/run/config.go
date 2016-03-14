@@ -39,24 +39,6 @@ const (
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
-	Meta       *meta.Config      `toml:"meta"`
-	Data       tsdb.Config       `toml:"data"`
-	Cluster    cluster.Config    `toml:"cluster"`
-	Retention  retention.Config  `toml:"retention"`
-	Precreator precreator.Config `toml:"shard-precreation"`
-
-	Admin      admin.Config      `toml:"admin"`
-	Monitor    monitor.Config    `toml:"monitor"`
-	Subscriber subscriber.Config `toml:"subscriber"`
-	HTTPD      httpd.Config      `toml:"http"`
-	Graphites  []graphite.Config `toml:"graphite"`
-	Collectd   collectd.Config   `toml:"collectd"`
-	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
-	UDPs       []udp.Config      `toml:"udp"`
-
-	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
-	HintedHandoff   hh.Config                 `toml:"hinted-handoff"`
-
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
 
@@ -68,6 +50,24 @@ type Config struct {
 	Hostname string `toml:"hostname"`
 
 	Join string `toml:"join"`
+
+	Meta       *meta.Config      `toml:"meta"`
+	Data       tsdb.Config       `toml:"data"`
+	Cluster    cluster.Config    `toml:"cluster"`
+	Retention  retention.Config  `toml:"retention"`
+	Precreator precreator.Config `toml:"shard-precreation"`
+
+	Admin      admin.Config      `toml:"admin"`
+	Monitor    monitor.Config    `toml:"monitor"`
+	Subscriber subscriber.Config `toml:"subscriber"`
+	HTTPD      httpd.Config      `toml:"http"`
+	Graphites  []graphite.Config `toml:"graphite" doc:"List of graphite listen endpoints"`
+	Collectd   collectd.Config   `toml:"collectd"`
+	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
+	UDPs       []udp.Config      `toml:"udp"`
+
+	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
+	HintedHandoff   hh.Config                 `toml:"hinted-handoff"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -90,30 +90,14 @@ func NewConfig() *Config {
 	c.HintedHandoff = hh.NewConfig()
 	c.BindAddress = DefaultBindAddress
 
-	// All ARRAY attributes have to be init after toml decode
-	// See: https://github.com/BurntSushi/toml/pull/68
-	// Those attributes will be initialized in Config.InitTableAttrs method
-	// Concerned Attributes:
-	//  * `c.Graphites`
-	//  * `c.UDPs`
-
+	c.UDPs = []udp.Config{udp.NewConfig()}
+	c.Graphites = []graphite.Config{graphite.NewConfig()}
 	return c
-}
-
-// InitTableAttrs initialises all ARRAY attributes if empty
-func (c *Config) InitTableAttrs() {
-	if len(c.UDPs) == 0 {
-		c.UDPs = []udp.Config{udp.NewConfig()}
-	}
-	if len(c.Graphites) == 0 {
-		c.Graphites = []graphite.Config{graphite.NewConfig()}
-	}
 }
 
 // NewDemoConfig returns the config that runs when no config is specified.
 func NewDemoConfig() (*Config, error) {
 	c := NewConfig()
-	c.InitTableAttrs()
 
 	var homeDir string
 	// By default, store meta and data files in current users home directory

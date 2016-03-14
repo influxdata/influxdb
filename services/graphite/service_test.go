@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	cfg "github.com/influxdata/config"
 	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/graphite"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/toml"
 )
 
 func Test_ServerGraphiteTCP(t *testing.T) {
@@ -22,7 +22,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	config := graphite.Config{}
 	config.Database = "graphitedb"
 	config.BatchSize = 0 // No batching.
-	config.BatchTimeout = toml.Duration(time.Second)
+	config.BatchTimeout = cfg.Duration(time.Second)
 	config.BindAddress = ":0"
 
 	service, err := graphite.NewService(config)
@@ -97,7 +97,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 	config := graphite.Config{}
 	config.Database = "graphitedb"
 	config.BatchSize = 0 // No batching.
-	config.BatchTimeout = toml.Duration(time.Second)
+	config.BatchTimeout = cfg.Duration(time.Second)
 	config.BindAddress = ":10000"
 	config.Protocol = "udp"
 

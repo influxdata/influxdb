@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/retention"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c retention.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = true
 check-interval = "1s"
 `, &c); err != nil {

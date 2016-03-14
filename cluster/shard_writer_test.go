@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/toml"
 )
 
 // Ensure the shard writer can successfully write a single request.
@@ -195,7 +195,7 @@ func TestShardWriter_Write_ErrReadTimeout(t *testing.T) {
 func TestShardWriter_Write_PoolMax(t *testing.T) {
 	ts := newTestWriteService(writeShardSlow)
 	s := cluster.NewService(cluster.Config{
-		ShardWriterTimeout: toml.Duration(100 * time.Millisecond),
+		ShardWriterTimeout: config.Duration(100 * time.Millisecond),
 	})
 	s.Listener = ts.muxln
 	s.TSDBStore = &ts.TSDBStore

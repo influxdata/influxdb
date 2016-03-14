@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/precreator"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c precreator.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = true
 check-interval = "2m"
 advance-period = "10m"

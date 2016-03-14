@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tcp"
-	"github.com/influxdata/influxdb/toml"
 )
 
 func TestMetaService_CreateDatabase(t *testing.T) {
@@ -1378,7 +1378,7 @@ func newConfig() *meta.Config {
 	cfg.BindAddress = "127.0.0.1:0"
 	cfg.HTTPBindAddress = "127.0.0.1:0"
 	cfg.Dir = testTempDir(2)
-	cfg.LeaseDuration = toml.Duration(1 * time.Second)
+	cfg.LeaseDuration = config.Duration(1 * time.Second)
 	return cfg
 }
 

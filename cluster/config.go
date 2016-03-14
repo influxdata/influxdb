@@ -3,7 +3,7 @@ package cluster
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -23,19 +23,19 @@ const (
 
 // Config represents the configuration for the clustering service.
 type Config struct {
-	ForceRemoteShardMapping   bool          `toml:"force-remote-mapping"`
-	WriteTimeout              toml.Duration `toml:"write-timeout"`
-	ShardWriterTimeout        toml.Duration `toml:"shard-writer-timeout"`
-	MaxRemoteWriteConnections int           `toml:"max-remote-write-connections"`
-	ShardMapperTimeout        toml.Duration `toml:"shard-mapper-timeout"`
+	ForceRemoteShardMapping   bool            `toml:"force-remote-mapping"`
+	WriteTimeout              config.Duration `toml:"write-timeout"`
+	ShardWriterTimeout        config.Duration `toml:"shard-writer-timeout"`
+	MaxRemoteWriteConnections int             `toml:"max-remote-write-connections"`
+	ShardMapperTimeout        config.Duration `toml:"shard-mapper-timeout"`
 }
 
 // NewConfig returns an instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
-		WriteTimeout:              toml.Duration(DefaultWriteTimeout),
-		ShardWriterTimeout:        toml.Duration(DefaultShardWriterTimeout),
-		ShardMapperTimeout:        toml.Duration(DefaultShardMapperTimeout),
+		WriteTimeout:              config.Duration(DefaultWriteTimeout),
+		ShardWriterTimeout:        config.Duration(DefaultShardWriterTimeout),
+		ShardMapperTimeout:        config.Duration(DefaultShardMapperTimeout),
 		MaxRemoteWriteConnections: DefaultMaxRemoteWriteConnections,
 	}
 }

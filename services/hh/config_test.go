@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/hh"
 )
 
 func TestConfigParse(t *testing.T) {
 	// Parse configuration.
 	var c hh.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = false
 retry-interval = "10m"
 retry-max-interval = "100m"
@@ -57,7 +57,7 @@ purge-interval = "1h"
 func TestDefaultDisabled(t *testing.T) {
 	// Parse empty configuration.
 	var c hh.Config
-	if _, err := toml.Decode(``, &c); err != nil {
+	if err := config.Decode(``, &c); err != nil {
 		t.Fatal(err)
 	}
 

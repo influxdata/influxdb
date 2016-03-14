@@ -3,14 +3,14 @@ package httpd_test
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/httpd"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c httpd.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = true
 bind-address = ":8080"
 auth-enabled = true

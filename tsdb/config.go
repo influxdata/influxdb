@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -77,28 +77,28 @@ type Config struct {
 	Engine  string `toml:"engine"`
 
 	// WAL config options for b1 (introduced in 0.9.2)
-	MaxWALSize             int           `toml:"max-wal-size"`
-	WALFlushInterval       toml.Duration `toml:"wal-flush-interval"`
-	WALPartitionFlushDelay toml.Duration `toml:"wal-partition-flush-delay"`
+	MaxWALSize             int             `toml:"max-wal-size"`
+	WALFlushInterval       config.Duration `toml:"wal-flush-interval"`
+	WALPartitionFlushDelay config.Duration `toml:"wal-partition-flush-delay"`
 
 	// WAL configuration options for bz1 (introduced in 0.9.3)
-	WALDir                    string        `toml:"wal-dir"`
-	WALLoggingEnabled         bool          `toml:"wal-logging-enabled"`
-	WALReadySeriesSize        int           `toml:"wal-ready-series-size"`
-	WALCompactionThreshold    float64       `toml:"wal-compaction-threshold"`
-	WALMaxSeriesSize          int           `toml:"wal-max-series-size"`
-	WALFlushColdInterval      toml.Duration `toml:"wal-flush-cold-interval"`
-	WALPartitionSizeThreshold uint64        `toml:"wal-partition-size-threshold"`
+	WALDir                    string          `toml:"wal-dir"`
+	WALLoggingEnabled         bool            `toml:"wal-logging-enabled"`
+	WALReadySeriesSize        int             `toml:"wal-ready-series-size"`
+	WALCompactionThreshold    float64         `toml:"wal-compaction-threshold"`
+	WALMaxSeriesSize          int             `toml:"wal-max-series-size"`
+	WALFlushColdInterval      config.Duration `toml:"wal-flush-cold-interval"`
+	WALPartitionSizeThreshold uint64          `toml:"wal-partition-size-threshold"`
 
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
 	// Compaction options for tsm1 (descriptions above with defaults)
-	CacheMaxMemorySize             uint64        `toml:"cache-max-memory-size"`
-	CacheSnapshotMemorySize        uint64        `toml:"cache-snapshot-memory-size"`
-	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
-	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
-	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
+	CacheMaxMemorySize             uint64          `toml:"cache-max-memory-size"`
+	CacheSnapshotMemorySize        uint64          `toml:"cache-snapshot-memory-size"`
+	CacheSnapshotWriteColdDuration config.Duration `toml:"cache-snapshot-write-cold-duration"`
+	CompactFullWriteColdDuration   config.Duration `toml:"compact-full-write-cold-duration"`
+	MaxPointsPerBlock              int             `toml:"max-points-per-block"`
 
 	DataLoggingEnabled bool `toml:"data-logging-enabled"`
 }
@@ -109,22 +109,22 @@ func NewConfig() Config {
 		Engine:                 DefaultEngine,
 		Enabled:                true, // data node enabled by default
 		MaxWALSize:             DefaultMaxWALSize,
-		WALFlushInterval:       toml.Duration(DefaultWALFlushInterval),
-		WALPartitionFlushDelay: toml.Duration(DefaultWALPartitionFlushDelay),
+		WALFlushInterval:       config.Duration(DefaultWALFlushInterval),
+		WALPartitionFlushDelay: config.Duration(DefaultWALPartitionFlushDelay),
 
 		WALLoggingEnabled:         true,
 		WALReadySeriesSize:        DefaultReadySeriesSize,
 		WALCompactionThreshold:    DefaultCompactionThreshold,
 		WALMaxSeriesSize:          DefaultMaxSeriesSize,
-		WALFlushColdInterval:      toml.Duration(DefaultFlushColdInterval),
+		WALFlushColdInterval:      config.Duration(DefaultFlushColdInterval),
 		WALPartitionSizeThreshold: DefaultPartitionSizeThreshold,
 
 		QueryLogEnabled: true,
 
 		CacheMaxMemorySize:             DefaultCacheMaxMemorySize,
 		CacheSnapshotMemorySize:        DefaultCacheSnapshotMemorySize,
-		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
-		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
+		CacheSnapshotWriteColdDuration: config.Duration(DefaultCacheSnapshotWriteColdDuration),
+		CompactFullWriteColdDuration:   config.Duration(DefaultCompactFullWriteColdDuration),
 
 		DataLoggingEnabled: true,
 	}

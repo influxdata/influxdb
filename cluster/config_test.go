@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/cluster"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c cluster.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 shard-writer-timeout = "10s"
 write-timeout = "20s"
 `, &c); err != nil {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -203,6 +204,15 @@ func NewWriter(p PointGenerator, i InfluxClient) Writer {
 
 // Query is query
 type Query string
+
+func (q *Query) UnmarshalTOML(data []byte) error {
+	str, err := strconv.Unquote(string(data))
+	if err != nil {
+		return err
+	}
+	*q = Query(str)
+	return nil
+}
 
 // QueryGenerator is an interface that is used
 // to define queries that will be ran on the DB.

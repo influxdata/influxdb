@@ -3,7 +3,7 @@ package collectd
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 	DefaultBatchPending = 10
 
 	// DefaultBatchDuration is the default batch timeout duration.
-	DefaultBatchDuration = toml.Duration(10 * time.Second)
+	DefaultBatchDuration = config.Duration(10 * time.Second)
 
 	// DefaultTypesDB is the default location of the collectd types db file.
 	DefaultTypesDB = "/usr/share/collectd/types.db"
@@ -44,15 +44,15 @@ const (
 
 // Config represents a configuration for the collectd service.
 type Config struct {
-	Enabled         bool          `toml:"enabled"`
-	BindAddress     string        `toml:"bind-address"`
-	Database        string        `toml:"database"`
-	RetentionPolicy string        `toml:"retention-policy"`
-	BatchSize       int           `toml:"batch-size"`
-	BatchPending    int           `toml:"batch-pending"`
-	BatchDuration   toml.Duration `toml:"batch-timeout"`
-	ReadBuffer      int           `toml:"read-buffer"`
-	TypesDB         string        `toml:"typesdb"`
+	Enabled         bool            `toml:"enabled"`
+	BindAddress     string          `toml:"bind-address"`
+	Database        string          `toml:"database"`
+	RetentionPolicy string          `toml:"retention-policy"`
+	BatchSize       int             `toml:"batch-size"`
+	BatchPending    int             `toml:"batch-pending"`
+	BatchDuration   config.Duration `toml:"batch-timeout"`
+	ReadBuffer      int             `toml:"read-buffer"`
+	TypesDB         string          `toml:"typesdb"`
 }
 
 // NewConfig returns a new instance of Config with defaults.

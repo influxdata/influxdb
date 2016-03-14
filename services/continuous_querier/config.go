@@ -3,7 +3,7 @@ package continuous_querier
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 // Default values for aspects of interval computation.
@@ -23,7 +23,7 @@ type Config struct {
 	// of the interval for running continuous queries. If you only aggregate continuous queries
 	// every minute, this should be set to 1 minute. The default is set to '1s' so the interval
 	// is compatible with most aggregations.
-	RunInterval toml.Duration `toml:"run-interval"`
+	RunInterval config.Duration `toml:"run-interval"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
@@ -31,6 +31,6 @@ func NewConfig() Config {
 	return Config{
 		LogEnabled:  true,
 		Enabled:     true,
-		RunInterval: toml.Duration(DefaultRunInterval),
+		RunInterval: config.Duration(DefaultRunInterval),
 	}
 }

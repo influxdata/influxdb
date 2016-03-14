@@ -3,14 +3,14 @@ package subscriber_test
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/subscriber"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c subscriber.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = false
 `, &c); err != nil {
 		t.Fatal(err)

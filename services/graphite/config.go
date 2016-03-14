@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/toml"
 )
 
 const (
@@ -51,18 +51,18 @@ const (
 
 // Config represents the configuration for Graphite endpoints.
 type Config struct {
-	Enabled          bool          `toml:"enabled"`
-	BindAddress      string        `toml:"bind-address"`
-	Database         string        `toml:"database"`
-	Protocol         string        `toml:"protocol"`
-	BatchSize        int           `toml:"batch-size"`
-	BatchPending     int           `toml:"batch-pending"`
-	BatchTimeout     toml.Duration `toml:"batch-timeout"`
-	ConsistencyLevel string        `toml:"consistency-level"`
-	Templates        []string      `toml:"templates"`
-	Tags             []string      `toml:"tags"`
-	Separator        string        `toml:"separator"`
-	UDPReadBuffer    int           `toml:"udp-read-buffer"`
+	Enabled          bool            `toml:"enabled"`
+	BindAddress      string          `toml:"bind-address"`
+	Database         string          `toml:"database"`
+	Protocol         string          `toml:"protocol"`
+	BatchSize        int             `toml:"batch-size"`
+	BatchPending     int             `toml:"batch-pending"`
+	BatchTimeout     config.Duration `toml:"batch-timeout"`
+	ConsistencyLevel string          `toml:"consistency-level"`
+	Templates        []string        `toml:"templates"`
+	Tags             []string        `toml:"tags"`
+	Separator        string          `toml:"separator"`
+	UDPReadBuffer    int             `toml:"udp-read-buffer"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
@@ -73,7 +73,7 @@ func NewConfig() Config {
 		Protocol:         DefaultProtocol,
 		BatchSize:        DefaultBatchSize,
 		BatchPending:     DefaultBatchPending,
-		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
+		BatchTimeout:     config.Duration(DefaultBatchTimeout),
 		ConsistencyLevel: DefaultConsistencyLevel,
 		Separator:        DefaultSeparator,
 	}
@@ -99,7 +99,7 @@ func (c *Config) WithDefaults() *Config {
 		d.BatchPending = DefaultBatchPending
 	}
 	if d.BatchTimeout == 0 {
-		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+		d.BatchTimeout = config.Duration(DefaultBatchTimeout)
 	}
 	if d.ConsistencyLevel == "" {
 		d.ConsistencyLevel = DefaultConsistencyLevel

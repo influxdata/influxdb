@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c continuous_querier.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 run-interval = "1m"
 enabled = true
 `, &c); err != nil {

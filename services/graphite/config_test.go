@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/graphite"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c graphite.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 bind-address = ":8080"
 database = "mydb"
 enabled = true

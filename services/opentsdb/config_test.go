@@ -3,14 +3,14 @@ package opentsdb_test
 import (
 	"testing"
 
-	"github.com/BurntSushi/toml"
+	"github.com/influxdata/config"
 	"github.com/influxdata/influxdb/services/opentsdb"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c opentsdb.Config
-	if _, err := toml.Decode(`
+	if err := config.Decode(`
 enabled = true
 bind-address = ":9000"
 database = "xxx"

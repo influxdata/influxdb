@@ -3,7 +3,7 @@ package udp
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 const (
@@ -65,14 +65,14 @@ type Config struct {
 	Enabled     bool   `toml:"enabled"`
 	BindAddress string `toml:"bind-address"`
 
-	Database        string        `toml:"database"`
-	RetentionPolicy string        `toml:"retention-policy"`
-	BatchSize       int           `toml:"batch-size"`
-	BatchPending    int           `toml:"batch-pending"`
-	ReadBuffer      int           `toml:"read-buffer"`
-	BatchTimeout    toml.Duration `toml:"batch-timeout"`
-	Precision       string        `toml:"precision"`
-	UDPPayloadSize  int           `toml:"udp-payload-size"`
+	Database        string          `toml:"database"`
+	RetentionPolicy string          `toml:"retention-policy"`
+	BatchSize       int             `toml:"batch-size"`
+	BatchPending    int             `toml:"batch-pending"`
+	ReadBuffer      int             `toml:"read-buffer"`
+	BatchTimeout    config.Duration `toml:"batch-timeout"`
+	Precision       string          `toml:"precision"`
+	UDPPayloadSize  int             `toml:"udp-payload-size"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
@@ -83,7 +83,7 @@ func NewConfig() Config {
 		RetentionPolicy: DefaultRetentionPolicy,
 		BatchSize:       DefaultBatchSize,
 		BatchPending:    DefaultBatchPending,
-		BatchTimeout:    toml.Duration(DefaultBatchTimeout),
+		BatchTimeout:    config.Duration(DefaultBatchTimeout),
 	}
 }
 
@@ -101,7 +101,7 @@ func (c *Config) WithDefaults() *Config {
 		d.BatchPending = DefaultBatchPending
 	}
 	if d.BatchTimeout == 0 {
-		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+		d.BatchTimeout = config.Duration(DefaultBatchTimeout)
 	}
 	if d.Precision == "" {
 		d.Precision = DefaultPrecision

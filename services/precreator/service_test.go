@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/config"
 )
 
 func Test_ShardPrecreation(t *testing.T) {
@@ -28,8 +28,8 @@ func Test_ShardPrecreation(t *testing.T) {
 	}
 
 	srv, err := NewService(Config{
-		CheckInterval: toml.Duration(time.Minute),
-		AdvancePeriod: toml.Duration(advancePeriod),
+		CheckInterval: config.Duration(time.Minute),
+		AdvancePeriod: config.Duration(advancePeriod),
 	})
 	if err != nil {
 		t.Fatalf("failed to create shard precreation service: %s", err.Error())
