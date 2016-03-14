@@ -91,7 +91,14 @@ func TestCacheRace(t *testing.T) {
 	go func() {
 		wg.Done()
 		<-ch
-		s := c.Snapshot()
+		s, err := c.Snapshot()
+		if err == tsm1.ErrSnapshotInProgress {
+			return
+		}
+
+		if err != nil {
+			t.Fatalf("failed to snapshot cache: %v", err)
+		}
 		s.Deduplicate()
 		c.ClearSnapshot(true)
 	}()
@@ -138,7 +145,15 @@ func TestCacheRace2Compacters(t *testing.T) {
 		go func() {
 			wg.Done()
 			<-ch
-			s := c.Snapshot()
+			s, err := c.Snapshot()
+			if err == tsm1.ErrSnapshotInProgress {
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("failed to snapshot cache: %v", err)
+			}
+
 			mu.Lock()
 			mapFiles[fileCounter] = true
 			fileCounter++
