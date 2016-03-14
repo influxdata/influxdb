@@ -429,6 +429,14 @@ func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error
 
 	data := c.cacheData.Clone()
 
+	// See if the user already exists.
+	if u := data.User(name); u != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil || u.Admin != admin {
+			return nil, ErrUserExists
+		}
+		return u, nil
+	}
+
 	// Hash the password before serializing it.
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
