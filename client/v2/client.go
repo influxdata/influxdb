@@ -392,6 +392,11 @@ func (p *Point) Fields() map[string]interface{} {
 	return p.pt.Fields()
 }
 
+// NewPointFrom returns a point from the provided models.Point.
+func NewPointFrom(pt models.Point) *Point {
+	return &Point{pt: pt}
+}
+
 func (uc *udpclient) Write(bp BatchPoints) error {
 	var b bytes.Buffer
 	var d time.Duration
