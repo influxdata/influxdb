@@ -736,7 +736,7 @@ func (data *Data) CreateUser(name, hash string, admin bool) error {
 	// Ensure the user doesn't already exist.
 	if name == "" {
 		return ErrUsernameRequired
-	} else if u := data.User(name); u != nil {
+	} else if data.User(name) != nil {
 		return ErrUserExists
 	}
 
