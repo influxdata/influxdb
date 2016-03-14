@@ -683,6 +683,16 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 	return a, nil
 }
 
+// DropShard deletes a shard by ID.
+func (c *Client) DropShard(id uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	data := c.cacheData.Clone()
+	data.DropShard(id)
+	return c.commit(data)
+}
+
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
 	c.mu.Lock()
