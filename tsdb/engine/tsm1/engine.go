@@ -439,7 +439,10 @@ func (e *Engine) WriteSnapshot() error {
 			return nil, nil, nil, err
 		}
 
-		snapshot := e.Cache.Snapshot()
+		snapshot, err := e.Cache.Snapshot()
+		if err != nil {
+			return nil, nil, nil, err
+		}
 
 		return segments, snapshot, e.Compactor.Clone(), nil
 	}()
