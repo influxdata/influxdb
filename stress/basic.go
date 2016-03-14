@@ -193,7 +193,13 @@ func (b *BasicPointGenerator) Generate() (<-chan Point, error) {
 	go func(c chan Point) {
 		defer close(c)
 
-		start, err := time.Parse("2006-Jan-02", b.StartDate)
+		var start time.Time
+		var err error
+		if b.StartDate == "now" {
+			start = time.Now()
+		} else {
+			start, err = time.Parse("2006-Jan-02", b.StartDate)
+		}
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -238,15 +244,16 @@ func (b *BasicPointGenerator) Time() time.Time {
 // BasicClient implements the InfluxClient
 // interface.
 type BasicClient struct {
-	Enabled       bool     `toml:"enabled"`
-	Addresses     []string `toml:"addresses"`
-	Database      string   `toml:"database"`
-	Precision     string   `toml:"precision"`
-	BatchSize     int      `toml:"batch_size"`
-	BatchInterval string   `toml:"batch_interval"`
-	Concurrency   int      `toml:"concurrency"`
-	SSL           bool     `toml:"ssl"`
-	Format        string   `toml:"format"`
+	Enabled         bool     `toml:"enabled"`
+	Addresses       []string `toml:"addresses"`
+	Database        string   `toml:"database"`
+	RetentionPolicy string   `toml:"retention-policy"`
+	Precision       string   `toml:"precision"`
+	BatchSize       int      `toml:"batch_size"`
+	BatchInterval   string   `toml:"batch_interval"`
+	Concurrency     int      `toml:"concurrency"`
+	SSL             bool     `toml:"ssl"`
+	Format          string   `toml:"format"`
 
 	addrId   int
 	r        chan<- response
@@ -272,7 +279,7 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 	}
 	instanceURLs := make([]string, len(c.Addresses))
 	for i := 0; i < len(c.Addresses); i++ {
-		instanceURLs[i] = fmt.Sprintf("http://%v/write?db=%v&precision=%v", c.Addresses[i], c.Database, c.Precision)
+		instanceURLs[i] = fmt.Sprintf("http://%v/write?db=%v&rp=%v&precision=%v", c.Addresses[i], c.Database, c.RetentionPolicy, c.Precision)
 	}
 
 	c.Addresses = instanceURLs
@@ -290,6 +297,17 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 
 	ctr := 0
 
+	writeBatch := func(b []byte) {
+		wg.Add(1)
+		counter.Increment()
+		go func(byt []byte) {
+			c.retry(byt, time.Duration(1))
+			counter.Decrement()
+			wg.Done()
+		}(b)
+
+	}
+
 	for p := range ps {
 		b := p.Line()
 		c.addrId = ctr % len(c.Addresses)
@@ -300,21 +318,21 @@ func (c *BasicClient) Batch(ps <-chan Point, r chan<- response) error {
 
 		if ctr%c.BatchSize == 0 && ctr != 0 {
 			b := buf.Bytes()
-
+			if len(b) == 0 {
+				continue
+			}
 			// Trimming the trailing newline character
 			b = b[0 : len(b)-1]
 
-			wg.Add(1)
-			counter.Increment()
-			go func(byt []byte) {
-				c.retry(byt, time.Duration(1))
-				counter.Decrement()
-				wg.Done()
-			}(b)
-
+			writeBatch(b)
 			var temp bytes.Buffer
 			buf = temp
 		}
+	}
+	// Write out any remaining points
+	b := buf.Bytes()
+	if len(b) > 0 {
+		writeBatch(b)
 	}
 
 	wg.Wait()
@@ -655,8 +673,9 @@ func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Ti
 			Addr: o.addr,
 		})
 		bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
-			Database:  o.database,
-			Precision: "ns",
+			Database:        o.database,
+			RetentionPolicy: o.retentionPolicy,
+			Precision:       "ns",
 		})
 		for p := range r {
 			o.mu.Lock()
@@ -672,8 +691,9 @@ func (o *outputConfig) HTTPHandler(method string) func(r <-chan response, rt *Ti
 				c.Write(bp)
 				o.mu.Lock()
 				bp, _ = client.NewBatchPoints(client.BatchPointsConfig{
-					Database:  o.database,
-					Precision: "ns",
+					Database:        o.database,
+					RetentionPolicy: o.retentionPolicy,
+					Precision:       "ns",
 				})
 				o.mu.Unlock()
 			}
