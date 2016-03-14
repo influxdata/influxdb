@@ -13,8 +13,11 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-var ErrCacheMemoryExceeded = fmt.Errorf("cache maximum memory size exceeded")
-var ErrCacheInvalidCheckpoint = fmt.Errorf("invalid checkpoint")
+var (
+	ErrCacheMemoryExceeded    = fmt.Errorf("cache maximum memory size exceeded")
+	ErrCacheInvalidCheckpoint = fmt.Errorf("invalid checkpoint")
+	ErrSnapshotInProgress     = fmt.Errorf("snapshot in progress")
+)
 
 // entry is a set of values and some metadata.
 type entry struct {
@@ -103,6 +106,7 @@ type Cache struct {
 	// they are read only and should never be modified
 	snapshot     *Cache
 	snapshotSize uint64
+	snapshotting bool
 
 	// This number is the number of pending or failed WriteSnaphot attempts since the last successful one.
 	snapshotAttempts int
@@ -188,12 +192,15 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 // Snapshot will take a snapshot of the current cache, add it to the slice of caches that
 // are being flushed, and reset the current cache with new values
-func (c *Cache) Snapshot() *Cache {
-	c.commit.Lock() // must be released by a subsequent call to ClearSnapshot.
-
+func (c *Cache) Snapshot() (*Cache, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.snapshotting {
+		return nil, ErrSnapshotInProgress
+	}
+
+	c.snapshotting = true
 	c.snapshotAttempts++ // increment the number of times we tried to do this
 
 	// If no snapshot exists, create a new one, otherwise update the existing snapshot
@@ -229,7 +236,7 @@ func (c *Cache) Snapshot() *Cache {
 	c.updateCachedBytes(snapshotSize)     // increment the number of bytes added to the snapshot
 	c.updateSnapshots()
 
-	return c.snapshot
+	return c.snapshot, nil
 }
 
 // Deduplicate sorts the snapshot before returning it. The compactor and any queries
@@ -243,12 +250,12 @@ func (c *Cache) Deduplicate() {
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and
 // adjust the size
 func (c *Cache) ClearSnapshot(success bool) {
-	defer c.commit.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.snapshotting = false
 
 	if success {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
 		c.snapshotAttempts = 0
 		c.snapshotSize = 0
 		c.snapshot = nil

@@ -148,7 +148,11 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshot := c.Snapshot()
+	snapshot, err := c.Snapshot()
+	if err != nil {
+		t.Fatalf("failed to snapshot cache: %v", err)
+	}
+
 	expValues := Values{v0, v1, v2, v3}
 	if deduped := snapshot.values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", expValues, deduped)
@@ -186,7 +190,10 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	// Create another snapshot
-	snapshot = c.Snapshot()
+	snapshot, err = c.Snapshot()
+	if err != nil {
+		t.Fatalf("failed to snapshot cache: %v", err)
+	}
 
 	if err := c.Write("foo", Values{v4, v5}); err != nil {
 		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
@@ -194,7 +201,10 @@ func TestCache_CacheSnapshot(t *testing.T) {
 
 	c.ClearSnapshot(true)
 
-	snapshot = c.Snapshot()
+	snapshot, err = c.Snapshot()
+	if err != nil {
+		t.Fatalf("failed to snapshot cache: %v", err)
+	}
 
 	if err := c.Write("foo", Values{v6, v7}); err != nil {
 		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
@@ -210,7 +220,10 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	c := NewCache(512, "")
 
 	// Grab snapshot, and ensure it's as expected.
-	snapshot := c.Snapshot()
+	snapshot, err := c.Snapshot()
+	if err != nil {
+		t.Fatalf("failed to snapshot cache: %v", err)
+	}
 	if deduped := snapshot.values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", nil, deduped)
 	}
@@ -244,7 +257,10 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	}
 
 	// Grab snapshot, write should still fail since we're still using the memory.
-	_ = c.Snapshot()
+	_, err := c.Snapshot()
+	if err != nil {
+		t.Fatalf("failed to snapshot cache: %v", err)
+	}
 	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
