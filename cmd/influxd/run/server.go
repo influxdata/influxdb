@@ -2,14 +2,12 @@ package run
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
-	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -118,21 +116,11 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	node, err := influxdb.LoadNode(c.Meta.Dir)
+	_, err := influxdb.LoadNode(c.Meta.Dir)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		}
-
-		node = influxdb.NewNode(c.Meta.Dir)
-	}
-
-	// In 0.11 we removed MetaServers from node.json.  To avoid confusion for
-	// existing users, force a re-save of the node.json file to remove that property
-	// if it happens to exist.
-	nodeContents, err := ioutil.ReadFile(filepath.Join(c.Meta.Dir, "node.json"))
-	if err == nil && strings.Contains(string(nodeContents), "MetaServers") {
-		node.Save()
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check

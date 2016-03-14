@@ -97,7 +97,7 @@ func (c *Client) Open() error {
 
 	// If this is a brand new instance, persist to disk immediatly.
 	if c.cacheData.Index == 1 {
-		if err := c.Snapshot(); err != nil {
+		if err := snapshot(c.path, c.cacheData); err != nil {
 			return err
 		}
 	}
@@ -207,7 +207,10 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 
 	db := data.Database(name)
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -247,7 +250,10 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPo
 
 	db := data.Database(name)
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }
 
@@ -262,7 +268,10 @@ func (c *Client) DropDatabase(name string) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -290,7 +299,10 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo
 		return nil, err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return nil, err
+	}
+
 	return rp, nil
 }
 
@@ -319,7 +331,10 @@ func (c *Client) DropRetentionPolicy(database, name string) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -334,7 +349,10 @@ func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -349,7 +367,10 @@ func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPoli
 		return err
 	}
 
-	defer c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -420,7 +441,10 @@ func (c *Client) CreateUser(name, password string, admin bool) (*UserInfo, error
 
 	u := data.User(name)
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return nil, err
+	}
+
 	return u, nil
 }
 
@@ -442,7 +466,10 @@ func (c *Client) UpdateUser(name, password string) error {
 
 	delete(c.authCache, name)
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -456,7 +483,10 @@ func (c *Client) DropUser(name string) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -470,7 +500,10 @@ func (c *Client) SetPrivilege(username, database string, p influxql.Privilege) e
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -484,7 +517,10 @@ func (c *Client) SetAdminPrivilege(username string, admin bool) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -651,7 +687,10 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 		return nil, err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return nil, err
+	}
+
 	return sgi, nil
 }
 
@@ -686,7 +725,10 @@ func (c *Client) DeleteShardGroup(database, policy string, id uint64) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -722,7 +764,10 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 		}
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -763,7 +808,10 @@ func (c *Client) CreateContinuousQuery(database, name, query string) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -777,7 +825,10 @@ func (c *Client) DropContinuousQuery(database, name string) error {
 		return nil
 	}
 
-	defer c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -791,7 +842,10 @@ func (c *Client) CreateSubscription(database, rp, name, mode string, destination
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -805,7 +859,10 @@ func (c *Client) DropSubscription(database, rp, name string) error {
 		return err
 	}
 
-	c.commit(data)
+	if err := c.commit(data); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -818,7 +875,10 @@ func (c *Client) SetData(data *Data) error {
 	// increment the index to force the changed channel to fire
 	d := data.Clone()
 	d.Index++
-	c.commit(d)
+
+	if err := c.commit(d); err != nil {
+		return err
+	}
 
 	c.mu.Unlock()
 
@@ -834,12 +894,22 @@ func (c *Client) WaitForDataChanged() chan struct{} {
 }
 
 // commit assumes it is under a full lock
-func (c *Client) commit(data *Data) {
+func (c *Client) commit(data *Data) error {
 	data.Index++
+
+	// try to write to disk before updating in memory
+	if err := snapshot(c.path, data); err != nil {
+		return err
+	}
+
+	// update in memory
 	c.cacheData = data
-	c.Snapshot()
+
+	// close channels to signal changes
 	close(c.changed)
 	c.changed = make(chan struct{})
+
+	return nil
 }
 
 func (c *Client) MarshalBinary() ([]byte, error) {
@@ -869,9 +939,9 @@ func (c *Client) updateAuthCache() {
 	c.authCache = newCache
 }
 
-// Snapshot will save the current meta data to disk
-func (c *Client) Snapshot() error {
-	file := filepath.Join(c.path, metaFile)
+// snapshot will save the current meta data to disk
+func snapshot(path string, data *Data) error {
+	file := filepath.Join(path, metaFile)
 	tmpFile := file + "tmp"
 
 	f, err := os.Create(tmpFile)
@@ -880,14 +950,14 @@ func (c *Client) Snapshot() error {
 	}
 	defer f.Close()
 
-	var data []byte
-	if b, err := c.cacheData.MarshalBinary(); err != nil {
+	var d []byte
+	if b, err := data.MarshalBinary(); err != nil {
 		return err
 	} else {
-		data = b
+		d = b
 	}
 
-	if _, err := f.Write(data); err != nil {
+	if _, err := f.Write(d); err != nil {
 		return err
 	}
 

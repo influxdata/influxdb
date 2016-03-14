@@ -118,6 +118,14 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace, JSONWriteEnab
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
 		},
+		route{ // Ping w/ status
+			"status",
+			"GET", "/status", true, true, h.serveStatus,
+		},
+		route{ // Ping w/ status
+			"status-head",
+			"HEAD", "/status", true, true, h.serveStatus,
+		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
 			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
@@ -558,6 +566,13 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	h.statMap.Add(statPingRequest, 1)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveStatus has been depricated
+func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
+	h.Logger.Printf("WARNING: /status has been depricated.  Use /ping instead.")
+	h.statMap.Add(statStatusRequest, 1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
