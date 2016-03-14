@@ -2,6 +2,8 @@
 
 ### Features
 
+- [#6012](https://github.com/influxdata/influxdb/pull/6012): Add DROP SHARD support.
+
 ### Bugfixes
 
 ## v0.11.0 [unreleased]
