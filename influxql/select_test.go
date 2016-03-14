@@ -1592,36 +1592,36 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			Name:      "nil binary add",
 			Statement: `SELECT total + value FROM cpu`,
 			Points: [][]influxql.Point{
-				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
 				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 25}},
-				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
 			},
 		},
 		{
 			Name:      "nil binary subtract",
 			Statement: `SELECT total - value FROM cpu`,
 			Points: [][]influxql.Point{
-				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
 				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: -5}},
-				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: -5}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
 			},
 		},
 		{
 			Name:      "nil binary multiply",
 			Statement: `SELECT total * value FROM cpu`,
 			Points: [][]influxql.Point{
-				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
 				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: 150}},
-				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
 			},
 		},
 		{
 			Name:      "nil binary division",
 			Statement: `SELECT total / value FROM cpu`,
 			Points: [][]influxql.Point{
-				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Nil: true}},
 				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(15)}},
-				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Nil: true}},
 			},
 		},
 	} {
