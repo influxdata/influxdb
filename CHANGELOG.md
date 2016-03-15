@@ -86,6 +86,14 @@ There were some important breaking changes in this release. Here's a list of the
 - [#5965](https://github.com/influxdata/influxdb/issues/5965): InfluxDB panic crashes while parsing "-" as Float
 - [#5835](https://github.com/influxdata/influxdb/issues/5835): Make CREATE USER default to IF NOT EXISTS
 
+## v0.10.3 [2016-03-09]
+
+### Bugfixes
+
+- [#5924](https://github.com/influxdata/influxdb/issues/5924): Missing data after using influx\_tsm
+- [#5594](https://github.com/influxdata/influxdb/pull/5594): Fix missing url params on lease redirect - @oldmantaiter
+- [#5716](https://github.com/influxdata/influxdb/pull/5716): models: improve handling of points with empty field names or with no fields.
+
 ## v0.10.2 [2016-03-03]
 
 ### Bugfixes
