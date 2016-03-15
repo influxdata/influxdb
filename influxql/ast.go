@@ -367,8 +367,19 @@ func (a *Sources) UnmarshalBinary(buf []byte) error {
 }
 
 // IsSystemName returns true if name is an internal system name.
-// System names are prefixed with an underscore.
-func IsSystemName(name string) bool { return strings.HasPrefix(name, "_") }
+func IsSystemName(name string) bool {
+	switch name {
+	case "_fieldKeys",
+		"_measurements",
+		"_series",
+		"_tagKey",
+		"_tagKeys",
+		"_tags":
+		return true
+	default:
+		return false
+	}
+}
 
 // SortField represents a field to sort results by.
 type SortField struct {
