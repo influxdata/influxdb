@@ -1,13 +1,25 @@
 # Converting b1 and bz1 shards to tsm1
-`influx_tsm` is a tool for converting b1 and bz1 shards to tsm1 format. Converting shards to tsm1 format results in a very significant reduction in disk usage, and significantly improved write-throughput, when writing data into those shards.
 
-Conversion can be controlled on a database-by-database basis. By default a database is backed up before it is converted, allowing you to roll back any changes. Because of the backup process, ensure the host system has at least as much free disk space as the disk space consumed by the _data_ directory of your InfluxDB system.
+`influx_tsm` is a tool for converting b1 and bz1 shards to tsm1
+format. Converting shards to tsm1 format results in a very significant
+reduction in disk usage, and significantly improved write-throughput,
+when writing data into those shards.
 
-The tool automatically ignores tsm1 shards, and can be run idempotently on any database.
+Conversion can be controlled on a database-by-database basis. By
+default a database is backed up before it is converted, allowing you
+to roll back any changes. Because of the backup process, ensure the
+host system has at least as much free disk space as the disk space
+consumed by the _data_ directory of your InfluxDB system.
 
-Conversion is an offline process, and the InfluxDB system must be stopped during conversion. However the conversion process reads and writes shards directly on disk and should be fast.
+The tool automatically ignores tsm1 shards, and can be run
+idempotently on any database.
+
+Conversion is an offline process, and the InfluxDB system must be
+stopped during conversion. However the conversion process reads and
+writes shards directly on disk and should be fast.
 
 ## Steps
+
 Follow these steps to perform a conversion.
 
 * Identify the databases you wish to convert. You can convert one or more databases at a time. By default all databases are converted.
@@ -22,16 +34,18 @@ Follow these steps to perform a conversion.
 * Restart write traffic.
 
 ## Example session
+
 Below is an example session, showing a database being converted.
 
 ```
-$ mkdir ~/influxdb_backup
-$ influx_tsm -backup ~/influxdb_backup -parallel ~/.influxdb/data
+$ # Create a backup location that the `influxdb` user has full access to
+$ mkdir -m 0777 /path/to/influxdb_backup
+$ sudo -u influxdb influx_tsm -backup /path/to/influxdb_backup -parallel /var/lib/influxdb/data
 
 b1 and bz1 shard conversion.
 -----------------------------------
-Data directory is:                  /home/user/.influxdb/data
-Backup directory is:                /home/user/influxdb_backup
+Data directory is:                  /var/lib/influxdb/data
+Backup directory is:                /path/to/influxdb_backup
 Databases specified:                all
 Database backups enabled:           yes
 Parallel mode enabled (GOMAXPROCS): yes (8)
@@ -40,16 +54,16 @@ Parallel mode enabled (GOMAXPROCS): yes (8)
 Found 1 shards that will be converted.
 
 Database        Retention       Path                                                    Engine  Size
-_internal       monitor         /home/user/.influxdb/data/_internal/monitor/1           bz1     65536
+_internal       monitor         /var/lib/influxdb/data/_internal/monitor/1           bz1     65536
 
 These shards will be converted. Proceed? y/N: y
 Conversion starting....
 Backing up 1 databases...
 2016/01/28 12:23:43.699266 Backup of databse '_internal' started
-2016/01/28 12:23:43.699883 Backing up file /home/user/.influxdb/data/_internal/monitor/1
+2016/01/28 12:23:43.699883 Backing up file /var/lib/influxdb/data/_internal/monitor/1
 2016/01/28 12:23:43.700052 Database _internal backed up (851.776µs)
-2016/01/28 12:23:43.700320 Starting conversion of shard: /home/user/.influxdb/data/_internal/monitor/1
-2016/01/28 12:23:43.706276 Conversion of /home/user/.influxdb/data/_internal/monitor/1 successful (6.040148ms)
+2016/01/28 12:23:43.700320 Starting conversion of shard: /var/lib/influxdb/data/_internal/monitor/1
+2016/01/28 12:23:43.706276 Conversion of /var/lib/influxdb/data/_internal/monitor/1 successful (6.040148ms)
 
 Summary statistics
 ========================================
@@ -68,22 +82,40 @@ Bytes per TSM point:                 29.81
 Total conversion time:               7.330443ms
 
 $ # restart node, verify data
-
-$ rm -r ~/influxdb_backup
+$ sudo rm -r /path/to/influxdb_backup
 ```
 
-Note that the tool first lists the shards that will be converted, before asking for confirmation. You can abort the conversion process at this step if you just wish to see what would be converted, or if the list of shards does not look correct.
+Note that the tool first lists the shards that will be converted,
+before asking for confirmation. You can abort the conversion process
+at this step if you just wish to see what would be converted, or if
+the list of shards does not look correct.
+
+__WARNING:__ If you run the `influx_tsm` tool as a user other than the
+`influxdb` user (or the user that the InfluxDB process runs under),
+please make sure to verify the shard permissions are correct prior to
+starting InfluxDB. If needed, shard permissions can be corrected with
+the `chown` command. For example:
+
+```
+sudo chown -R influxdb:influxdb /var/lib/influxdb
+```
 
 ## Rolling back a conversion
-After a successful backup (the message `Database XYZ backed up` was logged), you have a duplicate of that database in the _backup_ directory you provided on the command line. If, when checking your data after a successful conversion, you notice things missing or something just isn't right, you can "undo"  the conversion:
+
+After a successful backup (the message `Database XYZ backed up` was
+logged), you have a duplicate of that database in the _backup_
+directory you provided on the command line. If, when checking your
+data after a successful conversion, you notice things missing or
+something just isn't right, you can "undo" the conversion:
 
 - Shut down your node (this is very important)
-- Remove the database's directory from the influxdb `data` directory (default: ~/.influxdb/data/XYZ)
+- Remove the database's directory from the influxdb `data` directory (default: `~/.influxdb/data/XYZ` for binary installations or `/var/lib/influxdb/data/XYZ` for packaged installations)
 - Copy (to really make sure the shard is preserved) the database's directory from the backup directory you created into the `data` directory.
 
 Using the same directories as above, and assuming a database named `stats`:
+
 ```
-$ rm -r ~/.influxdb/data/stats
-$ cp -r ~/influxdb_backup/stats ~/.influxdb/data/
+$ sudo rm -r /var/lib/influxdb/data/stats
+$ sudo cp -r /path/to/influxdb_backup/stats /var/lib/influxdb/data/
 $ # restart influxd node
 ```
