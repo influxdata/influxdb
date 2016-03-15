@@ -180,7 +180,7 @@ func (d *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, bo
 			// Match on name, if specified.
 			if tag.Val == "name" {
 				return d.measurementsByNameFilter(tf.Op, tf.Value, tf.Regex), true, nil
-			} else if strings.HasPrefix(tag.Val, "_") {
+			} else if influxql.IsSystemName(tag.Val) {
 				return nil, false, nil
 			}
 
