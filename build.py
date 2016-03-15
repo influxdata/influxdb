@@ -531,6 +531,10 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                     package_build_root = build_root
                     current_location = build_output[platform][arch]
 
+                    if rc is not None:
+                        # Set iteration to 0 since it's a release candidate
+                        package_iteration = "0.rc{}".format(rc)
+
                     if package_type in ['zip', 'tar']:
                         # For tars and zips, start the packaging one folder above
                         # the build root (to include the package name)
@@ -551,10 +555,6 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                         current_location = os.path.join(current_location, name + '.tar.gz')
                     elif package_type == 'zip':
                         current_location = os.path.join(current_location, name + '.zip')
-
-                    if rc is not None:
-                        # Set iteration to 0 since it's a release candidate
-                        package_iteration = "0.rc{}".format(rc)
 
                     fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
                         fpm_common_args,
