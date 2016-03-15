@@ -145,6 +145,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			err = e.executeDropRetentionPolicyStatement(stmt)
 		case *influxql.DropServerStatement:
 			err = influxql.ErrInvalidQuery
+		case *influxql.DropShardStatement:
+			err = e.executeDropShardStatement(stmt)
 		case *influxql.DropSubscriptionStatement:
 			err = e.executeDropSubscriptionStatement(stmt)
 		case *influxql.DropUserStatement:
