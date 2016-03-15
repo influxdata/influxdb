@@ -1,5 +1,16 @@
 ## v0.11.0 [unreleased]
 
+### Release Notes
+
+There were some important breaking changes in this release. Here's a list of the important things to know before upgrading:
+
+* [SHOW SERIES output has changed](https://github.com/influxdata/influxdb/pull/5937). See [new output in this test diff](https://github.com/influxdata/influxdb/pull/5937/files#diff-0cb24c2b7420b4db507ee3496c371845L263).
+* [SHOW TAG VALUES output has changed](https://github.com/influxdata/influxdb/pull/5853)
+* JSON write endpoint is disabled by default and will be removed in the next release. You can [turn it back on](https://github.com/influxdata/influxdb/pull/5512) in this release.
+* b1/bz1 shards are no longer supported. You must migrate all old shards to TSM using [the migration tool](https://github.com/influxdata/influxdb/blob/master/cmd/influx_tsm/README.md).
+* On queries to create databases, retention policies, and users, the default behavior has changed to create `IF NOT EXISTS`. If they already exist, no error will be returned.
+* On queries with a selector like `min`, `max`, `first`, and `last` the time returned will be the time for the bucket of the group by window. [Selectors for the time for the specific point](https://github.com/influxdata/influxdb/issues/5926) will be added later.
+
 ### Features
 
 - [#5596](https://github.com/influxdata/influxdb/pull/5596): Build improvements for ARM architectures. Also removed `--goarm` and `--pkgarch` build flags.
