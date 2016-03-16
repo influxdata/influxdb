@@ -178,7 +178,7 @@ func (d *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, bo
 			}
 
 			// Match on name, if specified.
-			if tag.Val == "name" {
+			if tag.Val == "_name" {
 				return d.measurementsByNameFilter(tf.Op, tf.Value, tf.Regex), true, nil
 			} else if influxql.IsSystemName(tag.Val) {
 				return nil, false, nil
@@ -743,12 +743,12 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 
 	// For fields, return all series IDs from this measurement and return
 	// the expression passed in, as the filter.
-	if name.Val != "name" && m.HasField(name.Val) {
+	if name.Val != "_name" && m.HasField(name.Val) {
 		return m.seriesIDs, n, nil
 	}
 
 	tagVals, ok := m.seriesByTagKeyValue[name.Val]
-	if name.Val != "name" && !ok {
+	if name.Val != "_name" && !ok {
 		return nil, nil, nil
 	}
 
@@ -756,8 +756,8 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	if str, ok := value.(*influxql.StringLiteral); ok {
 		var ids SeriesIDs
 
-		// Special handling for "name" to match measurement name.
-		if name.Val == "name" {
+		// Special handling for "_name" to match measurement name.
+		if name.Val == "_name" {
 			if (n.Op == influxql.EQ && str.Val == m.Name) || (n.Op == influxql.NEQ && str.Val != m.Name) {
 				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
 			}
@@ -777,8 +777,8 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	if re, ok := value.(*influxql.RegexLiteral); ok {
 		var ids SeriesIDs
 
-		// Special handling for "name" to match measurement name.
-		if name.Val == "name" {
+		// Special handling for "_name" to match measurement name.
+		if name.Val == "_name" {
 			match := re.Val.MatchString(m.Name)
 			if (n.Op == influxql.EQREGEX && match) || (n.Op == influxql.NEQREGEX && !match) {
 				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
