@@ -2,135 +2,20 @@ package httpd_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"regexp"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 )
-
-func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
-	now := time.Now().UTC()
-	tests := []struct {
-		name      string
-		epoch     int64
-		precision string
-		expected  time.Time
-	}{
-		{
-			name:      "nanoseconds",
-			epoch:     now.UnixNano(),
-			precision: "n",
-			expected:  now,
-		},
-		{
-			name:      "microseconds",
-			epoch:     now.Round(time.Microsecond).UnixNano() / int64(time.Microsecond),
-			precision: "u",
-			expected:  now.Round(time.Microsecond),
-		},
-		{
-			name:      "milliseconds",
-			epoch:     now.Round(time.Millisecond).UnixNano() / int64(time.Millisecond),
-			precision: "ms",
-			expected:  now.Round(time.Millisecond),
-		},
-		{
-			name:      "seconds",
-			epoch:     now.Round(time.Second).UnixNano() / int64(time.Second),
-			precision: "s",
-			expected:  now.Round(time.Second),
-		},
-		{
-			name:      "minutes",
-			epoch:     now.Round(time.Minute).UnixNano() / int64(time.Minute),
-			precision: "m",
-			expected:  now.Round(time.Minute),
-		},
-		{
-			name:      "hours",
-			epoch:     now.Round(time.Hour).UnixNano() / int64(time.Hour),
-			precision: "h",
-			expected:  now.Round(time.Hour),
-		},
-		{
-			name:      "max int64",
-			epoch:     9223372036854775807,
-			precision: "n",
-			expected:  time.Unix(0, 9223372036854775807),
-		},
-		{
-			name:      "100 years from now",
-			epoch:     now.Add(time.Hour * 24 * 365 * 100).UnixNano(),
-			precision: "n",
-			expected:  now.Add(time.Hour * 24 * 365 * 100),
-		},
-	}
-
-	for _, test := range tests {
-		t.Logf("testing %q\n", test.name)
-		data := []byte(fmt.Sprintf(`{"time": %d, "precision":"%s"}`, test.epoch, test.precision))
-		t.Logf("json: %s", string(data))
-		var bp client.BatchPoints
-		err := json.Unmarshal(data, &bp)
-		if err != nil {
-			t.Fatalf("unexpected error.  expected: %v, actual: %v", nil, err)
-		}
-		if !bp.Time.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Time)
-		}
-	}
-}
-
-func TestBatchWrite_UnmarshalRFC(t *testing.T) {
-	now := time.Now()
-	tests := []struct {
-		name     string
-		rfc      string
-		now      time.Time
-		expected time.Time
-	}{
-		{
-			name:     "RFC3339Nano",
-			rfc:      time.RFC3339Nano,
-			now:      now,
-			expected: now,
-		},
-		{
-			name:     "RFC3339",
-			rfc:      time.RFC3339,
-			now:      now.Round(time.Second),
-			expected: now.Round(time.Second),
-		},
-	}
-
-	for _, test := range tests {
-		t.Logf("testing %q\n", test.name)
-		ts := test.now.Format(test.rfc)
-		data := []byte(fmt.Sprintf(`{"time": %q}`, ts))
-		t.Logf("json: %s", string(data))
-		var bp client.BatchPoints
-		err := json.Unmarshal(data, &bp)
-		if err != nil {
-			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
-		}
-		if !bp.Time.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Time)
-		}
-	}
-}
 
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_Query(t *testing.T) {
@@ -391,71 +276,6 @@ type invalidJSON struct{}
 
 func (*invalidJSON) MarshalJSON() ([]byte, error) { return nil, errors.New("marker") }
 
-func TestNormalizeBatchPoints(t *testing.T) {
-	now := time.Now()
-	tests := []struct {
-		name string
-		bp   client.BatchPoints
-		p    []models.Point
-		err  string
-	}{
-		{
-			name: "default",
-			bp: client.BatchPoints{
-				Points: []client.Point{
-					{Measurement: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
-				},
-			},
-			p: []models.Point{
-				models.MustNewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
-			},
-		},
-		{
-			name: "merge time",
-			bp: client.BatchPoints{
-				Time: now,
-				Points: []client.Point{
-					{Measurement: "cpu", Tags: map[string]string{"region": "useast"}, Fields: map[string]interface{}{"value": 1.0}},
-				},
-			},
-			p: []models.Point{
-				models.MustNewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
-			},
-		},
-		{
-			name: "merge tags",
-			bp: client.BatchPoints{
-				Tags: map[string]string{"day": "monday"},
-				Points: []client.Point{
-					{Measurement: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
-					{Measurement: "memory", Time: now, Fields: map[string]interface{}{"value": 2.0}},
-				},
-			},
-			p: []models.Point{
-				models.MustNewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
-				models.MustNewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Logf("running test %q", test.name)
-		p, e := httpd.NormalizeBatchPoints(test.bp)
-		if test.err == "" && e != nil {
-			t.Errorf("unexpected error %v", e)
-		} else if test.err != "" && e == nil {
-			t.Errorf("expected error %s, got <nil>", test.err)
-		} else if e != nil && test.err != e.Error() {
-			t.Errorf("unexpected error. expected: %s, got %v", test.err, e)
-		}
-		if !reflect.DeepEqual(p, test.p) {
-			t.Logf("expected: %+v", test.p)
-			t.Logf("got:      %+v", p)
-			t.Error("failed to normalize.")
-		}
-	}
-}
-
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
@@ -467,7 +287,7 @@ type Handler struct {
 func NewHandler(requireAuthentication bool) *Handler {
 	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
 	h := &Handler{
-		Handler: httpd.NewHandler(requireAuthentication, true, false, false, statMap),
+		Handler: httpd.NewHandler(requireAuthentication, true, false, statMap),
 	}
 	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = &h.QueryExecutor
