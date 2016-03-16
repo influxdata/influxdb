@@ -21,25 +21,6 @@ func RewriteStatement(stmt Statement) (Statement, error) {
 }
 
 func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, error) {
-	var condition Expr
-	if len(stmt.Sources) > 0 {
-		if source, ok := stmt.Sources[0].(*Measurement); ok {
-			if source.Regex != nil {
-				condition = &BinaryExpr{
-					Op:  EQREGEX,
-					LHS: &VarRef{Val: "name"},
-					RHS: &RegexLiteral{Val: source.Regex.Val},
-				}
-			} else if source.Name != "" {
-				condition = &BinaryExpr{
-					Op:  EQ,
-					LHS: &VarRef{Val: "name"},
-					RHS: &StringLiteral{Val: source.Name},
-				}
-			}
-		}
-	}
-
 	return &SelectStatement{
 		Fields: Fields([]*Field{
 			{Expr: &VarRef{Val: "fieldKey"}},
@@ -47,7 +28,7 @@ func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, err
 		Sources: Sources([]Source{
 			&Measurement{Name: "_fieldKeys"},
 		}),
-		Condition:  condition,
+		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
@@ -69,7 +50,7 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 
 	return &SelectStatement{
 		Fields: Fields([]*Field{
-			{Expr: &VarRef{Val: "name"}},
+			{Expr: &VarRef{Val: "_name"}, Alias: "name"},
 		}),
 		Sources: Sources([]Source{
 			&Measurement{Name: "_measurements"},
@@ -201,13 +182,13 @@ func rewriteSourcesCondition(sources Sources, cond Expr) Expr {
 		if mm.Regex != nil {
 			expr = &BinaryExpr{
 				Op:  EQREGEX,
-				LHS: &VarRef{Val: "name"},
+				LHS: &VarRef{Val: "_name"},
 				RHS: &RegexLiteral{Val: mm.Regex.Val},
 			}
 		} else if mm.Name != "" {
 			expr = &BinaryExpr{
 				Op:  EQ,
-				LHS: &VarRef{Val: "name"},
+				LHS: &VarRef{Val: "_name"},
 				RHS: &StringLiteral{Val: mm.Name},
 			}
 		}
