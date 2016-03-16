@@ -561,16 +561,25 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		nvals := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
 
-		var values []Value
+		values := make([]Value, nvals)
 		switch typ {
 		case float64EntryType:
-			values = getFloat64Values(nvals)
+			for i := 0; i < nvals; i++ {
+				values[i] = &FloatValue{}
+			}
 		case integerEntryType:
-			values = getIntegerValues(nvals)
+			for i := 0; i < nvals; i++ {
+				values[i] = &IntegerValue{}
+			}
 		case booleanEntryType:
-			values = getBooleanValues(nvals)
+			for i := 0; i < nvals; i++ {
+				values[i] = &BooleanValue{}
+			}
 		case stringEntryType:
-			values = getStringValues(nvals)
+			for i := 0; i < nvals; i++ {
+				values[i] = &StringValue{}
+			}
+
 		default:
 			return fmt.Errorf("unsupported value type: %#v", typ)
 		}
