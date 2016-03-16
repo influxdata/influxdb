@@ -116,6 +116,9 @@ func (s *Store) loadShards() error {
 		s   *Shard
 		err error
 	}
+
+	throttle := newthrottle(4)
+
 	resC := make(chan *res)
 	var n int
 
@@ -140,6 +143,9 @@ func (s *Store) loadShards() error {
 			for _, sh := range shards {
 				n++
 				go func(index *DatabaseIndex, db, rp, sh string) {
+					throttle.take()
+					defer throttle.release()
+
 					start := time.Now()
 					path := filepath.Join(s.path, db, rp, sh)
 					walPath := filepath.Join(s.EngineOptions.Config.WALDir, db, rp, sh)
@@ -861,4 +867,29 @@ func measurementsFromSourcesOrDB(db *DatabaseIndex, sources ...influxql.Source) 
 	sort.Sort(measurements)
 
 	return measurements, nil
+}
+
+// throttle is a simple channel based concurrency limiter.  It uses a fixed
+// size channel to limit callers from proceeding until there is a value avalable
+// in the channel.  If all are in-use, the caller blocks until one is freed.
+type throttle struct {
+	c chan struct{}
+}
+
+func newthrottle(limit int) *throttle {
+	t := &throttle{
+		c: make(chan struct{}, limit),
+	}
+	for i := 0; i < limit; i++ {
+		t.c <- struct{}{}
+	}
+	return t
+}
+
+func (t *throttle) take() {
+	<-t.c
+}
+
+func (t *throttle) release() {
+	t.c <- struct{}{}
 }
