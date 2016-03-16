@@ -122,7 +122,16 @@ def package_scripts(build_root):
 
 def run_generate():
     print "Running go generate to rebuild admin UI static filesystem..."
+    if not check_path_for("statik"):
+        run("go install github.com/rakyll/statik")
+    orig_path = None
+    if os.path.join(os.environ.get("GOPATH"), "bin") not in os.environ["PATH"].split(os.pathsep):
+        orig_path = os.environ["PATH"].split(os.pathsep)
+        os.environ["PATH"] = os.environ["PATH"].split(os.pathsep).append(os.path.join(os.environ.get("GOPATH"), "bin"))
+    run("rm -f ./services/admin/statik/statik.go")
     run("go generate ./services/admin")
+    if orig_path is not None:
+        os.environ["PATH"] = orig_path
     return True
 
 def go_get(branch, update=False, no_stash=False):
@@ -149,7 +158,7 @@ def run(command, allow_failure=False, shell=False):
         else:
             out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
         if debug:
-            print "[DEBUG] command output: \n{}\n".format(out)
+            print "[DEBUG] command output:\n {}".format(out)
     except subprocess.CalledProcessError as e:
         print ""
         print ""
@@ -368,7 +377,8 @@ def build(version=None,
           rc=None,
           race=False,
           clean=False,
-          outdir="."):
+          outdir=".",
+          tags=[]):
     print ""
     print "-------------------------"
     print ""
@@ -382,6 +392,8 @@ def build(version=None,
     print "- arch: {}".format(arch)
     print "- nightly? {}".format(str(nightly).lower())
     print "- race enabled? {}".format(str(race).lower())
+    if len(tags) > 0:
+        print "- build tags: {}".format(','.join(tags))
     print ""
 
     if not os.path.exists(outdir):
@@ -414,7 +426,7 @@ def build(version=None,
             elif arch == "armhf" or arch == "arm":
                 build_command += "GOARM=6 "
             elif arch == "arm64":
-                build_command += "GOARM=arm64 "
+                build_command += "GOARM=7 "
             else:
                 print "!! Invalid ARM architecture specifed: {}".format(arch)
                 print "Please specify either 'armel', 'armhf', or 'arm64'"
@@ -425,6 +437,8 @@ def build(version=None,
             build_command += "go build -o {} ".format(os.path.join(outdir, b))
         if race:
             build_command += "-race "
+        if len(tags) > 0:
+            build_command += "-tags {} ".format(','.join(tags))
         go_version = get_go_version()
         if "1.4" in go_version:
             build_command += "-ldflags=\"-X main.version {} -X main.branch {} -X main.commit {}\" ".format(version,
@@ -522,6 +536,10 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                     package_build_root = build_root
                     current_location = build_output[platform][arch]
 
+                    if rc is not None:
+                        # Set iteration to 0 since it's a release candidate
+                        package_iteration = "0.rc{}".format(rc)
+
                     if package_type in ['zip', 'tar']:
                         # For tars and zips, start the packaging one folder above
                         # the build root (to include the package name)
@@ -542,10 +560,6 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                         current_location = os.path.join(current_location, name + '.tar.gz')
                     elif package_type == 'zip':
                         current_location = os.path.join(current_location, name + '.zip')
-
-                    if rc is not None:
-                        # Set iteration to 0 since it's a release candidate
-                        package_iteration = "0.rc{}".format(rc)
 
                     fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
                         fpm_common_args,
@@ -613,6 +627,7 @@ def print_package_summary(packages):
 
 def main():
     global debug
+    global PACKAGE_NAME
 
     # Command-line arguments
     outdir = "build"
@@ -637,6 +652,7 @@ def main():
     upload_bucket = None
     generate = False
     no_stash = False
+    build_tags = []
 
     for arg in sys.argv[1:]:
         if '--outdir' in arg:
@@ -704,6 +720,12 @@ def main():
             no_stash = True
         elif '--generate' in arg:
             generate = True
+        elif '--build-tags' in arg:
+            for t in arg.split("=")[1].split(","):
+                build_tags.append(t)
+        elif '--name' in arg:
+            # Change the output package name
+            PACKAGE_NAME = arg.split("=")[1]
         elif '--debug' in arg:
             print "[DEBUG] Using debug output"
             debug = True
@@ -756,12 +778,12 @@ def main():
 
     build_output = {}
 
-    if generate:
-        if not run_generate():
-            return 1
-
     if run_get:
         if not go_get(branch, update=update, no_stash=no_stash):
+            return 1
+
+    if generate:
+        if not run_generate():
             return 1
 
     if test:
@@ -799,7 +821,8 @@ def main():
                      rc=rc,
                      race=race,
                      clean=clean,
-                     outdir=od):
+                     outdir=od,
+                     tags=build_tags):
                 return 1
             build_output.get(platform).update( { arch : od } )
 
