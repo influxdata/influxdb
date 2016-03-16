@@ -42,6 +42,7 @@ There were some important breaking changes in this release. Here's a list of the
 - [#5862](https://github.com/influxdata/influxdb/pull/5862): Make Admin UI dynamically fetch both client and server versions
 - [#2715](https://github.com/influxdata/influxdb/issues/2715): Support using field regex comparisons in the WHERE clause
 - [#5994](https://github.com/influxdata/influxdb/issues/5994): Single server
+- [#5737](https://github.com/influxdata/influxdb/pull/5737): Admin UI: Display results of multiple queries, not just the first query. Thanks @Vidhuran!
 
 ### Bugfixes
 
