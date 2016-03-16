@@ -46,11 +46,6 @@ func (c *Client) MetastoreBackup() (*meta.Data, error) {
 	metaBytes := b[i : i+length]
 	i += int(length)
 
-	// Size of the node.json bytes.
-	//length = int(binary.BigEndian.Uint64(b[i : i+8]))
-	//i += 8
-	//nodeBytes := b[i:]
-
 	// Unpack meta data.
 	var data meta.Data
 	if err := data.UnmarshalBinary(metaBytes); err != nil {
