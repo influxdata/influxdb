@@ -3,6 +3,7 @@
 ### Features
 
 - [#6012](https://github.com/influxdata/influxdb/pull/6012): Add DROP SHARD support.
+- [#6025](https://github.com/influxdata/influxdb/pull/6025): Remove deprecated JSON write path.
 
 ### Bugfixes
 
