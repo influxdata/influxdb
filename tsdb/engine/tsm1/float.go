@@ -138,17 +138,17 @@ type FloatDecoder struct {
 	err error
 }
 
-func NewFloatDecoder(b []byte) (*FloatDecoder, error) {
+func NewFloatDecoder(b []byte) (FloatDecoder, error) {
 	// first byte is the compression type but we currently just have gorilla
 	// compression
 	br := bitstream.NewReader(bytes.NewReader(b[1:]))
 
 	v, err := br.ReadBits(64)
 	if err != nil {
-		return nil, err
+		return FloatDecoder{}, err
 	}
 
-	return &FloatDecoder{
+	return FloatDecoder{
 		val:   math.Float64frombits(v),
 		first: true,
 		br:    br,

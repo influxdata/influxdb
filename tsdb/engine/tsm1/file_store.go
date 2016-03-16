@@ -32,7 +32,8 @@ type TSMFile interface {
 	ReadBooleanBlockAt(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
 
 	// Entries returns the index entries for all blocks for the given key.
-	Entries(key string) []*IndexEntry
+	Entries(key string) []IndexEntry
+	ReadEntries(key string, entries *[]IndexEntry)
 
 	// Returns true if the TSMFile may contain a value with the specified
 	// key and time
@@ -493,8 +494,8 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
-func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
-	var locations []*location
+func (f *FileStore) locations(key string, t int64, ascending bool) []location {
+	var locations []location
 
 	f.mu.RLock()
 	filesSnapshot := make([]TSMFile, len(f.files))
@@ -503,6 +504,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 	}
 	f.mu.RUnlock()
 
+	var entries []IndexEntry
 	for _, fd := range filesSnapshot {
 		minTime, maxTime := fd.TimeRange()
 
@@ -518,7 +520,8 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 
 		// This file could potential contain points we are looking for so find the blocks for
 		// the given key.
-		for _, ie := range fd.Entries(key) {
+		fd.ReadEntries(key, &entries)
+		for _, ie := range entries {
 			// If we ascending and the max time of a block is before where we are looking, skip
 			// it since the data is out of our range
 			if ascending && ie.MaxTime < t {
@@ -530,7 +533,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 			}
 
 			// Otherwise, add this file and block location
-			locations = append(locations, &location{
+			locations = append(locations, location{
 				r:     fd,
 				entry: ie,
 			})
@@ -565,12 +568,12 @@ type KeyCursor struct {
 	fs  *FileStore
 
 	// seeks is all the file locations that we need to return during iteration.
-	seeks []*location
+	seeks []location
 
 	// current is the set of blocks possibly containing the next set of points.
 	// Normally this is just one entry, but there may be multiple if points have
 	// been overwritten.
-	current []*location
+	current []location
 	buf     []Value
 
 	// pos is the index within seeks.  Based on ascending, it will increment or
@@ -587,7 +590,7 @@ type KeyCursor struct {
 
 type location struct {
 	r     TSMFile
-	entry *IndexEntry
+	entry IndexEntry
 
 	// Has this location been read before
 	read bool
@@ -705,7 +708,7 @@ func (c *KeyCursor) nextAscending() {
 	}
 
 	// Append the first matching block
-	c.current = []*location{c.seeks[c.pos]}
+	c.current = []location{c.seeks[c.pos]}
 
 	// We're done if there are no overlapping blocks.
 	if !c.duplicates {
@@ -736,7 +739,7 @@ func (c *KeyCursor) nextDescending() {
 	}
 
 	// Append the first matching block
-	c.current = []*location{c.seeks[c.pos]}
+	c.current = []location{c.seeks[c.pos]}
 
 	// We're done if there are no overlapping blocks.
 	if !c.duplicates {
@@ -764,7 +767,7 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 
 	// First block is the oldest block containing the points we're search for.
 	first := c.current[0]
-	values, err := first.r.ReadFloatBlockAt(first.entry, buf[:0])
+	values, err := first.r.ReadFloatBlockAt(&first.entry, buf[:0])
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -779,7 +782,7 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadFloatBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -788,7 +791,7 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadFloatBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -808,7 +811,7 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 
 	// First block is the oldest block containing the points we're search for.
 	first := c.current[0]
-	values, err := first.r.ReadIntegerBlockAt(first.entry, buf[:0])
+	values, err := first.r.ReadIntegerBlockAt(&first.entry, buf[:0])
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -823,7 +826,7 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadIntegerBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -832,7 +835,7 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadIntegerBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -852,7 +855,7 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 
 	// First block is the oldest block containing the points we're search for.
 	first := c.current[0]
-	values, err := first.r.ReadStringBlockAt(first.entry, buf[:0])
+	values, err := first.r.ReadStringBlockAt(&first.entry, buf[:0])
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -867,7 +870,7 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadStringBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -876,7 +879,7 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadStringBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -896,7 +899,7 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 
 	// First block is the oldest block containing the points we're search for.
 	first := c.current[0]
-	values, err := first.r.ReadBooleanBlockAt(first.entry, buf[:0])
+	values, err := first.r.ReadBooleanBlockAt(&first.entry, buf[:0])
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -911,7 +914,7 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadBooleanBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -920,7 +923,7 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadBooleanBlockAt(cur.entry, nil)
+			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, nil)
 			if err != nil {
 				return nil, err
 			}

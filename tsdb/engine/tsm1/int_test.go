@@ -498,9 +498,8 @@ func BenchmarkIntegerDecoderPackedSimple(b *testing.B) {
 	b.ResetTimer()
 
 	dec := NewIntegerDecoder(bytes)
-
 	for i := 0; i < b.N; i++ {
-		dec.(byteSetter).SetBytes(bytes)
+		dec.SetBytes(bytes)
 		for dec.Next() {
 		}
 	}
@@ -520,7 +519,7 @@ func BenchmarkIntegerDecoderRLE(b *testing.B) {
 	dec := NewIntegerDecoder(bytes)
 
 	for i := 0; i < b.N; i++ {
-		dec.(byteSetter).SetBytes(bytes)
+		dec.SetBytes(bytes)
 		for dec.Next() {
 		}
 	}

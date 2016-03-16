@@ -148,7 +148,8 @@ type TSMIndex interface {
 	ContainsValue(key string, timestamp int64) bool
 
 	// Entries returns all index entries for a key.
-	Entries(key string) []*IndexEntry
+	Entries(key string) []IndexEntry
+	ReadEntries(key string, entries *[]IndexEntry)
 
 	// Entry returns the index entry for the specified key and timestamp.  If no entry
 	// matches the key and timestamp, nil is returned.
@@ -158,7 +159,7 @@ type TSMIndex interface {
 	Keys() []string
 
 	// Key returns the key in the index at the given postion.
-	Key(index int) (string, []*IndexEntry)
+	Key(index int) (string, []IndexEntry)
 
 	// KeyAt returns the key in the index at the given postion.
 	KeyAt(index int) string
@@ -280,7 +281,7 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, of
 		// size of the count of entries stored in the index
 		d.size += indexCountSize
 	}
-	entries.Append(&IndexEntry{
+	entries.entries = append(entries.entries, IndexEntry{
 		MinTime: minTime,
 		MaxTime: maxTime,
 		Offset:  offset,
@@ -291,7 +292,7 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, of
 	d.size += indexEntrySize
 }
 
-func (d *directIndex) Entries(key string) []*IndexEntry {
+func (d *directIndex) Entries(key string) []IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -302,6 +303,10 @@ func (d *directIndex) Entries(key string) []*IndexEntry {
 	return d.blocks[key].entries
 }
 
+func (d *directIndex) ReadEntries(key string, entries *[]IndexEntry) {
+	*entries = d.Entries(key)
+}
+
 func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -309,7 +314,7 @@ func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 	entries := d.Entries(key)
 	for _, entry := range entries {
 		if entry.Contains(t) {
-			return entry
+			return &entry
 		}
 	}
 	return nil
@@ -354,7 +359,7 @@ func (d *directIndex) Keys() []string {
 	return keys
 }
 
-func (d *directIndex) Key(idx int) (string, []*IndexEntry) {
+func (d *directIndex) Key(idx int) (string, []IndexEntry) {
 	if idx < 0 || idx >= len(d.blocks) {
 		return "", nil
 	}
@@ -408,7 +413,7 @@ func (d *directIndex) addEntries(key string, entries *indexEntries) {
 		d.blocks[key] = entries
 		return
 	}
-	existing.Append(entries.entries...)
+	existing.entries = append(existing.entries, entries.entries...)
 }
 
 func (d *directIndex) Write(w io.Writer) error {
@@ -483,13 +488,14 @@ func (d *directIndex) UnmarshalBinary(b []byte) error {
 		}
 		pos += n
 
-		n, entries, err := readEntries(b[pos:])
+		var entries indexEntries
+		n, err = readEntries(b[pos:], &entries)
 		if err != nil {
 			return fmt.Errorf("readIndex: read entries error: %v", err)
 		}
 
 		pos += n
-		d.addEntries(string(key), entries)
+		d.addEntries(string(key), &entries)
 	}
 	return nil
 }

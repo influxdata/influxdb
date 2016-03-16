@@ -836,7 +836,11 @@ func (itr *floatReduceFloatIterator) reduce() []FloatPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -968,7 +972,11 @@ func (itr *floatReduceIntegerIterator) reduce() []IntegerPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -1100,7 +1108,11 @@ func (itr *floatReduceStringIterator) reduce() []StringPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -1232,7 +1244,11 @@ func (itr *floatReduceBooleanIterator) reduce() []BooleanPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -2271,7 +2287,11 @@ func (itr *integerReduceFloatIterator) reduce() []FloatPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -2403,7 +2423,11 @@ func (itr *integerReduceIntegerIterator) reduce() []IntegerPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -2535,7 +2559,11 @@ func (itr *integerReduceStringIterator) reduce() []StringPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -2667,7 +2695,11 @@ func (itr *integerReduceBooleanIterator) reduce() []BooleanPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -3706,7 +3738,11 @@ func (itr *stringReduceFloatIterator) reduce() []FloatPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -3838,7 +3874,11 @@ func (itr *stringReduceIntegerIterator) reduce() []IntegerPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -3970,7 +4010,11 @@ func (itr *stringReduceStringIterator) reduce() []StringPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -4102,7 +4146,11 @@ func (itr *stringReduceBooleanIterator) reduce() []BooleanPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -5141,7 +5189,11 @@ func (itr *booleanReduceFloatIterator) reduce() []FloatPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -5273,7 +5325,11 @@ func (itr *booleanReduceIntegerIterator) reduce() []IntegerPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -5405,7 +5461,11 @@ func (itr *booleanReduceStringIterator) reduce() []StringPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
@@ -5537,7 +5597,11 @@ func (itr *booleanReduceBooleanIterator) reduce() []BooleanPoint {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		id := curr.Name + "\x00" + tags.ID()
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
 
 		// Retrieve the aggregator for this name/tag combination or create one.
 		rp := m[id]
