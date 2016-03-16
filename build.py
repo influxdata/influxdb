@@ -377,7 +377,8 @@ def build(version=None,
           rc=None,
           race=False,
           clean=False,
-          outdir="."):
+          outdir=".",
+          tags=[]):
     print ""
     print "-------------------------"
     print ""
@@ -391,6 +392,8 @@ def build(version=None,
     print "- arch: {}".format(arch)
     print "- nightly? {}".format(str(nightly).lower())
     print "- race enabled? {}".format(str(race).lower())
+    if len(tags) > 0:
+        print "- build tags: {}".format(','.join(tags))
     print ""
 
     if not os.path.exists(outdir):
@@ -434,6 +437,8 @@ def build(version=None,
             build_command += "go build -o {} ".format(os.path.join(outdir, b))
         if race:
             build_command += "-race "
+        if len(tags) > 0:
+            build_command += "-tags {} ".format(','.join(tags))
         go_version = get_go_version()
         if "1.4" in go_version:
             build_command += "-ldflags=\"-X main.version {} -X main.branch {} -X main.commit {}\" ".format(version,
@@ -622,6 +627,7 @@ def print_package_summary(packages):
 
 def main():
     global debug
+    global PACKAGE_NAME
 
     # Command-line arguments
     outdir = "build"
@@ -646,6 +652,7 @@ def main():
     upload_bucket = None
     generate = False
     no_stash = False
+    build_tags = []
 
     for arg in sys.argv[1:]:
         if '--outdir' in arg:
@@ -713,6 +720,12 @@ def main():
             no_stash = True
         elif '--generate' in arg:
             generate = True
+        elif '--build-tags' in arg:
+            for t in arg.split("=")[1].split(","):
+                build_tags.append(t)
+        elif '--name' in arg:
+            # Change the output package name
+            PACKAGE_NAME = arg.split("=")[1]
         elif '--debug' in arg:
             print "[DEBUG] Using debug output"
             debug = True
@@ -808,7 +821,8 @@ def main():
                      rc=rc,
                      race=race,
                      clean=clean,
-                     outdir=od):
+                     outdir=od,
+                     tags=build_tags):
                 return 1
             build_output.get(platform).update( { arch : od } )
 
