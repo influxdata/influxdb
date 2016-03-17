@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 )
 
-
 // snapshot will save the current meta data to disk
 func snapshot(path string, data *Data) error {
 	file := filepath.Join(path, metaFile)
