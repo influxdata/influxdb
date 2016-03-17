@@ -7,7 +7,6 @@
 
 ### Bugfixes
 
-- [#6042](https://github.com/influxdata/influxdb/issues/6042): CreateDatabase failure on Windows, regression from v0.11.0 RC
 
 ## v0.11.0 [unreleased]
 
@@ -89,6 +88,7 @@ There were some important breaking changes in this release. Here's a list of the
 - [#6006](https://github.com/influxdata/influxdb/pull/6006): Fix deadlock while running backups
 - [#5965](https://github.com/influxdata/influxdb/issues/5965): InfluxDB panic crashes while parsing "-" as Float
 - [#5835](https://github.com/influxdata/influxdb/issues/5835): Make CREATE USER default to IF NOT EXISTS
+- [#6042](https://github.com/influxdata/influxdb/issues/6042): CreateDatabase failure on Windows, regression from v0.11.0 RC @mvadu
 
 ## v0.10.3 [2016-03-09]
 
