@@ -983,6 +983,12 @@ func snapshot(path string, data *Data) error {
 		return err
 	}
 
+	if _, err := os.Stat(file); err == nil {
+		if err = os.Remove(file); nil != err {
+			return err
+		}
+	}
+
 	return os.Rename(tmpFile, file)
 }
 
