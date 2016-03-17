@@ -210,6 +210,23 @@ func (f *FileStore) Remove(paths ...string) {
 	sort.Sort(tsmReaders(f.files))
 }
 
+// WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
+// exists in multiple files, it will be invoked for each file.
+func (f *FileStore) WalkKeys(fn func(key string, typ byte) error) error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	for _, f := range f.files {
+		for i := 0; i < f.KeyCount(); i++ {
+			key, typ := f.KeyAt(i)
+			if err := fn(key, typ); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Keys returns all keys and types for all files
 func (f *FileStore) Keys() map[string]byte {
 	f.mu.RLock()

@@ -193,21 +193,19 @@ func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex, me
 	e.measurementFields = measurementFields
 
 	start := time.Now()
-	keys := e.FileStore.Keys()
 
-	keysLoaded := make(map[string]bool)
-
-	for k, typ := range keys {
+	if err := e.FileStore.WalkKeys(func(key string, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
 		if err != nil {
 			return err
 		}
 
-		if err := e.addToIndexFromKey(k, fieldType, index, measurementFields); err != nil {
+		if err := e.addToIndexFromKey(key, fieldType, index, measurementFields); err != nil {
 			return err
 		}
-
-		keysLoaded[k] = true
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	// load metadata from the Cache
@@ -215,9 +213,6 @@ func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex, me
 	defer e.Cache.RUnlock()
 
 	for key, entry := range e.Cache.Store() {
-		if keysLoaded[key] {
-			continue
-		}
 
 		fieldType, err := entry.values.InfluxQLType()
 		if err != nil {
