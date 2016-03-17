@@ -2285,13 +2285,13 @@ func TestServer_Query_Aggregates_IntMany(t *testing.T) {
 			name:    "distinct as call - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(value) FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:01:00Z",7],["2000-01-01T00:01:10Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",2],["1970-01-01T00:00:00Z",4],["1970-01-01T00:00:00Z",5],["1970-01-01T00:00:00Z",7],["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct alt syntax - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT value FROM intmany`,
-			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:01:00Z",7],["2000-01-01T00:01:10Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",2],["1970-01-01T00:00:00Z",4],["1970-01-01T00:00:00Z",5],["1970-01-01T00:00:00Z",7],["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct select tag - int",
@@ -2659,13 +2659,13 @@ func TestServer_Query_Aggregates_FloatMany(t *testing.T) {
 			name:    "distinct as call - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(value) FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:01:00Z",7],["2000-01-01T00:01:10Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",2],["1970-01-01T00:00:00Z",4],["1970-01-01T00:00:00Z",5],["1970-01-01T00:00:00Z",7],["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct alt syntax - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT value FROM floatmany`,
-			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",2],["2000-01-01T00:00:10Z",4],["2000-01-01T00:00:40Z",5],["2000-01-01T00:01:00Z",7],["2000-01-01T00:01:10Z",9]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",2],["1970-01-01T00:00:00Z",4],["1970-01-01T00:00:00Z",5],["1970-01-01T00:00:00Z",7],["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct select tag - float",
@@ -3134,7 +3134,7 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "distinct - baseline 30s",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"results":[{"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:10Z",40],["2000-01-01T00:00:30Z",40],["2000-01-01T00:00:40Z",50],["2000-01-01T00:01:00Z",70],["2000-01-01T00:01:10Z",90],["2000-01-01T00:01:20Z",5]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"network","columns":["time","distinct"],"values":[["2000-01-01T00:00:00Z",10],["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:30Z",40],["2000-01-01T00:00:30Z",50],["2000-01-01T00:01:00Z",70],["2000-01-01T00:01:00Z",90],["2000-01-01T00:01:00Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "distinct - time",

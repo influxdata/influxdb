@@ -379,6 +379,12 @@ func NewDistinctIterator(input Iterator, opt IteratorOptions) (Iterator, error) 
 			return fn, fn
 		}
 		return &stringReduceStringIterator{input: newBufStringIterator(input), opt: opt, create: createFn}, nil
+	case BooleanIterator:
+		createFn := func() (BooleanPointAggregator, BooleanPointEmitter) {
+			fn := NewBooleanSliceFuncReducer(BooleanDistinctReduceSlice)
+			return fn, fn
+		}
+		return &booleanReduceBooleanIterator{input: newBufBooleanIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported distinct iterator type: %T", input)
 	}
@@ -432,6 +438,23 @@ func StringDistinctReduceSlice(a []StringPoint) []StringPoint {
 		points = append(points, StringPoint{Time: p.Time, Value: p.Value})
 	}
 	sort.Sort(stringPoints(points))
+	return points
+}
+
+// BooleanDistinctReduceSlice returns the distinct value within a window.
+func BooleanDistinctReduceSlice(a []BooleanPoint) []BooleanPoint {
+	m := make(map[bool]BooleanPoint)
+	for _, p := range a {
+		if _, ok := m[p.Value]; !ok {
+			m[p.Value] = p
+		}
+	}
+
+	points := make([]BooleanPoint, 0, len(m))
+	for _, p := range m {
+		points = append(points, BooleanPoint{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort(booleanPoints(points))
 	return points
 }
 
