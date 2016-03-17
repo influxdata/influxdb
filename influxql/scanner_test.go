@@ -81,7 +81,8 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `'test\g'`, tok: influxql.BADESCAPE, lit: `\g`, pos: influxql.Pos{Line: 0, Char: 6}},
 
 		// Numbers
-		{s: `100`, tok: influxql.NUMBER, lit: `100`},
+		{s: `100`, tok: influxql.INTEGER, lit: `100`},
+		{s: `-100`, tok: influxql.INTEGER, lit: `-100`},
 		{s: `100.23`, tok: influxql.NUMBER, lit: `100.23`},
 		{s: `+100.23`, tok: influxql.NUMBER, lit: `+100.23`},
 		{s: `-100.23`, tok: influxql.NUMBER, lit: `-100.23`},
@@ -103,7 +104,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `10h`, tok: influxql.DURATIONVAL, lit: `10h`},
 		{s: `10d`, tok: influxql.DURATIONVAL, lit: `10d`},
 		{s: `10w`, tok: influxql.DURATIONVAL, lit: `10w`},
-		{s: `10x`, tok: influxql.NUMBER, lit: `10`}, // non-duration unit
+		{s: `10x`, tok: influxql.INTEGER, lit: `10`}, // non-duration unit
 
 		// Keywords
 		{s: `ALL`, tok: influxql.ALL},

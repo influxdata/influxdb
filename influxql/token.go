@@ -18,6 +18,7 @@ const (
 	// IDENT and the following are InfluxQL literal tokens.
 	IDENT       // main
 	NUMBER      // 12345.67
+	INTEGER     // 12345
 	DURATIONVAL // 13h
 	STRING      // "abc"
 	BADSTRING   // "abc

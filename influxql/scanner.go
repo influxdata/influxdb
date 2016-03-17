@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 )
 
 // Scanner represents a lexical scanner for InfluxQL.
@@ -238,21 +237,22 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 	_, _ = buf.WriteString(s.scanDigits())
 
 	// If next code points are a full stop and digit then consume them.
+	isDecimal := false
 	if ch0, _ := s.r.read(); ch0 == '.' {
+		isDecimal = true
 		if ch1, _ := s.r.read(); isDigit(ch1) {
 			_, _ = buf.WriteRune(ch0)
 			_, _ = buf.WriteRune(ch1)
 			_, _ = buf.WriteString(s.scanDigits())
 		} else {
 			s.r.unread()
-			s.r.unread()
 		}
 	} else {
 		s.r.unread()
 	}
 
-	// Attempt to read as a duration if it doesn't have a fractional part.
-	if !strings.Contains(buf.String(), ".") {
+	// Read as a duration or integer if it doesn't have a fractional part.
+	if !isDecimal {
 		// If the next rune is a duration unit (u,µ,ms,s) then return a duration token
 		if ch0, _ := s.r.read(); ch0 == 'u' || ch0 == 'µ' || ch0 == 's' || ch0 == 'h' || ch0 == 'd' || ch0 == 'w' {
 			_, _ = buf.WriteRune(ch0)
@@ -267,6 +267,7 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 			return DURATIONVAL, pos, buf.String()
 		}
 		s.r.unread()
+		return INTEGER, pos, buf.String()
 	}
 	return NUMBER, pos, buf.String()
 }

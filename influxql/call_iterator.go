@@ -646,8 +646,7 @@ func IntegerSpreadReduceSlice(a []IntegerPoint) []IntegerPoint {
 	return []IntegerPoint{{Time: ZeroTime, Value: max - min}}
 }
 
-// newTopIterator returns an iterator for operating on a top() call.
-func newTopIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) (Iterator, error) {
+func newTopIterator(input Iterator, opt IteratorOptions, n *IntegerLiteral, tags []int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		aggregateFn := NewFloatTopReduceSliceFunc(int(n.Val), tags, opt.Interval)
@@ -760,8 +759,7 @@ func NewIntegerTopReduceSliceFunc(n int, tags []int, interval Interval) IntegerR
 	}
 }
 
-// newBottomIterator returns an iterator for operating on a bottom() call.
-func newBottomIterator(input Iterator, opt IteratorOptions, n *NumberLiteral, tags []int) (Iterator, error) {
+func newBottomIterator(input Iterator, opt IteratorOptions, n *IntegerLiteral, tags []int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		aggregateFn := NewFloatBottomReduceSliceFunc(int(n.Val), tags, opt.Interval)
