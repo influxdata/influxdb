@@ -7,6 +7,8 @@
 
 ### Bugfixes
 
+- [#6042](https://github.com/influxdata/influxdb/issues/6042): CreateDatabase failure on Windows, regression from v0.11.0 RC
+
 ## v0.11.0 [unreleased]
 
 ### Release Notes
