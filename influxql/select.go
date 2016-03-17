@@ -214,7 +214,11 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			if err != nil {
 				return nil, err
 			}
-			return NewDistinctIterator(input, opt)
+			input, err = NewDistinctIterator(input, opt)
+			if err != nil {
+				return nil, err
+			}
+			return NewIntervalIterator(input, opt), nil
 		case "derivative", "non_negative_derivative":
 			input, err := buildExprIterator(expr.Args[0], ic, opt)
 			if err != nil {
