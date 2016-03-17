@@ -98,12 +98,18 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	handler := mux.m[typ[0]]
 	if handler == nil {
 		conn.Close()
-		mux.Logger.Printf("tcp.Mux: handler not registered: %d", typ[0])
+		mux.Logger.Printf("tcp.Mux: handler not registered: %d. Connection from %s closed", typ[0], conn.RemoteAddr())
 		return
 	}
 
 	// Send connection to handler.  The handler is responsible for closing the connection.
-	handler.c <- conn
+	select {
+	case handler.c <- conn:
+	case <-time.After(mux.Timeout):
+		conn.Close()
+		mux.Logger.Printf("tcp.Mux: handler not ready: %d. Connection from %s closed", typ[0], conn.RemoteAddr())
+		return
+	}
 }
 
 // Listen returns a listener identified by header.
