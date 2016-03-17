@@ -12,6 +12,8 @@ message Point {
     optional int64  IntegerValue = 8;
     optional string StringValue  = 9;
     optional bool   BooleanValue = 10;
+
+    optional IteratorStats Stats = 11;
 }
 
 message Aux {
@@ -56,6 +58,11 @@ message Measurement {
 message Interval {
     optional int64 Duration = 1;
     optional int64 Offset   = 2;
+}
+
+message IteratorStats {
+    optional int64 SeriesN = 1;
+    optional int64 PointN  = 2;
 }
 
 message Series {

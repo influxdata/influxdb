@@ -15,6 +15,7 @@ It has these top-level messages:
 	Measurements
 	Measurement
 	Interval
+	IteratorStats
 	Series
 	SeriesList
 */
@@ -28,17 +29,18 @@ var _ = proto.Marshal
 var _ = math.Inf
 
 type Point struct {
-	Name             *string  `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	Tags             *string  `protobuf:"bytes,2,req" json:"Tags,omitempty"`
-	Time             *int64   `protobuf:"varint,3,req" json:"Time,omitempty"`
-	Nil              *bool    `protobuf:"varint,4,req" json:"Nil,omitempty"`
-	Aux              []*Aux   `protobuf:"bytes,5,rep" json:"Aux,omitempty"`
-	Aggregated       *uint32  `protobuf:"varint,6,opt" json:"Aggregated,omitempty"`
-	FloatValue       *float64 `protobuf:"fixed64,7,opt" json:"FloatValue,omitempty"`
-	IntegerValue     *int64   `protobuf:"varint,8,opt" json:"IntegerValue,omitempty"`
-	StringValue      *string  `protobuf:"bytes,9,opt" json:"StringValue,omitempty"`
-	BooleanValue     *bool    `protobuf:"varint,10,opt" json:"BooleanValue,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Name             *string        `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Tags             *string        `protobuf:"bytes,2,req" json:"Tags,omitempty"`
+	Time             *int64         `protobuf:"varint,3,req" json:"Time,omitempty"`
+	Nil              *bool          `protobuf:"varint,4,req" json:"Nil,omitempty"`
+	Aux              []*Aux         `protobuf:"bytes,5,rep" json:"Aux,omitempty"`
+	Aggregated       *uint32        `protobuf:"varint,6,opt" json:"Aggregated,omitempty"`
+	FloatValue       *float64       `protobuf:"fixed64,7,opt" json:"FloatValue,omitempty"`
+	IntegerValue     *int64         `protobuf:"varint,8,opt" json:"IntegerValue,omitempty"`
+	StringValue      *string        `protobuf:"bytes,9,opt" json:"StringValue,omitempty"`
+	BooleanValue     *bool          `protobuf:"varint,10,opt" json:"BooleanValue,omitempty"`
+	Stats            *IteratorStats `protobuf:"bytes,11,opt" json:"Stats,omitempty"`
+	XXX_unrecognized []byte         `json:"-"`
 }
 
 func (m *Point) Reset()         { *m = Point{} }
@@ -113,6 +115,13 @@ func (m *Point) GetBooleanValue() bool {
 		return *m.BooleanValue
 	}
 	return false
+}
+
+func (m *Point) GetStats() *IteratorStats {
+	if m != nil {
+		return m.Stats
+	}
+	return nil
 }
 
 type Aux struct {
@@ -383,6 +392,30 @@ func (m *Interval) GetDuration() int64 {
 func (m *Interval) GetOffset() int64 {
 	if m != nil && m.Offset != nil {
 		return *m.Offset
+	}
+	return 0
+}
+
+type IteratorStats struct {
+	SeriesN          *int64 `protobuf:"varint,1,opt" json:"SeriesN,omitempty"`
+	PointN           *int64 `protobuf:"varint,2,opt" json:"PointN,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *IteratorStats) Reset()         { *m = IteratorStats{} }
+func (m *IteratorStats) String() string { return proto.CompactTextString(m) }
+func (*IteratorStats) ProtoMessage()    {}
+
+func (m *IteratorStats) GetSeriesN() int64 {
+	if m != nil && m.SeriesN != nil {
+		return *m.SeriesN
+	}
+	return 0
+}
+
+func (m *IteratorStats) GetPointN() int64 {
+	if m != nil && m.PointN != nil {
+		return *m.PointN
 	}
 	return 0
 }

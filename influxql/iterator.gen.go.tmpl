@@ -3,14 +3,20 @@ package influxql
 import (
 	"container/heap"
 	"errors"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"sort"
 	"sync"
 	"log"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdata/influxdb/influxql/internal"
 )
+
+// DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
+const DefaultStatsInterval = 10 * time.Second
 
 {{with $types := .}}{{range $k := $types}}
 
@@ -51,6 +57,9 @@ type buf{{$k.Name}}Iterator struct {
 func newBuf{{$k.Name}}Iterator(itr {{$k.Name}}Iterator) *buf{{$k.Name}}Iterator {
 	return &buf{{$k.Name}}Iterator{itr: itr}
 }
+
+// Stats returns statistics from the input iterator.
+func (itr *buf{{$k.Name}}Iterator) Stats() IteratorStats { return itr.itr.Stats() }
 
 // Close closes the underlying iterator.
 func (itr *buf{{$k.Name}}Iterator) Close() error { return itr.itr.Close() }
@@ -137,6 +146,15 @@ func new{{$k.Name}}MergeIterator(inputs []{{$k.Name}}Iterator, opt IteratorOptio
 	heap.Init(itr.heap)
 
 	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *{{$k.name}}MergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
 }
 
 // Close closes the underlying iterators.
@@ -281,6 +299,15 @@ func new{{$k.Name}}SortedMergeIterator(inputs []{{$k.Name}}Iterator, opt Iterato
 	return itr
 }
 
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *{{$k.name}}SortedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
 // Close closes the underlying iterators.
 func (itr *{{$k.name}}SortedMergeIterator) Close() error {
 	for _, input := range itr.inputs {
@@ -375,6 +402,9 @@ func new{{$k.Name}}LimitIterator(input {{$k.Name}}Iterator, opt IteratorOptions)
 		opt:   opt,
 	}
 }
+
+// Stats returns stats from the underlying iterator.
+func (itr *{{$k.name}}LimitIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the underlying iterators.
 func (itr *{{$k.name}}LimitIterator) Close() error { return itr.input.Close() }
@@ -471,6 +501,7 @@ func new{{$k.Name}}FillIterator(input {{$k.Name}}Iterator, expr Expr, opt Iterat
 	return itr
 }
 
+func (itr *{{$k.name}}FillIterator) Stats() IteratorStats { return itr.input.Stats() }
 func (itr *{{$k.name}}FillIterator) Close() error { return itr.input.Close() }
 
 func (itr *{{$k.name}}FillIterator) Next() *{{$k.Name}}Point {
@@ -558,6 +589,7 @@ func new{{$k.Name}}IntervalIterator(input {{$k.Name}}Iterator, opt IteratorOptio
 	return &{{$k.name}}IntervalIterator{input: input, opt: opt}
 }
 
+func (itr *{{$k.name}}IntervalIterator) Stats() IteratorStats { return itr.input.Stats() }
 func (itr *{{$k.name}}IntervalIterator) Close() error { return itr.input.Close() }
 
 func (itr *{{$k.name}}IntervalIterator) Next() *{{$k.Name}}Point {
@@ -625,6 +657,7 @@ func (itr *{{$k.name}}AuxIterator) Background() {
 }
 
 func (itr *{{$k.name}}AuxIterator) Start()                        { go itr.stream() }
+func (itr *{{$k.name}}AuxIterator) Stats() IteratorStats          { return itr.input.Stats() }
 func (itr *{{$k.name}}AuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *{{$k.name}}AuxIterator) Next() *{{$k.Name}}Point       { return <-itr.output }
 func (itr *{{$k.name}}AuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -648,10 +681,6 @@ func (itr *{{$k.name}}AuxIterator) FieldDimensions(sources Sources) (fields, dim
 }
 
 func (itr *{{$k.name}}AuxIterator) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (itr *{{.name}}AuxIterator) ExpandSources(sources Sources) (Sources, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -684,6 +713,8 @@ type {{$k.name}}ChanIterator struct {
 	cond *sync.Cond
 	done bool
 }
+
+func (itr *{{$k.name}}ChanIterator) Stats() IteratorStats { return IteratorStats{} }
 
 func (itr *{{$k.name}}ChanIterator) Close() error {
 	itr.cond.L.Lock()
@@ -757,6 +788,9 @@ type {{$k.name}}Reduce{{$v.Name}}Iterator struct {
 	opt    IteratorOptions
 	points []{{$v.Name}}Point
 }
+
+// Stats returns stats from the input iterator.
+func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Close() error { return itr.input.Close() }
@@ -852,6 +886,12 @@ type {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator struct {
 	fn    {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc
 }
 
+func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -881,6 +921,9 @@ type {{$k.name}}TransformIterator struct {
 	fn    {{$k.name}}TransformFunc
 }
 
+// Stats returns stats from the input iterator.
+func (itr *{{$k.name}}TransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
 // Close closes the iterator and all child iterators.
 func (itr *{{$k.name}}TransformIterator) Close() error { return itr.input.Close() }
 
@@ -904,6 +947,9 @@ type {{$k.name}}BoolTransformIterator struct {
 	input {{$k.Name}}Iterator
 	fn    {{$k.name}}BoolTransformFunc
 }
+
+// Stats returns stats from the input iterator.
+func (itr *{{$k.name}}BoolTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *{{$k.name}}BoolTransformIterator) Close() error { return itr.input.Close() }
@@ -938,6 +984,9 @@ func new{{$k.Name}}DedupeIterator(input {{$k.Name}}Iterator) *{{$k.name}}DedupeI
 		m:     make(map[string]struct{}),
 	}
 }
+
+// Stats returns stats from the input iterator.
+func (itr *{{$k.name}}DedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *{{$k.name}}DedupeIterator) Close() error { return itr.input.Close() }
@@ -977,13 +1026,19 @@ type {{$k.name}}ReaderIterator struct {
 }
 
 // new{{$k.Name}}ReaderIterator returns a new instance of {{$k.name}}ReaderIterator.
-func new{{$k.Name}}ReaderIterator(r io.Reader, first *{{$k.Name}}Point) *{{$k.name}}ReaderIterator {
+func new{{$k.Name}}ReaderIterator(r io.Reader, first *{{$k.Name}}Point, stats IteratorStats) *{{$k.name}}ReaderIterator {
+	dec := New{{$k.Name}}PointDecoder(r)
+	dec.stats = stats
+
 	return &{{$k.name}}ReaderIterator{
 		r:     r,
-		dec:   New{{$k.Name}}PointDecoder(r),
+		dec:   dec,
 		first: first,
 	}
 }
+
+// Stats returns stats about points processed.
+func (itr *{{$k.name}}ReaderIterator) Stats() IteratorStats { return itr.dec.stats }
 
 // Close closes the underlying reader, if applicable.
 func (itr *{{$k.name}}ReaderIterator) Close() error {
@@ -1020,11 +1075,18 @@ func (itr *{{$k.name}}ReaderIterator) Next() *{{$k.Name}}Point {
 // IteratorEncoder is an encoder for encoding an iterator's points to w.
 type IteratorEncoder struct {
 	w io.Writer
+
+	// Frequency with which stats are emitted.
+	StatsInterval time.Duration
 }
 
 // NewIteratorEncoder encodes an iterator's points to w.
 func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
-	return &IteratorEncoder{w: w}
+	return &IteratorEncoder{
+		w: w,
+
+		StatsInterval: DefaultStatsInterval,
+	}
 }
 
 // Encode encodes and writes all of itr's points to the underlying writer.
@@ -1046,12 +1108,31 @@ func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
 {{range .}}
 // encode{{.Name}}Iterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encode{{.Name}}Iterator(itr {{.Name}}Iterator) error {
+	ticker := time.NewTicker(enc.StatsInterval)
+	defer ticker.Stop()
+
+	// Emit initial stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+
+	// Continually stream points from the iterator into the encoder.
 	penc := New{{.Name}}PointEncoder(enc.w)
 	for {
+		// Emit stats periodically.
+		select {
+		case <-ticker.C:
+			if err := enc.encodeStats(itr.Stats()); err != nil {
+				return err
+			}
+		default:
+		}
+		
+
 		// Retrieve the next point from the iterator.
 		p := itr.Next()
 		if p == nil {
-			return nil
+			break
 		}
 
 		// Write the point to the point encoder.
@@ -1059,6 +1140,37 @@ func (enc *IteratorEncoder) encode{{.Name}}Iterator(itr {{.Name}}Iterator) error
 			return err
 		}
 	}
+
+	// Emit final stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+	return nil
 }
 
-{{end}}{{end}}
+{{end}}
+
+// encode a stats object in the point stream.
+func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
+	buf, err := proto.Marshal(&internal.Point{
+		Name: proto.String(""),
+		Tags: proto.String(""),
+		Time: proto.Int64(0),
+		Nil:  proto.Bool(false),
+
+		Stats: encodeIteratorStats(&stats),
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
+}
+
+{{end}}

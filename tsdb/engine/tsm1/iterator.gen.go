@@ -108,6 +108,8 @@ type floatIterator struct {
 
 	m     map[string]interface{} // map used for condition evaluation
 	point influxql.FloatPoint    // reusable buffer
+
+	stats influxql.IteratorStats
 }
 
 func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur floatCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *floatIterator {
@@ -118,6 +120,9 @@ func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOpti
 		point: influxql.FloatPoint{
 			Name: name,
 			Tags: tags,
+		},
+		stats: influxql.IteratorStats{
+			SeriesN: 1,
 		},
 	}
 
@@ -177,9 +182,15 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 			continue
 		}
 
+		// Track points returned.
+		itr.stats.PointN++
+
 		return &itr.point
 	}
 }
+
+// Stats returns stats on the points processed.
+func (itr *floatIterator) Stats() influxql.IteratorStats { return itr.stats }
 
 // Close closes the iterator.
 func (itr *floatIterator) Close() error { return nil }
@@ -440,6 +451,8 @@ type integerIterator struct {
 
 	m     map[string]interface{} // map used for condition evaluation
 	point influxql.IntegerPoint  // reusable buffer
+
+	stats influxql.IteratorStats
 }
 
 func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur integerCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *integerIterator {
@@ -450,6 +463,9 @@ func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 		point: influxql.IntegerPoint{
 			Name: name,
 			Tags: tags,
+		},
+		stats: influxql.IteratorStats{
+			SeriesN: 1,
 		},
 	}
 
@@ -509,9 +525,15 @@ func (itr *integerIterator) Next() *influxql.IntegerPoint {
 			continue
 		}
 
+		// Track points returned.
+		itr.stats.PointN++
+
 		return &itr.point
 	}
 }
+
+// Stats returns stats on the points processed.
+func (itr *integerIterator) Stats() influxql.IteratorStats { return itr.stats }
 
 // Close closes the iterator.
 func (itr *integerIterator) Close() error { return nil }
@@ -772,6 +794,8 @@ type stringIterator struct {
 
 	m     map[string]interface{} // map used for condition evaluation
 	point influxql.StringPoint   // reusable buffer
+
+	stats influxql.IteratorStats
 }
 
 func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur stringCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *stringIterator {
@@ -782,6 +806,9 @@ func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOpt
 		point: influxql.StringPoint{
 			Name: name,
 			Tags: tags,
+		},
+		stats: influxql.IteratorStats{
+			SeriesN: 1,
 		},
 	}
 
@@ -841,9 +868,15 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 			continue
 		}
 
+		// Track points returned.
+		itr.stats.PointN++
+
 		return &itr.point
 	}
 }
+
+// Stats returns stats on the points processed.
+func (itr *stringIterator) Stats() influxql.IteratorStats { return itr.stats }
 
 // Close closes the iterator.
 func (itr *stringIterator) Close() error { return nil }
@@ -1104,6 +1137,8 @@ type booleanIterator struct {
 
 	m     map[string]interface{} // map used for condition evaluation
 	point influxql.BooleanPoint  // reusable buffer
+
+	stats influxql.IteratorStats
 }
 
 func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *booleanIterator {
@@ -1114,6 +1149,9 @@ func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 		point: influxql.BooleanPoint{
 			Name: name,
 			Tags: tags,
+		},
+		stats: influxql.IteratorStats{
+			SeriesN: 1,
 		},
 	}
 
@@ -1173,9 +1211,15 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 			continue
 		}
 
+		// Track points returned.
+		itr.stats.PointN++
+
 		return &itr.point
 	}
 }
+
+// Stats returns stats on the points processed.
+func (itr *booleanIterator) Stats() influxql.IteratorStats { return itr.stats }
 
 // Close closes the iterator.
 func (itr *booleanIterator) Close() error { return nil }

@@ -1,6 +1,7 @@
 package influxql_test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/rand"
@@ -954,6 +955,51 @@ func TestSeriesList_MarshalBinary(t *testing.T) {
 	}
 }
 
+// Ensure iterator can be encoded and decoded over a byte stream.
+func TestIterator_EncodeDecode(t *testing.T) {
+	var buf bytes.Buffer
+
+	// Create an iterator with several points & stats.
+	itr := &FloatIterator{
+		Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 0},
+			{Name: "mem", Tags: ParseTags("host=B"), Time: 1, Value: 10},
+		},
+		stats: influxql.IteratorStats{
+			SeriesN: 2,
+			PointN:  0,
+		},
+	}
+
+	// Encode to the buffer.
+	enc := influxql.NewIteratorEncoder(&buf)
+	enc.StatsInterval = 100 * time.Millisecond
+	if err := enc.EncodeIterator(itr); err != nil {
+		t.Fatal(err)
+	}
+
+	// Decode from the buffer.
+	dec, err := influxql.NewReaderIterator(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Initial stats should exist immediately.
+	fdec := dec.(influxql.FloatIterator)
+	if stats := fdec.Stats(); !reflect.DeepEqual(stats, influxql.IteratorStats{SeriesN: 2, PointN: 0}) {
+		t.Fatalf("unexpected stats(initial): %#v", stats)
+	}
+
+	// Read both points.
+	if p := fdec.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Value: 0}) {
+		t.Fatalf("unexpected point(0); %#v", p)
+	} else if p := fdec.Next(); !reflect.DeepEqual(p, &influxql.FloatPoint{Name: "mem", Tags: ParseTags("host=B"), Time: 1, Value: 10}) {
+		t.Fatalf("unexpected point(1); %#v", p)
+	} else if p := fdec.Next(); p != nil {
+		t.Fatalf("unexpected point(eof); %#v", p)
+	}
+}
+
 // IteratorCreator is a mockable implementation of SelectStatementExecutor.IteratorCreator.
 type IteratorCreator struct {
 	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
@@ -1031,10 +1077,11 @@ func (ic *IteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sou
 type FloatIterator struct {
 	Points []influxql.FloatPoint
 	Closed bool
+	stats  influxql.IteratorStats
 }
 
-// Close is a no-op.
-func (itr *FloatIterator) Close() error { itr.Closed = true; return nil }
+func (itr *FloatIterator) Stats() influxql.IteratorStats { return itr.stats }
+func (itr *FloatIterator) Close() error                  { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *FloatIterator) Next() *influxql.FloatPoint {
@@ -1081,10 +1128,11 @@ func GenerateFloatIterator(rand *rand.Rand, valueN int) *FloatIterator {
 type IntegerIterator struct {
 	Points []influxql.IntegerPoint
 	Closed bool
+	stats  influxql.IteratorStats
 }
 
-// Close is a no-op.
-func (itr *IntegerIterator) Close() error { itr.Closed = true; return nil }
+func (itr *IntegerIterator) Stats() influxql.IteratorStats { return itr.stats }
+func (itr *IntegerIterator) Close() error                  { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *IntegerIterator) Next() *influxql.IntegerPoint {
@@ -1109,10 +1157,11 @@ func IntegerIterators(inputs []*IntegerIterator) []influxql.Iterator {
 type StringIterator struct {
 	Points []influxql.StringPoint
 	Closed bool
+	stats  influxql.IteratorStats
 }
 
-// Close is a no-op.
-func (itr *StringIterator) Close() error { itr.Closed = true; return nil }
+func (itr *StringIterator) Stats() influxql.IteratorStats { return itr.stats }
+func (itr *StringIterator) Close() error                  { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *StringIterator) Next() *influxql.StringPoint {
@@ -1137,10 +1186,11 @@ func StringIterators(inputs []*StringIterator) []influxql.Iterator {
 type BooleanIterator struct {
 	Points []influxql.BooleanPoint
 	Closed bool
+	stats  influxql.IteratorStats
 }
 
-// Close is a no-op.
-func (itr *BooleanIterator) Close() error { itr.Closed = true; return nil }
+func (itr *BooleanIterator) Stats() influxql.IteratorStats { return itr.stats }
+func (itr *BooleanIterator) Close() error                  { itr.Closed = true; return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *BooleanIterator) Next() *influxql.BooleanPoint {
