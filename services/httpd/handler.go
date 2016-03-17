@@ -39,7 +39,7 @@ const (
 
 // TODO: Check HTTP response codes: 400, 401, 403, 409.
 
-type route struct {
+type Route struct {
 	name        string
 	method      string
 	pattern     string
@@ -89,40 +89,40 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 		statMap:               statMap,
 	}
 
-	h.SetRoutes([]route{
-		route{
+	h.AddRoutes([]Route{
+		Route{
 			"query", // Satisfy CORS checks.
 			"OPTIONS", "/query", true, true, h.serveOptions,
 		},
-		route{
+		Route{
 			"query", // Query serving route.
 			"GET", "/query", true, true, h.serveQuery,
 		},
-		route{
+		Route{
 			"write", // Satisfy CORS checks.
 			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
-		route{
+		Route{
 			"write", // Data-ingest route.
 			"POST", "/write", true, true, h.serveWrite,
 		},
-		route{ // Ping
+		Route{ // Ping
 			"ping",
 			"GET", "/ping", true, true, h.servePing,
 		},
-		route{ // Ping
+		Route{ // Ping
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
 		},
-		route{ // Ping w/ status
+		Route{ // Ping w/ status
 			"status",
 			"GET", "/status", true, true, h.serveStatus,
 		},
-		route{ // Ping w/ status
+		Route{ // Ping w/ status
 			"status-head",
 			"HEAD", "/status", true, true, h.serveStatus,
 		},
-		route{ // Tell data node to run CQs that should be run
+		Route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
 			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
@@ -131,32 +131,37 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 	return h
 }
 
+// AddRoute adds a route to the handler
+func (h *Handler) AddRoute(r Route) {
+	var handler http.Handler
+
+	// If it's a handler func that requires authorization, wrap it in authorization
+	if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request, *meta.UserInfo)); ok {
+		handler = authenticate(hf, h, h.requireAuthentication)
+	}
+	// This is a normal handler signature and does not require authorization
+	if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
+		handler = http.HandlerFunc(hf)
+	}
+
+	if r.gzipped {
+		handler = gzipFilter(handler)
+	}
+	handler = versionHeader(handler, h)
+	handler = cors(handler)
+	handler = requestID(handler)
+	if h.loggingEnabled && r.log {
+		handler = logging(handler, r.name, h.Logger)
+	}
+	handler = recovery(handler, r.name, h.Logger) // make sure recovery is always last
+
+	h.mux.Add(r.method, r.pattern, handler)
+}
+
 // SetRoutes sets the provided routes on the handler.
-func (h *Handler) SetRoutes(routes []route) {
+func (h *Handler) AddRoutes(routes []Route) {
 	for _, r := range routes {
-		var handler http.Handler
-
-		// If it's a handler func that requires authorization, wrap it in authorization
-		if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request, *meta.UserInfo)); ok {
-			handler = authenticate(hf, h, h.requireAuthentication)
-		}
-		// This is a normal handler signature and does not require authorization
-		if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
-			handler = http.HandlerFunc(hf)
-		}
-
-		if r.gzipped {
-			handler = gzipFilter(handler)
-		}
-		handler = versionHeader(handler, h)
-		handler = cors(handler)
-		handler = requestID(handler)
-		if h.loggingEnabled && r.log {
-			handler = logging(handler, r.name, h.Logger)
-		}
-		handler = recovery(handler, r.name, h.Logger) // make sure recovery is always last
-
-		h.mux.Add(r.method, r.pattern, handler)
+		h.AddRoute(r)
 	}
 }
 
