@@ -983,7 +983,7 @@ func snapshot(path string, data *Data) error {
 		return err
 	}
 
-	return os.Rename(tmpFile, file)
+	return renameFile(tmpFile, file)
 }
 
 // Load will save the current meta data from disk
