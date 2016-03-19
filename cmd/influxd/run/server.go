@@ -629,7 +629,7 @@ func (s *Server) initializeMetaClient() error {
 		if s.MetaService == nil {
 			return fmt.Errorf("server not set to join existing cluster must run also as a meta node")
 		}
-		s.MetaClient.SetMetaServers([]string{s.MetaService.HTTPAddr()})
+		s.MetaClient.SetMetaServers([]string{s.MetaService.RemoteHTTPAddr()})
 		s.MetaClient.SetTLS(s.metaUseTLS)
 	} else {
 		// join this node to the cluster
