@@ -107,10 +107,7 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
-	EngineVersion          string
-	MaxWALSize             int
-	WALFlushInterval       time.Duration
-	WALPartitionFlushDelay time.Duration
+	EngineVersion string
 
 	Config Config
 }
@@ -118,11 +115,8 @@ type EngineOptions struct {
 // NewEngineOptions returns the default options.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
-		EngineVersion:          DefaultEngine,
-		MaxWALSize:             DefaultMaxWALSize,
-		WALFlushInterval:       DefaultWALFlushInterval,
-		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
-		Config:                 NewConfig(),
+		EngineVersion: DefaultEngine,
+		Config:        NewConfig(),
 	}
 }
 
