@@ -242,8 +242,9 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 
 func (e *QueryExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement) error {
 	rpu := &meta.RetentionPolicyUpdate{
-		Duration: stmt.Duration,
-		ReplicaN: stmt.Replication,
+		Duration:           stmt.Duration,
+		ReplicaN:           stmt.Replication,
+		ShardGroupDuration: stmt.ShardGroupDuration,
 	}
 
 	// Update the retention policy.
@@ -274,6 +275,7 @@ func (e *QueryExecutor) executeCreateDatabaseStatement(stmt *influxql.CreateData
 	rpi := meta.NewRetentionPolicyInfo(stmt.RetentionPolicyName)
 	rpi.Duration = stmt.RetentionPolicyDuration
 	rpi.ReplicaN = stmt.RetentionPolicyReplication
+	rpi.ShardGroupDuration = stmt.RetentionPolicyShardGroupDuration
 	_, err := e.MetaClient.CreateDatabaseWithRetentionPolicy(stmt.Name, rpi)
 	return err
 }
@@ -282,6 +284,7 @@ func (e *QueryExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.Cre
 	rpi := meta.NewRetentionPolicyInfo(stmt.Name)
 	rpi.Duration = stmt.Duration
 	rpi.ReplicaN = stmt.Replication
+	rpi.ShardGroupDuration = stmt.ShardGroupDuration
 
 	// Create new retention policy.
 	if _, err := e.MetaClient.CreateRetentionPolicy(stmt.Database, rpi); err != nil {
@@ -656,9 +659,9 @@ func (e *QueryExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRe
 		return nil, influxdb.ErrDatabaseNotFound(q.Database)
 	}
 
-	row := &models.Row{Columns: []string{"name", "duration", "replicaN", "default"}}
+	row := &models.Row{Columns: []string{"name", "duration", "shardGroupDuration", "replicaN", "default"}}
 	for _, rpi := range di.RetentionPolicies {
-		row.Values = append(row.Values, []interface{}{rpi.Name, rpi.Duration.String(), rpi.ReplicaN, di.DefaultRetentionPolicy == rpi.Name})
+		row.Values = append(row.Values, []interface{}{rpi.Name, rpi.Duration.String(), rpi.ShardGroupDuration.String(), rpi.ReplicaN, di.DefaultRetentionPolicy == rpi.Name})
 	}
 	return []*models.Row{row}, nil
 }

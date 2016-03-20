@@ -322,7 +322,7 @@ func init() {
 			&Query{
 				name:    "show retention policy should succeed",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","1h0m0s","1h0m0s",1,false]]}]}]}`,
 			},
 			&Query{
 				name:    "alter retention policy should succeed",
@@ -333,12 +333,12 @@ func init() {
 			&Query{
 				name:    "show retention policy should have new altered information",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
 				name:    "show retention policy should still show policy",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
 				name:    "create a second non-default retention policy",
@@ -349,7 +349,7 @@ func init() {
 			&Query{
 				name:    "show retention policy should show both",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true],["rp2","1h0m0s",1,false]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true],["rp2","1h0m0s","1h0m0s",1,false]]}]}]}`,
 			},
 			&Query{
 				name:    "dropping non-default retention policy succeed",
@@ -358,13 +358,30 @@ func init() {
 				once:    true,
 			},
 			&Query{
+				name:    "create a third non-default retention policy",
+				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1h REPLICATION 1 SHARD DURATION 30m`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "show retention policy should show both with custom shard",
+				command: `SHOW RETENTION POLICIES ON db0`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true],["rp3","1h0m0s","30m0s",1,false]]}]}]}`,
+			},
+			&Query{
+				name:    "dropping non-default custom shard retention policy succeed",
+				command: `DROP RETENTION POLICY rp3 ON db0`,
+				exp:     `{"results":[{}]}`,
+				once:    true,
+			},
+			&Query{
 				name:    "show retention policy should show just default",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
 				name:    "Ensure retention policy with unacceptable retention cannot be created",
-				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
+				command: `CREATE RETENTION POLICY rp4 ON db0 DURATION 1s REPLICATION 1`,
 				exp:     `{"results":[{"error":"retention policy duration must be at least 1h0m0s"}]}`,
 				once:    true,
 			},
@@ -393,7 +410,7 @@ func init() {
 			&Query{
 				name:    "show retention policies should return auto-created policy",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["default","0","168h0m0s",1,true]]}]}]}`,
 			},
 		},
 	}

@@ -151,12 +151,19 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	}
 
 	// Append new policy.
-	di.RetentionPolicies = append(di.RetentionPolicies, RetentionPolicyInfo{
-		Name:               rpi.Name,
-		Duration:           rpi.Duration,
-		ShardGroupDuration: shardGroupDuration(rpi.Duration),
-		ReplicaN:           rpi.ReplicaN,
-	})
+	rp := RetentionPolicyInfo{
+		Name:     rpi.Name,
+		Duration: rpi.Duration,
+		ReplicaN: rpi.ReplicaN,
+	}
+
+	if rpi.ShardGroupDuration != 0 {
+		rp.ShardGroupDuration = rpi.ShardGroupDuration
+	} else {
+		rp.ShardGroupDuration = shardGroupDuration(rpi.Duration)
+	}
+
+	di.RetentionPolicies = append(di.RetentionPolicies, rp)
 
 	return nil
 }
@@ -183,9 +190,10 @@ func (data *Data) DropRetentionPolicy(database, name string) error {
 
 // RetentionPolicyUpdate represents retention policy fields to be updated.
 type RetentionPolicyUpdate struct {
-	Name     *string
-	Duration *time.Duration
-	ReplicaN *int
+	Name               *string
+	Duration           *time.Duration
+	ReplicaN           *int
+	ShardGroupDuration *time.Duration
 }
 
 // SetName sets the RetentionPolicyUpdate.Name
@@ -196,6 +204,9 @@ func (rpu *RetentionPolicyUpdate) SetDuration(v time.Duration) { rpu.Duration = 
 
 // SetReplicaN sets the RetentionPolicyUpdate.ReplicaN
 func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
+
+// SetShardGroupDuration sets the RetentionPolicyUpdate.ShardGroupDuration
+func (rpu *RetentionPolicyUpdate) SetShardGroupDuration(v time.Duration) { rpu.ShardGroupDuration = &v }
 
 // UpdateRetentionPolicy updates an existing retention policy.
 func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
@@ -227,10 +238,15 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 	}
 	if rpu.Duration != nil {
 		rpi.Duration = *rpu.Duration
-		rpi.ShardGroupDuration = shardGroupDuration(rpi.Duration)
 	}
 	if rpu.ReplicaN != nil {
 		rpi.ReplicaN = *rpu.ReplicaN
+	}
+
+	if rpu.ShardGroupDuration != nil {
+		rpi.ShardGroupDuration = *rpu.ShardGroupDuration
+	} else {
+		rpi.ShardGroupDuration = shardGroupDuration(rpi.Duration)
 	}
 
 	return nil
