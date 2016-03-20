@@ -183,9 +183,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		// Copy TSDB configuration.
 		s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
-		s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
-		s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-		s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
 		// Set the shard writer
 		s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout),
