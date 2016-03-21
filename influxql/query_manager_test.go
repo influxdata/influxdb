@@ -127,6 +127,31 @@ func TestQueryManager_Queries(t *testing.T) {
 	}
 }
 
+func TestQueryManager_Limit_Timeout(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	qm := influxql.DefaultQueryManager(0)
+	params := influxql.QueryParams{
+		Query:    q,
+		Database: `mydb`,
+		Timeout:  time.Nanosecond,
+	}
+
+	_, ch, err := qm.AttachQuery(&params)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-ch:
+	case <-time.After(time.Millisecond):
+		t.Errorf("timeout has not killed the query")
+	}
+}
+
 func TestQueryManager_Limit_ConcurrentQueries(t *testing.T) {
 	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	if err != nil {

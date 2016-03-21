@@ -348,6 +348,9 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 			if !opt.Interval.IsZero() && opt.Fill != NoFill {
 				itr = NewFillIterator(itr, expr, opt)
 			}
+			if opt.InterruptCh != nil {
+				itr = NewInterruptIterator(itr, opt.InterruptCh)
+			}
 			return itr, nil
 		}
 	case *BinaryExpr:

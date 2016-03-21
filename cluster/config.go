@@ -16,6 +16,10 @@ const (
 	// DefaultShardMapperTimeout is the default timeout set on shard mappers.
 	DefaultShardMapperTimeout = 5 * time.Second
 
+	// DefaultQueryTimeout is the default timeout for executing a query.
+	// A value of zero will have no query timeout.
+	DefaultQueryTimeout = time.Duration(0)
+
 	// DefaultMaxRemoteWriteConnections is the maximum number of open connections
 	// that will be available for remote writes to another host.
 	DefaultMaxRemoteWriteConnections = 3
@@ -33,6 +37,7 @@ type Config struct {
 	MaxRemoteWriteConnections int           `toml:"max-remote-write-connections"`
 	ShardMapperTimeout        toml.Duration `toml:"shard-mapper-timeout"`
 	MaxConcurrentQueries      int           `toml:"max-concurrent-queries"`
+	QueryTimeout              toml.Duration `toml:"query-timeout"`
 }
 
 // NewConfig returns an instance of Config with defaults.
@@ -41,6 +46,7 @@ func NewConfig() Config {
 		WriteTimeout:              toml.Duration(DefaultWriteTimeout),
 		ShardWriterTimeout:        toml.Duration(DefaultShardWriterTimeout),
 		ShardMapperTimeout:        toml.Duration(DefaultShardMapperTimeout),
+		QueryTimeout:              toml.Duration(DefaultQueryTimeout),
 		MaxRemoteWriteConnections: DefaultMaxRemoteWriteConnections,
 		MaxConcurrentQueries:      DefaultMaxConcurrentQueries,
 	}
