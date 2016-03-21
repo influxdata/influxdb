@@ -14,7 +14,7 @@ func TestQueryManager_AttachQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qm := influxql.DefaultQueryManager()
+	qm := influxql.DefaultQueryManager(0)
 	params := influxql.QueryParams{
 		Query:    q,
 		Database: `mydb`,
@@ -37,7 +37,7 @@ func TestQueryManager_KillQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qm := influxql.DefaultQueryManager()
+	qm := influxql.DefaultQueryManager(0)
 	params := influxql.QueryParams{
 		Query:    q,
 		Database: `mydb`,
@@ -67,7 +67,7 @@ func TestQueryManager_Interrupt(t *testing.T) {
 	}
 
 	closing := make(chan struct{})
-	qm := influxql.DefaultQueryManager()
+	qm := influxql.DefaultQueryManager(0)
 	params := influxql.QueryParams{
 		Query:       q,
 		Database:    `mydb`,
@@ -93,7 +93,7 @@ func TestQueryManager_Queries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qm := influxql.DefaultQueryManager()
+	qm := influxql.DefaultQueryManager(0)
 	params := influxql.QueryParams{
 		Query:    q,
 		Database: `mydb`,
@@ -124,5 +124,29 @@ func TestQueryManager_Queries(t *testing.T) {
 	queries = qm.Queries()
 	if len(queries) != 0 {
 		t.Errorf("expected 0 queries, got %d", len(queries))
+	}
+}
+
+func TestQueryManager_Limit_ConcurrentQueries(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	qm := influxql.DefaultQueryManager(1)
+	params := influxql.QueryParams{
+		Query:    q,
+		Database: `mydb`,
+	}
+
+	qid, _, err := qm.AttachQuery(&params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer qm.KillQuery(qid)
+
+	_, _, err = qm.AttachQuery(&params)
+	if err == nil || err != influxql.ErrMaxConcurrentQueriesReached {
+		t.Errorf("unexpected error: %s", err)
 	}
 }

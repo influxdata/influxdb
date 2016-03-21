@@ -19,6 +19,10 @@ const (
 	// DefaultMaxRemoteWriteConnections is the maximum number of open connections
 	// that will be available for remote writes to another host.
 	DefaultMaxRemoteWriteConnections = 3
+
+	// DefaultMaxConcurrentQueries is the maximum number of running queries.
+	// A value of zero will make the maximum query limit unlimited.
+	DefaultMaxConcurrentQueries = 0
 )
 
 // Config represents the configuration for the clustering service.
@@ -28,6 +32,7 @@ type Config struct {
 	ShardWriterTimeout        toml.Duration `toml:"shard-writer-timeout"`
 	MaxRemoteWriteConnections int           `toml:"max-remote-write-connections"`
 	ShardMapperTimeout        toml.Duration `toml:"shard-mapper-timeout"`
+	MaxConcurrentQueries      int           `toml:"max-concurrent-queries"`
 }
 
 // NewConfig returns an instance of Config with defaults.
@@ -37,5 +42,6 @@ func NewConfig() Config {
 		ShardWriterTimeout:        toml.Duration(DefaultShardWriterTimeout),
 		ShardMapperTimeout:        toml.Duration(DefaultShardMapperTimeout),
 		MaxRemoteWriteConnections: DefaultMaxRemoteWriteConnections,
+		MaxConcurrentQueries:      DefaultMaxConcurrentQueries,
 	}
 }
