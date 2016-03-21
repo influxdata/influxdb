@@ -538,7 +538,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 	return files, nil
 }
 
-func (c *Compactor) write(path string, iter KeyIterator) error {
+func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		return fmt.Errorf("%v already file exists. aborting", path)
 	}
@@ -553,7 +553,12 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+	defer func() {
+		closeErr := w.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
 
 	for iter.Next() {
 		select {
@@ -590,7 +595,6 @@ func (c *Compactor) write(path string, iter KeyIterator) error {
 	if err := w.WriteIndex(); err != nil {
 		return err
 	}
-
 	return nil
 }
 
