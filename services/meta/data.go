@@ -527,8 +527,8 @@ func (data *Data) UpdateUser(name, hash string) error {
 	return ErrUserNotFound
 }
 
-// CloneUserInfos returns a copy of the user infos
-func (data *Data) CloneUserInfos() []UserInfo {
+// CloneUsers returns a copy of the user infos
+func (data *Data) CloneUsers() []UserInfo {
 	if len(data.Users) == 0 {
 		return []UserInfo{}
 	}
@@ -598,7 +598,7 @@ func (data *Data) Clone() *Data {
 	other := *data
 
 	other.Databases = data.CloneDatabases()
-	other.Users = data.CloneUserInfos()
+	other.Users = data.CloneUsers()
 
 	return &other
 }
