@@ -36,6 +36,9 @@ type QueryExecutor struct {
 	// Used for rewriting points back into system for SELECT INTO statements.
 	PointsWriter *PointsWriter
 
+	// Used for managing and tracking running queries.
+	QueryManager influxql.QueryManager
+
 	// Remote execution timeout
 	Timeout time.Duration
 
@@ -69,7 +72,7 @@ func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 	return results
 }
 
-func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}, results chan *influxql.Result) {
+func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chunkSize int, closing <-chan struct{}, results chan *influxql.Result) {
 	defer close(results)
 
 	e.statMap.Add(statQueriesActive, 1)
@@ -77,6 +80,19 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		e.statMap.Add(statQueriesActive, -1)
 		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
+
+	if e.QueryManager != nil {
+		var err error
+		_, closing, err = e.QueryManager.AttachQuery(&influxql.QueryParams{
+			Query:       query,
+			Database:    database,
+			InterruptCh: closing,
+		})
+		if err != nil {
+			results <- &influxql.Result{Err: err}
+			return
+		}
+	}
 
 	logger := e.logger()
 
@@ -155,6 +171,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			err = e.executeGrantStatement(stmt)
 		case *influxql.GrantAdminStatement:
 			err = e.executeGrantAdminStatement(stmt)
+		case *influxql.KillQueryStatement:
+			err = e.executeKillQueryStatement(stmt)
 		case *influxql.RevokeStatement:
 			err = e.executeRevokeStatement(stmt)
 		case *influxql.RevokeAdminStatement:
@@ -167,6 +185,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			rows, err = e.executeShowDiagnosticsStatement(stmt)
 		case *influxql.ShowGrantsForUserStatement:
 			rows, err = e.executeShowGrantsForUserStatement(stmt)
+		case *influxql.ShowQueriesStatement:
+			rows, err = e.executeShowQueriesStatement(stmt)
 		case *influxql.ShowRetentionPoliciesStatement:
 			rows, err = e.executeShowRetentionPoliciesStatement(stmt)
 		case *influxql.ShowServersStatement:
@@ -197,7 +217,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			Err:         err,
 		}
 
-		// Stop of the first error.
+		// Stop after the first error.
 		if err != nil {
 			break
 		}
@@ -357,6 +377,13 @@ func (e *QueryExecutor) executeGrantAdminStatement(stmt *influxql.GrantAdminStat
 	return e.MetaClient.SetAdminPrivilege(stmt.User, true)
 }
 
+func (e *QueryExecutor) executeKillQueryStatement(stmt *influxql.KillQueryStatement) error {
+	if e.QueryManager == nil {
+		return influxql.ErrNoQueryManager
+	}
+	return e.QueryManager.KillQuery(stmt.QueryID)
+}
+
 func (e *QueryExecutor) executeRevokeStatement(stmt *influxql.RevokeStatement) error {
 	priv := influxql.NoPrivileges
 
@@ -384,7 +411,7 @@ func (e *QueryExecutor) executeSetPasswordUserStatement(q *influxql.SetPasswordU
 func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, chunkSize, statementID int, results chan *influxql.Result, closing <-chan struct{}) error {
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
-	opt := influxql.SelectOptions{}
+	opt := influxql.SelectOptions{InterruptCh: closing}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
@@ -595,6 +622,10 @@ func (e *QueryExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGrants
 		row.Values = append(row.Values, []interface{}{d, p.String()})
 	}
 	return []*models.Row{row}, nil
+}
+
+func (e *QueryExecutor) executeShowQueriesStatement(q *influxql.ShowQueriesStatement) (models.Rows, error) {
+	return influxql.ExecuteShowQueriesStatement(e.QueryManager, q)
 }
 
 func (e *QueryExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement) (models.Rows, error) {

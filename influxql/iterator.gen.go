@@ -570,6 +570,39 @@ func (itr *floatIntervalIterator) Next() *FloatPoint {
 	return p
 }
 
+// floatInterruptIterator represents a float implementation of InterruptIterator.
+type floatInterruptIterator struct {
+	input   FloatIterator
+	closing <-chan struct{}
+	count   int
+}
+
+func newFloatInterruptIterator(input FloatIterator, closing <-chan struct{}) *floatInterruptIterator {
+	return &floatInterruptIterator{input: input, closing: closing}
+}
+
+func (itr *floatInterruptIterator) Close() error { return itr.input.Close() }
+
+func (itr *floatInterruptIterator) Next() *FloatPoint {
+	// Only check if the channel is closed every 256 points. This
+	// intentionally checks on both 0 and 256 so that if the iterator
+	// has been interrupted before the first point is emitted it will
+	// not emit any points.
+	if itr.count&0x100 == 0 {
+		select {
+		case <-itr.closing:
+			return nil
+		default:
+			// Reset iterator count to zero and fall through to emit the next point.
+			itr.count = 0
+		}
+	}
+
+	// Increment the counter for every point read.
+	itr.count++
+	return itr.input.Next()
+}
+
 // floatAuxIterator represents a float implementation of AuxIterator.
 type floatAuxIterator struct {
 	input      *bufFloatIterator
@@ -1894,6 +1927,39 @@ func (itr *integerIntervalIterator) Next() *IntegerPoint {
 	return p
 }
 
+// integerInterruptIterator represents a integer implementation of InterruptIterator.
+type integerInterruptIterator struct {
+	input   IntegerIterator
+	closing <-chan struct{}
+	count   int
+}
+
+func newIntegerInterruptIterator(input IntegerIterator, closing <-chan struct{}) *integerInterruptIterator {
+	return &integerInterruptIterator{input: input, closing: closing}
+}
+
+func (itr *integerInterruptIterator) Close() error { return itr.input.Close() }
+
+func (itr *integerInterruptIterator) Next() *IntegerPoint {
+	// Only check if the channel is closed every 256 points. This
+	// intentionally checks on both 0 and 256 so that if the iterator
+	// has been interrupted before the first point is emitted it will
+	// not emit any points.
+	if itr.count&0x100 == 0 {
+		select {
+		case <-itr.closing:
+			return nil
+		default:
+			// Reset iterator count to zero and fall through to emit the next point.
+			itr.count = 0
+		}
+	}
+
+	// Increment the counter for every point read.
+	itr.count++
+	return itr.input.Next()
+}
+
 // integerAuxIterator represents a integer implementation of AuxIterator.
 type integerAuxIterator struct {
 	input      *bufIntegerIterator
@@ -3215,6 +3281,39 @@ func (itr *stringIntervalIterator) Next() *StringPoint {
 	return p
 }
 
+// stringInterruptIterator represents a string implementation of InterruptIterator.
+type stringInterruptIterator struct {
+	input   StringIterator
+	closing <-chan struct{}
+	count   int
+}
+
+func newStringInterruptIterator(input StringIterator, closing <-chan struct{}) *stringInterruptIterator {
+	return &stringInterruptIterator{input: input, closing: closing}
+}
+
+func (itr *stringInterruptIterator) Close() error { return itr.input.Close() }
+
+func (itr *stringInterruptIterator) Next() *StringPoint {
+	// Only check if the channel is closed every 256 points. This
+	// intentionally checks on both 0 and 256 so that if the iterator
+	// has been interrupted before the first point is emitted it will
+	// not emit any points.
+	if itr.count&0x100 == 0 {
+		select {
+		case <-itr.closing:
+			return nil
+		default:
+			// Reset iterator count to zero and fall through to emit the next point.
+			itr.count = 0
+		}
+	}
+
+	// Increment the counter for every point read.
+	itr.count++
+	return itr.input.Next()
+}
+
 // stringAuxIterator represents a string implementation of AuxIterator.
 type stringAuxIterator struct {
 	input      *bufStringIterator
@@ -4534,6 +4633,39 @@ func (itr *booleanIntervalIterator) Next() *BooleanPoint {
 	}
 	p.Time, _ = itr.opt.Window(p.Time)
 	return p
+}
+
+// booleanInterruptIterator represents a boolean implementation of InterruptIterator.
+type booleanInterruptIterator struct {
+	input   BooleanIterator
+	closing <-chan struct{}
+	count   int
+}
+
+func newBooleanInterruptIterator(input BooleanIterator, closing <-chan struct{}) *booleanInterruptIterator {
+	return &booleanInterruptIterator{input: input, closing: closing}
+}
+
+func (itr *booleanInterruptIterator) Close() error { return itr.input.Close() }
+
+func (itr *booleanInterruptIterator) Next() *BooleanPoint {
+	// Only check if the channel is closed every 256 points. This
+	// intentionally checks on both 0 and 256 so that if the iterator
+	// has been interrupted before the first point is emitted it will
+	// not emit any points.
+	if itr.count&0x100 == 0 {
+		select {
+		case <-itr.closing:
+			return nil
+		default:
+			// Reset iterator count to zero and fall through to emit the next point.
+			itr.count = 0
+		}
+	}
+
+	// Increment the counter for every point read.
+	itr.count++
+	return itr.input.Next()
 }
 
 // booleanAuxIterator represents a boolean implementation of AuxIterator.

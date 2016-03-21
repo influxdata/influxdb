@@ -579,8 +579,9 @@ func BenchmarkCallIterator_Min_Float(b *testing.B) {
 	b.ReportAllocs()
 
 	itr, err := influxql.NewCallIterator(input, influxql.IteratorOptions{
-		Expr:     MustParseExpr("min(value)"),
-		Interval: influxql.Interval{Duration: 1 * time.Hour},
+		Expr:        MustParseExpr("min(value)"),
+		Interval:    influxql.Interval{Duration: 1 * time.Hour},
+		InterruptCh: make(chan struct{}),
 	})
 	if err != nil {
 		b.Fatal(err)

@@ -105,8 +105,10 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseAlterStatement()
 	case SET:
 		return p.parseSetPasswordUserStatement()
+	case KILL:
+		return p.parseKillQueryStatement()
 	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET", "KILL"}, pos)
 	}
 }
 
@@ -131,6 +133,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS"}, pos)
 	case MEASUREMENTS:
 		return p.parseShowMeasurementsStatement()
+	case QUERIES:
+		return p.parseShowQueriesStatement()
 	case RETENTION:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == POLICIES {
@@ -171,6 +175,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		"FIELD",
 		"GRANTS",
 		"MEASUREMENTS",
+		"QUERIES",
 		"RETENTION",
 		"SERIES",
 		"SERVERS",
@@ -285,6 +290,20 @@ func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, err
 	stmt.Password = ident
 
 	return stmt, nil
+}
+
+// parseKillQueryStatement parses a string and returns a kill statement.
+// This function assumes the KILL token has already been consumed.
+func (p *Parser) parseKillQueryStatement() (*KillQueryStatement, error) {
+	if err := p.parseTokens([]Token{QUERY}); err != nil {
+		return nil, err
+	}
+
+	qid, err := p.parseUInt64()
+	if err != nil {
+		return nil, err
+	}
+	return &KillQueryStatement{QueryID: qid}, nil
 }
 
 // parseCreateSubscriptionStatement parses a string and returns a CreatesubScriptionStatement.
@@ -1069,6 +1088,12 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 	}
 
 	return stmt, nil
+}
+
+// parseShowQueriesStatement parses a string and returns a ShowQueriesStatement.
+// This function assumes the "SHOW QUERIES" tokens have been consumed.
+func (p *Parser) parseShowQueriesStatement() (*ShowQueriesStatement, error) {
+	return &ShowQueriesStatement{}, nil
 }
 
 // parseShowRetentionPoliciesStatement parses a string and returns a ShowRetentionPoliciesStatement.

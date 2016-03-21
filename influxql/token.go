@@ -98,6 +98,7 @@ const (
 	INTO
 	KEY
 	KEYS
+	KILL
 	LIMIT
 	META
 	MEASUREMENT
@@ -221,6 +222,7 @@ var tokens = [...]string{
 	INTO:          "INTO",
 	KEY:           "KEY",
 	KEYS:          "KEYS",
+	KILL:          "KILL",
 	LIMIT:         "LIMIT",
 	MEASUREMENT:   "MEASUREMENT",
 	MEASUREMENTS:  "MEASUREMENTS",

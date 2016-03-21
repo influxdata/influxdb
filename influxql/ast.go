@@ -108,6 +108,7 @@ func (*DropSubscriptionStatement) node()      {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*GrantAdminStatement) node()            {}
+func (*KillQueryStatement) node()             {}
 func (*RevokeStatement) node()                {}
 func (*RevokeAdminStatement) node()           {}
 func (*SelectStatement) node()                {}
@@ -119,6 +120,7 @@ func (*ShowDatabasesStatement) node()         {}
 func (*ShowFieldKeysStatement) node()         {}
 func (*ShowRetentionPoliciesStatement) node() {}
 func (*ShowMeasurementsStatement) node()      {}
+func (*ShowQueriesStatement) node()           {}
 func (*ShowSeriesStatement) node()            {}
 func (*ShowShardGroupsStatement) node()       {}
 func (*ShowShardsStatement) node()            {}
@@ -220,12 +222,14 @@ func (*DropSubscriptionStatement) stmt()      {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*GrantAdminStatement) stmt()            {}
+func (*KillQueryStatement) stmt()             {}
 func (*ShowContinuousQueriesStatement) stmt() {}
 func (*ShowGrantsForUserStatement) stmt()     {}
 func (*ShowServersStatement) stmt()           {}
 func (*ShowDatabasesStatement) stmt()         {}
 func (*ShowFieldKeysStatement) stmt()         {}
 func (*ShowMeasurementsStatement) stmt()      {}
+func (*ShowQueriesStatement) stmt()           {}
 func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
 func (*ShowShardGroupsStatement) stmt()       {}
@@ -643,6 +647,19 @@ func (s *GrantAdminStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a GrantAdminStatement.
 func (s *GrantAdminStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+type KillQueryStatement struct {
+	// The query to kill.
+	QueryID uint64
+}
+
+func (s *KillQueryStatement) String() string {
+	return fmt.Sprintf("KILL QUERY %d", s.QueryID)
+}
+
+func (s *KillQueryStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
@@ -2399,6 +2416,19 @@ func (s *DropMeasurementStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a DropMeasurementStatement
 func (s *DropMeasurementStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// SowQueriesStatement represents a command for listing all running queries.
+type ShowQueriesStatement struct{}
+
+// String returns a string representation of the show queries statement.
+func (s *ShowQueriesStatement) String() string {
+	return "SHOW QUERIES"
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowQueriesStatement.
+func (s *ShowQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // ShowRetentionPoliciesStatement represents a command for listing retention policies.

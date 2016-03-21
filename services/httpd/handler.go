@@ -295,6 +295,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			<-notify
 			close(closing)
 		}()
+	} else {
+		defer close(closing)
 	}
 
 	// Execute query.
@@ -636,6 +638,10 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 
 func (w gzipResponseWriter) Flush() {
 	w.Writer.(*gzip.Writer).Flush()
+}
+
+func (w gzipResponseWriter) CloseNotify() <-chan bool {
+	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
 
 // determines if the client can accept compressed responses, and encodes accordingly

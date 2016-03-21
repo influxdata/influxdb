@@ -14,6 +14,10 @@ type SelectOptions struct {
 
 	// The upper bound for a select call.
 	MaxTime time.Time
+
+	// An optional channel that, if closed, signals that the select should be
+	// interrupted.
+	InterruptCh <-chan struct{}
 }
 
 // Select executes stmt against ic and returns a list of iterators to stream from.
