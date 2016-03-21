@@ -70,6 +70,7 @@ import (
 	"hash/crc32"
 	"io"
 	"math"
+	"os"
 	"sort"
 	"sync"
 	"time"
@@ -637,6 +638,12 @@ func (t *tsmWriter) WriteIndex() error {
 func (t *tsmWriter) Close() error {
 	if err := t.w.Flush(); err != nil {
 		return err
+	}
+
+	if f, ok := t.wrapped.(*os.File); ok {
+		if err := f.Sync(); err != nil {
+			return err
+		}
 	}
 
 	if c, ok := t.wrapped.(io.Closer); ok {

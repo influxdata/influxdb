@@ -436,6 +436,10 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		}
 	}
 
+	if err := syncDir(f.dir); err != nil {
+		return err
+	}
+
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
 
