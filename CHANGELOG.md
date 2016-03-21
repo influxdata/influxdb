@@ -89,6 +89,7 @@ There were some important breaking changes in this release. Here's a list of the
 - [#5965](https://github.com/influxdata/influxdb/issues/5965): InfluxDB panic crashes while parsing "-" as Float
 - [#5835](https://github.com/influxdata/influxdb/issues/5835): Make CREATE USER default to IF NOT EXISTS
 - [#6042](https://github.com/influxdata/influxdb/issues/6042): CreateDatabase failure on Windows, regression from v0.11.0 RC @mvadu
+- [#5889](https://github.com/influxdata/influxdb/issues/5889): Fix writing partial TSM index when flush file fails
 
 ## v0.10.3 [2016-03-09]
 
