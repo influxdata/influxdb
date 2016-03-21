@@ -365,7 +365,7 @@ func post(url string, datatype string, data io.Reader) (*http.Response, error) {
 func (c *BasicClient) send(b []byte) (response, error) {
 
 	t := NewTimer()
-	resp, err := post(c.Addresses[c.addrId], "application/x-www-form-urlencoded", bytes.NewBuffer(b))
+	resp, err := post(c.Addresses[c.addrId], "", bytes.NewBuffer(b))
 	t.StopTimer()
 	if err != nil {
 		return response{Timer: t}, err
