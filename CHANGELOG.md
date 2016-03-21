@@ -6,6 +6,7 @@
 - [#6025](https://github.com/influxdata/influxdb/pull/6025): Remove deprecated JSON write path.
 - [#5744](https://github.com/influxdata/influxdb/issues/5744): Add integer literal support to the query language.
 - [#5939](https://github.com/influxdata/influxdb/issues/5939): Support viewing and killing running queries.
+- [#6073](https://github.com/influxdata/influxdb/pulls/6073): Iterator stats
 
 ### Bugfixes
 

@@ -936,6 +936,9 @@ func NewMeasurementIterator(sh *Shard, opt influxql.IteratorOptions) (*Measureme
 	return itr, nil
 }
 
+// Stats returns stats about the points processed.
+func (itr *MeasurementIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
 // Close closes the iterator.
 func (itr *MeasurementIterator) Close() error { return nil }
 
@@ -999,6 +1002,9 @@ func NewSeriesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterat
 		fields: opt.Aux,
 	}, nil
 }
+
+// Stats returns stats about the points processed.
+func (itr *seriesIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
 
 // Close closes the iterator.
 func (itr *seriesIterator) Close() error { return nil }
@@ -1105,6 +1111,9 @@ func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Ite
 	}, nil
 }
 
+// Stats returns stats about the points processed.
+func (itr *tagValuesIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
 // Close closes the iterator.
 func (itr *tagValuesIterator) Close() error { return nil }
 
@@ -1184,6 +1193,9 @@ type measurementKeysIterator struct {
 	}
 	fn measurementKeyFunc
 }
+
+// Stats returns stats about the points processed.
+func (itr *measurementKeysIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
 
 // Close closes the iterator.
 func (itr *measurementKeysIterator) Close() error { return nil }

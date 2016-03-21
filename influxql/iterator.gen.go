@@ -8,15 +8,21 @@ package influxql
 
 import (
 	"container/heap"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdata/influxdb/influxql/internal"
 )
+
+// DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
+const DefaultStatsInterval = 10 * time.Second
 
 // FloatIterator represents a stream of float points.
 type FloatIterator interface {
@@ -54,6 +60,9 @@ type bufFloatIterator struct {
 func newBufFloatIterator(itr FloatIterator) *bufFloatIterator {
 	return &bufFloatIterator{itr: itr}
 }
+
+// Stats returns statistics from the input iterator.
+func (itr *bufFloatIterator) Stats() IteratorStats { return itr.itr.Stats() }
 
 // Close closes the underlying iterator.
 func (itr *bufFloatIterator) Close() error { return itr.itr.Close() }
@@ -140,6 +149,15 @@ func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMe
 	heap.Init(itr.heap)
 
 	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *floatMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
 }
 
 // Close closes the underlying iterators.
@@ -282,6 +300,15 @@ func newFloatSortedMergeIterator(inputs []FloatIterator, opt IteratorOptions) It
 	return itr
 }
 
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *floatSortedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
 // Close closes the underlying iterators.
 func (itr *floatSortedMergeIterator) Close() error {
 	for _, input := range itr.inputs {
@@ -376,6 +403,9 @@ func newFloatLimitIterator(input FloatIterator, opt IteratorOptions) *floatLimit
 		opt:   opt,
 	}
 }
+
+// Stats returns stats from the underlying iterator.
+func (itr *floatLimitIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the underlying iterators.
 func (itr *floatLimitIterator) Close() error { return itr.input.Close() }
@@ -472,7 +502,8 @@ func newFloatFillIterator(input FloatIterator, expr Expr, opt IteratorOptions) *
 	return itr
 }
 
-func (itr *floatFillIterator) Close() error { return itr.input.Close() }
+func (itr *floatFillIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *floatFillIterator) Close() error         { return itr.input.Close() }
 
 func (itr *floatFillIterator) Next() *FloatPoint {
 	p := itr.input.Next()
@@ -559,7 +590,8 @@ func newFloatIntervalIterator(input FloatIterator, opt IteratorOptions) *floatIn
 	return &floatIntervalIterator{input: input, opt: opt}
 }
 
-func (itr *floatIntervalIterator) Close() error { return itr.input.Close() }
+func (itr *floatIntervalIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *floatIntervalIterator) Close() error         { return itr.input.Close() }
 
 func (itr *floatIntervalIterator) Next() *FloatPoint {
 	p := itr.input.Next()
@@ -626,6 +658,7 @@ func (itr *floatAuxIterator) Background() {
 }
 
 func (itr *floatAuxIterator) Start()                        { go itr.stream() }
+func (itr *floatAuxIterator) Stats() IteratorStats          { return itr.input.Stats() }
 func (itr *floatAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *floatAuxIterator) Next() *FloatPoint             { return <-itr.output }
 func (itr *floatAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -681,6 +714,8 @@ type floatChanIterator struct {
 	cond *sync.Cond
 	done bool
 }
+
+func (itr *floatChanIterator) Stats() IteratorStats { return IteratorStats{} }
 
 func (itr *floatChanIterator) Close() error {
 	itr.cond.L.Lock()
@@ -752,6 +787,9 @@ type floatReduceFloatIterator struct {
 	opt    IteratorOptions
 	points []FloatPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *floatReduceFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *floatReduceFloatIterator) Close() error { return itr.input.Close() }
@@ -847,6 +885,12 @@ type floatExprIterator struct {
 	fn    floatExprFunc
 }
 
+func (itr *floatExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *floatExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -875,6 +919,9 @@ type floatReduceIntegerIterator struct {
 	opt    IteratorOptions
 	points []IntegerPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *floatReduceIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *floatReduceIntegerIterator) Close() error { return itr.input.Close() }
@@ -970,6 +1017,12 @@ type floatIntegerExprIterator struct {
 	fn    floatIntegerExprFunc
 }
 
+func (itr *floatIntegerExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *floatIntegerExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -998,6 +1051,9 @@ type floatReduceStringIterator struct {
 	opt    IteratorOptions
 	points []StringPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *floatReduceStringIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *floatReduceStringIterator) Close() error { return itr.input.Close() }
@@ -1093,6 +1149,12 @@ type floatStringExprIterator struct {
 	fn    floatStringExprFunc
 }
 
+func (itr *floatStringExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *floatStringExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -1121,6 +1183,9 @@ type floatReduceBooleanIterator struct {
 	opt    IteratorOptions
 	points []BooleanPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *floatReduceBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *floatReduceBooleanIterator) Close() error { return itr.input.Close() }
@@ -1216,6 +1281,12 @@ type floatBooleanExprIterator struct {
 	fn    floatBooleanExprFunc
 }
 
+func (itr *floatBooleanExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *floatBooleanExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -1244,6 +1315,9 @@ type floatTransformIterator struct {
 	fn    floatTransformFunc
 }
 
+// Stats returns stats from the input iterator.
+func (itr *floatTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
 // Close closes the iterator and all child iterators.
 func (itr *floatTransformIterator) Close() error { return itr.input.Close() }
 
@@ -1267,6 +1341,9 @@ type floatBoolTransformIterator struct {
 	input FloatIterator
 	fn    floatBoolTransformFunc
 }
+
+// Stats returns stats from the input iterator.
+func (itr *floatBoolTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *floatBoolTransformIterator) Close() error { return itr.input.Close() }
@@ -1301,6 +1378,9 @@ func newFloatDedupeIterator(input FloatIterator) *floatDedupeIterator {
 		m:     make(map[string]struct{}),
 	}
 }
+
+// Stats returns stats from the input iterator.
+func (itr *floatDedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *floatDedupeIterator) Close() error { return itr.input.Close() }
@@ -1340,13 +1420,19 @@ type floatReaderIterator struct {
 }
 
 // newFloatReaderIterator returns a new instance of floatReaderIterator.
-func newFloatReaderIterator(r io.Reader, first *FloatPoint) *floatReaderIterator {
+func newFloatReaderIterator(r io.Reader, first *FloatPoint, stats IteratorStats) *floatReaderIterator {
+	dec := NewFloatPointDecoder(r)
+	dec.stats = stats
+
 	return &floatReaderIterator{
 		r:     r,
-		dec:   NewFloatPointDecoder(r),
+		dec:   dec,
 		first: first,
 	}
 }
+
+// Stats returns stats about points processed.
+func (itr *floatReaderIterator) Stats() IteratorStats { return itr.dec.stats }
 
 // Close closes the underlying reader, if applicable.
 func (itr *floatReaderIterator) Close() error {
@@ -1411,6 +1497,9 @@ type bufIntegerIterator struct {
 func newBufIntegerIterator(itr IntegerIterator) *bufIntegerIterator {
 	return &bufIntegerIterator{itr: itr}
 }
+
+// Stats returns statistics from the input iterator.
+func (itr *bufIntegerIterator) Stats() IteratorStats { return itr.itr.Stats() }
 
 // Close closes the underlying iterator.
 func (itr *bufIntegerIterator) Close() error { return itr.itr.Close() }
@@ -1497,6 +1586,15 @@ func newIntegerMergeIterator(inputs []IntegerIterator, opt IteratorOptions) *int
 	heap.Init(itr.heap)
 
 	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *integerMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
 }
 
 // Close closes the underlying iterators.
@@ -1639,6 +1737,15 @@ func newIntegerSortedMergeIterator(inputs []IntegerIterator, opt IteratorOptions
 	return itr
 }
 
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *integerSortedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
 // Close closes the underlying iterators.
 func (itr *integerSortedMergeIterator) Close() error {
 	for _, input := range itr.inputs {
@@ -1733,6 +1840,9 @@ func newIntegerLimitIterator(input IntegerIterator, opt IteratorOptions) *intege
 		opt:   opt,
 	}
 }
+
+// Stats returns stats from the underlying iterator.
+func (itr *integerLimitIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the underlying iterators.
 func (itr *integerLimitIterator) Close() error { return itr.input.Close() }
@@ -1829,7 +1939,8 @@ func newIntegerFillIterator(input IntegerIterator, expr Expr, opt IteratorOption
 	return itr
 }
 
-func (itr *integerFillIterator) Close() error { return itr.input.Close() }
+func (itr *integerFillIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *integerFillIterator) Close() error         { return itr.input.Close() }
 
 func (itr *integerFillIterator) Next() *IntegerPoint {
 	p := itr.input.Next()
@@ -1916,7 +2027,8 @@ func newIntegerIntervalIterator(input IntegerIterator, opt IteratorOptions) *int
 	return &integerIntervalIterator{input: input, opt: opt}
 }
 
-func (itr *integerIntervalIterator) Close() error { return itr.input.Close() }
+func (itr *integerIntervalIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *integerIntervalIterator) Close() error         { return itr.input.Close() }
 
 func (itr *integerIntervalIterator) Next() *IntegerPoint {
 	p := itr.input.Next()
@@ -1983,6 +2095,7 @@ func (itr *integerAuxIterator) Background() {
 }
 
 func (itr *integerAuxIterator) Start()                        { go itr.stream() }
+func (itr *integerAuxIterator) Stats() IteratorStats          { return itr.input.Stats() }
 func (itr *integerAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *integerAuxIterator) Next() *IntegerPoint           { return <-itr.output }
 func (itr *integerAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -2038,6 +2151,8 @@ type integerChanIterator struct {
 	cond *sync.Cond
 	done bool
 }
+
+func (itr *integerChanIterator) Stats() IteratorStats { return IteratorStats{} }
 
 func (itr *integerChanIterator) Close() error {
 	itr.cond.L.Lock()
@@ -2106,6 +2221,9 @@ type integerReduceFloatIterator struct {
 	opt    IteratorOptions
 	points []FloatPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *integerReduceFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *integerReduceFloatIterator) Close() error { return itr.input.Close() }
@@ -2201,6 +2319,12 @@ type integerFloatExprIterator struct {
 	fn    integerFloatExprFunc
 }
 
+func (itr *integerFloatExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *integerFloatExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -2229,6 +2353,9 @@ type integerReduceIntegerIterator struct {
 	opt    IteratorOptions
 	points []IntegerPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *integerReduceIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *integerReduceIntegerIterator) Close() error { return itr.input.Close() }
@@ -2324,6 +2451,12 @@ type integerExprIterator struct {
 	fn    integerExprFunc
 }
 
+func (itr *integerExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *integerExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -2352,6 +2485,9 @@ type integerReduceStringIterator struct {
 	opt    IteratorOptions
 	points []StringPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *integerReduceStringIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *integerReduceStringIterator) Close() error { return itr.input.Close() }
@@ -2447,6 +2583,12 @@ type integerStringExprIterator struct {
 	fn    integerStringExprFunc
 }
 
+func (itr *integerStringExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *integerStringExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -2475,6 +2617,9 @@ type integerReduceBooleanIterator struct {
 	opt    IteratorOptions
 	points []BooleanPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *integerReduceBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *integerReduceBooleanIterator) Close() error { return itr.input.Close() }
@@ -2570,6 +2715,12 @@ type integerBooleanExprIterator struct {
 	fn    integerBooleanExprFunc
 }
 
+func (itr *integerBooleanExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *integerBooleanExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -2598,6 +2749,9 @@ type integerTransformIterator struct {
 	fn    integerTransformFunc
 }
 
+// Stats returns stats from the input iterator.
+func (itr *integerTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
 // Close closes the iterator and all child iterators.
 func (itr *integerTransformIterator) Close() error { return itr.input.Close() }
 
@@ -2621,6 +2775,9 @@ type integerBoolTransformIterator struct {
 	input IntegerIterator
 	fn    integerBoolTransformFunc
 }
+
+// Stats returns stats from the input iterator.
+func (itr *integerBoolTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *integerBoolTransformIterator) Close() error { return itr.input.Close() }
@@ -2655,6 +2812,9 @@ func newIntegerDedupeIterator(input IntegerIterator) *integerDedupeIterator {
 		m:     make(map[string]struct{}),
 	}
 }
+
+// Stats returns stats from the input iterator.
+func (itr *integerDedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *integerDedupeIterator) Close() error { return itr.input.Close() }
@@ -2694,13 +2854,19 @@ type integerReaderIterator struct {
 }
 
 // newIntegerReaderIterator returns a new instance of integerReaderIterator.
-func newIntegerReaderIterator(r io.Reader, first *IntegerPoint) *integerReaderIterator {
+func newIntegerReaderIterator(r io.Reader, first *IntegerPoint, stats IteratorStats) *integerReaderIterator {
+	dec := NewIntegerPointDecoder(r)
+	dec.stats = stats
+
 	return &integerReaderIterator{
 		r:     r,
-		dec:   NewIntegerPointDecoder(r),
+		dec:   dec,
 		first: first,
 	}
 }
+
+// Stats returns stats about points processed.
+func (itr *integerReaderIterator) Stats() IteratorStats { return itr.dec.stats }
 
 // Close closes the underlying reader, if applicable.
 func (itr *integerReaderIterator) Close() error {
@@ -2765,6 +2931,9 @@ type bufStringIterator struct {
 func newBufStringIterator(itr StringIterator) *bufStringIterator {
 	return &bufStringIterator{itr: itr}
 }
+
+// Stats returns statistics from the input iterator.
+func (itr *bufStringIterator) Stats() IteratorStats { return itr.itr.Stats() }
 
 // Close closes the underlying iterator.
 func (itr *bufStringIterator) Close() error { return itr.itr.Close() }
@@ -2851,6 +3020,15 @@ func newStringMergeIterator(inputs []StringIterator, opt IteratorOptions) *strin
 	heap.Init(itr.heap)
 
 	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *stringMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
 }
 
 // Close closes the underlying iterators.
@@ -2993,6 +3171,15 @@ func newStringSortedMergeIterator(inputs []StringIterator, opt IteratorOptions) 
 	return itr
 }
 
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *stringSortedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
 // Close closes the underlying iterators.
 func (itr *stringSortedMergeIterator) Close() error {
 	for _, input := range itr.inputs {
@@ -3087,6 +3274,9 @@ func newStringLimitIterator(input StringIterator, opt IteratorOptions) *stringLi
 		opt:   opt,
 	}
 }
+
+// Stats returns stats from the underlying iterator.
+func (itr *stringLimitIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the underlying iterators.
 func (itr *stringLimitIterator) Close() error { return itr.input.Close() }
@@ -3183,7 +3373,8 @@ func newStringFillIterator(input StringIterator, expr Expr, opt IteratorOptions)
 	return itr
 }
 
-func (itr *stringFillIterator) Close() error { return itr.input.Close() }
+func (itr *stringFillIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *stringFillIterator) Close() error         { return itr.input.Close() }
 
 func (itr *stringFillIterator) Next() *StringPoint {
 	p := itr.input.Next()
@@ -3270,7 +3461,8 @@ func newStringIntervalIterator(input StringIterator, opt IteratorOptions) *strin
 	return &stringIntervalIterator{input: input, opt: opt}
 }
 
-func (itr *stringIntervalIterator) Close() error { return itr.input.Close() }
+func (itr *stringIntervalIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *stringIntervalIterator) Close() error         { return itr.input.Close() }
 
 func (itr *stringIntervalIterator) Next() *StringPoint {
 	p := itr.input.Next()
@@ -3337,6 +3529,7 @@ func (itr *stringAuxIterator) Background() {
 }
 
 func (itr *stringAuxIterator) Start()                        { go itr.stream() }
+func (itr *stringAuxIterator) Stats() IteratorStats          { return itr.input.Stats() }
 func (itr *stringAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *stringAuxIterator) Next() *StringPoint            { return <-itr.output }
 func (itr *stringAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -3392,6 +3585,8 @@ type stringChanIterator struct {
 	cond *sync.Cond
 	done bool
 }
+
+func (itr *stringChanIterator) Stats() IteratorStats { return IteratorStats{} }
 
 func (itr *stringChanIterator) Close() error {
 	itr.cond.L.Lock()
@@ -3460,6 +3655,9 @@ type stringReduceFloatIterator struct {
 	opt    IteratorOptions
 	points []FloatPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *stringReduceFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *stringReduceFloatIterator) Close() error { return itr.input.Close() }
@@ -3555,6 +3753,12 @@ type stringFloatExprIterator struct {
 	fn    stringFloatExprFunc
 }
 
+func (itr *stringFloatExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *stringFloatExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -3583,6 +3787,9 @@ type stringReduceIntegerIterator struct {
 	opt    IteratorOptions
 	points []IntegerPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *stringReduceIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *stringReduceIntegerIterator) Close() error { return itr.input.Close() }
@@ -3678,6 +3885,12 @@ type stringIntegerExprIterator struct {
 	fn    stringIntegerExprFunc
 }
 
+func (itr *stringIntegerExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *stringIntegerExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -3706,6 +3919,9 @@ type stringReduceStringIterator struct {
 	opt    IteratorOptions
 	points []StringPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *stringReduceStringIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *stringReduceStringIterator) Close() error { return itr.input.Close() }
@@ -3801,6 +4017,12 @@ type stringExprIterator struct {
 	fn    stringExprFunc
 }
 
+func (itr *stringExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *stringExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -3829,6 +4051,9 @@ type stringReduceBooleanIterator struct {
 	opt    IteratorOptions
 	points []BooleanPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *stringReduceBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *stringReduceBooleanIterator) Close() error { return itr.input.Close() }
@@ -3924,6 +4149,12 @@ type stringBooleanExprIterator struct {
 	fn    stringBooleanExprFunc
 }
 
+func (itr *stringBooleanExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *stringBooleanExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -3952,6 +4183,9 @@ type stringTransformIterator struct {
 	fn    stringTransformFunc
 }
 
+// Stats returns stats from the input iterator.
+func (itr *stringTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
 // Close closes the iterator and all child iterators.
 func (itr *stringTransformIterator) Close() error { return itr.input.Close() }
 
@@ -3975,6 +4209,9 @@ type stringBoolTransformIterator struct {
 	input StringIterator
 	fn    stringBoolTransformFunc
 }
+
+// Stats returns stats from the input iterator.
+func (itr *stringBoolTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *stringBoolTransformIterator) Close() error { return itr.input.Close() }
@@ -4009,6 +4246,9 @@ func newStringDedupeIterator(input StringIterator) *stringDedupeIterator {
 		m:     make(map[string]struct{}),
 	}
 }
+
+// Stats returns stats from the input iterator.
+func (itr *stringDedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *stringDedupeIterator) Close() error { return itr.input.Close() }
@@ -4048,13 +4288,19 @@ type stringReaderIterator struct {
 }
 
 // newStringReaderIterator returns a new instance of stringReaderIterator.
-func newStringReaderIterator(r io.Reader, first *StringPoint) *stringReaderIterator {
+func newStringReaderIterator(r io.Reader, first *StringPoint, stats IteratorStats) *stringReaderIterator {
+	dec := NewStringPointDecoder(r)
+	dec.stats = stats
+
 	return &stringReaderIterator{
 		r:     r,
-		dec:   NewStringPointDecoder(r),
+		dec:   dec,
 		first: first,
 	}
 }
+
+// Stats returns stats about points processed.
+func (itr *stringReaderIterator) Stats() IteratorStats { return itr.dec.stats }
 
 // Close closes the underlying reader, if applicable.
 func (itr *stringReaderIterator) Close() error {
@@ -4119,6 +4365,9 @@ type bufBooleanIterator struct {
 func newBufBooleanIterator(itr BooleanIterator) *bufBooleanIterator {
 	return &bufBooleanIterator{itr: itr}
 }
+
+// Stats returns statistics from the input iterator.
+func (itr *bufBooleanIterator) Stats() IteratorStats { return itr.itr.Stats() }
 
 // Close closes the underlying iterator.
 func (itr *bufBooleanIterator) Close() error { return itr.itr.Close() }
@@ -4205,6 +4454,15 @@ func newBooleanMergeIterator(inputs []BooleanIterator, opt IteratorOptions) *boo
 	heap.Init(itr.heap)
 
 	return itr
+}
+
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *booleanMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
 }
 
 // Close closes the underlying iterators.
@@ -4347,6 +4605,15 @@ func newBooleanSortedMergeIterator(inputs []BooleanIterator, opt IteratorOptions
 	return itr
 }
 
+// Stats returns an aggregation of stats from the underlying iterators.
+func (itr *booleanSortedMergeIterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, input := range itr.inputs {
+		stats.Add(input.Stats())
+	}
+	return stats
+}
+
 // Close closes the underlying iterators.
 func (itr *booleanSortedMergeIterator) Close() error {
 	for _, input := range itr.inputs {
@@ -4441,6 +4708,9 @@ func newBooleanLimitIterator(input BooleanIterator, opt IteratorOptions) *boolea
 		opt:   opt,
 	}
 }
+
+// Stats returns stats from the underlying iterator.
+func (itr *booleanLimitIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the underlying iterators.
 func (itr *booleanLimitIterator) Close() error { return itr.input.Close() }
@@ -4537,7 +4807,8 @@ func newBooleanFillIterator(input BooleanIterator, expr Expr, opt IteratorOption
 	return itr
 }
 
-func (itr *booleanFillIterator) Close() error { return itr.input.Close() }
+func (itr *booleanFillIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *booleanFillIterator) Close() error         { return itr.input.Close() }
 
 func (itr *booleanFillIterator) Next() *BooleanPoint {
 	p := itr.input.Next()
@@ -4624,7 +4895,8 @@ func newBooleanIntervalIterator(input BooleanIterator, opt IteratorOptions) *boo
 	return &booleanIntervalIterator{input: input, opt: opt}
 }
 
-func (itr *booleanIntervalIterator) Close() error { return itr.input.Close() }
+func (itr *booleanIntervalIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *booleanIntervalIterator) Close() error         { return itr.input.Close() }
 
 func (itr *booleanIntervalIterator) Next() *BooleanPoint {
 	p := itr.input.Next()
@@ -4691,6 +4963,7 @@ func (itr *booleanAuxIterator) Background() {
 }
 
 func (itr *booleanAuxIterator) Start()                        { go itr.stream() }
+func (itr *booleanAuxIterator) Stats() IteratorStats          { return itr.input.Stats() }
 func (itr *booleanAuxIterator) Close() error                  { return itr.input.Close() }
 func (itr *booleanAuxIterator) Next() *BooleanPoint           { return <-itr.output }
 func (itr *booleanAuxIterator) Iterator(name string) Iterator { return itr.fields.iterator(name) }
@@ -4746,6 +5019,8 @@ type booleanChanIterator struct {
 	cond *sync.Cond
 	done bool
 }
+
+func (itr *booleanChanIterator) Stats() IteratorStats { return IteratorStats{} }
 
 func (itr *booleanChanIterator) Close() error {
 	itr.cond.L.Lock()
@@ -4814,6 +5089,9 @@ type booleanReduceFloatIterator struct {
 	opt    IteratorOptions
 	points []FloatPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *booleanReduceFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *booleanReduceFloatIterator) Close() error { return itr.input.Close() }
@@ -4909,6 +5187,12 @@ type booleanFloatExprIterator struct {
 	fn    booleanFloatExprFunc
 }
 
+func (itr *booleanFloatExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *booleanFloatExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -4937,6 +5221,9 @@ type booleanReduceIntegerIterator struct {
 	opt    IteratorOptions
 	points []IntegerPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *booleanReduceIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *booleanReduceIntegerIterator) Close() error { return itr.input.Close() }
@@ -5032,6 +5319,12 @@ type booleanIntegerExprIterator struct {
 	fn    booleanIntegerExprFunc
 }
 
+func (itr *booleanIntegerExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *booleanIntegerExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -5060,6 +5353,9 @@ type booleanReduceStringIterator struct {
 	opt    IteratorOptions
 	points []StringPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *booleanReduceStringIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *booleanReduceStringIterator) Close() error { return itr.input.Close() }
@@ -5155,6 +5451,12 @@ type booleanStringExprIterator struct {
 	fn    booleanStringExprFunc
 }
 
+func (itr *booleanStringExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *booleanStringExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -5183,6 +5485,9 @@ type booleanReduceBooleanIterator struct {
 	opt    IteratorOptions
 	points []BooleanPoint
 }
+
+// Stats returns stats from the input iterator.
+func (itr *booleanReduceBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *booleanReduceBooleanIterator) Close() error { return itr.input.Close() }
@@ -5278,6 +5583,12 @@ type booleanExprIterator struct {
 	fn    booleanExprFunc
 }
 
+func (itr *booleanExprIterator) Stats() IteratorStats {
+	stats := itr.left.Stats()
+	stats.Add(itr.right.Stats())
+	return stats
+}
+
 func (itr *booleanExprIterator) Close() error {
 	itr.left.Close()
 	itr.right.Close()
@@ -5306,6 +5617,9 @@ type booleanTransformIterator struct {
 	fn    booleanTransformFunc
 }
 
+// Stats returns stats from the input iterator.
+func (itr *booleanTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
 // Close closes the iterator and all child iterators.
 func (itr *booleanTransformIterator) Close() error { return itr.input.Close() }
 
@@ -5329,6 +5643,9 @@ type booleanBoolTransformIterator struct {
 	input BooleanIterator
 	fn    booleanBoolTransformFunc
 }
+
+// Stats returns stats from the input iterator.
+func (itr *booleanBoolTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *booleanBoolTransformIterator) Close() error { return itr.input.Close() }
@@ -5363,6 +5680,9 @@ func newBooleanDedupeIterator(input BooleanIterator) *booleanDedupeIterator {
 		m:     make(map[string]struct{}),
 	}
 }
+
+// Stats returns stats from the input iterator.
+func (itr *booleanDedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
 
 // Close closes the iterator and all child iterators.
 func (itr *booleanDedupeIterator) Close() error { return itr.input.Close() }
@@ -5402,13 +5722,19 @@ type booleanReaderIterator struct {
 }
 
 // newBooleanReaderIterator returns a new instance of booleanReaderIterator.
-func newBooleanReaderIterator(r io.Reader, first *BooleanPoint) *booleanReaderIterator {
+func newBooleanReaderIterator(r io.Reader, first *BooleanPoint, stats IteratorStats) *booleanReaderIterator {
+	dec := NewBooleanPointDecoder(r)
+	dec.stats = stats
+
 	return &booleanReaderIterator{
 		r:     r,
-		dec:   NewBooleanPointDecoder(r),
+		dec:   dec,
 		first: first,
 	}
 }
+
+// Stats returns stats about points processed.
+func (itr *booleanReaderIterator) Stats() IteratorStats { return itr.dec.stats }
 
 // Close closes the underlying reader, if applicable.
 func (itr *booleanReaderIterator) Close() error {
@@ -5443,11 +5769,18 @@ func (itr *booleanReaderIterator) Next() *BooleanPoint {
 // IteratorEncoder is an encoder for encoding an iterator's points to w.
 type IteratorEncoder struct {
 	w io.Writer
+
+	// Frequency with which stats are emitted.
+	StatsInterval time.Duration
 }
 
 // NewIteratorEncoder encodes an iterator's points to w.
 func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
-	return &IteratorEncoder{w: w}
+	return &IteratorEncoder{
+		w: w,
+
+		StatsInterval: DefaultStatsInterval,
+	}
 }
 
 // Encode encodes and writes all of itr's points to the underlying writer.
@@ -5468,12 +5801,30 @@ func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
 
 // encodeFloatIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeFloatIterator(itr FloatIterator) error {
+	ticker := time.NewTicker(enc.StatsInterval)
+	defer ticker.Stop()
+
+	// Emit initial stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+
+	// Continually stream points from the iterator into the encoder.
 	penc := NewFloatPointEncoder(enc.w)
 	for {
+		// Emit stats periodically.
+		select {
+		case <-ticker.C:
+			if err := enc.encodeStats(itr.Stats()); err != nil {
+				return err
+			}
+		default:
+		}
+
 		// Retrieve the next point from the iterator.
 		p := itr.Next()
 		if p == nil {
-			return nil
+			break
 		}
 
 		// Write the point to the point encoder.
@@ -5481,16 +5832,40 @@ func (enc *IteratorEncoder) encodeFloatIterator(itr FloatIterator) error {
 			return err
 		}
 	}
+
+	// Emit final stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // encodeIntegerIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeIntegerIterator(itr IntegerIterator) error {
+	ticker := time.NewTicker(enc.StatsInterval)
+	defer ticker.Stop()
+
+	// Emit initial stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+
+	// Continually stream points from the iterator into the encoder.
 	penc := NewIntegerPointEncoder(enc.w)
 	for {
+		// Emit stats periodically.
+		select {
+		case <-ticker.C:
+			if err := enc.encodeStats(itr.Stats()); err != nil {
+				return err
+			}
+		default:
+		}
+
 		// Retrieve the next point from the iterator.
 		p := itr.Next()
 		if p == nil {
-			return nil
+			break
 		}
 
 		// Write the point to the point encoder.
@@ -5498,16 +5873,40 @@ func (enc *IteratorEncoder) encodeIntegerIterator(itr IntegerIterator) error {
 			return err
 		}
 	}
+
+	// Emit final stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // encodeStringIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeStringIterator(itr StringIterator) error {
+	ticker := time.NewTicker(enc.StatsInterval)
+	defer ticker.Stop()
+
+	// Emit initial stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+
+	// Continually stream points from the iterator into the encoder.
 	penc := NewStringPointEncoder(enc.w)
 	for {
+		// Emit stats periodically.
+		select {
+		case <-ticker.C:
+			if err := enc.encodeStats(itr.Stats()); err != nil {
+				return err
+			}
+		default:
+		}
+
 		// Retrieve the next point from the iterator.
 		p := itr.Next()
 		if p == nil {
-			return nil
+			break
 		}
 
 		// Write the point to the point encoder.
@@ -5515,16 +5914,40 @@ func (enc *IteratorEncoder) encodeStringIterator(itr StringIterator) error {
 			return err
 		}
 	}
+
+	// Emit final stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // encodeBooleanIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeBooleanIterator(itr BooleanIterator) error {
+	ticker := time.NewTicker(enc.StatsInterval)
+	defer ticker.Stop()
+
+	// Emit initial stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+
+	// Continually stream points from the iterator into the encoder.
 	penc := NewBooleanPointEncoder(enc.w)
 	for {
+		// Emit stats periodically.
+		select {
+		case <-ticker.C:
+			if err := enc.encodeStats(itr.Stats()); err != nil {
+				return err
+			}
+		default:
+		}
+
 		// Retrieve the next point from the iterator.
 		p := itr.Next()
 		if p == nil {
-			return nil
+			break
 		}
 
 		// Write the point to the point encoder.
@@ -5532,4 +5955,33 @@ func (enc *IteratorEncoder) encodeBooleanIterator(itr BooleanIterator) error {
 			return err
 		}
 	}
+
+	// Emit final stats.
+	if err := enc.encodeStats(itr.Stats()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// encode a stats object in the point stream.
+func (enc *IteratorEncoder) encodeStats(stats IteratorStats) error {
+	buf, err := proto.Marshal(&internal.Point{
+		Name: proto.String(""),
+		Tags: proto.String(""),
+		Time: proto.Int64(0),
+		Nil:  proto.Bool(false),
+
+		Stats: encodeIteratorStats(&stats),
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := binary.Write(enc.w, binary.BigEndian, uint32(len(buf))); err != nil {
+		return err
+	}
+	if _, err := enc.w.Write(buf); err != nil {
+		return err
+	}
+	return nil
 }

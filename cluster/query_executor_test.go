@@ -235,8 +235,8 @@ type FloatIterator struct {
 	Points []influxql.FloatPoint
 }
 
-// Close is a no-op.
-func (itr *FloatIterator) Close() error { return nil }
+func (itr *FloatIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+func (itr *FloatIterator) Close() error                  { return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *FloatIterator) Next() *influxql.FloatPoint {

@@ -216,6 +216,10 @@ func encodeAux(aux []interface{}) []*internal.Aux {
 }
 
 func decodeAux(pb []*internal.Aux) []interface{} {
+	if len(pb) == 0 {
+		return nil
+	}
+
 	aux := make([]interface{}, len(pb))
 	for i := range pb {
 		switch pb[i].GetDataType() {
@@ -252,7 +256,8 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 
 // NewPointDecoder decodes generic points from a reader.
 type PointDecoder struct {
-	r io.Reader
+	r     io.Reader
+	stats IteratorStats
 }
 
 // NewPointDecoder returns a new instance of PointDecoder that reads from r.
@@ -260,35 +265,46 @@ func NewPointDecoder(r io.Reader) *PointDecoder {
 	return &PointDecoder{r: r}
 }
 
+// Stats returns iterator stats embedded within the stream.
+func (dec *PointDecoder) Stats() IteratorStats { return dec.stats }
+
 // DecodePoint reads from the underlying reader and unmarshals into p.
 func (dec *PointDecoder) DecodePoint(p *Point) error {
-	// Read length.
-	var sz uint32
-	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
-		return err
-	}
+	for {
+		// Read length.
+		var sz uint32
+		if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+			return err
+		}
 
-	// Read point data.
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(dec.r, buf); err != nil {
-		return err
-	}
+		// Read point data.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(dec.r, buf); err != nil {
+			return err
+		}
 
-	// Unmarshal into point.
-	var pb internal.Point
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
+		// Unmarshal into point.
+		var pb internal.Point
+		if err := proto.Unmarshal(buf, &pb); err != nil {
+			return err
+		}
 
-	if pb.IntegerValue != nil {
-		*p = decodeIntegerPoint(&pb)
-	} else if pb.StringValue != nil {
-		*p = decodeStringPoint(&pb)
-	} else if pb.BooleanValue != nil {
-		*p = decodeBooleanPoint(&pb)
-	} else {
-		*p = decodeFloatPoint(&pb)
-	}
+		// If the point contains stats then read stats and retry.
+		if pb.Stats != nil {
+			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
 
-	return nil
+		if pb.IntegerValue != nil {
+			*p = decodeIntegerPoint(&pb)
+		} else if pb.StringValue != nil {
+			*p = decodeStringPoint(&pb)
+		} else if pb.BooleanValue != nil {
+			*p = decodeBooleanPoint(&pb)
+		} else {
+			*p = decodeFloatPoint(&pb)
+		}
+
+		return nil
+	}
 }

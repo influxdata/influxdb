@@ -170,7 +170,8 @@ func (enc *FloatPointEncoder) EncodeFloatPoint(p *FloatPoint) error {
 
 // NewFloatPointDecoder decodes FloatPoint points from a reader.
 type FloatPointDecoder struct {
-	r io.Reader
+	r     io.Reader
+	stats IteratorStats
 }
 
 // NewFloatPointDecoder returns a new instance of FloatPointDecoder that reads from r.
@@ -178,28 +179,41 @@ func NewFloatPointDecoder(r io.Reader) *FloatPointDecoder {
 	return &FloatPointDecoder{r: r}
 }
 
+// Stats returns iterator stats embedded within the stream.
+func (dec *FloatPointDecoder) Stats() IteratorStats { return dec.stats }
+
 // DecodeFloatPoint reads from the underlying reader and unmarshals into p.
 func (dec *FloatPointDecoder) DecodeFloatPoint(p *FloatPoint) error {
-	// Read length.
-	var sz uint32
-	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
-		return err
-	}
+	for {
+		// Read length.
+		var sz uint32
+		if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+			return err
+		}
 
-	// Read point data.
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(dec.r, buf); err != nil {
-		return err
-	}
+		// Read point data.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(dec.r, buf); err != nil {
+			return err
+		}
 
-	// Unmarshal into point.
-	var pb internal.Point
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	*p = *decodeFloatPoint(&pb)
+		// Unmarshal into point.
+		var pb internal.Point
+		if err := proto.Unmarshal(buf, &pb); err != nil {
+			return err
+		}
 
-	return nil
+		// If the point contains stats then read stats and retry.
+		if pb.Stats != nil {
+			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
+
+		// Decode into point object.
+		*p = *decodeFloatPoint(&pb)
+
+		return nil
+	}
 }
 
 // IntegerPoint represents a point with a int64 value.
@@ -358,7 +372,8 @@ func (enc *IntegerPointEncoder) EncodeIntegerPoint(p *IntegerPoint) error {
 
 // NewIntegerPointDecoder decodes IntegerPoint points from a reader.
 type IntegerPointDecoder struct {
-	r io.Reader
+	r     io.Reader
+	stats IteratorStats
 }
 
 // NewIntegerPointDecoder returns a new instance of IntegerPointDecoder that reads from r.
@@ -366,28 +381,41 @@ func NewIntegerPointDecoder(r io.Reader) *IntegerPointDecoder {
 	return &IntegerPointDecoder{r: r}
 }
 
+// Stats returns iterator stats embedded within the stream.
+func (dec *IntegerPointDecoder) Stats() IteratorStats { return dec.stats }
+
 // DecodeIntegerPoint reads from the underlying reader and unmarshals into p.
 func (dec *IntegerPointDecoder) DecodeIntegerPoint(p *IntegerPoint) error {
-	// Read length.
-	var sz uint32
-	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
-		return err
-	}
+	for {
+		// Read length.
+		var sz uint32
+		if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+			return err
+		}
 
-	// Read point data.
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(dec.r, buf); err != nil {
-		return err
-	}
+		// Read point data.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(dec.r, buf); err != nil {
+			return err
+		}
 
-	// Unmarshal into point.
-	var pb internal.Point
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	*p = *decodeIntegerPoint(&pb)
+		// Unmarshal into point.
+		var pb internal.Point
+		if err := proto.Unmarshal(buf, &pb); err != nil {
+			return err
+		}
 
-	return nil
+		// If the point contains stats then read stats and retry.
+		if pb.Stats != nil {
+			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
+
+		// Decode into point object.
+		*p = *decodeIntegerPoint(&pb)
+
+		return nil
+	}
 }
 
 // StringPoint represents a point with a string value.
@@ -546,7 +574,8 @@ func (enc *StringPointEncoder) EncodeStringPoint(p *StringPoint) error {
 
 // NewStringPointDecoder decodes StringPoint points from a reader.
 type StringPointDecoder struct {
-	r io.Reader
+	r     io.Reader
+	stats IteratorStats
 }
 
 // NewStringPointDecoder returns a new instance of StringPointDecoder that reads from r.
@@ -554,28 +583,41 @@ func NewStringPointDecoder(r io.Reader) *StringPointDecoder {
 	return &StringPointDecoder{r: r}
 }
 
+// Stats returns iterator stats embedded within the stream.
+func (dec *StringPointDecoder) Stats() IteratorStats { return dec.stats }
+
 // DecodeStringPoint reads from the underlying reader and unmarshals into p.
 func (dec *StringPointDecoder) DecodeStringPoint(p *StringPoint) error {
-	// Read length.
-	var sz uint32
-	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
-		return err
-	}
+	for {
+		// Read length.
+		var sz uint32
+		if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+			return err
+		}
 
-	// Read point data.
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(dec.r, buf); err != nil {
-		return err
-	}
+		// Read point data.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(dec.r, buf); err != nil {
+			return err
+		}
 
-	// Unmarshal into point.
-	var pb internal.Point
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	*p = *decodeStringPoint(&pb)
+		// Unmarshal into point.
+		var pb internal.Point
+		if err := proto.Unmarshal(buf, &pb); err != nil {
+			return err
+		}
 
-	return nil
+		// If the point contains stats then read stats and retry.
+		if pb.Stats != nil {
+			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
+
+		// Decode into point object.
+		*p = *decodeStringPoint(&pb)
+
+		return nil
+	}
 }
 
 // BooleanPoint represents a point with a bool value.
@@ -734,7 +776,8 @@ func (enc *BooleanPointEncoder) EncodeBooleanPoint(p *BooleanPoint) error {
 
 // NewBooleanPointDecoder decodes BooleanPoint points from a reader.
 type BooleanPointDecoder struct {
-	r io.Reader
+	r     io.Reader
+	stats IteratorStats
 }
 
 // NewBooleanPointDecoder returns a new instance of BooleanPointDecoder that reads from r.
@@ -742,26 +785,39 @@ func NewBooleanPointDecoder(r io.Reader) *BooleanPointDecoder {
 	return &BooleanPointDecoder{r: r}
 }
 
+// Stats returns iterator stats embedded within the stream.
+func (dec *BooleanPointDecoder) Stats() IteratorStats { return dec.stats }
+
 // DecodeBooleanPoint reads from the underlying reader and unmarshals into p.
 func (dec *BooleanPointDecoder) DecodeBooleanPoint(p *BooleanPoint) error {
-	// Read length.
-	var sz uint32
-	if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
-		return err
-	}
+	for {
+		// Read length.
+		var sz uint32
+		if err := binary.Read(dec.r, binary.BigEndian, &sz); err != nil {
+			return err
+		}
 
-	// Read point data.
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(dec.r, buf); err != nil {
-		return err
-	}
+		// Read point data.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(dec.r, buf); err != nil {
+			return err
+		}
 
-	// Unmarshal into point.
-	var pb internal.Point
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	*p = *decodeBooleanPoint(&pb)
+		// Unmarshal into point.
+		var pb internal.Point
+		if err := proto.Unmarshal(buf, &pb); err != nil {
+			return err
+		}
 
-	return nil
+		// If the point contains stats then read stats and retry.
+		if pb.Stats != nil {
+			dec.stats = decodeIteratorStats(pb.Stats)
+			continue
+		}
+
+		// Decode into point object.
+		*p = *decodeBooleanPoint(&pb)
+
+		return nil
+	}
 }
