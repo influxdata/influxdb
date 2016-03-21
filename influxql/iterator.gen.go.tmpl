@@ -612,6 +612,7 @@ func new{{$k.Name}}InterruptIterator(input {{$k.Name}}Iterator, closing <-chan s
 	return &{{$k.name}}InterruptIterator{input: input, closing: closing}
 }
 
+func (itr *{{$k.name}}InterruptIterator) Stats() IteratorStats { return itr.input.Stats() }
 func (itr *{{$k.name}}InterruptIterator) Close() error { return itr.input.Close() }
 
 func (itr *{{$k.name}}InterruptIterator) Next() *{{$k.Name}}Point {

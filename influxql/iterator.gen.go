@@ -613,7 +613,8 @@ func newFloatInterruptIterator(input FloatIterator, closing <-chan struct{}) *fl
 	return &floatInterruptIterator{input: input, closing: closing}
 }
 
-func (itr *floatInterruptIterator) Close() error { return itr.input.Close() }
+func (itr *floatInterruptIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *floatInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *floatInterruptIterator) Next() *FloatPoint {
 	// Only check if the channel is closed every 256 points. This
@@ -2050,7 +2051,8 @@ func newIntegerInterruptIterator(input IntegerIterator, closing <-chan struct{})
 	return &integerInterruptIterator{input: input, closing: closing}
 }
 
-func (itr *integerInterruptIterator) Close() error { return itr.input.Close() }
+func (itr *integerInterruptIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *integerInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *integerInterruptIterator) Next() *IntegerPoint {
 	// Only check if the channel is closed every 256 points. This
@@ -3484,7 +3486,8 @@ func newStringInterruptIterator(input StringIterator, closing <-chan struct{}) *
 	return &stringInterruptIterator{input: input, closing: closing}
 }
 
-func (itr *stringInterruptIterator) Close() error { return itr.input.Close() }
+func (itr *stringInterruptIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *stringInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *stringInterruptIterator) Next() *StringPoint {
 	// Only check if the channel is closed every 256 points. This
@@ -4918,7 +4921,8 @@ func newBooleanInterruptIterator(input BooleanIterator, closing <-chan struct{})
 	return &booleanInterruptIterator{input: input, closing: closing}
 }
 
-func (itr *booleanInterruptIterator) Close() error { return itr.input.Close() }
+func (itr *booleanInterruptIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *booleanInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *booleanInterruptIterator) Next() *BooleanPoint {
 	// Only check if the channel is closed every 256 points. This
