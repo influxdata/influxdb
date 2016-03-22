@@ -35,7 +35,7 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
 
 [opentsdb]
@@ -111,7 +111,7 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
 
 [opentsdb]

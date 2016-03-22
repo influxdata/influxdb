@@ -279,12 +279,12 @@ reporting-disabled = false
   # ]
 
 ###
-### [collectd]
+### [[collectd]]
 ###
 ### Controls the listener for collectd data.
 ###
 
-[collectd]
+[[collectd]]
   enabled = false
   # bind-address = ""
   # database = ""
