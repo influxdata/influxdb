@@ -323,7 +323,7 @@ func new{{.Name}}DescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]{{.Name}}Value, 1000)
+	c.tsm.buf = make([]{{.Name}}Value, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
@@ -403,7 +403,7 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 		if len(c.tsm.values) == 0 {
 			return
 		}
-		c.tsm.pos = 0
+		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
 

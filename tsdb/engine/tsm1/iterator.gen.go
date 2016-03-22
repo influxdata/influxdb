@@ -327,7 +327,7 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]FloatValue, 1000)
+	c.tsm.buf = make([]FloatValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
@@ -407,7 +407,7 @@ func (c *floatDescendingCursor) nextTSM() {
 		if len(c.tsm.values) == 0 {
 			return
 		}
-		c.tsm.pos = 0
+		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
 
@@ -659,7 +659,7 @@ func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]IntegerValue, 1000)
+	c.tsm.buf = make([]IntegerValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
@@ -739,7 +739,7 @@ func (c *integerDescendingCursor) nextTSM() {
 		if len(c.tsm.values) == 0 {
 			return
 		}
-		c.tsm.pos = 0
+		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
 
@@ -991,7 +991,7 @@ func newStringDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]StringValue, 1000)
+	c.tsm.buf = make([]StringValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
@@ -1071,7 +1071,7 @@ func (c *stringDescendingCursor) nextTSM() {
 		if len(c.tsm.values) == 0 {
 			return
 		}
-		c.tsm.pos = 0
+		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
 
@@ -1323,7 +1323,7 @@ func newBooleanDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 	}
 
 	c.tsm.keyCursor = tsmKeyCursor
-	c.tsm.buf = make([]BooleanValue, 1000)
+	c.tsm.buf = make([]BooleanValue, 10)
 	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
@@ -1403,7 +1403,7 @@ func (c *booleanDescendingCursor) nextTSM() {
 		if len(c.tsm.values) == 0 {
 			return
 		}
-		c.tsm.pos = 0
+		c.tsm.pos = len(c.tsm.values) - 1
 	}
 }
 
