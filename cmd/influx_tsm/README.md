@@ -119,3 +119,34 @@ $ sudo rm -r /var/lib/influxdb/data/stats
 $ sudo cp -r /path/to/influxdb_backup/stats /var/lib/influxdb/data/
 $ # restart influxd node
 ```
+
+#### How to avoid downtime when upgrading shards
+
+*Identify non-`tsm1` shards*
+
+Non-`tsm1` shards are files of the form: `data/<database>/<retention_policy>/<shard_id>`.
+
+`tsm1` shards are files of the form: `data/<database>/<retention_policy>/<shard_id>/<file>.tsm`.
+
+*Determine which `bz`/`bz1` shards are cold for writes*
+
+Run the `SHOW SHARDS` query to see the start and end dates for shards.
+If the date range for a shard does not span the current time then the shard is said to be cold for writes.
+This means that no new points are expected to be added to the shard.
+The shard whose date range spans now is said to be hot for writes.
+You can only safely convert cold shards without stopping the InfluxDB process.
+
+*Convert cold shards*
+
+1. Copy each of the cold shards you'd like to convert to a new directory with the structure `/tmp/data/<database>/<retention_policy>/<shard_id>`.
+2. Run the `influx_tsm` tool on the copied files:
+```
+influx_tsm -parallel /tmp/data/
+```
+3. Remove the existing cold `b1`/`bz1` shards from the production data directory.
+4. Move the new `tsm1` shards into the original directory, overwriting the existing `b1`/`bz1` shards of the same name. Do this simultaneously with step 3 to avoid any query errors.
+5. Wait an hour, a day, or a week (depending on your retention period) for any hot `b1`/`bz1` shards to become cold and repeat steps 1 through 4 on the newly cold shards.
+
+> **Note:** Any points written to the cold shards after making a copy will be lost when the `tsm1` shard overwrites the existing cold shard.
+Nothing in InfluxDB will prevent writes to cold shards, they are merely unexpected, not impossible.
+It is your responsibility to prevent writes to cold shards to prevent data loss.
