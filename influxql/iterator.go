@@ -693,6 +693,12 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 	opt.Dedupe = stmt.Dedupe
 
 	opt.Fill, opt.FillValue = stmt.Fill, stmt.FillValue
+	if opt.Fill == NullFill && stmt.Target != nil {
+		// Set the fill option to none if a target has been given.
+		// Null values will get ignored when being written to the target
+		// so fill(null) wouldn't write any null values to begin with.
+		opt.Fill = NoFill
+	}
 	opt.Limit, opt.Offset = stmt.Limit, stmt.Offset
 	opt.SLimit, opt.SOffset = stmt.SLimit, stmt.SOffset
 	if sopt != nil {
