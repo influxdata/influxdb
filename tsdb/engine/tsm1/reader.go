@@ -42,7 +42,7 @@ type BlockIterator struct {
 	n int
 
 	key     string
-	entries []*IndexEntry
+	entries []IndexEntry
 	err     error
 }
 
@@ -82,7 +82,7 @@ func (b *BlockIterator) Read() (string, int64, int64, []byte, error) {
 		return "", 0, 0, nil, b.err
 	}
 
-	buf, err := b.r.readBytes(b.entries[0], nil)
+	buf, err := b.r.readBytes(&b.entries[0], nil)
 	if err != nil {
 		return "", 0, 0, nil, err
 	}
@@ -193,7 +193,7 @@ func (t *TSMReader) Keys() []string {
 	return t.index.Keys()
 }
 
-func (t *TSMReader) Key(index int) (string, []*IndexEntry) {
+func (t *TSMReader) Key(index int) (string, []IndexEntry) {
 	return t.index.Key(index)
 }
 
@@ -314,8 +314,12 @@ func (t *TSMReader) KeyCount() int {
 	return t.index.KeyCount()
 }
 
-func (t *TSMReader) Entries(key string) []*IndexEntry {
+func (t *TSMReader) Entries(key string) []IndexEntry {
 	return t.index.Entries(key)
+}
+
+func (t *TSMReader) ReadEntries(key string, entries *[]IndexEntry) {
+	t.index.ReadEntries(key, entries)
 }
 
 func (t *TSMReader) IndexSize() uint32 {
@@ -477,7 +481,7 @@ func (d *indirectIndex) search(key []byte) int {
 }
 
 // Entries returns all index entries for a key.
-func (d *indirectIndex) Entries(key string) []*IndexEntry {
+func (d *indirectIndex) Entries(key string) []IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -499,10 +503,9 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 
 		// Read and return all the entries
 		ofs += n
-		_, entries, err := readEntries(d.b[ofs:])
-		if err != nil {
+		var entries indexEntries
+		if _, err := readEntries(d.b[ofs:], &entries); err != nil {
 			panic(fmt.Sprintf("error reading entries: %v", err))
-
 		}
 		return entries.entries
 	}
@@ -511,13 +514,18 @@ func (d *indirectIndex) Entries(key string) []*IndexEntry {
 	return nil
 }
 
+// ReadEntries returns all index entries for a key.
+func (d *indirectIndex) ReadEntries(key string, entries *[]IndexEntry) {
+	*entries = d.Entries(key)
+}
+
 // Entry returns the index entry for the specified key and timestamp.  If no entry
 // matches the key an timestamp, nil is returned.
 func (d *indirectIndex) Entry(key string, timestamp int64) *IndexEntry {
 	entries := d.Entries(key)
 	for _, entry := range entries {
 		if entry.Contains(timestamp) {
-			return entry
+			return &entry
 		}
 	}
 	return nil
@@ -535,7 +543,7 @@ func (d *indirectIndex) Keys() []string {
 	return keys
 }
 
-func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
+func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -543,7 +551,9 @@ func (d *indirectIndex) Key(idx int) (string, []*IndexEntry) {
 		return "", nil
 	}
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
-	_, entries, _ := readEntries(d.b[int(d.offsets[idx])+n:])
+
+	var entries indexEntries
+	readEntries(d.b[int(d.offsets[idx])+n:], &entries)
 	return string(key), entries.entries
 }
 
@@ -892,7 +902,7 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 	b := make([]byte, 16*1024)
 	for _, block := range blocks {
 
-		b, err := f.readBytes(block, b)
+		b, err := f.readBytes(&block, b)
 		if err != nil {
 			return nil, err
 		}
@@ -1133,17 +1143,13 @@ func (m *mmapAccessor) close() error {
 
 type indexEntries struct {
 	Type    byte
-	entries []*IndexEntry
+	entries []IndexEntry
 }
 
 func (a *indexEntries) Len() int      { return len(a.entries) }
 func (a *indexEntries) Swap(i, j int) { a.entries[i], a.entries[j] = a.entries[j], a.entries[i] }
 func (a *indexEntries) Less(i, j int) bool {
 	return a.entries[i].MinTime < a.entries[j].MinTime
-}
-
-func (a *indexEntries) Append(entry ...*IndexEntry) {
-	a.entries = append(a.entries, entry...)
 }
 
 func (a *indexEntries) MarshalBinary() ([]byte, error) {
@@ -1183,25 +1189,22 @@ func readKey(b []byte) (n int, key []byte, err error) {
 	return
 }
 
-func readEntries(b []byte) (n int, entries *indexEntries, err error) {
+func readEntries(b []byte, entries *indexEntries) (n int, err error) {
 	// 1 byte block type
-	blockType := b[n]
-	entries = &indexEntries{
-		Type:    blockType,
-		entries: []*IndexEntry{},
-	}
+	entries.Type = b[n]
 	n++
 
 	// 2 byte count of index entries
 	count := int(binary.BigEndian.Uint16(b[n : n+indexCountSize]))
 	n += indexCountSize
 
+	entries.entries = make([]IndexEntry, count)
 	for i := 0; i < count; i++ {
-		ie := &IndexEntry{}
+		var ie IndexEntry
 		if err := ie.UnmarshalBinary(b[i*indexEntrySize+indexCountSize+indexTypeSize : i*indexEntrySize+indexCountSize+indexEntrySize+indexTypeSize]); err != nil {
-			return 0, nil, fmt.Errorf("readEntries: unmarshal error: %v", err)
+			return 0, fmt.Errorf("readEntries: unmarshal error: %v", err)
 		}
-		entries.Append(ie)
+		entries.entries[i] = ie
 		n += indexEntrySize
 	}
 	return
