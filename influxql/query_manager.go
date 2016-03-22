@@ -11,6 +11,10 @@ import (
 
 var (
 	ErrNoQueryManager = errors.New("no query manager available")
+
+	// ErrMaxConcurrentQueriesReached is an error when a query cannot be run
+	// because the maximum number of queries has been reached.
+	ErrMaxConcurrentQueriesReached = errors.New("max concurrent queries reached")
 )
 
 // QueryTaskInfo holds information about a currently running query.
@@ -53,10 +57,11 @@ type QueryManager interface {
 	Queries() []QueryTaskInfo
 }
 
-func DefaultQueryManager() QueryManager {
+func DefaultQueryManager(maxQueries int) QueryManager {
 	return &defaultQueryManager{
-		queries: make(map[uint64]*queryTask),
-		nextID:  1,
+		queries:    make(map[uint64]*queryTask),
+		nextID:     1,
+		maxQueries: maxQueries,
 	}
 }
 
@@ -99,14 +104,19 @@ type queryTask struct {
 }
 
 type defaultQueryManager struct {
-	queries map[uint64]*queryTask
-	nextID  uint64
-	mu      sync.Mutex
+	queries    map[uint64]*queryTask
+	nextID     uint64
+	maxQueries int
+	mu         sync.Mutex
 }
 
 func (qm *defaultQueryManager) AttachQuery(params *QueryParams) (uint64, <-chan struct{}, error) {
 	qm.mu.Lock()
 	defer qm.mu.Unlock()
+
+	if qm.maxQueries > 0 && len(qm.queries) >= qm.maxQueries {
+		return 0, nil, ErrMaxConcurrentQueriesReached
+	}
 
 	qid := qm.nextID
 	query := &queryTask{

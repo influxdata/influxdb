@@ -164,7 +164,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.TSDBStore = s.TSDBStore
 	s.QueryExecutor.Monitor = s.Monitor
 	s.QueryExecutor.PointsWriter = s.PointsWriter
-	s.QueryExecutor.QueryManager = influxql.DefaultQueryManager()
+	s.QueryExecutor.QueryManager = influxql.DefaultQueryManager(c.Cluster.MaxConcurrentQueries)
 	if c.Data.QueryLogEnabled {
 		s.QueryExecutor.LogOutput = os.Stderr
 	}
