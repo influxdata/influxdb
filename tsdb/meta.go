@@ -666,11 +666,11 @@ func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters Fil
 	// +==========+==========+==========+=======================+=======================+
 	// | operator |   LHS    |   RHS    |   intermediate expr   |     reduced filter    |
 	// +==========+==========+==========+=======================+=======================+
-	// |          | <nil>    | <r-expr> | true OR <r-expr>      | true                  |
+	// |          | <nil>    | <r-expr> | false OR <r-expr>     | <r-expr>              |
 	// |          |----------+----------+-----------------------+-----------------------+
-	// | OR       | <l-expr> | <nil>    | <l-expr> OR true      | true                  |
+	// | OR       | <l-expr> | <nil>    | <l-expr> OR false     | <l-expr>              |
 	// |          |----------+----------+-----------------------+-----------------------+
-	// |          | <nil>    | <nil>    | true OR true          | true                  |
+	// |          | <nil>    | <nil>    | false OR false        | false                 |
 	// |          |----------+----------+-----------------------+-----------------------+
 	// |          | <l-expr> | <r-expr> | <l-expr> OR <r-expr>  | <l-expr> OR <r-expr>  |
 	// +----------+----------+----------+-----------------------+-----------------------+
@@ -684,21 +684,16 @@ func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters Fil
 	// +----------+----------+----------+-----------------------+-----------------------+
 	// *literal false filters and series IDs should be excluded from the results
 
-	def := false
-	if op == influxql.OR {
-		def = true
-	}
-
 	for _, id := range ids {
 		// Get LHS and RHS filter expressions for this series ID.
 		lfilter, rfilter := lfilters[id], rfilters[id]
 
-		// Set default filters if either LHS or RHS expressions were nil.
+		// Set filter to false if either LHS or RHS expressions were nil.
 		if lfilter == nil {
-			lfilter = &influxql.BooleanLiteral{Val: def}
+			lfilter = &influxql.BooleanLiteral{Val: false}
 		}
 		if rfilter == nil {
-			rfilter = &influxql.BooleanLiteral{Val: def}
+			rfilter = &influxql.BooleanLiteral{Val: false}
 		}
 
 		// Create the intermediate filter expression for this series ID.
@@ -717,7 +712,9 @@ func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters Fil
 		}
 
 		// Store the series ID and merged filter in the final results.
-		filters[id] = expr
+		if expr != nil {
+			filters[id] = expr
+		}
 		series = append(series, id)
 	}
 	return series, filters
@@ -749,6 +746,9 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 
 	tagVals, ok := m.seriesByTagKeyValue[name.Val]
 	if name.Val != "_name" && !ok {
+		if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
+			return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+		}
 		return nil, nil, nil
 	}
 
@@ -804,6 +804,9 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		return ids, &influxql.BooleanLiteral{Val: true}, nil
 	}
 
+	if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
+		return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+	}
 	return nil, nil, nil
 }
 

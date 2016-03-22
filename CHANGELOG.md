@@ -11,6 +11,8 @@
 
 ### Bugfixes
 
+- [#5152](https://github.com/influxdata/influxdb/issues/5152): Fix where filters when a tag and a filter are combined with OR.
+
 ## v0.11.0 [unreleased]
 
 ### Release Notes

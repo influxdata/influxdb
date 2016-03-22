@@ -4220,6 +4220,24 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
 		},
 		&Query{
+			name:    "tag or field",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from where_events where tennant = 'paul' OR foo = 'bar'`,
+			exp:     `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		&Query{
+			name:    "non-existant tag and field",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from where_events where tenant != 'paul' AND foo = 'bar'`,
+			exp:     `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		&Query{
+			name:    "non-existant tag or field",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from where_events where tenant != 'paul' OR foo = 'bar'`,
+			exp:     `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
+		},
+		&Query{
 			name:    "where on tag that should be double quoted but isn't",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `show series where data-center = 'foo'`,
