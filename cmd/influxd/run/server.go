@@ -148,9 +148,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	// Copy TSDB configuration.
 	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
-	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
-	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
 	// Create the Subscriber service
 	s.Subscriber = subscriber.NewService(c.Subscriber)

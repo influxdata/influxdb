@@ -69,36 +69,10 @@ reporting-disabled = false
 
   dir = "/var/lib/influxdb/data"
 
-  # The following WAL settings are for the b1 storage engine used in 0.9.2. They won't
-  # apply to any new shards created after upgrading to a version > 0.9.3.
-  max-wal-size = 104857600 # Maximum size the WAL can reach before a flush. Defaults to 100MB.
-  wal-flush-interval = "10m" # Maximum time data can sit in WAL before a flush.
-  wal-partition-flush-delay = "2s" # The delay time between each WAL partition being flushed.
-
   # These are the WAL settings for the storage engine >= 0.9.3
   wal-dir = "/var/lib/influxdb/wal"
   wal-logging-enabled = true
   data-logging-enabled = true
-
-  # When a series in the WAL in-memory cache reaches this size in bytes it is marked as ready to
-  # flush to the index
-  # wal-ready-series-size = 25600
-
-  # Flush and compact a partition once this ratio of series are over the ready size
-  # wal-compaction-threshold = 0.6
-
-  # Force a flush and compaction if any series in a partition gets above this size in bytes
-  # wal-max-series-size = 2097152
-
-  # Force a flush of all series and full compaction if there have been no writes in this
-  # amount of time. This is useful for ensuring that shards that are cold for writes don't
-  # keep a bunch of data cached in memory and in the WAL.
-  # wal-flush-cold-interval = "10m"
-
-  # Force a partition to flush its largest series if it reaches this approximate size in
-  # bytes. Remember there are 5 partitions so you'll need at least 5x this amount of memory.
-  # The more memory you have, the bigger this can be.
-  # wal-partition-size-threshold = 20971520
 
   # Whether queries should be logged before execution. Very useful for troubleshooting, but will
   # log any sensitive data contained within a query.
