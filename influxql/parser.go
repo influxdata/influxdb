@@ -63,14 +63,17 @@ func MustParseExpr(s string) Expr {
 // ParseQuery parses an InfluxQL string and returns a Query AST object.
 func (p *Parser) ParseQuery() (*Query, error) {
 	var statements Statements
-	var semi bool
+	semi := true
 
 	for {
-		if tok, _, _ := p.scanIgnoreWhitespace(); tok == EOF {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == EOF {
 			return &Query{Statements: statements}, nil
-		} else if !semi && tok == SEMICOLON {
+		} else if tok == SEMICOLON {
 			semi = true
 		} else {
+			if !semi {
+				return nil, newParseError(tokstr(tok, lit), []string{";"}, pos)
+			}
 			p.unscan()
 			s, err := p.ParseStatement()
 			if err != nil {
