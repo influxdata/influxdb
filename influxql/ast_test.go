@@ -1013,10 +1013,12 @@ func TestEval(t *testing.T) {
 		// Boolean literals.
 		{in: `true AND false`, out: false},
 		{in: `true OR false`, out: true},
+		{in: `false = 4`, out: false},
 
 		// String literals.
 		{in: `'foo' = 'bar'`, out: false},
 		{in: `'foo' = 'foo'`, out: true},
+		{in: `'' = 4`, out: false},
 
 		// Regex literals.
 		{in: `'foo' =~ /f.*/`, out: true},

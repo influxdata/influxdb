@@ -3674,16 +3674,16 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 	// Evaluate if both sides are simple types.
 	switch lhs := lhs.(type) {
 	case bool:
-		rhs, _ := rhs.(bool)
+		rhs, ok := rhs.(bool)
 		switch expr.Op {
 		case AND:
-			return lhs && rhs
+			return ok && (lhs && rhs)
 		case OR:
-			return lhs || rhs
+			return ok && (lhs || rhs)
 		case EQ:
-			return lhs == rhs
+			return ok && (lhs == rhs)
 		case NEQ:
-			return lhs != rhs
+			return ok && (lhs != rhs)
 		}
 	case float64:
 		// Try the rhs as a float64 or int64
