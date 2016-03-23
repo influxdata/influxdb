@@ -187,7 +187,14 @@ case $1 in
 
     restart)
         # Restart the daemon.
-        $0 stop && sleep 2 && $0 start
+        PID="$(pgrep -f $PIDFILE)"
+        $0 stop
+        while test ! -z $PID && test -d "/proc/$PID" &>/dev/null
+        do
+            echo "Process $PID is still running..."
+            sleep 1
+        done
+        $0 start
         ;;
 
     status)

@@ -13,6 +13,7 @@
 
 - [#5152](https://github.com/influxdata/influxdb/issues/5152): Fix where filters when a tag and a filter are combined with OR.
 - [#5728](https://github.com/influxdata/influxdb/issues/5728): Properly handle semi-colons as part of the main query loop.
+- [#6065](https://github.com/influxdata/influxdb/pull/6065):  Wait for a process termination on influxdb restart @simnv
 
 ## v0.11.0 [unreleased]
 
