@@ -550,9 +550,18 @@ func TestMetaClient_ContinuousQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Recreate an existing CQ
-	if err := c.CreateContinuousQuery("db0", "cq0", `SELECT max(value) INTO foo_max FROM foo GROUP BY time(10m)`); err == nil || err.Error() != `continuous query already exists` {
-		t.Fatalf("unexpected error: %s", err)
+	// Recreating an existing CQ with the exact same query should not
+	// return an error.
+	if err := c.CreateContinuousQuery("db0", "cq0", `SELECT count(value) INTO foo_count FROM foo GROUP BY time(10m)`); err != nil {
+		t.Fatalf("got error %q, but didn't expect one", err)
+	}
+
+	// Recreating an existing CQ with a different query should return
+	// an error.
+	if err := c.CreateContinuousQuery("db0", "cq0", `SELECT min(value) INTO foo_max FROM foo GROUP BY time(20m)`); err == nil {
+		t.Fatal("didn't get and error, but expected one")
+	} else if got, exp := err, meta.ErrContinuousQueryExists; got.Error() != exp.Error() {
+		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
 	// Create a few more CQ's

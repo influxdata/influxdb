@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -417,8 +418,14 @@ func (data *Data) CreateContinuousQuery(database, name, query string) error {
 	}
 
 	// Ensure the name doesn't already exist.
-	for i := range di.ContinuousQueries {
-		if di.ContinuousQueries[i].Name == name {
+	for _, cq := range di.ContinuousQueries {
+		if cq.Name == name {
+			// If the query string is the same, we'll silently return,
+			// otherwise we'll assume the user might be trying to
+			// overwrite an existing CQ with a different query.
+			if strings.ToLower(cq.Query) == strings.ToLower(query) {
+				return nil
+			}
 			return ErrContinuousQueryExists
 		}
 	}

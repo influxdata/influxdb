@@ -21,6 +21,7 @@
 - [#6065](https://github.com/influxdata/influxdb/pull/6065):  Wait for a process termination on influxdb restart @simnv
 - [#5252](https://github.com/influxdata/influxdb/issues/5252): Release tarballs contain specific attributes on '.'
 - [#5554](https://github.com/influxdata/influxdb/issues/5554): Can't run in alpine linux
+- [#6094](https://github.com/influxdata/influxdb/issues/6094): Ensure CREATE RETENTION POLICY and CREATE CONTINUOUS QUERY are idempotent in the correct way.
 
 ## v0.11.0 [2016-03-22]
 
