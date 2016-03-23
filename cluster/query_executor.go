@@ -39,6 +39,9 @@ type QueryExecutor struct {
 	// Used for managing and tracking running queries.
 	QueryManager influxql.QueryManager
 
+	// Query execution timeout.
+	QueryTimeout time.Duration
+
 	// Remote execution timeout
 	Timeout time.Duration
 
@@ -59,9 +62,10 @@ const (
 // NewQueryExecutor returns a new instance of QueryExecutor.
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
-		Timeout:   DefaultShardMapperTimeout,
-		LogOutput: ioutil.Discard,
-		statMap:   influxdb.NewStatistics("queryExecutor", "queryExecutor", nil),
+		Timeout:      DefaultShardMapperTimeout,
+		QueryTimeout: DefaultQueryTimeout,
+		LogOutput:    ioutil.Discard,
+		statMap:      influxdb.NewStatistics("queryExecutor", "queryExecutor", nil),
 	}
 }
 
@@ -86,6 +90,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		_, closing, err = e.QueryManager.AttachQuery(&influxql.QueryParams{
 			Query:       query,
 			Database:    database,
+			Timeout:     e.QueryTimeout,
 			InterruptCh: closing,
 		})
 		if err != nil {
@@ -469,6 +474,12 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	for {
 		row := em.Emit()
 		if row == nil {
+			// Check if the query was interrupted while emitting.
+			select {
+			case <-closing:
+				return influxql.ErrQueryInterrupted
+			default:
+			}
 			break
 		}
 
@@ -489,7 +500,7 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 		// Send results or exit if closing.
 		select {
 		case <-closing:
-			return nil
+			return influxql.ErrQueryInterrupted
 		case results <- result:
 		}
 

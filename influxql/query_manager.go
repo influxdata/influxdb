@@ -10,7 +10,12 @@ import (
 )
 
 var (
+	// ErrNoQueryManager is an error sent when a SHOW QUERIES or KILL QUERY
+	// statement is issued with no query manager.
 	ErrNoQueryManager = errors.New("no query manager available")
+
+	// ErrQueryInterrupted is an error returned when the query is interrupted.
+	ErrQueryInterrupted = errors.New("query interrupted")
 
 	// ErrMaxConcurrentQueriesReached is an error when a query cannot be run
 	// because the maximum number of queries has been reached.
@@ -32,6 +37,9 @@ type QueryParams struct {
 
 	// The database this query is being run in. Required.
 	Database string
+
+	// The timeout for automatically killing a query that hasn't finished. Optional.
+	Timeout time.Duration
 
 	// The channel to watch for when this query is interrupted or finished.
 	// Not required, but highly recommended. If this channel is not set, the
@@ -127,15 +135,23 @@ func (qm *defaultQueryManager) AttachQuery(params *QueryParams) (uint64, <-chan 
 	}
 	qm.queries[qid] = query
 
-	if params.InterruptCh != nil {
-		go qm.waitForQuery(qid, params.InterruptCh)
+	if params.InterruptCh != nil || params.Timeout != 0 {
+		go qm.waitForQuery(qid, params.Timeout, params.InterruptCh)
 	}
 	qm.nextID++
 	return qid, query.closing, nil
 }
 
-func (qm *defaultQueryManager) waitForQuery(qid uint64, closing <-chan struct{}) {
-	<-closing
+func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, closing <-chan struct{}) {
+	var timer <-chan time.Time
+	if timeout != 0 {
+		timer = time.After(timeout)
+	}
+
+	select {
+	case <-closing:
+	case <-timer:
+	}
 	qm.KillQuery(qid)
 }
 
