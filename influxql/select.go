@@ -223,19 +223,21 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 				return nil, err
 			}
 			return NewIntervalIterator(input, opt), nil
-		case "derivative", "non_negative_derivative":
+		case "derivative", "non_negative_derivative", "difference":
 			input, err := buildExprIterator(expr.Args[0], ic, opt)
 			if err != nil {
 				return nil, err
 			}
 
-			interval := opt.DerivativeInterval()
-			isNonNegative := (expr.Name == "non_negative_derivative")
-
-			// Derivatives do not use GROUP BY intervals or time constraints, so clear these options.
-			opt.Interval = Interval{}
-			opt.StartTime, opt.EndTime = MinTime, MaxTime
-			return newDerivativeIterator(input, opt, interval, isNonNegative)
+			switch expr.Name {
+			case "derivative", "non_negative_derivative":
+				interval := opt.DerivativeInterval()
+				isNonNegative := (expr.Name == "non_negative_derivative")
+				return newDerivativeIterator(input, opt, interval, isNonNegative)
+			case "difference":
+				return newDifferenceIterator(input, opt)
+			}
+			panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
 		default:
 			itr, err := func() (Iterator, error) {
 				switch expr.Name {

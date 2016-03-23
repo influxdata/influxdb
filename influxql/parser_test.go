@@ -197,6 +197,56 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// difference
+		{
+			s: `SELECT difference(field1) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "difference", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
+		{
+			s: fmt.Sprintf(`SELECT difference(max(field1)) FROM myseries WHERE time > '%s' GROUP BY time(1m)`, now.UTC().Format(time.RFC3339Nano)),
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{
+						Expr: &influxql.Call{
+							Name: "difference",
+							Args: []influxql.Expr{
+								&influxql.Call{
+									Name: "max",
+									Args: []influxql.Expr{
+										&influxql.VarRef{Val: "field1"},
+									},
+								},
+							},
+						},
+					},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+				Dimensions: []*influxql.Dimension{
+					{
+						Expr: &influxql.Call{
+							Name: "time",
+							Args: []influxql.Expr{
+								&influxql.DurationLiteral{Val: time.Minute},
+							},
+						},
+					},
+				},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GT,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+				},
+			},
+		},
+
 		// SELECT statement (lowercase)
 		{
 			s: `select my_field from myseries`,
@@ -1770,6 +1820,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT non_negative_derivative(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
 		{s: `SELECT non_negative_derivative(mean(value), 1h) FROM myseries where time < now() and time > now() - 1d`, err: `non_negative_derivative aggregate requires a GROUP BY interval`},
 		{s: `SELECT non_negative_derivative(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
+		{s: `SELECT difference(), field1 FROM myseries`, err: `mixing aggregate and non-aggregate queries is not supported`},
+		{s: `SELECT difference() from myseries`, err: `invalid number of arguments for difference, expected 1, got 0`},
+		{s: `SELECT difference(value) FROM myseries group by time(1h)`, err: `aggregate function required inside the call to difference`},
+		{s: `SELECT difference(top(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for top, expected at least 2, got 1`},
+		{s: `SELECT difference(bottom(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for bottom, expected at least 2, got 1`},
+		{s: `SELECT difference(max()) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for max, expected 1, got 0`},
+		{s: `SELECT difference(percentile(value)) FROM myseries where time < now() and time > now() - 1d group by time(1h)`, err: `invalid number of arguments for percentile, expected 2, got 1`},
+		{s: `SELECT difference(mean(value)) FROM myseries where time < now() and time > now() - 1d`, err: `difference aggregate requires a GROUP BY interval`},
 		{s: `SELECT field1 from myseries WHERE host =~ 'asd' LIMIT 1`, err: `found asd, expected regex at line 1, char 42`},
 		{s: `SELECT value > 2 FROM cpu`, err: `invalid operator > in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},
 		{s: `SELECT value = 2 FROM cpu`, err: `invalid operator = in SELECT clause at line 1, char 8; operator is intended for WHERE clause`},

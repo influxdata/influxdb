@@ -13,6 +13,7 @@
 - [#6060](https://github.com/influxdata/influxdb/pull/6060): Add configurable shard duration to retention policies
 - [#6116](https://github.com/influxdata/influxdb/pull/6116): Allow `httpd` service to be extensible for routes
 - [#6111](https://github.com/influxdata/influxdb/pull/6111): Add ability to build static assest. Improved handling of TAR and ZIP package outputs.
+- [#1825](https://github.com/influxdata/influxdb/issues/1825): Implement difference function.
 
 ### Bugfixes
 
