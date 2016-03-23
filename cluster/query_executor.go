@@ -42,6 +42,9 @@ type QueryExecutor struct {
 	// Query execution timeout.
 	QueryTimeout time.Duration
 
+	// Select statement limits
+	MaxSelectSeriesN int
+
 	// Remote execution timeout
 	Timeout time.Duration
 
@@ -467,6 +470,12 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	em.Columns = stmt.ColumnNames()
 	em.OmitTime = stmt.OmitTime
 	defer em.Close()
+
+	// Calculate initial stats across all iterators.
+	stats := influxql.Iterators(itrs).Stats()
+	if e.MaxSelectSeriesN > 0 && stats.SeriesN > e.MaxSelectSeriesN {
+		return fmt.Errorf("max select series count exceeded: %d series", stats.SeriesN)
+	}
 
 	// Emit rows to the results channel.
 	var writeN int64

@@ -27,6 +27,10 @@ const (
 	// DefaultMaxConcurrentQueries is the maximum number of running queries.
 	// A value of zero will make the maximum query limit unlimited.
 	DefaultMaxConcurrentQueries = 0
+
+	// DefaultMaxSelectSeriesN is the maximum number of series a SELECT can run.
+	// A value of zero will make the maximum series count unlimited.
+	DefaultMaxSelectSeriesN = 0
 )
 
 // Config represents the configuration for the clustering service.
@@ -38,6 +42,7 @@ type Config struct {
 	ShardMapperTimeout        toml.Duration `toml:"shard-mapper-timeout"`
 	MaxConcurrentQueries      int           `toml:"max-concurrent-queries"`
 	QueryTimeout              toml.Duration `toml:"query-timeout"`
+	MaxSelectSeriesN          int           `toml:"max-select-series"`
 }
 
 // NewConfig returns an instance of Config with defaults.
@@ -49,5 +54,6 @@ func NewConfig() Config {
 		QueryTimeout:              toml.Duration(DefaultQueryTimeout),
 		MaxRemoteWriteConnections: DefaultMaxRemoteWriteConnections,
 		MaxConcurrentQueries:      DefaultMaxConcurrentQueries,
+		MaxSelectSeriesN:          DefaultMaxSelectSeriesN,
 	}
 }
