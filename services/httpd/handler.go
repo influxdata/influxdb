@@ -40,12 +40,12 @@ const (
 // TODO: Check HTTP response codes: 400, 401, 403, 409.
 
 type Route struct {
-	name        string
-	method      string
-	pattern     string
-	gzipped     bool
-	log         bool
-	handlerFunc interface{}
+	Name           string
+	Method         string
+	Pattern        string
+	Gzipped        bool
+	LoggingEnabled bool
+	HandlerFunc    interface{}
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -126,42 +126,38 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 			"process_continuous_queries",
 			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
-	})
+	}...)
 
 	return h
 }
 
-// AddRoute adds a route to the handler
-func (h *Handler) AddRoute(r Route) {
-	var handler http.Handler
-
-	// If it's a handler func that requires authorization, wrap it in authorization
-	if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request, *meta.UserInfo)); ok {
-		handler = authenticate(hf, h, h.requireAuthentication)
-	}
-	// This is a normal handler signature and does not require authorization
-	if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
-		handler = http.HandlerFunc(hf)
-	}
-
-	if r.gzipped {
-		handler = gzipFilter(handler)
-	}
-	handler = versionHeader(handler, h)
-	handler = cors(handler)
-	handler = requestID(handler)
-	if h.loggingEnabled && r.log {
-		handler = logging(handler, r.name, h.Logger)
-	}
-	handler = recovery(handler, r.name, h.Logger) // make sure recovery is always last
-
-	h.mux.Add(r.method, r.pattern, handler)
-}
-
 // SetRoutes sets the provided routes on the handler.
-func (h *Handler) AddRoutes(routes []Route) {
+func (h *Handler) AddRoutes(routes ...Route) {
 	for _, r := range routes {
-		h.AddRoute(r)
+		var handler http.Handler
+
+		// If it's a handler func that requires authorization, wrap it in authorization
+		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request, *meta.UserInfo)); ok {
+			handler = authenticate(hf, h, h.requireAuthentication)
+		}
+		// This is a normal handler signature and does not require authorization
+		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
+			handler = http.HandlerFunc(hf)
+		}
+
+		if r.Gzipped {
+			handler = gzipFilter(handler)
+		}
+		handler = versionHeader(handler, h)
+		handler = cors(handler)
+		handler = requestID(handler)
+		if h.loggingEnabled && r.LoggingEnabled {
+			handler = logging(handler, r.Name, h.Logger)
+		}
+		handler = recovery(handler, r.Name, h.Logger) // make sure recovery is always last
+
+		h.mux.Add(r.Method, r.Pattern, handler)
+
 	}
 }
 
