@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -201,43 +202,61 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
-		Name:     "rp0",
-		Duration: 1 * time.Hour,
-		ReplicaN: 1,
-	}); err != nil {
+	rp0 := &meta.RetentionPolicyInfo{
+		Name:               "rp0",
+		ReplicaN:           1,
+		Duration:           time.Hour,
+		ShardGroupDuration: time.Hour,
+	}
+
+	if _, err := c.CreateRetentionPolicy("db0", rp0); err != nil {
 		t.Fatal(err)
 	}
 
-	rp, err := c.RetentionPolicy("db0", "rp0")
+	actual, err := c.RetentionPolicy("db0", "rp0")
 	if err != nil {
 		t.Fatal(err)
-	} else if rp.Name != "rp0" {
-		t.Fatalf("rp name wrong: %s", rp.Name)
-	} else if rp.Duration != time.Hour {
-		t.Fatalf("rp duration wrong: %s", rp.Duration.String())
-	} else if rp.ReplicaN != 1 {
-		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
+	} else if got, exp := actual, rp0; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %#v, expected %#v", got, exp)
 	}
 
 	// Create the same policy.  Should not error.
-	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
-		Name:     "rp0",
-		Duration: 1 * time.Hour,
-		ReplicaN: 1,
-	}); err != nil {
+	if _, err := c.CreateRetentionPolicy("db0", rp0); err != nil {
 		t.Fatal(err)
+	} else if actual, err = c.RetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	} else if got, exp := actual, rp0; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %#v, expected %#v", got, exp)
 	}
 
-	rp, err = c.RetentionPolicy("db0", "rp0")
-	if err != nil {
-		t.Fatal(err)
-	} else if rp.Name != "rp0" {
-		t.Fatalf("rp name wrong: %s", rp.Name)
-	} else if rp.Duration != time.Hour {
-		t.Fatalf("rp duration wrong: %s", rp.Duration.String())
-	} else if rp.ReplicaN != 1 {
-		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
+	// Creating the same policy, but with a different duration should
+	// result in an error.
+	rp1 := &meta.RetentionPolicyInfo{
+		Name:               rp0.Name,
+		ReplicaN:           rp0.ReplicaN,
+		Duration:           2 * rp0.Duration,
+		ShardGroupDuration: rp0.ShardGroupDuration,
+	}
+
+	if _, err := c.CreateRetentionPolicy("db0", rp1); err == nil {
+		t.Fatal("didn't get an error, but expected one")
+	} else if got, exp := err, meta.ErrRetentionPolicyExists; got.Error() != exp.Error() {
+		t.Fatalf("got error %v, expected error %v", got, exp)
+	}
+
+	// Creating the same policy, but with a different replica factor
+	// should also result in an error.
+	rp2 := &meta.RetentionPolicyInfo{
+		Name:               rp0.Name,
+		ReplicaN:           rp0.ReplicaN + 1,
+		Duration:           rp0.Duration,
+		ShardGroupDuration: rp0.ShardGroupDuration,
+	}
+
+	if _, err := c.CreateRetentionPolicy("db0", rp2); err == nil {
+		t.Fatal("didn't get an error, but expected one")
+	} else if got, exp := err, meta.ErrRetentionPolicyExists; got.Error() != exp.Error() {
+		t.Fatalf("got error %v, expected error %v", got, exp)
 	}
 }
 
