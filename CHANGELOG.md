@@ -12,12 +12,15 @@
 - [#6102](https://github.com/influxdata/influxdb/issues/6102): Limit series count in selection
 - [#6060](https://github.com/influxdata/influxdb/pull/6060): Add configurable shard duration to retention policies
 - [#6116](https://github.com/influxdata/influxdb/pull/6116): Allow `httpd` service to be extensible for routes
+- [#6111](https://github.com/influxdata/influxdb/pull/6111): Add ability to build static assest. Improved handling of TAR and ZIP package outputs.
 
 ### Bugfixes
 
 - [#5152](https://github.com/influxdata/influxdb/issues/5152): Fix where filters when a tag and a filter are combined with OR.
 - [#5728](https://github.com/influxdata/influxdb/issues/5728): Properly handle semi-colons as part of the main query loop.
 - [#6065](https://github.com/influxdata/influxdb/pull/6065):  Wait for a process termination on influxdb restart @simnv
+- [#5252](https://github.com/influxdata/influxdb/issues/5252): Release tarballs contain specific attributes on '.'
+- [#5554](https://github.com/influxdata/influxdb/issues/5554): Can't run in alpine linux
 
 ## v0.11.0 [2016-03-22]
 

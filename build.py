@@ -4,7 +4,7 @@ import sys
 import os
 import subprocess
 import time
-import datetime
+from datetime import datetime
 import shutil
 import tempfile
 import hashlib
@@ -91,9 +91,9 @@ supported_builds = {
 }
 
 supported_packages = {
-    "darwin": [ "tar" ],
-    "linux": [ "deb", "rpm", "tar" ],
-    "windows": [ "tar" ],
+    "darwin": [ "tar", "zip" ],
+    "linux": [ "deb", "rpm", "tar", "zip"],
+    "windows": [ "tar", "zip" ],
 }
 
 ################
@@ -109,16 +109,20 @@ def create_package_fs(build_root):
         create_dir(os.path.join(build_root, d))
         os.chmod(os.path.join(build_root, d), 0755)
 
-def package_scripts(build_root):
+def package_scripts(build_root, config_only=False):
     print "Copying scripts and sample configuration to build directory"
-    shutil.copyfile(INIT_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]))
-    os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]), 0644)
-    shutil.copyfile(SYSTEMD_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]))
-    os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0644)
-    shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"))
-    os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"), 0644)
-    shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
-    os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"), 0644)
+    if config_only:
+        shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, "influxdb.conf"))
+        os.chmod(os.path.join(build_root, "influxdb.conf"), 0644)
+    else:
+        shutil.copyfile(INIT_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]))
+        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]), 0644)
+        shutil.copyfile(SYSTEMD_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]))
+        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0644)
+        shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"))
+        os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"), 0644)
+        shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
+        os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"), 0644)
 
 def run_generate():
     print "Running go generate to rebuild admin UI static filesystem..."
@@ -378,7 +382,8 @@ def build(version=None,
           race=False,
           clean=False,
           outdir=".",
-          tags=[]):
+          tags=[],
+          static=False):
     print ""
     print "-------------------------"
     print ""
@@ -391,6 +396,7 @@ def build(version=None,
     print "- platform: {}".format(platform)
     print "- arch: {}".format(arch)
     print "- nightly? {}".format(str(nightly).lower())
+    print "- static? {}".format(static)
     print "- race enabled? {}".format(str(race).lower())
     if len(tags) > 0:
         print "- build tags: {}".format(','.join(tags))
@@ -412,6 +418,8 @@ def build(version=None,
     for b, c in targets.iteritems():
         print "Building '{}'...".format(os.path.join(outdir, b))
         build_command = ""
+        if static:
+            build_command += "CGO_ENABLED=0 "
         if "arm" in arch:
             build_command += "GOOS={} GOARCH={} ".format(platform, "arm")
         else:
@@ -441,14 +449,27 @@ def build(version=None,
             build_command += "-tags {} ".format(','.join(tags))
         go_version = get_go_version()
         if "1.4" in go_version:
-            build_command += "-ldflags=\"-X main.version {} -X main.branch {} -X main.commit {}\" ".format(version,
-                                                                                                           get_current_branch(),
-                                                                                                           get_current_commit())
+            if static:
+                build_command += "-ldflags=\"-s -X main.version {} -X main.branch {} -X main.commit {}\" ".format(version,
+                                                                                                                  get_current_branch(),
+                                                                                                                  get_current_commit())
+            else:
+                build_command += "-ldflags=\"-X main.version {} -X main.branch {} -X main.commit {}\" ".format(version,
+                                                                                                               get_current_branch(),
+                                                                                                               get_current_commit())
+
         else:
             # With Go 1.5, the linker flag arguments changed to 'name=value' from 'name value'
-            build_command += "-ldflags=\"-X main.version={} -X main.branch={} -X main.commit={}\" ".format(version,
-                                                                                                           get_current_branch(),
-                                                                                                           get_current_commit())
+            if static:
+                build_command += "-ldflags=\"-s -X main.version={} -X main.branch={} -X main.commit={}\" ".format(version,
+                                                                                                                  get_current_branch(),
+                                                                                                                  get_current_commit())
+            else:
+                build_command += "-ldflags=\"-X main.version={} -X main.branch={} -X main.commit={}\" ".format(version,
+                                                                                                               get_current_branch(),
+                                                                                                               get_current_commit())
+        if static:
+            build_command += "-a -installsuffix cgo "
         build_command += c
         run(build_command, shell=True)
     return 0
@@ -483,7 +504,7 @@ def generate_md5_from_file(path):
             m.update(chunk)
     return m.hexdigest()
 
-def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
+def build_packages(build_output, version, nightly=False, rc=None, iteration=1, static=False):
     outfiles = []
     tmp_build_dir = create_temp_dir()
     if debug:
@@ -505,19 +526,32 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                                           arch,
                                           '{}-{}-{}'.format(PACKAGE_NAME, version, iteration))
                 create_dir(build_root)
-                create_package_fs(build_root)
 
                 # Copy packaging scripts to build directory
-                package_scripts(build_root)
+                if platform == 'windows' or static:
+                    # For windows and static builds, just copy
+                    # binaries to root of package (no other scripts or
+                    # directories)
+                    package_scripts(build_root, config_only=True)
+                else:
+                    create_package_fs(build_root)
+                    package_scripts(build_root)
 
                 for binary in targets:
                     # Copy newly-built binaries to packaging directory
                     if platform == 'windows':
                         binary = binary + '.exe'
-                    # Where the binary currently is located
-                    fr = os.path.join(current_location, binary)
-                    # Where the binary should go in the package filesystem
-                    to = os.path.join(build_root, INSTALL_ROOT_DIR[1:], binary)
+                    if platform == 'windows' or static:
+                        # Where the binary should go in the package filesystem
+                        to = os.path.join(build_root, binary)
+                        # Where the binary currently is located
+                        fr = os.path.join(current_location, binary)
+                    else:
+                        # Where the binary currently is located
+                        fr = os.path.join(current_location, binary)
+                        # Where the binary should go in the package filesystem
+                        to = os.path.join(build_root, INSTALL_ROOT_DIR[1:], binary)
+
                     if debug:
                         print "[{}][{}] - Moving from '{}' to '{}'".format(platform,
                                                                            arch,
@@ -548,6 +582,12 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                             name = '{}-nightly_{}_{}'.format(name,
                                                              platform,
                                                              arch)
+                        elif static:
+                            name = '{}-{}-{}_static_{}_{}'.format(name,
+                                                                  package_version,
+                                                                  package_iteration,
+                                                                  platform,
+                                                                  arch)
                         else:
                             name = '{}-{}-{}_{}_{}'.format(name,
                                                            package_version,
@@ -555,39 +595,52 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1):
                                                            platform,
                                                            arch)
 
-                    if package_type == 'tar':
-                        # Add `tar.gz` to path to compress package output
-                        current_location = os.path.join(current_location, name + '.tar.gz')
-                    elif package_type == 'zip':
-                        current_location = os.path.join(current_location, name + '.zip')
-
-                    fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
-                        fpm_common_args,
-                        name,
-                        arch,
-                        package_type,
-                        package_version,
-                        package_iteration,
-                        package_build_root,
-                        current_location)
-                    if debug:
-                        fpm_command += "--verbose "
-                    if package_type == "rpm":
-                        fpm_command += "--depends coreutils "
-                    out = run(fpm_command, shell=True)
-                    matches = re.search(':path=>"(.*)"', out)
-                    outfile = None
-                    if matches is not None:
-                        outfile = matches.groups()[0]
-                    if outfile is None:
-                        print "!! Could not determine output from packaging command."
+                        current_location = os.path.join(os.getcwd(), current_location)
+                        if package_type == 'tar':
+                            tar_command = "cd {} && tar -cvzf {}.tar.gz ./*".format(build_root, name)
+                            run(tar_command, shell=True)
+                            run("mv {}.tar.gz {}".format(os.path.join(build_root, name), current_location), shell=True)
+                            outfile = os.path.join(current_location, name + ".tar.gz")
+                            outfiles.append(outfile)
+                            print("MD5({}) = {}".format(outfile, generate_md5_from_file(outfile)))
+                        elif package_type == 'zip':
+                            zip_command = "cd {} && zip -r {}.zip ./*".format(build_root, name)
+                            run(zip_command, shell=True)
+                            run("mv {}.zip {}".format(os.path.join(build_root, name), current_location), shell=True)
+                            outfile = os.path.join(current_location, name + ".zip")
+                            outfiles.append(outfile)
+                            print("MD5({}) = {}".format(outfile, generate_md5_from_file(outfile)))
+                    elif package_type not in ['zip', 'tar'] and static:
+                        print "! Skipping package type [{}] for static builds.".format(package_type)
                     else:
-                        # Strip nightly version (the unix epoch) from filename
-                        if nightly and package_type in [ 'deb', 'rpm' ]:
-                            outfile = rename_file(outfile, outfile.replace("{}-{}".format(version, iteration), "nightly"))
-                        outfiles.append(os.path.join(os.getcwd(), outfile))
-                        # Display MD5 hash for generated package
-                        print "MD5({}) = {}".format(outfile, generate_md5_from_file(outfile))
+                        fpm_command = "fpm {} --name {} -a {} -t {} --version {} --iteration {} -C {} -p {} ".format(
+                            fpm_common_args,
+                            name,
+                            arch,
+                            package_type,
+                            package_version,
+                            package_iteration,
+                            package_build_root,
+                            current_location)
+                        if debug:
+                            fpm_command += "--verbose "
+                        if package_type == "rpm":
+                            fpm_command += "--depends coreutils "
+                        out = run(fpm_command, shell=True)
+                        matches = re.search(':path=>"(.*)"', out)
+                        outfile = None
+                        if matches is not None:
+                            outfile = matches.groups()[0]
+                        if outfile is None:
+                            print "!! Could not determine output from packaging command."
+                        else:
+                            # Strip nightly version (the unix epoch) from filename
+                            if nightly and package_type in [ 'deb', 'rpm' ]:
+                                outfile = rename_file(outfile,
+                                                      outfile.replace("{}-{}".format(version, iteration), "nightly"))
+                            outfiles.append(os.path.join(os.getcwd(), outfile))
+                            # Display MD5 hash for generated package
+                            print "MD5({}) = {}".format(outfile, generate_md5_from_file(outfile))
         print ""
         if debug:
             print "[DEBUG] package outfiles: {}".format(outfiles)
@@ -618,6 +671,7 @@ def print_usage():
     print "\t --timeout \n\t\t- Timeout for Go tests. Defaults to 480s."
     print "\t --clean \n\t\t- Clean the build output directory prior to creating build."
     print "\t --no-get \n\t\t- Do not run `go get` before building."
+    print "\t --static \n\t\t- Generate statically-linked binaries."
     print "\t --bucket=<S3 bucket>\n\t\t- Full path of the bucket to upload packages to (must also specify --upload)."
     print "\t --debug \n\t\t- Displays debug output."
     print ""
@@ -652,6 +706,7 @@ def main():
     upload_bucket = None
     generate = False
     no_stash = False
+    static = False
     build_tags = []
 
     for arg in sys.argv[1:]:
@@ -726,6 +781,8 @@ def main():
         elif '--name' in arg:
             # Change the output package name
             PACKAGE_NAME = arg.split("=")[1]
+        elif '--static' in arg:
+            static = True
         elif '--debug' in arg:
             print "[DEBUG] Using debug output"
             debug = True
@@ -744,7 +801,8 @@ def main():
     if nightly:
         # In order to cleanly delineate nightly version, we are adding the epoch timestamp
         # to the version so that version numbers are always greater than the previous nightly.
-        version = "{}~n{}".format(version, int(time.time()))
+        version = "{}~n{}".format(version,
+                                  datetime.utcnow().strftime("%Y%m%d%H%M"))
         iteration = 0
     elif rc:
         iteration = 0
@@ -822,7 +880,8 @@ def main():
                      race=race,
                      clean=clean,
                      outdir=od,
-                     tags=build_tags):
+                     tags=build_tags,
+                     static=static):
                 return 1
             build_output.get(platform).update( { arch : od } )
 
@@ -831,8 +890,12 @@ def main():
         if not check_path_for("fpm"):
             print "!! Cannot package without command 'fpm'."
             return 1
-
-        packages = build_packages(build_output, version, nightly=nightly, rc=rc, iteration=iteration)
+        packages = build_packages(build_output,
+                                  version,
+                                  nightly=nightly,
+                                  rc=rc,
+                                  iteration=iteration,
+                                  static=static)
         if upload:
             upload_packages(packages, bucket_name=upload_bucket, nightly=nightly)
     print "Done!"
