@@ -15,6 +15,10 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 )
 
+func init() {
+	influxql.StatsInterval = 100 * time.Millisecond
+}
+
 // Ensure that a set of iterators can be merged together, sorted by window and name/tag.
 func TestMergeIterator_Float(t *testing.T) {
 	inputs := []*FloatIterator{
@@ -973,7 +977,6 @@ func TestIterator_EncodeDecode(t *testing.T) {
 
 	// Encode to the buffer.
 	enc := influxql.NewIteratorEncoder(&buf)
-	enc.StatsInterval = 100 * time.Millisecond
 	if err := enc.EncodeIterator(itr); err != nil {
 		t.Fatal(err)
 	}

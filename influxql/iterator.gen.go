@@ -21,8 +21,8 @@ import (
 	"github.com/influxdata/influxdb/influxql/internal"
 )
 
-// DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
-const DefaultStatsInterval = 10 * time.Second
+// StatsInterval is the interval between emitting stats on remote iterators.
+var StatsInterval = 10 * time.Second
 
 // FloatIterator represents a stream of float points.
 type FloatIterator interface {
@@ -5837,17 +5837,12 @@ func (itr *booleanReaderIterator) Next() *BooleanPoint {
 // IteratorEncoder is an encoder for encoding an iterator's points to w.
 type IteratorEncoder struct {
 	w io.Writer
-
-	// Frequency with which stats are emitted.
-	StatsInterval time.Duration
 }
 
 // NewIteratorEncoder encodes an iterator's points to w.
 func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
 	return &IteratorEncoder{
 		w: w,
-
-		StatsInterval: DefaultStatsInterval,
 	}
 }
 
@@ -5869,7 +5864,7 @@ func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
 
 // encodeFloatIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeFloatIterator(itr FloatIterator) error {
-	ticker := time.NewTicker(enc.StatsInterval)
+	ticker := time.NewTicker(StatsInterval)
 	defer ticker.Stop()
 
 	// Emit initial stats.
@@ -5910,7 +5905,7 @@ func (enc *IteratorEncoder) encodeFloatIterator(itr FloatIterator) error {
 
 // encodeIntegerIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeIntegerIterator(itr IntegerIterator) error {
-	ticker := time.NewTicker(enc.StatsInterval)
+	ticker := time.NewTicker(StatsInterval)
 	defer ticker.Stop()
 
 	// Emit initial stats.
@@ -5951,7 +5946,7 @@ func (enc *IteratorEncoder) encodeIntegerIterator(itr IntegerIterator) error {
 
 // encodeStringIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeStringIterator(itr StringIterator) error {
-	ticker := time.NewTicker(enc.StatsInterval)
+	ticker := time.NewTicker(StatsInterval)
 	defer ticker.Stop()
 
 	// Emit initial stats.
@@ -5992,7 +5987,7 @@ func (enc *IteratorEncoder) encodeStringIterator(itr StringIterator) error {
 
 // encodeBooleanIterator encodes all points from itr to the underlying writer.
 func (enc *IteratorEncoder) encodeBooleanIterator(itr BooleanIterator) error {
-	ticker := time.NewTicker(enc.StatsInterval)
+	ticker := time.NewTicker(StatsInterval)
 	defer ticker.Stop()
 
 	// Emit initial stats.

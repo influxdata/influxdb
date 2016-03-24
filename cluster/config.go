@@ -28,6 +28,10 @@ const (
 	// A value of zero will make the maximum query limit unlimited.
 	DefaultMaxConcurrentQueries = 0
 
+	// DefaultMaxSelectPointN is the maximum number of points a SELECT can process.
+	// A value of zero will make the maximum point count unlimited.
+	DefaultMaxSelectPointN = 0
+
 	// DefaultMaxSelectSeriesN is the maximum number of series a SELECT can run.
 	// A value of zero will make the maximum series count unlimited.
 	DefaultMaxSelectSeriesN = 0
@@ -42,6 +46,7 @@ type Config struct {
 	ShardMapperTimeout        toml.Duration `toml:"shard-mapper-timeout"`
 	MaxConcurrentQueries      int           `toml:"max-concurrent-queries"`
 	QueryTimeout              toml.Duration `toml:"query-timeout"`
+	MaxSelectPointN           int           `toml:"max-select-point"`
 	MaxSelectSeriesN          int           `toml:"max-select-series"`
 }
 
@@ -54,6 +59,7 @@ func NewConfig() Config {
 		QueryTimeout:              toml.Duration(DefaultQueryTimeout),
 		MaxRemoteWriteConnections: DefaultMaxRemoteWriteConnections,
 		MaxConcurrentQueries:      DefaultMaxConcurrentQueries,
+		MaxSelectPointN:           DefaultMaxSelectPointN,
 		MaxSelectSeriesN:          DefaultMaxSelectSeriesN,
 	}
 }
