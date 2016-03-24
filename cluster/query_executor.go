@@ -88,6 +88,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
+	qerr := &influxql.QueryError{}
 	if e.QueryManager != nil {
 		var err error
 		_, closing, err = e.QueryManager.AttachQuery(&influxql.QueryParams{
@@ -95,6 +96,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			Database:    database,
 			Timeout:     e.QueryTimeout,
 			InterruptCh: closing,
+			Error:       qerr,
 		})
 		if err != nil {
 			results <- &influxql.Result{Err: err}
@@ -137,6 +139,9 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		// Select statements are handled separately so that they can be streamed.
 		if stmt, ok := stmt.(*influxql.SelectStatement); ok {
 			if err := e.executeSelectStatement(stmt, chunkSize, i, results, closing); err != nil {
+				if err == influxql.ErrQueryInterrupted {
+					err = qerr.Error()
+				}
 				results <- &influxql.Result{StatementID: i, Err: err}
 				break
 			}
