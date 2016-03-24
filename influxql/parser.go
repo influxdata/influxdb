@@ -389,8 +389,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	stmt.Database = ident
 
 	// Parse required DURATION token.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != DURATION {
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != DURATION {
 		return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
 	}
 
@@ -402,7 +401,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	stmt.Duration = d
 
 	// Parse required REPLICATION token.
-	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != REPLICATION {
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != REPLICATION {
 		return nil, newParseError(tokstr(tok, lit), []string{"REPLICATION"}, pos)
 	}
 
@@ -413,8 +412,24 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	}
 	stmt.Replication = n
 
+	// Parse optional SHARD token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SHARD {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != DURATION {
+			return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
+		}
+		d, err := p.parseDuration()
+		if err != nil {
+			return nil, err
+		}
+		stmt.ShardGroupDuration = d
+	} else if tok != EOF && tok != SEMICOLON && tok != DEFAULT {
+		return nil, newParseError(tokstr(tok, lit), []string{"SHARD"}, pos)
+	} else {
+		p.unscan()
+	}
+
 	// Parse optional DEFAULT token.
-	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == DEFAULT {
 		stmt.Default = true
 	} else if tok != EOF && tok != SEMICOLON {
 		return nil, newParseError(tokstr(tok, lit), []string{"DEFAULT"}, pos)
@@ -468,11 +483,22 @@ Loop:
 				return nil, err
 			}
 			stmt.Replication = &n
+		case SHARD:
+			tok, pos, lit := p.scanIgnoreWhitespace()
+			if tok == DURATION {
+				d, err := p.parseDuration()
+				if err != nil {
+					return nil, err
+				}
+				stmt.ShardGroupDuration = &d
+			} else {
+				return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
+			}
 		case DEFAULT:
 			stmt.Default = true
 		default:
 			if i < 1 {
-				return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "RETENTION", "DEFAULT"}, pos)
+				return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "RETENTION", "SHARD", "DEFAULT"}, pos)
 			}
 			p.unscan()
 			break Loop
@@ -1528,7 +1554,7 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		// validate that at least one of DURATION, REPLICATION or NAME is provided
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok != DURATION && tok != REPLICATION && tok != NAME {
-			return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "REPLICATION", "NAME"}, pos)
+			return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "REPLICATION", "SHARD", "NAME"}, pos)
 		}
 		// rewind
 		p.unscan()
@@ -1559,6 +1585,22 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 			}
 		}
 		stmt.RetentionPolicyReplication = rpReplication
+
+		// Look for "SHARD"
+		var rpShardGroupDuration time.Duration
+		if err := p.parseTokens([]Token{SHARD}); err != nil {
+			p.unscan()
+		} else {
+			tok, pos, lit := p.scanIgnoreWhitespace()
+			if tok != DURATION {
+				return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
+			}
+			rpShardGroupDuration, err = p.parseDuration()
+			if err != nil {
+				return nil, err
+			}
+			stmt.RetentionPolicyShardGroupDuration = rpShardGroupDuration
+		}
 
 		// Look for "NAME"
 		var rpName string = "default" // default is default

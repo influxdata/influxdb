@@ -444,6 +444,9 @@ type CreateDatabaseStatement struct {
 
 	// RetentionPolicyName indicates retention name for the new database
 	RetentionPolicyName string
+
+	// RetentionPolicyShardGroupDuration indicates shard group duration for the new database
+	RetentionPolicyShardGroupDuration time.Duration
 }
 
 // String returns a string representation of the create database statement.
@@ -459,6 +462,10 @@ func (s *CreateDatabaseStatement) String() string {
 		_, _ = buf.WriteString(s.RetentionPolicyDuration.String())
 		_, _ = buf.WriteString(" REPLICATION ")
 		_, _ = buf.WriteString(strconv.Itoa(s.RetentionPolicyReplication))
+		if s.RetentionPolicyShardGroupDuration > 0 {
+			_, _ = buf.WriteString(" SHARD DURATION ")
+			_, _ = buf.WriteString(s.RetentionPolicyShardGroupDuration.String())
+		}
 		_, _ = buf.WriteString(" NAME ")
 		_, _ = buf.WriteString(QuoteIdent(s.RetentionPolicyName))
 	}
@@ -751,6 +758,9 @@ type CreateRetentionPolicyStatement struct {
 
 	// Should this policy be set as default for the database?
 	Default bool
+
+	// Shard Duration
+	ShardGroupDuration time.Duration
 }
 
 // String returns a string representation of the create retention policy.
@@ -764,6 +774,10 @@ func (s *CreateRetentionPolicyStatement) String() string {
 	_, _ = buf.WriteString(FormatDuration(s.Duration))
 	_, _ = buf.WriteString(" REPLICATION ")
 	_, _ = buf.WriteString(strconv.Itoa(s.Replication))
+	if s.ShardGroupDuration > 0 {
+		_, _ = buf.WriteString(" SHARD DURATION ")
+		_, _ = buf.WriteString(FormatDuration(s.ShardGroupDuration))
+	}
 	if s.Default {
 		_, _ = buf.WriteString(" DEFAULT")
 	}
@@ -791,6 +805,9 @@ type AlterRetentionPolicyStatement struct {
 
 	// Should this policy be set as defalut for the database?
 	Default bool
+
+	// Duration of the Shard
+	ShardGroupDuration *time.Duration
 }
 
 // String returns a string representation of the alter retention policy statement.
@@ -809,6 +826,11 @@ func (s *AlterRetentionPolicyStatement) String() string {
 	if s.Replication != nil {
 		_, _ = buf.WriteString(" REPLICATION ")
 		_, _ = buf.WriteString(strconv.Itoa(*s.Replication))
+	}
+
+	if s.ShardGroupDuration != nil {
+		_, _ = buf.WriteString(" SHARD DURATION ")
+		_, _ = buf.WriteString(FormatDuration(*s.ShardGroupDuration))
 	}
 
 	if s.Default {
@@ -1448,7 +1470,6 @@ func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 	default:
 		return fmt.Errorf("expected float argument in percentile()")
 	}
-	return nil
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
