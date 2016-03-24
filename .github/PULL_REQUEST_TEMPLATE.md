@@ -1,4 +1,5 @@
 - [ ] CHANGELOG.md updated
+- [ ] [InfluxQL Spec](https://github.com/influxdata/influxdb/blob/master/influxql/README.md) updated or not appropriate
 - [ ] Rebased/mergable
 - [ ] Tests pass
 - [ ] Sign [CLA](https://influxdata.com/community/cla/) (if not already signed)
