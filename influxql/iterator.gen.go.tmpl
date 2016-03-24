@@ -797,7 +797,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Stats() IteratorStats { return 
 func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Close() error { return itr.input.Close() }
 
 // Next returns the minimum value for the next available interval.
-func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Next() *{{.Name}}Point {
+func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) Next() *{{$v.Name}}Point {
 	// Calculate next window if we have no more points.
 	if len(itr.points) == 0 {
 		itr.points = itr.reduce()
@@ -827,7 +827,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 	startTime, endTime := itr.opt.Window(itr.input.peekTime())
 
 	// Create points by tags.
-	m := make(map[string]*{{$k.name}}Reduce{{.Name}}Point)
+	m := make(map[string]*{{$k.name}}Reduce{{$v.Name}}Point)
 	for {
 		// Read next point.
 		curr := itr.input.NextInWindow(startTime, endTime)
@@ -837,7 +837,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 			continue
 		}
 		tags := curr.Tags.Subset(itr.opt.Dimensions)
-		
+
 		id := curr.Name
 		if len(tags.m) > 0 {
 			id += "\x00" + tags.ID()
@@ -881,6 +881,92 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 	}
 
 	return a
+}
+
+// {{$k.name}}Stream{{$v.Name}}Iterator
+type {{$k.name}}Stream{{$v.Name}}Iterator struct {
+	input  *buf{{$k.Name}}Iterator
+	create func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
+	opt    IteratorOptions
+	m      map[string]*{{$k.name}}Reduce{{$v.Name}}Point
+	points []{{$v.Name}}Point
+}
+
+func new{{$k.Name}}Stream{{$v.Name}}Iterator(input {{$k.Name}}Iterator, createFn func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter), opt IteratorOptions) *{{$k.name}}Stream{{$v.Name}}Iterator {
+	return &{{$k.name}}Stream{{$v.Name}}Iterator{
+		input:  newBuf{{$k.Name}}Iterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*{{$k.name}}Reduce{{$v.Name}}Point),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) Next() *{{$v.Name}}Point {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &{{$k.name}}Reduce{{.Name}}Point{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.Aggregate{{$k.Name}}(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator executes a function to modify an existing point
