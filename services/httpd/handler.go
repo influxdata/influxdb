@@ -26,11 +26,10 @@ import (
 )
 
 const (
-	// DefaultChunkSize specifies the amount of data mappers will read
-	// up to, before sending results back to the engine. This is the
-	// default size in the number of values returned in a raw query.
+	// DefaultChunkSize specifies the maximum number of points that will
+	// be read before sending results back to the engine.
 	//
-	// Could be many more bytes depending on fields returned.
+	// This has no relation to the number of bytes that are returned.
 	DefaultChunkSize = 10000
 )
 
@@ -75,17 +74,19 @@ type Handler struct {
 	Logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
 	WriteTrace     bool // Detailed logging of write path
+	rowLimit       int
 	statMap        *expvar.Map
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap *expvar.Map) *Handler {
+func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, rowLimit int, statMap *expvar.Map) *Handler {
 	h := &Handler{
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 		loggingEnabled:        loggingEnabled,
 		WriteTrace:            writeTrace,
+		rowLimit:              rowLimit,
 		statMap:               statMap,
 	}
 
@@ -284,7 +285,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	chunked := (q.Get("chunked") == "true")
 	chunkSize := DefaultChunkSize
 	if chunked {
-		if n, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil {
+		if n, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil && int(n) > 0 {
 			chunkSize = int(n)
 		}
 	}
@@ -312,6 +313,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	w.WriteHeader(http.StatusOK)
 
 	// pull all results from the channel
+	rows := 0
 	for r := range results {
 		// Ignore nil results.
 		if r == nil {
@@ -328,9 +330,21 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			n, _ := w.Write(MarshalJSON(Response{
 				Results: []*influxql.Result{r},
 			}, pretty))
+			if !pretty {
+				w.Write([]byte("\n"))
+			}
 			h.statMap.Add(statQueryRequestBytesTransmitted, int64(n))
 			w.(http.Flusher).Flush()
 			continue
+		}
+
+		// Limit the number of rows that can be returned in a non-chunked response.
+		// This is to prevent the server from going OOM when returning a large response.
+		// If you want to return more than the default chunk size, then use chunking
+		// to process multiple blobs.
+		rows += len(r.Series)
+		if h.rowLimit > 0 && rows > h.rowLimit {
+			break
 		}
 
 		// It's not chunked so buffer results in memory.

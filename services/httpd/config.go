@@ -13,6 +13,7 @@ type Config struct {
 	PprofEnabled     bool   `toml:"pprof-enabled"`
 	HTTPSEnabled     bool   `toml:"https-enabled"`
 	HTTPSCertificate string `toml:"https-certificate"`
+	MaxRowLimit      int    `toml:"max-row-limit"`
 }
 
 // NewConfig returns a new Config with default settings.
@@ -23,5 +24,6 @@ func NewConfig() Config {
 		LogEnabled:       true,
 		HTTPSEnabled:     false,
 		HTTPSCertificate: "/etc/ssl/influxdb.pem",
+		MaxRowLimit:      DefaultChunkSize,
 	}
 }

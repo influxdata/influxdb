@@ -469,7 +469,7 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	}
 
 	// Generate a row emitter from the iterator set.
-	em := influxql.NewEmitter(itrs, stmt.TimeAscending())
+	em := influxql.NewEmitter(itrs, stmt.TimeAscending(), chunkSize)
 	em.Columns = stmt.ColumnNames()
 	em.OmitTime = stmt.OmitTime
 	defer em.Close()

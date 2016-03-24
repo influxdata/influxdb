@@ -17,6 +17,7 @@
 - [#6149](https://github.com/influxdata/influxdb/pull/6149): Kill running queries when server is shutdown.
 - [#5372](https://github.com/influxdata/influxdb/pull/5372): Faster shard loading
 - [#6148](https://github.com/influxdata/influxdb/pull/6148): Build script is now compatible with Python 3. Added ability to create detached signatures for packages. Build script now uses Python logging facility for messages.
+- [#6115](https://github.com/influxdata/influxdb/issues/6115): Support chunking query results mid-series. Limit non-chunked output.
 
 ### Bugfixes
 
