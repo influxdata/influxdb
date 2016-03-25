@@ -579,21 +579,27 @@ def build_packages(build_output, version, nightly=False, rc=None, iteration=1, s
                         # the build root (to include the package name)
                         package_build_root = os.path.join('/', '/'.join(build_root.split('/')[:-1]))
                         if nightly:
-                            name = '{}-nightly_{}_{}'.format(name,
-                                                             platform,
-                                                             arch)
-                        elif static:
-                            name = '{}-{}-{}_static_{}_{}'.format(name,
-                                                                  package_version,
-                                                                  package_iteration,
-                                                                  platform,
-                                                                  arch)
+                            if static:
+                                name = '{}-static-nightly_{}_{}'.format(name,
+                                                                 platform,
+                                                                 arch)
+                            else:
+                                name = '{}-nightly_{}_{}'.format(name,
+                                                                        platform,
+                                                                        arch)
                         else:
-                            name = '{}-{}-{}_{}_{}'.format(name,
-                                                           package_version,
-                                                           package_iteration,
-                                                           platform,
-                                                           arch)
+                            if static:
+                                name = '{}-{}-{}-static_{}_{}'.format(name,
+                                                                      package_version,
+                                                                      package_iteration,
+                                                                      platform,
+                                                                      arch)
+                            else:
+                                name = '{}-{}-{}_{}_{}'.format(name,
+                                                               package_version,
+                                                               package_iteration,
+                                                               platform,
+                                                               arch)
 
                         current_location = os.path.join(os.getcwd(), current_location)
                         if package_type == 'tar':
