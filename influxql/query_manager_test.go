@@ -147,7 +147,7 @@ func TestQueryManager_Limit_Timeout(t *testing.T) {
 
 	select {
 	case <-ch:
-	case <-time.After(time.Millisecond):
+	case <-time.After(time.Second):
 		t.Errorf("timeout has not killed the query")
 	}
 }
