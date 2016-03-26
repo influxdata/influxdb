@@ -1,3 +1,10 @@
+## v0.11.1
+
+### Bugfixes
+
+- [#6129](https://github.com/influxdata/influxdb/pull/6129): Fix default continuous query lease host
+
+
 ## v0.11.0 [2016-03-22]
 
 ### Release Notes

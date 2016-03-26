@@ -347,7 +347,7 @@ func (h *handler) serveLease(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to leader if necessary.
 	leader := h.store.leaderHTTP()
-	if leader != h.s.httpAddr {
+	if leader != h.s.remoteAddr(h.s.httpAddr) {
 		if leader == "" {
 			// No cluster leader. Client will have to try again later.
 			h.httpError(errors.New("no leader"), w, http.StatusServiceUnavailable)
