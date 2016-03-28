@@ -649,7 +649,11 @@ type IteratorOptions struct {
 // newIteratorOptionsStmt creates the iterator options from stmt.
 func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt IteratorOptions, err error) {
 	// Determine time range from the condition.
-	startTime, endTime := TimeRange(stmt.Condition)
+	startTime, endTime, err := TimeRange(stmt.Condition)
+	if err != nil {
+		return IteratorOptions{}, err
+	}
+
 	if !startTime.IsZero() {
 		opt.StartTime = startTime.UnixNano()
 	} else {
