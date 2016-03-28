@@ -204,6 +204,9 @@ func (itr *{{.name}}Iterator) Next() *influxql.{{.Name}}Point {
 
 // copyStats copies from the itr stats buffer to the stats under lock.
 func (itr *{{.name}}Iterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
 }
 
 // Stats returns stats on the points processed.

@@ -25,6 +25,10 @@ var (
 	// attached because it was previous shutdown.
 	ErrQueryManagerShutdown = errors.New("query manager shutdown")
 
+	// ErrMaxPointsReached is an error when a query hits the maximum number of
+	// points.
+	ErrMaxPointsReached = errors.New("max number of points reached")
+
 	// ErrQueryTimeoutReached is an error when a query hits the timeout.
 	ErrQueryTimeoutReached = errors.New("query timeout reached")
 )
@@ -211,6 +215,13 @@ func (qm *defaultQueryManager) AttachQuery(params *QueryParams) (uint64, <-chan 
 	return qid, query.closing, nil
 }
 
+func (qm *defaultQueryManager) Query(qid uint64) (*queryTask, bool) {
+	qm.mu.Lock()
+	query, ok := qm.queries[qid]
+	qm.mu.Unlock()
+	return query, ok
+}
+
 func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, closing <-chan struct{}, monitorCh <-chan error) {
 	var timer <-chan time.Time
 	if timeout != 0 {
@@ -219,10 +230,7 @@ func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, c
 
 	select {
 	case <-closing:
-		qm.mu.Lock()
-		query, ok := qm.queries[qid]
-		qm.mu.Unlock()
-
+		query, ok := qm.Query(qid)
 		if !ok {
 			break
 		}
@@ -231,19 +239,14 @@ func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, c
 		if err == nil {
 			break
 		}
-		qm.mu.Lock()
-		query, ok := qm.queries[qid]
-		qm.mu.Unlock()
 
+		query, ok := qm.Query(qid)
 		if !ok {
 			break
 		}
 		query.setError(err)
 	case <-timer:
-		qm.mu.Lock()
-		query, ok := qm.queries[qid]
-		qm.mu.Unlock()
-
+		query, ok := qm.Query(qid)
 		if !ok {
 			break
 		}
@@ -253,10 +256,7 @@ func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, c
 }
 
 func (qm *defaultQueryManager) MonitorQuery(qid uint64, fn QueryMonitorFunc) error {
-	qm.mu.Lock()
-	query, ok := qm.queries[qid]
-	qm.mu.Unlock()
-
+	query, ok := qm.Query(qid)
 	if !ok {
 		return fmt.Errorf("no such query id: %d", qid)
 	}

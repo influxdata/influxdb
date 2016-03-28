@@ -166,6 +166,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.PointsWriter = s.PointsWriter
 	s.QueryExecutor.QueryTimeout = time.Duration(c.Cluster.QueryTimeout)
 	s.QueryExecutor.QueryManager = influxql.DefaultQueryManager(c.Cluster.MaxConcurrentQueries)
+	s.QueryExecutor.MaxSelectPointN = c.Cluster.MaxSelectPointN
 	s.QueryExecutor.MaxSelectSeriesN = c.Cluster.MaxSelectSeriesN
 	if c.Data.QueryLogEnabled {
 		s.QueryExecutor.LogOutput = os.Stderr
