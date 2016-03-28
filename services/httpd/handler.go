@@ -91,7 +91,7 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 
 	h.AddRoutes([]Route{
 		Route{
-			"query", // Satisfy CORS checks.
+			"query-options", // Satisfy CORS checks.
 			"OPTIONS", "/query", true, true, h.serveOptions,
 		},
 		Route{
@@ -99,7 +99,7 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 			"GET", "/query", true, true, h.serveQuery,
 		},
 		Route{
-			"write", // Satisfy CORS checks.
+			"write-options", // Satisfy CORS checks.
 			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
 		Route{
@@ -122,8 +122,9 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, statMap 
 			"status-head",
 			"HEAD", "/status", true, true, h.serveStatus,
 		},
+		// TODO: (corylanou) remove this and associated code
 		Route{ // Tell data node to run CQs that should be run
-			"process_continuous_queries",
+			"process-continuous-queries",
 			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
 	}...)
