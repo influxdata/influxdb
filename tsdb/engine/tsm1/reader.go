@@ -197,6 +197,7 @@ func (t *TSMReader) Key(index int) (string, []IndexEntry) {
 	return t.index.Key(index)
 }
 
+// KeyAt returns the key and key typegi at position idx in the index.
 func (t *TSMReader) KeyAt(idx int) (string, byte) {
 	return t.index.KeyAt(idx)
 }
