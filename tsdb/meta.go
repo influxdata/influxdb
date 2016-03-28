@@ -153,6 +153,17 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurem
 	return m
 }
 
+// AssignShard update the index to indicate that series k exists in
+// the given shardID
+func (d *DatabaseIndex) AssignShard(k string, shardID uint64) {
+	ss := d.Series(k)
+	if ss != nil {
+		d.mu.Lock()
+		ss.AssignShard(shardID)
+		d.mu.Unlock()
+	}
+}
+
 // TagsForSeries returns the tag map for the passed in series
 func (d *DatabaseIndex) TagsForSeries(key string) map[string]string {
 	d.mu.RLock()

@@ -235,10 +235,7 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 	if len(seriesToAddShardTo) > 0 {
 		for _, k := range seriesToAddShardTo {
-			ss := s.index.Series(k)
-			if ss != nil {
-				ss.AssignShard(s.id)
-			}
+			s.index.AssignShard(k, s.id)
 		}
 	}
 
