@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -3419,7 +3420,7 @@ func TimeRange(expr Expr) (min, max time.Time) {
 
 // TimeRangeAsEpochNano returns the minimum and maximum times, as epoch nano, specified by
 // and expression. If there is no lower bound, the start of the epoch is returned
-// for minimum. If there is no higher bound, now is returned for maximum.
+// for minimum. If there is no higher bound, the highest possible value is returned.
 func TimeRangeAsEpochNano(expr Expr) (min, max int64) {
 	tmin, tmax := TimeRange(expr)
 	if tmin.IsZero() {
@@ -3428,7 +3429,7 @@ func TimeRangeAsEpochNano(expr Expr) (min, max int64) {
 		min = tmin.UnixNano()
 	}
 	if tmax.IsZero() {
-		max = time.Now().UnixNano()
+		max = time.Unix(0, math.MaxInt64).UnixNano()
 	} else {
 		max = tmax.UnixNano()
 	}
