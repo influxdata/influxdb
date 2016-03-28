@@ -114,6 +114,7 @@ func (itr *bufFloatIterator) unread(v *FloatPoint) { itr.buf = v }
 type floatMergeIterator struct {
 	inputs []FloatIterator
 	heap   *floatMergeHeap
+	init   bool
 
 	// Current iterator and window.
 	curr   *floatMergeHeapItem
@@ -139,14 +140,10 @@ func newFloatMergeIterator(inputs []FloatIterator, opt IteratorOptions) *floatMe
 	for _, input := range inputs {
 		// Wrap in buffer, ignore any inputs without anymore points.
 		bufInput := newBufFloatIterator(input)
-		if bufInput.peek() == nil {
-			continue
-		}
 
 		// Append to the heap.
 		itr.heap.items = append(itr.heap.items, &floatMergeHeapItem{itr: bufInput})
 	}
-	heap.Init(itr.heap)
 
 	return itr
 }
@@ -170,6 +167,23 @@ func (itr *floatMergeIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *floatMergeIterator) Next() *FloatPoint {
+	// Initialize the heap. This needs to be done lazily on the first call to this iterator
+	// so that iterator initialization done through the Select() call returns quickly.
+	// Queries can only be interrupted after the Select() call completes so any operations
+	// done during iterator creation cannot be interrupted, which is why we do it here
+	// instead so an interrupt can happen while initializing the heap.
+	if !itr.init {
+		items := itr.heap.items
+		itr.heap.items = make([]*floatMergeHeapItem, 0, len(items))
+		for _, item := range items {
+			if item.itr.peek() == nil {
+				continue
+			}
+			itr.heap.items = append(itr.heap.items, item)
+		}
+		heap.Init(itr.heap)
+	}
+
 	for {
 		// Retrieve the next iterator if we don't have one.
 		if itr.curr == nil {
@@ -1568,6 +1582,7 @@ func (itr *bufIntegerIterator) unread(v *IntegerPoint) { itr.buf = v }
 type integerMergeIterator struct {
 	inputs []IntegerIterator
 	heap   *integerMergeHeap
+	init   bool
 
 	// Current iterator and window.
 	curr   *integerMergeHeapItem
@@ -1593,14 +1608,10 @@ func newIntegerMergeIterator(inputs []IntegerIterator, opt IteratorOptions) *int
 	for _, input := range inputs {
 		// Wrap in buffer, ignore any inputs without anymore points.
 		bufInput := newBufIntegerIterator(input)
-		if bufInput.peek() == nil {
-			continue
-		}
 
 		// Append to the heap.
 		itr.heap.items = append(itr.heap.items, &integerMergeHeapItem{itr: bufInput})
 	}
-	heap.Init(itr.heap)
 
 	return itr
 }
@@ -1624,6 +1635,23 @@ func (itr *integerMergeIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *integerMergeIterator) Next() *IntegerPoint {
+	// Initialize the heap. This needs to be done lazily on the first call to this iterator
+	// so that iterator initialization done through the Select() call returns quickly.
+	// Queries can only be interrupted after the Select() call completes so any operations
+	// done during iterator creation cannot be interrupted, which is why we do it here
+	// instead so an interrupt can happen while initializing the heap.
+	if !itr.init {
+		items := itr.heap.items
+		itr.heap.items = make([]*integerMergeHeapItem, 0, len(items))
+		for _, item := range items {
+			if item.itr.peek() == nil {
+				continue
+			}
+			itr.heap.items = append(itr.heap.items, item)
+		}
+		heap.Init(itr.heap)
+	}
+
 	for {
 		// Retrieve the next iterator if we don't have one.
 		if itr.curr == nil {
@@ -3019,6 +3047,7 @@ func (itr *bufStringIterator) unread(v *StringPoint) { itr.buf = v }
 type stringMergeIterator struct {
 	inputs []StringIterator
 	heap   *stringMergeHeap
+	init   bool
 
 	// Current iterator and window.
 	curr   *stringMergeHeapItem
@@ -3044,14 +3073,10 @@ func newStringMergeIterator(inputs []StringIterator, opt IteratorOptions) *strin
 	for _, input := range inputs {
 		// Wrap in buffer, ignore any inputs without anymore points.
 		bufInput := newBufStringIterator(input)
-		if bufInput.peek() == nil {
-			continue
-		}
 
 		// Append to the heap.
 		itr.heap.items = append(itr.heap.items, &stringMergeHeapItem{itr: bufInput})
 	}
-	heap.Init(itr.heap)
 
 	return itr
 }
@@ -3075,6 +3100,23 @@ func (itr *stringMergeIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *stringMergeIterator) Next() *StringPoint {
+	// Initialize the heap. This needs to be done lazily on the first call to this iterator
+	// so that iterator initialization done through the Select() call returns quickly.
+	// Queries can only be interrupted after the Select() call completes so any operations
+	// done during iterator creation cannot be interrupted, which is why we do it here
+	// instead so an interrupt can happen while initializing the heap.
+	if !itr.init {
+		items := itr.heap.items
+		itr.heap.items = make([]*stringMergeHeapItem, 0, len(items))
+		for _, item := range items {
+			if item.itr.peek() == nil {
+				continue
+			}
+			itr.heap.items = append(itr.heap.items, item)
+		}
+		heap.Init(itr.heap)
+	}
+
 	for {
 		// Retrieve the next iterator if we don't have one.
 		if itr.curr == nil {
@@ -4470,6 +4512,7 @@ func (itr *bufBooleanIterator) unread(v *BooleanPoint) { itr.buf = v }
 type booleanMergeIterator struct {
 	inputs []BooleanIterator
 	heap   *booleanMergeHeap
+	init   bool
 
 	// Current iterator and window.
 	curr   *booleanMergeHeapItem
@@ -4495,14 +4538,10 @@ func newBooleanMergeIterator(inputs []BooleanIterator, opt IteratorOptions) *boo
 	for _, input := range inputs {
 		// Wrap in buffer, ignore any inputs without anymore points.
 		bufInput := newBufBooleanIterator(input)
-		if bufInput.peek() == nil {
-			continue
-		}
 
 		// Append to the heap.
 		itr.heap.items = append(itr.heap.items, &booleanMergeHeapItem{itr: bufInput})
 	}
-	heap.Init(itr.heap)
 
 	return itr
 }
@@ -4526,6 +4565,23 @@ func (itr *booleanMergeIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *booleanMergeIterator) Next() *BooleanPoint {
+	// Initialize the heap. This needs to be done lazily on the first call to this iterator
+	// so that iterator initialization done through the Select() call returns quickly.
+	// Queries can only be interrupted after the Select() call completes so any operations
+	// done during iterator creation cannot be interrupted, which is why we do it here
+	// instead so an interrupt can happen while initializing the heap.
+	if !itr.init {
+		items := itr.heap.items
+		itr.heap.items = make([]*booleanMergeHeapItem, 0, len(items))
+		for _, item := range items {
+			if item.itr.peek() == nil {
+				continue
+			}
+			itr.heap.items = append(itr.heap.items, item)
+		}
+		heap.Init(itr.heap)
+	}
+
 	for {
 		// Retrieve the next iterator if we don't have one.
 		if itr.curr == nil {
