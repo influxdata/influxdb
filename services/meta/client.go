@@ -282,10 +282,6 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo
 
 	data := c.cacheData.Clone()
 
-	if rp, _ := data.RetentionPolicy(database, rpi.Name); rp != nil {
-		return rp, nil
-	}
-
 	if rpi.Duration < MinRetentionPolicyDuration && rpi.Duration != 0 {
 		return nil, ErrRetentionPolicyDurationTooLow
 	}
