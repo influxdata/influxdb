@@ -1009,6 +1009,10 @@ func NewIntegerPercentileReduceSliceFunc(percentile float64) IntegerReduceSliceF
 
 // newDerivativeIterator returns an iterator for operating on a derivative() call.
 func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) (Iterator, error) {
+	// Derivatives do not use GROUP BY intervals or time constraints, so clear these options.
+	opt.Interval = Interval{}
+	opt.StartTime, opt.EndTime = MinTime, MaxTime
+
 	switch input := input.(type) {
 	case FloatIterator:
 		floatDerivativeReduceSlice := NewFloatDerivativeReduceSliceFunc(interval, isNonNegative)
@@ -1111,4 +1115,68 @@ func NewIntegerDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) 
 		}
 		return output
 	}
+}
+
+// newDifferenceIterator returns an iterator for operating on a difference() call.
+func newDifferenceIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	// Differences do not use GROUP BY intervals or time constraints, so clear these options.
+	opt.Interval = Interval{}
+	opt.StartTime, opt.EndTime = MinTime, MaxTime
+
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatSliceFuncReducer(FloatDifferenceReduceSlice)
+			return fn, fn
+		}
+		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerSliceFuncReducer(IntegerDifferenceReduceSlice)
+			return fn, fn
+		}
+		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+	default:
+		return nil, fmt.Errorf("unsupported difference iterator type: %T", input)
+	}
+}
+
+// FloatDifferenceReduceSlice returns the difference values within a window.
+func FloatDifferenceReduceSlice(a []FloatPoint) []FloatPoint {
+	if len(a) < 2 {
+		return []FloatPoint{}
+	}
+	prev := a[0]
+
+	output := make([]FloatPoint, 0, len(a)-1)
+	for i := 1; i < len(a); i++ {
+		p := &a[i]
+
+		// Calculate the difference of successive points.
+		value := p.Value - prev.Value
+		prev = *p
+
+		output = append(output, FloatPoint{Time: p.Time, Value: value})
+	}
+	return output
+}
+
+// IntegerDifferenceReduceSlice returns the difference values within a window.
+func IntegerDifferenceReduceSlice(a []IntegerPoint) []IntegerPoint {
+	if len(a) < 2 {
+		return []IntegerPoint{}
+	}
+	prev := a[0]
+
+	output := make([]IntegerPoint, 0, len(a)-1)
+	for i := 1; i < len(a); i++ {
+		p := &a[i]
+
+		// Calculate the difference of successive points.
+		value := p.Value - prev.Value
+		prev = *p
+
+		output = append(output, IntegerPoint{Time: p.Time, Value: value})
+	}
+	return output
 }

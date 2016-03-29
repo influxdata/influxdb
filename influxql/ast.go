@@ -1476,12 +1476,19 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative":
+			case "derivative", "non_negative_derivative", "difference":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
-				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
-					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+				switch expr.Name {
+				case "derivative", "non_negative_derivative":
+					if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
+						return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+					}
+				case "difference":
+					if got := len(expr.Args); got != 1 {
+						return fmt.Errorf("invalid number of arguments for difference, expected 1, got %d", got)
+					}
 				}
 				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
 				groupByInterval, err := s.GroupByInterval()
