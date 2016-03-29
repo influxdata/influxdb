@@ -373,12 +373,12 @@ func (c *Cache) Store() map[string]*entry {
 	return c.store
 }
 
-func (c *Cache) Lock() {
-	c.mu.Lock()
+func (c *Cache) RLock() {
+	c.mu.RLock()
 }
 
-func (c *Cache) Unlock() {
-	c.mu.Unlock()
+func (c *Cache) RUnlock() {
+	c.mu.RUnlock()
 }
 
 // values returns the values for the key. It doesn't lock and assumes the data is

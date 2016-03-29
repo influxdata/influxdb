@@ -128,9 +128,6 @@ func (s *Shard) Open() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		s.index.mu.Lock()
-		defer s.index.mu.Unlock()
-
 		// Return if the shard is already open
 		if s.engine != nil {
 			return nil
@@ -231,22 +228,15 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 	// add any new series to the in-memory index
 	if len(seriesToCreate) > 0 {
-		s.index.mu.Lock()
 		for _, ss := range seriesToCreate {
 			s.index.CreateSeriesIndexIfNotExists(ss.Measurement, ss.Series)
 		}
-		s.index.mu.Unlock()
 	}
 
 	if len(seriesToAddShardTo) > 0 {
-		s.index.mu.Lock()
 		for _, k := range seriesToAddShardTo {
-			ss := s.index.series[k]
-			if ss != nil {
-				ss.shardIDs[s.id] = true
-			}
+			s.index.AssignShard(k, s.id)
 		}
-		s.index.mu.Unlock()
 	}
 
 	// add any new fields and keep track of what needs to be saved
@@ -317,9 +307,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		return nil, nil
 	}
 
-	s.index.mu.Lock()
 	s.mu.Lock()
-	defer s.index.mu.Unlock()
 	defer s.mu.Unlock()
 
 	// add fields
@@ -355,17 +343,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 	var fieldsToCreate []*FieldCreate
 	var seriesToAddShardTo []string
 
-	// get the mutex for the in memory index, which is shared across shards
-	s.index.mu.RLock()
-	defer s.index.mu.RUnlock()
-
 	// get the shard mutex for locally defined fields
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, p := range points {
 		// see if the series should be added to the index
-		if ss := s.index.series[string(p.Key())]; ss == nil {
+		if ss := s.index.Series(string(p.Key())); ss == nil {
 			series := NewSeries(string(p.Key()), p.Tags())
 			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), series})
 			seriesToAddShardTo = append(seriesToAddShardTo, series.Key)

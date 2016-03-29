@@ -96,14 +96,20 @@ func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries in
 
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
 func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
+	d.mu.RLock()
 	// if there is a measurement for this id, it's already been added
 	ss := d.series[series.Key]
 	if ss != nil {
+		d.mu.RUnlock()
 		return ss
 	}
+	d.mu.RUnlock()
 
 	// get or create the measurement index
 	m := d.CreateMeasurementIndexIfNotExists(measurementName)
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	// set the in memory ID for query processing on this shard
 	series.id = d.lastID + 1
@@ -122,13 +128,40 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
 func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
 	name = escape.UnescapeString(name)
+
+	// See if the measurement exists using a read-lock
+	d.mu.RLock()
 	m := d.measurements[name]
+	if m != nil {
+		d.mu.RUnlock()
+		return m
+	}
+	d.mu.RUnlock()
+
+	// Doesn't exist, so lock the index to create it
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Make sure it was created in between the time we released our read-lock
+	// and acquire the write lock
+	m = d.measurements[name]
 	if m == nil {
 		m = NewMeasurement(name, d)
 		d.measurements[name] = m
 		d.statMap.Add(statDatabaseMeasurements, 1)
 	}
 	return m
+}
+
+// AssignShard update the index to indicate that series k exists in
+// the given shardID
+func (d *DatabaseIndex) AssignShard(k string, shardID uint64) {
+	ss := d.Series(k)
+	if ss != nil {
+		d.mu.Lock()
+		ss.AssignShard(shardID)
+		d.mu.Unlock()
+	}
 }
 
 // TagsForSeries returns the tag map for the passed in series
@@ -1295,6 +1328,10 @@ func NewSeries(key string, tags map[string]string) *Series {
 	}
 }
 
+func (s *Series) AssignShard(shardID uint64) {
+	s.shardIDs[shardID] = true
+}
+
 // MarshalBinary encodes the object to a binary format.
 func (s *Series) MarshalBinary() ([]byte, error) {
 	var pb internal.Series
@@ -1521,6 +1558,13 @@ func (m *Measurement) TagValues(key string) []string {
 
 // SetFieldName adds the field name to the measurement.
 func (m *Measurement) SetFieldName(name string) {
+	m.mu.RLock()
+	if _, ok := m.fieldNames[name]; ok {
+		m.mu.RUnlock()
+		return
+	}
+	m.mu.RUnlock()
+
 	m.mu.Lock()
 	m.fieldNames[name] = struct{}{}
 	m.mu.Unlock()

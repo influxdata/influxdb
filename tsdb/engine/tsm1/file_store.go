@@ -52,6 +52,12 @@ type TSMFile interface {
 	// Keys returns all keys contained in the file.
 	Keys() []string
 
+	// KeyCount returns the number of distict keys in the file.
+	KeyCount() int
+
+	// KeyAt returns the key located at index position idx
+	KeyAt(idx int) (string, byte)
+
 	// Type returns the block type of the values stored for the key.  Returns one of
 	// BlockFloat64, BlockInt64, BlockBoolean, BlockString.  If key does not exist,
 	// an error is returned.
@@ -204,23 +210,37 @@ func (f *FileStore) Remove(paths ...string) {
 	sort.Sort(tsmReaders(f.files))
 }
 
-func (f *FileStore) Keys() []string {
+// WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
+// exists in multiple files, it will be invoked for each file.
+func (f *FileStore) WalkKeys(fn func(key string, typ byte) error) error {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	uniqueKeys := map[string]struct{}{}
 	for _, f := range f.files {
-		for _, key := range f.Keys() {
-			uniqueKeys[key] = struct{}{}
+		for i := 0; i < f.KeyCount(); i++ {
+			key, typ := f.KeyAt(i)
+			if err := fn(key, typ); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Keys returns all keys and types for all files
+func (f *FileStore) Keys() map[string]byte {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	uniqueKeys := map[string]byte{}
+	for _, f := range f.files {
+		for i := 0; i < f.KeyCount(); i++ {
+			key, typ := f.KeyAt(i)
+			uniqueKeys[key] = typ
 		}
 	}
 
-	var keys []string
-	for key := range uniqueKeys {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
+	return uniqueKeys
 }
 
 func (f *FileStore) Type(key string) (byte, error) {
