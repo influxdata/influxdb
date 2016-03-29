@@ -1874,10 +1874,6 @@ func TestServer_Query_SelectGroupByTimeDifference(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
 		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
@@ -1958,10 +1954,6 @@ func TestServer_Query_SelectGroupByTimeDifferenceWithFill(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
 	defer s.Close()
-
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
-		t.Fatal(err)
-	}
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
