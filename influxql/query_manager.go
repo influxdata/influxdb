@@ -20,6 +20,10 @@ var (
 	// ErrMaxConcurrentQueriesReached is an error when a query cannot be run
 	// because the maximum number of queries has been reached.
 	ErrMaxConcurrentQueriesReached = errors.New("max concurrent queries reached")
+
+	// ErrQueryManagerShutdown is an error sent when the query cannot be
+	// attached because it was previous shutdown.
+	ErrQueryManagerShutdown = errors.New("query manager shutdown")
 )
 
 // QueryTaskInfo holds information about a currently running query.
@@ -60,6 +64,9 @@ type QueryManager interface {
 	// KillQuery stops and removes a query from the query manager.
 	// This method can be used to forcefully terminate a running query.
 	KillQuery(qid uint64) error
+
+	// Close kills all running queries and prevents new queries from being attached.
+	Close() error
 
 	// Queries lists the currently running tasks.
 	Queries() []QueryTaskInfo
@@ -116,11 +123,16 @@ type defaultQueryManager struct {
 	nextID     uint64
 	maxQueries int
 	mu         sync.Mutex
+	shutdown   bool
 }
 
 func (qm *defaultQueryManager) AttachQuery(params *QueryParams) (uint64, <-chan struct{}, error) {
 	qm.mu.Lock()
 	defer qm.mu.Unlock()
+
+	if qm.shutdown {
+		return 0, nil, ErrQueryManagerShutdown
+	}
 
 	if qm.maxQueries > 0 && len(qm.queries) >= qm.maxQueries {
 		return 0, nil, ErrMaxConcurrentQueriesReached
@@ -166,6 +178,18 @@ func (qm *defaultQueryManager) KillQuery(qid uint64) error {
 
 	close(query.closing)
 	delete(qm.queries, qid)
+	return nil
+}
+
+func (qm *defaultQueryManager) Close() error {
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+
+	qm.shutdown = true
+	for _, query := range qm.queries {
+		close(query.closing)
+	}
+	qm.queries = nil
 	return nil
 }
 

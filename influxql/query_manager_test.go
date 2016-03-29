@@ -52,11 +52,11 @@ func TestQueryManager_KillQuery(t *testing.T) {
 	select {
 	case <-ch:
 	case <-time.After(100 * time.Millisecond):
-		t.Error("detaching the query did not close the channel after 100 milliseconds")
+		t.Error("killing the query did not close the channel after 100 milliseconds")
 	}
 
 	if err := qm.KillQuery(qid); err == nil || err.Error() != fmt.Sprintf("no such query id: %d", qid) {
-		t.Errorf("incorrect error detaching query, got %s", err)
+		t.Errorf("incorrect error killing query, got %s", err)
 	}
 }
 
@@ -172,6 +172,36 @@ func TestQueryManager_Limit_ConcurrentQueries(t *testing.T) {
 
 	_, _, err = qm.AttachQuery(&params)
 	if err == nil || err != influxql.ErrMaxConcurrentQueriesReached {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
+func TestQueryManager_Close(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	qm := influxql.DefaultQueryManager(0)
+	params := influxql.QueryParams{
+		Query:    q,
+		Database: `mydb`,
+	}
+
+	_, ch, err := qm.AttachQuery(&params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	qm.Close()
+
+	select {
+	case <-ch:
+	case <-time.After(100 * time.Millisecond):
+		t.Error("closing the query manager did not kill the query after 100 milliseconds")
+	}
+
+	_, _, err = qm.AttachQuery(&params)
+	if err == nil || err != influxql.ErrQueryManagerShutdown {
 		t.Errorf("unexpected error: %s", err)
 	}
 }

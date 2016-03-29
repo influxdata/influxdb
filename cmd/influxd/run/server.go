@@ -310,6 +310,10 @@ func (s *Server) Close() error {
 		s.PointsWriter.Close()
 	}
 
+	if s.QueryExecutor.QueryManager != nil {
+		s.QueryExecutor.QueryManager.Close()
+	}
+
 	// Close the TSDBStore, no more reads or writes at this point
 	if s.TSDBStore != nil {
 		s.TSDBStore.Close()
