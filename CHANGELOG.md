@@ -32,6 +32,7 @@
 - [#6092](https://github.com/influxdata/influxdb/issues/6092): Upgrading directly from 0.9.6.1 to 0.11.0 fails
 - [#6061](https://github.com/influxdata/influxdb/issues/6061): [0.12 / master] POST to /write does not write points if request has header 'Content-Type: application/x-www-form-urlencoded'
 - [#6121](https://github.com/influxdata/influxdb/issues/6121): Fix panic: slice index out of bounds in TSM index
+- [#6140](https://github.com/influxdata/influxdb/issues/6140): Ensure Shard engine not accessed when closed.
 
 ## v0.11.0 [2016-03-22]
 

@@ -42,6 +42,10 @@ var (
 	// ErrFieldUnmappedID is returned when the system is presented, during decode, with a field ID
 	// there is no mapping for.
 	ErrFieldUnmappedID = errors.New("field ID not mapped")
+
+	// ErrEngineClosed is returned when a caller attempts indirectly to
+	// access the shard's underlying engine.
+	ErrEngineClosed = errors.New("engine is closed")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -181,6 +185,14 @@ func (s *Shard) close() error {
 	return err
 }
 
+// closed determines if the Shard is closed.
+func (s *Shard) closed() bool {
+	s.mu.RLock()
+	closed := s.engine == nil
+	s.mu.RUnlock()
+	return closed
+}
+
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
 	stats, err := os.Stat(s.path)
@@ -217,9 +229,9 @@ type SeriesCreate struct {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
 func (s *Shard) WritePoints(points []models.Point) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
+	if s.closed() {
+		return ErrEngineClosed
+	}
 	s.statMap.Add(statWriteReq, 1)
 
 	seriesToCreate, fieldsToCreate, seriesToAddShardTo, err := s.validateSeriesAndFields(points)
@@ -258,7 +270,9 @@ func (s *Shard) WritePoints(points []models.Point) error {
 			}
 
 			// This was populated earlier, don't need to validate that it's there.
+			s.mu.RLock()
 			mf := s.measurementFields[p.Name()]
+			s.mu.RUnlock()
 
 			// If a measurement is dropped while writes for it are in progress, this could be nil
 			if mf == nil {
@@ -285,22 +299,26 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 // DeleteSeries deletes a list of series.
 func (s *Shard) DeleteSeries(seriesKeys []string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	if s.closed() {
+		return ErrEngineClosed
+	}
 	return s.engine.DeleteSeries(seriesKeys)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
 func (s *Shard) DeleteMeasurement(name string, seriesKeys []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if s.closed() {
+		return ErrEngineClosed
+	}
 
 	if err := s.engine.DeleteMeasurement(name, seriesKeys); err != nil {
 		return err
 	}
 
 	// Remove entry from shard index.
+	s.mu.Lock()
 	delete(s.measurementFields, name)
+	s.mu.Unlock()
 
 	return nil
 }
@@ -310,8 +328,8 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		return nil, nil
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// add fields
 	measurementsToSave := make(map[string]*MeasurementFields)
@@ -347,9 +365,6 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 	var seriesToAddShardTo []string
 
 	// get the shard mutex for locally defined fields
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	for _, p := range points {
 		// see if the series should be added to the index
 		if ss := s.index.Series(string(p.Key())); ss == nil {
@@ -363,7 +378,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 		}
 
 		// see if the field definitions need to be saved to the shard
+		s.mu.RLock()
 		mf := s.measurementFields[p.Name()]
+		s.mu.RUnlock()
+
 		if mf == nil {
 			for name, value := range p.Fields() {
 				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
@@ -391,15 +409,17 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 
 // SeriesCount returns the number of series buckets on the shard.
 func (s *Shard) SeriesCount() (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	if s.closed() {
+		return 0, ErrEngineClosed
+	}
 	return s.engine.SeriesCount()
 }
 
 // WriteTo writes the shard's data to w.
 func (s *Shard) WriteTo(w io.Writer) (int64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	if s.closed() {
+		return 0, ErrEngineClosed
+	}
 	n, err := s.engine.WriteTo(w)
 	s.statMap.Add(statWriteBytes, int64(n))
 	return n, err
@@ -407,11 +427,13 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if s.closed() {
+		return nil, ErrEngineClosed
+	}
+
 	if influxql.Sources(opt.Sources).HasSystemSource() {
 		return s.createSystemIterator(opt)
 	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.engine.CreateIterator(opt)
 }
 
@@ -468,6 +490,10 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields, dimensions ma
 
 // SeriesKeys returns a list of series in the shard.
 func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+	if s.closed() {
+		return nil, ErrEngineClosed
+	}
+
 	if influxql.Sources(opt.Sources).HasSystemSource() {
 		// Only support a single system source.
 		if len(opt.Sources) > 1 {
@@ -483,8 +509,6 @@ func (s *Shard) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, e
 		return []influxql.Series{{Aux: auxFields}}, nil
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.engine.SeriesKeys(opt)
 }
 
