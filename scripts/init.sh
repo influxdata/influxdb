@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
 ### BEGIN INIT INFO
 # Provides:          influxd
@@ -127,91 +127,107 @@ function log_success_msg() {
     echo "$@" "[ OK ]"
 }
 
-case $1 in
-    start)
-        # Check if config file exist
-        if [ ! -r $CONFIG ]; then
-            log_failure_msg "config file doesn't exist (or you don't have permission to view)"
-            exit 4
-        fi
+function start() {
+    # Check if config file exist
+    if [ ! -r $CONFIG ]; then
+        log_failure_msg "config file doesn't exist (or you don't have permission to view)"
+        exit 4
+    fi
 
-        # Checked the PID file exists and check the actual status of process
-        if [ -e $PIDFILE ]; then
-	    PID="$(pgrep -f $PIDFILE)"
-	    if test ! -z $PID && kill -0 "$PID" &>/dev/null; then
-		# If the status is SUCCESS then don't need to start again.
-                log_failure_msg "$NAME process is running"
-                exit 0 # Exit
-            fi
+    # Checked the PID file exists and check the actual status of process
+    if [ -e $PIDFILE ]; then
+	PID="$(pgrep -f $PIDFILE)"
+	if test -n "$PID" && kill -0 "$PID" &>/dev/null; then
+	    # If the status is SUCCESS then don't need to start again.
+            log_failure_msg "$NAME process is running"
+            exit 0 # Exit
+        fi
         # if PID file does not exist, check if writable
-        else
-            su -s /bin/sh -c "touch $PIDFILE" $USER > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                log_failure_msg "$PIDFILE not writable, check permissions"
-                exit 5
+    else
+        su -s /bin/sh -c "touch $PIDFILE" $USER > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            log_failure_msg "$PIDFILE not writable, check permissions"
+            exit 5
+        fi
+    fi
+
+    # Bump the file limits, before launching the daemon. These will carry over to
+    # launched processes.
+    ulimit -n $OPEN_FILE_LIMIT
+    if [ $? -ne 0 ]; then
+        log_failure_msg "set open file limit to $OPEN_FILE_LIMIT"
+        exit 1
+    fi
+
+    log_success_msg "Starting the process" "$NAME"
+    if which start-stop-daemon > /dev/null 2>&1; then
+        start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+    else
+        su -s /bin/sh -c "nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &" $USER
+    fi
+    log_success_msg "$NAME process was started"
+}
+
+function stop() {
+    # Stop the daemon.
+    if [ -e $PIDFILE ]; then
+	PID="$(pgrep -f $PIDFILE)"
+	if test -n "$PID" && kill -0 "$PID" &>/dev/null; then
+            if killproc -p $PIDFILE SIGTERM && /bin/rm -rf $PIDFILE; then
+                log_success_msg "$NAME process was stopped"
+            else
+                log_failure_msg "$NAME failed to stop service"
             fi
         fi
+    else
+        log_failure_msg "$NAME process is not running"
+    fi
+}
 
-        # Bump the file limits, before launching the daemon. These will carry over to
-        # launched processes.
-        ulimit -n $OPEN_FILE_LIMIT
-        if [ $? -ne 0 ]; then
-            log_failure_msg "set open file limit to $OPEN_FILE_LIMIT"
+function restart() {
+    # Restart the daemon.
+    PID="$(pgrep -f $PIDFILE)"
+    stop
+    while test -n "$PID" && test -d "/proc/$PID" &>/dev/null
+    do
+        echo "Process $PID is still running..."
+        sleep 1
+    done
+    start
+}
+
+function status() {
+    # Check the status of the process.
+    if [ -e $PIDFILE ]; then
+	PID="$(pgrep -f $PIDFILE)"
+	if test -n "$PID" && test -d "/proc/$PID" &>/dev/null; then
+            log_success_msg "$NAME Process is running"
+            exit 0
+        else
+            log_failure_msg "$NAME Process is not running"
             exit 1
         fi
+    else
+        log_failure_msg "$NAME Process is not running"
+        exit 3
+    fi
+}
 
-        log_success_msg "Starting the process" "$NAME"
-        if which start-stop-daemon > /dev/null 2>&1; then
-            start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
-        else
-            su -s /bin/sh -c "nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &" $USER
-        fi
-        log_success_msg "$NAME process was started"
+case $1 in
+    start)
+	start
         ;;
 
     stop)
-        # Stop the daemon.
-        if [ -e $PIDFILE ]; then
-	    PID="$(pgrep -f $PIDFILE)"
-	    if test ! -z $PID && kill -0 "$PID" &>/dev/null; then
-                if killproc -p $PIDFILE SIGTERM && /bin/rm -rf $PIDFILE; then
-                    log_success_msg "$NAME process was stopped"
-                else
-                    log_failure_msg "$NAME failed to stop service"
-                fi
-            fi
-        else
-            log_failure_msg "$NAME process is not running"
-        fi
+	stop
         ;;
 
     restart)
-        # Restart the daemon.
-        PID="$(pgrep -f $PIDFILE)"
-        $0 stop
-        while test ! -z $PID && test -d "/proc/$PID" &>/dev/null
-        do
-            echo "Process $PID is still running..."
-            sleep 1
-        done
-        $0 start
+	restart
         ;;
 
     status)
-        # Check the status of the process.
-        if [ -e $PIDFILE ]; then
-	    PID="$(pgrep -f $PIDFILE)"
-	    if test ! -z $PID && test -d "/proc/$PID" &>/dev/null; then
-                log_success_msg "$NAME Process is running"
-                exit 0
-            else
-                log_failure_msg "$NAME Process is not running"
-                exit 1
-            fi
-        else
-            log_failure_msg "$NAME Process is not running"
-            exit 3
-        fi
+	status
         ;;
 
     version)
