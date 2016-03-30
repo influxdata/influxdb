@@ -7,8 +7,6 @@ import (
 	"math"
 )
 
-const maxStringLength = 64 * 1024
-
 const (
 	fieldFloat   = 1
 	fieldInteger = 2
