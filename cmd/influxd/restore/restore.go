@@ -203,6 +203,15 @@ func (cmd *Command) unpackMeta() error {
 		return err
 	}
 
+	// remove the node.json file if it exists
+	err = os.Remove(filepath.Join(cmd.metadir, "node.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
 	return nil
 }
 

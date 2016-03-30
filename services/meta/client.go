@@ -91,14 +91,6 @@ func (c *Client) Open() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Check to see if there is a raft db, if so, error out with a message
-	// to downgrade, export, and then import the meta data
-
-	raftFile := filepath.Join(c.path, "raft.db")
-	if _, err := os.Stat(raftFile); err == nil {
-		return fmt.Errorf("detected %s.  either downgrade and export your meta data to import before continuing, or delete the file to start fresh", raftFile)
-	}
-
 	// Try to load from disk
 	if err := c.Load(); err != nil {
 		return err
