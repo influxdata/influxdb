@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
 ### BEGIN INIT INFO
 # Provides:          influxd
@@ -137,7 +137,7 @@ function start() {
     # Checked the PID file exists and check the actual status of process
     if [ -e $PIDFILE ]; then
 	PID="$(pgrep -f $PIDFILE)"
-	if test ! -z $PID && kill -0 "$PID" &>/dev/null; then
+	if test -n "$PID" && kill -0 "$PID" &>/dev/null; then
 	    # If the status is SUCCESS then don't need to start again.
             log_failure_msg "$NAME process is running"
             exit 0 # Exit
@@ -172,7 +172,7 @@ function stop() {
     # Stop the daemon.
     if [ -e $PIDFILE ]; then
 	PID="$(pgrep -f $PIDFILE)"
-	if test ! -z $PID && kill -0 "$PID" &>/dev/null; then
+	if test -n "$PID" && kill -0 "$PID" &>/dev/null; then
             if killproc -p $PIDFILE SIGTERM && /bin/rm -rf $PIDFILE; then
                 log_success_msg "$NAME process was stopped"
             else
@@ -188,7 +188,7 @@ function restart() {
     # Restart the daemon.
     PID="$(pgrep -f $PIDFILE)"
     stop
-    while test ! -z $PID && test -d "/proc/$PID" &>/dev/null
+    while test -n "$PID" && test -d "/proc/$PID" &>/dev/null
     do
         echo "Process $PID is still running..."
         sleep 1
@@ -200,7 +200,7 @@ function status() {
     # Check the status of the process.
     if [ -e $PIDFILE ]; then
 	PID="$(pgrep -f $PIDFILE)"
-	if test ! -z $PID && test -d "/proc/$PID" &>/dev/null; then
+	if test -n "$PID" && test -d "/proc/$PID" &>/dev/null; then
             log_success_msg "$NAME Process is running"
             exit 0
         else
