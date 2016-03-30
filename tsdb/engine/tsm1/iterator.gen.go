@@ -208,6 +208,9 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 
 // copyStats copies from the itr stats buffer to the stats under lock.
 func (itr *floatIterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
 }
 
 // Stats returns stats on the points processed.
@@ -571,6 +574,9 @@ func (itr *integerIterator) Next() *influxql.IntegerPoint {
 
 // copyStats copies from the itr stats buffer to the stats under lock.
 func (itr *integerIterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
 }
 
 // Stats returns stats on the points processed.
@@ -934,6 +940,9 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 
 // copyStats copies from the itr stats buffer to the stats under lock.
 func (itr *stringIterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
 }
 
 // Stats returns stats on the points processed.
@@ -1297,6 +1306,9 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 
 // copyStats copies from the itr stats buffer to the stats under lock.
 func (itr *booleanIterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
 }
 
 // Stats returns stats on the points processed.

@@ -24,6 +24,13 @@ var (
 	// ErrQueryManagerShutdown is an error sent when the query cannot be
 	// attached because it was previous shutdown.
 	ErrQueryManagerShutdown = errors.New("query manager shutdown")
+
+	// ErrMaxPointsReached is an error when a query hits the maximum number of
+	// points.
+	ErrMaxPointsReached = errors.New("max number of points reached")
+
+	// ErrQueryTimeoutReached is an error when a query hits the timeout.
+	ErrQueryTimeoutReached = errors.New("query timeout reached")
 )
 
 // QueryTaskInfo holds information about a currently running query.
@@ -49,7 +56,32 @@ type QueryParams struct {
 	// Not required, but highly recommended. If this channel is not set, the
 	// query needs to be manually managed by the caller.
 	InterruptCh <-chan struct{}
+
+	// Holds any error thrown by the QueryManager if there is a problem while
+	// executing the query. Optional.
+	Error *QueryError
 }
+
+// QueryError is an error thrown by the QueryManager when there is a problem
+// while executing the query.
+type QueryError struct {
+	err error
+	mu  sync.Mutex
+}
+
+// Error returns any reason why the QueryManager may have
+// terminated the query. If a query completed successfully,
+// this value will be nil.
+func (q *QueryError) Error() error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.err
+}
+
+// QueryMonitorFunc is a function that will be called to check if a query
+// is currently healthy. If the query needs to be interrupted for some reason,
+// the error should be returned by this function.
+type QueryMonitorFunc func(<-chan struct{}) error
 
 type QueryManager interface {
 	// AttachQuery attaches a running query to be managed by the query manager.
@@ -64,6 +96,14 @@ type QueryManager interface {
 	// KillQuery stops and removes a query from the query manager.
 	// This method can be used to forcefully terminate a running query.
 	KillQuery(qid uint64) error
+
+	// MonitorQuery starts a new goroutine that will monitor a query.
+	// The function will be passed in a channel to signal when the query has been
+	// finished normally. If the function returns with an error and the query is
+	// still running, the query will be terminated.
+	//
+	// Query managers that do not implement this functionality should return an error.
+	MonitorQuery(qid uint64, fn QueryMonitorFunc) error
 
 	// Close kills all running queries and prevents new queries from being attached.
 	Close() error
@@ -110,12 +150,33 @@ func ExecuteShowQueriesStatement(qm QueryManager, q *ShowQueriesStatement) (mode
 	}}, nil
 }
 
+// queryTask is the internal data structure for managing queries.
+// For the public use data structure that gets returned, see QueryTask.
 type queryTask struct {
 	query     string
 	database  string
 	startTime time.Time
 	closing   chan struct{}
+	monitorCh chan error
+	err       *QueryError
 	once      sync.Once
+}
+
+func (q *queryTask) setError(err error) {
+	if q.err != nil {
+		q.err.mu.Lock()
+		defer q.err.mu.Unlock()
+		q.err.err = err
+	}
+}
+
+func (q *queryTask) monitor(fn QueryMonitorFunc) {
+	if err := fn(q.closing); err != nil {
+		select {
+		case <-q.closing:
+		case q.monitorCh <- err:
+		}
+	}
 }
 
 type defaultQueryManager struct {
@@ -144,17 +205,24 @@ func (qm *defaultQueryManager) AttachQuery(params *QueryParams) (uint64, <-chan 
 		database:  params.Database,
 		startTime: time.Now(),
 		closing:   make(chan struct{}),
+		monitorCh: make(chan error),
+		err:       params.Error,
 	}
 	qm.queries[qid] = query
 
-	if params.InterruptCh != nil || params.Timeout != 0 {
-		go qm.waitForQuery(qid, params.Timeout, params.InterruptCh)
-	}
+	go qm.waitForQuery(qid, params.Timeout, params.InterruptCh, query.monitorCh)
 	qm.nextID++
 	return qid, query.closing, nil
 }
 
-func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, closing <-chan struct{}) {
+func (qm *defaultQueryManager) Query(qid uint64) (*queryTask, bool) {
+	qm.mu.Lock()
+	query, ok := qm.queries[qid]
+	qm.mu.Unlock()
+	return query, ok
+}
+
+func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, closing <-chan struct{}, monitorCh <-chan error) {
 	var timer <-chan time.Time
 	if timeout != 0 {
 		timer = time.After(timeout)
@@ -162,9 +230,38 @@ func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, c
 
 	select {
 	case <-closing:
+		query, ok := qm.Query(qid)
+		if !ok {
+			break
+		}
+		query.setError(ErrQueryInterrupted)
+	case err := <-monitorCh:
+		if err == nil {
+			break
+		}
+
+		query, ok := qm.Query(qid)
+		if !ok {
+			break
+		}
+		query.setError(err)
 	case <-timer:
+		query, ok := qm.Query(qid)
+		if !ok {
+			break
+		}
+		query.setError(ErrQueryTimeoutReached)
 	}
 	qm.KillQuery(qid)
+}
+
+func (qm *defaultQueryManager) MonitorQuery(qid uint64, fn QueryMonitorFunc) error {
+	query, ok := qm.Query(qid)
+	if !ok {
+		return fmt.Errorf("no such query id: %d", qid)
+	}
+	go query.monitor(fn)
+	return nil
 }
 
 func (qm *defaultQueryManager) KillQuery(qid uint64) error {
@@ -187,6 +284,7 @@ func (qm *defaultQueryManager) Close() error {
 
 	qm.shutdown = true
 	for _, query := range qm.queries {
+		query.setError(ErrQueryManagerShutdown)
 		close(query.closing)
 	}
 	qm.queries = nil

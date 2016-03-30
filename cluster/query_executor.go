@@ -43,6 +43,7 @@ type QueryExecutor struct {
 	QueryTimeout time.Duration
 
 	// Select statement limits
+	MaxSelectPointN  int
 	MaxSelectSeriesN int
 
 	// Remote execution timeout
@@ -88,6 +89,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
+	qerr := &influxql.QueryError{}
+	var qid uint64
 	if e.QueryManager != nil {
 		var err error
 		_, closing, err = e.QueryManager.AttachQuery(&influxql.QueryParams{
@@ -95,6 +98,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			Database:    database,
 			Timeout:     e.QueryTimeout,
 			InterruptCh: closing,
+			Error:       qerr,
 		})
 		if err != nil {
 			results <- &influxql.Result{Err: err}
@@ -136,7 +140,10 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 
 		// Select statements are handled separately so that they can be streamed.
 		if stmt, ok := stmt.(*influxql.SelectStatement); ok {
-			if err := e.executeSelectStatement(stmt, chunkSize, i, results, closing); err != nil {
+			if err := e.executeSelectStatement(stmt, chunkSize, i, qid, results, closing); err != nil {
+				if err == influxql.ErrQueryInterrupted {
+					err = qerr.Error()
+				}
 				results <- &influxql.Result{StatementID: i, Err: err}
 				break
 			}
@@ -419,7 +426,7 @@ func (e *QueryExecutor) executeSetPasswordUserStatement(q *influxql.SetPasswordU
 	return e.MetaClient.UpdateUser(q.Name, q.Password)
 }
 
-func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, chunkSize, statementID int, results chan *influxql.Result, closing <-chan struct{}) error {
+func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, chunkSize, statementID int, qid uint64, results chan *influxql.Result, closing <-chan struct{}) error {
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
 	opt := influxql.SelectOptions{InterruptCh: closing}
@@ -466,6 +473,11 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	itrs, err := influxql.Select(stmt, ic, &opt)
 	if err != nil {
 		return err
+	}
+
+	if qid != 0 && e.MaxSelectPointN > 0 {
+		monitor := influxql.PointLimitMonitor(itrs, influxql.DefaultStatsInterval, e.MaxSelectPointN)
+		e.QueryManager.MonitorQuery(qid, monitor)
 	}
 
 	// Generate a row emitter from the iterator set.

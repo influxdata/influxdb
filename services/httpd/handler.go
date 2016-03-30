@@ -341,6 +341,11 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		if l == 0 {
 			resp.Results = append(resp.Results, r)
 		} else if resp.Results[l-1].StatementID == r.StatementID {
+			if r.Err != nil {
+				resp.Results[l-1] = r
+				continue
+			}
+
 			cr := resp.Results[l-1]
 			rowsMerged := 0
 			if len(cr.Series) > 0 {
