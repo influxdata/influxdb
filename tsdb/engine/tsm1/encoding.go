@@ -33,6 +33,8 @@ type Value interface {
 	Value() interface{}
 	Size() int
 	String() string
+
+	internalOnly()
 }
 
 func NewValue(t int64, value interface{}) Value {
@@ -56,6 +58,12 @@ func (e *EmptyValue) UnixNano() int64    { return tsdb.EOF }
 func (e *EmptyValue) Value() interface{} { return nil }
 func (e *EmptyValue) Size() int          { return 0 }
 func (e *EmptyValue) String() string     { return "" }
+
+func (_ *EmptyValue) internalOnly()   {}
+func (_ *StringValue) internalOnly()  {}
+func (_ *IntegerValue) internalOnly() {}
+func (_ *BooleanValue) internalOnly() {}
+func (_ *FloatValue) internalOnly()   {}
 
 // Values represented a time ascending sorted collection of Value types.
 // the underlying type should be the same across all values, but the interface
