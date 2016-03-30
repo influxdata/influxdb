@@ -103,9 +103,12 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	}
 
 	// Send connection to handler.  The handler is responsible for closing the connection.
+	timer := time.NewTimer(mux.Timeout)
+	defer timer.Stop()
+
 	select {
 	case handler.c <- conn:
-	case <-time.After(mux.Timeout):
+	case <-timer.C:
 		conn.Close()
 		mux.Logger.Printf("tcp.Mux: handler not ready: %d. Connection from %s closed", typ[0], conn.RemoteAddr())
 		return
