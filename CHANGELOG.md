@@ -22,6 +22,7 @@
 - [#6148](https://github.com/influxdata/influxdb/pull/6148): Build script is now compatible with Python 3. Added ability to create detached signatures for packages. Build script now uses Python logging facility for messages.
 - [#6115](https://github.com/influxdata/influxdb/issues/6115): Support chunking query results mid-series. Limit non-chunked output.
 - [#6166](https://github.com/influxdata/influxdb/pull/6166): Teach influxdb client how to use chunked queries and use in the CLI.
+- [#6158](https://github.com/influxdata/influxdb/pull/6158): Update influxd to detect an upgrade from `0.11` to `0.12`.  Minor restore bug fixes.
 
 ### Bugfixes
 
