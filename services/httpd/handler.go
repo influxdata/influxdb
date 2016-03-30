@@ -455,8 +455,20 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
+	// Determine required consistency level.
+	level := r.URL.Query().Get("consistency")
+	consistency := models.ConsistencyLevelOne
+	if level != "" {
+		var err error
+		consistency, err = models.ParseConsistencyLevel(level)
+		if err != nil {
+			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+			return
+		}
+	}
+
 	// Write points.
-	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), models.ConsistencyLevelAny, points); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, points); influxdb.IsClientError(err) {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
