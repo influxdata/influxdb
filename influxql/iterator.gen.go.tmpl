@@ -1128,18 +1128,16 @@ func (itr *{{$k.name}}DedupeIterator) Next() *{{$k.Name}}Point {
 type {{$k.name}}ReaderIterator struct {
 	r     io.Reader
 	dec   *{{$k.Name}}PointDecoder
-	first *{{$k.Name}}Point
 }
 
 // new{{$k.Name}}ReaderIterator returns a new instance of {{$k.name}}ReaderIterator.
-func new{{$k.Name}}ReaderIterator(r io.Reader, first *{{$k.Name}}Point, stats IteratorStats) *{{$k.name}}ReaderIterator {
+func new{{$k.Name}}ReaderIterator(r io.Reader, stats IteratorStats) *{{$k.name}}ReaderIterator {
 	dec := New{{$k.Name}}PointDecoder(r)
 	dec.stats = stats
 
 	return &{{$k.name}}ReaderIterator{
 		r:     r,
-		dec:   dec,
-		first: first,
+    dec:   dec,
 	}
 }
 
@@ -1156,13 +1154,6 @@ func (itr *{{$k.name}}ReaderIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *{{$k.name}}ReaderIterator) Next() *{{$k.Name}}Point {
-	// Send first point if it hasn't been sent yet.
-	if itr.first != nil {
-		p := itr.first
-		itr.first = nil
-		return p
-	}
-
 	// OPTIMIZE(benbjohnson): Reuse point on iterator.
 
 	// Unmarshal next point.

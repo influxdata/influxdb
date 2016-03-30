@@ -979,7 +979,7 @@ func TestIterator_EncodeDecode(t *testing.T) {
 	}
 
 	// Decode from the buffer.
-	dec, err := influxql.NewReaderIterator(&buf)
+	dec, err := influxql.NewReaderIterator(&buf, influxql.Float, itr.Stats())
 	if err != nil {
 		t.Fatal(err)
 	}

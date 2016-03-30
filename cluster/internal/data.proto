@@ -28,7 +28,15 @@ message CreateIteratorRequest {
 }
 
 message CreateIteratorResponse {
-    optional string Err = 1;
+    optional string Err  = 1;
+    required int32  Type = 2;
+
+    optional IteratorStats Stats = 3;
+}
+
+message IteratorStats {
+    optional int64 SeriesN = 1;
+    optional int64 PointN  = 2;
 }
 
 message FieldDimensionsRequest {

@@ -1790,20 +1790,18 @@ func (itr *floatDedupeIterator) Next() *FloatPoint {
 
 // floatReaderIterator represents an iterator that streams from a reader.
 type floatReaderIterator struct {
-	r     io.Reader
-	dec   *FloatPointDecoder
-	first *FloatPoint
+	r   io.Reader
+	dec *FloatPointDecoder
 }
 
 // newFloatReaderIterator returns a new instance of floatReaderIterator.
-func newFloatReaderIterator(r io.Reader, first *FloatPoint, stats IteratorStats) *floatReaderIterator {
+func newFloatReaderIterator(r io.Reader, stats IteratorStats) *floatReaderIterator {
 	dec := NewFloatPointDecoder(r)
 	dec.stats = stats
 
 	return &floatReaderIterator{
-		r:     r,
-		dec:   dec,
-		first: first,
+		r:   r,
+		dec: dec,
 	}
 }
 
@@ -1820,13 +1818,6 @@ func (itr *floatReaderIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *floatReaderIterator) Next() *FloatPoint {
-	// Send first point if it hasn't been sent yet.
-	if itr.first != nil {
-		p := itr.first
-		itr.first = nil
-		return p
-	}
-
 	// OPTIMIZE(benbjohnson): Reuse point on iterator.
 
 	// Unmarshal next point.
@@ -3600,20 +3591,18 @@ func (itr *integerDedupeIterator) Next() *IntegerPoint {
 
 // integerReaderIterator represents an iterator that streams from a reader.
 type integerReaderIterator struct {
-	r     io.Reader
-	dec   *IntegerPointDecoder
-	first *IntegerPoint
+	r   io.Reader
+	dec *IntegerPointDecoder
 }
 
 // newIntegerReaderIterator returns a new instance of integerReaderIterator.
-func newIntegerReaderIterator(r io.Reader, first *IntegerPoint, stats IteratorStats) *integerReaderIterator {
+func newIntegerReaderIterator(r io.Reader, stats IteratorStats) *integerReaderIterator {
 	dec := NewIntegerPointDecoder(r)
 	dec.stats = stats
 
 	return &integerReaderIterator{
-		r:     r,
-		dec:   dec,
-		first: first,
+		r:   r,
+		dec: dec,
 	}
 }
 
@@ -3630,13 +3619,6 @@ func (itr *integerReaderIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *integerReaderIterator) Next() *IntegerPoint {
-	// Send first point if it hasn't been sent yet.
-	if itr.first != nil {
-		p := itr.first
-		itr.first = nil
-		return p
-	}
-
 	// OPTIMIZE(benbjohnson): Reuse point on iterator.
 
 	// Unmarshal next point.
@@ -5410,20 +5392,18 @@ func (itr *stringDedupeIterator) Next() *StringPoint {
 
 // stringReaderIterator represents an iterator that streams from a reader.
 type stringReaderIterator struct {
-	r     io.Reader
-	dec   *StringPointDecoder
-	first *StringPoint
+	r   io.Reader
+	dec *StringPointDecoder
 }
 
 // newStringReaderIterator returns a new instance of stringReaderIterator.
-func newStringReaderIterator(r io.Reader, first *StringPoint, stats IteratorStats) *stringReaderIterator {
+func newStringReaderIterator(r io.Reader, stats IteratorStats) *stringReaderIterator {
 	dec := NewStringPointDecoder(r)
 	dec.stats = stats
 
 	return &stringReaderIterator{
-		r:     r,
-		dec:   dec,
-		first: first,
+		r:   r,
+		dec: dec,
 	}
 }
 
@@ -5440,13 +5420,6 @@ func (itr *stringReaderIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *stringReaderIterator) Next() *StringPoint {
-	// Send first point if it hasn't been sent yet.
-	if itr.first != nil {
-		p := itr.first
-		itr.first = nil
-		return p
-	}
-
 	// OPTIMIZE(benbjohnson): Reuse point on iterator.
 
 	// Unmarshal next point.
@@ -7220,20 +7193,18 @@ func (itr *booleanDedupeIterator) Next() *BooleanPoint {
 
 // booleanReaderIterator represents an iterator that streams from a reader.
 type booleanReaderIterator struct {
-	r     io.Reader
-	dec   *BooleanPointDecoder
-	first *BooleanPoint
+	r   io.Reader
+	dec *BooleanPointDecoder
 }
 
 // newBooleanReaderIterator returns a new instance of booleanReaderIterator.
-func newBooleanReaderIterator(r io.Reader, first *BooleanPoint, stats IteratorStats) *booleanReaderIterator {
+func newBooleanReaderIterator(r io.Reader, stats IteratorStats) *booleanReaderIterator {
 	dec := NewBooleanPointDecoder(r)
 	dec.stats = stats
 
 	return &booleanReaderIterator{
-		r:     r,
-		dec:   dec,
-		first: first,
+		r:   r,
+		dec: dec,
 	}
 }
 
@@ -7250,13 +7221,6 @@ func (itr *booleanReaderIterator) Close() error {
 
 // Next returns the next point from the iterator.
 func (itr *booleanReaderIterator) Next() *BooleanPoint {
-	// Send first point if it hasn't been sent yet.
-	if itr.first != nil {
-		p := itr.first
-		itr.first = nil
-		return p
-	}
-
 	// OPTIMIZE(benbjohnson): Reuse point on iterator.
 
 	// Unmarshal next point.
