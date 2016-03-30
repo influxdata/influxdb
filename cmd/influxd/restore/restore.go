@@ -170,7 +170,7 @@ func (cmd *Command) unpackMeta() error {
 
 	// Copy meta config and remove peers so it starts in single mode.
 	c := cmd.MetaConfig
-	c.LoggingEnabled = false
+	c.Dir = cmd.metadir
 
 	// Create the meta dir
 	if os.MkdirAll(c.Dir, 0700); err != nil {
@@ -193,6 +193,16 @@ func (cmd *Command) unpackMeta() error {
 	if err := client.SetData(&data); err != nil {
 		return fmt.Errorf("set data: %s", err)
 	}
+
+	// remove the raft.db file if it exists
+	err = os.Remove(filepath.Join(cmd.metadir, "raft.db"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
 	return nil
 }
 

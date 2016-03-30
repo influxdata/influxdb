@@ -975,7 +975,7 @@ func snapshot(path string, data *Data) error {
 		return err
 	}
 
-	if err = f.Close(); nil != err {
+	if err = f.Sync(); err != nil {
 		return err
 	}
 
