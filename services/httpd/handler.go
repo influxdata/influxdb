@@ -379,7 +379,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		h.statMap.Add(statWriteRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
-	database := r.FormValue("db")
+	database := r.URL.Query().Get("db")
 	if database == "" {
 		resultError(w, influxql.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
 		return
@@ -439,7 +439,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		h.Logger.Printf("write body received by handler: %s", buf.Bytes())
 	}
 
-	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.FormValue("precision"))
+	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.URL.Query().Get("precision"))
 	// Not points parsed correctly so return the error now
 	if parseError != nil && len(points) == 0 {
 		if parseError.Error() == "EOF" {
@@ -451,7 +451,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	// Write points.
-	if err := h.PointsWriter.WritePoints(database, r.FormValue("rp"), models.ConsistencyLevelAny, points); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), models.ConsistencyLevelAny, points); influxdb.IsClientError(err) {
 		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
 		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
