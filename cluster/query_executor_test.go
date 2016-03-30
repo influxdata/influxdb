@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,10 @@ const (
 	// DefaultRetentionPolicy is the default retention policy name used in tests.
 	DefaultRetentionPolicy = "rp0"
 )
+
+func init() {
+	influxql.StatsInterval = 500 * time.Millisecond
+}
 
 // Ensure query executor can execute a simple SELECT statement.
 func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
@@ -118,6 +123,58 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectSeriesN(t *testing.T) {
 	}) {
 		t.Fatalf("unexpected results: %s", spew.Sdump(a))
 	}
+}
+
+// Ensure query executor can enforce a maximum point selection count.
+func TestQueryExecutor_ExecuteQuery_MaxSelectPointN(t *testing.T) {
+	e := DefaultQueryExecutor()
+	e.MaxSelectPointN = 2
+
+	// The meta client should return a two shards on the local node.
+	e.MetaClient.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
+		return []meta.ShardInfo{
+			{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
+		}, nil
+	}
+
+	// This iterator creator returns an iterator that operates on 2 points.
+	// Reuse this iterator for both shards. This brings the total point count to 4.
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{
+			Points: []influxql.FloatPoint{
+				{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}},
+				{Name: "cpu", Time: int64(1 * time.Second), Aux: []interface{}{float64(200)}},
+				{Name: "cpu", Time: int64(2 * time.Second), Aux: []interface{}{float64(300)}},
+			},
+			Delay: influxql.StatsInterval,
+		}, nil
+	}
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+		return map[string]struct{}{"value": struct{}{}}, nil, nil
+	}
+	ic.SeriesKeysFn = func(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+		return influxql.SeriesList{
+			{Name: "cpu", Aux: []influxql.DataType{influxql.Float}},
+		}, nil
+	}
+	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
+
+	// Verify all results from the query.
+	results := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu`, "db0", 0))
+	if !resultsContainsError(results, "max select point count exceeded: 3 points") {
+		t.Fatalf("unexpected results: %s", spew.Sdump(results))
+	}
+}
+
+// resultsContainsError returns true if results contains an item with a given error message.
+func resultsContainsError(results []*influxql.Result, err string) bool {
+	for _, result := range results {
+		if result.Err != nil && result.Err.Error() == err {
+			return true
+		}
+	}
+	return false
 }
 
 // QueryExecutor is a test wrapper for cluster.QueryExecutor.
@@ -276,8 +333,13 @@ func (ic *IteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sou
 
 // FloatIterator is a represents an iterator that reads from a slice.
 type FloatIterator struct {
+	mu    sync.Mutex
+	stats influxql.IteratorStats
+
 	Points []influxql.FloatPoint
-	stats  influxql.IteratorStats
+
+	// Time to wait before returning each point.
+	Delay time.Duration
 }
 
 func (itr *FloatIterator) Stats() influxql.IteratorStats { return itr.stats }
@@ -285,9 +347,18 @@ func (itr *FloatIterator) Close() error                  { return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
 func (itr *FloatIterator) Next() *influxql.FloatPoint {
+	// Wait before returning, if delay specified.
+	if itr.Delay > 0 {
+		time.Sleep(itr.Delay)
+	}
+
 	if len(itr.Points) == 0 {
 		return nil
 	}
+
+	itr.mu.Lock()
+	itr.stats.PointN++
+	itr.mu.Unlock()
 
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]

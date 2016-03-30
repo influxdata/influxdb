@@ -43,6 +43,7 @@ type QueryExecutor struct {
 	QueryTimeout time.Duration
 
 	// Select statement limits
+	MaxSelectPointN  int
 	MaxSelectSeriesN int
 
 	// Remote execution timeout
@@ -481,18 +482,66 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 	}
 
 	// Emit rows to the results channel.
-	var writeN int64
-	var emitted bool
+	var emstats emitterStats
+	emitterCh := make(chan emitterStats, 1)
+	done := make(chan struct{})
+	go e.monitorEmitter(em, stmt, statementID, emitterCh, done, results, closing)
+	defer func() { <-done }()
+
+	// Periodically check stats on iterators.
+	ticker := time.NewTicker(influxql.StatsInterval)
+	defer ticker.Stop()
+
+loop:
+	for {
+		select {
+		case <-closing:
+			return influxql.ErrQueryInterrupted
+		case emstats = <-emitterCh:
+			break loop
+		case <-ticker.C:
+			stats := influxql.Iterators(itrs).Stats()
+			if e.MaxSelectPointN > 0 && stats.PointN > e.MaxSelectPointN {
+				return fmt.Errorf("max select point count exceeded: %d points", stats.PointN)
+			}
+		}
+	}
+
+	// Emit write count if an INTO statement.
+	if stmt.Target != nil {
+		results <- &influxql.Result{
+			StatementID: statementID,
+			Series: []*models.Row{{
+				Name:    "result",
+				Columns: []string{"time", "written"},
+				Values:  [][]interface{}{{time.Unix(0, 0).UTC(), emstats.writeN}},
+			}},
+		}
+		return nil
+	}
+
+	// Always emit at least one result.
+	if !emstats.emitted {
+		results <- &influxql.Result{
+			StatementID: statementID,
+			Series:      make([]*models.Row, 0),
+		}
+	}
+
+	return nil
+}
+
+func (e *QueryExecutor) monitorEmitter(em *influxql.Emitter, stmt *influxql.SelectStatement, statementID int, ch chan emitterStats, done chan struct{}, results chan *influxql.Result, closing <-chan struct{}) {
+	defer close(done)
+
+	var stats emitterStats
 	for {
 		row := em.Emit()
+
+		// If there are no more rows then return stats and exit.
 		if row == nil {
-			// Check if the query was interrupted while emitting.
-			select {
-			case <-closing:
-				return influxql.ErrQueryInterrupted
-			default:
-			}
-			break
+			ch <- stats
+			return
 		}
 
 		result := &influxql.Result{
@@ -503,44 +552,29 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 		// Write points back into system for INTO statements.
 		if stmt.Target != nil {
 			if err := e.writeInto(stmt, row); err != nil {
-				return err
+				stats.err = err
+				ch <- stats
+				return
 			}
-			writeN += int64(len(row.Values))
+			stats.writeN += int64(len(row.Values))
 			continue
 		}
 
 		// Send results or exit if closing.
 		select {
 		case <-closing:
-			return influxql.ErrQueryInterrupted
+			return
 		case results <- result:
 		}
 
-		emitted = true
+		stats.emitted = true
 	}
+}
 
-	// Emit write count if an INTO statement.
-	if stmt.Target != nil {
-		results <- &influxql.Result{
-			StatementID: statementID,
-			Series: []*models.Row{{
-				Name:    "result",
-				Columns: []string{"time", "written"},
-				Values:  [][]interface{}{{time.Unix(0, 0).UTC(), writeN}},
-			}},
-		}
-		return nil
-	}
-
-	// Always emit at least one result.
-	if !emitted {
-		results <- &influxql.Result{
-			StatementID: statementID,
-			Series:      make([]*models.Row, 0),
-		}
-	}
-
-	return nil
+type emitterStats struct {
+	writeN  int64
+	emitted bool
+	err     error
 }
 
 // iteratorCreator returns a new instance of IteratorCreator based on stmt.
