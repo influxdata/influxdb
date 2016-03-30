@@ -56,6 +56,7 @@ type CommandLine struct {
 	PPS              int // Controls how many points per second the import will allow via throttling
 	Path             string
 	Compressed       bool
+	Chunked          bool
 	Quit             chan struct{}
 	IgnoreSignals    bool // Ignore signals normally caught by this process (used primarily for testing)
 	osSignals        chan os.Signal
@@ -518,9 +519,18 @@ func (c *CommandLine) Insert(stmt string) error {
 	return nil
 }
 
+// query creates a query struct to be used with the client.
+func (c *CommandLine) query(query string, database string) client.Query {
+	return client.Query{
+		Command:  query,
+		Database: database,
+		Chunked:  true,
+	}
+}
+
 // ExecuteQuery runs any query statement
 func (c *CommandLine) ExecuteQuery(query string) error {
-	response, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
+	response, err := c.Client.Query(c.query(query, c.Database))
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return err
@@ -539,7 +549,7 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 
 // DatabaseToken retrieves database token
 func (c *CommandLine) DatabaseToken() (string, error) {
-	response, err := c.Client.Query(client.Query{Command: "SHOW DIAGNOSTICS for 'registration'"})
+	response, err := c.Client.Query(c.query("SHOW DIAGNOSTICS for 'registration'", ""))
 	if err != nil {
 		return "", err
 	}
