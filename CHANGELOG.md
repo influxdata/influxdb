@@ -10,6 +10,7 @@
 - [#6079](https://github.com/influxdata/influxdb/issues/6079): Limit the maximum number of concurrent queries.
 - [#6075](https://github.com/influxdata/influxdb/issues/6075): Limit the maximum running time of a query.
 - [#6102](https://github.com/influxdata/influxdb/issues/6102): Limit series count in selection
+- [#6077](https://github.com/influxdata/influxdb/issues/6077): Limit point count in selection.
 - [#6060](https://github.com/influxdata/influxdb/pull/6060): Add configurable shard duration to retention policies
 - [#6116](https://github.com/influxdata/influxdb/pull/6116): Allow `httpd` service to be extensible for routes
 - [#6111](https://github.com/influxdata/influxdb/pull/6111): Add ability to build static assest. Improved handling of TAR and ZIP package outputs.
