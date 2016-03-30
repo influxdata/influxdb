@@ -234,7 +234,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.Open()
 		defer c.Close()
 
-		err := c.WritePoints(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelAny, pr.Points)
+		err := c.WritePoints(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 		if err == nil && test.expErr != nil {
 			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
