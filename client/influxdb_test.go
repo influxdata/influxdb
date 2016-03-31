@@ -169,6 +169,30 @@ func TestClient_Query(t *testing.T) {
 	}
 }
 
+func TestClient_ChunkedQuery(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusOK)
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(data)
+		_ = enc.Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{Chunked: true}
+	_, err = c.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
 func TestClient_BasicAuth(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, p, ok := r.BasicAuth()
@@ -739,5 +763,30 @@ war3JNM1mGB3o2iAtuOJlFIKLpI1x+1e8pI=
 		if (test.expected == nil) != (err == nil) {
 			t.Fatalf("%s: expected %v. got %v. unsafeSsl: %v", test.name, test.expected, err, test.unsafeSsl)
 		}
+	}
+}
+
+func TestChunkedResponse(t *testing.T) {
+	s := `{"results":[{},{}]}{"results":[{}]}`
+	r := client.NewChunkedResponse(strings.NewReader(s))
+	resp, err := r.NextResponse()
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	} else if actual := len(resp.Results); actual != 2 {
+		t.Fatalf("unexpected number of results.  expected %v, actual %v", 2, actual)
+	}
+
+	resp, err = r.NextResponse()
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	} else if actual := len(resp.Results); actual != 1 {
+		t.Fatalf("unexpected number of results.  expected %v, actual %v", 1, actual)
+	}
+
+	resp, err = r.NextResponse()
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	} else if resp != nil {
+		t.Fatalf("unexpected response.  expected %v, actual %v", nil, resp)
 	}
 }
