@@ -179,6 +179,7 @@ func (itr *{{$k.name}}MergeIterator) Next() *{{$k.Name}}Point {
 			itr.heap.items = append(itr.heap.items, item)
 		}
 		heap.Init(itr.heap)
+		itr.init = true
 	}
 
 	for {

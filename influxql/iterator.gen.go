@@ -182,6 +182,7 @@ func (itr *floatMergeIterator) Next() *FloatPoint {
 			itr.heap.items = append(itr.heap.items, item)
 		}
 		heap.Init(itr.heap)
+		itr.init = true
 	}
 
 	for {
@@ -1994,6 +1995,7 @@ func (itr *integerMergeIterator) Next() *IntegerPoint {
 			itr.heap.items = append(itr.heap.items, item)
 		}
 		heap.Init(itr.heap)
+		itr.init = true
 	}
 
 	for {
@@ -3803,6 +3805,7 @@ func (itr *stringMergeIterator) Next() *StringPoint {
 			itr.heap.items = append(itr.heap.items, item)
 		}
 		heap.Init(itr.heap)
+		itr.init = true
 	}
 
 	for {
@@ -5612,6 +5615,7 @@ func (itr *booleanMergeIterator) Next() *BooleanPoint {
 			itr.heap.items = append(itr.heap.items, item)
 		}
 		heap.Init(itr.heap)
+		itr.init = true
 	}
 
 	for {
