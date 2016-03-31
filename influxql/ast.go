@@ -3383,15 +3383,23 @@ func OnlyTimeExpr(expr Expr) bool {
 
 // TimeRange returns the minimum and maximum times specified by an expression.
 // Returns zero times if there is no bound.
-func TimeRange(expr Expr) (min, max time.Time) {
+func TimeRange(expr Expr) (min, max time.Time, err error) {
 	WalkFunc(expr, func(n Node) {
+		if err != nil {
+			return
+		}
+
 		if n, ok := n.(*BinaryExpr); ok {
 			// Extract literal expression & operator on LHS.
 			// Check for "time" on the left-hand side first.
 			// Otherwise check for for the right-hand side and flip the operator.
-			value, op := timeExprValue(n.LHS, n.RHS), n.Op
-			if value.IsZero() {
-				if value = timeExprValue(n.RHS, n.LHS); value.IsZero() {
+			op := n.Op
+			var value time.Time
+			value, err = timeExprValue(n.LHS, n.RHS)
+			if err != nil {
+				return
+			} else if value.IsZero() {
+				if value, err = timeExprValue(n.RHS, n.LHS); value.IsZero() || err != nil {
 					return
 				} else if op == LT {
 					op = GT
@@ -3439,8 +3447,12 @@ func TimeRange(expr Expr) (min, max time.Time) {
 // TimeRangeAsEpochNano returns the minimum and maximum times, as epoch nano, specified by
 // and expression. If there is no lower bound, the start of the epoch is returned
 // for minimum. If there is no higher bound, now is returned for maximum.
-func TimeRangeAsEpochNano(expr Expr) (min, max int64) {
-	tmin, tmax := TimeRange(expr)
+func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
+	tmin, tmax, err := TimeRange(expr)
+	if err != nil {
+		return 0, 0, err
+	}
+
 	if tmin.IsZero() {
 		min = time.Unix(0, 0).UnixNano()
 	} else {
@@ -3456,20 +3468,22 @@ func TimeRangeAsEpochNano(expr Expr) (min, max int64) {
 
 // timeExprValue returns the time literal value of a "time == <TimeLiteral>" expression.
 // Returns zero time if the expression is not a time expression.
-func timeExprValue(ref Expr, lit Expr) time.Time {
+func timeExprValue(ref Expr, lit Expr) (t time.Time, err error) {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
 		switch lit := lit.(type) {
 		case *TimeLiteral:
-			return lit.Val
+			return lit.Val, nil
 		case *DurationLiteral:
-			return time.Unix(0, int64(lit.Val)).UTC()
+			return time.Unix(0, int64(lit.Val)).UTC(), nil
 		case *NumberLiteral:
-			return time.Unix(0, int64(lit.Val)).UTC()
+			return time.Unix(0, int64(lit.Val)).UTC(), nil
 		case *IntegerLiteral:
-			return time.Unix(0, lit.Val).UTC()
+			return time.Unix(0, lit.Val).UTC(), nil
+		default:
+			return time.Time{}, fmt.Errorf("invalid operation: time and %T are not compatible", lit)
 		}
 	}
-	return time.Time{}
+	return time.Time{}, nil
 }
 
 // Visitor can be called by Walk to traverse an AST hierarchy.

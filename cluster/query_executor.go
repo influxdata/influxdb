@@ -434,7 +434,12 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
-	opt.MinTime, opt.MaxTime = influxql.TimeRange(stmt.Condition)
+	var err error
+	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition)
+	if err != nil {
+		return err
+	}
+
 	if opt.MaxTime.IsZero() {
 		opt.MaxTime = now
 	}

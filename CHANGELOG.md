@@ -45,6 +45,7 @@
 - [#6129](https://github.com/influxdata/influxdb/pull/6129): Fix default continuous query lease host
 - [#6121](https://github.com/influxdata/influxdb/issues/6121): Fix panic: slice index out of bounds in TSM index
 - [#6168](https://github.com/influxdata/influxdb/pull/6168): Remove per measurement statsitics
+- [#3932](https://github.com/influxdata/influxdb/issues/3932): Invalid timestamp format should throw an error.
 
 ## v0.11.0 [2016-03-22]
 
