@@ -90,6 +90,7 @@ func NewClient(config *Config) *Client {
 func (c *Client) Open() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	// Try to load from disk
 	if err := c.Load(); err != nil {
 		return err
@@ -975,7 +976,7 @@ func snapshot(path string, data *Data) error {
 		return err
 	}
 
-	if err = f.Close(); nil != err {
+	if err = f.Sync(); err != nil {
 		return err
 	}
 

@@ -115,6 +115,13 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
+	// Check to see if there is a raft db, if so, error out with a message
+	// to downgrade, export, and then import the meta data
+	raftFile := filepath.Join(c.Meta.Dir, "raft.db")
+	if _, err := os.Stat(raftFile); err == nil {
+		return nil, fmt.Errorf("detected %s.  either downgrade and export your meta data to import before continuing, or delete the file to start fresh", raftFile)
+	}
+
 	// In 0.10.0 bind-address got moved to the top level. Check
 	// The old location to keep things backwards compatible
 	bind := c.BindAddress
