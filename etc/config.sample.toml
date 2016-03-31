@@ -145,6 +145,11 @@ reporting-disabled = false
 [cluster]
   shard-writer-timeout = "5s" # The time within which a remote shard must respond to a write request.
   write-timeout = "10s" # The time within which a write request must complete on the cluster.
+  max-concurrent-queries = 0 # The maximum number of concurrent queries that can run. 0 to disable.
+  query-timeout = "0s" # The time within a query must complete before being killed automatically. 0s to disable.
+  max-select-point = 0 # The maximum number of points to scan in a query. 0 to disable.
+  max-select-series = 0 # The maximum number of series to select in a query. 0 to disable.
+  max-select-buckets = 0 # The maximum number of buckets to select in an aggregate query. 0 to disable.
 
 ###
 ### [retention]
