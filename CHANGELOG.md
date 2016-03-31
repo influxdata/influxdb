@@ -4,7 +4,7 @@
 
 - [#6092](https://github.com/influxdata/influxdb/issues/6092): Upgrading directly from 0.9.6.1 to 0.11.0 fails
 - [#6129](https://github.com/influxdata/influxdb/pull/6129): Fix default continuous query lease host
-
+- [#6121](https://github.com/influxdata/influxdb/issues/6121): Fix panic: slice index out of bounds in TSM index
 
 ## v0.11.0 [2016-03-22]
 
