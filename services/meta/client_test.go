@@ -82,11 +82,13 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 	defer os.RemoveAll(d)
 	defer c.Close()
 
-	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicyInfo{
-		Name:     "rp0",
-		Duration: 1 * time.Hour,
-		ReplicaN: 1,
-	}); err != nil {
+	rpi := meta.RetentionPolicyInfo{
+		Name:               "rp0",
+		Duration:           1 * time.Hour,
+		ReplicaN:           1,
+		ShardGroupDuration: 2 * time.Hour,
+	}
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &rpi); err != nil {
 		t.Fatal(err)
 	}
 
@@ -105,9 +107,38 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 	} else if rp.Name != "rp0" {
 		t.Fatalf("rp name wrong: %s", rp.Name)
 	} else if rp.Duration != time.Hour {
-		t.Fatalf("rp duration wrong: %s", rp.Duration.String())
+		t.Fatalf("rp duration wrong: %v", rp.Duration)
 	} else if rp.ReplicaN != 1 {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
+	} else if rp.ShardGroupDuration != 2*time.Hour {
+		t.Fatalf("rp shard duration wrong: %v", rp.ShardGroupDuration)
+	}
+
+	// Recreating the exact same database with retention policy is not
+	// an error.
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &rpi); err != nil {
+		t.Fatal(err)
+	}
+
+	// If the rp's duration is different, an error should be returned.
+	rpi2 := rpi
+	rpi2.Duration = rpi.Duration + time.Minute
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &rpi2); err != meta.ErrRetentionPolicyConflict {
+		t.Fatalf("got %v, but expected %v", err, meta.ErrRetentionPolicyConflict)
+	}
+
+	// If the rp's replica is different, an error should be returned.
+	rpi2 = rpi
+	rpi2.ReplicaN = rpi.ReplicaN + 1
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &rpi2); err != meta.ErrRetentionPolicyConflict {
+		t.Fatalf("got %v, but expected %v", err, meta.ErrRetentionPolicyConflict)
+	}
+
+	// If the rp's shard group duration is different, an error should be returned.
+	rpi2 = rpi
+	rpi2.ShardGroupDuration = rpi.ShardGroupDuration + time.Minute
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &rpi2); err != meta.ErrRetentionPolicyConflict {
+		t.Fatalf("got %v, but expected %v", err, meta.ErrRetentionPolicyConflict)
 	}
 }
 
