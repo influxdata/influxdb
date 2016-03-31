@@ -111,6 +111,16 @@ func init() {
 				command: `SHOW DATABASES`,
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
 			},
+			&Query{
+				name:    "create database with shard group duration should succeed",
+				command: `CREATE DATABASE db0 WITH SHARD DURATION 61m`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "create database with shard group duration and duration should succeed",
+				command: `CREATE DATABASE db1 WITH DURATION 60m SHARD DURATION 30m`,
+				exp:     `{"results":[{}]}`,
+			},
 		},
 	}
 
