@@ -94,7 +94,7 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 	var qid uint64
 	if e.QueryManager != nil {
 		var err error
-		_, closing, err = e.QueryManager.AttachQuery(&influxql.QueryParams{
+		qid, closing, err = e.QueryManager.AttachQuery(&influxql.QueryParams{
 			Query:       query,
 			Database:    database,
 			Timeout:     e.QueryTimeout,
@@ -105,6 +105,8 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 			results <- &influxql.Result{Err: err}
 			return
 		}
+
+		defer e.QueryManager.KillQuery(qid)
 	}
 
 	logger := e.logger()
