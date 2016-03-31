@@ -22,8 +22,6 @@ import (
 const DefaultPrecision = "s"
 
 func TestShardWriteAndIndex(t *testing.T) {
-	t.Skip("pending tsm1 iterator impl")
-
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
@@ -34,6 +32,13 @@ func TestShardWriteAndIndex(t *testing.T) {
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 
 	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+
+	// Calling WritePoints when the engine is not open will return
+	// ErrEngineClosed.
+	if got, exp := sh.WritePoints(nil), tsdb.ErrEngineClosed; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -92,8 +97,6 @@ func TestShardWriteAndIndex(t *testing.T) {
 }
 
 func TestShardWriteAddNewField(t *testing.T) {
-	t.Skip("pending tsm1 iterator impl")
-
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
@@ -151,7 +154,18 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 // Ensure a shard can create iterators for its underlying data.
 func TestShard_CreateIterator(t *testing.T) {
-	sh := MustOpenShard()
+	sh := NewShard()
+
+	// Calling CreateIterator when the engine is not open will return
+	// ErrEngineClosed.
+	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	if exp := tsdb.ErrEngineClosed; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
 	defer sh.Close()
 
 	sh.MustWritePointsString(`
