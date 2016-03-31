@@ -1791,3 +1791,18 @@ func TestNewPointsRejectsEmptyFieldNames(t *testing.T) {
 		t.Fatalf("new point with empty field name. got: nil, expected: error")
 	}
 }
+
+func TestNewPointsRejectsMaxKey(t *testing.T) {
+	var key string
+	for i := 0; i < 65536; i++ {
+		key += "a"
+	}
+
+	if _, err := models.NewPoint(key, nil, models.Fields{"value": 1}, time.Now()); err == nil {
+		t.Fatalf("new point with max key. got: nil, expected: error")
+	}
+
+	if _, err := models.ParsePointsString(fmt.Sprintf("%v value=1", key)); err == nil {
+		t.Fatalf("parse point with max key. got: nil, expected: error")
+	}
+}
