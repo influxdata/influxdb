@@ -35,6 +35,7 @@
 - [#6121](https://github.com/influxdata/influxdb/issues/6121): Fix panic: slice index out of bounds in TSM index
 - [#6140](https://github.com/influxdata/influxdb/issues/6140): Ensure Shard engine not accessed when closed.
 - [#6110](https://github.com/influxdata/influxdb/issues/6110): Fix for 0.9 upgrade path when using RPM
+- [#6131](https://github.com/influxdata/influxdb/issues/6061): Fix write throughput regression with large number of measurments
 
 ## v0.11.0 [2016-03-22]
 
