@@ -229,7 +229,7 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, rpi *RetentionPo
 		// Check if the retention policy already exists. If it does and matches
 		// the desired retention policy, exit with no error.
 		if rp := db.RetentionPolicy(rpi.Name); rp != nil {
-			if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration {
+			if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
 				return nil, ErrRetentionPolicyConflict
 			}
 			return db, nil

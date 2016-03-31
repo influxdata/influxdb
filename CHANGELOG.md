@@ -35,6 +35,7 @@
 - [#6110](https://github.com/influxdata/influxdb/issues/6110): Fix for 0.9 upgrade path when using RPM
 - [#6131](https://github.com/influxdata/influxdb/issues/6061): Fix write throughput regression with large number of measurments
 - [#6152](https://github.com/influxdata/influxdb/issues/6152): Allow SHARD DURATION to be specified in isolation when creating a database
+- [#6153](https://github.com/influxdata/influxdb/issues/6153): Check SHARD DURATION when recreating the same database
 
 ## v0.11.1 [2016-03-31]
 
