@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"bytes"
 	"encoding/binary"
+	"os"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -508,5 +509,25 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 				t.Fatalf("read value mismatch(%d): got %v, exp %d", i, readValues[i].Value(), v.Value())
 			}
 		}
+	}
+}
+
+func TestTSMWriter_Write_MaxKey(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error created writer: %v", err)
+	}
+
+	var key string
+	for i := 0; i < 100000; i++ {
+		key += "a"
+	}
+	if err := w.Write(key, []tsm1.Value{tsm1.NewValue(0, 1.0)}); err != tsm1.ErrMaxKeyLengthExceeded {
+		t.Fatalf("expected max key length error writing key: %v", err)
 	}
 }

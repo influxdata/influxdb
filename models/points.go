@@ -27,8 +27,13 @@ var (
 		'=': []byte(`\=`),
 	}
 
-	ErrPointMustHaveAField = errors.New("point without fields is unsupported")
-	ErrInvalidNumber       = errors.New("invalid number")
+	ErrPointMustHaveAField  = errors.New("point without fields is unsupported")
+	ErrInvalidNumber        = errors.New("invalid number")
+	ErrMaxKeyLengthExceeded = errors.New("max key length exceeded")
+)
+
+const (
+	MaxKeyLength = 65535
 )
 
 // Point defines the values that will be written to the database
@@ -202,6 +207,10 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 	// measurement name is required
 	if len(key) == 0 {
 		return nil, fmt.Errorf("missing measurement")
+	}
+
+	if len(key) > MaxKeyLength {
+		return nil, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
 	}
 
 	// scan the second block is which is field1=value1[,field2=value2,...]
@@ -1102,8 +1111,13 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 		}
 	}
 
+	key := MakeKey([]byte(name), tags)
+	if len(key) > MaxKeyLength {
+		return nil, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
+	}
+
 	return &point{
-		key:    MakeKey([]byte(name), tags),
+		key:    key,
 		time:   time,
 		fields: fields.MarshalBinary(),
 	}, nil
