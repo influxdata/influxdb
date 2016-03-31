@@ -23,7 +23,7 @@ func TestEmitter_Emit(t *testing.T) {
 			{Name: "cpu", Tags: ParseTags("region=north"), Time: 0, Value: 4},
 			{Name: "mem", Time: 4, Value: 5},
 		}},
-	}, true)
+	}, true, 0)
 	e.Columns = []string{"col1", "col2"}
 
 	// Verify the cpu region=west is emitted first.
@@ -60,6 +60,47 @@ func TestEmitter_Emit(t *testing.T) {
 		},
 	}) {
 		t.Fatalf("unexpected row(2): %s", spew.Sdump(row))
+	}
+
+	// Verify EOF.
+	if row := e.Emit(); row != nil {
+		t.Fatalf("unexpected eof: %s", spew.Sdump(row))
+	}
+}
+
+// Ensure the emitter will limit the chunked output from a series.
+func TestEmitter_ChunkSize(t *testing.T) {
+	// Build an emitter that pulls from one iterator with multiple points in the same series.
+	e := influxql.NewEmitter([]influxql.Iterator{
+		&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("region=west"), Time: 0, Value: 1},
+			{Name: "cpu", Tags: ParseTags("region=west"), Time: 1, Value: 2},
+		}},
+	}, true, 1)
+	e.Columns = []string{"col1"}
+
+	// Verify the cpu region=west is emitted first.
+	if row := e.Emit(); !deep.Equal(row, &models.Row{
+		Name:    "cpu",
+		Tags:    map[string]string{"region": "west"},
+		Columns: []string{"col1"},
+		Values: [][]interface{}{
+			{time.Unix(0, 0).UTC(), float64(1)},
+		},
+	}) {
+		t.Fatalf("unexpected row(0): %s", spew.Sdump(row))
+	}
+
+	// Verify the cpu region=north is emitted next.
+	if row := e.Emit(); !deep.Equal(row, &models.Row{
+		Name:    "cpu",
+		Tags:    map[string]string{"region": "west"},
+		Columns: []string{"col1"},
+		Values: [][]interface{}{
+			{time.Unix(0, 1).UTC(), float64(2)},
+		},
+	}) {
+		t.Fatalf("unexpected row(1): %s", spew.Sdump(row))
 	}
 
 	// Verify EOF.

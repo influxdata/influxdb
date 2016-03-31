@@ -212,6 +212,7 @@ reporting-disabled = false
   pprof-enabled = false
   https-enabled = false
   https-certificate = "/etc/ssl/influxdb.pem"
+  max-row-limit = 10000
 
 ###
 ### [[graphite]]

@@ -113,7 +113,9 @@ func TestHandler_Query_Chunked(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&chunked=true&chunk_size=2", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]}]}{"results":[{"series":[{"name":"series1"}]}]}` {
+	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]}]}
+{"results":[{"series":[{"name":"series1"}]}]}
+` {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 }
@@ -287,7 +289,7 @@ type Handler struct {
 func NewHandler(requireAuthentication bool) *Handler {
 	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
 	h := &Handler{
-		Handler: httpd.NewHandler(requireAuthentication, true, false, statMap),
+		Handler: httpd.NewHandler(requireAuthentication, true, false, 0, statMap),
 	}
 	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = &h.QueryExecutor

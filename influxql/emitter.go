@@ -12,6 +12,7 @@ type Emitter struct {
 	buf       []Point
 	itrs      []Iterator
 	ascending bool
+	chunkSize int
 
 	tags Tags
 	row  *models.Row
@@ -25,11 +26,12 @@ type Emitter struct {
 }
 
 // NewEmitter returns a new instance of Emitter that pulls from itrs.
-func NewEmitter(itrs []Iterator, ascending bool) *Emitter {
+func NewEmitter(itrs []Iterator, ascending bool, chunkSize int) *Emitter {
 	return &Emitter{
 		buf:       make([]Point, len(itrs)),
 		itrs:      itrs,
 		ascending: ascending,
+		chunkSize: chunkSize,
 	}
 }
 
@@ -65,11 +67,12 @@ func (e *Emitter) Emit() *models.Row {
 		}
 
 		// If there's no row yet then create one.
-		// If the name and tags match the existing row, append to that row.
+		// If the name and tags match the existing row, append to that row if
+		// the number of values doesn't exceed the chunk size.
 		// Otherwise return existing row and add values to next emitted row.
 		if e.row == nil {
 			e.createRow(name, tags, values)
-		} else if e.row.Name == name && e.tags.Equals(&tags) {
+		} else if e.row.Name == name && e.tags.Equals(&tags) && (e.chunkSize <= 0 || len(e.row.Values) < e.chunkSize) {
 			e.row.Values = append(e.row.Values, values)
 		} else {
 			row := e.row
