@@ -1476,7 +1476,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference":
+			case "derivative", "non_negative_derivative", "difference", "moving_average":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1488,6 +1488,18 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				case "difference":
 					if got := len(expr.Args); got != 1 {
 						return fmt.Errorf("invalid number of arguments for difference, expected 1, got %d", got)
+					}
+				case "moving_average":
+					if got := len(expr.Args); got != 2 {
+						return fmt.Errorf("invalid number of arguments for moving_average, expected 2, got %d", got)
+					}
+
+					if lit, ok := expr.Args[1].(*IntegerLiteral); !ok {
+						return fmt.Errorf("second argument for moving_average must be an integer, got %T", expr.Args[1])
+					} else if lit.Val <= 1 {
+						return fmt.Errorf("moving_average window must be greater than 1, got %d", lit.Val)
+					} else if int64(int(lit.Val)) != lit.Val {
+						return fmt.Errorf("moving_average window too large, got %d", lit.Val)
 					}
 				}
 				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.

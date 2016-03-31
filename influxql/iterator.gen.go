@@ -896,6 +896,92 @@ func (itr *floatReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// floatStreamFloatIterator
+type floatStreamFloatIterator struct {
+	input  *bufFloatIterator
+	create func() (FloatPointAggregator, FloatPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*floatReduceFloatPoint
+	points []FloatPoint
+}
+
+func newFloatStreamFloatIterator(input FloatIterator, createFn func() (FloatPointAggregator, FloatPointEmitter), opt IteratorOptions) *floatStreamFloatIterator {
+	return &floatStreamFloatIterator{
+		input:  newBufFloatIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*floatReduceFloatPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatStreamFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatStreamFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *floatStreamFloatIterator) Next() *FloatPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *floatStreamFloatIterator) reduce() []FloatPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateFloat(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // floatExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type floatExprIterator struct {
@@ -1030,6 +1116,92 @@ func (itr *floatReduceIntegerIterator) reduce() []IntegerPoint {
 	}
 
 	return a
+}
+
+// floatStreamIntegerIterator
+type floatStreamIntegerIterator struct {
+	input  *bufFloatIterator
+	create func() (FloatPointAggregator, IntegerPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*floatReduceIntegerPoint
+	points []IntegerPoint
+}
+
+func newFloatStreamIntegerIterator(input FloatIterator, createFn func() (FloatPointAggregator, IntegerPointEmitter), opt IteratorOptions) *floatStreamIntegerIterator {
+	return &floatStreamIntegerIterator{
+		input:  newBufFloatIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*floatReduceIntegerPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatStreamIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatStreamIntegerIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *floatStreamIntegerIterator) Next() *IntegerPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *floatStreamIntegerIterator) reduce() []IntegerPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReduceIntegerPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateFloat(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // floatIntegerExprIterator executes a function to modify an existing point
@@ -1168,6 +1340,92 @@ func (itr *floatReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// floatStreamStringIterator
+type floatStreamStringIterator struct {
+	input  *bufFloatIterator
+	create func() (FloatPointAggregator, StringPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*floatReduceStringPoint
+	points []StringPoint
+}
+
+func newFloatStreamStringIterator(input FloatIterator, createFn func() (FloatPointAggregator, StringPointEmitter), opt IteratorOptions) *floatStreamStringIterator {
+	return &floatStreamStringIterator{
+		input:  newBufFloatIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*floatReduceStringPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatStreamStringIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatStreamStringIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *floatStreamStringIterator) Next() *StringPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *floatStreamStringIterator) reduce() []StringPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReduceStringPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateFloat(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // floatStringExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type floatStringExprIterator struct {
@@ -1302,6 +1560,92 @@ func (itr *floatReduceBooleanIterator) reduce() []BooleanPoint {
 	}
 
 	return a
+}
+
+// floatStreamBooleanIterator
+type floatStreamBooleanIterator struct {
+	input  *bufFloatIterator
+	create func() (FloatPointAggregator, BooleanPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*floatReduceBooleanPoint
+	points []BooleanPoint
+}
+
+func newFloatStreamBooleanIterator(input FloatIterator, createFn func() (FloatPointAggregator, BooleanPointEmitter), opt IteratorOptions) *floatStreamBooleanIterator {
+	return &floatStreamBooleanIterator{
+		input:  newBufFloatIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*floatReduceBooleanPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatStreamBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatStreamBooleanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *floatStreamBooleanIterator) Next() *BooleanPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *floatStreamBooleanIterator) reduce() []BooleanPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &floatReduceBooleanPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateFloat(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // floatBooleanExprIterator executes a function to modify an existing point
@@ -2361,6 +2705,92 @@ func (itr *integerReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// integerStreamFloatIterator
+type integerStreamFloatIterator struct {
+	input  *bufIntegerIterator
+	create func() (IntegerPointAggregator, FloatPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*integerReduceFloatPoint
+	points []FloatPoint
+}
+
+func newIntegerStreamFloatIterator(input IntegerIterator, createFn func() (IntegerPointAggregator, FloatPointEmitter), opt IteratorOptions) *integerStreamFloatIterator {
+	return &integerStreamFloatIterator{
+		input:  newBufIntegerIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*integerReduceFloatPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *integerStreamFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *integerStreamFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *integerStreamFloatIterator) Next() *FloatPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *integerStreamFloatIterator) reduce() []FloatPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateInteger(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // integerFloatExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type integerFloatExprIterator struct {
@@ -2495,6 +2925,92 @@ func (itr *integerReduceIntegerIterator) reduce() []IntegerPoint {
 	}
 
 	return a
+}
+
+// integerStreamIntegerIterator
+type integerStreamIntegerIterator struct {
+	input  *bufIntegerIterator
+	create func() (IntegerPointAggregator, IntegerPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*integerReduceIntegerPoint
+	points []IntegerPoint
+}
+
+func newIntegerStreamIntegerIterator(input IntegerIterator, createFn func() (IntegerPointAggregator, IntegerPointEmitter), opt IteratorOptions) *integerStreamIntegerIterator {
+	return &integerStreamIntegerIterator{
+		input:  newBufIntegerIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*integerReduceIntegerPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *integerStreamIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *integerStreamIntegerIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *integerStreamIntegerIterator) Next() *IntegerPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *integerStreamIntegerIterator) reduce() []IntegerPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceIntegerPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateInteger(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // integerExprIterator executes a function to modify an existing point
@@ -2633,6 +3149,92 @@ func (itr *integerReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// integerStreamStringIterator
+type integerStreamStringIterator struct {
+	input  *bufIntegerIterator
+	create func() (IntegerPointAggregator, StringPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*integerReduceStringPoint
+	points []StringPoint
+}
+
+func newIntegerStreamStringIterator(input IntegerIterator, createFn func() (IntegerPointAggregator, StringPointEmitter), opt IteratorOptions) *integerStreamStringIterator {
+	return &integerStreamStringIterator{
+		input:  newBufIntegerIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*integerReduceStringPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *integerStreamStringIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *integerStreamStringIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *integerStreamStringIterator) Next() *StringPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *integerStreamStringIterator) reduce() []StringPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceStringPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateInteger(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // integerStringExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type integerStringExprIterator struct {
@@ -2767,6 +3369,92 @@ func (itr *integerReduceBooleanIterator) reduce() []BooleanPoint {
 	}
 
 	return a
+}
+
+// integerStreamBooleanIterator
+type integerStreamBooleanIterator struct {
+	input  *bufIntegerIterator
+	create func() (IntegerPointAggregator, BooleanPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*integerReduceBooleanPoint
+	points []BooleanPoint
+}
+
+func newIntegerStreamBooleanIterator(input IntegerIterator, createFn func() (IntegerPointAggregator, BooleanPointEmitter), opt IteratorOptions) *integerStreamBooleanIterator {
+	return &integerStreamBooleanIterator{
+		input:  newBufIntegerIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*integerReduceBooleanPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *integerStreamBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *integerStreamBooleanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *integerStreamBooleanIterator) Next() *BooleanPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *integerStreamBooleanIterator) reduce() []BooleanPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &integerReduceBooleanPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateInteger(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // integerBooleanExprIterator executes a function to modify an existing point
@@ -3826,6 +4514,92 @@ func (itr *stringReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// stringStreamFloatIterator
+type stringStreamFloatIterator struct {
+	input  *bufStringIterator
+	create func() (StringPointAggregator, FloatPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*stringReduceFloatPoint
+	points []FloatPoint
+}
+
+func newStringStreamFloatIterator(input StringIterator, createFn func() (StringPointAggregator, FloatPointEmitter), opt IteratorOptions) *stringStreamFloatIterator {
+	return &stringStreamFloatIterator{
+		input:  newBufStringIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*stringReduceFloatPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *stringStreamFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *stringStreamFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *stringStreamFloatIterator) Next() *FloatPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *stringStreamFloatIterator) reduce() []FloatPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateString(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // stringFloatExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type stringFloatExprIterator struct {
@@ -3960,6 +4734,92 @@ func (itr *stringReduceIntegerIterator) reduce() []IntegerPoint {
 	}
 
 	return a
+}
+
+// stringStreamIntegerIterator
+type stringStreamIntegerIterator struct {
+	input  *bufStringIterator
+	create func() (StringPointAggregator, IntegerPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*stringReduceIntegerPoint
+	points []IntegerPoint
+}
+
+func newStringStreamIntegerIterator(input StringIterator, createFn func() (StringPointAggregator, IntegerPointEmitter), opt IteratorOptions) *stringStreamIntegerIterator {
+	return &stringStreamIntegerIterator{
+		input:  newBufStringIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*stringReduceIntegerPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *stringStreamIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *stringStreamIntegerIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *stringStreamIntegerIterator) Next() *IntegerPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *stringStreamIntegerIterator) reduce() []IntegerPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReduceIntegerPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateString(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // stringIntegerExprIterator executes a function to modify an existing point
@@ -4098,6 +4958,92 @@ func (itr *stringReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// stringStreamStringIterator
+type stringStreamStringIterator struct {
+	input  *bufStringIterator
+	create func() (StringPointAggregator, StringPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*stringReduceStringPoint
+	points []StringPoint
+}
+
+func newStringStreamStringIterator(input StringIterator, createFn func() (StringPointAggregator, StringPointEmitter), opt IteratorOptions) *stringStreamStringIterator {
+	return &stringStreamStringIterator{
+		input:  newBufStringIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*stringReduceStringPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *stringStreamStringIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *stringStreamStringIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *stringStreamStringIterator) Next() *StringPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *stringStreamStringIterator) reduce() []StringPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReduceStringPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateString(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // stringExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type stringExprIterator struct {
@@ -4232,6 +5178,92 @@ func (itr *stringReduceBooleanIterator) reduce() []BooleanPoint {
 	}
 
 	return a
+}
+
+// stringStreamBooleanIterator
+type stringStreamBooleanIterator struct {
+	input  *bufStringIterator
+	create func() (StringPointAggregator, BooleanPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*stringReduceBooleanPoint
+	points []BooleanPoint
+}
+
+func newStringStreamBooleanIterator(input StringIterator, createFn func() (StringPointAggregator, BooleanPointEmitter), opt IteratorOptions) *stringStreamBooleanIterator {
+	return &stringStreamBooleanIterator{
+		input:  newBufStringIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*stringReduceBooleanPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *stringStreamBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *stringStreamBooleanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *stringStreamBooleanIterator) Next() *BooleanPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *stringStreamBooleanIterator) reduce() []BooleanPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &stringReduceBooleanPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateString(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // stringBooleanExprIterator executes a function to modify an existing point
@@ -5291,6 +6323,92 @@ func (itr *booleanReduceFloatIterator) reduce() []FloatPoint {
 	return a
 }
 
+// booleanStreamFloatIterator
+type booleanStreamFloatIterator struct {
+	input  *bufBooleanIterator
+	create func() (BooleanPointAggregator, FloatPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*booleanReduceFloatPoint
+	points []FloatPoint
+}
+
+func newBooleanStreamFloatIterator(input BooleanIterator, createFn func() (BooleanPointAggregator, FloatPointEmitter), opt IteratorOptions) *booleanStreamFloatIterator {
+	return &booleanStreamFloatIterator{
+		input:  newBufBooleanIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*booleanReduceFloatPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *booleanStreamFloatIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanStreamFloatIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *booleanStreamFloatIterator) Next() *FloatPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *booleanStreamFloatIterator) reduce() []FloatPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReduceFloatPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateBoolean(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // booleanFloatExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type booleanFloatExprIterator struct {
@@ -5425,6 +6543,92 @@ func (itr *booleanReduceIntegerIterator) reduce() []IntegerPoint {
 	}
 
 	return a
+}
+
+// booleanStreamIntegerIterator
+type booleanStreamIntegerIterator struct {
+	input  *bufBooleanIterator
+	create func() (BooleanPointAggregator, IntegerPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*booleanReduceIntegerPoint
+	points []IntegerPoint
+}
+
+func newBooleanStreamIntegerIterator(input BooleanIterator, createFn func() (BooleanPointAggregator, IntegerPointEmitter), opt IteratorOptions) *booleanStreamIntegerIterator {
+	return &booleanStreamIntegerIterator{
+		input:  newBufBooleanIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*booleanReduceIntegerPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *booleanStreamIntegerIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanStreamIntegerIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *booleanStreamIntegerIterator) Next() *IntegerPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *booleanStreamIntegerIterator) reduce() []IntegerPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReduceIntegerPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateBoolean(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // booleanIntegerExprIterator executes a function to modify an existing point
@@ -5563,6 +6767,92 @@ func (itr *booleanReduceStringIterator) reduce() []StringPoint {
 	return a
 }
 
+// booleanStreamStringIterator
+type booleanStreamStringIterator struct {
+	input  *bufBooleanIterator
+	create func() (BooleanPointAggregator, StringPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*booleanReduceStringPoint
+	points []StringPoint
+}
+
+func newBooleanStreamStringIterator(input BooleanIterator, createFn func() (BooleanPointAggregator, StringPointEmitter), opt IteratorOptions) *booleanStreamStringIterator {
+	return &booleanStreamStringIterator{
+		input:  newBufBooleanIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*booleanReduceStringPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *booleanStreamStringIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanStreamStringIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *booleanStreamStringIterator) Next() *StringPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *booleanStreamStringIterator) reduce() []StringPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReduceStringPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateBoolean(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
+}
+
 // booleanStringExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type booleanStringExprIterator struct {
@@ -5697,6 +6987,92 @@ func (itr *booleanReduceBooleanIterator) reduce() []BooleanPoint {
 	}
 
 	return a
+}
+
+// booleanStreamBooleanIterator
+type booleanStreamBooleanIterator struct {
+	input  *bufBooleanIterator
+	create func() (BooleanPointAggregator, BooleanPointEmitter)
+	opt    IteratorOptions
+	m      map[string]*booleanReduceBooleanPoint
+	points []BooleanPoint
+}
+
+func newBooleanStreamBooleanIterator(input BooleanIterator, createFn func() (BooleanPointAggregator, BooleanPointEmitter), opt IteratorOptions) *booleanStreamBooleanIterator {
+	return &booleanStreamBooleanIterator{
+		input:  newBufBooleanIterator(input),
+		create: createFn,
+		opt:    opt,
+		m:      make(map[string]*booleanReduceBooleanPoint),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *booleanStreamBooleanIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *booleanStreamBooleanIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next value for the stream iterator.
+func (itr *booleanStreamBooleanIterator) Next() *BooleanPoint {
+	// Calculate next window if we have no more points.
+	if len(itr.points) == 0 {
+		itr.points = itr.reduce()
+		if len(itr.points) == 0 {
+			return nil
+		}
+	}
+
+	// Pop next point off the stack.
+	p := &itr.points[len(itr.points)-1]
+	itr.points = itr.points[:len(itr.points)-1]
+	return p
+}
+
+// reduce creates and manages aggregators for every point from the input.
+// After aggregating a point, it always tries to emit a value using the emitter.
+func (itr *booleanStreamBooleanIterator) reduce() []BooleanPoint {
+	for {
+		// Read next point.
+		curr := itr.input.Next()
+		if curr == nil {
+			return nil
+		} else if curr.Nil {
+			continue
+		}
+		tags := curr.Tags.Subset(itr.opt.Dimensions)
+
+		id := curr.Name
+		if len(tags.m) > 0 {
+			id += "\x00" + tags.ID()
+		}
+
+		// Retrieve the aggregator for this name/tag combination or create one.
+		rp := itr.m[id]
+		if rp == nil {
+			aggregator, emitter := itr.create()
+			rp = &booleanReduceBooleanPoint{
+				Name:       curr.Name,
+				Tags:       tags,
+				Aggregator: aggregator,
+				Emitter:    emitter,
+			}
+			itr.m[id] = rp
+		}
+		rp.Aggregator.AggregateBoolean(curr)
+
+		// Attempt to emit points from the aggregator.
+		points := rp.Emitter.Emit()
+		if len(points) == 0 {
+			continue
+		}
+
+		for i := range points {
+			points[i].Name = rp.Name
+			points[i].Tags = rp.Tags
+		}
+		return points
+	}
 }
 
 // booleanExprIterator executes a function to modify an existing point

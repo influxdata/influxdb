@@ -15,6 +15,7 @@
 - [#6116](https://github.com/influxdata/influxdb/pull/6116): Allow `httpd` service to be extensible for routes
 - [#6111](https://github.com/influxdata/influxdb/pull/6111): Add ability to build static assest. Improved handling of TAR and ZIP package outputs.
 - [#1825](https://github.com/influxdata/influxdb/issues/1825): Implement difference function.
+- [#6112](https://github.com/influxdata/influxdb/issues/6112): Implement simple moving average function.
 - [#6149](https://github.com/influxdata/influxdb/pull/6149): Kill running queries when server is shutdown.
 - [#5372](https://github.com/influxdata/influxdb/pull/5372): Faster shard loading
 - [#6148](https://github.com/influxdata/influxdb/pull/6148): Build script is now compatible with Python 3. Added ability to create detached signatures for packages. Build script now uses Python logging facility for messages.

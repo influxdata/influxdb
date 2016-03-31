@@ -2073,6 +2073,215 @@ cpu value=20 1278010021000000000
 	}
 }
 
+// Ensure the server can handle various group by time moving average queries.
+func TestServer_Query_SelectGroupByTimeMovingAverage(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=15 1278010021000000000
+cpu value=20 1278010022000000000
+cpu value=25 1278010023000000000
+cpu value=30 1278010024000000000
+cpu value=35 1278010025000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate moving average of count",
+			command: `SELECT moving_average(count(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:04Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of mean",
+			command: `SELECT moving_average(mean(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",17.5],["2010-07-01T18:47:04Z",27.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of median",
+			command: `SELECT moving_average(median(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",17.5],["2010-07-01T18:47:04Z",27.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of sum",
+			command: `SELECT moving_average(sum(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",35],["2010-07-01T18:47:04Z",55]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of first",
+			command: `SELECT moving_average(first(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",15],["2010-07-01T18:47:04Z",25]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of last",
+			command: `SELECT moving_average(last(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",20],["2010-07-01T18:47:04Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of min",
+			command: `SELECT moving_average(min(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",15],["2010-07-01T18:47:04Z",25]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of max",
+			command: `SELECT moving_average(max(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",20],["2010-07-01T18:47:04Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of percentile",
+			command: `SELECT moving_average(percentile(value, 50), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",15],["2010-07-01T18:47:04Z",25]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various group by time moving average queries.
+func TestServer_Query_SelectGroupByTimeMovingAverageWithFill(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=15 1278010021000000000
+cpu value=30 1278010024000000000
+cpu value=35 1278010025000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate moving average of count with fill 0",
+			command: `SELECT moving_average(count(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",1],["2010-07-01T18:47:04Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of count with fill previous",
+			command: `SELECT moving_average(count(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:04Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of mean with fill 0",
+			command: `SELECT moving_average(mean(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",6.25],["2010-07-01T18:47:04Z",16.25]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of mean with fill previous",
+			command: `SELECT moving_average(mean(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",12.5],["2010-07-01T18:47:04Z",22.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of median with fill 0",
+			command: `SELECT moving_average(median(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",6.25],["2010-07-01T18:47:04Z",16.25]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of median with fill previous",
+			command: `SELECT moving_average(median(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",12.5],["2010-07-01T18:47:04Z",22.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of sum with fill 0",
+			command: `SELECT moving_average(sum(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",12.5],["2010-07-01T18:47:04Z",32.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of sum with fill previous",
+			command: `SELECT moving_average(sum(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",25],["2010-07-01T18:47:04Z",45]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of first with fill 0",
+			command: `SELECT moving_average(first(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",5],["2010-07-01T18:47:04Z",15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of first with fill previous",
+			command: `SELECT moving_average(first(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:04Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of last with fill 0",
+			command: `SELECT moving_average(last(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",7.5],["2010-07-01T18:47:04Z",17.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of last with fill previous",
+			command: `SELECT moving_average(last(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",15],["2010-07-01T18:47:04Z",25]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of min with fill 0",
+			command: `SELECT moving_average(min(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",5],["2010-07-01T18:47:04Z",15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of min with fill previous",
+			command: `SELECT moving_average(min(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:04Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of max with fill 0",
+			command: `SELECT moving_average(max(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",7.5],["2010-07-01T18:47:04Z",17.5]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of max with fill previous",
+			command: `SELECT moving_average(max(value), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",15],["2010-07-01T18:47:04Z",25]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of percentile with fill 0",
+			command: `SELECT moving_average(percentile(value, 50), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(0)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",5],["2010-07-01T18:47:04Z",15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate moving average of percentile with fill previous",
+			command: `SELECT moving_average(percentile(value, 50), 2) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s) fill(previous)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","moving_average"],"values":[["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:04Z",20]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // mergeMany ensures that when merging many series together and some of them have a different number
 // of points than others in a group by interval the results are correct
 func TestServer_Query_MergeMany(t *testing.T) {

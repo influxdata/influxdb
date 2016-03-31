@@ -1180,3 +1180,23 @@ func IntegerDifferenceReduceSlice(a []IntegerPoint) []IntegerPoint {
 	}
 	return output
 }
+
+// newMovingAverageIterator returns an iterator for operating on a moving_average() call.
+func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatMovingAverageReducer(n)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerMovingAverageReducer(n)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported moving average iterator type: %T", input)
+	}
+}
