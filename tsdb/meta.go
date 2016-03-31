@@ -342,8 +342,6 @@ func (d *DatabaseIndex) DropMeasurement(name string) {
 		delete(d.series, s.Key)
 	}
 
-	m.drop()
-
 	d.statMap.Add(statDatabaseSeries, int64(-len(m.seriesByID)))
 	d.statMap.Add(statDatabaseMeasurements, -1)
 }
@@ -385,8 +383,6 @@ type Measurement struct {
 	measurement         *Measurement
 	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
 	seriesIDs           SeriesIDs                       // sorted list of series IDs in this measurement
-
-	statMap *expvar.Map
 }
 
 // NewMeasurement allocates and initializes a new Measurement.
@@ -399,12 +395,6 @@ func NewMeasurement(name string, idx *DatabaseIndex) *Measurement {
 		seriesByID:          make(map[uint64]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
 		seriesIDs:           make(SeriesIDs, 0),
-
-		statMap: influxdb.NewStatistics(
-			fmt.Sprintf("measurement:%s.%s", name, idx.name),
-			"measurement",
-			map[string]string{"database": idx.name, "measurement": name},
-		),
 	}
 }
 
@@ -497,7 +487,6 @@ func (m *Measurement) AddSeries(s *Series) bool {
 		valueMap[v] = ids
 	}
 
-	m.statMap.Add(statMeasurementSeries, 1)
 	return true
 }
 
@@ -545,15 +534,7 @@ func (m *Measurement) DropSeries(seriesID uint64) {
 		}
 	}
 
-	m.statMap.Add(statMeasurementSeries, -1)
-
 	return
-}
-
-// drop handles any cleanup for when a measurement is dropped.
-// Currently only cleans up stats.
-func (m *Measurement) drop() {
-	m.statMap.Add(statMeasurementSeries, int64(-len(m.seriesIDs)))
 }
 
 // filters walks the where clause of a select statement and returns a map with all series ids
