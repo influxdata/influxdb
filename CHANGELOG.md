@@ -34,6 +34,7 @@
 - [#6140](https://github.com/influxdata/influxdb/issues/6140): Ensure Shard engine not accessed when closed.
 - [#6110](https://github.com/influxdata/influxdb/issues/6110): Fix for 0.9 upgrade path when using RPM
 - [#6131](https://github.com/influxdata/influxdb/issues/6061): Fix write throughput regression with large number of measurments
+- [#6152](https://github.com/influxdata/influxdb/issues/6152): Allow SHARD DURATION to be specified in isolation when creating a database
 
 ## v0.11.1 [2016-03-31]
 

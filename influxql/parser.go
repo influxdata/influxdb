@@ -1551,10 +1551,10 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 
 	// Look for "WITH"
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == WITH {
-		// validate that at least one of DURATION, REPLICATION or NAME is provided
+		// validate that at least one of DURATION, NAME, REPLICATION or SHARD is provided
 		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok != DURATION && tok != REPLICATION && tok != NAME {
-			return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "REPLICATION", "SHARD", "NAME"}, pos)
+		if tok != DURATION && tok != NAME && tok != REPLICATION && tok != SHARD {
+			return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "NAME", "REPLICATION", "SHARD"}, pos)
 		}
 		// rewind
 		p.unscan()
@@ -1591,6 +1591,7 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		if err := p.parseTokens([]Token{SHARD}); err != nil {
 			p.unscan()
 		} else {
+			// Look for "DURATION"
 			tok, pos, lit := p.scanIgnoreWhitespace()
 			if tok != DURATION {
 				return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
@@ -1616,7 +1617,6 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 	} else {
 		p.unscan()
 	}
-
 	return stmt, nil
 }
 
