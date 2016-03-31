@@ -21,36 +21,15 @@ reporting-disabled = false
 ###
 
 [meta]
-  # Controls if this node should run the metaservice and participate in the Raft group
-  enabled = true
-
   # Where the metadata/raft database is stored
   dir = "/var/lib/influxdb/meta"
 
-  # The default address to bind to
-  bind-address = ":8088"
-
-  # The default address to bind the API to
-  http-bind-address = ":8091"
-  https-enabled = false
-  https-certificate = ""
-
   retention-autocreate = true
-  # The default election timeout for the store
-  election-timeout = "1s"
-  # The default heartbeat timeout for the store
-  heartbeat-timeout = "1s"
-  # The default leader lease for the store
-  leader-lease-timeout = "500ms"
-  # The default commit timeout for the store
-  commit-timeout = "50ms"
-  # If trace log messages are printed for the meta service
-  cluster-tracing = false
-  # The default for auto promoting a node to a raft node when needed
-  raft-promotion-enabled = true
+
   # If log messages are printed for the meta service
   logging-enabled = true
   pprof-enabled = false
+
   # The default duration for leases.
   lease-duration = "1m0s"
 
@@ -106,34 +85,6 @@ reporting-disabled = false
   # block in a TSM file. Larger numbers may yield better compression
   # but could incur a performance peanalty when querying
   # max-points-per-block = 1000
-
-###
-### [hinted-handoff]
-###
-### Controls the hinted handoff feature, which allows nodes to temporarily
-### store queued data when one node of a cluster is down for a short period
-### of time.
-###
-
-[hinted-handoff]
-  enabled = true
-  dir = "/var/lib/influxdb/hh"
-  max-size = 1073741824
-  max-age = "168h"
-  retry-rate-limit = 0
-
-  # Hinted handoff will start retrying writes to down nodes at a rate of once per second.
-  # If any error occurs, it will backoff in an exponential manner, until the interval
-  # reaches retry-max-interval. Once writes to all nodes are successfully completed the
-  # interval will reset to retry-interval.
-  retry-interval = "1s"
-  retry-max-interval = "1m"
-
-  # Interval between running checks for data that should be purged. Data is purged from
-  # hinted-handoff queues for two reasons. 1) The data is older than the max age, or
-  # 2) the target node has been dropped from the cluster. Data is never dropped until
-  # it has reached max-age however, for a dropped node or not.
-  purge-interval = "1h"
 
 ###
 ### [cluster]
