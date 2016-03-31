@@ -1353,19 +1353,6 @@ func (s *Series) InitializeShards() {
 	s.mu.Unlock()
 }
 
-// match returns true if all tags match the series' tags.
-func (s *Series) match(tags map[string]string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for k, v := range tags {
-		if s.Tags[k] != v {
-			return false
-		}
-	}
-	return true
-}
-
 // SeriesIDs is a convenience type for sorting, checking equality, and doing
 // union and intersection of collections of series ids.
 type SeriesIDs []uint64
