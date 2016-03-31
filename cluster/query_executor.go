@@ -43,8 +43,9 @@ type QueryExecutor struct {
 	QueryTimeout time.Duration
 
 	// Select statement limits
-	MaxSelectPointN  int
-	MaxSelectSeriesN int
+	MaxSelectPointN   int
+	MaxSelectSeriesN  int
+	MaxSelectBucketsN int
 
 	// Remote execution timeout
 	Timeout time.Duration
@@ -468,6 +469,25 @@ func (e *QueryExecutor) executeSelectStatement(stmt *influxql.SelectStatement, c
 		return err
 	}
 	stmt = tmp
+
+	if e.MaxSelectBucketsN > 0 && !stmt.IsRawQuery {
+		interval, err := stmt.GroupByInterval()
+		if err != nil {
+			return err
+		}
+
+		if interval > 0 {
+			// Determine the start and end time matched to the interval (may not match the actual times).
+			min := opt.MinTime.Truncate(interval)
+			max := opt.MaxTime.Truncate(interval).Add(interval)
+
+			// Determine the number of buckets by finding the time span and dividing by the interval.
+			buckets := int64(max.Sub(min)) / int64(interval)
+			if int(buckets) > e.MaxSelectBucketsN {
+				return fmt.Errorf("max select bucket count exceeded: %d buckets", buckets)
+			}
+		}
+	}
 
 	// Create a set of iterators from a selection.
 	itrs, err := influxql.Select(stmt, ic, &opt)

@@ -120,6 +120,45 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectSeriesN(t *testing.T) {
 	}
 }
 
+// Ensure query executor can enforce a maximum bucket selection count.
+func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
+	e := DefaultQueryExecutor()
+	e.MaxSelectBucketsN = 3
+
+	// The meta client should return a single shards on the local node.
+	e.MetaClient.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
+		return []meta.ShardInfo{
+			{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
+		}, nil
+	}
+
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{
+			Points: []influxql.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
+		}, nil
+	}
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+		return map[string]struct{}{"value": struct{}{}}, nil, nil
+	}
+	ic.SeriesKeysFn = func(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
+		return influxql.SeriesList{
+			{Name: "cpu", Aux: []influxql.DataType{influxql.Float}},
+		}, nil
+	}
+	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
+
+	// Verify all results from the query.
+	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*influxql.Result{
+		{
+			StatementID: 0,
+			Err:         errors.New("max select bucket count exceeded: 4 buckets"),
+		},
+	}) {
+		t.Fatalf("unexpected results: %s", spew.Sdump(a))
+	}
+}
+
 // QueryExecutor is a test wrapper for cluster.QueryExecutor.
 type QueryExecutor struct {
 	*cluster.QueryExecutor

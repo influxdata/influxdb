@@ -48,6 +48,7 @@ type Config struct {
 	QueryTimeout              toml.Duration `toml:"query-timeout"`
 	MaxSelectPointN           int           `toml:"max-select-point"`
 	MaxSelectSeriesN          int           `toml:"max-select-series"`
+	MaxSelectBucketsN         int           `toml:"max-select-buckets"`
 }
 
 // NewConfig returns an instance of Config with defaults.
