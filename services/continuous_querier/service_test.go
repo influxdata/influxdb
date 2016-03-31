@@ -48,16 +48,16 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	expectCallCnt := 3
 	callCnt := 0
 
-	// Set a callback for ExecuteQuery.
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		callCnt++
-		if callCnt >= expectCallCnt {
-			done <- struct{}{}
-		}
-		dummych := make(chan *influxql.Result, 1)
-		dummych <- &influxql.Result{}
-		return dummych
+	// Set a callback for ExecuteStatement.
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			callCnt++
+			if callCnt >= expectCallCnt {
+				done <- struct{}{}
+			}
+			ctx.Results <- &influxql.Result{}
+			return nil
+		},
 	}
 
 	// Use a custom "now" time since the internals of last run care about
@@ -121,16 +121,16 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	expectCallCnt := 0
 	callCnt := 0
 
-	// Set a callback for ExecuteQuery.
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		callCnt++
-		if callCnt >= expectCallCnt {
-			done <- struct{}{}
-		}
-		dummych := make(chan *influxql.Result, 1)
-		dummych <- &influxql.Result{}
-		return dummych
+	// Set a callback for ExecuteStatement.
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			callCnt++
+			if callCnt >= expectCallCnt {
+				done <- struct{}{}
+			}
+			ctx.Results <- &influxql.Result{}
+			return nil
+		},
 	}
 
 	s.Open()
@@ -186,15 +186,15 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	callCnt := 0
 
 	// Set a callback for ExecuteQuery.
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		callCnt++
-		if callCnt >= expectCallCnt {
-			done <- struct{}{}
-		}
-		dummych := make(chan *influxql.Result, 1)
-		dummych <- &influxql.Result{}
-		return dummych
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			callCnt++
+			if callCnt >= expectCallCnt {
+				done <- struct{}{}
+			}
+			ctx.Results <- &influxql.Result{}
+			return nil
+		},
 	}
 
 	s.Open()
@@ -240,13 +240,13 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	s.MetaClient.(*MetaClient).Leader = false
 
 	done := make(chan struct{})
-	qe := s.QueryExecutor.(*QueryExecutor)
-	// Set a callback for ExecuteQuery. Shouldn't get called because we're not the leader.
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		done <- struct{}{}
-		dummych := make(chan *influxql.Result, 1)
-		dummych <- &influxql.Result{Err: errUnexpected}
-		return dummych
+	// Set a callback for ExecuteStatement. Shouldn't get called because we're not the leader.
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			done <- struct{}{}
+			ctx.Results <- &influxql.Result{Err: errUnexpected}
+			return nil
+		},
 	}
 
 	s.Open()
@@ -267,13 +267,13 @@ func TestContinuousQueryService_MetaClientFailsToGetDatabases(t *testing.T) {
 	s.MetaClient.(*MetaClient).Err = errExpected
 
 	done := make(chan struct{})
-	qe := s.QueryExecutor.(*QueryExecutor)
 	// Set ExecuteQuery callback, which shouldn't get called because of meta store failure.
-	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		done <- struct{}{}
-		dummych := make(chan *influxql.Result, 1)
-		dummych <- &influxql.Result{Err: errUnexpected}
-		return dummych
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			done <- struct{}{}
+			ctx.Results <- &influxql.Result{Err: errUnexpected}
+			return nil
+		},
 	}
 
 	s.Open()
@@ -289,6 +289,11 @@ func TestContinuousQueryService_MetaClientFailsToGetDatabases(t *testing.T) {
 // Test ExecuteContinuousQuery with invalid queries.
 func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	s := NewTestService(t)
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			return errUnexpected
+		},
+	}
 	dbis, _ := s.MetaClient.Databases()
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
@@ -317,8 +322,11 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 // Test ExecuteContinuousQuery when QueryExecutor returns an error.
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
-	qe := s.QueryExecutor.(*QueryExecutor)
-	qe.Err = errExpected
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			return errExpected
+		},
+	}
 
 	dbis, _ := s.MetaClient.Databases()
 	dbi := dbis[0]
@@ -336,7 +344,7 @@ func NewTestService(t *testing.T) *Service {
 	s := NewService(NewConfig())
 	ms := NewMetaClient(t)
 	s.MetaClient = ms
-	s.QueryExecutor = NewQueryExecutor(t)
+	s.QueryExecutor = influxql.NewQueryExecutor()
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
@@ -473,60 +481,32 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 
 // QueryExecutor is a mock query executor.
 type QueryExecutor struct {
-	ExecuteQueryFn func(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result
-	Results        []*influxql.Result
-	ResultInterval time.Duration
-	Err            error
-	ErrAfterResult int
-	t              *testing.T
+	*influxql.QueryExecutor
+	Err error
+	t   *testing.T
+}
+
+// StatementExecutor is a mock statement executor.
+type StatementExecutor struct {
+	ExecuteStatementFn func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error
+}
+
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+	return e.ExecuteStatementFn(stmt, ctx)
+}
+
+func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, database string) error {
+	return nil
 }
 
 // NewQueryExecutor returns a *QueryExecutor.
 func NewQueryExecutor(t *testing.T) *QueryExecutor {
+	e := influxql.NewQueryExecutor()
+	e.StatementExecutor = &StatementExecutor{}
 	return &QueryExecutor{
-		ErrAfterResult: -1,
-		t:              t,
+		QueryExecutor: e,
+		t:             t,
 	}
-}
-
-// ExecuteQuery returns a channel that the caller can read query results from.
-func (qe *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-	// If the test set a callback, call it.
-	if qe.ExecuteQueryFn != nil {
-		return qe.ExecuteQueryFn(query, database, chunkSize, make(chan struct{}))
-	}
-
-	ch := make(chan *influxql.Result, 1)
-
-	// Are we supposed to error immediately?
-	if qe.ErrAfterResult == -1 && qe.Err != nil {
-		ch <- &influxql.Result{Err: qe.Err}
-		close(ch)
-		return ch
-	}
-
-	// Start a go routine to send results and / or error.
-	go func() {
-		n := 0
-		for i, r := range qe.Results {
-			if i == qe.ErrAfterResult-1 {
-				qe.t.Logf("ExecuteQuery(): ErrAfterResult %d", qe.ErrAfterResult-1)
-				ch <- &influxql.Result{Err: qe.Err}
-				close(ch)
-				return
-			}
-			ch <- r
-			n++
-			time.Sleep(qe.ResultInterval)
-		}
-		qe.t.Logf("ExecuteQuery(): all (%d) results sent", n)
-		if n == 0 {
-			ch <- &influxql.Result{Err: qe.Err}
-		}
-		close(ch)
-	}()
-
-	return ch
 }
 
 // PointsWriter is a mock points writer.

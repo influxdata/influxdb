@@ -3,6 +3,7 @@ package cluster
 import (
 	"time"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -15,10 +16,6 @@ const (
 
 	// DefaultShardMapperTimeout is the default timeout set on shard mappers.
 	DefaultShardMapperTimeout = 5 * time.Second
-
-	// DefaultQueryTimeout is the default timeout for executing a query.
-	// A value of zero will have no query timeout.
-	DefaultQueryTimeout = time.Duration(0)
 
 	// DefaultMaxRemoteWriteConnections is the maximum number of open connections
 	// that will be available for remote writes to another host.
@@ -57,7 +54,7 @@ func NewConfig() Config {
 		WriteTimeout:              toml.Duration(DefaultWriteTimeout),
 		ShardWriterTimeout:        toml.Duration(DefaultShardWriterTimeout),
 		ShardMapperTimeout:        toml.Duration(DefaultShardMapperTimeout),
-		QueryTimeout:              toml.Duration(DefaultQueryTimeout),
+		QueryTimeout:              toml.Duration(influxql.DefaultQueryTimeout),
 		MaxRemoteWriteConnections: DefaultMaxRemoteWriteConnections,
 		MaxConcurrentQueries:      DefaultMaxConcurrentQueries,
 		MaxSelectPointN:           DefaultMaxSelectPointN,

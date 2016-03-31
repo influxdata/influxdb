@@ -20,17 +20,15 @@ import (
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_Query(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		if q.String() != `SELECT * FROM bar` {
-			t.Fatalf("unexpected query: %s", q.String())
-		} else if db != `foo` {
-			t.Fatalf("unexpected db: %s", db)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		if stmt.String() != `SELECT * FROM bar` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `foo` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})},
-			&influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})},
-			nil,
-		)
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		return nil
 	}
 
 	w := httptest.NewRecorder()
@@ -45,13 +43,14 @@ func TestHandler_Query(t *testing.T) {
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_QueryRegex(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		if q.String() != `SELECT * FROM test WHERE url =~ /http\:\/\/www.akamai\.com/` {
-			t.Fatalf("unexpected query: %s", q.String())
-		} else if db != `test` {
-			t.Fatalf("unexpected db: %s", db)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		if stmt.String() != `SELECT * FROM test WHERE url =~ /http\:\/\/www.akamai\.com/` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `test` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
 		}
-		return NewResultChan(nil)
+		ctx.Results <- nil
+		return nil
 	}
 
 	w := httptest.NewRecorder()
@@ -61,11 +60,10 @@ func TestHandler_QueryRegex(t *testing.T) {
 // Ensure the handler merges results from the same statement.
 func TestHandler_Query_MergeResults(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})},
-			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})},
-		)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		return nil
 	}
 
 	w := httptest.NewRecorder()
@@ -80,11 +78,10 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 // Ensure the handler merges results from the same statement.
 func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: models.Rows{}},
-			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})},
-		)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows{}}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		return nil
 	}
 
 	w := httptest.NewRecorder()
@@ -99,14 +96,13 @@ func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 // Ensure the handler can parse chunked and chunk size query parameters.
 func TestHandler_Query_Chunked(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		if chunkSize != 2 {
-			t.Fatalf("unexpected chunk size: %d", chunkSize)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		if ctx.ChunkSize != 2 {
+			t.Fatalf("unexpected chunk size: %d", ctx.ChunkSize)
 		}
-		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})},
-			&influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})},
-		)
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		return nil
 	}
 
 	w := httptest.NewRecorder()
@@ -161,8 +157,8 @@ func TestHandler_Query_ErrInvalidQuery(t *testing.T) {
 // Ensure the handler returns a status 200 if an error is returned in the result.
 func TestHandler_Query_ErrResult(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-		return NewResultChan(&influxql.Result{Err: errors.New("measurement not found")})
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		return errors.New("measurement not found")
 	}
 
 	w := httptest.NewRecorder()
@@ -192,6 +188,9 @@ func TestHandler_Ping(t *testing.T) {
 // Ensure the handler returns the version correctly from the different endpoints.
 func TestHandler_Version(t *testing.T) {
 	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		return nil
+	}
 	w := httptest.NewRecorder()
 	tests := []struct {
 		method   string
@@ -281,8 +280,8 @@ func (*invalidJSON) MarshalJSON() ([]byte, error) { return nil, errors.New("mark
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
-	MetaClient    HandlerMetaStore
-	QueryExecutor HandlerQueryExecutor
+	MetaClient        HandlerMetaStore
+	StatementExecutor HandlerStatementExecutor
 }
 
 // NewHandler returns a new instance of Handler.
@@ -292,7 +291,8 @@ func NewHandler(requireAuthentication bool) *Handler {
 		Handler: httpd.NewHandler(requireAuthentication, true, false, 0, statMap),
 	}
 	h.Handler.MetaClient = &h.MetaClient
-	h.Handler.QueryExecutor = &h.QueryExecutor
+	h.Handler.QueryExecutor = influxql.NewQueryExecutor()
+	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
 	h.Handler.Version = "0.0.0"
 	return h
 }
@@ -325,18 +325,17 @@ func (s *HandlerMetaStore) Users() []meta.UserInfo {
 	return s.UsersFn()
 }
 
-// HandlerQueryExecutor is a mock implementation of Handler.QueryExecutor.
-type HandlerQueryExecutor struct {
-	AuthorizeFn    func(u *meta.UserInfo, q *influxql.Query, db string) error
-	ExecuteQueryFn func(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result
+// HandlerStatementExecutor is a mock implementation of Handler.StatementExecutor.
+type HandlerStatementExecutor struct {
+	ExecuteStatementFn func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error
 }
 
-func (e *HandlerQueryExecutor) Authorize(u *meta.UserInfo, q *influxql.Query, db string) error {
-	return e.AuthorizeFn(u, q, db)
+func (e *HandlerStatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+	return e.ExecuteStatementFn(stmt, ctx)
 }
 
-func (e *HandlerQueryExecutor) ExecuteQuery(q *influxql.Query, db string, chunkSize int, closing chan struct{}) <-chan *influxql.Result {
-	return e.ExecuteQueryFn(q, db, chunkSize, closing)
+func (e *HandlerStatementExecutor) NormalizeStatement(stmt influxql.Statement, database string) error {
+	return nil
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.
