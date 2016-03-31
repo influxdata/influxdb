@@ -38,6 +38,7 @@
 - [#6131](https://github.com/influxdata/influxdb/issues/6061): Fix write throughput regression with large number of measurments
 - [#6152](https://github.com/influxdata/influxdb/issues/6152): Allow SHARD DURATION to be specified in isolation when creating a database
 - [#6153](https://github.com/influxdata/influxdb/issues/6153): Check SHARD DURATION when recreating the same database
+- [#6178](https://github.com/influxdata/influxdb/issues/6178): Ensure SHARD DURATION is checked when recreating a retention policy
 
 ## v0.11.1 [2016-03-31]
 

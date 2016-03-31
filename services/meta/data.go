@@ -139,33 +139,32 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 		return ErrReplicationFactorTooLow
 	}
 
+	// Normalise ShardDuration before comparing to any existing
+	// retention policies
+	if rpi.ShardGroupDuration == 0 {
+		rpi.ShardGroupDuration = shardGroupDuration(rpi.Duration)
+	}
+
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
 		return influxdb.ErrDatabaseNotFound(database)
 	} else if rp := di.RetentionPolicy(rpi.Name); rp != nil {
 		// RP with that name already exists.  Make sure they're the same.
-		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration {
+		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
 			return ErrRetentionPolicyExists
 		}
 		return nil
 	}
 
-	// Append new policy.
+	// Append copy of new policy.
 	rp := RetentionPolicyInfo{
-		Name:     rpi.Name,
-		Duration: rpi.Duration,
-		ReplicaN: rpi.ReplicaN,
+		Name:               rpi.Name,
+		Duration:           rpi.Duration,
+		ReplicaN:           rpi.ReplicaN,
+		ShardGroupDuration: rpi.ShardGroupDuration,
 	}
-
-	if rpi.ShardGroupDuration != 0 {
-		rp.ShardGroupDuration = rpi.ShardGroupDuration
-	} else {
-		rp.ShardGroupDuration = shardGroupDuration(rpi.Duration)
-	}
-
 	di.RetentionPolicies = append(di.RetentionPolicies, rp)
-
 	return nil
 }
 
