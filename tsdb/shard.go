@@ -314,9 +314,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 	// get the shard mutex for locally defined fields
 	for _, p := range points {
 		// see if the series should be added to the index
-		ss := s.index.Series(string(p.Key()))
+		key := string(p.Key())
+		ss := s.index.Series(key)
 		if ss == nil {
-			ss = NewSeries(string(p.Key()), p.Tags())
+			ss = NewSeries(key, p.Tags())
 			s.statMap.Add(statSeriesCreate, 1)
 		}
 
