@@ -185,10 +185,10 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	}
 	c.mu.RUnlock()
 
-	c.mu.Lock()
 	for k, v := range values {
-		c.write(k, v)
+		c.entry(k).add(v)
 	}
+	c.mu.Lock()
 	c.size = newSize
 	c.mu.Unlock()
 
@@ -414,6 +414,17 @@ func (c *Cache) write(key string, values []Value) {
 		c.store[key] = e
 	}
 	e.add(values)
+}
+
+func (c *Cache) entry(key string) *entry {
+	c.mu.Lock()
+	e, ok := c.store[key]
+	if !ok {
+		e = newEntry()
+		c.store[key] = e
+	}
+	c.mu.Unlock()
+	return e
 }
 
 // CacheLoader processes a set of WAL segment files, and loads a cache with the data
