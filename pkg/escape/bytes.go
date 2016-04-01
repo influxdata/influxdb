@@ -10,6 +10,22 @@ func Bytes(in []byte) []byte {
 }
 
 func Unescape(in []byte) []byte {
+	if len(in) == 0 {
+		return nil
+	}
+
+	var hasEscape bool
+	for _, b := range in {
+		if b == '\\' {
+			hasEscape = true
+			break
+		}
+	}
+
+	if !hasEscape {
+		return in
+	}
+
 	i := 0
 	inLen := len(in)
 	var out []byte
