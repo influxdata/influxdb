@@ -78,8 +78,9 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	}
 
 	e := &Engine{
-		path:   path,
-		logger: log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
+		path:              path,
+		logger:            log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
+		measurementFields: make(map[string]*tsdb.MeasurementFields),
 
 		WAL:   w,
 		Cache: cache,
@@ -110,13 +111,23 @@ func (e *Engine) Index() *tsdb.DatabaseIndex {
 }
 
 // MeasurementFields returns the measurement fields for a measurement.
-func (e *Engine) MeasurementFields(name string) *tsdb.MeasurementFields {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.measurementFields[name] == nil {
-		e.measurementFields[name] = &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
+func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
+	e.mu.RLock()
+	m := e.measurementFields[measurement]
+	e.mu.RUnlock()
+
+	if m != nil {
+		return m
 	}
-	return e.measurementFields[name]
+
+	e.mu.Lock()
+	m = e.measurementFields[measurement]
+	if m == nil {
+		m = tsdb.NewMeasurementFields()
+		e.measurementFields[measurement] = m
+	}
+	e.mu.Unlock()
+	return m
 }
 
 // Format returns the format type of this engine
@@ -187,10 +198,9 @@ func (e *Engine) Close() error {
 func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex) error {
 	// Save reference to index for iterator creation.
 	e.index = index
-	e.measurementFields = measurementFields
 
 	start := time.Now()
 
@@ -200,7 +210,7 @@ func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex, me
 			return err
 		}
 
-		if err := e.addToIndexFromKey(key, fieldType, index, measurementFields); err != nil {
+		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
 			return err
 		}
 		return nil
@@ -220,7 +230,7 @@ func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex, me
 			continue
 		}
 
-		if err := e.addToIndexFromKey(key, fieldType, index, measurementFields); err != nil {
+		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
 			return err
 		}
 	}
@@ -297,19 +307,17 @@ func (e *Engine) writeFileToBackup(f FileStat, shardRelativePath string, tw *tar
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
 // database index and measurement fields
-func (e *Engine) addToIndexFromKey(key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+func (e *Engine) addToIndexFromKey(key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
 	seriesKey, field := seriesAndFieldFromCompositeKey(key)
 	measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	m := index.CreateMeasurementIndexIfNotExists(measurement)
 	m.SetFieldName(field)
 
-	mf := measurementFields[measurement]
+	mf := e.measurementFields[measurement]
 	if mf == nil {
-		mf = &tsdb.MeasurementFields{
-			Fields: map[string]*tsdb.Field{},
-		}
-		measurementFields[measurement] = mf
+		mf = tsdb.NewMeasurementFields()
+		e.measurementFields[measurement] = mf
 	}
 
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
@@ -330,7 +338,7 @@ func (e *Engine) addToIndexFromKey(key string, fieldType influxql.DataType, inde
 
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
-func (e *Engine) WritePoints(points []models.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+func (e *Engine) WritePoints(points []models.Point) error {
 	values := map[string][]Value{}
 	for _, p := range points {
 		for k, v := range p.Fields() {
@@ -397,6 +405,10 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
+	e.mu.Lock()
+	delete(e.measurementFields, name)
+	e.mu.Unlock()
+
 	return e.DeleteSeries(seriesKeys)
 }
 
@@ -740,7 +752,7 @@ func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, 
 							return influxql.Unknown
 						}
 
-						f := mf.Fields[field]
+						f := mf.Field(field)
 						if f == nil {
 							return influxql.Unknown
 						}
@@ -904,7 +916,7 @@ func (e *Engine) buildCursor(measurement, seriesKey, field string, opt influxql.
 	}
 
 	// Find individual field.
-	f := mf.Fields[field]
+	f := mf.Field(field)
 	if f == nil {
 		return nil
 	}
