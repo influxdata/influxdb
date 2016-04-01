@@ -34,13 +34,15 @@ func newEntry() *entry {
 
 // add adds the given values to the entry.
 func (e *entry) add(values []Value) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	// See if the new values are sorted or contain duplicate timestamps
-	var prevTime int64
+	var (
+		prevTime int64
+		needSort bool
+	)
+
 	for _, v := range values {
 		if v.UnixNano() <= prevTime {
-			e.needSort = true
+			needSort = true
 			break
 		}
 		prevTime = v.UnixNano()
@@ -48,6 +50,10 @@ func (e *entry) add(values []Value) {
 
 	// if there are existing values make sure they're all less than the first of
 	// the new values being added
+	e.mu.Lock()
+	if needSort {
+		e.needSort = needSort
+	}
 	if len(e.values) == 0 {
 		e.values = values
 	} else {
@@ -58,6 +64,7 @@ func (e *entry) add(values []Value) {
 		}
 		e.values = append(e.values, values...)
 	}
+	e.mu.Unlock()
 }
 
 // deduplicate sorts and orders the entry's values. If values are already deduped and
