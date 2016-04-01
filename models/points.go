@@ -1432,17 +1432,14 @@ func parseNumber(val []byte) (interface{}, error) {
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
-	fields := Fields{}
+	fields := make(Fields, 8)
 	var (
 		i              int
 		name, valueBuf []byte
 		value          interface{}
 		err            error
 	)
-	for {
-		if i >= len(buf) {
-			break
-		}
+	for i < len(buf) {
 
 		i, name = scanTo(buf, i, '=')
 		name = escape.Unescape(name)
