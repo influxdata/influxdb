@@ -204,8 +204,6 @@ func (s *Shard) DiskSize() (int64, error) {
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	m := s.engine.MeasurementFields(measurementName)
 	if m == nil {
 		return NewFieldCodec(nil)
@@ -550,20 +548,22 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
 func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType, limitCount bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
 
 	// Ignore if the field already exists.
 	if f := m.fields[name]; f != nil {
 		if f.Type != typ {
+			m.mu.RUnlock()
 			return ErrFieldTypeConflict
 		}
+		m.mu.RUnlock()
 		return nil
 	}
+	m.mu.RUnlock()
 
-	// If we're supposed to limit the number of fields, only 255 are allowed. If we go over that then return an error.
-	if len(m.fields)+1 > math.MaxUint8 && limitCount {
-		return ErrFieldOverflow
+	m.mu.Lock()
+	if f := m.fields[name]; f != nil {
+		return nil
 	}
 
 	// Create and append a new field.
@@ -574,6 +574,7 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	}
 	m.fields[name] = f
 	m.Codec = NewFieldCodec(m.fields)
+	m.mu.Unlock()
 
 	return nil
 }
