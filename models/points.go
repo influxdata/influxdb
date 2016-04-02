@@ -1062,14 +1062,7 @@ func escapeStringField(in string) string {
 // unescapeStringField returns a copy of in with any escaped double-quotes
 // or backslashes unescaped
 func unescapeStringField(in string) string {
-	var hasEscape bool
-	for _, b := range in {
-		if b == '\\' {
-			hasEscape = true
-		}
-	}
-
-	if !hasEscape {
+	if strings.IndexByte(in, '\\') == -1 {
 		return in
 	}
 

@@ -14,15 +14,7 @@ func Unescape(in []byte) []byte {
 		return nil
 	}
 
-	var hasEscape bool
-	for _, b := range in {
-		if b == '\\' {
-			hasEscape = true
-			break
-		}
-	}
-
-	if !hasEscape {
+	if bytes.IndexByte(in, '\\') == -1 {
 		return in
 	}
 
