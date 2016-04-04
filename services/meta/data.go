@@ -141,9 +141,7 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 
 	// Normalise ShardDuration before comparing to any existing
 	// retention policies
-	if rpi.ShardGroupDuration == 0 {
-		rpi.ShardGroupDuration = shardGroupDuration(rpi.Duration)
-	}
+	rpi.ShardGroupDuration = normalisedShardDuration(rpi.ShardGroupDuration, rpi.Duration)
 
 	// Find database.
 	di := data.Database(database)
@@ -957,6 +955,14 @@ func shardGroupDuration(d time.Duration) time.Duration {
 		return 1 * 24 * time.Hour
 	}
 	return 1 * time.Hour
+}
+
+// normalisedShardDuration returns normalised shard duration based on a policy duration.
+func normalisedShardDuration(sgd, d time.Duration) time.Duration {
+	if sgd == 0 {
+		return shardGroupDuration(d)
+	}
+	return sgd
 }
 
 // ShardGroupInfo represents metadata about a shard group. The DeletedAt field is important
