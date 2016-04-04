@@ -979,6 +979,7 @@ func snapshot(path string, data *Data) error {
 	if err = f.Sync(); err != nil {
 		return err
 	}
+	f.Close() // must close file before rename file.
 
 	return renameFile(tmpFile, file)
 }
