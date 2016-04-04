@@ -350,8 +350,25 @@ func (s *Service) processCreateIteratorRequest(conn net.Conn) {
 		return
 	}
 
+	var typ influxql.DataType
+	switch itr.(type) {
+	case influxql.FloatIterator:
+		typ = influxql.Float
+	case influxql.IntegerIterator:
+		typ = influxql.Integer
+	case influxql.StringIterator:
+		typ = influxql.String
+	case influxql.BooleanIterator:
+		typ = influxql.Boolean
+	}
+
+	resp := CreateIteratorResponse{
+		Type:  typ,
+		Stats: itr.Stats(),
+	}
+
 	// Encode success response.
-	if err := EncodeTLV(conn, createIteratorResponseMessage, &CreateIteratorResponse{}); err != nil {
+	if err := EncodeTLV(conn, createIteratorResponseMessage, &resp); err != nil {
 		s.Logger.Printf("error writing CreateIterator response: %s", err)
 		return
 	}

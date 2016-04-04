@@ -422,26 +422,18 @@ func drainIterator(itr Iterator) {
 }
 
 // NewReaderIterator returns an iterator that streams from a reader.
-func NewReaderIterator(r io.Reader) (Iterator, error) {
-	var p Point
-	dec := NewPointDecoder(r)
-	if err := dec.DecodePoint(&p); err == io.EOF {
-		return &nilFloatIterator{}, nil
-	} else if err != nil {
-		return nil, err
-	}
-
-	switch p := p.(type) {
-	case *FloatPoint:
-		return newFloatReaderIterator(r, p, dec.Stats()), nil
-	case *IntegerPoint:
-		return newIntegerReaderIterator(r, p, dec.Stats()), nil
-	case *StringPoint:
-		return newStringReaderIterator(r, p, dec.Stats()), nil
-	case *BooleanPoint:
-		return newBooleanReaderIterator(r, p, dec.Stats()), nil
+func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) (Iterator, error) {
+	switch typ {
+	case Float:
+		return newFloatReaderIterator(r, stats), nil
+	case Integer:
+		return newIntegerReaderIterator(r, stats), nil
+	case String:
+		return newStringReaderIterator(r, stats), nil
+	case Boolean:
+		return newBooleanReaderIterator(r, stats), nil
 	default:
-		panic(fmt.Sprintf("unsupported point for reader iterator: %T", p))
+		return &nilFloatIterator{}, nil
 	}
 }
 

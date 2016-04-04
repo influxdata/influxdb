@@ -233,7 +233,9 @@ func (r *CreateIteratorRequest) UnmarshalBinary(data []byte) error {
 
 // CreateIteratorResponse represents a response from remote iterator creation.
 type CreateIteratorResponse struct {
-	Err error
+	Err   error
+	Type  influxql.DataType
+	Stats influxql.IteratorStats
 }
 
 // MarshalBinary encodes r to a binary format.
@@ -241,6 +243,11 @@ func (r *CreateIteratorResponse) MarshalBinary() ([]byte, error) {
 	var pb internal.CreateIteratorResponse
 	if r.Err != nil {
 		pb.Err = proto.String(r.Err.Error())
+	}
+	pb.Type = proto.Int32(int32(r.Type))
+	pb.Stats = &internal.IteratorStats{
+		SeriesN: proto.Int64(int64(r.Stats.SeriesN)),
+		PointN:  proto.Int64(int64(r.Stats.PointN)),
 	}
 	return proto.Marshal(&pb)
 }
@@ -253,6 +260,11 @@ func (r *CreateIteratorResponse) UnmarshalBinary(data []byte) error {
 	}
 	if pb.Err != nil {
 		r.Err = errors.New(pb.GetErr())
+	}
+	r.Type = influxql.DataType(pb.GetType())
+	if stats := pb.GetStats(); stats != nil {
+		r.Stats.SeriesN = int(stats.GetSeriesN())
+		r.Stats.PointN = int(stats.GetPointN())
 	}
 	return nil
 }
