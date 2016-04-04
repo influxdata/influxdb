@@ -43,14 +43,14 @@ type Config struct {
 	Retention  retention.Config  `toml:"retention"`
 	Precreator precreator.Config `toml:"shard-precreation"`
 
-	Admin      admin.Config      `toml:"admin"`
-	Monitor    monitor.Config    `toml:"monitor"`
-	Subscriber subscriber.Config `toml:"subscriber"`
-	HTTPD      httpd.Config      `toml:"http"`
-	Graphites  []graphite.Config `toml:"graphite"`
-	Collectd   collectd.Config   `toml:"collectd"`
-	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
-	UDPs       []udp.Config      `toml:"udp"`
+	Admin          admin.Config      `toml:"admin"`
+	Monitor        monitor.Config    `toml:"monitor"`
+	Subscriber     subscriber.Config `toml:"subscriber"`
+	HTTPD          httpd.Config      `toml:"http"`
+	GraphiteInputs []graphite.Config `toml:"graphite"`
+	Collectd       collectd.Config   `toml:"collectd"`
+	OpenTSDB       opentsdb.Config   `toml:"opentsdb"`
+	UDPInputs      []udp.Config      `toml:"udp"`
 
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 
@@ -82,34 +82,19 @@ func NewConfig() *Config {
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
 
+	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
+	c.UDPInputs = []udp.Config{udp.NewConfig()}
+
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
 	c.BindAddress = DefaultBindAddress
 
-	// All ARRAY attributes have to be init after toml decode
-	// See: https://github.com/BurntSushi/toml/pull/68
-	// Those attributes will be initialized in Config.InitTableAttrs method
-	// Concerned Attributes:
-	//  * `c.Graphites`
-	//  * `c.UDPs`
-
 	return c
-}
-
-// InitTableAttrs initialises all ARRAY attributes if empty
-func (c *Config) InitTableAttrs() {
-	if len(c.UDPs) == 0 {
-		c.UDPs = []udp.Config{udp.NewConfig()}
-	}
-	if len(c.Graphites) == 0 {
-		c.Graphites = []graphite.Config{graphite.NewConfig()}
-	}
 }
 
 // NewDemoConfig returns the config that runs when no config is specified.
 func NewDemoConfig() (*Config, error) {
 	c := NewConfig()
-	c.InitTableAttrs()
 
 	var homeDir string
 	// By default, store meta and data files in current users home directory
@@ -141,7 +126,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	for _, g := range c.Graphites {
+	for _, g := range c.GraphiteInputs {
 		if err := g.Validate(); err != nil {
 			return fmt.Errorf("invalid graphite config: %v", err)
 		}

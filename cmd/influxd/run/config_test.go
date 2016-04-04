@@ -65,18 +65,18 @@ enabled = true
 		t.Fatalf("unexpected admin bind address: %s", c.Admin.BindAddress)
 	} else if c.HTTPD.BindAddress != ":8087" {
 		t.Fatalf("unexpected api bind address: %s", c.HTTPD.BindAddress)
-	} else if len(c.Graphites) != 2 {
-		t.Fatalf("unexpected graphites count: %d", len(c.Graphites))
-	} else if c.Graphites[0].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
-	} else if c.Graphites[1].Protocol != "tcp" {
-		t.Fatalf("unexpected graphite protocol(1): %s", c.Graphites[1].Protocol)
+	} else if len(c.GraphiteInputs) != 2 {
+		t.Fatalf("unexpected graphiteInputs count: %d", len(c.GraphiteInputs))
+	} else if c.GraphiteInputs[0].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
+	} else if c.GraphiteInputs[1].Protocol != "tcp" {
+		t.Fatalf("unexpected graphite protocol(1): %s", c.GraphiteInputs[1].Protocol)
 	} else if c.Collectd.BindAddress != ":1000" {
 		t.Fatalf("unexpected collectd bind address: %s", c.Collectd.BindAddress)
 	} else if c.OpenTSDB.BindAddress != ":2000" {
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
-	} else if c.UDPs[0].BindAddress != ":4444" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
+	} else if c.UDPInputs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
 	} else if c.Subscriber.Enabled != true {
 		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
@@ -141,12 +141,12 @@ enabled = true
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
-	if c.UDPs[0].BindAddress != ":4444" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
+	if c.UDPInputs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
 	}
 
-	if c.Graphites[1].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
+	if c.GraphiteInputs[1].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
 	}
 }
 

@@ -245,11 +245,11 @@ func (s *Server) Open() error {
 	if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
 		return err
 	}
-	for _, g := range s.config.UDPs {
+	for _, g := range s.config.UDPInputs {
 		s.appendUDPService(g)
 	}
 	s.appendRetentionPolicyService(s.config.Retention)
-	for _, g := range s.config.Graphites {
+	for _, g := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(g); err != nil {
 			return err
 		}
