@@ -210,7 +210,7 @@ func (qm *defaultQueryManager) AttachQuery(params *QueryParams) (uint64, <-chan 
 	}
 	qm.queries[qid] = query
 
-	go qm.waitForQuery(qid, params.Timeout, params.InterruptCh, query.monitorCh)
+	go qm.waitForQuery(qid, query.closing, params.Timeout, params.InterruptCh, query.monitorCh)
 	qm.nextID++
 	return qid, query.closing, nil
 }
@@ -222,7 +222,7 @@ func (qm *defaultQueryManager) Query(qid uint64) (*queryTask, bool) {
 	return query, ok
 }
 
-func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, closing <-chan struct{}, monitorCh <-chan error) {
+func (qm *defaultQueryManager) waitForQuery(qid uint64, interrupt <-chan struct{}, timeout time.Duration, closing <-chan struct{}, monitorCh <-chan error) {
 	var timer <-chan time.Time
 	if timeout != 0 {
 		timer = time.After(timeout)
@@ -251,6 +251,9 @@ func (qm *defaultQueryManager) waitForQuery(qid uint64, timeout time.Duration, c
 			break
 		}
 		query.setError(ErrQueryTimeoutReached)
+	case <-interrupt:
+		// Query was manually closed so exit the select.
+		return
 	}
 	qm.KillQuery(qid)
 }
