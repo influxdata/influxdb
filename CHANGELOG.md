@@ -1,4 +1,8 @@
-## v0.12.0 [unreleased]
+## v0.12.0 [2016-04-05]
+### Release Notes
+Upgrading to this release requires a little more than just installing the new binary and starting it up. The upgrade process is very quick and should only require a minute of downtime or less. Details on [upgrading to 0.12 are here](https://docs.influxdata.com/influxdb/v0.12/administration/upgrading/).
+
+This release removes all of the old clustering code. It operates as a standalone server. For a free open source HA setup see the [InfluxDB Relay](https://github.com/influxdata/influxdb-relay).
 
 ### Features
 
