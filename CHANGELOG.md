@@ -1,3 +1,13 @@
+## v0.11.2 [Unreleased]
+
+### Release Notes
+
+Given that there are significant changes between v0.11 and v0.12, we'll leave this patch release open for bugfixes in case something significant enough is discovered to warrant another official release. 
+
+### Bugfixes
+
+- [#6194](https://github.com/influxdata/influxdb/pull/6194): Fix TypeError when processing empty results in admin UI. Thanks @jonseymour!
+
 ## v0.11.1 [2016-03-31]
 
 ### Bugfixes
