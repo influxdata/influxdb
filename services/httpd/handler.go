@@ -63,7 +63,7 @@ type Handler struct {
 		AuthorizeQuery(u *meta.UserInfo, query *influxql.Query, database string) error
 	}
 
-	QueryExecutor influxql.QueryExecutor
+	QueryExecutor *influxql.QueryExecutor
 
 	PointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error

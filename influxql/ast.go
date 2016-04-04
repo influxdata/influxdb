@@ -2215,9 +2215,6 @@ func (s *DropServerStatement) RequiredPrivileges() ExecutionPrivileges {
 type DropShardStatement struct {
 	// ID of the shard to be dropped.
 	ID uint64
-
-	// Meta indicates if the server being dropped is a meta or data node
-	Meta bool
 }
 
 // String returns a string representation of the drop series statement.

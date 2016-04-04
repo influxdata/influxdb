@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding"
 	"encoding/binary"
+	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -325,10 +326,15 @@ func (s *Service) processCreateIteratorRequest(conn net.Conn) {
 			return err
 		}
 
+		sh, ok := s.TSDBStore.(ShardIteratorCreator)
+		if !ok {
+			return errors.New("unable to access a specific shard with this tsdb store")
+		}
+
 		// Collect iterator creators for each shard.
 		ics := make([]influxql.IteratorCreator, 0, len(req.ShardIDs))
 		for _, shardID := range req.ShardIDs {
-			ic := s.TSDBStore.ShardIteratorCreator(shardID)
+			ic := sh.ShardIteratorCreator(shardID)
 			if ic == nil {
 				return nil
 			}
@@ -394,10 +400,15 @@ func (s *Service) processFieldDimensionsRequest(conn net.Conn) {
 			return err
 		}
 
+		sh, ok := s.TSDBStore.(ShardIteratorCreator)
+		if !ok {
+			return errors.New("unable to access a specific shard with this tsdb store")
+		}
+
 		// Collect iterator creators for each shard.
 		ics := make([]influxql.IteratorCreator, 0, len(req.ShardIDs))
 		for _, shardID := range req.ShardIDs {
-			ic := s.TSDBStore.ShardIteratorCreator(shardID)
+			ic := sh.ShardIteratorCreator(shardID)
 			if ic == nil {
 				return nil
 			}
@@ -437,10 +448,15 @@ func (s *Service) processSeriesKeysRequest(conn net.Conn) {
 			return err
 		}
 
+		sh, ok := s.TSDBStore.(ShardIteratorCreator)
+		if !ok {
+			return errors.New("unable to access a specific shard with this tsdb store")
+		}
+
 		// Collect iterator creators for each shard.
 		ics := make([]influxql.IteratorCreator, 0, len(req.ShardIDs))
 		for _, shardID := range req.ShardIDs {
-			ic := s.TSDBStore.ShardIteratorCreator(shardID)
+			ic := sh.ShardIteratorCreator(shardID)
 			if ic == nil {
 				return nil
 			}

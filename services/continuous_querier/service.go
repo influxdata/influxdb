@@ -67,7 +67,7 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
-	QueryExecutor influxql.QueryExecutor
+	QueryExecutor *influxql.QueryExecutor
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
