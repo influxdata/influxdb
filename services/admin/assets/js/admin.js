@@ -33,11 +33,13 @@ var connectionString = function() {
 var getSeriesFromJSON = function(data) {
     var results = [];
     data.results.forEach(function(result) {
-        result.series.forEach(function(s) {
-            results.push(s);
-        });
+        if (result.series) {
+            result.series.forEach(function(s) {
+                results.push(s);
+            });
+        }
     });
-    return results;
+    return results.length > 0 ? results : null;
 }
 
 // gets settings from the browser's localStorage and sets defaults if they aren't found
