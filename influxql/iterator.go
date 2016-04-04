@@ -395,29 +395,23 @@ func (a auxIteratorFields) send(p Point) (ok bool) {
 	return ok
 }
 
-// drainIterator reads all points from an iterator.
-func drainIterator(itr Iterator) {
-	for {
-		switch itr := itr.(type) {
-		case FloatIterator:
-			if p := itr.Next(); p == nil {
-				return
-			}
-		case IntegerIterator:
-			if p := itr.Next(); p == nil {
-				return
-			}
-		case StringIterator:
-			if p := itr.Next(); p == nil {
-				return
-			}
-		case BooleanIterator:
-			if p := itr.Next(); p == nil {
-				return
-			}
-		default:
-			panic(fmt.Sprintf("unsupported iterator type for draining: %T", itr))
+// DrainIterator reads all points from an iterator.
+func DrainIterator(itr Iterator) {
+	switch itr := itr.(type) {
+	case FloatIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
 		}
+	case IntegerIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+		}
+	case StringIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+		}
+	case BooleanIterator:
+		for p := itr.Next(); p != nil; p = itr.Next() {
+		}
+	default:
+		panic(fmt.Sprintf("unsupported iterator type for draining: %T", itr))
 	}
 }
 
@@ -1105,3 +1099,9 @@ func decodeIteratorStats(pb *internal.IteratorStats) IteratorStats {
 		PointN:  int(pb.GetPointN()),
 	}
 }
+
+type reverseStringSlice []string
+
+func (p reverseStringSlice) Len() int           { return len(p) }
+func (p reverseStringSlice) Less(i, j int) bool { return p[i] > p[j] }
+func (p reverseStringSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }

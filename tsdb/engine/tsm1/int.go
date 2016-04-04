@@ -138,7 +138,8 @@ func (e *IntegerEncoder) encodeUncompressed() ([]byte, error) {
 
 // IntegerDecoder decodes a byte slice into int64s.
 type IntegerDecoder struct {
-	values []uint64
+	// 240 is the maximum number of values that can be encoded into a single uint64 using simple8b
+	values [240]uint64
 	bytes  []byte
 	i      int
 	n      int
@@ -154,24 +155,23 @@ type IntegerDecoder struct {
 	err      error
 }
 
-func NewIntegerDecoder(b []byte) IntegerDecoder {
-	d := IntegerDecoder{
-		// 240 is the maximum number of values that can be encoded into a single uint64 using simple8b
-		values: make([]uint64, 240),
-	}
-
-	d.SetBytes(b)
-	return d
-}
-
 func (d *IntegerDecoder) SetBytes(b []byte) {
 	if len(b) > 0 {
 		d.encoding = b[0] >> 4
 		d.bytes = b[1:]
+	} else {
+		d.encoding = 0
+		d.bytes = nil
 	}
-	d.first = true
+
 	d.i = 0
 	d.n = 0
+	d.prev = 0
+	d.first = true
+
+	d.rleFirst = 0
+	d.rleDelta = 0
+	d.err = nil
 }
 
 func (d *IntegerDecoder) Next() bool {
@@ -257,7 +257,7 @@ func (d *IntegerDecoder) decodePacked() {
 		d.n = 1
 		d.values[0] = v
 	} else {
-		n, err := simple8b.Decode(d.values, v)
+		n, err := simple8b.Decode(d.values[:], v)
 		if err != nil {
 			// Should never happen, only error that could be returned is if the the value to be decoded was not
 			// actually encoded by simple8b encoder.

@@ -58,6 +58,7 @@ type TimeEncoder interface {
 
 // TimeDecoder decodes byte slices to time.Time values.
 type TimeDecoder interface {
+	Init(b []byte)
 	Next() bool
 	Read() time.Time
 	Error() error
@@ -193,22 +194,32 @@ func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 
 type decoder struct {
 	v   time.Time
+	i   int
 	ts  []uint64
+	dec simple8b.Decoder
 	err error
 }
 
-func NewTimeDecoder(b []byte) TimeDecoder {
-	d := &decoder{}
+func NewTimeDecoder() TimeDecoder {
+	return &decoder{
+		dec: simple8b.NewDecoder(nil),
+	}
+}
+
+func (d *decoder) Init(b []byte) {
+	d.v = time.Time{}
+	d.i = 0
+	d.ts = d.ts[:0]
+	d.err = nil
 	d.decode(b)
-	return d
 }
 
 func (d *decoder) Next() bool {
-	if len(d.ts) == 0 {
+	if d.i >= len(d.ts) {
 		return false
 	}
-	d.v = time.Unix(0, int64(d.ts[0]))
-	d.ts = d.ts[1:]
+	d.v = time.Unix(0, int64(d.ts[d.i]))
+	d.i++
 	return true
 }
 
@@ -243,11 +254,13 @@ func (d *decoder) decodePacked(b []byte) {
 	div := uint64(math.Pow10(int(b[0] & 0xF)))
 	first := uint64(binary.BigEndian.Uint64(b[1:9]))
 
-	enc := simple8b.NewDecoder(b[9:])
+	d.dec.SetBytes(b[9:])
 
-	deltas := []uint64{first}
-	for enc.Next() {
-		deltas = append(deltas, enc.Read())
+	d.i = 0
+	deltas := d.ts[:0]
+	deltas = append(deltas, first)
+	for d.dec.Next() {
+		deltas = append(deltas, d.dec.Read())
 	}
 
 	// Compute the prefix sum and scale the deltas back up
@@ -256,6 +269,7 @@ func (d *decoder) decodePacked(b []byte) {
 		deltas[i] = deltas[i-1] + dgap
 	}
 
+	d.i = 0
 	d.ts = deltas
 }
 
@@ -292,10 +306,12 @@ func (d *decoder) decodeRLE(b []byte) {
 		deltas[i] = deltas[i-1] + deltas[i]
 	}
 
+	d.i = 0
 	d.ts = deltas
 }
 
 func (d *decoder) decodeRaw(b []byte) {
+	d.i = 0
 	d.ts = make([]uint64, len(b)/8)
 	for i := range d.ts {
 		d.ts[i] = binary.BigEndian.Uint64(b[i*8 : i*8+8])

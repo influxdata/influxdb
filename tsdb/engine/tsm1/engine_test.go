@@ -3,10 +3,13 @@ package tsm1_test
 import (
 	"archive/tar"
 	"bytes"
+	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -492,6 +495,104 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	if p := fitr.Next(); p != nil {
 		t.Fatalf("expected eof: %v", p)
 	}
+}
+
+func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorCount(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Count_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorCount(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Count_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorCount(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorCount(b *testing.B, pointN int) {
+	benchmarkCallIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("count(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func benchmarkCallIterator(b *testing.B, opt influxql.IteratorOptions, pointN int) {
+	e := MustInitBenchmarkEngine(pointN)
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		itr, err := e.CreateIterator(opt)
+		if err != nil {
+			b.Fatal(err)
+		}
+		influxql.DrainIterator(itr)
+	}
+}
+
+var benchmark struct {
+	Engine *Engine
+	PointN int
+}
+
+// MustInitBenchmarkEngine creates a new engine and fills it with points.
+// Reuses previous engine if the same parameters were used.
+func MustInitBenchmarkEngine(pointN int) *Engine {
+	// Reuse engine, if available.
+	if benchmark.Engine != nil {
+		if benchmark.PointN == pointN {
+			return benchmark.Engine
+		}
+
+		// Otherwise close and remove it.
+		benchmark.Engine.Close()
+		benchmark.Engine = nil
+	}
+
+	const batchSize = 1000
+	if pointN%batchSize != 0 {
+		panic(fmt.Sprintf("point count (%d) must be a multiple of batch size (%d)", pointN, batchSize))
+	}
+
+	e := MustOpenEngine()
+
+	// Initialize metadata.
+	e.Index().CreateMeasurementIndexIfNotExists("cpu")
+	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
+	e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", map[string]string{"host": "A"}))
+
+	// Generate time ascending points with jitterred time & value.
+	rand := rand.New(rand.NewSource(0))
+	for i := 0; i < pointN; i += batchSize {
+		var buf bytes.Buffer
+		for j := 0; j < batchSize; j++ {
+			fmt.Fprintf(&buf, "cpu,host=A value=%d %d",
+				100+rand.Intn(50)-25,
+				(time.Duration(i+j)*time.Second)+(time.Duration(rand.Intn(500)-250)*time.Millisecond),
+			)
+			if j != pointN-1 {
+				fmt.Fprint(&buf, "\n")
+			}
+		}
+
+		if err := e.WritePointsString(buf.String()); err != nil {
+			panic(err)
+		}
+	}
+
+	if err := e.WriteSnapshot(); err != nil {
+		panic(err)
+	}
+
+	// Force garbage collection.
+	runtime.GC()
+
+	// Save engine reference for reuse.
+	benchmark.Engine = e
+	benchmark.PointN = pointN
+
+	return e
 }
 
 // Engine is a test wrapper for tsm1.Engine.

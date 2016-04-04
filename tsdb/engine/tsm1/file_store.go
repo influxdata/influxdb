@@ -26,10 +26,10 @@ type TSMFile interface {
 
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
-	ReadFloatBlockAt(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
-	ReadIntegerBlockAt(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error)
-	ReadStringBlockAt(entry *IndexEntry, values []StringValue) ([]StringValue, error)
-	ReadBooleanBlockAt(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
+	ReadFloatBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
+	ReadIntegerBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
+	ReadStringBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
+	ReadBooleanBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key string) []IndexEntry
@@ -728,7 +728,12 @@ func (c *KeyCursor) nextAscending() {
 	}
 
 	// Append the first matching block
-	c.current = []location{c.seeks[c.pos]}
+	if len(c.current) == 0 {
+		c.current = append(c.current, location{})
+	} else {
+		c.current = c.current[:1]
+	}
+	c.current[0] = c.seeks[c.pos]
 
 	// We're done if there are no overlapping blocks.
 	if !c.duplicates {
@@ -759,7 +764,12 @@ func (c *KeyCursor) nextDescending() {
 	}
 
 	// Append the first matching block
-	c.current = []location{c.seeks[c.pos]}
+	if len(c.current) == 0 {
+		c.current = make([]location, 1)
+	} else {
+		c.current = c.current[:1]
+	}
+	c.current[0] = c.seeks[c.pos]
 
 	// We're done if there are no overlapping blocks.
 	if !c.duplicates {
@@ -779,15 +789,16 @@ func (c *KeyCursor) nextDescending() {
 }
 
 // ReadFloatBlock reads the next block as a set of float values.
-func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
+func (c *KeyCursor) ReadFloatBlock(tdec TimeDecoder, fdec *FloatDecoder, buf *[]FloatValue) ([]FloatValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := c.current[0]
-	values, err := first.r.ReadFloatBlockAt(&first.entry, buf[:0])
+	first := &c.current[0]
+	*buf = (*buf)[:0]
+	values, err := first.r.ReadFloatBlockAt(&first.entry, tdec, fdec, buf)
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -802,7 +813,9 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, nil)
+
+			var a []FloatValue
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, fdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -811,7 +824,8 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, nil)
+			var a []FloatValue
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, fdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -823,15 +837,16 @@ func (c *KeyCursor) ReadFloatBlock(buf []FloatValue) ([]FloatValue, error) {
 }
 
 // ReadIntegerBlock reads the next block as a set of integer values.
-func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error) {
+func (c *KeyCursor) ReadIntegerBlock(tdec TimeDecoder, vdec *IntegerDecoder, buf *[]IntegerValue) ([]IntegerValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := c.current[0]
-	values, err := first.r.ReadIntegerBlockAt(&first.entry, buf[:0])
+	first := &c.current[0]
+	*buf = (*buf)[:0]
+	values, err := first.r.ReadIntegerBlockAt(&first.entry, tdec, vdec, buf)
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -846,7 +861,9 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, nil)
+
+			var a []IntegerValue
+			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -855,7 +872,8 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, nil)
+			var a []IntegerValue
+			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -867,15 +885,16 @@ func (c *KeyCursor) ReadIntegerBlock(buf []IntegerValue) ([]IntegerValue, error)
 }
 
 // ReadStringBlock reads the next block as a set of string values.
-func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
+func (c *KeyCursor) ReadStringBlock(tdec TimeDecoder, vdec *StringDecoder, buf *[]StringValue) ([]StringValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := c.current[0]
-	values, err := first.r.ReadStringBlockAt(&first.entry, buf[:0])
+	first := &c.current[0]
+	*buf = (*buf)[:0]
+	values, err := first.r.ReadStringBlockAt(&first.entry, tdec, vdec, buf)
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -890,7 +909,8 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, nil)
+			var a []StringValue
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -899,7 +919,8 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, nil)
+			var a []StringValue
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -911,15 +932,16 @@ func (c *KeyCursor) ReadStringBlock(buf []StringValue) ([]StringValue, error) {
 }
 
 // ReadBooleanBlock reads the next block as a set of boolean values.
-func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error) {
+func (c *KeyCursor) ReadBooleanBlock(tdec TimeDecoder, vdec *BooleanDecoder, buf *[]BooleanValue) ([]BooleanValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := c.current[0]
-	values, err := first.r.ReadBooleanBlockAt(&first.entry, buf[:0])
+	first := &c.current[0]
+	*buf = (*buf)[:0]
+	values, err := first.r.ReadBooleanBlockAt(&first.entry, tdec, vdec, buf)
 	first.read = true
 
 	// Only one block with this key and time range so return it
@@ -934,7 +956,9 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
-			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, nil)
+
+			var a []BooleanValue
+			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -943,7 +967,8 @@ func (c *KeyCursor) ReadBooleanBlock(buf []BooleanValue) ([]BooleanValue, error)
 			cur.read = true
 			c.pos--
 
-			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, nil)
+			var a []BooleanValue
+			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
