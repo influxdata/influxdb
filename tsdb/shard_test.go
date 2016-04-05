@@ -153,7 +153,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 }
 
 // Ensure a shard can create iterators for its underlying data.
-func TestShard_CreateIterator(t *testing.T) {
+func TestShard_CreateIterator_Ascending(t *testing.T) {
 	sh := NewShard()
 
 	// Calling CreateIterator when the engine is not open will return
@@ -216,9 +216,79 @@ cpu,host=serverB,region=uswest value=25  0
 		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
 		Time:  time.Unix(0, 0).UnixNano(),
 		Value: 25,
-		Aux:   []interface{}{float64(0)},
+		Aux:   []interface{}{(*float64)(nil)},
+	}) {
+		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
+	}
+}
+
+// Ensure a shard can create iterators for its underlying data.
+func TestShard_CreateIterator_Descending(t *testing.T) {
+	sh := NewShard()
+
+	// Calling CreateIterator when the engine is not open will return
+	// ErrEngineClosed.
+	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	if exp := tsdb.ErrEngineClosed; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+`)
+
+	// Create iterator.
+	itr, err := sh.CreateIterator(influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr(`value`),
+		Aux:        []string{"val2"},
+		Dimensions: []string{"host"},
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending:  false,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer itr.Close()
+	fitr := itr.(influxql.FloatIterator)
+
+	// Read values from iterator.
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "cpu",
+		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
+		Time:  time.Unix(0, 0).UnixNano(),
+		Value: 25,
+		Aux:   []interface{}{(*float64)(nil)},
+	}) {
+		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
+	}
+
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "cpu",
+		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Time:  time.Unix(10, 0).UnixNano(),
+		Value: 50,
+		Aux:   []interface{}{float64(5)},
 	}) {
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
+	}
+
+	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+		Name:  "cpu",
+		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
+		Time:  time.Unix(0, 0).UnixNano(),
+		Value: 100,
+		Aux:   []interface{}{(*float64)(nil)},
+	}) {
+		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
 }
 
