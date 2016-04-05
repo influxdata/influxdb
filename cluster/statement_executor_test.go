@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log"
 	"os"
 	"reflect"
 	"testing"
@@ -180,10 +181,11 @@ func NewQueryExecutor() *QueryExecutor {
 	}
 	e.QueryExecutor.StatementExecutor = e.StatementExecutor
 
-	e.QueryExecutor.LogOutput = &e.LogOutput
+	var out io.Writer = &e.LogOutput
 	if testing.Verbose() {
-		e.QueryExecutor.LogOutput = io.MultiWriter(e.QueryExecutor.LogOutput, os.Stderr)
+		out = io.MultiWriter(out, os.Stderr)
 	}
+	e.QueryExecutor.Logger = log.New(out, "[query] ", log.LstdFlags)
 
 	return e
 }
