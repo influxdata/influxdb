@@ -260,33 +260,6 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
-	// make sure all data is encoded before attempting to save to bolt
-	// only required for the b1 and bz1 formats
-	if s.engine.Format() != TSM1Format {
-		for _, p := range points {
-			// Ignore if raw data has already been marshaled.
-			if p.Data() != nil {
-				continue
-			}
-
-			// This was populated earlier, don't need to validate that it's there.
-			s.mu.RLock()
-			mf := s.measurementFields[p.Name()]
-			s.mu.RUnlock()
-
-			// If a measurement is dropped while writes for it are in progress, this could be nil
-			if mf == nil {
-				return ErrFieldNotFound
-			}
-
-			data, err := mf.Codec.EncodeFields(p.Fields())
-			if err != nil {
-				return err
-			}
-			p.SetData(data)
-		}
-	}
-
 	// Write to the engine.
 	if err := s.engine.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
 		s.statMap.Add(statWritePointsFail, 1)
