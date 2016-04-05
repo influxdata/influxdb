@@ -35,8 +35,11 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
+
+[[collectd]]
+bind-address = ":1010"
 
 [opentsdb]
 bind-address = ":2000"
@@ -71,8 +74,10 @@ enabled = true
 		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
 	} else if c.GraphiteInputs[1].Protocol != "tcp" {
 		t.Fatalf("unexpected graphite protocol(1): %s", c.GraphiteInputs[1].Protocol)
-	} else if c.Collectd.BindAddress != ":1000" {
-		t.Fatalf("unexpected collectd bind address: %s", c.Collectd.BindAddress)
+	} else if c.CollectdInputs[0].BindAddress != ":1000" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
+	} else if c.CollectdInputs[1].BindAddress != ":1010" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
 	} else if c.OpenTSDB.BindAddress != ":2000" {
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
 	} else if c.UDPInputs[0].BindAddress != ":4444" {
@@ -111,8 +116,11 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
+
+[[collectd]]
+bind-address = ":1010"
 
 [opentsdb]
 bind-address = ":2000"
@@ -137,6 +145,10 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
+	if err := os.Setenv("INFLUXDB_COLLECTD_1_BIND_ADDRESS", ":1020"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := c.ApplyEnvOverrides(); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
@@ -146,7 +158,11 @@ enabled = true
 	}
 
 	if c.GraphiteInputs[1].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
+		t.Fatalf("unexpected graphite protocol: %s", c.GraphiteInputs[1].Protocol)
+	}
+
+	if c.CollectdInputs[1].BindAddress != ":1020" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
 	}
 }
 

@@ -48,7 +48,7 @@ type Config struct {
 	Subscriber     subscriber.Config `toml:"subscriber"`
 	HTTPD          httpd.Config      `toml:"http"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
-	Collectd       collectd.Config   `toml:"collectd"`
+	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDB       opentsdb.Config   `toml:"opentsdb"`
 	UDPInputs      []udp.Config      `toml:"udp"`
 
@@ -79,10 +79,10 @@ func NewConfig() *Config {
 	c.Monitor = monitor.NewConfig()
 	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
-	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
 
 	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
+	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}
 	c.UDPInputs = []udp.Config{udp.NewConfig()}
 
 	c.ContinuousQuery = continuous_querier.NewConfig()

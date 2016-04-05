@@ -63,13 +63,15 @@ type Service struct {
 
 // NewService returns a new instance of the collectd service.
 func NewService(c Config) *Service {
-	s := &Service{
-		Config: &c,
+	s := Service{
+		// Use defaults where necessary.
+		Config: c.WithDefaults(),
+
 		Logger: log.New(os.Stderr, "[collectd] ", log.LstdFlags),
 		err:    make(chan error),
 	}
 
-	return s
+	return &s
 }
 
 // Open starts the service.

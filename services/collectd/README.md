@@ -22,7 +22,7 @@ Please note that UDP packets larger than the standard size of 1452 are dropped a
 ## Config Example
 
 ```
-[collectd]
+[[collectd]]
   enabled = true
   bind-address = ":25826" # the bind address
   database = "collectd" # Name of the database that will be written to

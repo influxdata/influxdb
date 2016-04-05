@@ -212,10 +212,10 @@ reporting-disabled = false
 ###
 ### [collectd]
 ###
-### Controls the listener for collectd data.
+### Controls one or many listeners for collectd data.
 ###
 
-[collectd]
+[[collectd]]
   enabled = false
   # bind-address = ""
   # database = ""
