@@ -980,6 +980,11 @@ func snapshot(path string, data *Data) error {
 		return err
 	}
 
+	//close file handle before renaming to support Windows
+	if err = f.Close(); err != nil {
+		return err
+	}
+
 	return renameFile(tmpFile, file)
 }
 

@@ -44,6 +44,7 @@ This release removes all of the old clustering code. It operates as a standalone
 - [#6152](https://github.com/influxdata/influxdb/issues/6152): Allow SHARD DURATION to be specified in isolation when creating a database
 - [#6153](https://github.com/influxdata/influxdb/issues/6153): Check SHARD DURATION when recreating the same database
 - [#6178](https://github.com/influxdata/influxdb/issues/6178): Ensure SHARD DURATION is checked when recreating a retention policy
+- [#6223](https://github.com/influxdata/influxdb/issues/6223): Failure to start/run on Windows. Thanks @mvadu
 
 ## v0.11.1 [2016-03-31]
 
