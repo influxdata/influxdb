@@ -52,6 +52,8 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
+	Logger *log.Logger
+
 	MetaClient *meta.Client
 
 	TSDBStore     *tsdb.Store
@@ -132,6 +134,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		closing:   make(chan struct{}),
 
 		BindAddress: bind,
+
+		Logger: log.New(os.Stderr, "", log.LstdFlags),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -358,7 +362,7 @@ func (s *Server) startServerReporting() {
 func (s *Server) reportServer() {
 	dis, err := s.MetaClient.Databases()
 	if err != nil {
-		log.Printf("failed to retrieve databases for reporting: %s", err.Error())
+		s.Logger.Printf("failed to retrieve databases for reporting: %s", err.Error())
 		return
 	}
 	numDatabases := len(dis)
@@ -382,7 +386,7 @@ func (s *Server) reportServer() {
 
 	clusterID := s.MetaClient.ClusterID()
 	if err != nil {
-		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
+		s.Logger.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
 		return
 	}
 
@@ -405,7 +409,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
+	s.Logger.Printf("Sending anonymous usage statistics to m.influxdb.com")
 
 	go cl.Save(usage)
 }
