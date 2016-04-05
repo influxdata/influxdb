@@ -188,7 +188,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Monitor.Branch = s.buildInfo.Branch
 	s.Monitor.BuildTime = s.buildInfo.Time
 	s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
-
 	return s, nil
 }
 
@@ -241,22 +240,18 @@ func (s *Server) Open() error {
 	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
+	s.appendCollectdService(s.config.Collectd)
+	if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
+		return nil, err
+	}
+	for _, g := range s.config.UDPs {
+		s.appendUDPService(g)
+	}
 	s.appendRetentionPolicyService(s.config.Retention)
-	for _, i := range s.config.GraphiteInputs {
-		if err := s.appendGraphiteService(i); err != nil {
-			return err
+	for _, g := range s.config.Graphites {
+		if err := s.appendGraphiteService(g); err != nil {
+			return nil, err
 		}
-	}
-	for _, i := range s.config.CollectdInputs {
-		s.appendCollectdService(i)
-	}
-	for _, i := range s.config.OpenTSDBInputs {
-		if err := s.appendOpenTSDBService(i); err != nil {
-			return err
-		}
-	}
-	for _, i := range s.config.UDPInputs {
-		s.appendUDPService(i)
 	}
 
 	s.Subscriber.MetaClient = s.MetaClient
@@ -447,6 +442,7 @@ func (s *Server) MetaServers() []string {
 
 // Service represents a service attached to the server.
 type Service interface {
+	SetLogger(l *log.Logger)
 	Open() error
 	Close() error
 }
