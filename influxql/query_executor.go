@@ -115,19 +115,27 @@ type QueryExecutor struct {
 	mu       sync.RWMutex
 	shutdown bool
 
+	// An available pool of time.Timers. Multiple goroutines can
+	// safely get timers from the pool, and put them back. Users of the
+	// pool should reset a Timer before they use it.
+	timerPool sync.Pool
+
 	// expvar-based stats.
 	statMap *expvar.Map
 }
 
 // NewQueryExecutor returns a new instance of QueryExecutor.
 func NewQueryExecutor() *QueryExecutor {
-	return &QueryExecutor{
+	e := &QueryExecutor{
 		QueryTimeout: DefaultQueryTimeout,
 		LogOutput:    ioutil.Discard,
 		queries:      make(map[uint64]*QueryTask),
 		nextID:       1,
 		statMap:      influxdb.NewStatistics("queryExecutor", "queryExecutor", nil),
 	}
+
+	e.timerPool.New = func() interface{} { return time.NewTimer(0) }
+	return e
 }
 
 // Close kills all running queries and prevents new queries from being attached.
@@ -339,7 +347,6 @@ func (e *QueryExecutor) attachQuery(q *Query, database string, interrupt <-chan 
 		monitorCh: make(chan error),
 	}
 	e.queries[qid] = query
-
 	go e.waitForQuery(qid, query.closing, interrupt, query.monitorCh)
 	e.nextID++
 	return qid, query, nil
@@ -362,11 +369,15 @@ func (e *QueryExecutor) killQuery(qid uint64) error {
 }
 
 func (e *QueryExecutor) waitForQuery(qid uint64, interrupt <-chan struct{}, closing <-chan struct{}, monitorCh <-chan error) {
-	var timer <-chan time.Time
+	var (
+		t  *time.Timer
+		tc <-chan time.Time
+	)
+
 	if e.QueryTimeout != 0 {
-		t := time.NewTimer(e.QueryTimeout)
-		timer = t.C
-		defer t.Stop()
+		t = e.timerPool.Get().(*time.Timer)
+		tc = t.C
+		t.Reset(e.QueryTimeout)
 	}
 
 	select {
@@ -386,15 +397,22 @@ func (e *QueryExecutor) waitForQuery(qid uint64, interrupt <-chan struct{}, clos
 			break
 		}
 		query.setError(err)
-	case <-timer:
+	case <-tc:
 		query, ok := e.query(qid)
 		if !ok {
 			break
 		}
 		query.setError(ErrQueryTimeoutReached)
 	case <-interrupt:
+		if t != nil {
+			e.timerPool.Put(t)
+		}
 		// Query was manually closed so exit the select.
 		return
+	}
+
+	if t != nil {
+		e.timerPool.Put(t)
 	}
 	e.killQuery(qid)
 }
