@@ -233,10 +233,10 @@ reporting-disabled = false
 ###
 ### [opentsdb]
 ###
-### Controls the listener for OpenTSDB data.
+### Controls one or many listeners for OpenTSDB data.
 ###
 
-[opentsdb]
+[[opentsdb]]
   enabled = false
   # bind-address = ":4242"
   # database = "opentsdb"

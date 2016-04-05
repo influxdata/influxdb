@@ -241,17 +241,19 @@ func (s *Server) Open() error {
 	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
-	if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
-		return err
-	}
 	s.appendRetentionPolicyService(s.config.Retention)
-	for _, g := range s.config.GraphiteInputs {
-		if err := s.appendGraphiteService(g); err != nil {
+	for _, i := range s.config.GraphiteInputs {
+		if err := s.appendGraphiteService(i); err != nil {
 			return err
 		}
 	}
 	for _, i := range s.config.CollectdInputs {
 		s.appendCollectdService(i)
+	}
+	for _, i := range s.config.OpenTSDBInputs {
+		if err := s.appendOpenTSDBService(i); err != nil {
+			return err
+		}
 	}
 	for _, i := range s.config.UDPInputs {
 		s.appendUDPService(i)

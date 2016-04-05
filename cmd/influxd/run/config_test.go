@@ -41,8 +41,14 @@ bind-address = ":1000"
 [[collectd]]
 bind-address = ":1010"
 
-[opentsdb]
+[[opentsdb]]
 bind-address = ":2000"
+
+[[opentsdb]]
+bind-address = ":2010"
+
+[[opentsdb]]
+bind-address = ":2020"
 
 [[udp]]
 bind-address = ":4444"
@@ -78,8 +84,12 @@ enabled = true
 		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
 	} else if c.CollectdInputs[1].BindAddress != ":1010" {
 		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
-	} else if c.OpenTSDB.BindAddress != ":2000" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
+	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+	} else if c.OpenTSDBInputs[1].BindAddress != ":2010" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[2].BindAddress != ":2020" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[2].BindAddress)
 	} else if c.UDPInputs[0].BindAddress != ":4444" {
 		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
 	} else if c.Subscriber.Enabled != true {
@@ -122,8 +132,11 @@ bind-address = ":1000"
 [[collectd]]
 bind-address = ":1010"
 
-[opentsdb]
+[[opentsdb]]
 bind-address = ":2000"
+
+[[opentsdb]]
+bind-address = ":2010"
 
 [[udp]]
 bind-address = ":4444"
@@ -149,6 +162,10 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
+	if err := os.Setenv("INFLUXDB_OPENTSDB_0_BIND_ADDRESS", ":2020"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := c.ApplyEnvOverrides(); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
@@ -163,6 +180,10 @@ enabled = true
 
 	if c.CollectdInputs[1].BindAddress != ":1020" {
 		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
+	}
+
+	if c.OpenTSDBInputs[0].BindAddress != ":2020" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
 	}
 }
 
