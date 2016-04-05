@@ -77,11 +77,7 @@ func newStore(c *Config, httpAddr, raftAddr string) *store {
 func (s *store) open(raftln net.Listener) error {
 	s.logger.Printf("Using data dir: %v", s.path)
 
-	joinPeers, err := s.filterAddr(s.config.JoinPeers, s.httpAddr)
-	if err != nil {
-		return err
-	}
-	joinPeers = s.config.JoinPeers
+	joinPeers := s.config.JoinPeers
 
 	var initializePeers []string
 	if len(joinPeers) > 0 {
