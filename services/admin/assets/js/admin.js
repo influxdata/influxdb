@@ -159,12 +159,12 @@ var handleSubmit = function(e) {
     var q = queryElement.value;
 
     clearResults();
+    hideQueryError();
+    hideQuerySuccess();
 
     if (q == "") { return };
 
     var query = $.get(connectionString() + "/query", {q: q, db: currentlySelectedDatabase}, function() {
-        hideQueryError();
-        hideQuerySuccess();
     });
 
     recentQueries.push(q);
@@ -240,6 +240,10 @@ var handleKeypress = function(e) {
 
     // key press == up arrow
     if (e.keyCode == 38) {
+        clearResults()
+        hideQuerySuccess()
+        hideQueryError()
+
         // TODO: stash the current query, if there is one?
         if (queryPointer == recentQueries.length - 1) {
             // this is buggy.
