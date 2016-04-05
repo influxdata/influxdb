@@ -133,6 +133,7 @@ func (s *Service) Close() error {
 // SetLogger sets the internal logger to the logger passed in.
 func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
+	s.Handler.Logger = l
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

@@ -158,9 +158,9 @@ func (h *Handler) AddRoutes(routes ...Route) {
 		handler = cors(handler)
 		handler = requestID(handler)
 		if h.loggingEnabled && r.LoggingEnabled {
-			handler = logging(handler, r.Name, h.Logger)
+			handler = h.logging(handler, r.Name)
 		}
-		handler = recovery(handler, r.Name, h.Logger) // make sure recovery is always last
+		handler = h.recovery(handler, r.Name) // make sure recovery is always last
 
 		h.mux.Add(r.Method, r.Pattern, handler)
 
@@ -768,17 +768,17 @@ func requestID(inner http.Handler) http.Handler {
 	})
 }
 
-func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
+func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		l := &responseLogger{w: w}
 		inner.ServeHTTP(l, r)
 		logLine := buildLogLine(l, r, start)
-		weblog.Println(logLine)
+		h.Logger.Println(logLine)
 	})
 }
 
-func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler {
+func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		l := &responseLogger{w: w}
@@ -787,7 +787,7 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 			if err := recover(); err != nil {
 				logLine := buildLogLine(l, r, start)
 				logLine = fmt.Sprintf(`%s [panic:%s]`, logLine, err)
-				weblog.Println(logLine)
+				h.Logger.Println(logLine)
 			}
 		}()
 
