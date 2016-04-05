@@ -169,7 +169,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor = influxql.NewQueryExecutor()
 	s.QueryExecutor.StatementExecutor = &cluster.StatementExecutor{
 		MetaClient:        s.MetaClient,
-		TSDBStore:         s.TSDBStore,
+		TSDBStore:         cluster.LocalTSDBStore{Store: s.TSDBStore},
 		Monitor:           s.Monitor,
 		PointsWriter:      s.PointsWriter,
 		MaxSelectPointN:   c.Cluster.MaxSelectPointN,
@@ -194,7 +194,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
-	srv.TSDBStore = s.TSDBStore
+	srv.TSDBStore = cluster.LocalTSDBStore{Store: s.TSDBStore}
 	s.Services = append(s.Services, srv)
 	s.ClusterService = srv
 }
