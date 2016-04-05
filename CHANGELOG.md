@@ -4,6 +4,7 @@
 
 - [#6225](https://github.com/influxdata/influxdb/pull/6225): Refresh admin assets.
 - [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
+- [#6216](https://github.com/influxdata/influxdb/pull/6216): Change protobuf package names to avoid clashes.
 
 ## v0.12.0 [2016-04-05]
 
