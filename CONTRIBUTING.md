@@ -193,6 +193,31 @@ If generating the protobuf code is failing for you, check each of the following:
 * Ensure the protobuf library can be found. Make sure that `LD_LIBRRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
 * Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
+
+Generated Go Templates
+----------------------
+
+The query engine requires optimizes data structures for each data type so
+instead of writing each implementation several times we use templates. _Do not
+change code that ends in a `.gen.go` extension!_ Instead you must edit the
+`.gen.go.tmpl` file that was used to generate it.
+
+Once you've edited the template file, you'll need the [`tmpl`][tmpl] utility
+to generate the code:
+
+```sh
+$ go get github.com/benbjohnson/tmpl
+```
+
+Then you can regenerate all templates in the project:
+
+```sh
+$ go generate ./...
+```
+
+[tmpl]: https://github.com/benbjohnson/tmpl
+
+
 Pre-commit checks
 -------------
 
