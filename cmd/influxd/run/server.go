@@ -183,7 +183,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.QueryTimeout = time.Duration(c.Cluster.QueryTimeout)
 	s.QueryExecutor.MaxConcurrentQueries = c.Cluster.MaxConcurrentQueries
 	if c.Data.QueryLogEnabled {
-		s.QueryExecutor.LogOutput = os.Stderr
+		s.QueryExecutor.Logger = log.New(os.Stderr, "[query] ", log.LstdFlags)
 	}
 
 	// Initialize the monitor
