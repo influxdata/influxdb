@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package internal is a generated protocol buffer package.
+Package influxql is a generated protocol buffer package.
 
 It is generated from these files:
 	internal/internal.proto
@@ -19,7 +19,7 @@ It has these top-level messages:
 	Series
 	SeriesList
 */
-package internal
+package influxql
 
 import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
@@ -471,13 +471,13 @@ func (m *SeriesList) GetItems() []*Series {
 }
 
 func init() {
-	proto.RegisterType((*Point)(nil), "internal.Point")
-	proto.RegisterType((*Aux)(nil), "internal.Aux")
-	proto.RegisterType((*IteratorOptions)(nil), "internal.IteratorOptions")
-	proto.RegisterType((*Measurements)(nil), "internal.Measurements")
-	proto.RegisterType((*Measurement)(nil), "internal.Measurement")
-	proto.RegisterType((*Interval)(nil), "internal.Interval")
-	proto.RegisterType((*IteratorStats)(nil), "internal.IteratorStats")
-	proto.RegisterType((*Series)(nil), "internal.Series")
-	proto.RegisterType((*SeriesList)(nil), "internal.SeriesList")
+	proto.RegisterType((*Point)(nil), "influxql.Point")
+	proto.RegisterType((*Aux)(nil), "influxql.Aux")
+	proto.RegisterType((*IteratorOptions)(nil), "influxql.IteratorOptions")
+	proto.RegisterType((*Measurements)(nil), "influxql.Measurements")
+	proto.RegisterType((*Measurement)(nil), "influxql.Measurement")
+	proto.RegisterType((*Interval)(nil), "influxql.Interval")
+	proto.RegisterType((*IteratorStats)(nil), "influxql.IteratorStats")
+	proto.RegisterType((*Series)(nil), "influxql.Series")
+	proto.RegisterType((*SeriesList)(nil), "influxql.SeriesList")
 }
