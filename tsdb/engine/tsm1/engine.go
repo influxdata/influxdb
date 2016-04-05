@@ -79,7 +79,6 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 	e := &Engine{
 		path:              path,
-		logger:            log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 		measurementFields: make(map[string]*tsdb.MeasurementFields),
 
 		WAL:   w,
@@ -96,6 +95,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 	}
+	e.SetLogOutput(os.Stderr)
 
 	return e
 }
@@ -195,7 +195,10 @@ func (e *Engine) Close() error {
 }
 
 // SetLogOutput is a no-op.
-func (e *Engine) SetLogOutput(w io.Writer) {}
+func (e *Engine) SetLogOutput(w io.Writer) {
+	e.logger = log.New(w, "[tsm1] ", log.LstdFlags)
+	e.WAL.SetLogOutput(w)
+}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex) error {

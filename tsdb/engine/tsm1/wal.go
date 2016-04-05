@@ -91,13 +91,12 @@ type WAL struct {
 
 func NewWAL(path string) *WAL {
 	db, rp := tsdb.DecodeStorePath(path)
-	return &WAL{
+	w := &WAL{
 		path: path,
 
 		// these options should be overriden by any options in the config
 		LogOutput:   os.Stderr,
 		SegmentSize: DefaultSegmentSize,
-		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 
 		statMap: influxdb.NewStatistics(
@@ -106,6 +105,13 @@ func NewWAL(path string) *WAL {
 			map[string]string{"path": path, "database": db, "retentionPolicy": rp},
 		),
 	}
+	w.SetLogOutput(os.Stderr)
+	return w
+}
+
+// SetLogOutput sets the location that logs are written to.
+func (l *WAL) SetLogOutput(w io.Writer) {
+	l.logger = log.New(w, "[tsm1wal] ", log.LstdFlags)
 }
 
 // Path returns the path the log was initialized with.

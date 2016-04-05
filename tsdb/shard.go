@@ -121,6 +121,14 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 	}
 }
 
+// SetLogOutput sets the writer to which log output will be written.
+func (s *Shard) SetLogOutput(w io.Writer) {
+	s.LogOutput = w
+	if s.engine != nil {
+		s.engine.SetLogOutput(w)
+	}
+}
+
 // Path returns the path set on the shard when it was created.
 func (s *Shard) Path() string { return s.path }
 
