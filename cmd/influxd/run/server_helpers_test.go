@@ -486,7 +486,7 @@ func configureLogging(s *Server) {
 		nullLogger := log.New(ioutil.Discard, "", 0)
 		s.TSDBStore.Logger = nullLogger
 		s.Monitor.SetLogger(nullLogger)
-		s.QueryExecutor.LogOutput = ioutil.Discard
+		s.QueryExecutor.Logger = log.New(ioutil.Discard, "[query] ", log.LstdFlags)
 		s.Subscriber.SetLogger(nullLogger)
 		for _, service := range s.Services {
 			if service, ok := service.(logSetter); ok {
