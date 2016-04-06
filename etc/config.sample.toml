@@ -83,7 +83,7 @@ reporting-disabled = false
 
   # MaxPointsPerBlock is the maximum number of points in an encoded
   # block in a TSM file. Larger numbers may yield better compression
-  # but could incur a performance peanalty when querying
+  # but could incur a performance penalty when querying
   # max-points-per-block = 1000
 
 ###
