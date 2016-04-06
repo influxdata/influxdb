@@ -82,9 +82,8 @@ type Shard struct {
 
 	options EngineOptions
 
-	mu                sync.RWMutex
-	measurementFields map[string]*MeasurementFields // measurement name to their fields
-	engine            Engine
+	mu     sync.RWMutex
+	engine Engine
 
 	// expvar-based stats.
 	statMap *expvar.Map
@@ -108,12 +107,11 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 	statMap := influxdb.NewStatistics(key, "shard", tags)
 
 	return &Shard{
-		index:             index,
-		id:                id,
-		path:              path,
-		walPath:           walPath,
-		options:           options,
-		measurementFields: make(map[string]*MeasurementFields),
+		index:   index,
+		id:      id,
+		path:    path,
+		walPath: walPath,
+		options: options,
 
 		database:        db,
 		retentionPolicy: rp,
@@ -153,7 +151,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Load metadata index.
-		if err := s.engine.LoadMetadataIndex(s, s.index, s.measurementFields); err != nil {
+		if err := s.engine.LoadMetadataIndex(s, s.index); err != nil {
 			return err
 		}
 
@@ -206,9 +204,7 @@ func (s *Shard) DiskSize() (int64, error) {
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	m := s.measurementFields[measurementName]
+	m := s.engine.MeasurementFields(measurementName)
 	if m == nil {
 		return NewFieldCodec(nil)
 	}
@@ -232,63 +228,25 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	if s.closed() {
 		return ErrEngineClosed
 	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	s.statMap.Add(statWriteReq, 1)
 
-	seriesToCreate, fieldsToCreate, seriesToAddShardTo, err := s.validateSeriesAndFields(points)
+	fieldsToCreate, err := s.validateSeriesAndFields(points)
 	if err != nil {
 		return err
 	}
-	s.statMap.Add(statSeriesCreate, int64(len(seriesToCreate)))
 	s.statMap.Add(statFieldsCreate, int64(len(fieldsToCreate)))
 
-	// add any new series to the in-memory index
-	if len(seriesToCreate) > 0 {
-		for _, ss := range seriesToCreate {
-			s.index.CreateSeriesIndexIfNotExists(ss.Measurement, ss.Series)
-		}
-	}
-
-	if len(seriesToAddShardTo) > 0 {
-		for _, k := range seriesToAddShardTo {
-			s.index.AssignShard(k, s.id)
-		}
-	}
-
 	// add any new fields and keep track of what needs to be saved
-	measurementFieldsToSave, err := s.createFieldsAndMeasurements(fieldsToCreate)
-	if err != nil {
+	if err := s.createFieldsAndMeasurements(fieldsToCreate); err != nil {
 		return err
-	}
-
-	// make sure all data is encoded before attempting to save to bolt
-	// only required for the b1 and bz1 formats
-	if s.engine.Format() != TSM1Format {
-		for _, p := range points {
-			// Ignore if raw data has already been marshaled.
-			if p.Data() != nil {
-				continue
-			}
-
-			// This was populated earlier, don't need to validate that it's there.
-			s.mu.RLock()
-			mf := s.measurementFields[p.Name()]
-			s.mu.RUnlock()
-
-			// If a measurement is dropped while writes for it are in progress, this could be nil
-			if mf == nil {
-				return ErrFieldNotFound
-			}
-
-			data, err := mf.Codec.EncodeFields(p.Fields())
-			if err != nil {
-				return err
-			}
-			p.SetData(data)
-		}
 	}
 
 	// Write to the engine.
-	if err := s.engine.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
+	if err := s.engine.WritePoints(points); err != nil {
 		s.statMap.Add(statWritePointsFail, 1)
 		return fmt.Errorf("engine: %s", err)
 	}
@@ -315,39 +273,21 @@ func (s *Shard) DeleteMeasurement(name string, seriesKeys []string) error {
 		return err
 	}
 
-	// Remove entry from shard index.
-	s.mu.Lock()
-	delete(s.measurementFields, name)
-	s.mu.Unlock()
-
 	return nil
 }
 
-func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[string]*MeasurementFields, error) {
+func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
 	if len(fieldsToCreate) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// add fields
-	measurementsToSave := make(map[string]*MeasurementFields)
 	for _, f := range fieldsToCreate {
-		m := s.measurementFields[f.Measurement]
-		if m == nil {
-			m = measurementsToSave[f.Measurement]
-			if m == nil {
-				m = &MeasurementFields{Fields: make(map[string]*Field)}
-			}
-			s.measurementFields[f.Measurement] = m
-		}
-
-		measurementsToSave[f.Measurement] = m
+		m := s.engine.MeasurementFields(f.Measurement)
 
 		// Add the field to the in memory index
 		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
-			return nil, err
+			return err
 		}
 
 		// ensure the measurement is in the index and the field is there
@@ -355,32 +295,27 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		measurement.SetFieldName(f.Field.Name)
 	}
 
-	return measurementsToSave, nil
+	return nil
 }
 
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
-func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate, []*FieldCreate, []string, error) {
-	var seriesToCreate []*SeriesCreate
+func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, error) {
 	var fieldsToCreate []*FieldCreate
-	var seriesToAddShardTo []string
 
 	// get the shard mutex for locally defined fields
 	for _, p := range points {
 		// see if the series should be added to the index
-		if ss := s.index.Series(string(p.Key())); ss == nil {
-			series := NewSeries(string(p.Key()), p.Tags())
-			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), series})
-			seriesToAddShardTo = append(seriesToAddShardTo, series.Key)
-		} else if !ss.shardIDs[s.id] {
-			// this is the first time this series is being written into this shard, persist it
-			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), ss})
-			seriesToAddShardTo = append(seriesToAddShardTo, ss.Key)
+		ss := s.index.Series(string(p.Key()))
+		if ss == nil {
+			ss = NewSeries(string(p.Key()), p.Tags())
+			s.statMap.Add(statSeriesCreate, 1)
 		}
 
+		ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), ss)
+		s.index.AssignShard(ss.Key, ss.id)
+
 		// see if the field definitions need to be saved to the shard
-		s.mu.RLock()
-		mf := s.measurementFields[p.Name()]
-		s.mu.RUnlock()
+		mf := s.engine.MeasurementFields(p.Name())
 
 		if mf == nil {
 			for name, value := range p.Fields() {
@@ -391,10 +326,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 
 		// validate field types and encode data
 		for name, value := range p.Fields() {
-			if f := mf.Fields[name]; f != nil {
+			if f := mf.Field(name); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
-					return nil, nil, nil, fmt.Errorf("field type conflict: input field \"%s\" on measurement \"%s\" is type %T, already exists as type %s", name, p.Name(), value, f.Type)
+					return nil, fmt.Errorf("field type conflict: input field \"%s\" on measurement \"%s\" is type %T, already exists as type %s", name, p.Name(), value, f.Type)
 				}
 
 				continue // Field is present, and it's of the same type. Nothing more to do.
@@ -404,7 +339,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 		}
 	}
 
-	return seriesToCreate, fieldsToCreate, seriesToAddShardTo, nil
+	return fieldsToCreate, nil
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -568,14 +503,23 @@ func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {
-	Fields map[string]*Field `json:"fields"`
+	mu sync.RWMutex
+
+	fields map[string]*Field `json:"fields"`
 	Codec  *FieldCodec
+}
+
+func NewMeasurementFields() *MeasurementFields {
+	return &MeasurementFields{fields: make(map[string]*Field)}
 }
 
 // MarshalBinary encodes the object to a binary format.
 func (m *MeasurementFields) MarshalBinary() ([]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	var pb internal.MeasurementFields
-	for _, f := range m.Fields {
+	for _, f := range m.fields {
 		id := int32(f.ID)
 		name := f.Name
 		t := int32(f.Type)
@@ -586,13 +530,16 @@ func (m *MeasurementFields) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes the object from a binary format.
 func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	var pb internal.MeasurementFields
 	if err := proto.Unmarshal(buf, &pb); err != nil {
 		return err
 	}
-	m.Fields = make(map[string]*Field, len(pb.Fields))
+	m.fields = make(map[string]*Field, len(pb.Fields))
 	for _, f := range pb.Fields {
-		m.Fields[f.GetName()] = &Field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
+		m.fields[f.GetName()] = &Field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
 	}
 	return nil
 }
@@ -601,29 +548,42 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
 func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType, limitCount bool) error {
+	m.mu.RLock()
+
 	// Ignore if the field already exists.
-	if f := m.Fields[name]; f != nil {
+	if f := m.fields[name]; f != nil {
 		if f.Type != typ {
+			m.mu.RUnlock()
 			return ErrFieldTypeConflict
 		}
+		m.mu.RUnlock()
 		return nil
 	}
+	m.mu.RUnlock()
 
-	// If we're supposed to limit the number of fields, only 255 are allowed. If we go over that then return an error.
-	if len(m.Fields)+1 > math.MaxUint8 && limitCount {
-		return ErrFieldOverflow
+	m.mu.Lock()
+	if f := m.fields[name]; f != nil {
+		return nil
 	}
 
 	// Create and append a new field.
 	f := &Field{
-		ID:   uint8(len(m.Fields) + 1),
+		ID:   uint8(len(m.fields) + 1),
 		Name: name,
 		Type: typ,
 	}
-	m.Fields[name] = f
-	m.Codec = NewFieldCodec(m.Fields)
+	m.fields[name] = f
+	m.Codec = NewFieldCodec(m.fields)
+	m.mu.Unlock()
 
 	return nil
+}
+
+func (m *MeasurementFields) Field(name string) *Field {
+	m.mu.RLock()
+	f := m.fields[name]
+	m.mu.RUnlock()
+	return f
 }
 
 // Field represents a series field.
