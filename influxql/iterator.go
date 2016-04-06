@@ -734,7 +734,7 @@ func (opt IteratorOptions) SeekTime() int64 {
 // Window returns the time window [start,end) that t falls within.
 func (opt IteratorOptions) Window(t int64) (start, end int64) {
 	if opt.Interval.IsZero() {
-		return opt.StartTime, opt.EndTime
+		return opt.StartTime, opt.EndTime + 1
 	}
 
 	// Subtract the offset to the time so we calculate the correct base interval.
