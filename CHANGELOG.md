@@ -4,6 +4,7 @@
 
 - [#6225](https://github.com/influxdata/influxdb/pull/6225): Refresh admin assets.
 - [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
+- [#6190](https://github.com/influxdata/influxdb/pull/6190): Fix race on measurementFields.
 
 ## v0.12.0 [2016-04-05]
 
