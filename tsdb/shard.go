@@ -371,7 +371,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*SeriesCreate,
 			series := NewSeries(string(p.Key()), p.Tags())
 			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), series})
 			seriesToAddShardTo = append(seriesToAddShardTo, series.Key)
-		} else if !ss.shardIDs[s.id] {
+		} else if !ss.InShard(s.id) {
 			// this is the first time this series is being written into this shard, persist it
 			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), ss})
 			seriesToAddShardTo = append(seriesToAddShardTo, ss.Key)
