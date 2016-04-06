@@ -38,11 +38,12 @@ type bufCursor struct {
 		value  interface{}
 		filled bool
 	}
+	ascending bool
 }
 
 // newBufCursor returns a bufferred wrapper for cur.
-func newBufCursor(cur cursor) *bufCursor {
-	return &bufCursor{cur: cur}
+func newBufCursor(cur cursor, ascending bool) *bufCursor {
+	return &bufCursor{cur: cur, ascending: ascending}
 }
 
 // next returns the buffer, if filled. Otherwise returns the next key/value from the cursor.
@@ -74,13 +75,16 @@ func (c *bufCursor) peek() (k int64, v interface{}) {
 func (c *bufCursor) nextAt(seek int64) interface{} {
 	for {
 		k, v := c.next()
-		if k == tsdb.EOF || k == seek {
-			return v
-		} else if k < seek {
-			continue
+		if k != tsdb.EOF {
+			if k == seek {
+				return v
+			} else if c.ascending && k < seek {
+				continue
+			} else if !c.ascending && k > seek {
+				continue
+			}
+			c.unread(k, v)
 		}
-
-		c.unread(k, v)
 
 		// Return "nil" value for type.
 		switch c.cur.(type) {
@@ -160,8 +164,10 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -526,8 +532,10 @@ func (itr *integerIterator) Next() *influxql.IntegerPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -892,8 +900,10 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -1258,8 +1268,10 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
