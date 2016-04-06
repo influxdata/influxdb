@@ -108,7 +108,7 @@ type {{.name}}Iterator struct {
 	aux   []cursorAt
 	conds struct {
 		names []string
-		curs  []*bufCursor
+		curs  []cursorAt
 	}
 	opt   influxql.IteratorOptions
 
@@ -120,7 +120,7 @@ type {{.name}}Iterator struct {
 	statsBuf  influxql.IteratorStats
 }
 
-func new{{.Name}}Iterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur {{.name}}Cursor, aux []cursorAt, conds []*bufCursor, condNames []string) *{{.name}}Iterator {
+func new{{.Name}}Iterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur {{.name}}Cursor, aux []cursorAt, conds []cursorAt, condNames []string) *{{.name}}Iterator {
 	itr := &{{.name}}Iterator{
 		cur:   cur,
 		aux:   aux,

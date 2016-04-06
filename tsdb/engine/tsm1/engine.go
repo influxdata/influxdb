@@ -806,10 +806,8 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 					if t.Filters[i] != nil {
 						// Retrieve non-time fields from this series filter and filter out tags.
 						for _, f := range influxql.ExprNames(t.Filters[i]) {
-							if mm.HasField(f) {
-								conditionFields[fields] = f
-								fields++
-							}
+							conditionFields[fields] = f
+							fields++
 						}
 					}
 
@@ -865,15 +863,23 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 
 	// Build conditional field cursors.
 	// If a conditional field doesn't exist then ignore the series.
-	var conds []*bufCursor
+	var conds []cursorAt
 	if len(conditionFields) > 0 {
-		conds = make([]*bufCursor, len(conditionFields))
+		conds = make([]cursorAt, len(conditionFields))
 		for i := range conds {
 			cur := e.buildCursor(mm.Name, seriesKey, conditionFields[i], opt)
-			if cur == nil {
-				return nil, nil
+			if cur != nil {
+				conds[i] = newBufCursor(cur, opt.Ascending)
+				continue
 			}
-			conds[i] = newBufCursor(cur, opt.Ascending)
+
+			// If field doesn't exist, use the tag value.
+			// However, if the tag value is blank then return a null.
+			if v := tags.Value(conditionFields[i]); v == "" {
+				conds[i] = &stringNilLiteralCursor{}
+			} else {
+				conds[i] = &stringLiteralCursor{value: v}
+			}
 		}
 	}
 
