@@ -1,5 +1,17 @@
-## v0.12.0 [2016-04-05]
+## v0.13.0 [unreleased]
+
 ### Release Notes
+
+### Features
+
+### Bugfixes
+
+- [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix panic caused by concurrent access to Series' shard IDs.
+
+## v0.12.0 [2016-04-05]
+
+### Release Notes
+
 Upgrading to this release requires a little more than just installing the new binary and starting it up. The upgrade process is very quick and should only require a minute of downtime or less. Details on [upgrading to 0.12 are here](https://docs.influxdata.com/influxdb/v0.12/administration/upgrading/).
 
 This release removes all of the old clustering code. It operates as a standalone server. For a free open source HA setup see the [InfluxDB Relay](https://github.com/influxdata/influxdb-relay).

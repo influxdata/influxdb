@@ -1314,6 +1314,14 @@ func (s *Series) AssignShard(shardID uint64) {
 	s.mu.Unlock()
 }
 
+// InShard determins if the shard specified by shardID has defined
+// the Series.
+func (s *Series) InShard(shardID uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.shardIDs[shardID]
+}
+
 // MarshalBinary encodes the object to a binary format.
 func (s *Series) MarshalBinary() ([]byte, error) {
 	s.mu.RLock()
