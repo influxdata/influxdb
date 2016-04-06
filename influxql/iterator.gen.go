@@ -1711,7 +1711,7 @@ func (itr *floatTransformIterator) Next() *FloatPoint {
 // new point if possible.
 type floatTransformFunc func(p *FloatPoint) *FloatPoint
 
-// floatReduceIterator executes a function to modify an existing point for every
+// floatBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type floatBoolTransformIterator struct {
 	input FloatIterator
@@ -3512,7 +3512,7 @@ func (itr *integerTransformIterator) Next() *IntegerPoint {
 // new point if possible.
 type integerTransformFunc func(p *IntegerPoint) *IntegerPoint
 
-// integerReduceIterator executes a function to modify an existing point for every
+// integerBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type integerBoolTransformIterator struct {
 	input IntegerIterator
@@ -5313,7 +5313,7 @@ func (itr *stringTransformIterator) Next() *StringPoint {
 // new point if possible.
 type stringTransformFunc func(p *StringPoint) *StringPoint
 
-// stringReduceIterator executes a function to modify an existing point for every
+// stringBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type stringBoolTransformIterator struct {
 	input StringIterator
@@ -7114,7 +7114,7 @@ func (itr *booleanTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type booleanTransformFunc func(p *BooleanPoint) *BooleanPoint
 
-// booleanReduceIterator executes a function to modify an existing point for every
+// booleanBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type booleanBoolTransformIterator struct {
 	input BooleanIterator
