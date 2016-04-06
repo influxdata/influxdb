@@ -837,7 +837,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 			// Create cursor from field.
 			cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
 			if cur != nil {
-				aux[i] = newBufCursor(cur)
+				aux[i] = newBufCursor(cur, opt.Ascending)
 				continue
 			}
 
@@ -861,7 +861,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 			if cur == nil {
 				return nil, nil
 			}
-			conds[i] = newBufCursor(cur)
+			conds[i] = newBufCursor(cur, opt.Ascending)
 		}
 	}
 

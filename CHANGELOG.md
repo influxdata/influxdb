@@ -1,4 +1,11 @@
-## v0.12.0 [unreleased]
+## v0.12.1 [unreleased]
+
+### Bugfixes
+
+- [#6225](https://github.com/influxdata/influxdb/pull/6225): Refresh admin assets.
+- [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
+
+## v0.12.0 [2016-04-05]
 
 ### Features
 
