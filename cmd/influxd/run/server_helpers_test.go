@@ -245,9 +245,9 @@ func NewConfig() *run.Config {
 	c.Data.WALDir = MustTempFile()
 	c.Data.WALLoggingEnabled = false
 
-	c.HTTPD.Enabled = true
-	c.HTTPD.BindAddress = "127.0.0.1:0"
-	c.HTTPD.LogEnabled = testing.Verbose()
+	c.HTTPDInputs[0].Enabled = true
+	c.HTTPDInputs[0].BindAddress = "127.0.0.1:0"
+	c.HTTPDInputs[0].LogEnabled = testing.Verbose()
 
 	c.Monitor.StoreEnabled = false
 

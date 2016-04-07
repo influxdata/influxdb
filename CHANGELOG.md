@@ -9,6 +9,7 @@
 - [#5707](https://github.com/influxdata/influxdb/issues/5707): Return a deprecated message when IF NOT EXISTS is used.
 - [#6334](https://github.com/influxdata/influxdb/pull/6334): Allow environment variables to be set per input type.
 - [#6394](https://github.com/influxdata/influxdb/pull/6394): Allow time math with integer timestamps.
+- [#6333](https://github.com/influxdata/influxdb/pull/6333): Support for multiple listeners for HTTP inputs.
 
 ### Bugfixes
 

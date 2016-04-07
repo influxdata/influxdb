@@ -131,19 +131,26 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		err:       make(chan error),
 		closing:   make(chan struct{}),
 
-		BindAddress: bind,
-
-		MetaClient: meta.NewClient(c.Meta),
-
-		Monitor: monitor.New(c.Monitor),
-
+		BindAddress:       bind,
+		MetaClient:        meta.NewClient(c.Meta),
+		Monitor:           monitor.New(c.Monitor),
 		reportingDisabled: c.ReportingDisabled,
+		tcpAddr:           bind,
+		config:            c,
+	}
 
-		httpAPIAddr: c.HTTPD.BindAddress,
-		httpUseTLS:  c.HTTPD.HTTPSEnabled,
-		tcpAddr:     bind,
+	for _, i := range c.HTTPDInputs {
+		if i.BindAddress != "" {
+			s.httpAPIAddr = i.BindAddress
+			break
+		}
+	}
 
-		config: c,
+	for _, i := range c.HTTPDInputs {
+		if i.HTTPSEnabled {
+			s.httpUseTLS = i.HTTPSEnabled
+			break
+		}
 	}
 
 	if err := s.MetaClient.Open(); err != nil {
@@ -240,8 +247,10 @@ func (s *Server) Open() error {
 	s.appendCopierService()
 	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
-	s.appendHTTPDService(s.config.HTTPD)
 	s.appendRetentionPolicyService(s.config.Retention)
+	for _, i := range s.config.HTTPDInputs {
+		s.appendHTTPDService(i)
+	}
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {
 			return err
