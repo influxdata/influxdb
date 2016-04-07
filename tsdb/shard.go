@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/internal"
+	internal "github.com/influxdata/influxdb/tsdb/internal"
 )
 
 const (
