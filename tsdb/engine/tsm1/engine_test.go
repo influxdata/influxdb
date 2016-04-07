@@ -34,7 +34,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 	// Load metadata index.
 	index := tsdb.NewDatabaseIndex("db")
-	if err := e.LoadMetadataIndex(nil, index, make(map[string]*tsdb.MeasurementFields)); err != nil {
+	if err := e.LoadMetadataIndex(nil, index); err != nil {
 		t.Fatal(err)
 	}
 
@@ -57,7 +57,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 	// Load metadata index.
 	index = tsdb.NewDatabaseIndex("db")
-	if err := e.LoadMetadataIndex(nil, index, make(map[string]*tsdb.MeasurementFields)); err != nil {
+	if err := e.LoadMetadataIndex(nil, index); err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,7 +71,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	// Write a new point and ensure we can close and load index from TSM and WAL
 	if err := e.WritePoints([]models.Point{
 		MustParsePointString("cpu,host=B value=1.2 2000000000"),
-	}, nil, nil); err != nil {
+	}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -82,7 +82,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 	// Load metadata index.
 	index = tsdb.NewDatabaseIndex("db")
-	if err := e.LoadMetadataIndex(nil, index, make(map[string]*tsdb.MeasurementFields)); err != nil {
+	if err := e.LoadMetadataIndex(nil, index); err != nil {
 		t.Fatal(err)
 	}
 
@@ -152,14 +152,14 @@ func TestEngine_Backup(t *testing.T) {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p1}, nil, nil); err != nil {
+	if err := e.WritePoints([]models.Point{p1}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p2}, nil, nil); err != nil {
+	if err := e.WritePoints([]models.Point{p2}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -189,7 +189,7 @@ func TestEngine_Backup(t *testing.T) {
 	// so this test won't work properly unless the file is at least a second past the last one
 	time.Sleep(time.Second)
 
-	if err := e.WritePoints([]models.Point{p3}, nil, nil); err != nil {
+	if err := e.WritePoints([]models.Point{p3}); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -521,7 +521,7 @@ func MustOpenEngine() *Engine {
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
-	if err := e.LoadMetadataIndex(nil, tsdb.NewDatabaseIndex("db"), make(map[string]*tsdb.MeasurementFields)); err != nil {
+	if err := e.LoadMetadataIndex(nil, tsdb.NewDatabaseIndex("db")); err != nil {
 		panic(err)
 	}
 	return e
@@ -559,7 +559,7 @@ func (e *Engine) MustWriteSnapshot() {
 
 // WritePointsString parses a string buffer and writes the points.
 func (e *Engine) WritePointsString(buf ...string) error {
-	return e.WritePoints(MustParsePointsString(strings.Join(buf, "\n")), nil, nil)
+	return e.WritePoints(MustParsePointsString(strings.Join(buf, "\n")))
 }
 
 // MustParsePointsString parses points from a string. Panic on error.

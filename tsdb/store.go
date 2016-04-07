@@ -616,18 +616,20 @@ func (s *Store) IteratorCreators() influxql.IteratorCreators {
 // WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	select {
 	case <-s.closing:
+		s.mu.RUnlock()
 		return ErrStoreClosed
 	default:
 	}
 
 	sh, ok := s.shards[shardID]
 	if !ok {
+		s.mu.RUnlock()
 		return ErrShardNotFound
 	}
+	s.mu.RUnlock()
 
 	return sh.WritePoints(points)
 }
