@@ -6,6 +6,8 @@
 
 package influxql
 
+import "sort"
+
 // FloatPointAggregator aggregates points to produce a single point.
 type FloatPointAggregator interface {
 	AggregateFloat(p *FloatPoint)
@@ -253,6 +255,33 @@ func (r *FloatSliceFuncBooleanReducer) AggregateFloatBulk(points []FloatPoint) {
 
 func (r *FloatSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
+}
+
+// FloatDistinctReducer returns the distinct points in a series.
+type FloatDistinctReducer struct {
+	m map[float64]FloatPoint
+}
+
+// NewFloatDistinctReducer creates a new FloatDistinctReducer.
+func NewFloatDistinctReducer() *FloatDistinctReducer {
+	return &FloatDistinctReducer{m: make(map[float64]FloatPoint)}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *FloatDistinctReducer) AggregateFloat(p *FloatPoint) {
+	if _, ok := r.m[p.Value]; !ok {
+		r.m[p.Value] = *p
+	}
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *FloatDistinctReducer) Emit() []FloatPoint {
+	points := make([]FloatPoint, 0, len(r.m))
+	for _, p := range r.m {
+		points = append(points, FloatPoint{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort(floatPoints(points))
+	return points
 }
 
 // IntegerPointAggregator aggregates points to produce a single point.
@@ -504,6 +533,33 @@ func (r *IntegerSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
 }
 
+// IntegerDistinctReducer returns the distinct points in a series.
+type IntegerDistinctReducer struct {
+	m map[int64]IntegerPoint
+}
+
+// NewIntegerDistinctReducer creates a new IntegerDistinctReducer.
+func NewIntegerDistinctReducer() *IntegerDistinctReducer {
+	return &IntegerDistinctReducer{m: make(map[int64]IntegerPoint)}
+}
+
+// AggregateInteger aggregates a point into the reducer.
+func (r *IntegerDistinctReducer) AggregateInteger(p *IntegerPoint) {
+	if _, ok := r.m[p.Value]; !ok {
+		r.m[p.Value] = *p
+	}
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *IntegerDistinctReducer) Emit() []IntegerPoint {
+	points := make([]IntegerPoint, 0, len(r.m))
+	for _, p := range r.m {
+		points = append(points, IntegerPoint{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort(integerPoints(points))
+	return points
+}
+
 // StringPointAggregator aggregates points to produce a single point.
 type StringPointAggregator interface {
 	AggregateString(p *StringPoint)
@@ -753,6 +809,33 @@ func (r *StringSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
 }
 
+// StringDistinctReducer returns the distinct points in a series.
+type StringDistinctReducer struct {
+	m map[string]StringPoint
+}
+
+// NewStringDistinctReducer creates a new StringDistinctReducer.
+func NewStringDistinctReducer() *StringDistinctReducer {
+	return &StringDistinctReducer{m: make(map[string]StringPoint)}
+}
+
+// AggregateString aggregates a point into the reducer.
+func (r *StringDistinctReducer) AggregateString(p *StringPoint) {
+	if _, ok := r.m[p.Value]; !ok {
+		r.m[p.Value] = *p
+	}
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *StringDistinctReducer) Emit() []StringPoint {
+	points := make([]StringPoint, 0, len(r.m))
+	for _, p := range r.m {
+		points = append(points, StringPoint{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort(stringPoints(points))
+	return points
+}
+
 // BooleanPointAggregator aggregates points to produce a single point.
 type BooleanPointAggregator interface {
 	AggregateBoolean(p *BooleanPoint)
@@ -1000,4 +1083,31 @@ func (r *BooleanSliceFuncReducer) AggregateBooleanBulk(points []BooleanPoint) {
 
 func (r *BooleanSliceFuncReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
+}
+
+// BooleanDistinctReducer returns the distinct points in a series.
+type BooleanDistinctReducer struct {
+	m map[bool]BooleanPoint
+}
+
+// NewBooleanDistinctReducer creates a new BooleanDistinctReducer.
+func NewBooleanDistinctReducer() *BooleanDistinctReducer {
+	return &BooleanDistinctReducer{m: make(map[bool]BooleanPoint)}
+}
+
+// AggregateBoolean aggregates a point into the reducer.
+func (r *BooleanDistinctReducer) AggregateBoolean(p *BooleanPoint) {
+	if _, ok := r.m[p.Value]; !ok {
+		r.m[p.Value] = *p
+	}
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *BooleanDistinctReducer) Emit() []BooleanPoint {
+	points := make([]BooleanPoint, 0, len(r.m))
+	for _, p := range r.m {
+		points = append(points, BooleanPoint{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort(booleanPoints(points))
+	return points
 }
