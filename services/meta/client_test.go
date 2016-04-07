@@ -745,6 +745,61 @@ func TestMetaClient_Shards(t *testing.T) {
 	}
 }
 
+// Tests that calling CreateShardGroup for the same time range doesn't increment the data.Index
+func TestMetaClient_CreateShardGroupIdempotent(t *testing.T) {
+	t.Parallel()
+
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// create a shard group.
+	tmin := time.Now()
+	sg, err := c.CreateShardGroup("db0", "default", tmin)
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	i := c.Data().Index
+	t.Log("index: ", i)
+
+	// create the same shard group.
+	sg, err = c.CreateShardGroup("db0", "default", tmin)
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	t.Log("index: ", i)
+	if got, exp := c.Data().Index, i; got != exp {
+		t.Fatalf("PrecreateShardGroups failed: invalid index, got %d, exp %d", got, exp)
+	}
+
+	// make sure pre-creating is also idempotent
+	// Test pre-creating shard groups.
+	dur := sg.EndTime.Sub(sg.StartTime) + time.Nanosecond
+	tmax := tmin.Add(dur)
+	if err := c.PrecreateShardGroups(tmin, tmax); err != nil {
+		t.Fatal(err)
+	}
+	i = c.Data().Index
+	t.Log("index: ", i)
+	if err := c.PrecreateShardGroups(tmin, tmax); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("index: ", i)
+	if got, exp := c.Data().Index, i; got != exp {
+		t.Fatalf("PrecreateShardGroups failed: invalid index, got %d, exp %d", got, exp)
+	}
+}
+
 func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
 	t.Parallel()
 

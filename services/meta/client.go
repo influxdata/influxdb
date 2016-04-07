@@ -697,6 +697,10 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 
 	data := c.cacheData.Clone()
 
+	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
+		return sg, nil
+	}
+
 	sgi, err := createShardGroup(data, database, policy, timestamp)
 	if err != nil {
 		return nil, err
@@ -710,8 +714,9 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 }
 
 func createShardGroup(data *Data, database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	// It is the responsibility of the caller to check if it exists before calling this method.
 	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
-		return sg, nil
+		return nil, ErrShardGroupExists
 	}
 
 	if err := data.CreateShardGroup(database, policy, timestamp); err != nil {
@@ -755,6 +760,7 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	data := c.cacheData.Clone()
+	var changed bool
 
 	for _, di := range data.Databases {
 		for _, rp := range di.RetentionPolicies {
@@ -770,17 +776,26 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 
 				// Create successive shard group.
 				nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
-				if newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime); err != nil {
-					c.logger.Printf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error())
-				} else {
-					c.logger.Printf("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name)
+				// if it already exists, continue
+				if sg, _ := data.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
+					c.logger.Printf("shard group %d exists for database %s, retention policy %s", sg.ID, di.Name, rp.Name)
+					continue
 				}
+				newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime)
+				if err != nil {
+					c.logger.Printf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error())
+					continue
+				}
+				changed = true
+				c.logger.Printf("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name)
 			}
 		}
 	}
 
-	if err := c.commit(data); err != nil {
-		return err
+	if changed {
+		if err := c.commit(data); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -898,6 +913,13 @@ func (c *Client) SetData(data *Data) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+func (c *Client) Data() Data {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	d := c.cacheData.Clone()
+	return *d
 }
 
 // WaitForDataChanged will return a channel that will get closed when
