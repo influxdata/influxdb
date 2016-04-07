@@ -110,20 +110,27 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 
 	// Generate iterators for each field.
 	itrs := make([]Iterator, len(fields))
-	for i, f := range fields {
-		expr := Reduce(f.Expr, nil)
-		switch expr := expr.(type) {
-		case *VarRef:
-			itrs[i] = aitr.Iterator(expr.Val)
-		case *BinaryExpr:
-			itr, err := buildExprIterator(expr, aitr, opt)
-			if err != nil {
-				return nil, fmt.Errorf("error constructing iterator for field '%s': %s", f.String(), err)
+	if err := func() error {
+		for i, f := range fields {
+			expr := Reduce(f.Expr, nil)
+			switch expr := expr.(type) {
+			case *VarRef:
+				itrs[i] = aitr.Iterator(expr.Val)
+			case *BinaryExpr:
+				itr, err := buildExprIterator(expr, aitr, opt)
+				if err != nil {
+					return fmt.Errorf("error constructing iterator for field '%s': %s", f.String(), err)
+				}
+				itrs[i] = itr
+			default:
+				return fmt.Errorf("invalid expression type: %T", expr)
 			}
-			itrs[i] = itr
-		default:
-			panic("unreachable")
 		}
+		return nil
+	}(); err != nil {
+		Iterators(Iterators(itrs).filterNonNil()).Close()
+		aitr.Close()
+		return nil, err
 	}
 
 	// Background the primary iterator since there is no reader for it.

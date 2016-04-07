@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
+- [#6248](https://github.com/influxdata/influxdb/issues/6248): Panic using incorrectly quoted "queries" field key.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
