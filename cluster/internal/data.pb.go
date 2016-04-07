@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package internal is a generated protocol buffer package.
+Package cluster is a generated protocol buffer package.
 
 It is generated from these files:
 	internal/data.proto
@@ -22,7 +22,7 @@ It has these top-level messages:
 	ExpandSourcesRequest
 	ExpandSourcesResponse
 */
-package internal
+package cluster
 
 import proto "github.com/gogo/protobuf/proto"
 import math "math"
@@ -336,4 +336,17 @@ func (m *ExpandSourcesResponse) GetErr() string {
 }
 
 func init() {
+	proto.RegisterType((*WriteShardRequest)(nil), "cluster.WriteShardRequest")
+	proto.RegisterType((*WriteShardResponse)(nil), "cluster.WriteShardResponse")
+	proto.RegisterType((*ExecuteStatementRequest)(nil), "cluster.ExecuteStatementRequest")
+	proto.RegisterType((*ExecuteStatementResponse)(nil), "cluster.ExecuteStatementResponse")
+	proto.RegisterType((*CreateIteratorRequest)(nil), "cluster.CreateIteratorRequest")
+	proto.RegisterType((*CreateIteratorResponse)(nil), "cluster.CreateIteratorResponse")
+	proto.RegisterType((*IteratorStats)(nil), "cluster.IteratorStats")
+	proto.RegisterType((*FieldDimensionsRequest)(nil), "cluster.FieldDimensionsRequest")
+	proto.RegisterType((*FieldDimensionsResponse)(nil), "cluster.FieldDimensionsResponse")
+	proto.RegisterType((*SeriesKeysRequest)(nil), "cluster.SeriesKeysRequest")
+	proto.RegisterType((*SeriesKeysResponse)(nil), "cluster.SeriesKeysResponse")
+	proto.RegisterType((*ExpandSourcesRequest)(nil), "cluster.ExpandSourcesRequest")
+	proto.RegisterType((*ExpandSourcesResponse)(nil), "cluster.ExpandSourcesResponse")
 }
