@@ -1047,7 +1047,7 @@ func (itr *{{$k.name}}TransformIterator) Next() *{{$k.Name}}Point {
 // new point if possible.
 type {{$k.name}}TransformFunc func(p *{{$k.Name}}Point) *{{$k.Name}}Point
 
-// {{$k.name}}ReduceIterator executes a function to modify an existing point for every
+// {{$k.name}}BoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type {{$k.name}}BoolTransformIterator struct {
 	input {{$k.Name}}Iterator
