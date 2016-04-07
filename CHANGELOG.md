@@ -4,6 +4,7 @@
 
 - [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
 - [#6248](https://github.com/influxdata/influxdb/issues/6248): Panic using incorrectly quoted "queries" field key.
+- [#6257](https://github.com/influxdata/influxdb/issues/6257): CreateShardGroup was incrementing meta data index even when it was idempotent.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
