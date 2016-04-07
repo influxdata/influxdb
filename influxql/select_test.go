@@ -2021,6 +2021,10 @@ func TestSelect_InvalidQueries(t *testing.T) {
 			q:   `SELECT 'value' FROM cpu`,
 			err: `invalid expression type: *influxql.StringLiteral`,
 		},
+		{
+			q:   `SELECT 'value', value FROM cpu`,
+			err: `invalid expression type: *influxql.StringLiteral`,
+		},
 	}
 
 	for i, tt := range tests {
