@@ -28,6 +28,7 @@
 - [#6294](https://github.com/influxdata/influxdb/issues/6294): Fix panic running influx_inspect info.
 - [#6382](https://github.com/influxdata/influxdb/pull/6382): Removed dead code from the old query engine.
 - [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
+- [#3369](https://github.com/influxdata/influxdb/issues/3369): Detect when a timer literal will overflow or underflow the query engine.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
