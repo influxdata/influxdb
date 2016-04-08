@@ -98,11 +98,7 @@ func (r *FloatDerivativeReducer) Emit() []FloatPoint {
 		if !r.ascending {
 			elapsed = -elapsed
 		}
-
-		value := 0.0
-		if elapsed > 0 {
-			value = diff / (float64(elapsed) / float64(r.interval.Duration))
-		}
+		value := diff / (float64(elapsed) / float64(r.interval.Duration))
 
 		// Drop negative values for non-negative derivatives.
 		if r.isNonNegative && diff < 0 {
@@ -149,11 +145,7 @@ func (r *IntegerDerivativeReducer) Emit() []FloatPoint {
 		if !r.ascending {
 			elapsed = -elapsed
 		}
-
-		value := 0.0
-		if elapsed > 0 {
-			value = diff / (float64(elapsed) / float64(r.interval.Duration))
-		}
+		value := diff / (float64(elapsed) / float64(r.interval.Duration))
 
 		// Drop negative values for non-negative derivatives.
 		if r.isNonNegative && diff < 0 {
