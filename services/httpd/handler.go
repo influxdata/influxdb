@@ -257,21 +257,15 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	p := influxql.NewParser(strings.NewReader(qp))
 	db := q.Get("db")
 
+	// Sanitize the request query params so it doesn't show up in the response logger.
+	// Do this before anything else so a parsing error doesn't leak passwords.
+	sanitize(r)
+
 	// Parse query from query string.
 	query, err := p.ParseQuery()
 	if err != nil {
 		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
 		return
-	}
-
-	// Sanitize statements with passwords.
-	for _, s := range query.Statements {
-		switch stmt := s.(type) {
-		case *influxql.CreateUserStatement:
-			sanitize(r, stmt.Password)
-		case *influxql.SetPasswordUserStatement:
-			sanitize(r, stmt.Password)
-		}
 	}
 
 	// Check authorization.
