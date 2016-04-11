@@ -1,8 +1,8 @@
 # InfluxDB [![Circle CI](https://circleci.com/gh/influxdata/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb/tree/master)
 
-## An Open-Source, Distributed, Time Series Database
+## An Open-Source Time Series Database
 
-InfluxDB is an open source **distributed time series database** with
+InfluxDB is an open source **time series database** with
 **no external dependencies**. It's useful for recording metrics,
 events, and performing analytics.
 
