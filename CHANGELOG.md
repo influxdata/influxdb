@@ -15,6 +15,7 @@
 - [#6283](https://github.com/influxdata/influxdb/pull/6283): Fix GROUP BY tag to produce consistent results when a series has no tags.
 - [#3773](https://github.com/influxdata/influxdb/issues/3773): Support empty tags for all WHERE equality operations.
 - [#6270](https://github.com/influxdata/influxdb/issues/6270): tsm1 query engine alloc reduction
+- [#6271](https://github.com/influxdata/influxdb/issues/6271): Fixed deadlock in tsm1 file store.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
