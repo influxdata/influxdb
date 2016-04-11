@@ -1116,6 +1116,7 @@ func GenerateFloatIterator(rand *rand.Rand, valueN int) *FloatIterator {
 		timestamp := int64(i)*int64(10*time.Second) + jitter
 
 		itr.Points[i] = influxql.FloatPoint{
+			Name:  "cpu",
 			Time:  timestamp,
 			Value: rand.Float64(),
 		}

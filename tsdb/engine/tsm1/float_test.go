@@ -35,8 +35,8 @@ func TestFloatEncoder_Simple(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	it, err := tsm1.NewFloatDecoder(b)
-	if err != nil {
+	var it tsm1.FloatDecoder
+	if err := it.SetBytes(b); err != nil {
 		t.Fatalf("unexpected error creating float decoder: %v", err)
 	}
 
@@ -94,8 +94,8 @@ func TestFloatEncoder_SimilarFloats(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	it, err := tsm1.NewFloatDecoder(b)
-	if err != nil {
+	var it tsm1.FloatDecoder
+	if err := it.SetBytes(b); err != nil {
 		t.Fatalf("unexpected error creating float decoder: %v", err)
 	}
 
@@ -160,8 +160,8 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	it, err := tsm1.NewFloatDecoder(b)
-	if err != nil {
+	var it tsm1.FloatDecoder
+	if err := it.SetBytes(b); err != nil {
 		t.Fatalf("unexpected error creating float decoder: %v", err)
 	}
 
@@ -222,8 +222,8 @@ func Test_FloatEncoder_Quick(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		dec, err := tsm1.NewFloatDecoder(b)
-		if err != nil {
+		var dec tsm1.FloatDecoder
+		if err := dec.SetBytes(b); err != nil {
 			t.Fatal(err)
 		}
 		for dec.Next() {
@@ -263,8 +263,8 @@ func BenchmarkFloatDecoder(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		it, err := tsm1.NewFloatDecoder(bytes)
-		if err != nil {
+		var it tsm1.FloatDecoder
+		if err := it.SetBytes(bytes); err != nil {
 			b.Fatalf("unexpected error creating float decoder: %v", err)
 		}
 

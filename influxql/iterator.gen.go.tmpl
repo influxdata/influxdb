@@ -669,7 +669,7 @@ func new{{$k.Name}}AuxIterator(input {{$k.Name}}Iterator, seriesKeys SeriesList,
 func (itr *{{$k.name}}AuxIterator) Background() {
 	itr.background = true
 	itr.Start()
-	go drainIterator(itr)
+	go DrainIterator(itr)
 }
 
 func (itr *{{$k.name}}AuxIterator) Start()                        { go itr.stream() }
@@ -878,7 +878,9 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]{{$v.Name}}Point, 0, len(m))
 	for _, k := range keys {

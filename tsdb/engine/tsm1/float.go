@@ -12,6 +12,7 @@ this version.
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/dgryski/go-bits"
@@ -128,9 +129,10 @@ type FloatDecoder struct {
 	leading  uint64
 	trailing uint64
 
-	br *bitstream.BitReader
+	br BitReader
 
-	b []byte
+	b       []byte
+	breader bytesReader
 
 	first    bool
 	finished bool
@@ -138,22 +140,28 @@ type FloatDecoder struct {
 	err error
 }
 
-func NewFloatDecoder(b []byte) (FloatDecoder, error) {
-	// first byte is the compression type but we currently just have gorilla
-	// compression
-	br := bitstream.NewReader(bytes.NewReader(b[1:]))
+// SetBytes initializes the decoder with b. Must call before calling Next().
+func (it *FloatDecoder) SetBytes(b []byte) error {
+	// first byte is the compression type.
+	// we currently just have gorilla compression.
+	it.breader = bytesReader{b: b[1:]}
+	it.br.Reset(&it.breader)
 
-	v, err := br.ReadBits(64)
+	v, err := it.br.ReadBits(64)
 	if err != nil {
-		return FloatDecoder{}, err
+		return err
 	}
 
-	return FloatDecoder{
-		val:   math.Float64frombits(v),
-		first: true,
-		br:    br,
-		b:     b,
-	}, nil
+	// Reset all fields.
+	it.val = math.Float64frombits(v)
+	it.leading = 0
+	it.trailing = 0
+	it.b = b
+	it.first = true
+	it.finished = false
+	it.err = nil
+
+	return nil
 }
 
 func (it *FloatDecoder) Next() bool {
@@ -180,7 +188,7 @@ func (it *FloatDecoder) Next() bool {
 		return false
 	}
 
-	if bit == bitstream.Zero {
+	if !bit {
 		// it.val = it.val
 	} else {
 		bit, err := it.br.ReadBit()
@@ -188,7 +196,7 @@ func (it *FloatDecoder) Next() bool {
 			it.err = err
 			return false
 		}
-		if bit == bitstream.Zero {
+		if !bit {
 			// reuse leading/trailing zero bits
 			// it.leading, it.trailing = it.leading, it.trailing
 		} else {
@@ -238,4 +246,25 @@ func (it *FloatDecoder) Values() float64 {
 
 func (it *FloatDecoder) Error() error {
 	return it.err
+}
+
+// bytesReader is a simplified implementation of bytes.Reader.
+// This is added to remove allocations from needing to call bytes.NewReader().
+type bytesReader struct {
+	b []byte
+	i int64
+}
+
+// Read reads the next bytes in to buffer b.
+// Implementation copied from bytes.Reader.Read.
+func (r *bytesReader) Read(b []byte) (n int, err error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	if r.i >= int64(len(r.b)) {
+		return 0, io.EOF
+	}
+	n = copy(b, r.b[r.i:])
+	r.i += int64(n)
+	return
 }

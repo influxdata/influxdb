@@ -259,6 +259,18 @@ go tool pprof ./influxd influxd.prof
 ```
 Note that when you pass the binary to `go tool pprof` *you must specify the path to the binary*.
 
+If you are profiling benchmarks built with the `testing` package, you may wish
+to use the [`github.com/pkg/profile`](github.com/pkg/profile) package to limit
+the code being profiled:
+
+```go
+func BenchmarkSomething(b *testing.B) {
+  // do something intensive like fill database with data...
+  defer profile.Start(profile.ProfilePath("/tmp"), profile.MemProfile).Stop()
+  // do something that you want to profile...
+}
+```
+
 Continuous Integration testing
 -----
 InfluxDB uses CircleCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdata/influxdb/blob/master/circle-test.sh). It closely follows the build and test process outlined above. You can see the exact version of Go InfluxDB uses for testing by consulting that file.

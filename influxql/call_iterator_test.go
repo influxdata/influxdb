@@ -1,7 +1,6 @@
 package influxql_test
 
 import (
-	"math/rand"
 	"testing"
 	"time"
 
@@ -573,28 +572,52 @@ func TestNewCallIterator_UnsupportedExprName(t *testing.T) {
 	}
 }
 
-func BenchmarkCallIterator_Min_Float(b *testing.B) {
-	input := GenerateFloatIterator(rand.New(rand.NewSource(0)), b.N)
-	b.ResetTimer()
+func BenchmarkCountIterator_1K(b *testing.B)   { benchmarkCountIterator(b, 1000) }
+func BenchmarkCountIterator_100K(b *testing.B) { benchmarkCountIterator(b, 100000) }
+func BenchmarkCountIterator_1M(b *testing.B)   { benchmarkCountIterator(b, 1000000) }
+
+func benchmarkCountIterator(b *testing.B, pointN int) {
+	benchmarkCallIterator(b, influxql.IteratorOptions{
+		Expr:      MustParseExpr("count(value)"),
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func benchmarkCallIterator(b *testing.B, opt influxql.IteratorOptions, pointN int) {
 	b.ReportAllocs()
 
-	itr, err := influxql.NewCallIterator(input, influxql.IteratorOptions{
-		Expr:        MustParseExpr("min(value)"),
-		Interval:    influxql.Interval{Duration: 1 * time.Hour},
-		InterruptCh: make(chan struct{}),
-	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	switch itr := itr.(type) {
-	case influxql.FloatIterator:
-		for {
-			if p := itr.Next(); p == nil {
-				break
-			}
+	for i := 0; i < b.N; i++ {
+		// Create a lightweight point generator.
+		p := influxql.FloatPoint{Name: "cpu", Value: 100}
+		input := FloatPointGenerator{
+			N:  pointN,
+			Fn: func(i int) *influxql.FloatPoint { return &p },
 		}
-	default:
-		b.Fatalf("incorrect iterator type: %T", itr)
+
+		// Execute call against input.
+		itr, err := influxql.NewCallIterator(&input, opt)
+		if err != nil {
+			b.Fatal(err)
+		}
+		influxql.DrainIterator(itr)
 	}
+}
+
+type FloatPointGenerator struct {
+	i  int
+	N  int
+	Fn func(i int) *influxql.FloatPoint
+}
+
+func (g *FloatPointGenerator) Close() error                  { return nil }
+func (g *FloatPointGenerator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
+func (g *FloatPointGenerator) Next() *influxql.FloatPoint {
+	if g.i == g.N {
+		return nil
+	}
+	p := g.Fn(g.i)
+	g.i++
+	return p
 }
