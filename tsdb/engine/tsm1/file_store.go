@@ -514,15 +514,14 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
+// This function assumes the read-lock has been taken.
 func (f *FileStore) locations(key string, t int64, ascending bool) []location {
 	var locations []location
 
-	f.mu.RLock()
 	filesSnapshot := make([]TSMFile, len(f.files))
 	for i := range f.files {
 		filesSnapshot[i] = f.files[i]
 	}
-	f.mu.RUnlock()
 
 	var entries []IndexEntry
 	for _, fd := range filesSnapshot {
@@ -617,6 +616,7 @@ type location struct {
 }
 
 // newKeyCursor returns a new instance of KeyCursor.
+// This function assumes the read-lock has been taken.
 func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor {
 	c := &KeyCursor{
 		key:       key,

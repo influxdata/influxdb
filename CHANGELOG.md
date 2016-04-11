@@ -1,3 +1,9 @@
+## v0.12.2 [unreleased]
+
+### Bugfixes
+
+- [#6271](https://github.com/influxdata/influxdb/issues/6271): Fixed deadlock in tsm1 file store.
+
 ## v0.12.1 [2016-04-08]
 
 ### Bugfixes
