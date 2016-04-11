@@ -4597,6 +4597,97 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 	}
 }
 
+func TestServer_Query_With_EmptyTags(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "where empty tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host = ''`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "where not empty tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host != ''`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "where regex all",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host =~ /.*/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1],["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "where regex none",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host !~ /.*/`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "where regex at least one char",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host =~ /.+/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "where regex not at least one char",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host !~ /.+/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "group by empty tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu group by host`,
+			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":""},"columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1]]},{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "group by missing tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu group by region`,
+			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"region":""},"columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1],["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_LimitAndOffset(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
