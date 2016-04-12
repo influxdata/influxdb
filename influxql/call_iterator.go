@@ -988,7 +988,7 @@ func NewFloatPercentileReduceSliceFunc(percentile float64) FloatReduceSliceFunc 
 		}
 
 		sort.Sort(floatPointsByValue(a))
-		return []FloatPoint{{Time: ZeroTime, Value: a[i].Value}}
+		return []FloatPoint{{Time: ZeroTime, Value: a[i].Value, Aux: a[i].Aux}}
 	}
 }
 
@@ -1003,7 +1003,7 @@ func NewIntegerPercentileReduceSliceFunc(percentile float64) IntegerReduceSliceF
 		}
 
 		sort.Sort(integerPointsByValue(a))
-		return []IntegerPoint{{Time: ZeroTime, Value: a[i].Value}}
+		return []IntegerPoint{{Time: ZeroTime, Value: a[i].Value, Aux: a[i].Aux}}
 	}
 }
 
