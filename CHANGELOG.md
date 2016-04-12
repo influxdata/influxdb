@@ -18,6 +18,7 @@
 - [#6270](https://github.com/influxdata/influxdb/issues/6270): tsm1 query engine alloc reduction
 - [#6271](https://github.com/influxdata/influxdb/issues/6271): Fixed deadlock in tsm1 file store.
 - [#6287](https://github.com/influxdata/influxdb/issues/6287): Fix data race in Influx Client.
+- [#6252](https://github.com/influxdata/influxdb/pull/6252): Remove TSDB listener accept message @simnv
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
