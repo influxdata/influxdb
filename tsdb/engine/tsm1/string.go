@@ -54,15 +54,22 @@ type StringDecoder struct {
 	err error
 }
 
-func NewStringDecoder(b []byte) (StringDecoder, error) {
+// SetBytes initializes the decoder with bytes to read from.
+// This must be called before calling any other method.
+func (e *StringDecoder) SetBytes(b []byte) error {
 	// First byte stores the encoding type, only have snappy format
 	// currently so ignore for now.
 	data, err := snappy.Decode(nil, b[1:])
 	if err != nil {
-		return StringDecoder{}, fmt.Errorf("failed to decode string block: %v", err.Error())
+		return fmt.Errorf("failed to decode string block: %v", err.Error())
 	}
 
-	return StringDecoder{b: data}, nil
+	e.b = data
+	e.l = 0
+	e.i = 0
+	e.err = nil
+
+	return nil
 }
 
 func (e *StringDecoder) Next() bool {

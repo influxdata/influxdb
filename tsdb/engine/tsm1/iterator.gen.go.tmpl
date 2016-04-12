@@ -98,7 +98,7 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 
 // statsBufferCopyIntervalN is the number of points that are read before
 // copying the stats buffer to the iterator's stats field. This is used to
-// amortize the cost of using a mutex when updating stats. 
+// amortize the cost of using a mutex when updating stats.
 const statsBufferCopyIntervalN = 100
 
 {{range .}}
@@ -246,6 +246,8 @@ type {{.name}}AscendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      {{.Name}}Decoder
 		buf       []{{.Name}}Value
 		values    []{{.Name}}Value
 		pos       int
@@ -261,9 +263,10 @@ func new{{.Name}}AscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *K
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]{{.Name}}Value, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -335,7 +338,7 @@ func (c *{{.name}}AscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -350,6 +353,8 @@ type {{.name}}DescendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      {{.Name}}Decoder
 		buf       []{{.Name}}Value
 		values    []{{.Name}}Value
 		pos       int
@@ -368,9 +373,10 @@ func new{{.Name}}DescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *
 		c.cache.pos--
 	}
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]{{.Name}}Value, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -445,7 +451,7 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}

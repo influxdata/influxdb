@@ -40,24 +40,6 @@ const (
 	//     Linux:      sudo sysctl -w net.core.rmem_max=<read-buffer>
 	//     BSD/Darwin: sudo sysctl -w kern.ipc.maxsockbuf=<read-buffer>
 	DefaultReadBuffer = 0
-
-	// DefaultUDPPayloadSize sets the default value of the incoming UDP packet
-	// to the spec max, i.e. 65536. That being said, this value should likely
-	// be tuned lower to match your udp_payload size if using tools like
-	// telegraf.
-	//
-	// https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
-	//
-	// Reading packets from a UDP socket in go actually only pulls
-	// one packet at a time, requiring a very fast reader to keep up with
-	// incoming data at scale. Reducing the overhead of the expected packet
-	// helps allocate memory faster (~10-25µs --> ~150ns with go1.5.2), thereby
-	// speeding up the processing of data coming in.
-	//
-	// NOTE: if you send a payload greater than the UDPPayloadSize, you will
-	// cause a buffer overflow...tune your application very carefully to match
-	// udp_payload for your metrics source
-	DefaultUDPPayloadSize = 65536
 )
 
 // Config holds various configuration settings for the UDP listener.
@@ -72,7 +54,9 @@ type Config struct {
 	ReadBuffer      int           `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 	Precision       string        `toml:"precision"`
-	UDPPayloadSize  int           `toml:"udp-payload-size"`
+
+	// Deprecated config option
+	udpPayloadSize int `toml:"udp-payload-size"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
@@ -108,9 +92,6 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.ReadBuffer == 0 {
 		d.ReadBuffer = DefaultReadBuffer
-	}
-	if d.UDPPayloadSize == 0 {
-		d.UDPPayloadSize = DefaultUDPPayloadSize
 	}
 	return &d
 }

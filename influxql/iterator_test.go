@@ -772,8 +772,8 @@ func TestIteratorOptions_Window_Default(t *testing.T) {
 	if start != 0 {
 		t.Errorf("expected start to be 0, got %d", start)
 	}
-	if end != 60 {
-		t.Errorf("expected end to be 60, got %d", end)
+	if end != 61 {
+		t.Errorf("expected end to be 61, got %d", end)
 	}
 }
 
@@ -1116,6 +1116,7 @@ func GenerateFloatIterator(rand *rand.Rand, valueN int) *FloatIterator {
 		timestamp := int64(i)*int64(10*time.Second) + jitter
 
 		itr.Points[i] = influxql.FloatPoint{
+			Name:  "cpu",
 			Time:  timestamp,
 			Value: rand.Float64(),
 		}

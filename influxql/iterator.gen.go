@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/influxql/internal"
+	internal "github.com/influxdata/influxdb/influxql/internal"
 )
 
 // DefaultStatsInterval is the default value for IteratorEncoder.StatsInterval.
@@ -670,7 +670,7 @@ func newFloatAuxIterator(input FloatIterator, seriesKeys SeriesList, opt Iterato
 func (itr *floatAuxIterator) Background() {
 	itr.background = true
 	itr.Start()
-	go drainIterator(itr)
+	go DrainIterator(itr)
 }
 
 func (itr *floatAuxIterator) Start()                        { go itr.stream() }
@@ -877,7 +877,9 @@ func (itr *floatReduceFloatIterator) reduce() []FloatPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
@@ -1099,7 +1101,9 @@ func (itr *floatReduceIntegerIterator) reduce() []IntegerPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
@@ -1321,7 +1325,9 @@ func (itr *floatReduceStringIterator) reduce() []StringPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
@@ -1543,7 +1549,9 @@ func (itr *floatReduceBooleanIterator) reduce() []BooleanPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
@@ -1711,7 +1719,7 @@ func (itr *floatTransformIterator) Next() *FloatPoint {
 // new point if possible.
 type floatTransformFunc func(p *FloatPoint) *FloatPoint
 
-// floatReduceIterator executes a function to modify an existing point for every
+// floatBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type floatBoolTransformIterator struct {
 	input FloatIterator
@@ -2474,7 +2482,7 @@ func newIntegerAuxIterator(input IntegerIterator, seriesKeys SeriesList, opt Ite
 func (itr *integerAuxIterator) Background() {
 	itr.background = true
 	itr.Start()
-	go drainIterator(itr)
+	go DrainIterator(itr)
 }
 
 func (itr *integerAuxIterator) Start()                        { go itr.stream() }
@@ -2678,7 +2686,9 @@ func (itr *integerReduceFloatIterator) reduce() []FloatPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
@@ -2900,7 +2910,9 @@ func (itr *integerReduceIntegerIterator) reduce() []IntegerPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
@@ -3122,7 +3134,9 @@ func (itr *integerReduceStringIterator) reduce() []StringPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
@@ -3344,7 +3358,9 @@ func (itr *integerReduceBooleanIterator) reduce() []BooleanPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
@@ -3512,7 +3528,7 @@ func (itr *integerTransformIterator) Next() *IntegerPoint {
 // new point if possible.
 type integerTransformFunc func(p *IntegerPoint) *IntegerPoint
 
-// integerReduceIterator executes a function to modify an existing point for every
+// integerBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type integerBoolTransformIterator struct {
 	input IntegerIterator
@@ -4275,7 +4291,7 @@ func newStringAuxIterator(input StringIterator, seriesKeys SeriesList, opt Itera
 func (itr *stringAuxIterator) Background() {
 	itr.background = true
 	itr.Start()
-	go drainIterator(itr)
+	go DrainIterator(itr)
 }
 
 func (itr *stringAuxIterator) Start()                        { go itr.stream() }
@@ -4479,7 +4495,9 @@ func (itr *stringReduceFloatIterator) reduce() []FloatPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
@@ -4701,7 +4719,9 @@ func (itr *stringReduceIntegerIterator) reduce() []IntegerPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
@@ -4923,7 +4943,9 @@ func (itr *stringReduceStringIterator) reduce() []StringPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
@@ -5145,7 +5167,9 @@ func (itr *stringReduceBooleanIterator) reduce() []BooleanPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
@@ -5313,7 +5337,7 @@ func (itr *stringTransformIterator) Next() *StringPoint {
 // new point if possible.
 type stringTransformFunc func(p *StringPoint) *StringPoint
 
-// stringReduceIterator executes a function to modify an existing point for every
+// stringBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type stringBoolTransformIterator struct {
 	input StringIterator
@@ -6076,7 +6100,7 @@ func newBooleanAuxIterator(input BooleanIterator, seriesKeys SeriesList, opt Ite
 func (itr *booleanAuxIterator) Background() {
 	itr.background = true
 	itr.Start()
-	go drainIterator(itr)
+	go DrainIterator(itr)
 }
 
 func (itr *booleanAuxIterator) Start()                        { go itr.stream() }
@@ -6280,7 +6304,9 @@ func (itr *booleanReduceFloatIterator) reduce() []FloatPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
@@ -6502,7 +6528,9 @@ func (itr *booleanReduceIntegerIterator) reduce() []IntegerPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
@@ -6724,7 +6752,9 @@ func (itr *booleanReduceStringIterator) reduce() []StringPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
@@ -6946,7 +6976,9 @@ func (itr *booleanReduceBooleanIterator) reduce() []BooleanPoint {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	if len(keys) > 1 {
+		sort.Sort(reverseStringSlice(keys))
+	}
 
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
@@ -7114,7 +7146,7 @@ func (itr *booleanTransformIterator) Next() *BooleanPoint {
 // new point if possible.
 type booleanTransformFunc func(p *BooleanPoint) *BooleanPoint
 
-// booleanReduceIterator executes a function to modify an existing point for every
+// booleanBoolTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
 type booleanBoolTransformIterator struct {
 	input BooleanIterator

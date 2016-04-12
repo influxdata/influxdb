@@ -162,7 +162,8 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 
 	switch blockType {
 	case BlockFloat64:
-		decoded, err := DecodeFloatBlock(block, nil)
+		var buf []FloatValue
+		decoded, err := DecodeFloatBlock(block, NewTimeDecoder(), &FloatDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -171,7 +172,8 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		}
 		return vals[:len(decoded)], err
 	case BlockInteger:
-		decoded, err := DecodeIntegerBlock(block, nil)
+		var buf []IntegerValue
+		decoded, err := DecodeIntegerBlock(block, NewTimeDecoder(), &IntegerDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -181,7 +183,8 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		return vals[:len(decoded)], err
 
 	case BlockBoolean:
-		decoded, err := DecodeBooleanBlock(block, nil)
+		var buf []BooleanValue
+		decoded, err := DecodeBooleanBlock(block, NewTimeDecoder(), &BooleanDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -191,7 +194,8 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		return vals[:len(decoded)], err
 
 	case BlockString:
-		decoded, err := DecodeStringBlock(block, nil)
+		var buf []StringValue
+		decoded, err := DecodeStringBlock(block, NewTimeDecoder(), &StringDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -287,7 +291,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func DecodeFloatBlock(block []byte, a []FloatValue) ([]FloatValue, error) {
+func DecodeFloatBlock(block []byte, tdec TimeDecoder, vdec *FloatDecoder, a *[]FloatValue) ([]FloatValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockFloat64 {
@@ -298,36 +302,36 @@ func DecodeFloatBlock(block []byte, a []FloatValue) ([]FloatValue, error) {
 	tb, vb := unpackBlock(block)
 
 	// Setup our timestamp and value decoders
-	dec := NewTimeDecoder(tb)
-	iter, err := NewFloatDecoder(vb)
-	if err != nil {
+	tdec.Init(tb)
+	if err := vdec.SetBytes(vb); err != nil {
 		return nil, err
 	}
 
 	// Decode both a timestamp and value
 	i := 0
-	for dec.Next() && iter.Next() {
-		ts := dec.Read()
-		v := iter.Values()
-		if i < len(a) {
-			a[i].unixnano = ts.UnixNano()
-			a[i].value = v
+	for tdec.Next() && vdec.Next() {
+		ts := tdec.Read()
+		v := vdec.Values()
+		if i < len(*a) {
+			elem := &(*a)[i]
+			elem.unixnano = ts.UnixNano()
+			elem.value = v
 		} else {
-			a = append(a, FloatValue{ts.UnixNano(), v})
+			*a = append(*a, FloatValue{ts.UnixNano(), v})
 		}
 		i++
 	}
 
 	// Did timestamp decoding have an error?
-	if dec.Error() != nil {
-		return nil, dec.Error()
+	if tdec.Error() != nil {
+		return nil, tdec.Error()
 	}
 	// Did float decoding have an error?
-	if iter.Error() != nil {
-		return nil, iter.Error()
+	if vdec.Error() != nil {
+		return nil, vdec.Error()
 	}
 
-	return a[:i], nil
+	return (*a)[:i], nil
 }
 
 // FloatValues represents a slice of float values.
@@ -413,7 +417,7 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func DecodeBooleanBlock(block []byte, a []BooleanValue) ([]BooleanValue, error) {
+func DecodeBooleanBlock(block []byte, tdec TimeDecoder, vdec *BooleanDecoder, a *[]BooleanValue) ([]BooleanValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockBoolean {
@@ -424,33 +428,34 @@ func DecodeBooleanBlock(block []byte, a []BooleanValue) ([]BooleanValue, error) 
 	tb, vb := unpackBlock(block)
 
 	// Setup our timestamp and value decoders
-	dec := NewTimeDecoder(tb)
-	vdec := NewBooleanDecoder(vb)
+	tdec.Init(tb)
+	vdec.SetBytes(vb)
 
 	// Decode both a timestamp and value
 	i := 0
-	for dec.Next() && vdec.Next() {
-		ts := dec.Read()
+	for tdec.Next() && vdec.Next() {
+		ts := tdec.Read()
 		v := vdec.Read()
-		if i < len(a) {
-			a[i].unixnano = ts.UnixNano()
-			a[i].value = v
+		if i < len(*a) {
+			elem := &(*a)[i]
+			elem.unixnano = ts.UnixNano()
+			elem.value = v
 		} else {
-			a = append(a, BooleanValue{ts.UnixNano(), v})
+			*a = append(*a, BooleanValue{ts.UnixNano(), v})
 		}
 		i++
 	}
 
 	// Did timestamp decoding have an error?
-	if dec.Error() != nil {
-		return nil, dec.Error()
+	if tdec.Error() != nil {
+		return nil, tdec.Error()
 	}
 	// Did boolean decoding have an error?
 	if vdec.Error() != nil {
 		return nil, vdec.Error()
 	}
 
-	return a[:i], nil
+	return (*a)[:i], nil
 }
 
 // BooleanValues represents a slice of boolean values.
@@ -523,7 +528,7 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeIntegerBlock(block []byte, a []IntegerValue) ([]IntegerValue, error) {
+func DecodeIntegerBlock(block []byte, tdec TimeDecoder, vdec *IntegerDecoder, a *[]IntegerValue) ([]IntegerValue, error) {
 	blockType := block[0]
 	if blockType != BlockInteger {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInteger, blockType)
@@ -535,33 +540,34 @@ func DecodeIntegerBlock(block []byte, a []IntegerValue) ([]IntegerValue, error) 
 	tb, vb := unpackBlock(block)
 
 	// Setup our timestamp and value decoders
-	tsDec := NewTimeDecoder(tb)
-	vDec := NewIntegerDecoder(vb)
+	tdec.Init(tb)
+	vdec.SetBytes(vb)
 
 	// Decode both a timestamp and value
 	i := 0
-	for tsDec.Next() && vDec.Next() {
-		ts := tsDec.Read()
-		v := vDec.Read()
-		if i < len(a) {
-			a[i].unixnano = ts.UnixNano()
-			a[i].value = v
+	for tdec.Next() && vdec.Next() {
+		ts := tdec.Read()
+		v := vdec.Read()
+		if i < len(*a) {
+			elem := &(*a)[i]
+			elem.unixnano = ts.UnixNano()
+			elem.value = v
 		} else {
-			a = append(a, IntegerValue{ts.UnixNano(), v})
+			*a = append(*a, IntegerValue{ts.UnixNano(), v})
 		}
 		i++
 	}
 
 	// Did timestamp decoding have an error?
-	if tsDec.Error() != nil {
-		return nil, tsDec.Error()
+	if tdec.Error() != nil {
+		return nil, tdec.Error()
 	}
 	// Did int64 decoding have an error?
-	if vDec.Error() != nil {
-		return nil, vDec.Error()
+	if vdec.Error() != nil {
+		return nil, vdec.Error()
 	}
 
-	return a[:i], nil
+	return (*a)[:i], nil
 }
 
 // IntegerValues represents a slice of integer values.
@@ -634,7 +640,7 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeStringBlock(block []byte, a []StringValue) ([]StringValue, error) {
+func DecodeStringBlock(block []byte, tdec TimeDecoder, vdec *StringDecoder, a *[]StringValue) ([]StringValue, error) {
 	blockType := block[0]
 	if blockType != BlockString {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
@@ -646,36 +652,36 @@ func DecodeStringBlock(block []byte, a []StringValue) ([]StringValue, error) {
 	tb, vb := unpackBlock(block)
 
 	// Setup our timestamp and value decoders
-	tsDec := NewTimeDecoder(tb)
-	vDec, err := NewStringDecoder(vb)
-	if err != nil {
+	tdec.Init(tb)
+	if err := vdec.SetBytes(vb); err != nil {
 		return nil, err
 	}
 
 	// Decode both a timestamp and value
 	i := 0
-	for tsDec.Next() && vDec.Next() {
-		ts := tsDec.Read()
-		v := vDec.Read()
-		if i < len(a) {
-			a[i].unixnano = ts.UnixNano()
-			a[i].value = v
+	for tdec.Next() && vdec.Next() {
+		ts := tdec.Read()
+		v := vdec.Read()
+		if i < len(*a) {
+			elem := &(*a)[i]
+			elem.unixnano = ts.UnixNano()
+			elem.value = v
 		} else {
-			a = append(a, StringValue{ts.UnixNano(), v})
+			*a = append(*a, StringValue{ts.UnixNano(), v})
 		}
 		i++
 	}
 
 	// Did timestamp decoding have an error?
-	if tsDec.Error() != nil {
-		return nil, tsDec.Error()
+	if tdec.Error() != nil {
+		return nil, tdec.Error()
 	}
 	// Did string decoding have an error?
-	if vDec.Error() != nil {
-		return nil, vDec.Error()
+	if vdec.Error() != nil {
+		return nil, vdec.Error()
 	}
 
-	return a[:i], nil
+	return (*a)[:i], nil
 }
 
 // StringValues represents a slice of string values.

@@ -336,9 +336,14 @@ func (s *Service) processCreateIteratorRequest(conn net.Conn) {
 		for _, shardID := range req.ShardIDs {
 			ic := sh.ShardIteratorCreator(shardID)
 			if ic == nil {
-				return nil
+				continue
 			}
 			ics = append(ics, ic)
+		}
+
+		// Return immediately if there are no iterator creators.
+		if len(ics) == 0 {
+			return nil
 		}
 
 		// Generate a single iterator from all shards.
@@ -350,27 +355,24 @@ func (s *Service) processCreateIteratorRequest(conn net.Conn) {
 
 		return nil
 	}(); err != nil {
-		itr.Close()
 		s.Logger.Printf("error reading CreateIterator request: %s", err)
 		EncodeTLV(conn, createIteratorResponseMessage, &CreateIteratorResponse{Err: err})
 		return
 	}
 
-	var typ influxql.DataType
-	switch itr.(type) {
-	case influxql.FloatIterator:
-		typ = influxql.Float
-	case influxql.IntegerIterator:
-		typ = influxql.Integer
-	case influxql.StringIterator:
-		typ = influxql.String
-	case influxql.BooleanIterator:
-		typ = influxql.Boolean
-	}
-
-	resp := CreateIteratorResponse{
-		Type:  typ,
-		Stats: itr.Stats(),
+	resp := CreateIteratorResponse{}
+	if itr != nil {
+		switch itr.(type) {
+		case influxql.FloatIterator:
+			resp.Type = influxql.Float
+		case influxql.IntegerIterator:
+			resp.Type = influxql.Integer
+		case influxql.StringIterator:
+			resp.Type = influxql.String
+		case influxql.BooleanIterator:
+			resp.Type = influxql.Boolean
+		}
+		resp.Stats = itr.Stats()
 	}
 
 	// Encode success response.

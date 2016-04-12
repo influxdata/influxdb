@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/influxql/internal"
+	internal "github.com/influxdata/influxdb/influxql/internal"
 )
 
 // ZeroTime is the Unix nanosecond timestamp for time.Time{}.
@@ -89,7 +89,7 @@ func (t *Tags) Value(k string) string {
 
 // Subset returns a new tags object with a subset of the keys.
 func (t *Tags) Subset(keys []string) Tags {
-	if t.m == nil || len(keys) == 0 {
+	if len(keys) == 0 {
 		return Tags{}
 	}
 

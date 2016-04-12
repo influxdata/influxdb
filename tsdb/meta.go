@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/pkg/escape"
-	"github.com/influxdata/influxdb/tsdb/internal"
+	internal "github.com/influxdata/influxdb/tsdb/internal"
 
 	"github.com/gogo/protobuf/proto"
 )
@@ -763,13 +763,8 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		return m.seriesIDs, n, nil
 	}
 
-	tagVals, ok := m.seriesByTagKeyValue[name.Val]
-	if name.Val != "_name" && !ok {
-		if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-			return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
-		}
-		return nil, nil, nil
-	}
+	// Retrieve list of series with this tag key.
+	tagVals := m.seriesByTagKeyValue[name.Val]
 
 	// if we're looking for series with a specific tag value
 	if str, ok := value.(*influxql.StringLiteral); ok {
@@ -784,10 +779,23 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		}
 
 		if n.Op == influxql.EQ {
-			// return series that have a tag of specific value.
-			ids = tagVals[str.Val]
+			if str.Val != "" {
+				// return series that have a tag of specific value.
+				ids = tagVals[str.Val]
+			} else {
+				ids = m.seriesIDs
+				for k := range tagVals {
+					ids = ids.Reject(tagVals[k])
+				}
+			}
 		} else if n.Op == influxql.NEQ {
-			ids = m.seriesIDs.Reject(tagVals[str.Val])
+			if str.Val != "" {
+				ids = m.seriesIDs.Reject(tagVals[str.Val])
+			} else {
+				for k := range tagVals {
+					ids = ids.Union(tagVals[k])
+				}
+			}
 		}
 		return ids, &influxql.BooleanLiteral{Val: true}, nil
 	}
@@ -805,19 +813,38 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			return nil, &influxql.BooleanLiteral{Val: true}, nil
 		}
 
-		// The operation is a NEQREGEX, code must start by assuming all match, even
-		// series without any tags.
-		if n.Op == influxql.NEQREGEX {
+		// Check if we match the empty string to see if we should include series
+		// that are missing the tag.
+		empty := re.Val.MatchString("")
+
+		// Gather the series that match the regex. If we should include the empty string,
+		// start with the list of all series and reject series that don't match our condition.
+		// If we should not include the empty string, include series that match our condition.
+		if empty && n.Op == influxql.EQREGEX {
 			ids = m.seriesIDs
-		}
-
-		for k := range tagVals {
-			match := re.Val.MatchString(k)
-
-			if match && n.Op == influxql.EQREGEX {
-				ids = ids.Union(tagVals[k])
-			} else if match && n.Op == influxql.NEQREGEX {
-				ids = ids.Reject(tagVals[k])
+			for k := range tagVals {
+				if !re.Val.MatchString(k) {
+					ids = ids.Reject(tagVals[k])
+				}
+			}
+		} else if empty && n.Op == influxql.NEQREGEX {
+			for k := range tagVals {
+				if !re.Val.MatchString(k) {
+					ids = ids.Union(tagVals[k])
+				}
+			}
+		} else if !empty && n.Op == influxql.EQREGEX {
+			for k := range tagVals {
+				if re.Val.MatchString(k) {
+					ids = ids.Union(tagVals[k])
+				}
+			}
+		} else if !empty && n.Op == influxql.NEQREGEX {
+			ids = m.seriesIDs
+			for k := range tagVals {
+				if re.Val.MatchString(k) {
+					ids = ids.Reject(tagVals[k])
+				}
 			}
 		}
 		return ids, &influxql.BooleanLiteral{Val: true}, nil
