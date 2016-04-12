@@ -62,6 +62,9 @@ func cmdInfo(path string) {
 			for _, shardID := range shardIDs {
 				shard := tstore.Shard(shardID)
 				codec := shard.FieldCodec(m.Name)
+				if codec == nil {
+					continue
+				}
 				for _, field := range codec.Fields() {
 					ft := fmt.Sprintf("%s:%s", field.Name, field.Type)
 					fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d\t%d [%s]\t%d\n", shardID, db, m.Name, len(tags), tagValues,
