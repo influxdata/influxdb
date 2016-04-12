@@ -35,11 +35,20 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
 
-[opentsdb]
+[[collectd]]
+bind-address = ":1010"
+
+[[opentsdb]]
 bind-address = ":2000"
+
+[[opentsdb]]
+bind-address = ":2010"
+
+[[opentsdb]]
+bind-address = ":2020"
 
 [[udp]]
 bind-address = ":4444"
@@ -65,18 +74,24 @@ enabled = true
 		t.Fatalf("unexpected admin bind address: %s", c.Admin.BindAddress)
 	} else if c.HTTPD.BindAddress != ":8087" {
 		t.Fatalf("unexpected api bind address: %s", c.HTTPD.BindAddress)
-	} else if len(c.Graphites) != 2 {
-		t.Fatalf("unexpected graphites count: %d", len(c.Graphites))
-	} else if c.Graphites[0].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
-	} else if c.Graphites[1].Protocol != "tcp" {
-		t.Fatalf("unexpected graphite protocol(1): %s", c.Graphites[1].Protocol)
-	} else if c.Collectd.BindAddress != ":1000" {
-		t.Fatalf("unexpected collectd bind address: %s", c.Collectd.BindAddress)
-	} else if c.OpenTSDB.BindAddress != ":2000" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
-	} else if c.UDPs[0].BindAddress != ":4444" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
+	} else if len(c.GraphiteInputs) != 2 {
+		t.Fatalf("unexpected graphiteInputs count: %d", len(c.GraphiteInputs))
+	} else if c.GraphiteInputs[0].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
+	} else if c.GraphiteInputs[1].Protocol != "tcp" {
+		t.Fatalf("unexpected graphite protocol(1): %s", c.GraphiteInputs[1].Protocol)
+	} else if c.CollectdInputs[0].BindAddress != ":1000" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
+	} else if c.CollectdInputs[1].BindAddress != ":1010" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+	} else if c.OpenTSDBInputs[1].BindAddress != ":2010" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[1].BindAddress)
+	} else if c.OpenTSDBInputs[2].BindAddress != ":2020" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[2].BindAddress)
+	} else if c.UDPInputs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
 	} else if c.Subscriber.Enabled != true {
 		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
@@ -111,11 +126,17 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
 
-[opentsdb]
+[[collectd]]
+bind-address = ":1010"
+
+[[opentsdb]]
 bind-address = ":2000"
+
+[[opentsdb]]
+bind-address = ":2010"
 
 [[udp]]
 bind-address = ":4444"
@@ -137,16 +158,32 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
+	if err := os.Setenv("INFLUXDB_COLLECTD_1_BIND_ADDRESS", ":1020"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := os.Setenv("INFLUXDB_OPENTSDB_0_BIND_ADDRESS", ":2020"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := c.ApplyEnvOverrides(); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
-	if c.UDPs[0].BindAddress != ":4444" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
+	if c.UDPInputs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
 	}
 
-	if c.Graphites[1].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
+	if c.GraphiteInputs[1].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol: %s", c.GraphiteInputs[1].Protocol)
+	}
+
+	if c.CollectdInputs[1].BindAddress != ":1020" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
+	}
+
+	if c.OpenTSDBInputs[0].BindAddress != ":2020" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
 	}
 }
 
