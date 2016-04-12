@@ -153,7 +153,6 @@ func (ln *chanListener) Accept() (net.Conn, error) {
 	if !ok {
 		return nil, errors.New("network connection closed")
 	}
-	log.Println("TSDB listener accept ", conn)
 	return conn, nil
 }
 
