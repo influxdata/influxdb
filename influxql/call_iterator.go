@@ -363,99 +363,31 @@ func NewDistinctIterator(input Iterator, opt IteratorOptions) (Iterator, error) 
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatSliceFuncReducer(FloatDistinctReduceSlice)
+			fn := NewFloatDistinctReducer()
 			return fn, fn
 		}
 		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
-			fn := NewIntegerSliceFuncReducer(IntegerDistinctReduceSlice)
+			fn := NewIntegerDistinctReducer()
 			return fn, fn
 		}
 		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
 	case StringIterator:
 		createFn := func() (StringPointAggregator, StringPointEmitter) {
-			fn := NewStringSliceFuncReducer(StringDistinctReduceSlice)
+			fn := NewStringDistinctReducer()
 			return fn, fn
 		}
 		return &stringReduceStringIterator{input: newBufStringIterator(input), opt: opt, create: createFn}, nil
 	case BooleanIterator:
 		createFn := func() (BooleanPointAggregator, BooleanPointEmitter) {
-			fn := NewBooleanSliceFuncReducer(BooleanDistinctReduceSlice)
+			fn := NewBooleanDistinctReducer()
 			return fn, fn
 		}
 		return &booleanReduceBooleanIterator{input: newBufBooleanIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported distinct iterator type: %T", input)
 	}
-}
-
-// FloatDistinctReduceSlice returns the distinct value within a window.
-func FloatDistinctReduceSlice(a []FloatPoint) []FloatPoint {
-	m := make(map[float64]FloatPoint)
-	for _, p := range a {
-		if _, ok := m[p.Value]; !ok {
-			m[p.Value] = p
-		}
-	}
-
-	points := make([]FloatPoint, 0, len(m))
-	for _, p := range m {
-		points = append(points, FloatPoint{Time: p.Time, Value: p.Value})
-	}
-	sort.Sort(floatPoints(points))
-	return points
-}
-
-// IntegerDistinctReduceSlice returns the distinct value within a window.
-func IntegerDistinctReduceSlice(a []IntegerPoint) []IntegerPoint {
-	m := make(map[int64]IntegerPoint)
-	for _, p := range a {
-		if _, ok := m[p.Value]; !ok {
-			m[p.Value] = p
-		}
-	}
-
-	points := make([]IntegerPoint, 0, len(m))
-	for _, p := range m {
-		points = append(points, IntegerPoint{Time: p.Time, Value: p.Value})
-	}
-	sort.Sort(integerPoints(points))
-	return points
-}
-
-// StringDistinctReduceSlice returns the distinct value within a window.
-func StringDistinctReduceSlice(a []StringPoint) []StringPoint {
-	m := make(map[string]StringPoint)
-	for _, p := range a {
-		if _, ok := m[p.Value]; !ok {
-			m[p.Value] = p
-		}
-	}
-
-	points := make([]StringPoint, 0, len(m))
-	for _, p := range m {
-		points = append(points, StringPoint{Time: p.Time, Value: p.Value})
-	}
-	sort.Sort(stringPoints(points))
-	return points
-}
-
-// BooleanDistinctReduceSlice returns the distinct value within a window.
-func BooleanDistinctReduceSlice(a []BooleanPoint) []BooleanPoint {
-	m := make(map[bool]BooleanPoint)
-	for _, p := range a {
-		if _, ok := m[p.Value]; !ok {
-			m[p.Value] = p
-		}
-	}
-
-	points := make([]BooleanPoint, 0, len(m))
-	for _, p := range m {
-		points = append(points, BooleanPoint{Time: p.Time, Value: p.Value})
-	}
-	sort.Sort(booleanPoints(points))
-	return points
 }
 
 // newMeanIterator returns an iterator for operating on a mean() call.
