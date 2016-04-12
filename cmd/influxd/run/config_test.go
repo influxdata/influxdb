@@ -35,8 +35,11 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
+
+[[collectd]]
+bind-address = ":1001"
 
 [opentsdb]
 bind-address = ":2000"
@@ -71,8 +74,10 @@ enabled = true
 		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
 	} else if c.Graphites[1].Protocol != "tcp" {
 		t.Fatalf("unexpected graphite protocol(1): %s", c.Graphites[1].Protocol)
-	} else if c.Collectd.BindAddress != ":1000" {
-		t.Fatalf("unexpected collectd bind address: %s", c.Collectd.BindAddress)
+	} else if c.Collectds[0].BindAddress != ":1000" {
+		t.Fatalf("unexpected collectd bind address: %s", c.Collectds[0].BindAddress)
+	} else if c.Collectds[1].BindAddress != ":1001" {
+		t.Fatalf("unexpected collectd bind address: %s", c.Collectds[1].BindAddress)
 	} else if c.OpenTSDB.BindAddress != ":2000" {
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
 	} else if c.UDPs[0].BindAddress != ":4444" {
@@ -111,7 +116,7 @@ protocol = "udp"
 [[graphite]]
 protocol = "tcp"
 
-[collectd]
+[[collectd]]
 bind-address = ":1000"
 
 [opentsdb]

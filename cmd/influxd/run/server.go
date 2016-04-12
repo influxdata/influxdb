@@ -241,7 +241,6 @@ func (s *Server) Open() error {
 	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
-	s.appendCollectdService(s.config.Collectd)
 	if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
 		return err
 	}
@@ -253,6 +252,9 @@ func (s *Server) Open() error {
 		if err := s.appendGraphiteService(g); err != nil {
 			return err
 		}
+	}
+	for _, g := range s.config.Collectds {
+		s.appendCollectdService(g)
 	}
 
 	s.Subscriber.MetaClient = s.MetaClient

@@ -48,7 +48,7 @@ type Config struct {
 	Subscriber subscriber.Config `toml:"subscriber"`
 	HTTPD      httpd.Config      `toml:"http"`
 	Graphites  []graphite.Config `toml:"graphite"`
-	Collectd   collectd.Config   `toml:"collectd"`
+	Collectds  []collectd.Config `toml:"collectd"`
 	OpenTSDB   opentsdb.Config   `toml:"opentsdb"`
 	UDPs       []udp.Config      `toml:"udp"`
 
@@ -79,7 +79,6 @@ func NewConfig() *Config {
 	c.Monitor = monitor.NewConfig()
 	c.Subscriber = subscriber.NewConfig()
 	c.HTTPD = httpd.NewConfig()
-	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
 
 	c.ContinuousQuery = continuous_querier.NewConfig()
@@ -103,6 +102,9 @@ func (c *Config) InitTableAttrs() {
 	}
 	if len(c.Graphites) == 0 {
 		c.Graphites = []graphite.Config{graphite.NewConfig()}
+	}
+	if len(c.Collectds) == 0 {
+		c.Collectds = []collectd.Config{collectd.NewConfig()}
 	}
 }
 
