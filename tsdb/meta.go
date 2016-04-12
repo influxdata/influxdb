@@ -761,6 +761,11 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	// the expression passed in, as the filter.
 	if name.Val != "_name" && m.hasField(name.Val) {
 		return m.seriesIDs, n, nil
+	} else if value, ok := value.(*influxql.VarRef); ok {
+		// Check if the RHS is a variable and if it is a field.
+		if value.Val != "_name" && m.hasField(value.Val) {
+			return m.seriesIDs, n, nil
+		}
 	}
 
 	// Retrieve list of series with this tag key.
@@ -845,6 +850,26 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 				if re.Val.MatchString(k) {
 					ids = ids.Reject(tagVals[k])
 				}
+			}
+		}
+		return ids, &influxql.BooleanLiteral{Val: true}, nil
+	}
+
+	// compare tag values
+	if ref, ok := value.(*influxql.VarRef); ok {
+		var ids SeriesIDs
+
+		if n.Op == influxql.NEQ {
+			ids = m.seriesIDs
+		}
+
+		rhsTagVals := m.seriesByTagKeyValue[ref.Val]
+		for k := range tagVals {
+			tags := tagVals[k].Intersect(rhsTagVals[k])
+			if n.Op == influxql.EQ {
+				ids = ids.Union(tags)
+			} else if n.Op == influxql.NEQ {
+				ids = ids.Reject(tags)
 			}
 		}
 		return ids, &influxql.BooleanLiteral{Val: true}, nil
