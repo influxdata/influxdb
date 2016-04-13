@@ -920,7 +920,7 @@ func NewFloatPercentileReduceSliceFunc(percentile float64) FloatReduceSliceFunc 
 		}
 
 		sort.Sort(floatPointsByValue(a))
-		return []FloatPoint{{Time: ZeroTime, Value: a[i].Value, Aux: a[i].Aux}}
+		return []FloatPoint{{Time: a[i].Time, Value: a[i].Value, Aux: a[i].Aux}}
 	}
 }
 
