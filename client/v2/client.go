@@ -516,10 +516,17 @@ func (r *Response) Error() error {
 	return nil
 }
 
+// Message represents a user message.
+type Message struct {
+	Level string
+	Text  string
+}
+
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Series []models.Row
-	Err    string `json:"error,omitempty"`
+	Series   []models.Row
+	Messages []*Message
+	Err      string `json:"error,omitempty"`
 }
 
 func (uc *udpclient) Query(q Query) (*Response, error) {

@@ -387,22 +387,31 @@ func (c *Client) Ping() (time.Duration, string, error) {
 
 // Structs
 
+// Message represents a user message.
+type Message struct {
+	Level string `json:"level,omitempty"`
+	Text  string `json:"text,omitempty"`
+}
+
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Series []models.Row
-	Err    error
+	Series   []models.Row
+	Messages []*Message
+	Err      error
 }
 
 // MarshalJSON encodes the result into JSON.
 func (r *Result) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Series []models.Row `json:"series,omitempty"`
-		Err    string       `json:"error,omitempty"`
+		Series   []models.Row `json:"series,omitempty"`
+		Messages []*Message   `json:"messages,omitempty"`
+		Err      string       `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
 	o.Series = r.Series
+	o.Messages = r.Messages
 	if r.Err != nil {
 		o.Err = r.Err.Error()
 	}
@@ -413,8 +422,9 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Result struct
 func (r *Result) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Series []models.Row `json:"series,omitempty"`
-		Err    string       `json:"error,omitempty"`
+		Series   []models.Row `json:"series,omitempty"`
+		Messages []*Message   `json:"messages,omitempty"`
+		Err      string       `json:"error,omitempty"`
 	}
 
 	dec := json.NewDecoder(bytes.NewBuffer(b))
@@ -424,6 +434,7 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	r.Series = o.Series
+	r.Messages = o.Messages
 	if o.Err != "" {
 		r.Err = errors.New(o.Err)
 	}

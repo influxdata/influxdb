@@ -321,6 +321,44 @@ func TestClient_UserAgent(t *testing.T) {
 	}
 }
 
+func TestClient_Messages(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"results":[{"messages":[{"level":"warning","text":"deprecation test"}]}]}`))
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{}
+	resp, err := c.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	if got, exp := len(resp.Results), 1; got != exp {
+		t.Fatalf("unexpected number of results.  expected %v, actual %v", exp, got)
+	}
+
+	r := resp.Results[0]
+	if got, exp := len(r.Messages), 1; got != exp {
+		t.Fatalf("unexpected number of messages.  expected %v, actual %v", exp, got)
+	}
+
+	m := r.Messages[0]
+	if got, exp := m.Level, "warning"; got != exp {
+		t.Errorf("unexpected message level.  expected %v, actual %v", exp, got)
+	}
+	if got, exp := m.Text, "deprecation test"; got != exp {
+		t.Errorf("unexpected message text.  expected %v, actual %v", exp, got)
+	}
+}
+
 func TestPoint_UnmarshalEpoch(t *testing.T) {
 	now := time.Now()
 	tests := []struct {

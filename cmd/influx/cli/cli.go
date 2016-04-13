@@ -609,7 +609,12 @@ func (c *CommandLine) writeCSV(response *client.Response, w io.Writer) {
 
 func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 	for _, result := range response.Results {
-		// Create a tabbed writer for each result a they won't always line up
+		// Print out all messages first
+		for _, m := range result.Messages {
+			fmt.Fprintf(w, "%s: %s.\n", m.Level, m.Text)
+		}
+
+		// Create a tabbed writer for each result as they won't always line up
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 1, '\t', 0)
 		csv := c.formatResults(result, "\t")

@@ -379,6 +379,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			// Append remaining rows as new rows.
 			r.Series = r.Series[rowsMerged:]
 			cr.Series = append(cr.Series, r.Series...)
+			cr.Messages = append(cr.Messages, r.Messages...)
 		} else {
 			resp.Results = append(resp.Results, r)
 		}

@@ -6,6 +6,7 @@
 - [#6263](https://github.com/influxdata/influxdb/pull/6263): Reduce UDP Service allocation size.
 - [#6228](https://github.com/influxdata/influxdb/pull/6228): Support for multiple listeners for collectd and OpenTSDB inputs.
 - [#6292](https://github.com/influxdata/influxdb/issues/6292): Allow percentile to be used as a selector.
+- [#5707](https://github.com/influxdata/influxdb/issues/5707): Return a deprecated message when IF NOT EXISTS is used.
 
 ### Bugfixes
 

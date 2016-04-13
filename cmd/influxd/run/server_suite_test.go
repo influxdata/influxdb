@@ -56,12 +56,12 @@ func init() {
 			&Query{
 				name:    "create database should not error with existing database with IF NOT EXISTS",
 				command: `CREATE DATABASE IF NOT EXISTS db0`,
-				exp:     `{"results":[{}]}`,
+				exp:     `{"results":[{"messages":[{"level":"warning","text":"IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in v1.0"}]}]}`,
 			},
 			&Query{
 				name:    "create database should create non-existing database with IF NOT EXISTS",
 				command: `CREATE DATABASE IF NOT EXISTS db1`,
-				exp:     `{"results":[{}]}`,
+				exp:     `{"results":[{"messages":[{"level":"warning","text":"IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in v1.0"}]}]}`,
 			},
 			&Query{
 				name:    "create database with retention duration should error if retention policy is different with IF NOT EXISTS",
