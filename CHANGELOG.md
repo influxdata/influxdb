@@ -20,6 +20,7 @@
 - [#6287](https://github.com/influxdata/influxdb/issues/6287): Fix data race in Influx Client.
 - [#6252](https://github.com/influxdata/influxdb/pull/6252): Remove TSDB listener accept message @simnv
 - [#6202](https://github.com/influxdata/influxdb/pull/6202): Check default SHARD DURATION when recreating the same database.
+- [#6296](https://github.com/influxdata/influxdb/issues/6296): Allow the implicit time field to be renamed again.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes

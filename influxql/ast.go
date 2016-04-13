@@ -903,6 +903,9 @@ type SelectStatement struct {
 	// The value to fill empty aggregate buckets with, if any
 	FillValue interface{}
 
+	// Renames the implicit time field name.
+	TimeAlias string
+
 	// Removes the "time" column from the output.
 	OmitTime bool
 
@@ -966,6 +969,14 @@ func (s *SelectStatement) HasSimpleCount() bool {
 // TimeAscending returns true if the time field is sorted in chronological order.
 func (s *SelectStatement) TimeAscending() bool {
 	return len(s.SortFields) == 0 || s.SortFields[0].Ascending
+}
+
+// TimeFieldName returns the name of the time field.
+func (s *SelectStatement) TimeFieldName() string {
+	if s.TimeAlias != "" {
+		return s.TimeAlias
+	}
+	return "time"
 }
 
 // Clone returns a deep copy of the statement.
@@ -1133,6 +1144,7 @@ func (s *SelectStatement) RewriteTimeFields() {
 		switch expr := s.Fields[i].Expr.(type) {
 		case *VarRef:
 			if expr.Val == "time" {
+				s.TimeAlias = s.Fields[i].Alias
 				s.Fields = append(s.Fields[:i], s.Fields[i+1:]...)
 			}
 		}
@@ -1169,7 +1181,7 @@ func (s *SelectStatement) ColumnNames() []string {
 	columnNames := make([]string, len(columnFields)+offset)
 	if !s.OmitTime {
 		// Add the implicit time if requested.
-		columnNames[0] = "time"
+		columnNames[0] = s.TimeFieldName()
 	}
 
 	// Keep track of the encountered column names.

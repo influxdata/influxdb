@@ -447,6 +447,56 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	}
 }
 
+// Test SELECT statement time field rewrite.
+func TestSelectStatement_RewriteTimeFields(t *testing.T) {
+	var tests = []struct {
+		s    string
+		stmt influxql.Statement
+	}{
+		{
+			s: `SELECT time, field1 FROM cpu`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "field1"}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{Name: "cpu"},
+				},
+			},
+		},
+		{
+			s: `SELECT time AS timestamp, field1 FROM cpu`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "field1"}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{Name: "cpu"},
+				},
+				TimeAlias: "timestamp",
+			},
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.s, err)
+		}
+
+		// Rewrite statement.
+		stmt.(*influxql.SelectStatement).RewriteTimeFields()
+		if !reflect.DeepEqual(tt.stmt, stmt) {
+			t.Logf("\n# %s\nexp=%s\ngot=%s\n", tt.s, mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
+			t.Logf("\nSQL exp=%s\nSQL got=%s\n", tt.stmt.String(), stmt.String())
+			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
+		}
+	}
+}
+
 // Ensure that the IsRawQuery flag gets set properly
 func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 	var tests = []struct {
@@ -1247,6 +1297,15 @@ func TestSelect_ColumnNames(t *testing.T) {
 				}),
 			},
 			columns: []string{"time", "value_1", "value", "value_2"},
+		},
+		{
+			stmt: &influxql.SelectStatement{
+				Fields: influxql.Fields([]*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "value"}},
+				}),
+				TimeAlias: "timestamp",
+			},
+			columns: []string{"timestamp", "value"},
 		},
 	} {
 		columns := tt.stmt.ColumnNames()
