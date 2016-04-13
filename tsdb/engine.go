@@ -29,14 +29,15 @@ type Engine interface {
 	Close() error
 
 	SetLogOutput(io.Writer)
-	LoadMetadataIndex(shard *Shard, index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
+	LoadMetadataIndex(shard *Shard, index *DatabaseIndex) error
 
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error)
-	WritePoints(points []models.Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
+	WritePoints(points []models.Point) error
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)
+	MeasurementFields(measurement string) *MeasurementFields
 
 	// Format will return the format for the engine
 	Format() EngineFormat

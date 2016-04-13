@@ -119,7 +119,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// to downgrade, export, and then import the meta data
 	raftFile := filepath.Join(c.Meta.Dir, "raft.db")
 	if _, err := os.Stat(raftFile); err == nil {
-		return nil, fmt.Errorf("detected %s.  either downgrade and export your meta data to import before continuing, or delete the file to start fresh", raftFile)
+		return nil, fmt.Errorf("detected %s. To proceed, you'll need to either 1) downgrade to v0.11.x, export your metadata, upgrade to the current version again, and then import the metadata or 2) delete the file, which will effectively reset your database. For more assistance with the upgrade, see: https://docs.influxdata.com/influxdb/v0.12/administration/upgrading/", raftFile)
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check
@@ -169,7 +169,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor = influxql.NewQueryExecutor()
 	s.QueryExecutor.StatementExecutor = &cluster.StatementExecutor{
 		MetaClient:        s.MetaClient,
-		TSDBStore:         s.TSDBStore,
+		TSDBStore:         cluster.LocalTSDBStore{Store: s.TSDBStore},
 		Monitor:           s.Monitor,
 		PointsWriter:      s.PointsWriter,
 		MaxSelectPointN:   c.Cluster.MaxSelectPointN,
@@ -194,7 +194,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
-	srv.TSDBStore = s.TSDBStore
+	srv.TSDBStore = cluster.LocalTSDBStore{Store: s.TSDBStore}
 	s.Services = append(s.Services, srv)
 	s.ClusterService = srv
 }
@@ -241,18 +241,22 @@ func (s *Server) Open() error {
 	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
-	s.appendCollectdService(s.config.Collectd)
-	if err := s.appendOpenTSDBService(s.config.OpenTSDB); err != nil {
-		return err
-	}
-	for _, g := range s.config.UDPs {
-		s.appendUDPService(g)
-	}
 	s.appendRetentionPolicyService(s.config.Retention)
-	for _, g := range s.config.Graphites {
-		if err := s.appendGraphiteService(g); err != nil {
+	for _, i := range s.config.GraphiteInputs {
+		if err := s.appendGraphiteService(i); err != nil {
 			return err
 		}
+	}
+	for _, i := range s.config.CollectdInputs {
+		s.appendCollectdService(i)
+	}
+	for _, i := range s.config.OpenTSDBInputs {
+		if err := s.appendOpenTSDBService(i); err != nil {
+			return err
+		}
+	}
+	for _, i := range s.config.UDPInputs {
+		s.appendUDPService(i)
 	}
 
 	s.Subscriber.MetaClient = s.MetaClient

@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package internal is a generated protocol buffer package.
+Package copier is a generated protocol buffer package.
 
 It is generated from these files:
 	internal/internal.proto
@@ -12,7 +12,7 @@ It has these top-level messages:
 	Request
 	Response
 */
-package internal
+package copier
 
 import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
@@ -53,4 +53,9 @@ func (m *Response) GetError() string {
 		return *m.Error
 	}
 	return ""
+}
+
+func init() {
+	proto.RegisterType((*Request)(nil), "copier.Request")
+	proto.RegisterType((*Response)(nil), "copier.Response")
 }

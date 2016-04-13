@@ -27,6 +27,9 @@ const (
 
 	// DefaultBatchPending is the default number of batches that can be in the queue.
 	DefaultBatchPending = 5
+
+	// DefaultCertificate is the default location of the certificate used when TLS is enabled.
+	DefaultCertificate = "/etc/ssl/influxdb.pem"
 )
 
 // Config represents the configuration of the OpenTSDB service.
@@ -52,10 +55,42 @@ func NewConfig() Config {
 		RetentionPolicy:  DefaultRetentionPolicy,
 		ConsistencyLevel: DefaultConsistencyLevel,
 		TLSEnabled:       false,
-		Certificate:      "/etc/ssl/influxdb.pem",
+		Certificate:      DefaultCertificate,
 		BatchSize:        DefaultBatchSize,
 		BatchPending:     DefaultBatchPending,
 		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
 		LogPointErrors:   true,
 	}
+}
+
+// WithDefaults takes the given config and returns a new config with any required
+// default values set.
+func (c *Config) WithDefaults() *Config {
+	d := *c
+	if d.BindAddress == "" {
+		d.BindAddress = DefaultBindAddress
+	}
+	if d.Database == "" {
+		d.Database = DefaultDatabase
+	}
+	if d.RetentionPolicy == "" {
+		d.RetentionPolicy = DefaultRetentionPolicy
+	}
+	if d.ConsistencyLevel == "" {
+		d.ConsistencyLevel = DefaultConsistencyLevel
+	}
+	if d.Certificate == "" {
+		d.Certificate = DefaultCertificate
+	}
+	if d.BatchSize == 0 {
+		d.BatchSize = DefaultBatchSize
+	}
+	if d.BatchPending == 0 {
+		d.BatchPending = DefaultBatchPending
+	}
+	if d.BatchTimeout == 0 {
+		d.BatchTimeout = toml.Duration(DefaultBatchTimeout)
+	}
+
+	return &d
 }

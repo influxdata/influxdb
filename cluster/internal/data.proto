@@ -1,4 +1,4 @@
-package internal;
+package cluster;
 
 message WriteShardRequest {
     required uint64 ShardID = 1;

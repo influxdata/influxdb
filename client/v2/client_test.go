@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -136,6 +137,54 @@ func TestClient_Ping(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
 	}
+}
+
+func TestClient_Concurrent_Use(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{Addr: ts.URL}
+	c, _ := NewHTTPClient(config)
+	defer c.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+	n := 1000
+
+	go func() {
+		defer wg.Done()
+		bp, err := NewBatchPoints(BatchPointsConfig{})
+		if err != nil {
+			t.Errorf("got error %v", err)
+		}
+
+		for i := 0; i < n; i++ {
+			if err = c.Write(bp); err != nil {
+				t.Fatalf("got error %v", err)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var q Query
+		for i := 0; i < n; i++ {
+			if _, err := c.Query(q); err != nil {
+				t.Fatalf("got error %v", err)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			c.Ping(time.Second)
+		}
+	}()
+	wg.Wait()
 }
 
 func TestClient_Write(t *testing.T) {

@@ -80,19 +80,22 @@ type Service struct {
 
 // NewService returns a new instance of Service.
 func NewService(c Config) (*Service, error) {
+	// Use defaults where necessary.
+	d := c.WithDefaults()
+
 	s := &Service{
 		done:            make(chan struct{}),
-		tls:             c.TLSEnabled,
-		cert:            c.Certificate,
+		tls:             d.TLSEnabled,
+		cert:            d.Certificate,
 		err:             make(chan error),
-		BindAddress:     c.BindAddress,
-		Database:        c.Database,
-		RetentionPolicy: c.RetentionPolicy,
-		batchSize:       c.BatchSize,
-		batchPending:    c.BatchPending,
-		batchTimeout:    time.Duration(c.BatchTimeout),
+		BindAddress:     d.BindAddress,
+		Database:        d.Database,
+		RetentionPolicy: d.RetentionPolicy,
+		batchSize:       d.BatchSize,
+		batchPending:    d.BatchPending,
+		batchTimeout:    time.Duration(d.BatchTimeout),
 		Logger:          log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
-		LogPointErrors:  c.LogPointErrors,
+		LogPointErrors:  d.LogPointErrors,
 	}
 	return s, nil
 }

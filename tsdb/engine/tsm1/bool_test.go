@@ -15,7 +15,8 @@ func Test_BooleanEncoder_NoValues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := tsm1.NewBooleanDecoder(b)
+	var dec tsm1.BooleanDecoder
+	dec.SetBytes(b)
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -30,7 +31,8 @@ func Test_BooleanEncoder_Single(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := tsm1.NewBooleanDecoder(b)
+	var dec tsm1.BooleanDecoder
+	dec.SetBytes(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got false, exp true")
 	}
@@ -58,7 +60,8 @@ func Test_BooleanEncoder_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
-	dec := tsm1.NewBooleanDecoder(b)
+	var dec tsm1.BooleanDecoder
+	dec.SetBytes(b)
 
 	for i, v := range values {
 		if !dec.Next() {
@@ -94,7 +97,8 @@ func Test_BooleanEncoder_Quick(t *testing.T) {
 
 		// Read values out of decoder.
 		got := make([]bool, 0, len(values))
-		dec := tsm1.NewBooleanDecoder(buf)
+		var dec tsm1.BooleanDecoder
+		dec.SetBytes(buf)
 		for dec.Next() {
 			got = append(got, dec.Read())
 		}

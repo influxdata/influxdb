@@ -38,11 +38,12 @@ type bufCursor struct {
 		value  interface{}
 		filled bool
 	}
+	ascending bool
 }
 
 // newBufCursor returns a bufferred wrapper for cur.
-func newBufCursor(cur cursor) *bufCursor {
-	return &bufCursor{cur: cur}
+func newBufCursor(cur cursor, ascending bool) *bufCursor {
+	return &bufCursor{cur: cur, ascending: ascending}
 }
 
 // next returns the buffer, if filled. Otherwise returns the next key/value from the cursor.
@@ -74,13 +75,16 @@ func (c *bufCursor) peek() (k int64, v interface{}) {
 func (c *bufCursor) nextAt(seek int64) interface{} {
 	for {
 		k, v := c.next()
-		if k == tsdb.EOF || k == seek {
-			return v
-		} else if k < seek {
-			continue
+		if k != tsdb.EOF {
+			if k == seek {
+				return v
+			} else if c.ascending && k < seek {
+				continue
+			} else if !c.ascending && k > seek {
+				continue
+			}
+			c.unread(k, v)
 		}
-
-		c.unread(k, v)
 
 		// Return "nil" value for type.
 		switch c.cur.(type) {
@@ -108,7 +112,7 @@ type floatIterator struct {
 	aux   []cursorAt
 	conds struct {
 		names []string
-		curs  []*bufCursor
+		curs  []cursorAt
 	}
 	opt influxql.IteratorOptions
 
@@ -120,7 +124,7 @@ type floatIterator struct {
 	statsBuf  influxql.IteratorStats
 }
 
-func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur floatCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *floatIterator {
+func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
 	itr := &floatIterator{
 		cur: cur,
 		aux: aux,
@@ -160,8 +164,10 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -244,6 +250,8 @@ type floatAscendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      FloatDecoder
 		buf       []FloatValue
 		values    []FloatValue
 		pos       int
@@ -259,9 +267,10 @@ func newFloatAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCu
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]FloatValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -333,7 +342,7 @@ func (c *floatAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -348,6 +357,8 @@ type floatDescendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      FloatDecoder
 		buf       []FloatValue
 		values    []FloatValue
 		pos       int
@@ -366,9 +377,10 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 		c.cache.pos--
 	}
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]FloatValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -443,7 +455,7 @@ func (c *floatDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -474,7 +486,7 @@ type integerIterator struct {
 	aux   []cursorAt
 	conds struct {
 		names []string
-		curs  []*bufCursor
+		curs  []cursorAt
 	}
 	opt influxql.IteratorOptions
 
@@ -486,7 +498,7 @@ type integerIterator struct {
 	statsBuf  influxql.IteratorStats
 }
 
-func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur integerCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *integerIterator {
+func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
 	itr := &integerIterator{
 		cur: cur,
 		aux: aux,
@@ -526,8 +538,10 @@ func (itr *integerIterator) Next() *influxql.IntegerPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -610,6 +624,8 @@ type integerAscendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      IntegerDecoder
 		buf       []IntegerValue
 		values    []IntegerValue
 		pos       int
@@ -625,9 +641,10 @@ func newIntegerAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]IntegerValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -699,7 +716,7 @@ func (c *integerAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -714,6 +731,8 @@ type integerDescendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      IntegerDecoder
 		buf       []IntegerValue
 		values    []IntegerValue
 		pos       int
@@ -732,9 +751,10 @@ func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 		c.cache.pos--
 	}
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]IntegerValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -809,7 +829,7 @@ func (c *integerDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -840,7 +860,7 @@ type stringIterator struct {
 	aux   []cursorAt
 	conds struct {
 		names []string
-		curs  []*bufCursor
+		curs  []cursorAt
 	}
 	opt influxql.IteratorOptions
 
@@ -852,7 +872,7 @@ type stringIterator struct {
 	statsBuf  influxql.IteratorStats
 }
 
-func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur stringCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *stringIterator {
+func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
 	itr := &stringIterator{
 		cur: cur,
 		aux: aux,
@@ -892,8 +912,10 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -976,6 +998,8 @@ type stringAscendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      StringDecoder
 		buf       []StringValue
 		values    []StringValue
 		pos       int
@@ -991,9 +1015,10 @@ func newStringAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]StringValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1065,7 +1090,7 @@ func (c *stringAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1080,6 +1105,8 @@ type stringDescendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      StringDecoder
 		buf       []StringValue
 		values    []StringValue
 		pos       int
@@ -1098,9 +1125,10 @@ func newStringDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 		c.cache.pos--
 	}
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]StringValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1175,7 +1203,7 @@ func (c *stringDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1206,7 +1234,7 @@ type booleanIterator struct {
 	aux   []cursorAt
 	conds struct {
 		names []string
-		curs  []*bufCursor
+		curs  []cursorAt
 	}
 	opt influxql.IteratorOptions
 
@@ -1218,7 +1246,7 @@ type booleanIterator struct {
 	statsBuf  influxql.IteratorStats
 }
 
-func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []*bufCursor, condNames []string) *booleanIterator {
+func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
 	itr := &booleanIterator{
 		cur: cur,
 		aux: aux,
@@ -1258,8 +1286,10 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 		} else {
 			// Otherwise find lowest aux timestamp.
 			for i := range itr.aux {
-				if k, _ := itr.aux[i].peek(); k != tsdb.EOF && (seek == tsdb.EOF || k < seek) {
-					seek = k
+				if k, _ := itr.aux[i].peek(); k != tsdb.EOF {
+					if seek == tsdb.EOF || (itr.opt.Ascending && k < seek) || (!itr.opt.Ascending && k > seek) {
+						seek = k
+					}
 				}
 			}
 			itr.point.Time = seek
@@ -1342,6 +1372,8 @@ type booleanAscendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      BooleanDecoder
 		buf       []BooleanValue
 		values    []BooleanValue
 		pos       int
@@ -1357,9 +1389,10 @@ func newBooleanAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]BooleanValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1431,7 +1464,7 @@ func (c *booleanAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1446,6 +1479,8 @@ type booleanDescendingCursor struct {
 	}
 
 	tsm struct {
+		tdec      TimeDecoder
+		vdec      BooleanDecoder
 		buf       []BooleanValue
 		values    []BooleanValue
 		pos       int
@@ -1464,9 +1499,10 @@ func newBooleanDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 		c.cache.pos--
 	}
 
+	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]BooleanValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1541,7 +1577,7 @@ func (c *booleanDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}

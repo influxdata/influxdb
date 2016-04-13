@@ -6,7 +6,7 @@ github.com/boltdb/bolt 2f846c3551b76d7710f159be840d66c3d064abbe
 github.com/davecgh/go-spew fc32781af5e85e548d3f1abaf0fa3dbe8a72495c
 github.com/dgryski/go-bits 86c69b3c986f9d40065df5bd8f765796549eef2e
 github.com/dgryski/go-bitstream 27cd5973303fde7d914860be1ea4b927a6be0c92
-github.com/gogo/protobuf 82d16f734d6d871204a3feb1a73cb220cc92574c
+github.com/gogo/protobuf 74b6e9deaff6ba6da1389ec97351d337f0d08b06
 github.com/golang/snappy 5979233c5d6225d4a8e438cdd0b411888449ddab
 github.com/hashicorp/go-msgpack fa3f63826f7c23912c15263591e65d54d080b458
 github.com/hashicorp/raft 8fd9a2fdfd154f4b393aa24cff91e3c317efe839

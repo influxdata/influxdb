@@ -1,4 +1,30 @@
-## v0.12.0 [unreleased]
+## v0.13.0 [unreleased]
+
+### Features
+
+- [#6237](https://github.com/influxdata/influxdb/issues/6237): Enable continuous integration testing on Windows platform via AppVeyor. Thanks @mvadu
+- [#6263](https://github.com/influxdata/influxdb/pull/6263): Reduce UDP Service allocation size.
+- [#6228](https://github.com/influxdata/influxdb/pull/6228): Support for multiple listeners for collectd and OpenTSDB inputs.
+
+### Bugfixes
+
+- [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
+- [#6248](https://github.com/influxdata/influxdb/issues/6248): Panic using incorrectly quoted "queries" field key.
+- [#6257](https://github.com/influxdata/influxdb/issues/6257): CreateShardGroup was incrementing meta data index even when it was idempotent.
+- [#6223](https://github.com/influxdata/influxdb/issues/6223): Failure to start/run on Windows. Thanks @mvadu
+- [#6229](https://github.com/influxdata/influxdb/issues/6229): Fixed aggregate queries with no GROUP BY to include the end time.
+- [#6283](https://github.com/influxdata/influxdb/pull/6283): Fix GROUP BY tag to produce consistent results when a series has no tags.
+- [#3773](https://github.com/influxdata/influxdb/issues/3773): Support empty tags for all WHERE equality operations.
+- [#6270](https://github.com/influxdata/influxdb/issues/6270): tsm1 query engine alloc reduction
+- [#6271](https://github.com/influxdata/influxdb/issues/6271): Fixed deadlock in tsm1 file store.
+- [#6287](https://github.com/influxdata/influxdb/issues/6287): Fix data race in Influx Client.
+- [#6252](https://github.com/influxdata/influxdb/pull/6252): Remove TSDB listener accept message @simnv
+
+## v0.12.0 [2016-04-05]
+### Release Notes
+Upgrading to this release requires a little more than just installing the new binary and starting it up. The upgrade process is very quick and should only require a minute of downtime or less. Details on [upgrading to 0.12 are here](https://docs.influxdata.com/influxdb/v0.12/administration/upgrading/).
+
+This release removes all of the old clustering code. It operates as a standalone server. For a free open source HA setup see the [InfluxDB Relay](https://github.com/influxdata/influxdb-relay).
 
 ### Features
 

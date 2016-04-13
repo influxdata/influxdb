@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/services/copier/internal"
+	internal "github.com/influxdata/influxdb/services/copier/internal"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 )

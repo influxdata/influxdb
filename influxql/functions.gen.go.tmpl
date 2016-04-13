@@ -1,5 +1,7 @@
 package influxql
 
+import "sort"
+
 {{with $types := .}}{{range $k := $types}}
 
 // {{$k.Name}}PointAggregator aggregates points to produce a single point.
@@ -87,4 +89,33 @@ func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer)
 func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit() []{{$v.Name}}Point {
 	return r.fn(r.points)
 }
-{{end}}{{end}}{{end}}
+{{end}}
+
+// {{$k.Name}}DistinctReducer returns the distinct points in a series.
+type {{$k.Name}}DistinctReducer struct {
+	m map[{{$k.Type}}]{{$k.Name}}Point
+}
+
+// New{{$k.Name}}DistinctReducer creates a new {{$k.Name}}DistinctReducer.
+func New{{$k.Name}}DistinctReducer() *{{$k.Name}}DistinctReducer {
+	return &{{$k.Name}}DistinctReducer{m: make(map[{{$k.Type}}]{{$k.Name}}Point)}
+}
+
+// Aggregate{{$k.Name}} aggregates a point into the reducer.
+func (r *{{$k.Name}}DistinctReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
+	if _, ok := r.m[p.Value]; !ok {
+		r.m[p.Value] = *p
+	}
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *{{$k.Name}}DistinctReducer) Emit() []{{$k.Name}}Point {
+	points := make([]{{$k.Name}}Point, 0, len(r.m))
+	for _, p := range r.m {
+		points = append(points, {{$k.Name}}Point{Time: p.Time, Value: p.Value})
+	}
+	sort.Sort({{$k.name}}Points(points))
+	return points
+}
+
+{{end}}{{end}}

@@ -96,10 +96,10 @@ type blockAccessor interface {
 	read(key string, timestamp int64) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
-	readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error)
-	readIntegerBlock(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error)
-	readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error)
-	readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error)
+	readFloatBlock(entry *IndexEntry, tdec TimeDecoder, fdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
+	readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
+	readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
+	readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
 	readBytes(entry *IndexEntry, buf []byte) ([]byte, error)
 	path() string
 	close() error
@@ -209,28 +209,28 @@ func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	return t.accessor.readBlock(entry, vals)
 }
 
-func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, vals []FloatValue) ([]FloatValue, error) {
+func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, vals *[]FloatValue) ([]FloatValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.accessor.readFloatBlock(entry, vals)
+	return t.accessor.readFloatBlock(entry, tdec, vdec, vals)
 }
 
-func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, vals []IntegerValue) ([]IntegerValue, error) {
+func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, vals *[]IntegerValue) ([]IntegerValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.accessor.readIntegerBlock(entry, vals)
+	return t.accessor.readIntegerBlock(entry, tdec, vdec, vals)
 }
 
-func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, vals []StringValue) ([]StringValue, error) {
+func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, vals *[]StringValue) ([]StringValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.accessor.readStringBlock(entry, vals)
+	return t.accessor.readStringBlock(entry, tdec, vdec, vals)
 }
 
-func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, vals []BooleanValue) ([]BooleanValue, error) {
+func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, vals *[]BooleanValue) ([]BooleanValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.accessor.readBooleanBlock(entry, vals)
+	return t.accessor.readBooleanBlock(entry, tdec, vdec, vals)
 }
 
 func (t *TSMReader) Read(key string, timestamp int64) ([]Value, error) {
@@ -803,64 +803,64 @@ func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	return values, nil
 }
 
-func (f *fileAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error) {
+func (f *fileAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
 	b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Validate checksum
-	values, err = DecodeFloatBlock(b, values)
+	a, err := DecodeFloatBlock(b, tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
-func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error) {
+func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
 	b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Validate checksum
-	values, err = DecodeIntegerBlock(b, values)
+	a, err := DecodeIntegerBlock(b, tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
-func (f *fileAccessor) readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error) {
+func (f *fileAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
 	b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Validate checksum
-	values, err = DecodeStringBlock(b, values)
+	a, err := DecodeStringBlock(b, tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
-func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error) {
+func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
 	b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	// TODO: Validate checksum
-	values, err = DecodeBooleanBlock(b, values)
+	a, err := DecodeBooleanBlock(b, tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
 func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
@@ -1011,7 +1011,7 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	return values, nil
 }
 
-func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([]FloatValue, error) {
+func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1019,16 +1019,15 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, values []FloatValue) ([
 		return nil, ErrTSMClosed
 	}
 	//TODO: Validate checksum
-	var err error
-	values, err = DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
-func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values []IntegerValue) ([]IntegerValue, error) {
+func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1036,16 +1035,15 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, values []IntegerValue
 		return nil, ErrTSMClosed
 	}
 	//TODO: Validate checksum
-	var err error
-	values, err = DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
-func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values []StringValue) ([]StringValue, error) {
+func (m *mmapAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1053,16 +1051,15 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, values []StringValue) 
 		return nil, ErrTSMClosed
 	}
 	//TODO: Validate checksum
-	var err error
-	values, err = DecodeStringBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeStringBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
-func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values []BooleanValue) ([]BooleanValue, error) {
+func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1070,13 +1067,12 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, values []BooleanValue
 		return nil, ErrTSMClosed
 	}
 	//TODO: Validate checksum
-	var err error
-	values, err = DecodeBooleanBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], values)
+	a, err := DecodeBooleanBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
 	if err != nil {
 		return nil, err
 	}
 
-	return values, nil
+	return a, nil
 }
 
 func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {

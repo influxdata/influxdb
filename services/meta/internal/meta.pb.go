@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package internal is a generated protocol buffer package.
+Package meta is a generated protocol buffer package.
 
 It is generated from these files:
 	internal/meta.proto
@@ -52,7 +52,7 @@ It has these top-level messages:
 	SetMetaNodeCommand
 	DropShardCommand
 */
-package internal
+package meta
 
 import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
@@ -619,7 +619,7 @@ func (m *UserPrivilege) GetPrivilege() int32 {
 }
 
 type Command struct {
-	Type             *Command_Type             `protobuf:"varint,1,req,name=type,enum=internal.Command_Type" json:"type,omitempty"`
+	Type             *Command_Type             `protobuf:"varint,1,req,name=type,enum=meta.Command_Type" json:"type,omitempty"`
 	XXX_extensions   map[int32]proto.Extension `json:"-"`
 	XXX_unrecognized []byte                    `json:"-"`
 }
@@ -679,7 +679,7 @@ var E_CreateNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateNodeCommand)(nil),
 	Field:         101,
-	Name:          "internal.CreateNodeCommand.command",
+	Name:          "meta.CreateNodeCommand.command",
 	Tag:           "bytes,101,opt,name=command",
 }
 
@@ -711,7 +711,7 @@ var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DeleteNodeCommand)(nil),
 	Field:         102,
-	Name:          "internal.DeleteNodeCommand.command",
+	Name:          "meta.DeleteNodeCommand.command",
 	Tag:           "bytes,102,opt,name=command",
 }
 
@@ -743,7 +743,7 @@ var E_CreateDatabaseCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateDatabaseCommand)(nil),
 	Field:         103,
-	Name:          "internal.CreateDatabaseCommand.command",
+	Name:          "meta.CreateDatabaseCommand.command",
 	Tag:           "bytes,103,opt,name=command",
 }
 
@@ -767,7 +767,7 @@ var E_DropDatabaseCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropDatabaseCommand)(nil),
 	Field:         104,
-	Name:          "internal.DropDatabaseCommand.command",
+	Name:          "meta.DropDatabaseCommand.command",
 	Tag:           "bytes,104,opt,name=command",
 }
 
@@ -799,7 +799,7 @@ var E_CreateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateRetentionPolicyCommand)(nil),
 	Field:         105,
-	Name:          "internal.CreateRetentionPolicyCommand.command",
+	Name:          "meta.CreateRetentionPolicyCommand.command",
 	Tag:           "bytes,105,opt,name=command",
 }
 
@@ -831,7 +831,7 @@ var E_DropRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropRetentionPolicyCommand)(nil),
 	Field:         106,
-	Name:          "internal.DropRetentionPolicyCommand.command",
+	Name:          "meta.DropRetentionPolicyCommand.command",
 	Tag:           "bytes,106,opt,name=command",
 }
 
@@ -863,7 +863,7 @@ var E_SetDefaultRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*SetDefaultRetentionPolicyCommand)(nil),
 	Field:         107,
-	Name:          "internal.SetDefaultRetentionPolicyCommand.command",
+	Name:          "meta.SetDefaultRetentionPolicyCommand.command",
 	Tag:           "bytes,107,opt,name=command",
 }
 
@@ -919,7 +919,7 @@ var E_UpdateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*UpdateRetentionPolicyCommand)(nil),
 	Field:         108,
-	Name:          "internal.UpdateRetentionPolicyCommand.command",
+	Name:          "meta.UpdateRetentionPolicyCommand.command",
 	Tag:           "bytes,108,opt,name=command",
 }
 
@@ -959,7 +959,7 @@ var E_CreateShardGroupCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateShardGroupCommand)(nil),
 	Field:         109,
-	Name:          "internal.CreateShardGroupCommand.command",
+	Name:          "meta.CreateShardGroupCommand.command",
 	Tag:           "bytes,109,opt,name=command",
 }
 
@@ -999,7 +999,7 @@ var E_DeleteShardGroupCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DeleteShardGroupCommand)(nil),
 	Field:         110,
-	Name:          "internal.DeleteShardGroupCommand.command",
+	Name:          "meta.DeleteShardGroupCommand.command",
 	Tag:           "bytes,110,opt,name=command",
 }
 
@@ -1039,7 +1039,7 @@ var E_CreateContinuousQueryCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateContinuousQueryCommand)(nil),
 	Field:         111,
-	Name:          "internal.CreateContinuousQueryCommand.command",
+	Name:          "meta.CreateContinuousQueryCommand.command",
 	Tag:           "bytes,111,opt,name=command",
 }
 
@@ -1071,7 +1071,7 @@ var E_DropContinuousQueryCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropContinuousQueryCommand)(nil),
 	Field:         112,
-	Name:          "internal.DropContinuousQueryCommand.command",
+	Name:          "meta.DropContinuousQueryCommand.command",
 	Tag:           "bytes,112,opt,name=command",
 }
 
@@ -1111,7 +1111,7 @@ var E_CreateUserCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateUserCommand)(nil),
 	Field:         113,
-	Name:          "internal.CreateUserCommand.command",
+	Name:          "meta.CreateUserCommand.command",
 	Tag:           "bytes,113,opt,name=command",
 }
 
@@ -1135,7 +1135,7 @@ var E_DropUserCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropUserCommand)(nil),
 	Field:         114,
-	Name:          "internal.DropUserCommand.command",
+	Name:          "meta.DropUserCommand.command",
 	Tag:           "bytes,114,opt,name=command",
 }
 
@@ -1167,7 +1167,7 @@ var E_UpdateUserCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*UpdateUserCommand)(nil),
 	Field:         115,
-	Name:          "internal.UpdateUserCommand.command",
+	Name:          "meta.UpdateUserCommand.command",
 	Tag:           "bytes,115,opt,name=command",
 }
 
@@ -1207,7 +1207,7 @@ var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*SetPrivilegeCommand)(nil),
 	Field:         116,
-	Name:          "internal.SetPrivilegeCommand.command",
+	Name:          "meta.SetPrivilegeCommand.command",
 	Tag:           "bytes,116,opt,name=command",
 }
 
@@ -1231,7 +1231,7 @@ var E_SetDataCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*SetDataCommand)(nil),
 	Field:         117,
-	Name:          "internal.SetDataCommand.command",
+	Name:          "meta.SetDataCommand.command",
 	Tag:           "bytes,117,opt,name=command",
 }
 
@@ -1263,7 +1263,7 @@ var E_SetAdminPrivilegeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*SetAdminPrivilegeCommand)(nil),
 	Field:         118,
-	Name:          "internal.SetAdminPrivilegeCommand.command",
+	Name:          "meta.SetAdminPrivilegeCommand.command",
 	Tag:           "bytes,118,opt,name=command",
 }
 
@@ -1295,7 +1295,7 @@ var E_UpdateNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*UpdateNodeCommand)(nil),
 	Field:         119,
-	Name:          "internal.UpdateNodeCommand.command",
+	Name:          "meta.UpdateNodeCommand.command",
 	Tag:           "bytes,119,opt,name=command",
 }
 
@@ -1351,7 +1351,7 @@ var E_CreateSubscriptionCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateSubscriptionCommand)(nil),
 	Field:         121,
-	Name:          "internal.CreateSubscriptionCommand.command",
+	Name:          "meta.CreateSubscriptionCommand.command",
 	Tag:           "bytes,121,opt,name=command",
 }
 
@@ -1391,7 +1391,7 @@ var E_DropSubscriptionCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropSubscriptionCommand)(nil),
 	Field:         122,
-	Name:          "internal.DropSubscriptionCommand.command",
+	Name:          "meta.DropSubscriptionCommand.command",
 	Tag:           "bytes,122,opt,name=command",
 }
 
@@ -1423,7 +1423,7 @@ var E_RemovePeerCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*RemovePeerCommand)(nil),
 	Field:         123,
-	Name:          "internal.RemovePeerCommand.command",
+	Name:          "meta.RemovePeerCommand.command",
 	Tag:           "bytes,123,opt,name=command",
 }
 
@@ -1463,7 +1463,7 @@ var E_CreateMetaNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateMetaNodeCommand)(nil),
 	Field:         124,
-	Name:          "internal.CreateMetaNodeCommand.command",
+	Name:          "meta.CreateMetaNodeCommand.command",
 	Tag:           "bytes,124,opt,name=command",
 }
 
@@ -1495,7 +1495,7 @@ var E_CreateDataNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateDataNodeCommand)(nil),
 	Field:         125,
-	Name:          "internal.CreateDataNodeCommand.command",
+	Name:          "meta.CreateDataNodeCommand.command",
 	Tag:           "bytes,125,opt,name=command",
 }
 
@@ -1535,7 +1535,7 @@ var E_UpdateDataNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*UpdateDataNodeCommand)(nil),
 	Field:         126,
-	Name:          "internal.UpdateDataNodeCommand.command",
+	Name:          "meta.UpdateDataNodeCommand.command",
 	Tag:           "bytes,126,opt,name=command",
 }
 
@@ -1559,7 +1559,7 @@ var E_DeleteMetaNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DeleteMetaNodeCommand)(nil),
 	Field:         127,
-	Name:          "internal.DeleteMetaNodeCommand.command",
+	Name:          "meta.DeleteMetaNodeCommand.command",
 	Tag:           "bytes,127,opt,name=command",
 }
 
@@ -1583,7 +1583,7 @@ var E_DeleteDataNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DeleteDataNodeCommand)(nil),
 	Field:         128,
-	Name:          "internal.DeleteDataNodeCommand.command",
+	Name:          "meta.DeleteDataNodeCommand.command",
 	Tag:           "bytes,128,opt,name=command",
 }
 
@@ -1657,7 +1657,7 @@ var E_SetMetaNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*SetMetaNodeCommand)(nil),
 	Field:         129,
-	Name:          "internal.SetMetaNodeCommand.command",
+	Name:          "meta.SetMetaNodeCommand.command",
 	Tag:           "bytes,129,opt,name=command",
 }
 
@@ -1681,54 +1681,54 @@ var E_DropShardCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropShardCommand)(nil),
 	Field:         130,
-	Name:          "internal.DropShardCommand.command",
+	Name:          "meta.DropShardCommand.command",
 	Tag:           "bytes,130,opt,name=command",
 }
 
 func init() {
-	proto.RegisterType((*Data)(nil), "internal.Data")
-	proto.RegisterType((*NodeInfo)(nil), "internal.NodeInfo")
-	proto.RegisterType((*DatabaseInfo)(nil), "internal.DatabaseInfo")
-	proto.RegisterType((*RetentionPolicyInfo)(nil), "internal.RetentionPolicyInfo")
-	proto.RegisterType((*ShardGroupInfo)(nil), "internal.ShardGroupInfo")
-	proto.RegisterType((*ShardInfo)(nil), "internal.ShardInfo")
-	proto.RegisterType((*SubscriptionInfo)(nil), "internal.SubscriptionInfo")
-	proto.RegisterType((*ShardOwner)(nil), "internal.ShardOwner")
-	proto.RegisterType((*ContinuousQueryInfo)(nil), "internal.ContinuousQueryInfo")
-	proto.RegisterType((*UserInfo)(nil), "internal.UserInfo")
-	proto.RegisterType((*UserPrivilege)(nil), "internal.UserPrivilege")
-	proto.RegisterType((*Command)(nil), "internal.Command")
-	proto.RegisterType((*CreateNodeCommand)(nil), "internal.CreateNodeCommand")
-	proto.RegisterType((*DeleteNodeCommand)(nil), "internal.DeleteNodeCommand")
-	proto.RegisterType((*CreateDatabaseCommand)(nil), "internal.CreateDatabaseCommand")
-	proto.RegisterType((*DropDatabaseCommand)(nil), "internal.DropDatabaseCommand")
-	proto.RegisterType((*CreateRetentionPolicyCommand)(nil), "internal.CreateRetentionPolicyCommand")
-	proto.RegisterType((*DropRetentionPolicyCommand)(nil), "internal.DropRetentionPolicyCommand")
-	proto.RegisterType((*SetDefaultRetentionPolicyCommand)(nil), "internal.SetDefaultRetentionPolicyCommand")
-	proto.RegisterType((*UpdateRetentionPolicyCommand)(nil), "internal.UpdateRetentionPolicyCommand")
-	proto.RegisterType((*CreateShardGroupCommand)(nil), "internal.CreateShardGroupCommand")
-	proto.RegisterType((*DeleteShardGroupCommand)(nil), "internal.DeleteShardGroupCommand")
-	proto.RegisterType((*CreateContinuousQueryCommand)(nil), "internal.CreateContinuousQueryCommand")
-	proto.RegisterType((*DropContinuousQueryCommand)(nil), "internal.DropContinuousQueryCommand")
-	proto.RegisterType((*CreateUserCommand)(nil), "internal.CreateUserCommand")
-	proto.RegisterType((*DropUserCommand)(nil), "internal.DropUserCommand")
-	proto.RegisterType((*UpdateUserCommand)(nil), "internal.UpdateUserCommand")
-	proto.RegisterType((*SetPrivilegeCommand)(nil), "internal.SetPrivilegeCommand")
-	proto.RegisterType((*SetDataCommand)(nil), "internal.SetDataCommand")
-	proto.RegisterType((*SetAdminPrivilegeCommand)(nil), "internal.SetAdminPrivilegeCommand")
-	proto.RegisterType((*UpdateNodeCommand)(nil), "internal.UpdateNodeCommand")
-	proto.RegisterType((*CreateSubscriptionCommand)(nil), "internal.CreateSubscriptionCommand")
-	proto.RegisterType((*DropSubscriptionCommand)(nil), "internal.DropSubscriptionCommand")
-	proto.RegisterType((*RemovePeerCommand)(nil), "internal.RemovePeerCommand")
-	proto.RegisterType((*CreateMetaNodeCommand)(nil), "internal.CreateMetaNodeCommand")
-	proto.RegisterType((*CreateDataNodeCommand)(nil), "internal.CreateDataNodeCommand")
-	proto.RegisterType((*UpdateDataNodeCommand)(nil), "internal.UpdateDataNodeCommand")
-	proto.RegisterType((*DeleteMetaNodeCommand)(nil), "internal.DeleteMetaNodeCommand")
-	proto.RegisterType((*DeleteDataNodeCommand)(nil), "internal.DeleteDataNodeCommand")
-	proto.RegisterType((*Response)(nil), "internal.Response")
-	proto.RegisterType((*SetMetaNodeCommand)(nil), "internal.SetMetaNodeCommand")
-	proto.RegisterType((*DropShardCommand)(nil), "internal.DropShardCommand")
-	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
+	proto.RegisterType((*Data)(nil), "meta.Data")
+	proto.RegisterType((*NodeInfo)(nil), "meta.NodeInfo")
+	proto.RegisterType((*DatabaseInfo)(nil), "meta.DatabaseInfo")
+	proto.RegisterType((*RetentionPolicyInfo)(nil), "meta.RetentionPolicyInfo")
+	proto.RegisterType((*ShardGroupInfo)(nil), "meta.ShardGroupInfo")
+	proto.RegisterType((*ShardInfo)(nil), "meta.ShardInfo")
+	proto.RegisterType((*SubscriptionInfo)(nil), "meta.SubscriptionInfo")
+	proto.RegisterType((*ShardOwner)(nil), "meta.ShardOwner")
+	proto.RegisterType((*ContinuousQueryInfo)(nil), "meta.ContinuousQueryInfo")
+	proto.RegisterType((*UserInfo)(nil), "meta.UserInfo")
+	proto.RegisterType((*UserPrivilege)(nil), "meta.UserPrivilege")
+	proto.RegisterType((*Command)(nil), "meta.Command")
+	proto.RegisterType((*CreateNodeCommand)(nil), "meta.CreateNodeCommand")
+	proto.RegisterType((*DeleteNodeCommand)(nil), "meta.DeleteNodeCommand")
+	proto.RegisterType((*CreateDatabaseCommand)(nil), "meta.CreateDatabaseCommand")
+	proto.RegisterType((*DropDatabaseCommand)(nil), "meta.DropDatabaseCommand")
+	proto.RegisterType((*CreateRetentionPolicyCommand)(nil), "meta.CreateRetentionPolicyCommand")
+	proto.RegisterType((*DropRetentionPolicyCommand)(nil), "meta.DropRetentionPolicyCommand")
+	proto.RegisterType((*SetDefaultRetentionPolicyCommand)(nil), "meta.SetDefaultRetentionPolicyCommand")
+	proto.RegisterType((*UpdateRetentionPolicyCommand)(nil), "meta.UpdateRetentionPolicyCommand")
+	proto.RegisterType((*CreateShardGroupCommand)(nil), "meta.CreateShardGroupCommand")
+	proto.RegisterType((*DeleteShardGroupCommand)(nil), "meta.DeleteShardGroupCommand")
+	proto.RegisterType((*CreateContinuousQueryCommand)(nil), "meta.CreateContinuousQueryCommand")
+	proto.RegisterType((*DropContinuousQueryCommand)(nil), "meta.DropContinuousQueryCommand")
+	proto.RegisterType((*CreateUserCommand)(nil), "meta.CreateUserCommand")
+	proto.RegisterType((*DropUserCommand)(nil), "meta.DropUserCommand")
+	proto.RegisterType((*UpdateUserCommand)(nil), "meta.UpdateUserCommand")
+	proto.RegisterType((*SetPrivilegeCommand)(nil), "meta.SetPrivilegeCommand")
+	proto.RegisterType((*SetDataCommand)(nil), "meta.SetDataCommand")
+	proto.RegisterType((*SetAdminPrivilegeCommand)(nil), "meta.SetAdminPrivilegeCommand")
+	proto.RegisterType((*UpdateNodeCommand)(nil), "meta.UpdateNodeCommand")
+	proto.RegisterType((*CreateSubscriptionCommand)(nil), "meta.CreateSubscriptionCommand")
+	proto.RegisterType((*DropSubscriptionCommand)(nil), "meta.DropSubscriptionCommand")
+	proto.RegisterType((*RemovePeerCommand)(nil), "meta.RemovePeerCommand")
+	proto.RegisterType((*CreateMetaNodeCommand)(nil), "meta.CreateMetaNodeCommand")
+	proto.RegisterType((*CreateDataNodeCommand)(nil), "meta.CreateDataNodeCommand")
+	proto.RegisterType((*UpdateDataNodeCommand)(nil), "meta.UpdateDataNodeCommand")
+	proto.RegisterType((*DeleteMetaNodeCommand)(nil), "meta.DeleteMetaNodeCommand")
+	proto.RegisterType((*DeleteDataNodeCommand)(nil), "meta.DeleteDataNodeCommand")
+	proto.RegisterType((*Response)(nil), "meta.Response")
+	proto.RegisterType((*SetMetaNodeCommand)(nil), "meta.SetMetaNodeCommand")
+	proto.RegisterType((*DropShardCommand)(nil), "meta.DropShardCommand")
+	proto.RegisterEnum("meta.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
 	proto.RegisterExtension(E_CreateDatabaseCommand_Command)

@@ -19,7 +19,8 @@ func Test_IntegerEncoder_NoValues(t *testing.T) {
 		t.Fatalf("unexpected lenght: exp 0, got %v", len(b))
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -39,7 +40,8 @@ func Test_IntegerEncoder_One(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -65,7 +67,8 @@ func Test_IntegerEncoder_Two(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -100,7 +103,8 @@ func Test_IntegerEncoder_Negative(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -140,7 +144,8 @@ func Test_IntegerEncoder_Large_Range(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -180,7 +185,8 @@ func Test_IntegerEncoder_Uncompressed(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
 	}
@@ -231,7 +237,8 @@ func Test_IntegerEncoder_NegativeUncompressed(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 
 	i := 0
 	for dec.Next() {
@@ -269,7 +276,8 @@ func Test_IntegerEncoder_AllNegative(t *testing.T) {
 		t.Fatalf("encoding type mismatch: exp uncompressed, got %v", got)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	i := 0
 	for dec.Next() {
 		if i > len(values) {
@@ -312,7 +320,8 @@ func Test_IntegerEncoder_CounterPacked(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	i := 0
 	for dec.Next() {
 		if i > len(values) {
@@ -355,7 +364,8 @@ func Test_IntegerEncoder_CounterRLE(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	i := 0
 	for dec.Next() {
 		if i > len(values) {
@@ -396,7 +406,8 @@ func Test_IntegerEncoder_MinMax(t *testing.T) {
 		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
 	}
 
-	dec := NewIntegerDecoder(b)
+	var dec IntegerDecoder
+	dec.SetBytes(b)
 	i := 0
 	for dec.Next() {
 		if i > len(values) {
@@ -435,7 +446,8 @@ func Test_IntegerEncoder_Quick(t *testing.T) {
 
 		// Read values out of decoder.
 		got := make([]int64, 0, len(values))
-		dec := NewIntegerDecoder(buf)
+		var dec IntegerDecoder
+		dec.SetBytes(buf)
 		for dec.Next() {
 			if err := dec.Error(); err != nil {
 				t.Fatal(err)
@@ -497,7 +509,7 @@ func BenchmarkIntegerDecoderPackedSimple(b *testing.B) {
 
 	b.ResetTimer()
 
-	dec := NewIntegerDecoder(bytes)
+	var dec IntegerDecoder
 	for i := 0; i < b.N; i++ {
 		dec.SetBytes(bytes)
 		for dec.Next() {
@@ -516,7 +528,8 @@ func BenchmarkIntegerDecoderRLE(b *testing.B) {
 
 	b.ResetTimer()
 
-	dec := NewIntegerDecoder(bytes)
+	var dec IntegerDecoder
+	dec.SetBytes(bytes)
 
 	for i := 0; i < b.N; i++ {
 		dec.SetBytes(bytes)

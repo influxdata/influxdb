@@ -94,13 +94,17 @@ type BooleanDecoder struct {
 	err error
 }
 
-// NewBooleanDecoder returns a new instance of BooleanDecoder.
-func NewBooleanDecoder(b []byte) BooleanDecoder {
+// SetBytes initializes the decoder with a new set of bytes to read from.
+// This must be called before calling any other methods.
+func (e *BooleanDecoder) SetBytes(b []byte) {
 	// First byte stores the encoding type, only have 1 bit-packet format
 	// currently ignore for now.
 	b = b[1:]
 	count, n := binary.Uvarint(b)
-	return BooleanDecoder{b: b[n:], i: -1, n: int(count)}
+
+	e.b = b[n:]
+	e.i = -1
+	e.n = int(count)
 }
 
 func (e *BooleanDecoder) Next() bool {

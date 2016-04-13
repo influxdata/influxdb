@@ -3,7 +3,7 @@
 // DO NOT EDIT!
 
 /*
-Package internal is a generated protocol buffer package.
+Package meta is a generated protocol buffer package.
 
 It is generated from these files:
 	internal/meta.proto
@@ -14,7 +14,7 @@ It has these top-level messages:
 	MeasurementFields
 	Field
 */
-package internal
+package meta
 
 import proto "github.com/gogo/protobuf/proto"
 import fmt "fmt"
@@ -119,4 +119,11 @@ func (m *Field) GetType() int32 {
 		return *m.Type
 	}
 	return 0
+}
+
+func init() {
+	proto.RegisterType((*Series)(nil), "meta.Series")
+	proto.RegisterType((*Tag)(nil), "meta.Tag")
+	proto.RegisterType((*MeasurementFields)(nil), "meta.MeasurementFields")
+	proto.RegisterType((*Field)(nil), "meta.Field")
 }

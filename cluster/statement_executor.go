@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // StatementExecutor executes a statement in the query.
@@ -450,12 +451,7 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 	if err != nil {
 		return nil, err
 	}
-
-	shardIDs := make([]uint64, len(shards))
-	for i, sh := range shards {
-		shardIDs[i] = sh.ID
-	}
-	return e.TSDBStore.IteratorCreator(shardIDs)
+	return e.TSDBStore.IteratorCreator(shards)
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
@@ -814,7 +810,19 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
-	IteratorCreator(shards []uint64) (influxql.IteratorCreator, error)
+	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
+}
+
+type LocalTSDBStore struct {
+	*tsdb.Store
+}
+
+func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error) {
+	shardIDs := make([]uint64, len(shards))
+	for i, sh := range shards {
+		shardIDs[i] = sh.ID
+	}
+	return s.Store.IteratorCreator(shardIDs)
 }
 
 // ShardIteratorCreator is an interface for creating an IteratorCreator to access a specific shard.
