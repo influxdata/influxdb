@@ -132,6 +132,7 @@ func (c *boundedPool) put(conn net.Conn) error {
 		return nil
 	default:
 		// pool is full, close passed connection
+		atomic.AddInt32(&c.total, -1)
 		return conn.Close()
 	}
 }
