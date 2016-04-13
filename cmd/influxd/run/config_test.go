@@ -141,6 +141,8 @@ bind-address = ":2010"
 [[udp]]
 bind-address = ":4444"
 
+[[udp]]
+
 [monitoring]
 enabled = true
 
@@ -151,6 +153,10 @@ enabled = true
 	}
 
 	if err := os.Setenv("INFLUXDB_UDP_BIND_ADDRESS", ":1234"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := os.Setenv("INFLUXDB_UDP_0_BIND_ADDRESS", ":5555"); err != nil {
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
@@ -170,8 +176,12 @@ enabled = true
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
-	if c.UDPInputs[0].BindAddress != ":4444" {
+	if c.UDPInputs[0].BindAddress != ":5555" {
 		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
+	}
+
+	if c.UDPInputs[1].BindAddress != ":1234" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[1].BindAddress)
 	}
 
 	if c.GraphiteInputs[1].Protocol != "udp" {

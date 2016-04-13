@@ -175,6 +175,9 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
 			// e.g. GRAPHITE_0
 			if f.Kind() == reflect.Slice || f.Kind() == reflect.Array {
 				for i := 0; i < f.Len(); i++ {
+					if err := c.applyEnvOverrides(key, f.Index(i)); err != nil {
+						return err
+					}
 					if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", key, i), f.Index(i)); err != nil {
 						return err
 					}
