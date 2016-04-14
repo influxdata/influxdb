@@ -6,6 +6,7 @@
 - [#6413](https://github.com/influxdata/influxdb/pull/6413): Prevent goroutine leak from persistent http connections. Thanks @aaronknister.
 - [#6414](https://github.com/influxdata/influxdb/pull/6414): Send "Connection: close" header for queries.
 - [#6419](https://github.com/influxdata/influxdb/issues/6419): Fix panic in transform iterator on division. @thbourlove
+- [#6379](https://github.com/influxdata/influxdb/issues/6379): Validate the first argument to percentile() is a variable.
 
 ## v0.12.1 [2016-04-08]
 
