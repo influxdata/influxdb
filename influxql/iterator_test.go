@@ -720,7 +720,7 @@ func (itrs Iterators) ReadAll() [][]influxql.Point {
 		if points == nil {
 			break
 		}
-		a = append(a, points)
+		a = append(a, influxql.Points(points).Clone())
 	}
 
 	// Close all iterators.
