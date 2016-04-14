@@ -415,6 +415,41 @@ func DrainIterator(itr Iterator) {
 	}
 }
 
+// DrainIterators reads all points from all iterators.
+func DrainIterators(itrs []Iterator) {
+	for {
+		var hasData bool
+
+		for _, itr := range itrs {
+			switch itr := itr.(type) {
+			case FloatIterator:
+				if p := itr.Next(); p != nil {
+					hasData = true
+				}
+			case IntegerIterator:
+				if p := itr.Next(); p != nil {
+					hasData = true
+				}
+			case StringIterator:
+				if p := itr.Next(); p != nil {
+					hasData = true
+				}
+			case BooleanIterator:
+				if p := itr.Next(); p != nil {
+					hasData = true
+				}
+			default:
+				panic(fmt.Sprintf("unsupported iterator type for draining: %T", itr))
+			}
+		}
+
+		// Exit once all iterators return a nil point.
+		if !hasData {
+			break
+		}
+	}
+}
+
 // NewReaderIterator returns an iterator that streams from a reader.
 func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) (Iterator, error) {
 	switch typ {

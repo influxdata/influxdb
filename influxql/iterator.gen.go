@@ -726,7 +726,11 @@ func (itr *floatAuxIterator) stream() {
 
 // floatChanIterator represents a new instance of floatChanIterator.
 type floatChanIterator struct {
-	buf  *FloatPoint
+	buf struct {
+		i      int
+		filled bool
+		points [2]FloatPoint
+	}
 	cond *sync.Cond
 	done bool
 }
@@ -749,7 +753,7 @@ func (itr *floatChanIterator) setBuf(name string, tags Tags, time int64, value i
 
 	// Wait for either the iterator to be done (so we don't have to set the value)
 	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf != nil {
+	for !itr.done && itr.buf.filled {
 		itr.cond.Wait()
 	}
 
@@ -762,14 +766,16 @@ func (itr *floatChanIterator) setBuf(name string, tags Tags, time int64, value i
 
 	switch v := value.(type) {
 	case float64:
-		itr.buf = &FloatPoint{Name: name, Tags: tags, Time: time, Value: v}
+		itr.buf.points[itr.buf.i] = FloatPoint{Name: name, Tags: tags, Time: time, Value: v}
 
 	case int64:
-		itr.buf = &FloatPoint{Name: name, Tags: tags, Time: time, Value: float64(v)}
+		itr.buf.points[itr.buf.i] = FloatPoint{Name: name, Tags: tags, Time: time, Value: float64(v)}
 
 	default:
-		itr.buf = &FloatPoint{Name: name, Tags: tags, Time: time, Nil: true}
+		itr.buf.points[itr.buf.i] = FloatPoint{Name: name, Tags: tags, Time: time, Nil: true}
 	}
+	itr.buf.filled = true
+
 	// Signal to all waiting goroutines that a new value is ready to read.
 	itr.cond.Signal()
 	return true
@@ -780,15 +786,22 @@ func (itr *floatChanIterator) Next() *FloatPoint {
 
 	// Wait until either a value is available in the buffer or
 	// the iterator is closed.
-	for !itr.done && itr.buf == nil {
+	for !itr.done && !itr.buf.filled {
 		itr.cond.Wait()
+	}
+
+	// Return nil once the channel is done and the buffer is empty.
+	if itr.done && !itr.buf.filled {
+		itr.cond.L.Unlock()
+		return nil
 	}
 
 	// Always read from the buffer if it exists, even if the iterator
 	// is closed. This prevents the last value from being truncated by
 	// the parent iterator.
-	p := itr.buf
-	itr.buf = nil
+	p := &itr.buf.points[itr.buf.i]
+	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
+	itr.buf.filled = false
 	itr.cond.Signal()
 
 	// Do not defer the unlock so we don't create an unnecessary allocation.
@@ -2538,7 +2551,11 @@ func (itr *integerAuxIterator) stream() {
 
 // integerChanIterator represents a new instance of integerChanIterator.
 type integerChanIterator struct {
-	buf  *IntegerPoint
+	buf struct {
+		i      int
+		filled bool
+		points [2]IntegerPoint
+	}
 	cond *sync.Cond
 	done bool
 }
@@ -2561,7 +2578,7 @@ func (itr *integerChanIterator) setBuf(name string, tags Tags, time int64, value
 
 	// Wait for either the iterator to be done (so we don't have to set the value)
 	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf != nil {
+	for !itr.done && itr.buf.filled {
 		itr.cond.Wait()
 	}
 
@@ -2574,11 +2591,13 @@ func (itr *integerChanIterator) setBuf(name string, tags Tags, time int64, value
 
 	switch v := value.(type) {
 	case int64:
-		itr.buf = &IntegerPoint{Name: name, Tags: tags, Time: time, Value: v}
+		itr.buf.points[itr.buf.i] = IntegerPoint{Name: name, Tags: tags, Time: time, Value: v}
 
 	default:
-		itr.buf = &IntegerPoint{Name: name, Tags: tags, Time: time, Nil: true}
+		itr.buf.points[itr.buf.i] = IntegerPoint{Name: name, Tags: tags, Time: time, Nil: true}
 	}
+	itr.buf.filled = true
+
 	// Signal to all waiting goroutines that a new value is ready to read.
 	itr.cond.Signal()
 	return true
@@ -2589,15 +2608,22 @@ func (itr *integerChanIterator) Next() *IntegerPoint {
 
 	// Wait until either a value is available in the buffer or
 	// the iterator is closed.
-	for !itr.done && itr.buf == nil {
+	for !itr.done && !itr.buf.filled {
 		itr.cond.Wait()
+	}
+
+	// Return nil once the channel is done and the buffer is empty.
+	if itr.done && !itr.buf.filled {
+		itr.cond.L.Unlock()
+		return nil
 	}
 
 	// Always read from the buffer if it exists, even if the iterator
 	// is closed. This prevents the last value from being truncated by
 	// the parent iterator.
-	p := itr.buf
-	itr.buf = nil
+	p := &itr.buf.points[itr.buf.i]
+	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
+	itr.buf.filled = false
 	itr.cond.Signal()
 
 	// Do not defer the unlock so we don't create an unnecessary allocation.
@@ -4347,7 +4373,11 @@ func (itr *stringAuxIterator) stream() {
 
 // stringChanIterator represents a new instance of stringChanIterator.
 type stringChanIterator struct {
-	buf  *StringPoint
+	buf struct {
+		i      int
+		filled bool
+		points [2]StringPoint
+	}
 	cond *sync.Cond
 	done bool
 }
@@ -4370,7 +4400,7 @@ func (itr *stringChanIterator) setBuf(name string, tags Tags, time int64, value 
 
 	// Wait for either the iterator to be done (so we don't have to set the value)
 	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf != nil {
+	for !itr.done && itr.buf.filled {
 		itr.cond.Wait()
 	}
 
@@ -4383,11 +4413,13 @@ func (itr *stringChanIterator) setBuf(name string, tags Tags, time int64, value 
 
 	switch v := value.(type) {
 	case string:
-		itr.buf = &StringPoint{Name: name, Tags: tags, Time: time, Value: v}
+		itr.buf.points[itr.buf.i] = StringPoint{Name: name, Tags: tags, Time: time, Value: v}
 
 	default:
-		itr.buf = &StringPoint{Name: name, Tags: tags, Time: time, Nil: true}
+		itr.buf.points[itr.buf.i] = StringPoint{Name: name, Tags: tags, Time: time, Nil: true}
 	}
+	itr.buf.filled = true
+
 	// Signal to all waiting goroutines that a new value is ready to read.
 	itr.cond.Signal()
 	return true
@@ -4398,15 +4430,22 @@ func (itr *stringChanIterator) Next() *StringPoint {
 
 	// Wait until either a value is available in the buffer or
 	// the iterator is closed.
-	for !itr.done && itr.buf == nil {
+	for !itr.done && !itr.buf.filled {
 		itr.cond.Wait()
+	}
+
+	// Return nil once the channel is done and the buffer is empty.
+	if itr.done && !itr.buf.filled {
+		itr.cond.L.Unlock()
+		return nil
 	}
 
 	// Always read from the buffer if it exists, even if the iterator
 	// is closed. This prevents the last value from being truncated by
 	// the parent iterator.
-	p := itr.buf
-	itr.buf = nil
+	p := &itr.buf.points[itr.buf.i]
+	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
+	itr.buf.filled = false
 	itr.cond.Signal()
 
 	// Do not defer the unlock so we don't create an unnecessary allocation.
@@ -6156,7 +6195,11 @@ func (itr *booleanAuxIterator) stream() {
 
 // booleanChanIterator represents a new instance of booleanChanIterator.
 type booleanChanIterator struct {
-	buf  *BooleanPoint
+	buf struct {
+		i      int
+		filled bool
+		points [2]BooleanPoint
+	}
 	cond *sync.Cond
 	done bool
 }
@@ -6179,7 +6222,7 @@ func (itr *booleanChanIterator) setBuf(name string, tags Tags, time int64, value
 
 	// Wait for either the iterator to be done (so we don't have to set the value)
 	// or for the buffer to have been read and ready for another write.
-	for !itr.done && itr.buf != nil {
+	for !itr.done && itr.buf.filled {
 		itr.cond.Wait()
 	}
 
@@ -6192,11 +6235,13 @@ func (itr *booleanChanIterator) setBuf(name string, tags Tags, time int64, value
 
 	switch v := value.(type) {
 	case bool:
-		itr.buf = &BooleanPoint{Name: name, Tags: tags, Time: time, Value: v}
+		itr.buf.points[itr.buf.i] = BooleanPoint{Name: name, Tags: tags, Time: time, Value: v}
 
 	default:
-		itr.buf = &BooleanPoint{Name: name, Tags: tags, Time: time, Nil: true}
+		itr.buf.points[itr.buf.i] = BooleanPoint{Name: name, Tags: tags, Time: time, Nil: true}
 	}
+	itr.buf.filled = true
+
 	// Signal to all waiting goroutines that a new value is ready to read.
 	itr.cond.Signal()
 	return true
@@ -6207,15 +6252,22 @@ func (itr *booleanChanIterator) Next() *BooleanPoint {
 
 	// Wait until either a value is available in the buffer or
 	// the iterator is closed.
-	for !itr.done && itr.buf == nil {
+	for !itr.done && !itr.buf.filled {
 		itr.cond.Wait()
+	}
+
+	// Return nil once the channel is done and the buffer is empty.
+	if itr.done && !itr.buf.filled {
+		itr.cond.L.Unlock()
+		return nil
 	}
 
 	// Always read from the buffer if it exists, even if the iterator
 	// is closed. This prevents the last value from being truncated by
 	// the parent iterator.
-	p := itr.buf
-	itr.buf = nil
+	p := &itr.buf.points[itr.buf.i]
+	itr.buf.i = (itr.buf.i + 1) % len(itr.buf.points)
+	itr.buf.filled = false
 	itr.cond.Signal()
 
 	// Do not defer the unlock so we don't create an unnecessary allocation.
