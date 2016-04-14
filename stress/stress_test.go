@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,15 @@ import (
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/influxdata/influxdb/models"
 )
+
+// Go runtime uses different Windows timers for time.Now and sleeping.
+// These can tick at different frequencies and can arrive out of sync.
+// The effect can be seen, for example, as time.Sleep(100ms) is actually
+// shorter then 100ms when measured as difference between time.Now before and
+// after time.Sleep call. This was observed on Windows XP SP3 (windows/386).
+// windowsInaccuracy is to ignore such errors.
+// Copied from time/sleep_test.go in the Go source code.
+const windowsInaccuracy = 17 * time.Millisecond
 
 func TestTimer_StartTimer(t *testing.T) {
 	var epoch time.Time
@@ -50,12 +60,17 @@ func TestTimer_StopTimer(t *testing.T) {
 }
 
 func TestTimer_Elapsed(t *testing.T) {
+	const delay = 2 * time.Second
 	tmr := NewTimer()
 	time.Sleep(2 * time.Second)
 	tmr.StopTimer()
 	e := tmr.Elapsed()
-	if time.Duration(2*time.Second) > e || e > time.Duration(3*time.Second) {
-		t.Errorf("expected around %s got %s", time.Duration(2*time.Second), e)
+	delayadj := delay
+	if runtime.GOOS == "windows" {
+		delayadj -= windowsInaccuracy
+	}
+	if e < delayadj || e > delay+time.Second {
+		t.Errorf("expected around %s got %s", delayadj, e)
 	}
 }
 
