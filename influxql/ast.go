@@ -1415,12 +1415,12 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 			numAggregates++
 		}
 	}
-	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST (selector functions) it is ok to ask for fields and tags
+	// For TOP, BOTTOM, MAX, MIN, FIRST, LAST, PERCENTILE (selector functions) it is ok to ask for fields and tags
 	// but only if one function is specified.  Combining multiple functions and fields and tags is not currently supported
 	onlySelectors := true
 	for k := range calls {
 		switch k {
-		case "top", "bottom", "max", "min", "first", "last":
+		case "top", "bottom", "max", "min", "first", "last", "percentile":
 		default:
 			onlySelectors = false
 			break
