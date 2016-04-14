@@ -1476,6 +1476,13 @@ func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 	}
 
+	switch expr.Args[0].(type) {
+	case *VarRef:
+		// do nothing
+	default:
+		return fmt.Errorf("expected field argument in percentile()")
+	}
+
 	switch expr.Args[1].(type) {
 	case *IntegerLiteral, *NumberLiteral:
 		return nil
