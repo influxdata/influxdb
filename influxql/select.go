@@ -822,13 +822,33 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 			left:  newBufIntegerIterator(left),
 			right: newBufIntegerIterator(right),
 			fn: func(a *IntegerPoint, b *IntegerPoint) *FloatPoint {
+				if a == nil && b == nil {
+					return nil
+				} else if a == nil {
+					return &FloatPoint{
+						Name: b.Name,
+						Tags: b.Tags,
+						Time: b.Time,
+						Aux:  b.Aux,
+						Nil:  true,
+					}
+				} else if b == nil {
+					return &FloatPoint{
+						Name: a.Name,
+						Tags: a.Tags,
+						Time: a.Time,
+						Aux:  a.Aux,
+						Nil:  true,
+					}
+				}
+
 				p := &FloatPoint{
 					Name: a.Name,
 					Tags: a.Tags,
 					Time: a.Time,
 					Aux:  a.Aux,
 				}
-				if (a != nil && b != nil) && (!a.Nil && !b.Nil) {
+				if !a.Nil && !b.Nil {
 					p.Value = fn(a.Value, b.Value)
 				} else {
 					p.Nil = true
@@ -893,13 +913,33 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 			left:  newBufFloatIterator(left),
 			right: newBufFloatIterator(right),
 			fn: func(a *FloatPoint, b *FloatPoint) *BooleanPoint {
+				if a == nil && b == nil {
+					return nil
+				} else if a == nil {
+					return &BooleanPoint{
+						Name: b.Name,
+						Tags: b.Tags,
+						Time: b.Time,
+						Aux:  b.Aux,
+						Nil:  true,
+					}
+				} else if b == nil {
+					return &BooleanPoint{
+						Name: a.Name,
+						Tags: a.Tags,
+						Time: a.Time,
+						Aux:  a.Aux,
+						Nil:  true,
+					}
+				}
+
 				p := &BooleanPoint{
 					Name: a.Name,
 					Tags: a.Tags,
 					Time: a.Time,
 					Aux:  a.Aux,
 				}
-				if (a != nil && b != nil) && (!a.Nil && !b.Nil) {
+				if !a.Nil && !b.Nil {
 					p.Value = fn(a.Value, b.Value)
 				} else {
 					p.Nil = true
@@ -920,13 +960,33 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 			left:  newBufIntegerIterator(left),
 			right: newBufIntegerIterator(right),
 			fn: func(a *IntegerPoint, b *IntegerPoint) *BooleanPoint {
+				if a == nil && b == nil {
+					return nil
+				} else if a == nil {
+					return &BooleanPoint{
+						Name: b.Name,
+						Tags: b.Tags,
+						Time: b.Time,
+						Aux:  b.Aux,
+						Nil:  true,
+					}
+				} else if b == nil {
+					return &BooleanPoint{
+						Name: a.Name,
+						Tags: a.Tags,
+						Time: a.Time,
+						Aux:  a.Aux,
+						Nil:  true,
+					}
+				}
+
 				p := &BooleanPoint{
 					Name: a.Name,
 					Tags: a.Tags,
 					Time: a.Time,
 					Aux:  a.Aux,
 				}
-				if (a != nil && b != nil) && (!a.Nil && !b.Nil) {
+				if !a.Nil && !b.Nil {
 					p.Value = fn(a.Value, b.Value)
 				} else {
 					p.Nil = true
