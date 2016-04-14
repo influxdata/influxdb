@@ -156,6 +156,7 @@ func (e *QueryExecutor) ExecuteQuery(query *Query, database string, chunkSize in
 
 func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize int, closing <-chan struct{}, results chan *Result) {
 	defer close(results)
+	defer e.recover(query, results)
 
 	e.statMap.Add(statQueriesActive, 1)
 	defer func(start time.Time) {
@@ -269,6 +270,15 @@ loop:
 		results <- &Result{
 			StatementID: i,
 			Err:         ErrNotExecuted,
+		}
+	}
+}
+
+func (e *QueryExecutor) recover(query *Query, results chan *Result) {
+	if err := recover(); err != nil {
+		results <- &Result{
+			StatementID: -1,
+			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),
 		}
 	}
 }

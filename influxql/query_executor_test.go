@@ -250,6 +250,29 @@ func TestQueryExecutor_Close(t *testing.T) {
 	}
 }
 
+func TestQueryExecutor_Panic(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := influxql.NewQueryExecutor()
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+			panic("test error")
+		},
+	}
+
+	results := e.ExecuteQuery(q, "mydb", 100, nil)
+	result := <-results
+	if len(result.Series) != 0 {
+		t.Errorf("expected %d rows, got %d", 0, len(result.Series))
+	}
+	if result.Err == nil || result.Err.Error() != "SELECT count(value) FROM cpu [panic:test error]" {
+		t.Errorf("unexpected error: %s", result.Err)
+	}
+}
+
 func discardOutput(results <-chan *influxql.Result) {
 	for range results {
 		// Read all results and discard.
