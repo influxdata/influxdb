@@ -79,6 +79,9 @@ type ExecutionContext struct {
 	// The requested maximum number of points to return in each result.
 	ChunkSize int
 
+	// Hold the query executor's logger.
+	Log *log.Logger
+
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
 }
@@ -176,6 +179,7 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 		Results:     results,
 		Database:    database,
 		ChunkSize:   chunkSize,
+		Log:         logger,
 		InterruptCh: task.closing,
 	}
 

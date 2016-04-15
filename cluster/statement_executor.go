@@ -44,6 +44,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 	}
 
 	var rows models.Rows
+	var messages []*influxql.Message
 	var err error
 	switch stmt := stmt.(type) {
 	case *influxql.AlterRetentionPolicyStatement:
@@ -51,6 +52,13 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 	case *influxql.CreateContinuousQueryStatement:
 		err = e.executeCreateContinuousQueryStatement(stmt)
 	case *influxql.CreateDatabaseStatement:
+		if stmt.IfNotExists {
+			ctx.Log.Println("WARNING: IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in v1.0")
+			messages = append(messages, &influxql.Message{
+				Level: influxql.WarningLevel,
+				Text:  "IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in v1.0",
+			})
+		}
 		err = e.executeCreateDatabaseStatement(stmt)
 	case *influxql.CreateRetentionPolicyStatement:
 		err = e.executeCreateRetentionPolicyStatement(stmt)
@@ -115,6 +123,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 	ctx.Results <- &influxql.Result{
 		StatementID: ctx.StatementID,
 		Series:      rows,
+		Messages:    messages,
 	}
 	return nil
 }
