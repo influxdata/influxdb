@@ -64,7 +64,8 @@ func NewStore(path string) *Store {
 	}
 }
 
-// SetLogOutput sets the writer to which underlying database logs will go.
+// SetLogOutput sets the writer to which underlying database logs will go. It
+// must not be called after the Open method has been called.
 func (s *Store) SetLogOutput(w io.Writer) {
 	s.logOutput = w
 	for _, s := range s.shards {
