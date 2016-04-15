@@ -1147,6 +1147,7 @@ func TestReduce(t *testing.T) {
 		{in: `now() - (now() - 60s)`, out: `1m`, data: map[string]interface{}{"now()": now}},
 		{in: `now() AND now()`, out: `'2000-01-01T00:00:00Z' AND '2000-01-01T00:00:00Z'`, data: map[string]interface{}{"now()": now}},
 		{in: `now()`, out: `now()`},
+		{in: `946684800000000000 + 2h`, out: `'2000-01-01T02:00:00Z'`},
 
 		// Duration literals.
 		{in: `10m + 1h - 60s`, out: `69m`},
