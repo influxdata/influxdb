@@ -727,18 +727,9 @@ func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, 
 		// Calculate tag sets and apply SLIMIT/SOFFSET.
 		tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 		for _, t := range tagSets {
-			tagMap := make(map[string]string)
-			for k, v := range t.Tags {
-				if v == "" {
-					continue
-				}
-				tagMap[k] = v
-			}
-			tags := influxql.NewTags(tagMap)
-
 			series := influxql.Series{
 				Name: mm.Name,
-				Tags: tags,
+				Tags: influxql.NewTags(t.Tags),
 				Aux:  make([]influxql.DataType, len(opt.Aux)),
 			}
 
