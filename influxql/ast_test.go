@@ -1081,6 +1081,11 @@ func TestEval(t *testing.T) {
 		{in: `'foo' !~ /f.*/`, out: false},
 		{in: `'foo' !~ /b.*/`, out: true},
 
+		// Duration literals.
+		{in: `10s + 5s`, out: 15 * time.Second},
+		{in: `10s + 5000000000`, out: 15 * time.Second},
+		{in: `5000000000 + 10s`, out: 15 * time.Second},
+
 		// Variable references.
 		{in: `foo`, out: "bar", data: map[string]interface{}{"foo": "bar"}},
 		{in: `foo = 'bar'`, out: true, data: map[string]interface{}{"foo": "bar"}},

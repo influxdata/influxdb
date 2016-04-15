@@ -3724,6 +3724,8 @@ func Eval(expr Expr, m map[string]interface{}) interface{} {
 		return expr.Val
 	case *NumberLiteral:
 		return expr.Val
+	case *DurationLiteral:
+		return expr.Val
 	case *ParenExpr:
 		return Eval(expr.Expr, m)
 	case *RegexLiteral:
@@ -3803,11 +3805,9 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return lhs / rhs
 		}
 	case int64:
-		// Try as a float64 to see if a float cast is required.
-		rhsf, ok := rhs.(float64)
-		if ok {
+		switch rhs := rhs.(type) {
+		case float64:
 			lhs := float64(lhs)
-			rhs := rhsf
 			switch expr.Op {
 			case EQ:
 				return lhs == rhs
@@ -3833,43 +3833,54 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 				}
 				return lhs / rhs
 			}
-		} else {
-			rhs, ok := rhs.(int64)
+		case time.Duration:
+			switch expr.Op {
+			case ADD:
+				return time.Duration(lhs) + rhs
+			case SUB:
+				return time.Duration(lhs) - rhs
+			case EQ:
+				return time.Duration(lhs) == rhs
+			case NEQ:
+				return time.Duration(lhs) != rhs
+			}
+		default:
+			rhsi, ok := rhs.(int64)
 			switch expr.Op {
 			case EQ:
-				return ok && (lhs == rhs)
+				return ok && (lhs == rhsi)
 			case NEQ:
-				return ok && (lhs != rhs)
+				return ok && (lhs != rhsi)
 			case LT:
-				return ok && (lhs < rhs)
+				return ok && (lhs < rhsi)
 			case LTE:
-				return ok && (lhs <= rhs)
+				return ok && (lhs <= rhsi)
 			case GT:
-				return ok && (lhs > rhs)
+				return ok && (lhs > rhsi)
 			case GTE:
-				return ok && (lhs >= rhs)
+				return ok && (lhs >= rhsi)
 			case ADD:
 				if !ok {
 					return nil
 				}
-				return lhs + rhs
+				return lhs + rhsi
 			case SUB:
 				if !ok {
 					return nil
 				}
-				return lhs - rhs
+				return lhs - rhsi
 			case MUL:
 				if !ok {
 					return nil
 				}
-				return lhs * rhs
+				return lhs * rhsi
 			case DIV:
 				if !ok {
 					return nil
-				} else if rhs == 0 {
+				} else if rhsi == 0 {
 					return float64(0)
 				}
-				return lhs / rhs
+				return lhs / rhsi
 			}
 		}
 	case string:
@@ -3886,6 +3897,26 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 		case NEQREGEX:
 			rhs, ok := rhs.(*regexp.Regexp)
 			return ok && !rhs.MatchString(lhs)
+		}
+	case time.Duration:
+		rhsd, ok := rhs.(time.Duration)
+		if !ok {
+			if rhsi, ok := rhs.(int64); ok {
+				rhsd = time.Duration(rhsi)
+			} else {
+				return nil
+			}
+		}
+
+		switch expr.Op {
+		case ADD:
+			return lhs + rhsd
+		case SUB:
+			return lhs - rhsd
+		case EQ:
+			return lhs == rhsd
+		case NEQ:
+			return lhs != rhsd
 		}
 	}
 	return nil
