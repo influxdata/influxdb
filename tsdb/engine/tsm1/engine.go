@@ -194,7 +194,8 @@ func (e *Engine) Close() error {
 	return e.WAL.Close()
 }
 
-// SetLogOutput is a no-op.
+// SetLogOutput sets the logger used for all messages. It must not be called
+// after the Open method has been called.
 func (e *Engine) SetLogOutput(w io.Writer) {
 	e.logger = log.New(w, "[tsm1] ", log.LstdFlags)
 	e.WAL.SetLogOutput(w)
