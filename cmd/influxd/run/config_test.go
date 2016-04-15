@@ -26,8 +26,15 @@ dir = "/tmp/data"
 [admin]
 bind-address = ":8083"
 
-[http]
+[[http]]
 bind-address = ":8087"
+
+[[http]]
+bind-address = ":8077"
+
+[[http]]
+bind-address = ":8067"
+auth-enabled = true
 
 [[graphite]]
 protocol = "udp"
@@ -72,26 +79,32 @@ enabled = true
 		t.Fatalf("unexpected data dir: %s", c.Data.Dir)
 	} else if c.Admin.BindAddress != ":8083" {
 		t.Fatalf("unexpected admin bind address: %s", c.Admin.BindAddress)
-	} else if c.HTTPD.BindAddress != ":8087" {
-		t.Fatalf("unexpected api bind address: %s", c.HTTPD.BindAddress)
+	} else if len(c.HTTPDInputs) != 3 {
+		t.Fatalf("unexpected http inputs count: %d", len(c.HTTPDInputs))
+	} else if c.HTTPDInputs[0].BindAddress != ":8087" {
+		t.Fatalf("unexpected http input bind address: %s", c.HTTPDInputs[0].BindAddress)
+	} else if c.HTTPDInputs[1].BindAddress != ":8077" {
+		t.Fatalf("unexpected http input bind address: %s", c.HTTPDInputs[1].BindAddress)
+	} else if c.HTTPDInputs[2].AuthEnabled != true {
+		t.Fatalf("unexpected http input auth enabled: %s", c.HTTPDInputs[2].AuthEnabled)
 	} else if len(c.GraphiteInputs) != 2 {
-		t.Fatalf("unexpected graphiteInputs count: %d", len(c.GraphiteInputs))
+		t.Fatalf("unexpected graphite inputs count: %d", len(c.GraphiteInputs))
 	} else if c.GraphiteInputs[0].Protocol != "udp" {
-		t.Fatalf("unexpected graphite protocol(0): %s", c.GraphiteInputs[0].Protocol)
+		t.Fatalf("unexpected graphite input protocol(0): %s", c.GraphiteInputs[0].Protocol)
 	} else if c.GraphiteInputs[1].Protocol != "tcp" {
-		t.Fatalf("unexpected graphite protocol(1): %s", c.GraphiteInputs[1].Protocol)
+		t.Fatalf("unexpected graphite input protocol(1): %s", c.GraphiteInputs[1].Protocol)
 	} else if c.CollectdInputs[0].BindAddress != ":1000" {
-		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
+		t.Fatalf("unexpected collectd input bind address: %s", c.CollectdInputs[0].BindAddress)
 	} else if c.CollectdInputs[1].BindAddress != ":1010" {
-		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[1].BindAddress)
+		t.Fatalf("unexpected collectd input bind address: %s", c.CollectdInputs[1].BindAddress)
 	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+		t.Fatalf("unexpected opentsdb input bind address: %s", c.OpenTSDBInputs[0].BindAddress)
 	} else if c.OpenTSDBInputs[1].BindAddress != ":2010" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[1].BindAddress)
+		t.Fatalf("unexpected opentsdb input bind address: %s", c.OpenTSDBInputs[1].BindAddress)
 	} else if c.OpenTSDBInputs[2].BindAddress != ":2020" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[2].BindAddress)
+		t.Fatalf("unexpected opentsdb input bind address: %s", c.OpenTSDBInputs[2].BindAddress)
 	} else if c.UDPInputs[0].BindAddress != ":4444" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[0].BindAddress)
+		t.Fatalf("unexpected udp input bind address: %s", c.UDPInputs[0].BindAddress)
 	} else if c.Subscriber.Enabled != true {
 		t.Fatalf("unexpected subscriber enabled: %v", c.Subscriber.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
@@ -117,7 +130,7 @@ dir = "/tmp/data"
 [admin]
 bind-address = ":8083"
 
-[http]
+[[http]]
 bind-address = ":8087"
 
 [[graphite]]
@@ -164,6 +177,18 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
+	if err := os.Setenv("INFLUXDB_HTTP_0_BIND_ADDRESS", ":8086"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := os.Setenv("INFLUXDB_UDP_BIND_ADDRESS", ":1234"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := os.Setenv("INFLUXDB_GRAPHITE_1_PROTOCOL", "udp"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := os.Setenv("INFLUXDB_COLLECTD_1_BIND_ADDRESS", ":1020"); err != nil {
 		t.Fatalf("failed to set env var: %v", err)
 	}
@@ -186,6 +211,10 @@ enabled = true
 
 	if c.GraphiteInputs[1].Protocol != "udp" {
 		t.Fatalf("unexpected graphite protocol: %s", c.GraphiteInputs[1].Protocol)
+	}
+
+	if c.HTTPDInputs[0].BindAddress != ":8086" {
+		t.Fatalf("unexpected http bind address: %s", c.HTTPDInputs[0].BindAddress)
 	}
 
 	if c.CollectdInputs[1].BindAddress != ":1020" {

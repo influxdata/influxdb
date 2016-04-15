@@ -43,10 +43,11 @@ type Config struct {
 	Retention  retention.Config  `toml:"retention"`
 	Precreator precreator.Config `toml:"shard-precreation"`
 
-	Admin          admin.Config      `toml:"admin"`
-	Monitor        monitor.Config    `toml:"monitor"`
-	Subscriber     subscriber.Config `toml:"subscriber"`
-	HTTPD          httpd.Config      `toml:"http"`
+	Admin      admin.Config      `toml:"admin"`
+	Monitor    monitor.Config    `toml:"monitor"`
+	Subscriber subscriber.Config `toml:"subscriber"`
+
+	HTTPDInputs    []httpd.Config    `toml:"http"`
 	GraphiteInputs []graphite.Config `toml:"graphite"`
 	CollectdInputs []collectd.Config `toml:"collectd"`
 	OpenTSDBInputs []opentsdb.Config `toml:"opentsdb"`
@@ -78,8 +79,8 @@ func NewConfig() *Config {
 	c.Admin = admin.NewConfig()
 	c.Monitor = monitor.NewConfig()
 	c.Subscriber = subscriber.NewConfig()
-	c.HTTPD = httpd.NewConfig()
 
+	c.HTTPDInputs = []httpd.Config{httpd.NewConfig()}
 	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}
 	c.OpenTSDBInputs = []opentsdb.Config{opentsdb.NewConfig()}
