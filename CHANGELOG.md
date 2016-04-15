@@ -25,6 +25,7 @@
 - [#6296](https://github.com/influxdata/influxdb/issues/6296): Allow the implicit time field to be renamed again.
 - [#6379](https://github.com/influxdata/influxdb/issues/6379): Validate the first argument to percentile() is a variable.
 - [#6294](https://github.com/influxdata/influxdb/issues/6294): Fix panic running influx_inspect info.
+- [#6382](https://github.com/influxdata/influxdb/pull/6382): Removed dead code from the old query engine.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
