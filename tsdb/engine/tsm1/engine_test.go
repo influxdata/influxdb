@@ -508,7 +508,7 @@ func BenchmarkEngine_CreateIterator_Count_1M(b *testing.B) {
 }
 
 func benchmarkEngineCreateIteratorCount(b *testing.B, pointN int) {
-	benchmarkCallIterator(b, influxql.IteratorOptions{
+	benchmarkIterator(b, influxql.IteratorOptions{
 		Expr:      influxql.MustParseExpr("count(value)"),
 		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 		Ascending: true,
@@ -517,7 +517,29 @@ func benchmarkEngineCreateIteratorCount(b *testing.B, pointN int) {
 	}, pointN)
 }
 
-func benchmarkCallIterator(b *testing.B, opt influxql.IteratorOptions, pointN int) {
+func BenchmarkEngine_CreateIterator_Limit_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLimit(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Limit_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLimit(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Limit_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLimit(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLimit(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("value"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+		Limit:      10,
+	}, pointN)
+}
+
+func benchmarkIterator(b *testing.B, opt influxql.IteratorOptions, pointN int) {
 	e := MustInitBenchmarkEngine(pointN)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -535,6 +557,8 @@ var benchmark struct {
 	Engine *Engine
 	PointN int
 }
+
+var hostNames = []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"}
 
 // MustInitBenchmarkEngine creates a new engine and fills it with points.
 // Reuses previous engine if the same parameters were used.
@@ -567,7 +591,8 @@ func MustInitBenchmarkEngine(pointN int) *Engine {
 	for i := 0; i < pointN; i += batchSize {
 		var buf bytes.Buffer
 		for j := 0; j < batchSize; j++ {
-			fmt.Fprintf(&buf, "cpu,host=A value=%d %d",
+			fmt.Fprintf(&buf, "cpu,host=%s value=%d %d",
+				hostNames[j%len(hostNames)],
 				100+rand.Intn(50)-25,
 				(time.Duration(i+j)*time.Second)+(time.Duration(rand.Intn(500)-250)*time.Millisecond),
 			)

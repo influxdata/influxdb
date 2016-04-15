@@ -230,6 +230,44 @@ func (itr *floatIterator) Stats() influxql.IteratorStats {
 // Close closes the iterator.
 func (itr *floatIterator) Close() error { return nil }
 
+// floatLimitIterator
+type floatLimitIterator struct {
+	input influxql.FloatIterator
+	opt   influxql.IteratorOptions
+	n     int
+}
+
+func newFloatLimitIterator(input influxql.FloatIterator, opt influxql.IteratorOptions) *floatLimitIterator {
+	return &floatLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+func (itr *floatLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+func (itr *floatLimitIterator) Close() error                  { return itr.input.Close() }
+
+func (itr *floatLimitIterator) Next() *influxql.FloatPoint {
+	for {
+		// Check if we are beyond the limit.
+		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+			return nil
+		}
+
+		// Read the next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Offsets are handled by a higher level iterator so return all points.
+		return p
+	}
+}
+
 // floatCursor represents an object for iterating over a single float field.
 type floatCursor interface {
 	cursor
@@ -603,6 +641,44 @@ func (itr *integerIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *integerIterator) Close() error { return nil }
+
+// integerLimitIterator
+type integerLimitIterator struct {
+	input influxql.IntegerIterator
+	opt   influxql.IteratorOptions
+	n     int
+}
+
+func newIntegerLimitIterator(input influxql.IntegerIterator, opt influxql.IteratorOptions) *integerLimitIterator {
+	return &integerLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+func (itr *integerLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+func (itr *integerLimitIterator) Close() error                  { return itr.input.Close() }
+
+func (itr *integerLimitIterator) Next() *influxql.IntegerPoint {
+	for {
+		// Check if we are beyond the limit.
+		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+			return nil
+		}
+
+		// Read the next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Offsets are handled by a higher level iterator so return all points.
+		return p
+	}
+}
 
 // integerCursor represents an object for iterating over a single integer field.
 type integerCursor interface {
@@ -978,6 +1054,44 @@ func (itr *stringIterator) Stats() influxql.IteratorStats {
 // Close closes the iterator.
 func (itr *stringIterator) Close() error { return nil }
 
+// stringLimitIterator
+type stringLimitIterator struct {
+	input influxql.StringIterator
+	opt   influxql.IteratorOptions
+	n     int
+}
+
+func newStringLimitIterator(input influxql.StringIterator, opt influxql.IteratorOptions) *stringLimitIterator {
+	return &stringLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+func (itr *stringLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+func (itr *stringLimitIterator) Close() error                  { return itr.input.Close() }
+
+func (itr *stringLimitIterator) Next() *influxql.StringPoint {
+	for {
+		// Check if we are beyond the limit.
+		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+			return nil
+		}
+
+		// Read the next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Offsets are handled by a higher level iterator so return all points.
+		return p
+	}
+}
+
 // stringCursor represents an object for iterating over a single string field.
 type stringCursor interface {
 	cursor
@@ -1351,6 +1465,44 @@ func (itr *booleanIterator) Stats() influxql.IteratorStats {
 
 // Close closes the iterator.
 func (itr *booleanIterator) Close() error { return nil }
+
+// booleanLimitIterator
+type booleanLimitIterator struct {
+	input influxql.BooleanIterator
+	opt   influxql.IteratorOptions
+	n     int
+}
+
+func newBooleanLimitIterator(input influxql.BooleanIterator, opt influxql.IteratorOptions) *booleanLimitIterator {
+	return &booleanLimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+func (itr *booleanLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+func (itr *booleanLimitIterator) Close() error                  { return itr.input.Close() }
+
+func (itr *booleanLimitIterator) Next() *influxql.BooleanPoint {
+	for {
+		// Check if we are beyond the limit.
+		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+			return nil
+		}
+
+		// Read the next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Offsets are handled by a higher level iterator so return all points.
+		return p
+	}
+}
 
 // booleanCursor represents an object for iterating over a single boolean field.
 type booleanCursor interface {

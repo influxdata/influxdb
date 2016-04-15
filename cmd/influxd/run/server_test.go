@@ -4774,7 +4774,7 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "limit + offset equal to the  number of points with group by time",
+			name:    "limit + offset equal to the number of points with group by time",
 			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
 			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -4783,6 +4783,18 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 			name:    "limit - offset higher than number of points with group by time",
 			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
 			exp:     `{"results":[{}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit - group by tennant",
+			command: `select foo from "limited" group by tennant limit 1`,
+			exp:     `{"results":[{"series":[{"name":"limited","tags":{"tennant":"paul"},"columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2]]},{"name":"limited","tags":{"tennant":"todd"},"columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit and offset - group by tennant",
+			command: `select foo from "limited" group by tennant limit 1 offset 1`,
+			exp:     `{"results":[{"series":[{"name":"limited","tags":{"tennant":"paul"},"columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
