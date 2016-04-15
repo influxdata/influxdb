@@ -121,10 +121,11 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 	}
 }
 
-// SetLogOutput sets the writer to which log output will be written.
+// SetLogOutput sets the writer to which log output will be written. It must
+// not be called after the Open method has been called.
 func (s *Shard) SetLogOutput(w io.Writer) {
 	s.LogOutput = w
-	if s.engine != nil {
+	if !s.closed() {
 		s.engine.SetLogOutput(w)
 	}
 }
