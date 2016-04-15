@@ -11,11 +11,6 @@
 
 ### Bugfixes
 
-- [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
-- [#6248](https://github.com/influxdata/influxdb/issues/6248): Panic using incorrectly quoted "queries" field key.
-- [#6257](https://github.com/influxdata/influxdb/issues/6257): CreateShardGroup was incrementing meta data index even when it was idempotent.
-- [#6223](https://github.com/influxdata/influxdb/issues/6223): Failure to start/run on Windows. Thanks @mvadu
-- [#6229](https://github.com/influxdata/influxdb/issues/6229): Fixed aggregate queries with no GROUP BY to include the end time.
 - [#6283](https://github.com/influxdata/influxdb/pull/6283): Fix GROUP BY tag to produce consistent results when a series has no tags.
 - [#3773](https://github.com/influxdata/influxdb/issues/3773): Support empty tags for all WHERE equality operations.
 - [#6270](https://github.com/influxdata/influxdb/issues/6270): tsm1 query engine alloc reduction
@@ -28,6 +23,18 @@
 - [#6294](https://github.com/influxdata/influxdb/issues/6294): Fix panic running influx_inspect info.
 - [#6382](https://github.com/influxdata/influxdb/pull/6382): Removed dead code from the old query engine.
 - [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
+
+## v0.12.1 [2016-04-08]
+
+### Bugfixes
+
+- [#6225](https://github.com/influxdata/influxdb/pull/6225): Refresh admin assets.
+- [#6206](https://github.com/influxdata/influxdb/issues/6206): Handle nil values from the tsm1 cursor correctly.
+- [#6190](https://github.com/influxdata/influxdb/pull/6190): Fix race on measurementFields.
+- [#6248](https://github.com/influxdata/influxdb/issues/6248): Panic using incorrectly quoted "queries" field key.
+- [#6257](https://github.com/influxdata/influxdb/issues/6257): CreateShardGroup was incrementing meta data index even when it was idempotent.
+- [#6223](https://github.com/influxdata/influxdb/issues/6223): Failure to start/run on Windows. Thanks @mvadu
+- [#6229](https://github.com/influxdata/influxdb/issues/6229): Fixed aggregate queries with no GROUP BY to include the end time.
 
 ## v0.12.0 [2016-04-05]
 ### Release Notes
