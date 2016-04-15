@@ -3488,6 +3488,11 @@ func timeExprValue(ref Expr, lit Expr) (t time.Time, err error) {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
 		switch lit := lit.(type) {
 		case *TimeLiteral:
+			if lit.Val.After(time.Unix(0, MaxTime)) {
+				return time.Time{}, fmt.Errorf("time %s overflows time literal", lit.Val.Format(time.RFC3339))
+			} else if lit.Val.Before(time.Unix(0, MinTime)) {
+				return time.Time{}, fmt.Errorf("time %s underflows time literal", lit.Val.Format(time.RFC3339))
+			}
 			return lit.Val, nil
 		case *DurationLiteral:
 			return time.Unix(0, int64(lit.Val)).UTC(), nil
