@@ -177,7 +177,7 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 		Results:     results,
 		Database:    database,
 		ChunkSize:   chunkSize,
-		Log:         logger,
+		Log:         e.Logger,
 		InterruptCh: task.closing,
 	}
 
