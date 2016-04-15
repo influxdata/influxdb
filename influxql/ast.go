@@ -4087,6 +4087,14 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
 		}
+	case *DurationLiteral:
+		// Treat the integer as a timestamp.
+		switch op {
+		case ADD:
+			return &TimeLiteral{Val: time.Unix(0, lhs.Val).Add(rhs.Val)}
+		case SUB:
+			return &TimeLiteral{Val: time.Unix(0, lhs.Val).Add(-rhs.Val)}
+		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
