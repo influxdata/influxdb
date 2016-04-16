@@ -226,6 +226,44 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 // Close closes the iterator.
 func (itr *{{.name}}Iterator) Close() error { return nil }
 
+// {{.name}}LimitIterator
+type {{.name}}LimitIterator struct {
+	input influxql.{{.Name}}Iterator
+	opt   influxql.IteratorOptions
+	n     int
+}
+
+func new{{.Name}}LimitIterator(input influxql.{{.Name}}Iterator, opt influxql.IteratorOptions) *{{.name}}LimitIterator {
+	return &{{.name}}LimitIterator{
+		input: input,
+		opt:   opt,
+	}
+}
+
+func (itr *{{.name}}LimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+func (itr *{{.name}}LimitIterator) Close() error                  { return itr.input.Close() }
+
+func (itr *{{.name}}LimitIterator) Next() *influxql.{{.Name}}Point {
+	for {
+		// Check if we are beyond the limit.
+		if (itr.n-itr.opt.Offset) > itr.opt.Limit {
+			return nil
+		}
+
+		// Read the next point.
+		p := itr.input.Next()
+		if p == nil {
+			return nil
+		}
+
+		// Increment counter.
+		itr.n++
+
+		// Offsets are handled by a higher level iterator so return all points.
+		return p
+	}
+}
+
 // {{.name}}Cursor represents an object for iterating over a single {{.name}} field.
 type {{.name}}Cursor interface {
 	cursor

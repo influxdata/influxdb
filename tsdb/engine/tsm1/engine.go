@@ -792,6 +792,7 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
 			for _, t := range tagSets {
+				inputs := make([]influxql.Iterator, 0, len(t.SeriesKeys))
 				for i, seriesKey := range t.SeriesKeys {
 					fields := 0
 					if t.Filters[i] != nil {
@@ -802,13 +803,25 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 						}
 					}
 
-					itr, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, t.Filters[i], conditionFields[:fields], opt)
+					input, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, t.Filters[i], conditionFields[:fields], opt)
 					if err != nil {
 						return err
-					} else if itr == nil {
+					} else if input == nil {
 						continue
 					}
-					itrs = append(itrs, itr)
+					inputs = append(inputs, input)
+				}
+
+				if len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
+					var itr influxql.Iterator
+					if opt.MergeSorted() {
+						itr = influxql.NewSortedMergeIterator(inputs, opt)
+					} else {
+						itr = influxql.NewMergeIterator(inputs, opt)
+					}
+					itrs = append(itrs, newLimitIterator(itr, opt))
+				} else {
+					itrs = append(itrs, inputs...)
 				}
 			}
 		}
