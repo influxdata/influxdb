@@ -466,7 +466,6 @@ type {{$k.name}}FillIterator struct {
 	startTime int64
 	endTime   int64
 	auxFields []interface{}
-	done      bool
 	opt       IteratorOptions
 
 	window struct {
@@ -487,9 +486,9 @@ func new{{$k.Name}}FillIterator(input {{$k.Name}}Iterator, expr Expr, opt Iterat
 	var startTime, endTime int64
 	if opt.Ascending {
 		startTime, _ = opt.Window(opt.StartTime)
-		_, endTime = opt.Window(opt.EndTime)
+		endTime, _ = opt.Window(opt.EndTime)
 	} else {
-		_, startTime = opt.Window(opt.EndTime)
+		startTime, _ = opt.Window(opt.EndTime)
 		endTime, _ = opt.Window(opt.StartTime)
 	}
 
@@ -511,7 +510,11 @@ func new{{$k.Name}}FillIterator(input {{$k.Name}}Iterator, expr Expr, opt Iterat
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
 	} else {
-		itr.window.time = itr.endTime
+		if opt.Ascending {
+			itr.window.time = itr.endTime + 1
+		} else {
+			itr.window.time = itr.endTime - 1
+		}
 	}
 	return itr
 }
@@ -527,7 +530,7 @@ func (itr *{{$k.name}}FillIterator) Next() *{{$k.Name}}Point {
 		// If we are inside of an interval, unread the point and continue below to
 		// constructing a new point.
 		if itr.opt.Ascending {
-			if itr.window.time < itr.endTime {
+			if itr.window.time <= itr.endTime {
 				itr.input.unread(p)
 				p = nil
 				break
@@ -554,7 +557,7 @@ func (itr *{{$k.name}}FillIterator) Next() *{{$k.Name}}Point {
 	}
 
 	// Check if the point is our next expected point.
-	if p == nil || p.Time > itr.window.time {
+	if p == nil || (itr.opt.Ascending && p.Time > itr.window.time) || (!itr.opt.Ascending && p.Time < itr.window.time) {
 		if p != nil {
 			itr.input.unread(p)
 		}
@@ -812,10 +815,10 @@ func (itr *{{$k.name}}ChanIterator) Next() *{{$k.Name}}Point {
 
 // {{$k.name}}Reduce{{$v.Name}}Iterator executes a reducer for every interval and buffers the result.
 type {{$k.name}}Reduce{{$v.Name}}Iterator struct {
-	input  *buf{{$k.Name}}Iterator
-	create func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
-	opt    IteratorOptions
-	points []{{$v.Name}}Point
+	input    *buf{{$k.Name}}Iterator
+	create   func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
+	opt      IteratorOptions
+	points   []{{$v.Name}}Point
 }
 
 // Stats returns stats from the input iterator.
@@ -913,7 +916,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() []{{$v.Name}}Point {
 	return a
 }
 
-// {{$k.name}}Stream{{$v.Name}}Iterator
+// {{$k.name}}Stream{{$v.Name}}Iterator streams inputs into the iterator and emits points gradually.
 type {{$k.name}}Stream{{$v.Name}}Iterator struct {
 	input  *buf{{$k.Name}}Iterator
 	create func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
@@ -922,6 +925,7 @@ type {{$k.name}}Stream{{$v.Name}}Iterator struct {
 	points []{{$v.Name}}Point
 }
 
+// new{{$k.Name}}Stream{{$v.Name}}Iterator returns a new instance of {{$k.name}}Stream{{$v.Name}}Iterator.
 func new{{$k.Name}}Stream{{$v.Name}}Iterator(input {{$k.Name}}Iterator, createFn func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter), opt IteratorOptions) *{{$k.name}}Stream{{$v.Name}}Iterator {
 	return &{{$k.name}}Stream{{$v.Name}}Iterator{
 		input:  newBuf{{$k.Name}}Iterator(input),
@@ -1239,7 +1243,6 @@ func (enc *IteratorEncoder) encode{{.Name}}Iterator(itr {{.Name}}Iterator) error
 			}
 		default:
 		}
-
 
 		// Retrieve the next point from the iterator.
 		p := itr.Next()

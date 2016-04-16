@@ -62,6 +62,168 @@ func (r *IntegerMeanReducer) Emit() []FloatPoint {
 	}}
 }
 
+// FloatDerivativeReducer calculates the derivative of the aggregated points.
+type FloatDerivativeReducer struct {
+	interval      Interval
+	prev          FloatPoint
+	curr          FloatPoint
+	isNonNegative bool
+	ascending     bool
+}
+
+// NewFloatDerivativeReducer creates a new FloatDerivativeReducer.
+func NewFloatDerivativeReducer(interval Interval, isNonNegative, ascending bool) *FloatDerivativeReducer {
+	return &FloatDerivativeReducer{
+		interval:      interval,
+		isNonNegative: isNonNegative,
+		ascending:     ascending,
+		prev:          FloatPoint{Nil: true},
+		curr:          FloatPoint{Nil: true},
+	}
+}
+
+// AggregateFloat aggregates a point into the reducer and updates the current window.
+func (r *FloatDerivativeReducer) AggregateFloat(p *FloatPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the derivative of the reducer at the current point.
+func (r *FloatDerivativeReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		// Calculate the derivative of successive points by dividing the
+		// difference of each value by the elapsed time normalized to the interval.
+		diff := r.curr.Value - r.prev.Value
+		elapsed := r.curr.Time - r.prev.Time
+		if !r.ascending {
+			elapsed = -elapsed
+		}
+
+		value := 0.0
+		if elapsed > 0 {
+			value = diff / (float64(elapsed) / float64(r.interval.Duration))
+		}
+
+		// Drop negative values for non-negative derivatives.
+		if r.isNonNegative && diff < 0 {
+			return nil
+		}
+		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	}
+	return nil
+}
+
+// IntegerDerivativeReducer calculates the derivative of the aggregated points.
+type IntegerDerivativeReducer struct {
+	interval      Interval
+	prev          IntegerPoint
+	curr          IntegerPoint
+	isNonNegative bool
+	ascending     bool
+}
+
+// NewIntegerDerivativeReducer creates a new IntegerDerivativeReducer.
+func NewIntegerDerivativeReducer(interval Interval, isNonNegative, ascending bool) *IntegerDerivativeReducer {
+	return &IntegerDerivativeReducer{
+		interval:      interval,
+		isNonNegative: isNonNegative,
+		ascending:     ascending,
+		prev:          IntegerPoint{Nil: true},
+		curr:          IntegerPoint{Nil: true},
+	}
+}
+
+// AggregateInteger aggregates a point into the reducer and updates the current window.
+func (r *IntegerDerivativeReducer) AggregateInteger(p *IntegerPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the derivative of the reducer at the current point.
+func (r *IntegerDerivativeReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		// Calculate the derivative of successive points by dividing the
+		// difference of each value by the elapsed time normalized to the interval.
+		diff := float64(r.curr.Value - r.prev.Value)
+		elapsed := r.curr.Time - r.prev.Time
+		if !r.ascending {
+			elapsed = -elapsed
+		}
+
+		value := 0.0
+		if elapsed > 0 {
+			value = diff / (float64(elapsed) / float64(r.interval.Duration))
+		}
+
+		// Drop negative values for non-negative derivatives.
+		if r.isNonNegative && diff < 0 {
+			return nil
+		}
+		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	}
+	return nil
+}
+
+// FloatDifferenceReducer calculates the derivative of the aggregated points.
+type FloatDifferenceReducer struct {
+	prev FloatPoint
+	curr FloatPoint
+}
+
+// NewFloatDifferenceReducer creates a new FloatDifferenceReducer.
+func NewFloatDifferenceReducer() *FloatDifferenceReducer {
+	return &FloatDifferenceReducer{
+		prev: FloatPoint{Nil: true},
+		curr: FloatPoint{Nil: true},
+	}
+}
+
+// AggregateFloat aggregates a point into the reducer and updates the current window.
+func (r *FloatDifferenceReducer) AggregateFloat(p *FloatPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the difference of the reducer at the current point.
+func (r *FloatDifferenceReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		// Calculate the difference of successive points.
+		value := r.curr.Value - r.prev.Value
+		return []FloatPoint{{Time: r.curr.Time, Value: value}}
+	}
+	return nil
+}
+
+// IntegerDifferenceReducer calculates the derivative of the aggregated points.
+type IntegerDifferenceReducer struct {
+	prev IntegerPoint
+	curr IntegerPoint
+}
+
+// NewIntegerDifferenceReducer creates a new IntegerDifferenceReducer.
+func NewIntegerDifferenceReducer() *IntegerDifferenceReducer {
+	return &IntegerDifferenceReducer{
+		prev: IntegerPoint{Nil: true},
+		curr: IntegerPoint{Nil: true},
+	}
+}
+
+// AggregateInteger aggregates a point into the reducer and updates the current window.
+func (r *IntegerDifferenceReducer) AggregateInteger(p *IntegerPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the difference of the reducer at the current point.
+func (r *IntegerDifferenceReducer) Emit() []IntegerPoint {
+	if !r.prev.Nil {
+		// Calculate the difference of successive points.
+		value := r.curr.Value - r.prev.Value
+		return []IntegerPoint{{Time: r.curr.Time, Value: value}}
+	}
+	return nil
+}
+
 // FloatMovingAverageReducer calculates the moving average of the aggregated points.
 type FloatMovingAverageReducer struct {
 	pos  int

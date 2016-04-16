@@ -941,176 +941,42 @@ func NewIntegerPercentileReduceSliceFunc(percentile float64) IntegerReduceSliceF
 
 // newDerivativeIterator returns an iterator for operating on a derivative() call.
 func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interval, isNonNegative bool) (Iterator, error) {
-	// Derivatives do not use GROUP BY intervals or time constraints, so clear these options.
-	opt.Interval = Interval{}
-	opt.StartTime, opt.EndTime = MinTime, MaxTime
-
 	switch input := input.(type) {
 	case FloatIterator:
-		floatDerivativeReduceSlice := NewFloatDerivativeReduceSliceFunc(interval, isNonNegative)
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatSliceFuncReducer(floatDerivativeReduceSlice)
+			fn := NewFloatDerivativeReducer(interval, isNonNegative, opt.Ascending)
 			return fn, fn
 		}
-		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
-		integerDerivativeReduceSlice := NewIntegerDerivativeReduceSliceFunc(interval, isNonNegative)
 		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
-			fn := NewIntegerSliceFuncFloatReducer(integerDerivativeReduceSlice)
+			fn := NewIntegerDerivativeReducer(interval, isNonNegative, opt.Ascending)
 			return fn, fn
 		}
-		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
 	default:
 		return nil, fmt.Errorf("unsupported derivative iterator type: %T", input)
 	}
 }
 
-// NewFloatDerivativeReduceSliceFunc returns the derivative value within a window.
-func NewFloatDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) FloatReduceSliceFunc {
-	prev := FloatPoint{Nil: true}
-
-	return func(a []FloatPoint) []FloatPoint {
-		if len(a) == 0 {
-			return a
-		} else if len(a) == 1 {
-			return []FloatPoint{{Time: a[0].Time, Nil: true}}
-		}
-
-		if prev.Nil {
-			prev = a[0]
-		}
-
-		output := make([]FloatPoint, 0, len(a)-1)
-		for i := 1; i < len(a); i++ {
-			p := &a[i]
-
-			// Calculate the derivative of successive points by dividing the
-			// difference of each value by the elapsed time normalized to the interval.
-			diff := p.Value - prev.Value
-			elapsed := p.Time - prev.Time
-
-			value := 0.0
-			if elapsed > 0 {
-				value = diff / (float64(elapsed) / float64(interval.Duration))
-			}
-
-			prev = *p
-
-			// Drop negative values for non-negative derivatives.
-			if isNonNegative && diff < 0 {
-				continue
-			}
-
-			output = append(output, FloatPoint{Time: p.Time, Value: value})
-		}
-		return output
-	}
-}
-
-// NewIntegerDerivativeReduceSliceFunc returns the derivative value within a window.
-func NewIntegerDerivativeReduceSliceFunc(interval Interval, isNonNegative bool) IntegerReduceFloatSliceFunc {
-	prev := IntegerPoint{Nil: true}
-
-	return func(a []IntegerPoint) []FloatPoint {
-		if len(a) == 0 {
-			return []FloatPoint{}
-		} else if len(a) == 1 {
-			return []FloatPoint{{Time: a[0].Time, Nil: true}}
-		}
-
-		if prev.Nil {
-			prev = a[0]
-		}
-
-		output := make([]FloatPoint, 0, len(a)-1)
-		for i := 1; i < len(a); i++ {
-			p := &a[i]
-
-			// Calculate the derivative of successive points by dividing the
-			// difference of each value by the elapsed time normalized to the interval.
-			diff := float64(p.Value - prev.Value)
-			elapsed := p.Time - prev.Time
-
-			value := 0.0
-			if elapsed > 0 {
-				value = diff / (float64(elapsed) / float64(interval.Duration))
-			}
-
-			prev = *p
-
-			// Drop negative values for non-negative derivatives.
-			if isNonNegative && diff < 0 {
-				continue
-			}
-
-			output = append(output, FloatPoint{Time: p.Time, Value: value})
-		}
-		return output
-	}
-}
-
 // newDifferenceIterator returns an iterator for operating on a difference() call.
 func newDifferenceIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
-	// Differences do not use GROUP BY intervals or time constraints, so clear these options.
-	opt.Interval = Interval{}
-	opt.StartTime, opt.EndTime = MinTime, MaxTime
-
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatSliceFuncReducer(FloatDifferenceReduceSlice)
+			fn := NewFloatDifferenceReducer()
 			return fn, fn
 		}
-		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
-			fn := NewIntegerSliceFuncReducer(IntegerDifferenceReduceSlice)
+			fn := NewIntegerDifferenceReducer()
 			return fn, fn
 		}
-		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+		return newIntegerStreamIntegerIterator(input, createFn, opt), nil
 	default:
 		return nil, fmt.Errorf("unsupported difference iterator type: %T", input)
 	}
-}
-
-// FloatDifferenceReduceSlice returns the difference values within a window.
-func FloatDifferenceReduceSlice(a []FloatPoint) []FloatPoint {
-	if len(a) < 2 {
-		return []FloatPoint{}
-	}
-	prev := a[0]
-
-	output := make([]FloatPoint, 0, len(a)-1)
-	for i := 1; i < len(a); i++ {
-		p := &a[i]
-
-		// Calculate the difference of successive points.
-		value := p.Value - prev.Value
-		prev = *p
-
-		output = append(output, FloatPoint{Time: p.Time, Value: value})
-	}
-	return output
-}
-
-// IntegerDifferenceReduceSlice returns the difference values within a window.
-func IntegerDifferenceReduceSlice(a []IntegerPoint) []IntegerPoint {
-	if len(a) < 2 {
-		return []IntegerPoint{}
-	}
-	prev := a[0]
-
-	output := make([]IntegerPoint, 0, len(a)-1)
-	for i := 1; i < len(a); i++ {
-		p := &a[i]
-
-		// Calculate the difference of successive points.
-		value := p.Value - prev.Value
-		prev = *p
-
-		output = append(output, IntegerPoint{Time: p.Time, Value: value})
-	}
-	return output
 }
 
 // newMovingAverageIterator returns an iterator for operating on a moving_average() call.
