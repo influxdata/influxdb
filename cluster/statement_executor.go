@@ -394,8 +394,10 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	var writeN int64
 	var emitted bool
 	for {
-		row := em.Emit()
-		if row == nil {
+		row, err := em.Emit()
+		if err != nil {
+			return err
+		} else if row == nil {
 			// Check if the query was interrupted while emitting.
 			select {
 			case <-ctx.InterruptCh:

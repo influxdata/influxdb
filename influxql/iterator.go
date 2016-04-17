@@ -395,20 +395,39 @@ func (a auxIteratorFields) send(p Point) (ok bool) {
 	return ok
 }
 
+func (a auxIteratorFields) sendError(err error) {
+	for _, f := range a {
+		for _, itr := range f.itrs {
+			switch itr := itr.(type) {
+			case *floatChanIterator:
+				itr.setErr(err)
+			case *integerChanIterator:
+				itr.setErr(err)
+			case *stringChanIterator:
+				itr.setErr(err)
+			case *booleanChanIterator:
+				itr.setErr(err)
+			default:
+				panic(fmt.Sprintf("invalid aux itr type: %T", itr))
+			}
+		}
+	}
+}
+
 // DrainIterator reads all points from an iterator.
 func DrainIterator(itr Iterator) {
 	switch itr := itr.(type) {
 	case FloatIterator:
-		for p := itr.Next(); p != nil; p = itr.Next() {
+		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case IntegerIterator:
-		for p := itr.Next(); p != nil; p = itr.Next() {
+		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case StringIterator:
-		for p := itr.Next(); p != nil; p = itr.Next() {
+		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	case BooleanIterator:
-		for p := itr.Next(); p != nil; p = itr.Next() {
+		for p, _ := itr.Next(); p != nil; p, _ = itr.Next() {
 		}
 	default:
 		panic(fmt.Sprintf("unsupported iterator type for draining: %T", itr))
@@ -423,19 +442,19 @@ func DrainIterators(itrs []Iterator) {
 		for _, itr := range itrs {
 			switch itr := itr.(type) {
 			case FloatIterator:
-				if p := itr.Next(); p != nil {
+				if p, _ := itr.Next(); p != nil {
 					hasData = true
 				}
 			case IntegerIterator:
-				if p := itr.Next(); p != nil {
+				if p, _ := itr.Next(); p != nil {
 					hasData = true
 				}
 			case StringIterator:
-				if p := itr.Next(); p != nil {
+				if p, _ := itr.Next(); p != nil {
 					hasData = true
 				}
 			case BooleanIterator:
-				if p := itr.Next(); p != nil {
+				if p, _ := itr.Next(); p != nil {
 					hasData = true
 				}
 			default:
@@ -1054,9 +1073,9 @@ func decodeInterval(pb *internal.Interval) Interval {
 
 type nilFloatIterator struct{}
 
-func (*nilFloatIterator) Stats() IteratorStats { return IteratorStats{} }
-func (*nilFloatIterator) Close() error         { return nil }
-func (*nilFloatIterator) Next() *FloatPoint    { return nil }
+func (*nilFloatIterator) Stats() IteratorStats       { return IteratorStats{} }
+func (*nilFloatIterator) Close() error               { return nil }
+func (*nilFloatIterator) Next() (*FloatPoint, error) { return nil, nil }
 
 // integerFloatTransformIterator executes a function to modify an existing point for every
 // output of the input iterator.
@@ -1072,12 +1091,14 @@ func (itr *integerFloatTransformIterator) Stats() IteratorStats { return itr.inp
 func (itr *integerFloatTransformIterator) Close() error { return itr.input.Close() }
 
 // Next returns the minimum value for the next available interval.
-func (itr *integerFloatTransformIterator) Next() *FloatPoint {
-	p := itr.input.Next()
-	if p != nil {
-		return itr.fn(p)
+func (itr *integerFloatTransformIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p != nil {
+		return itr.fn(p), nil
 	}
-	return nil
+	return nil, nil
 }
 
 // integerFloatTransformFunc creates or modifies a point.
@@ -1091,10 +1112,10 @@ type integerFloatCastIterator struct {
 
 func (itr *integerFloatCastIterator) Stats() IteratorStats { return itr.input.Stats() }
 func (itr *integerFloatCastIterator) Close() error         { return itr.input.Close() }
-func (itr *integerFloatCastIterator) Next() *FloatPoint {
-	p := itr.input.Next()
-	if p == nil {
-		return nil
+func (itr *integerFloatCastIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
 	}
 
 	return &FloatPoint{
@@ -1104,7 +1125,7 @@ func (itr *integerFloatCastIterator) Next() *FloatPoint {
 		Nil:   p.Nil,
 		Value: float64(p.Value),
 		Aux:   p.Aux,
-	}
+	}, nil
 }
 
 // IteratorStats represents statistics about an iterator.

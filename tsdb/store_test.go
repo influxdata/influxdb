@@ -238,26 +238,40 @@ func TestShards_CreateIterator(t *testing.T) {
 	fitr := itr.(influxql.FloatIterator)
 
 	// Read values from iterator. The host=serverA points should come first.
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(0): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(0, 0).UnixNano(), Value: 1}) {
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
-	} else if p = fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
+	}
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(1): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(10, 0).UnixNano(), Value: 2}) {
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
-	} else if p = fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(30, 0).UnixNano(), Value: 1}) {
+	}
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(2): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverA"), Time: time.Unix(30, 0).UnixNano(), Value: 1}) {
 		t.Fatalf("unexpected point(2): %s", spew.Sdump(p))
 	}
 
 	// Next the host=serverB point.
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverB"), Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(3): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverB"), Time: time.Unix(20, 0).UnixNano(), Value: 3}) {
 		t.Fatalf("unexpected point(3): %s", spew.Sdump(p))
 	}
 
 	// And finally the host=serverC point.
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(60, 0).UnixNano(), Value: 3}) {
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(4): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=serverC"), Time: time.Unix(60, 0).UnixNano(), Value: 3}) {
 		t.Fatalf("unexpected point(4): %s", spew.Sdump(p))
 	}
 
 	// Then an EOF should occur.
-	if p := fitr.Next(); p != nil {
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("expected eof, got error: %s", err)
+	} else if p != nil {
 		t.Fatalf("expected eof, got: %s", spew.Sdump(p))
 	}
 }
