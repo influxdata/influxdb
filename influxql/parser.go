@@ -413,7 +413,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	stmt.Replication = n
 
 	// Parse optional SHARD token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == SHARD {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == SHARD {
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != DURATION {
 			return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
 		}
@@ -422,17 +422,15 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 			return nil, err
 		}
 		stmt.ShardGroupDuration = d
-	} else if tok != EOF && tok != SEMICOLON && tok != DEFAULT {
-		return nil, newParseError(tokstr(tok, lit), []string{"SHARD"}, pos)
 	} else {
 		p.unscan()
 	}
 
 	// Parse optional DEFAULT token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == DEFAULT {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == DEFAULT {
 		stmt.Default = true
-	} else if tok != EOF && tok != SEMICOLON {
-		return nil, newParseError(tokstr(tok, lit), []string{"DEFAULT"}, pos)
+	} else {
+		p.unscan()
 	}
 
 	return stmt, nil

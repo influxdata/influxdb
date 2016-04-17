@@ -26,6 +26,7 @@
 - [#6382](https://github.com/influxdata/influxdb/pull/6382): Removed dead code from the old query engine.
 - [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
 - [#3369](https://github.com/influxdata/influxdb/issues/3369): Detect when a timer literal will overflow or underflow the query engine.
+- [#6398](https://github.com/influxdata/influxdb/issues/6398): Fix CREATE RETENTION POLICY parsing so it doesn't consume tokens it shouldn't.
 
 ## v0.12.1 [2016-04-08]
 
