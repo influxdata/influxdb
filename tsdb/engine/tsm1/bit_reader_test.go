@@ -1,34 +1,32 @@
 package tsm1_test
 
-// NOTE(benbjohnson)
-// Copied from: github.com/dgryski/go-bitstream
-// Required copy so that the underlying reader could be reused without alloc.
-
 import (
 	"bytes"
 	"io"
-	"strings"
+	"math"
+	"math/rand"
+	"reflect"
 	"testing"
+	"testing/quick"
 
 	"github.com/dgryski/go-bitstream"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func TestBitStreamEOF(t *testing.T) {
-	br := tsm1.NewReader(strings.NewReader("0"))
+	br := tsm1.NewBitReader([]byte("0"))
 
-	b, err := br.ReadByte()
+	b, err := br.ReadBits(8)
 	if b != '0' {
-		t.Error("ReadByte didn't return first byte")
+		t.Error("ReadBits(8) didn't return first byte")
 	}
 
-	_, err = br.ReadByte()
-	if err != io.EOF {
-		t.Error("ReadByte on empty string didn't return EOF")
+	if _, err := br.ReadBits(8); err != io.EOF {
+		t.Error("ReadBits(8) on empty string didn't return EOF")
 	}
 
 	// 0 = 0b00110000
-	br = tsm1.NewReader(strings.NewReader("0"))
+	br = tsm1.NewBitReader([]byte("0"))
 
 	buf := bytes.NewBuffer(nil)
 	bw := bitstream.NewWriter(buf)
@@ -58,7 +56,7 @@ func TestBitStreamEOF(t *testing.T) {
 		t.Error("bad return from 4 read bytes")
 	}
 
-	_, err = tsm1.NewReader(strings.NewReader("")).ReadBit()
+	_, err = tsm1.NewBitReader([]byte("")).ReadBit()
 	if err != io.EOF {
 		t.Error("ReadBit on empty string didn't return EOF")
 	}
@@ -66,7 +64,7 @@ func TestBitStreamEOF(t *testing.T) {
 
 func TestBitStream(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	br := tsm1.NewReader(strings.NewReader("hello"))
+	br := tsm1.NewBitReader([]byte("hello"))
 	bw := bitstream.NewWriter(buf)
 
 	for {
@@ -90,7 +88,7 @@ func TestBitStream(t *testing.T) {
 
 func TestByteStream(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
-	br := tsm1.NewReader(strings.NewReader("hello"))
+	br := tsm1.NewBitReader([]byte("hello"))
 	bw := bitstream.NewWriter(buf)
 
 	for i := 0; i < 3; i++ {
@@ -106,15 +104,15 @@ func TestByteStream(t *testing.T) {
 	}
 
 	for i := 0; i < 3; i++ {
-		byt, err := br.ReadByte()
+		byt, err := br.ReadBits(8)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			t.Error("GetByte returned error err=", err.Error())
+			t.Error("ReadBits(8) returned error err=", err.Error())
 			return
 		}
-		bw.WriteByte(byt)
+		bw.WriteByte(byte(byt))
 	}
 
 	u, err := br.ReadBits(13)
@@ -134,5 +132,46 @@ func TestByteStream(t *testing.T) {
 
 	if s != "hello!./" {
 		t.Errorf("expected 'hello!./', got=%x", []byte(s))
+	}
+}
+
+// Ensure bit reader can read random bits written to a stream.
+func TestBitReader_Quick(t *testing.T) {
+	if err := quick.Check(func(values []uint64, nbits []uint) bool {
+		// Limit nbits to 64.
+		for i := 0; i < len(values) && i < len(nbits); i++ {
+			nbits[i] = (nbits[i] % 64) + 1
+			values[i] = values[i] & (math.MaxUint64 >> (64 - nbits[i]))
+		}
+
+		// Write bits to a buffer.
+		var buf bytes.Buffer
+		w := bitstream.NewWriter(&buf)
+		for i := 0; i < len(values) && i < len(nbits); i++ {
+			w.WriteBits(values[i], int(nbits[i]))
+		}
+		w.Flush(bitstream.Zero)
+
+		// Read bits from the buffer.
+		r := tsm1.NewBitReader(buf.Bytes())
+		for i := 0; i < len(values) && i < len(nbits); i++ {
+			v, err := r.ReadBits(nbits[i])
+			if err != nil {
+				t.Errorf("unexpected error(%d): %s", i, err)
+				return false
+			} else if v != values[i] {
+				t.Errorf("value mismatch(%d): got=%d, exp=%d (nbits=%d)", i, v, values[i], nbits[i])
+				return false
+			}
+		}
+
+		return true
+	}, &quick.Config{
+		Values: func(a []reflect.Value, rand *rand.Rand) {
+			a[0], _ = quick.Value(reflect.TypeOf([]uint64{}), rand)
+			a[1], _ = quick.Value(reflect.TypeOf([]uint{}), rand)
+		},
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
