@@ -2,6 +2,7 @@
 
 ### Features
 
+- [#6213](https://github.com/influxdata/influxdb/pull/6213): Make logging output location more programmatically configurable.
 - [#6237](https://github.com/influxdata/influxdb/issues/6237): Enable continuous integration testing on Windows platform via AppVeyor. Thanks @mvadu
 - [#6263](https://github.com/influxdata/influxdb/pull/6263): Reduce UDP Service allocation size.
 - [#6228](https://github.com/influxdata/influxdb/pull/6228): Support for multiple listeners for collectd and OpenTSDB inputs.
