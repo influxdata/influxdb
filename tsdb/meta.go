@@ -747,6 +747,15 @@ func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters Fil
 // idsForExpr will return a collection of series ids and a filter expression that should
 // be used to filter points from those series.
 func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Expr, error) {
+	// If this binary expression has another binary expression, then this
+	// is some expression math and we should just pass it to the underlying query.
+	if _, ok := n.LHS.(*influxql.BinaryExpr); ok {
+		return m.seriesIDs, n, nil
+	} else if _, ok := n.RHS.(*influxql.BinaryExpr); ok {
+		return m.seriesIDs, n, nil
+	}
+
+	// Retrieve the variable reference from the correct side of the expression.
 	name, ok := n.LHS.(*influxql.VarRef)
 	value := n.RHS
 	if !ok {
