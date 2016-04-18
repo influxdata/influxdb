@@ -294,9 +294,16 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	closing := make(chan struct{})
 	if notifier, ok := w.(http.CloseNotifier); ok {
 		notify := notifier.CloseNotify()
+		done := make(chan struct{})
+		defer close(done)
 		go func() {
-			<-notify
-			close(closing)
+			// Wait for either the request to finish
+			// or for the client to disconnect
+			select {
+			case <-done:
+			case <-notify:
+				close(closing)
+			}
 		}()
 	} else {
 		defer close(closing)

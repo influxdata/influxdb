@@ -27,6 +27,7 @@
 - [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
 - [#3369](https://github.com/influxdata/influxdb/issues/3369): Detect when a timer literal will overflow or underflow the query engine.
 - [#6398](https://github.com/influxdata/influxdb/issues/6398): Fix CREATE RETENTION POLICY parsing so it doesn't consume tokens it shouldn't.
+- [#6413](https://github.com/influxdata/influxdb/pull/6413): Prevent goroutine leak from persistent http connections. Thanks @aaronknister.
 
 ## v0.12.1 [2016-04-08]
 
