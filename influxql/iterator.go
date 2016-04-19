@@ -785,6 +785,16 @@ func (opt IteratorOptions) DerivativeInterval() Interval {
 	return Interval{Duration: time.Second}
 }
 
+// ElapsedInterval returns the time interval for the elapsed function.
+func (opt IteratorOptions) ElapsedInterval() Interval {
+	// Use the interval on the elapsed() call, if specified.
+	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
+		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
+	}
+
+	return Interval{Duration: time.Nanosecond}
+}
+
 // MarshalBinary encodes opt into a binary format.
 func (opt *IteratorOptions) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(encodeIteratorOptions(opt))

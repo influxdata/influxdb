@@ -979,6 +979,38 @@ func newDifferenceIterator(input Iterator, opt IteratorOptions) (Iterator, error
 	}
 }
 
+// newElapsedIterator returns an iterator for operating on a elapsed() call.
+func newElapsedIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, IntegerPointEmitter) {
+			fn := NewFloatElapsedReducer(interval)
+			return fn, fn
+		}
+		return newFloatStreamIntegerIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerElapsedReducer(interval)
+			return fn, fn
+		}
+		return newIntegerStreamIntegerIterator(input, createFn, opt), nil
+	case BooleanIterator:
+		createFn := func() (BooleanPointAggregator, IntegerPointEmitter) {
+			fn := NewBooleanElapsedReducer(interval)
+			return fn, fn
+		}
+		return newBooleanStreamIntegerIterator(input, createFn, opt), nil
+	case StringIterator:
+		createFn := func() (StringPointAggregator, IntegerPointEmitter) {
+			fn := NewStringElapsedReducer(interval)
+			return fn, fn
+		}
+		return newStringStreamIntegerIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported elapsed iterator type: %T", input)
+	}
+}
+
 // newMovingAverageIterator returns an iterator for operating on a moving_average() call.
 func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {

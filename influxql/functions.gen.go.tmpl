@@ -118,4 +118,38 @@ func (r *{{$k.Name}}DistinctReducer) Emit() []{{$k.Name}}Point {
 	return points
 }
 
+// {{$k.Name}}ElapsedReducer calculates the elapsed of the aggregated points.
+type {{$k.Name}}ElapsedReducer struct {
+	unitConversion int64
+	prev           {{$k.Name}}Point
+	curr           {{$k.Name}}Point
+}
+
+// New{{$k.Name}}ElapsedReducer creates a new {{$k.Name}}ElapsedReducer.
+func New{{$k.Name}}ElapsedReducer(interval Interval) *{{$k.Name}}ElapsedReducer {
+	return &{{$k.Name}}ElapsedReducer{
+		unitConversion: int64(interval.Duration),
+		prev:           {{$k.Name}}Point{Nil: true},
+		curr:           {{$k.Name}}Point{Nil: true},
+	}
+}
+
+// Aggregate{{$k.Name}} aggregates a point into the reducer and updates the current window.
+func (r *{{$k.Name}}ElapsedReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the elapsed of the reducer at the current point.
+func (r *{{$k.Name}}ElapsedReducer) Emit() []IntegerPoint {
+	if !r.prev.Nil {
+		elapsed := (r.curr.Time - r.prev.Time) / r.unitConversion
+		return []IntegerPoint{
+			{Time: r.curr.Time, Value: elapsed},
+		}
+	}
+	return nil
+}
+
+
 {{end}}{{end}}
