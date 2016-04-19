@@ -658,6 +658,11 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 		tagSets[tagsAsKey] = tagSet
 	}
 
+	// Sort the series in each tag set.
+	for _, t := range tagSets {
+		sort.Sort(t)
+	}
+
 	// The TagSets have been created, as a map of TagSets. Just send
 	// the values back as a slice, sorting for consistency.
 	sortedTagSetKeys := make([]string, 0, len(tagSets))

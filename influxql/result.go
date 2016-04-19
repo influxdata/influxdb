@@ -27,6 +27,13 @@ func (t *TagSet) AddFilter(key string, filter Expr) {
 	t.Filters = append(t.Filters, filter)
 }
 
+func (t *TagSet) Len() int           { return len(t.SeriesKeys) }
+func (t *TagSet) Less(i, j int) bool { return t.SeriesKeys[i] < t.SeriesKeys[j] }
+func (t *TagSet) Swap(i, j int) {
+	t.SeriesKeys[i], t.SeriesKeys[j] = t.SeriesKeys[j], t.SeriesKeys[i]
+	t.Filters[i], t.Filters[j] = t.Filters[j], t.Filters[i]
+}
+
 // Message represents a user-facing message to be included with the result.
 type Message struct {
 	Level string `json:"level"`
