@@ -1495,7 +1495,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average":
+			case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1503,6 +1503,17 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				case "derivative", "non_negative_derivative":
 					if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
 						return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+					}
+				case "elapsed":
+					if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
+						return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+					}
+					// If a duration arg is passed, make sure it's a duration
+					if len(expr.Args) == 2 {
+						// Second must be a duration .e.g (1h)
+						if _, ok := expr.Args[1].(*DurationLiteral); !ok {
+							return errors.New("elapsed requires a duration argument")
+						}
 					}
 				case "difference":
 					if got := len(expr.Args); got != 1 {
@@ -1738,7 +1749,7 @@ func (s *SelectStatement) validateDerivative() error {
 		return fmt.Errorf("derivative requires a field argument")
 	}
 
-	// If a duration arg is pased, make sure it's a duration
+	// If a duration arg is passed, make sure it's a duration
 	if len(derivativeCall.Args) == 2 {
 		// Second must be a duration .e.g (1h)
 		if _, ok := derivativeCall.Args[1].(*DurationLiteral); !ok {

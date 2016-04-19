@@ -867,6 +867,50 @@ func TestIteratorOptions_DerivativeInterval_Call(t *testing.T) {
 	}
 }
 
+func TestIteratorOptions_ElapsedInterval_Default(t *testing.T) {
+	opt := influxql.IteratorOptions{}
+	expected := influxql.Interval{Duration: time.Nanosecond}
+	actual := opt.ElapsedInterval()
+	if actual != expected {
+		t.Errorf("expected elapsed interval to be %v, got %v", expected, actual)
+	}
+}
+
+func TestIteratorOptions_ElapsedInterval_GroupBy(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		Interval: influxql.Interval{
+			Duration: 10,
+			Offset:   2,
+		},
+	}
+	expected := influxql.Interval{Duration: time.Nanosecond}
+	actual := opt.ElapsedInterval()
+	if actual != expected {
+		t.Errorf("expected elapsed interval to be %v, got %v", expected, actual)
+	}
+}
+
+func TestIteratorOptions_ElapsedInterval_Call(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		Expr: &influxql.Call{
+			Name: "mean",
+			Args: []influxql.Expr{
+				&influxql.VarRef{Val: "value"},
+				&influxql.DurationLiteral{Val: 2 * time.Second},
+			},
+		},
+		Interval: influxql.Interval{
+			Duration: 10,
+			Offset:   2,
+		},
+	}
+	expected := influxql.Interval{Duration: 2 * time.Second}
+	actual := opt.ElapsedInterval()
+	if actual != expected {
+		t.Errorf("expected elapsed interval to be %v, got %v", expected, actual)
+	}
+}
+
 // Ensure iterator options can be marshaled to and from a binary format.
 func TestIteratorOptions_MarshalBinary(t *testing.T) {
 	opt := &influxql.IteratorOptions{

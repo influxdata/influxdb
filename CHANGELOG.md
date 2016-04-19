@@ -11,6 +11,7 @@
 - [#6394](https://github.com/influxdata/influxdb/pull/6394): Allow time math with integer timestamps.
 - [#3247](https://github.com/influxdata/influxdb/issues/3247): Implement derivatives across intervals for aggregate queries.
 - [#3166](https://github.com/influxdata/influxdb/issues/3166): Sort the series keys inside of a tag set so output is deterministic.
+- [#1856](https://github.com/influxdata/influxdb/issues/1856): Add `elapsed` function that returns the time delta between subsequent points.
 
 ### Bugfixes
 
