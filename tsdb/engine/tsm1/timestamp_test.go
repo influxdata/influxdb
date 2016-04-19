@@ -539,7 +539,7 @@ func BenchmarkTimeEncoder(b *testing.B) {
 	}
 }
 
-func BenchmarkTimeDecoder(b *testing.B) {
+func BenchmarkTimeDecoder_Packed(b *testing.B) {
 	x := make([]time.Time, 1024)
 	enc := NewTimeEncoder()
 	for i := 0; i < len(x); i++ {
@@ -550,11 +550,34 @@ func BenchmarkTimeDecoder(b *testing.B) {
 
 	b.ResetTimer()
 
+	b.StopTimer()
+	dec := NewTimeDecoder()
+	b.StartTimer()
+
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		dec := NewTimeDecoder()
 		dec.Init(bytes)
-		b.StartTimer()
+		for dec.Next() {
+		}
+	}
+}
+
+func BenchmarkTimeDecoder_RLE(b *testing.B) {
+	x := make([]time.Time, 1024)
+	enc := NewTimeEncoder()
+	for i := 0; i < len(x); i++ {
+		x[i] = time.Unix(0, int64(i*10))
+		enc.Write(x[i])
+	}
+	bytes, _ := enc.Bytes()
+
+	b.ResetTimer()
+
+	b.StopTimer()
+	dec := NewTimeDecoder()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		dec.Init(bytes)
 		for dec.Next() {
 		}
 	}
