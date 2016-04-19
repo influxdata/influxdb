@@ -581,7 +581,7 @@ func TestBlockIterator_Single(t *testing.T) {
 	var count int
 	iter := r.BlockIterator()
 	for iter.Next() {
-		key, minTime, maxTime, buf, err := iter.Read()
+		key, minTime, maxTime, _, buf, err := iter.Read()
 
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
@@ -646,7 +646,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	iter := r.BlockIterator()
 	var i int
 	for iter.Next() {
-		key, minTime, maxTime, buf, err := iter.Read()
+		key, minTime, maxTime, _, buf, err := iter.Read()
 
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
@@ -714,7 +714,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	iter := r.BlockIterator()
 	var lastKey string
 	for iter.Next() {
-		key, _, _, buf, err := iter.Read()
+		key, _, _, _, buf, err := iter.Read()
 
 		if key < lastKey {
 			t.Fatalf("keys not sorted: got %v, last %v", key, lastKey)
@@ -806,7 +806,7 @@ func TestCompacted_NotFull(t *testing.T) {
 		t.Fatalf("expected next, got false")
 	}
 
-	_, _, _, block, err := iter.Read()
+	_, _, _, _, block, err := iter.Read()
 	if err != nil {
 		t.Fatalf("unexpected error reading block: %v", err)
 	}
@@ -976,6 +976,7 @@ func TestTSMReader_File_Read(t *testing.T) {
 		t.Fatalf("read values count mismatch: exp %v, got %v", exp, got)
 	}
 }
+
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := tsm1.NewDirectIndex()
 	for i := 0; i < 100000; i++ {

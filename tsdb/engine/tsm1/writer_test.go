@@ -471,7 +471,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 
 	iter := r.BlockIterator()
 	for iter.Next() {
-		key, minTime, maxTime, b, err := iter.Read()
+		key, minTime, maxTime, _, b, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error reading block: %v", err)
 		}

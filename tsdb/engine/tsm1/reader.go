@@ -77,16 +77,15 @@ func (b *BlockIterator) Next() bool {
 	return false
 }
 
-func (b *BlockIterator) Read() (string, int64, int64, []byte, error) {
+func (b *BlockIterator) Read() (string, int64, int64, uint32, []byte, error) {
 	if b.err != nil {
-		return "", 0, 0, nil, b.err
+		return "", 0, 0, 0, nil, b.err
 	}
-
-	buf, err := b.r.readBytes(&b.entries[0], nil)
+	checksum, buf, err := b.r.readBytes(&b.entries[0], nil)
 	if err != nil {
-		return "", 0, 0, nil, err
+		return "", 0, 0, 0, nil, err
 	}
-	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, buf, err
+	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, checksum, buf, err
 }
 
 // blockAccessor abstracts a method of accessing blocks from a
@@ -100,7 +99,7 @@ type blockAccessor interface {
 	readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
 	readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
 	readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
-	readBytes(entry *IndexEntry, buf []byte) ([]byte, error)
+	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
 	path() string
 	close() error
 }
@@ -248,7 +247,7 @@ func (t *TSMReader) ReadAll(key string) ([]Value, error) {
 	return t.accessor.readAll(key)
 }
 
-func (t *TSMReader) readBytes(e *IndexEntry, b []byte) ([]byte, error) {
+func (t *TSMReader) readBytes(e *IndexEntry, b []byte) (uint32, []byte, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.accessor.readBytes(e, b)
@@ -789,7 +788,7 @@ func (f *fileAccessor) read(key string, timestamp int64) ([]Value, error) {
 }
 
 func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, error) {
-	b, err := f.readBytes(entry, nil)
+	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -804,7 +803,7 @@ func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 }
 
 func (f *fileAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
-	b, err := f.readBytes(entry, nil)
+	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -819,7 +818,7 @@ func (f *fileAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec 
 }
 
 func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
-	b, err := f.readBytes(entry, nil)
+	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -834,7 +833,7 @@ func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vde
 }
 
 func (f *fileAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
-	b, err := f.readBytes(entry, nil)
+	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -849,7 +848,8 @@ func (f *fileAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec
 }
 
 func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
-	b, err := f.readBytes(entry, nil)
+
+	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -863,7 +863,7 @@ func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vde
 	return a, nil
 }
 
-func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
+func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -874,7 +874,7 @@ func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 
 	_, err := f.r.Seek(entry.Offset, os.SEEK_SET)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	if int(entry.Size) > len(b) {
@@ -883,10 +883,10 @@ func (f *fileAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
 
 	n, err := f.r.Read(b[:entry.Size])
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return b[4:n], nil
+	return binary.BigEndian.Uint32(b[:4]), b[4:n], nil
 }
 
 // ReadAll returns all values for a key in all blocks.
@@ -903,7 +903,7 @@ func (f *fileAccessor) readAll(key string) ([]Value, error) {
 	b := make([]byte, 16*1024)
 	for _, block := range blocks {
 
-		b, err := f.readBytes(&block, b)
+		_, b, err := f.readBytes(&block, b)
 		if err != nil {
 			return nil, err
 		}
@@ -1075,16 +1075,16 @@ func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vde
 	return a, nil
 }
 
-func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) ([]byte, error) {
+func (m *mmapAccessor) readBytes(entry *IndexEntry, b []byte) (uint32, []byte, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
-		return nil, ErrTSMClosed
+		return 0, nil, ErrTSMClosed
 	}
 
 	// return the bytes after the 4 byte checksum
-	return m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)], nil
+	return binary.BigEndian.Uint32(m.b[entry.Offset : entry.Offset+4]), m.b[entry.Offset+4 : entry.Offset+int64(entry.Size)], nil
 }
 
 // ReadAll returns all values for a key in all blocks.
