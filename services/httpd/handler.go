@@ -63,6 +63,10 @@ type Handler struct {
 		AuthorizeQuery(u *meta.UserInfo, query *influxql.Query, database string) error
 	}
 
+	WriteAuthorizer interface {
+		AuthorizeWrite(username, database string) error
+	}
+
 	QueryExecutor *influxql.QueryExecutor
 
 	PointsWriter interface {
@@ -425,9 +429,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
-	if h.requireAuthentication && !user.Authorize(influxql.WritePrivilege, database) {
-		resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
-		return
+	if h.requireAuthentication {
+		if err := h.WriteAuthorizer.AuthorizeWrite(user.Name, database); err != nil {
+			resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
+			return
+		}
 	}
 
 	// Handle gzip decoding of the body

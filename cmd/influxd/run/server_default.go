@@ -41,6 +41,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv := httpd.NewService(c)
 	srv.Handler.MetaClient = s.MetaClient
 	srv.Handler.QueryAuthorizer = meta.NewQueryAuthorizer(s.MetaClient)
+	srv.Handler.WriteAuthorizer = meta.NewWriteAuthorizer(s.MetaClient)
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
