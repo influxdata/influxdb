@@ -115,11 +115,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 
-	// Check to see if there is a raft db, if so, error out with a message
-	// to downgrade, export, and then import the meta data
-	raftFile := filepath.Join(c.Meta.Dir, "raft.db")
-	if _, err := os.Stat(raftFile); err == nil {
-		return nil, fmt.Errorf("detected %s. To proceed, you'll need to either 1) downgrade to v0.11.x, export your metadata, upgrade to the current version again, and then import the metadata or 2) delete the file, which will effectively reset your database. For more assistance with the upgrade, see: https://docs.influxdata.com/influxdb/v0.12/administration/upgrading/", raftFile)
+	if err := raftDBExists(c.Meta.Dir); err != nil {
+		return nil, err
 	}
 
 	// In 0.10.0 bind-address got moved to the top level. Check

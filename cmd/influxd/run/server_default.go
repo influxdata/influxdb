@@ -3,6 +3,10 @@
 package run
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
@@ -128,4 +132,14 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	srv.MetaClient = s.MetaClient
 	srv.QueryExecutor = s.QueryExecutor
 	s.Services = append(s.Services, srv)
+}
+
+func raftDBExists(dir string) error {
+	// Check to see if there is a raft db, if so, error out with a message
+	// to downgrade, export, and then import the meta data
+	raftFile := filepath.Join(dir, "raft.db")
+	if _, err := os.Stat(raftFile); err == nil {
+		return fmt.Errorf("detected %s. To proceed, you'll need to either 1) downgrade to v0.11.x, export your metadata, upgrade to the current version again, and then import the metadata or 2) delete the file, which will effectively reset your database. For more assistance with the upgrade, see: https://docs.influxdata.com/influxdb/v0.12/administration/upgrading/", raftFile)
+	}
+	return nil
 }
