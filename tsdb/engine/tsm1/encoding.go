@@ -268,7 +268,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	tsenc := NewTimeEncoder()
 
 	for _, v := range values {
-		tsenc.Write(time.Unix(0, v.UnixNano()))
+		tsenc.Write(v.UnixNano())
 		venc.Push(v.(*FloatValue).value)
 	}
 	venc.Finish()
@@ -314,10 +314,10 @@ func DecodeFloatBlock(block []byte, tdec TimeDecoder, vdec *FloatDecoder, a *[]F
 		v := vdec.Values()
 		if i < len(*a) {
 			elem := &(*a)[i]
-			elem.unixnano = ts.UnixNano()
+			elem.unixnano = ts
 			elem.value = v
 		} else {
-			*a = append(*a, FloatValue{ts.UnixNano(), v})
+			*a = append(*a, FloatValue{ts, v})
 		}
 		i++
 	}
@@ -395,7 +395,7 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	tsenc := NewTimeEncoder()
 
 	for _, v := range values {
-		tsenc.Write(time.Unix(0, v.UnixNano()))
+		tsenc.Write(v.UnixNano())
 		venc.Write(v.(*BooleanValue).value)
 	}
 
@@ -438,10 +438,10 @@ func DecodeBooleanBlock(block []byte, tdec TimeDecoder, vdec *BooleanDecoder, a 
 		v := vdec.Read()
 		if i < len(*a) {
 			elem := &(*a)[i]
-			elem.unixnano = ts.UnixNano()
+			elem.unixnano = ts
 			elem.value = v
 		} else {
-			*a = append(*a, BooleanValue{ts.UnixNano(), v})
+			*a = append(*a, BooleanValue{ts, v})
 		}
 		i++
 	}
@@ -508,7 +508,7 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewIntegerEncoder()
 	for _, v := range values {
-		tsEnc.Write(time.Unix(0, v.UnixNano()))
+		tsEnc.Write(v.UnixNano())
 		vEnc.Write(v.(*IntegerValue).value)
 	}
 
@@ -550,10 +550,10 @@ func DecodeIntegerBlock(block []byte, tdec TimeDecoder, vdec *IntegerDecoder, a 
 		v := vdec.Read()
 		if i < len(*a) {
 			elem := &(*a)[i]
-			elem.unixnano = ts.UnixNano()
+			elem.unixnano = ts
 			elem.value = v
 		} else {
-			*a = append(*a, IntegerValue{ts.UnixNano(), v})
+			*a = append(*a, IntegerValue{ts, v})
 		}
 		i++
 	}
@@ -620,7 +620,7 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := NewTimeEncoder()
 	vEnc := NewStringEncoder()
 	for _, v := range values {
-		tsEnc.Write(time.Unix(0, v.UnixNano()))
+		tsEnc.Write(v.UnixNano())
 		vEnc.Write(v.(*StringValue).value)
 	}
 
@@ -664,10 +664,10 @@ func DecodeStringBlock(block []byte, tdec TimeDecoder, vdec *StringDecoder, a *[
 		v := vdec.Read()
 		if i < len(*a) {
 			elem := &(*a)[i]
-			elem.unixnano = ts.UnixNano()
+			elem.unixnano = ts
 			elem.value = v
 		} else {
-			*a = append(*a, StringValue{ts.UnixNano(), v})
+			*a = append(*a, StringValue{ts, v})
 		}
 		i++
 	}
