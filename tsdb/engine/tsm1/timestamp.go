@@ -36,7 +36,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"time"
 
 	"github.com/jwilder/encoding/simple8b"
 )
@@ -52,7 +51,7 @@ const (
 
 // TimeEncoder encodes time.Time to byte slices.
 type TimeEncoder interface {
-	Write(t time.Time)
+	Write(t int64)
 	Bytes() ([]byte, error)
 }
 
@@ -60,7 +59,7 @@ type TimeEncoder interface {
 type TimeDecoder interface {
 	Init(b []byte)
 	Next() bool
-	Read() time.Time
+	Read() int64
 	Error() error
 }
 
@@ -74,8 +73,8 @@ func NewTimeEncoder() TimeEncoder {
 }
 
 // Write adds a time.Time to the compressed stream.
-func (e *encoder) Write(t time.Time) {
-	e.ts = append(e.ts, uint64(t.UnixNano()))
+func (e *encoder) Write(t int64) {
+	e.ts = append(e.ts, uint64(t))
 }
 
 func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
@@ -193,7 +192,7 @@ func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 }
 
 type decoder struct {
-	v   time.Time
+	v   int64
 	i   int
 	ts  []uint64
 	dec simple8b.Decoder
@@ -207,7 +206,7 @@ func NewTimeDecoder() TimeDecoder {
 }
 
 func (d *decoder) Init(b []byte) {
-	d.v = time.Time{}
+	d.v = 0
 	d.i = 0
 	d.ts = d.ts[:0]
 	d.err = nil
@@ -218,12 +217,12 @@ func (d *decoder) Next() bool {
 	if d.i >= len(d.ts) {
 		return false
 	}
-	d.v = time.Unix(0, int64(d.ts[d.i]))
+	d.v = int64(d.ts[d.i])
 	d.i++
 	return true
 }
 
-func (d *decoder) Read() time.Time {
+func (d *decoder) Read() int64 {
 	return d.v
 }
 
@@ -295,9 +294,9 @@ func (d *decoder) decodeRLE(b []byte) {
 	count, _ := binary.Uvarint(b[i:])
 
 	// Rebuild construct the original values now
-	deltas := make([]uint64, count)
-	for i := range deltas {
-		deltas[i] = value
+	deltas := d.ts[:0]
+	for i := 0; i < int(count); i++ {
+		deltas = append(deltas, value)
 	}
 
 	// Reverse the delta-encoding
