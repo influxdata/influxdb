@@ -297,9 +297,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// Make sure if the client disconnects we signal the query to abort
 	closing := make(chan struct{})
 	if notifier, ok := w.(http.CloseNotifier); ok {
-		notify := notifier.CloseNotify()
+		// CloseNotify() is not guaranteed to send a notification when the query
+		// is closed. Use this channel to signal that the query is finished to
+		// prevent lingering goroutines that may be stuck.
 		done := make(chan struct{})
 		defer close(done)
+
+		notify := notifier.CloseNotify()
 		go func() {
 			// Wait for either the request to finish
 			// or for the client to disconnect
@@ -314,6 +318,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	// Execute query.
+	w.Header().Add("Connection", "close")
 	w.Header().Add("content-type", "application/json")
 	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, closing)
 
