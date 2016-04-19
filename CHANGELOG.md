@@ -30,6 +30,7 @@
 - [#6398](https://github.com/influxdata/influxdb/issues/6398): Fix CREATE RETENTION POLICY parsing so it doesn't consume tokens it shouldn't.
 - [#6413](https://github.com/influxdata/influxdb/pull/6413): Prevent goroutine leak from persistent http connections. Thanks @aaronknister.
 - [#6414](https://github.com/influxdata/influxdb/pull/6414): Send "Connection: close" header for queries.
+- [#6425](https://github.com/influxdata/influxdb/pull/6425): Close idle tcp connections in HTTP client to prevent tcp conn leak.
 
 ## v0.12.1 [2016-04-08]
 
