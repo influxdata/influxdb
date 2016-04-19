@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"text/tabwriter"
+	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func cmdVerify(path string) {
+	start := time.Now()
 	dataPath := filepath.Join(path, "data")
 
 	brokenBlocks := 0
@@ -44,7 +46,10 @@ func cmdVerify(path string) {
 			os.Exit(1)
 		}
 
-		reader, err := tsm1.NewTSMReader(file)
+		reader, err := tsm1.NewTSMReaderWithOptions(tsm1.TSMReaderOptions{
+			MMAPFile: file,
+		})
+
 		if err != nil {
 			fmt.Printf("%v", err)
 			os.Exit(1)
@@ -70,6 +75,6 @@ func cmdVerify(path string) {
 		}
 	}
 
-	fmt.Fprintf(tw, "Broken Blocks: %d / %d \n", brokenBlocks, totalBlocks)
+	fmt.Fprintf(tw, "Broken Blocks: %d / %d, in %vs\n", brokenBlocks, totalBlocks, time.Since(start).Seconds())
 	tw.Flush()
 }
