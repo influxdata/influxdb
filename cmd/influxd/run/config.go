@@ -221,6 +221,15 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
 				}
 
 				f.SetInt(intValue)
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				var intValue uint64
+				var err error
+				intValue, err = strconv.ParseUint(value, 0, f.Type().Bits())
+				if err != nil {
+					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
+				}
+
+				f.SetUint(intValue)
 			case reflect.Bool:
 				boolValue, err := strconv.ParseBool(value)
 				if err != nil {

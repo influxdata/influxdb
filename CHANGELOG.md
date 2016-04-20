@@ -36,6 +36,7 @@
 - [#6425](https://github.com/influxdata/influxdb/pull/6425): Close idle tcp connections in HTTP client to prevent tcp conn leak.
 - [#6419](https://github.com/influxdata/influxdb/issues/6419): Fix panic in transform iterator on division. @thbourlove
 - [#6109](https://github.com/influxdata/influxdb/issues/6109): Cache maximum memory size exceeded on startup
+- [#6427](https://github.com/influxdata/influxdb/pull/6427): Fix setting uint config options via env vars
 
 ## v0.12.1 [2016-04-08]
 

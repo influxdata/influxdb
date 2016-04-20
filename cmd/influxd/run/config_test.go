@@ -172,6 +172,11 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
+	// uint64 type
+	if err := os.Setenv("INFLUXDB_DATA_CACHE_MAX_MEMORY_SIZE", "1000"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := c.ApplyEnvOverrides(); err != nil {
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
@@ -194,6 +199,10 @@ enabled = true
 
 	if c.OpenTSDBInputs[0].BindAddress != ":2020" {
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+	}
+
+	if c.Data.CacheMaxMemorySize != 1000 {
+		t.Fatalf("unexpected cache max memory size: %v", c.Data.CacheMaxMemorySize)
 	}
 }
 
