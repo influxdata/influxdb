@@ -306,6 +306,12 @@ func (c *Cache) Delete(keys []string) {
 	}
 }
 
+func (c *Cache) SetMaxSize(size uint64) {
+	c.mu.Lock()
+	c.maxSize = size
+	c.mu.Unlock()
+}
+
 // merged returns a copy of hot and snapshot values. The copy will be merged, deduped, and
 // sorted. It assumes all necessary locks have been taken. If the caller knows that the
 // the hot source data for the key will not be changed, it is safe to call this function

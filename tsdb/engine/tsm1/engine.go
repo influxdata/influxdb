@@ -659,6 +659,14 @@ func (e *Engine) reloadCache() error {
 		return err
 	}
 
+	limit := e.Cache.MaxSize()
+	defer func() {
+		e.Cache.SetMaxSize(limit)
+	}()
+
+	// Disable the max size during loading
+	e.Cache.SetMaxSize(0)
+
 	loader := NewCacheLoader(files)
 	if err := loader.Load(e.Cache); err != nil {
 		return err
