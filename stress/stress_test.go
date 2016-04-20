@@ -54,7 +54,8 @@ func TestTimer_Elapsed(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	tmr.StopTimer()
 	e := tmr.Elapsed()
-	if time.Duration(2*time.Second) > e || e > time.Duration(3*time.Second) {
+
+	if time.Duration(1990*time.Millisecond) > e || e > time.Duration(3*time.Second) {
 		t.Errorf("expected around %s got %s", time.Duration(2*time.Second), e)
 	}
 }
