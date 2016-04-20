@@ -2042,7 +2042,9 @@ func TestSelect_Elapsed_Float(t *testing.T) {
 	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
-	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
 		{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
@@ -2066,7 +2068,9 @@ func TestSelect_Elapsed_Integer(t *testing.T) {
 	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
-	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
 		{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
@@ -2090,7 +2094,9 @@ func TestSelect_Elapsed_String(t *testing.T) {
 	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
-	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
 		{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
@@ -2114,7 +2120,9 @@ func TestSelect_Elapsed_Boolean(t *testing.T) {
 	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT elapsed(value, 1s) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
-	} else if a := Iterators(itrs).ReadAll(); !deep.Equal(a, [][]influxql.Point{
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
 		{&influxql.IntegerPoint{Name: "cpu", Time: 4 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 4}},
 		{&influxql.IntegerPoint{Name: "cpu", Time: 11 * Second, Value: 3}},
