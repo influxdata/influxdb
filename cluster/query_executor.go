@@ -83,6 +83,7 @@ func (e *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 
 func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chunkSize int, closing <-chan struct{}, results chan *influxql.Result) {
 	defer close(results)
+	defer e.recover(query, results)
 
 	e.statMap.Add(statQueriesActive, 1)
 	defer func(start time.Time) {
@@ -246,6 +247,15 @@ func (e *QueryExecutor) executeQuery(query *influxql.Query, database string, chu
 		results <- &influxql.Result{
 			StatementID: i,
 			Err:         influxql.ErrNotExecuted,
+		}
+	}
+}
+
+func (e *QueryExecutor) recover(query *influxql.Query, results chan *influxql.Result) {
+	if err := recover(); err != nil {
+		results <- &influxql.Result{
+			StatementID: -1,
+			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),
 		}
 	}
 }
