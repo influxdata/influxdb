@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -480,19 +479,7 @@ func writeTestData(s *Server, t *Test) error {
 func configureLogging(s *Server) {
 	// Set the logger to discard unless verbose is on
 	if !testing.Verbose() {
-		type logSetter interface {
-			SetLogger(*log.Logger)
-		}
-		nullLogger := log.New(ioutil.Discard, "", 0)
-		s.TSDBStore.Logger = nullLogger
-		s.Monitor.SetLogger(nullLogger)
-		s.QueryExecutor.Logger = log.New(ioutil.Discard, "[query] ", log.LstdFlags)
-		s.Subscriber.SetLogger(nullLogger)
-		for _, service := range s.Services {
-			if service, ok := service.(logSetter); ok {
-				service.SetLogger(nullLogger)
-			}
-		}
+		s.SetLogOutput(ioutil.Discard)
 	}
 }
 

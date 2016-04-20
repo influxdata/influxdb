@@ -152,7 +152,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 		tcpAddr:     bind,
 
-		config: c,
+		config:    c,
+		logOutput: os.Stderr,
 	}
 
 	if err := s.MetaClient.Open(); err != nil {
