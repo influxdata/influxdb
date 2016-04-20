@@ -321,12 +321,12 @@ func (itr *FloatIterator) Stats() influxql.IteratorStats { return itr.stats }
 func (itr *FloatIterator) Close() error                  { return nil }
 
 // Next returns the next value and shifts it off the beginning of the points slice.
-func (itr *FloatIterator) Next() *influxql.FloatPoint {
+func (itr *FloatIterator) Next() (*influxql.FloatPoint, error) {
 	if len(itr.Points) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	v := &itr.Points[0]
 	itr.Points = itr.Points[1:]
-	return v
+	return v, nil
 }

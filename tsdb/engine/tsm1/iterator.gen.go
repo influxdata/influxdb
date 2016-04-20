@@ -153,7 +153,7 @@ func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOpti
 }
 
 // Next returns the next point from the iterator.
-func (itr *floatIterator) Next() *influxql.FloatPoint {
+func (itr *floatIterator) Next() (*influxql.FloatPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -176,13 +176,13 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 		// Exit if we have no more points or we are outside our time range.
 		if itr.point.Time == tsdb.EOF {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if itr.opt.Ascending && itr.point.Time > itr.opt.EndTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if !itr.opt.Ascending && itr.point.Time < itr.opt.StartTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		}
 
 		// Read from each auxiliary cursor.
@@ -208,7 +208,7 @@ func (itr *floatIterator) Next() *influxql.FloatPoint {
 			itr.copyStats()
 		}
 
-		return &itr.point
+		return &itr.point, nil
 	}
 }
 
@@ -247,24 +247,24 @@ func newFloatLimitIterator(input influxql.FloatIterator, opt influxql.IteratorOp
 func (itr *floatLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
 func (itr *floatLimitIterator) Close() error                  { return itr.input.Close() }
 
-func (itr *floatLimitIterator) Next() *influxql.FloatPoint {
+func (itr *floatLimitIterator) Next() (*influxql.FloatPoint, error) {
 	for {
 		// Check if we are beyond the limit.
 		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil
+			return nil, nil
 		}
 
 		// Read the next point.
-		p := itr.input.Next()
-		if p == nil {
-			return nil
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
 		}
 
 		// Increment counter.
 		itr.n++
 
 		// Offsets are handled by a higher level iterator so return all points.
-		return p
+		return p, nil
 	}
 }
 
@@ -565,7 +565,7 @@ func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 }
 
 // Next returns the next point from the iterator.
-func (itr *integerIterator) Next() *influxql.IntegerPoint {
+func (itr *integerIterator) Next() (*influxql.IntegerPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -588,13 +588,13 @@ func (itr *integerIterator) Next() *influxql.IntegerPoint {
 		// Exit if we have no more points or we are outside our time range.
 		if itr.point.Time == tsdb.EOF {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if itr.opt.Ascending && itr.point.Time > itr.opt.EndTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if !itr.opt.Ascending && itr.point.Time < itr.opt.StartTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		}
 
 		// Read from each auxiliary cursor.
@@ -620,7 +620,7 @@ func (itr *integerIterator) Next() *influxql.IntegerPoint {
 			itr.copyStats()
 		}
 
-		return &itr.point
+		return &itr.point, nil
 	}
 }
 
@@ -659,24 +659,24 @@ func newIntegerLimitIterator(input influxql.IntegerIterator, opt influxql.Iterat
 func (itr *integerLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
 func (itr *integerLimitIterator) Close() error                  { return itr.input.Close() }
 
-func (itr *integerLimitIterator) Next() *influxql.IntegerPoint {
+func (itr *integerLimitIterator) Next() (*influxql.IntegerPoint, error) {
 	for {
 		// Check if we are beyond the limit.
 		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil
+			return nil, nil
 		}
 
 		// Read the next point.
-		p := itr.input.Next()
-		if p == nil {
-			return nil
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
 		}
 
 		// Increment counter.
 		itr.n++
 
 		// Offsets are handled by a higher level iterator so return all points.
-		return p
+		return p, nil
 	}
 }
 
@@ -977,7 +977,7 @@ func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOpt
 }
 
 // Next returns the next point from the iterator.
-func (itr *stringIterator) Next() *influxql.StringPoint {
+func (itr *stringIterator) Next() (*influxql.StringPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -1000,13 +1000,13 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 		// Exit if we have no more points or we are outside our time range.
 		if itr.point.Time == tsdb.EOF {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if itr.opt.Ascending && itr.point.Time > itr.opt.EndTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if !itr.opt.Ascending && itr.point.Time < itr.opt.StartTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		}
 
 		// Read from each auxiliary cursor.
@@ -1032,7 +1032,7 @@ func (itr *stringIterator) Next() *influxql.StringPoint {
 			itr.copyStats()
 		}
 
-		return &itr.point
+		return &itr.point, nil
 	}
 }
 
@@ -1071,24 +1071,24 @@ func newStringLimitIterator(input influxql.StringIterator, opt influxql.Iterator
 func (itr *stringLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
 func (itr *stringLimitIterator) Close() error                  { return itr.input.Close() }
 
-func (itr *stringLimitIterator) Next() *influxql.StringPoint {
+func (itr *stringLimitIterator) Next() (*influxql.StringPoint, error) {
 	for {
 		// Check if we are beyond the limit.
 		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil
+			return nil, nil
 		}
 
 		// Read the next point.
-		p := itr.input.Next()
-		if p == nil {
-			return nil
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
 		}
 
 		// Increment counter.
 		itr.n++
 
 		// Offsets are handled by a higher level iterator so return all points.
-		return p
+		return p, nil
 	}
 }
 
@@ -1389,7 +1389,7 @@ func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 }
 
 // Next returns the next point from the iterator.
-func (itr *booleanIterator) Next() *influxql.BooleanPoint {
+func (itr *booleanIterator) Next() (*influxql.BooleanPoint, error) {
 	for {
 		seek := tsdb.EOF
 
@@ -1412,13 +1412,13 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 		// Exit if we have no more points or we are outside our time range.
 		if itr.point.Time == tsdb.EOF {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if itr.opt.Ascending && itr.point.Time > itr.opt.EndTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		} else if !itr.opt.Ascending && itr.point.Time < itr.opt.StartTime {
 			itr.copyStats()
-			return nil
+			return nil, nil
 		}
 
 		// Read from each auxiliary cursor.
@@ -1444,7 +1444,7 @@ func (itr *booleanIterator) Next() *influxql.BooleanPoint {
 			itr.copyStats()
 		}
 
-		return &itr.point
+		return &itr.point, nil
 	}
 }
 
@@ -1483,24 +1483,24 @@ func newBooleanLimitIterator(input influxql.BooleanIterator, opt influxql.Iterat
 func (itr *booleanLimitIterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
 func (itr *booleanLimitIterator) Close() error                  { return itr.input.Close() }
 
-func (itr *booleanLimitIterator) Next() *influxql.BooleanPoint {
+func (itr *booleanLimitIterator) Next() (*influxql.BooleanPoint, error) {
 	for {
 		// Check if we are beyond the limit.
 		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil
+			return nil, nil
 		}
 
 		// Read the next point.
-		p := itr.input.Next()
-		if p == nil {
-			return nil
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
 		}
 
 		// Increment counter.
 		itr.n++
 
 		// Offsets are handled by a higher level iterator so return all points.
-		return p
+		return p, nil
 	}
 }
 

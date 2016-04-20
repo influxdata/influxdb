@@ -924,16 +924,16 @@ func (itr *MeasurementIterator) Stats() influxql.IteratorStats { return influxql
 func (itr *MeasurementIterator) Close() error { return nil }
 
 // Next emits the next measurement name.
-func (itr *MeasurementIterator) Next() *influxql.FloatPoint {
+func (itr *MeasurementIterator) Next() (*influxql.FloatPoint, error) {
 	if len(itr.mms) == 0 {
-		return nil
+		return nil, nil
 	}
 	mm := itr.mms[0]
 	itr.mms = itr.mms[1:]
 	return &influxql.FloatPoint{
 		Name: "measurements",
 		Aux:  []interface{}{mm.Name},
-	}
+	}, nil
 }
 
 // seriesIterator emits series ids.
@@ -991,10 +991,10 @@ func (itr *seriesIterator) Stats() influxql.IteratorStats { return influxql.Iter
 func (itr *seriesIterator) Close() error { return nil }
 
 // Next emits the next point in the iterator.
-func (itr *seriesIterator) Next() *influxql.FloatPoint {
+func (itr *seriesIterator) Next() (*influxql.FloatPoint, error) {
 	// If there are no more keys then return nil.
 	if len(itr.keys) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Prepare auxiliary fields.
@@ -1012,7 +1012,7 @@ func (itr *seriesIterator) Next() *influxql.FloatPoint {
 	}
 	itr.keys = itr.keys[1:]
 
-	return p
+	return p, nil
 }
 
 // NewTagKeysIterator returns a new instance of TagKeysIterator.
@@ -1099,12 +1099,12 @@ func (itr *tagValuesIterator) Stats() influxql.IteratorStats { return influxql.I
 func (itr *tagValuesIterator) Close() error { return nil }
 
 // Next emits the next point in the iterator.
-func (itr *tagValuesIterator) Next() *influxql.FloatPoint {
+func (itr *tagValuesIterator) Next() (*influxql.FloatPoint, error) {
 	for {
 		// If there are no more values then move to the next key.
 		if len(itr.buf.keys) == 0 {
 			if len(itr.series) == 0 {
-				return nil
+				return nil, nil
 			}
 
 			itr.buf.s = itr.series[0]
@@ -1138,7 +1138,7 @@ func (itr *tagValuesIterator) Next() *influxql.FloatPoint {
 		}
 		itr.buf.keys = itr.buf.keys[1:]
 
-		return p
+		return p, nil
 	}
 }
 
@@ -1182,12 +1182,12 @@ func (itr *measurementKeysIterator) Stats() influxql.IteratorStats { return infl
 func (itr *measurementKeysIterator) Close() error { return nil }
 
 // Next emits the next tag key name.
-func (itr *measurementKeysIterator) Next() *influxql.FloatPoint {
+func (itr *measurementKeysIterator) Next() (*influxql.FloatPoint, error) {
 	for {
 		// If there are no more keys then move to the next measurements.
 		if len(itr.buf.keys) == 0 {
 			if len(itr.mms) == 0 {
-				return nil
+				return nil, nil
 			}
 
 			itr.buf.mm = itr.mms[0]
@@ -1203,7 +1203,7 @@ func (itr *measurementKeysIterator) Next() *influxql.FloatPoint {
 		}
 		itr.buf.keys = itr.buf.keys[1:]
 
-		return p
+		return p, nil
 	}
 }
 

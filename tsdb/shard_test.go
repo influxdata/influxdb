@@ -191,7 +191,9 @@ cpu,host=serverB,region=uswest value=25  0
 	fitr := itr.(influxql.FloatIterator)
 
 	// Read values from iterator.
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(0): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{
 		Name:  "cpu",
 		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(0, 0).UnixNano(),
@@ -201,7 +203,9 @@ cpu,host=serverB,region=uswest value=25  0
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}
 
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(1): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{
 		Name:  "cpu",
 		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(10, 0).UnixNano(),
@@ -211,7 +215,9 @@ cpu,host=serverB,region=uswest value=25  0
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
 	}
 
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(2): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{
 		Name:  "cpu",
 		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
 		Time:  time.Unix(0, 0).UnixNano(),
@@ -261,7 +267,9 @@ cpu,host=serverB,region=uswest value=25  0
 	fitr := itr.(influxql.FloatIterator)
 
 	// Read values from iterator.
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(0): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{
 		Name:  "cpu",
 		Tags:  influxql.NewTags(map[string]string{"host": "serverB"}),
 		Time:  time.Unix(0, 0).UnixNano(),
@@ -271,7 +279,9 @@ cpu,host=serverB,region=uswest value=25  0
 		t.Fatalf("unexpected point(0): %s", spew.Sdump(p))
 	}
 
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(1): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{
 		Name:  "cpu",
 		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(10, 0).UnixNano(),
@@ -281,7 +291,9 @@ cpu,host=serverB,region=uswest value=25  0
 		t.Fatalf("unexpected point(1): %s", spew.Sdump(p))
 	}
 
-	if p := fitr.Next(); !deep.Equal(p, &influxql.FloatPoint{
+	if p, err := fitr.Next(); err != nil {
+		t.Fatalf("unexpected error(2): %s", err)
+	} else if !deep.Equal(p, &influxql.FloatPoint{
 		Name:  "cpu",
 		Tags:  influxql.NewTags(map[string]string{"host": "serverA"}),
 		Time:  time.Unix(0, 0).UnixNano(),

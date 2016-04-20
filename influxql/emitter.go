@@ -41,20 +41,22 @@ func (e *Emitter) Close() error {
 }
 
 // Emit returns the next row from the iterators.
-func (e *Emitter) Emit() *models.Row {
+func (e *Emitter) Emit() (*models.Row, error) {
 	// Immediately end emission if there are no iterators.
 	if len(e.itrs) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Continually read from iterators until they are exhausted.
 	for {
 		// Fill buffer. Return row if no more points remain.
-		t, name, tags := e.loadBuf()
-		if t == ZeroTime {
+		t, name, tags, err := e.loadBuf()
+		if err != nil {
+			return nil, err
+		} else if t == ZeroTime {
 			row := e.row
 			e.row = nil
-			return row
+			return row, nil
 		}
 
 		// Read next set of values from all iterators at a given time/name/tags.
@@ -63,7 +65,7 @@ func (e *Emitter) Emit() *models.Row {
 		if values == nil {
 			row := e.row
 			e.row = nil
-			return row
+			return row, nil
 		}
 
 		// If there's no row yet then create one.
@@ -77,20 +79,23 @@ func (e *Emitter) Emit() *models.Row {
 		} else {
 			row := e.row
 			e.createRow(name, tags, values)
-			return row
+			return row, nil
 		}
 	}
 }
 
 // loadBuf reads in points into empty buffer slots.
 // Returns the next time/name/tags to emit for.
-func (e *Emitter) loadBuf() (t int64, name string, tags Tags) {
+func (e *Emitter) loadBuf() (t int64, name string, tags Tags, err error) {
 	t = ZeroTime
 
 	for i := range e.itrs {
 		// Load buffer, if empty.
 		if e.buf[i] == nil {
-			e.buf[i] = e.readIterator(e.itrs[i])
+			e.buf[i], err = e.readIterator(e.itrs[i])
+			if err != nil {
+				break
+			}
 		}
 
 		// Skip if buffer is empty.
@@ -173,30 +178,38 @@ func (e *Emitter) readAt(t int64, name string, tags Tags) []interface{} {
 }
 
 // readIterator reads the next point from itr.
-func (e *Emitter) readIterator(itr Iterator) Point {
+func (e *Emitter) readIterator(itr Iterator) (Point, error) {
 	if itr == nil {
-		return nil
+		return nil, nil
 	}
 
 	switch itr := itr.(type) {
 	case FloatIterator:
-		if p := itr.Next(); p != nil {
-			return p
+		if p, err := itr.Next(); err != nil {
+			return nil, err
+		} else if p != nil {
+			return p, nil
 		}
 	case IntegerIterator:
-		if p := itr.Next(); p != nil {
-			return p
+		if p, err := itr.Next(); err != nil {
+			return nil, err
+		} else if p != nil {
+			return p, nil
 		}
 	case StringIterator:
-		if p := itr.Next(); p != nil {
-			return p
+		if p, err := itr.Next(); err != nil {
+			return nil, err
+		} else if p != nil {
+			return p, nil
 		}
 	case BooleanIterator:
-		if p := itr.Next(); p != nil {
-			return p
+		if p, err := itr.Next(); err != nil {
+			return nil, err
+		} else if p != nil {
+			return p, nil
 		}
 	default:
 		panic(fmt.Sprintf("unsupported iterator: %T", itr))
 	}
-	return nil
+	return nil, nil
 }
