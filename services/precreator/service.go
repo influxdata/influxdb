@@ -1,6 +1,7 @@
 package precreator // import "github.com/influxdata/influxdb/services/precreator"
 
 import (
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -33,9 +34,10 @@ func NewService(c Config) (*Service, error) {
 	return &s, nil
 }
 
-// SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
-	s.Logger = l
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (s *Service) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[shard-precreation] ", log.LstdFlags)
 }
 
 // Open starts the precreation service.

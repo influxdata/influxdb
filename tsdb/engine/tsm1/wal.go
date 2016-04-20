@@ -108,6 +108,12 @@ func NewWAL(path string) *WAL {
 	}
 }
 
+// SetLogOutput sets the location that logs are written to. It must not be
+// called after the Open method has been called.
+func (l *WAL) SetLogOutput(w io.Writer) {
+	l.logger = log.New(w, "[tsm1wal] ", log.LstdFlags)
+}
+
 // Path returns the path the log was initialized with.
 func (l *WAL) Path() string {
 	l.mu.RLock()

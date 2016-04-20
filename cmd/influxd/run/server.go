@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -52,6 +53,8 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
+	Logger *log.Logger
+
 	MetaClient *meta.Client
 
 	TSDBStore     *tsdb.Store
@@ -85,6 +88,10 @@ type Server struct {
 	tcpAddr string
 
 	config *Config
+
+	// logOutput is the writer to which all services should be configured to
+	// write logs to after appension.
+	logOutput io.Writer
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -130,6 +137,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
+		Logger: log.New(os.Stderr, "", log.LstdFlags),
+
 		MetaClient: meta.NewClient(c.Meta),
 
 		Monitor: monitor.New(c.Monitor),
@@ -140,7 +149,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 		tcpAddr:     bind,
 
-		config: c,
+		config:    c,
+		logOutput: os.Stderr,
 	}
 
 	if err := s.MetaClient.Open(); err != nil {
@@ -176,7 +186,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.QueryTimeout = time.Duration(c.Cluster.QueryTimeout)
 	s.QueryExecutor.MaxConcurrentQueries = c.Cluster.MaxConcurrentQueries
 	if c.Data.QueryLogEnabled {
-		s.QueryExecutor.LogOutput = os.Stderr
+		s.QueryExecutor.Logger = log.New(os.Stderr, "[query] ", log.LstdFlags)
 	}
 
 	// Initialize the monitor
@@ -185,7 +195,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Monitor.Branch = s.buildInfo.Branch
 	s.Monitor.BuildTime = s.buildInfo.Time
 	s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
-
 	return s, nil
 }
 
@@ -209,6 +218,13 @@ func (s *Server) appendCopierService() {
 	srv.TSDBStore = s.TSDBStore
 	s.Services = append(s.Services, srv)
 	s.CopierService = srv
+}
+
+// SetLogOutput sets the logger used for all messages. It must not be called
+// after the Open method has been called.
+func (s *Server) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	s.logOutput = w
 }
 
 // Err returns an error channel that multiplexes all out of band errors received from all services.
@@ -264,6 +280,21 @@ func (s *Server) Open() error {
 	s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 	s.CopierService.Listener = mux.Listen(copier.MuxHeader)
+
+	// Configure logging for all services and clients.
+	w := s.logOutput
+	s.MetaClient.SetLogOutput(w)
+	s.TSDBStore.SetLogOutput(w)
+	s.QueryExecutor.SetLogOutput(w)
+	s.PointsWriter.SetLogOutput(w)
+	s.Subscriber.SetLogOutput(w)
+	for _, svc := range s.Services {
+		svc.SetLogOutput(w)
+	}
+	s.ClusterService.SetLogOutput(w)
+	s.SnapshotterService.SetLogOutput(w)
+	s.CopierService.SetLogOutput(w)
+	s.Monitor.SetLogOutput(w)
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -360,7 +391,7 @@ func (s *Server) startServerReporting() {
 func (s *Server) reportServer() {
 	dis, err := s.MetaClient.Databases()
 	if err != nil {
-		log.Printf("failed to retrieve databases for reporting: %s", err.Error())
+		s.Logger.Printf("failed to retrieve databases for reporting: %s", err.Error())
 		return
 	}
 	numDatabases := len(dis)
@@ -384,7 +415,7 @@ func (s *Server) reportServer() {
 
 	clusterID := s.MetaClient.ClusterID()
 	if err != nil {
-		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
+		s.Logger.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
 		return
 	}
 
@@ -407,7 +438,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
+	s.Logger.Printf("Sending anonymous usage statistics to m.influxdb.com")
 
 	go cl.Save(usage)
 }
@@ -444,6 +475,7 @@ func (s *Server) MetaServers() []string {
 
 // Service represents a service attached to the server.
 type Service interface {
+	SetLogOutput(w io.Writer)
 	Open() error
 	Close() error
 }

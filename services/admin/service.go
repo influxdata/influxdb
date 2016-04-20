@@ -3,6 +3,7 @@ package admin // import "github.com/influxdata/influxdb/services/admin"
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -81,9 +82,10 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
-	s.logger = l
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (s *Service) SetLogOutput(w io.Writer) {
+	s.logger = log.New(w, "[admin] ", log.LstdFlags)
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -183,7 +182,7 @@ func (cmd *Command) unpackMeta() error {
 	}
 
 	client := meta.NewClient(c)
-	client.SetLogger(log.New(ioutil.Discard, "", 0))
+	client.SetLogOutput(ioutil.Discard)
 	if err := client.Open(); err != nil {
 		return err
 	}

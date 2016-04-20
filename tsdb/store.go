@@ -42,6 +42,9 @@ type Store struct {
 	EngineOptions EngineOptions
 	Logger        *log.Logger
 
+	// logOutput is where output from the underlying databases will go.
+	logOutput io.Writer
+
 	closing chan struct{}
 	wg      sync.WaitGroup
 	opened  bool
@@ -57,6 +60,17 @@ func NewStore(path string) *Store {
 		path:          path,
 		EngineOptions: opts,
 		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
+		logOutput:     os.Stderr,
+	}
+}
+
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (s *Store) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[store]", log.LstdFlags)
+	s.logOutput = w
+	for _, s := range s.shards {
+		s.SetLogOutput(w)
 	}
 }
 
@@ -158,6 +172,7 @@ func (s *Store) loadShards() error {
 					}
 
 					shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
+					shard.SetLogOutput(s.logOutput)
 
 					err = shard.Open()
 					if err != nil {
@@ -283,6 +298,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(shardID, db, path, walPath, s.EngineOptions)
+	shard.SetLogOutput(s.logOutput)
 	if err := shard.Open(); err != nil {
 		return err
 	}

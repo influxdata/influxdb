@@ -3,6 +3,7 @@ package tsm1
 import (
 	"expvar"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -143,6 +144,12 @@ func NewFileStore(dir string) *FileStore {
 			map[string]string{"path": dir, "database": db, "retentionPolicy": rp},
 		),
 	}
+}
+
+// SetLogOutput sets the logger used for all messages. It must not be called
+// after the Open method has been called.
+func (f *FileStore) SetLogOutput(w io.Writer) {
+	f.Logger = log.New(w, "[filestore] ", log.LstdFlags)
 }
 
 // Returns the number of TSM files currently loaded

@@ -92,9 +92,10 @@ func (s *Service) Open() error {
 	return nil
 }
 
-// SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
-	s.Logger = l
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (s *Service) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[cluster] ", log.LstdFlags)
 }
 
 // serve accepts connections from the listener and handles them.

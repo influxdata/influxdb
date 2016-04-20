@@ -37,8 +37,9 @@ type Engine struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	path   string
-	logger *log.Logger
+	path      string
+	logger    *log.Logger
+	logOutput io.Writer
 
 	// TODO(benbjohnson): Index needs to be moved entirely into engine.
 	index             *tsdb.DatabaseIndex
@@ -79,7 +80,6 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 	e := &Engine{
 		path:              path,
-		logger:            log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 		measurementFields: make(map[string]*tsdb.MeasurementFields),
 
 		WAL:   w,
@@ -96,6 +96,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 	}
+	e.SetLogOutput(os.Stderr)
 
 	return e
 }
@@ -194,8 +195,14 @@ func (e *Engine) Close() error {
 	return e.WAL.Close()
 }
 
-// SetLogOutput is a no-op.
-func (e *Engine) SetLogOutput(w io.Writer) {}
+// SetLogOutput sets the logger used for all messages. It must not be called
+// after the Open method has been called.
+func (e *Engine) SetLogOutput(w io.Writer) {
+	e.logger = log.New(w, "[tsm1] ", log.LstdFlags)
+	e.WAL.SetLogOutput(w)
+	e.FileStore.SetLogOutput(w)
+	e.logOutput = w
+}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex) error {
@@ -660,6 +667,7 @@ func (e *Engine) reloadCache() error {
 	}
 
 	loader := NewCacheLoader(files)
+	loader.SetLogOutput(e.logOutput)
 	if err := loader.Load(e.Cache); err != nil {
 		return err
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -102,7 +101,7 @@ func NewService() *Service {
 	s.Service.TSDBStore = &s.TSDBStore
 
 	if !testing.Verbose() {
-		s.SetLogger(log.New(ioutil.Discard, "", 0))
+		s.SetLogOutput(ioutil.Discard)
 	}
 	return s
 }

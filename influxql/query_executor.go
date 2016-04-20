@@ -108,9 +108,9 @@ type QueryExecutor struct {
 	// Maximum number of concurrent queries.
 	MaxConcurrentQueries int
 
-	// Output of all logging.
+	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	LogOutput io.Writer
+	Logger *log.Logger
 
 	// Used for managing and tracking running queries.
 	queries  map[uint64]*QueryTask
@@ -126,7 +126,7 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		QueryTimeout: DefaultQueryTimeout,
-		LogOutput:    ioutil.Discard,
+		Logger:       log.New(ioutil.Discard, "[query] ", log.LstdFlags),
 		queries:      make(map[uint64]*QueryTask),
 		nextID:       1,
 		statMap:      influxdb.NewStatistics("queryExecutor", "queryExecutor", nil),
@@ -145,6 +145,12 @@ func (e *QueryExecutor) Close() error {
 	}
 	e.queries = nil
 	return nil
+}
+
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (e *QueryExecutor) SetLogOutput(w io.Writer) {
+	e.Logger = log.New(w, "[query] ", log.LstdFlags)
 }
 
 // ExecuteQuery executes each statement within a query.
@@ -171,8 +177,6 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 	}
 	defer e.killQuery(qid)
 
-	logger := e.logger()
-
 	// Setup the execution context that will be used when executing statements.
 	ctx := ExecutionContext{
 		QueryID:     qid,
@@ -180,7 +184,7 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 		Results:     results,
 		Database:    database,
 		ChunkSize:   chunkSize,
-		Log:         logger,
+		Log:         e.Logger,
 		InterruptCh: task.closing,
 	}
 
@@ -214,7 +218,7 @@ loop:
 		}
 
 		// Log each normalized statement.
-		logger.Println(stmt.String())
+		e.Logger.Println(stmt.String())
 
 		// Handle a query management queries specially so they don't go
 		// to the underlying statement executor.
@@ -312,10 +316,6 @@ func (e *QueryExecutor) executeShowQueriesStatement(q *ShowQueriesStatement) (mo
 		Columns: []string{"qid", "query", "database", "duration"},
 		Values:  values,
 	}}, nil
-}
-
-func (e *QueryExecutor) logger() *log.Logger {
-	return log.New(e.LogOutput, "[query] ", log.LstdFlags)
 }
 
 func (e *QueryExecutor) query(qid uint64) (*QueryTask, bool) {
