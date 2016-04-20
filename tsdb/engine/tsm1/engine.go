@@ -200,6 +200,7 @@ func (e *Engine) Close() error {
 func (e *Engine) SetLogOutput(w io.Writer) {
 	e.logger = log.New(w, "[tsm1] ", log.LstdFlags)
 	e.WAL.SetLogOutput(w)
+	e.FileStore.SetLogOutput(w)
 	e.logOutput = w
 }
 
