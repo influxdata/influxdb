@@ -3,6 +3,7 @@ package monitor // import "github.com/influxdata/influxdb/monitor"
 import (
 	"expvar"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -116,9 +117,10 @@ func (m *Monitor) Close() {
 	m.done = nil
 }
 
-// SetLogger sets the internal logger to the logger passed in.
-func (m *Monitor) SetLogger(l *log.Logger) {
-	m.Logger = l
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (m *Monitor) SetLogOutput(w io.Writer) {
+	m.Logger = log.New(w, "[monitor] ", log.LstdFlags)
 }
 
 // RegisterDiagnosticsClient registers a diagnostics client with the given name and tags.
