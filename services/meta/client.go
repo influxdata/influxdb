@@ -957,10 +957,12 @@ func (c *Client) MarshalBinary() ([]byte, error) {
 	return c.cacheData.MarshalBinary()
 }
 
-func (c *Client) SetLogger(l *log.Logger) {
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (c *Client) SetLogOutput(w io.Writer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.logger = l
+	c.logger = log.New(w, "[metaclient] ", log.LstdFlags)
 }
 
 func (c *Client) updateAuthCache() {

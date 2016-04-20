@@ -1,6 +1,7 @@
 package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -54,9 +55,10 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
-	s.logger = l
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (s *Service) SetLogOutput(w io.Writer) {
+	s.logger = log.New(w, "[retention] ", log.LstdFlags)
 }
 
 func (s *Service) deleteShardGroups() {
