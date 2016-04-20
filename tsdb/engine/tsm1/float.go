@@ -12,7 +12,6 @@ this version.
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"math"
 
 	"github.com/dgryski/go-bits"
@@ -130,9 +129,7 @@ type FloatDecoder struct {
 	trailing uint64
 
 	br BitReader
-
-	b       []byte
-	breader bytesReader
+	b  []byte
 
 	first    bool
 	finished bool
@@ -144,8 +141,7 @@ type FloatDecoder struct {
 func (it *FloatDecoder) SetBytes(b []byte) error {
 	// first byte is the compression type.
 	// we currently just have gorilla compression.
-	it.breader = bytesReader{b: b[1:]}
-	it.br.Reset(&it.breader)
+	it.br.Reset(b[1:])
 
 	v, err := it.br.ReadBits(64)
 	if err != nil {
@@ -182,20 +178,29 @@ func (it *FloatDecoder) Next() bool {
 	}
 
 	// read compressed value
-	bit, err := it.br.ReadBit()
-	if err != nil {
+	var bit bool
+	if it.br.CanReadBitFast() {
+		bit = it.br.ReadBitFast()
+	} else if v, err := it.br.ReadBit(); err != nil {
 		it.err = err
 		return false
+	} else {
+		bit = v
 	}
 
 	if !bit {
 		// it.val = it.val
 	} else {
-		bit, err := it.br.ReadBit()
-		if err != nil {
+		var bit bool
+		if it.br.CanReadBitFast() {
+			bit = it.br.ReadBitFast()
+		} else if v, err := it.br.ReadBit(); err != nil {
 			it.err = err
 			return false
+		} else {
+			bit = v
 		}
+
 		if !bit {
 			// reuse leading/trailing zero bits
 			// it.leading, it.trailing = it.leading, it.trailing
@@ -220,7 +225,7 @@ func (it *FloatDecoder) Next() bool {
 			it.trailing = 64 - it.leading - mbits
 		}
 
-		mbits := int(64 - it.leading - it.trailing)
+		mbits := uint(64 - it.leading - it.trailing)
 		bits, err := it.br.ReadBits(mbits)
 		if err != nil {
 			it.err = err
@@ -246,25 +251,4 @@ func (it *FloatDecoder) Values() float64 {
 
 func (it *FloatDecoder) Error() error {
 	return it.err
-}
-
-// bytesReader is a simplified implementation of bytes.Reader.
-// This is added to remove allocations from needing to call bytes.NewReader().
-type bytesReader struct {
-	b []byte
-	i int64
-}
-
-// Read reads the next bytes in to buffer b.
-// Implementation copied from bytes.Reader.Read.
-func (r *bytesReader) Read(b []byte) (n int, err error) {
-	if len(b) == 0 {
-		return 0, nil
-	}
-	if r.i >= int64(len(r.b)) {
-		return 0, io.EOF
-	}
-	n = copy(b, r.b[r.i:])
-	r.i += int64(n)
-	return
 }
