@@ -43,3 +43,5 @@ func (s *Server) appendUDPService(c udp.Config) {
 
 func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 }
+
+func raftDBExists(dir string) error { return nil }
