@@ -10,6 +10,14 @@ func Bytes(in []byte) []byte {
 }
 
 func Unescape(in []byte) []byte {
+	if len(in) == 0 {
+		return nil
+	}
+
+	if bytes.IndexByte(in, '\\') == -1 {
+		return in
+	}
+
 	i := 0
 	inLen := len(in)
 	var out []byte

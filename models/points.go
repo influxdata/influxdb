@@ -1062,6 +1062,10 @@ func escapeStringField(in string) string {
 // unescapeStringField returns a copy of in with any escaped double-quotes
 // or backslashes unescaped
 func unescapeStringField(in string) string {
+	if strings.IndexByte(in, '\\') == -1 {
+		return in
+	}
+
 	var out []byte
 	i := 0
 	for {
@@ -1421,17 +1425,14 @@ func parseNumber(val []byte) (interface{}, error) {
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
-	fields := Fields{}
+	fields := make(Fields, 8)
 	var (
 		i              int
 		name, valueBuf []byte
 		value          interface{}
 		err            error
 	)
-	for {
-		if i >= len(buf) {
-			break
-		}
+	for i < len(buf) {
 
 		i, name = scanTo(buf, i, '=')
 		name = escape.Unescape(name)
