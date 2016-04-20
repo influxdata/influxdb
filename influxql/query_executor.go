@@ -4,6 +4,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"sync"
@@ -144,6 +145,12 @@ func (e *QueryExecutor) Close() error {
 	}
 	e.queries = nil
 	return nil
+}
+
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (e *QueryExecutor) SetLogOutput(w io.Writer) {
+	e.Logger = log.New(w, "[query] ", log.LstdFlags)
 }
 
 // ExecuteQuery executes each statement within a query.
