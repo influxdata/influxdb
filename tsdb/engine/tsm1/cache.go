@@ -3,6 +3,7 @@ package tsm1
 import (
 	"expvar"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"sort"
@@ -468,6 +469,12 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 		}
 	}
 	return nil
+}
+
+// SetLogOutput sets the logger used for all messages. It must not be called
+// after the Open method has been called.
+func (cl *CacheLoader) SetLogOutput(w io.Writer) {
+	cl.Logger = log.New(w, "[cacheloader] ", log.LstdFlags)
 }
 
 // Updates the age statistic

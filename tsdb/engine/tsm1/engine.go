@@ -37,8 +37,9 @@ type Engine struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	path   string
-	logger *log.Logger
+	path      string
+	logger    *log.Logger
+	logOutput io.Writer
 
 	// TODO(benbjohnson): Index needs to be moved entirely into engine.
 	index             *tsdb.DatabaseIndex
@@ -199,6 +200,7 @@ func (e *Engine) Close() error {
 func (e *Engine) SetLogOutput(w io.Writer) {
 	e.logger = log.New(w, "[tsm1] ", log.LstdFlags)
 	e.WAL.SetLogOutput(w)
+	e.logOutput = w
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
@@ -664,6 +666,7 @@ func (e *Engine) reloadCache() error {
 	}
 
 	loader := NewCacheLoader(files)
+	loader.SetLogOutput(e.logOutput)
 	if err := loader.Load(e.Cache); err != nil {
 		return err
 	}
