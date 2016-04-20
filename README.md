@@ -8,10 +8,9 @@ events, and performing analytics.
 
 ## Features
 
-* Built-in [HTTP API](https://docs.influxdata.com/influxdb/v0.10/guides/writing_data/) so you don't have to write any server side code to get up and running.
+* Built-in [HTTP API](https://docs.influxdata.com/influxdb/latest/guides/writing_data/) so you don't have to write any server side code to get up and running.
 * Data can be tagged, allowing very flexible querying.
 * SQL-like query language.
-* Clustering is supported out of the box, so that you can scale horizontally to handle your data. **Clustering is currently in an alpha state.**
 * Simple to install and manage, and fast to get data in and out.
 * It aims to answer queries in real-time. That means every data point is
   indexed as it comes in and is immediately available in queries that
@@ -59,9 +58,9 @@ curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" \
 
 ## Documentation
 
-* Read more about the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/v0.10/).
-* Follow the [getting started guide](https://docs.influxdata.com/influxdb/v0.10/introduction/getting_started/) to learn the basics in just a few minutes.
-* Learn more about [InfluxDB's key concepts](https://docs.influxdata.com/influxdb/v0.10/guides/writing_data/).
+* Read more about the [design goals and motivations of the project](https://docs.influxdata.com/influxdb/latest/).
+* Follow the [getting started guide](https://docs.influxdata.com/influxdb/latest/introduction/getting_started/) to learn the basics in just a few minutes.
+* Learn more about [InfluxDB's key concepts](https://docs.influxdata.com/influxdb/latest/guides/writing_data/).
 
 ## Contributing
 
