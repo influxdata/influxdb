@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -87,6 +88,10 @@ type Server struct {
 	tcpAddr string
 
 	config *Config
+
+	// logOutput is the writer to which all services should be configured to
+	// write logs to after appension.
+	logOutput io.Writer
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -217,6 +222,13 @@ func (s *Server) appendCopierService() {
 	s.CopierService = srv
 }
 
+// SetLogOutput sets the logger used for all messages. It must not be called
+// after the Open method has been called.
+func (s *Server) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(os.Stderr, "", log.LstdFlags)
+	s.logOutput = w
+}
+
 // Err returns an error channel that multiplexes all out of band errors received from all services.
 func (s *Server) Err() <-chan error { return s.err }
 
@@ -270,6 +282,21 @@ func (s *Server) Open() error {
 	s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 	s.CopierService.Listener = mux.Listen(copier.MuxHeader)
+
+	// Configure logging for all services and clients.
+	w := s.logOutput
+	s.MetaClient.SetLogOutput(w)
+	s.TSDBStore.SetLogOutput(w)
+	s.QueryExecutor.SetLogOutput(w)
+	s.PointsWriter.SetLogOutput(w)
+	s.Subscriber.SetLogOutput(w)
+	for _, svc := range s.Services {
+		svc.SetLogOutput(w)
+	}
+	s.ClusterService.SetLogOutput(w)
+	s.SnapshotterService.SetLogOutput(w)
+	s.CopierService.SetLogOutput(w)
+	s.Monitor.SetLogOutput(w)
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -450,7 +477,7 @@ func (s *Server) MetaServers() []string {
 
 // Service represents a service attached to the server.
 type Service interface {
-	SetLogger(l *log.Logger)
+	SetLogOutput(w io.Writer)
 	Open() error
 	Close() error
 }
