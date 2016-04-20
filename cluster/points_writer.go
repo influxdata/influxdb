@@ -3,6 +3,7 @@ package cluster
 import (
 	"errors"
 	"expvar"
+	"io"
 	"log"
 	"os"
 	"sync"
@@ -138,6 +139,12 @@ func (w *PointsWriter) Close() error {
 		w.subPoints = nil
 	}
 	return nil
+}
+
+// SetLogOutput sets the writer to which all logs are written. It must not be
+// called after Open is called.
+func (w *PointsWriter) SetLogOutput(lw io.Writer) {
+	w.Logger = log.New(lw, "[write] ", log.LstdFlags)
 }
 
 // MapShards maps the points contained in wp to a ShardMapping.  If a point
