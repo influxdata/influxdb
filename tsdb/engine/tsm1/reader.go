@@ -177,7 +177,9 @@ func (t *TSMReader) applyTombstones() error {
 	}
 
 	// Update our index
-	t.index.Delete(tombstones)
+	for _, ts := range tombstones {
+		t.index.Delete([]string{ts.Key})
+	}
 	return nil
 }
 
