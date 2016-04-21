@@ -27,6 +27,9 @@ const (
 	floatCompressedGorilla = 1
 )
 
+// uvnan is the constant returned from math.NaN().
+const uvnan = 0x7FF8000000000001
+
 // FloatEncoder encodes multiple float64s into a byte slice
 type FloatEncoder struct {
 	val float64
@@ -123,7 +126,7 @@ func (s *FloatEncoder) Push(v float64) {
 
 // FloatDecoder decodes a byte slice into multipe float64 values
 type FloatDecoder struct {
-	val float64
+	val uint64
 
 	leading  uint64
 	trailing uint64
@@ -149,7 +152,7 @@ func (it *FloatDecoder) SetBytes(b []byte) error {
 	}
 
 	// Reset all fields.
-	it.val = math.Float64frombits(v)
+	it.val = v
 	it.leading = 0
 	it.trailing = 0
 	it.b = b
@@ -169,7 +172,7 @@ func (it *FloatDecoder) Next() bool {
 		it.first = false
 
 		// mark as finished if there were no values.
-		if math.IsNaN(it.val) {
+		if it.val == uvnan { // IsNaN
 			it.finished = true
 			return false
 		}
@@ -231,22 +234,22 @@ func (it *FloatDecoder) Next() bool {
 			it.err = err
 			return false
 		}
-		vbits := math.Float64bits(it.val)
+
+		vbits := it.val
 		vbits ^= (bits << it.trailing)
 
-		val := math.Float64frombits(vbits)
-		if math.IsNaN(val) {
+		if vbits == uvnan { // IsNaN
 			it.finished = true
 			return false
 		}
-		it.val = val
+		it.val = vbits
 	}
 
 	return true
 }
 
 func (it *FloatDecoder) Values() float64 {
-	return it.val
+	return math.Float64frombits(it.val)
 }
 
 func (it *FloatDecoder) Error() error {
