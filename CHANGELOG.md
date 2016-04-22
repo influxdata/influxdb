@@ -38,6 +38,17 @@
 - [#6109](https://github.com/influxdata/influxdb/issues/6109): Cache maximum memory size exceeded on startup
 - [#6427](https://github.com/influxdata/influxdb/pull/6427): Fix setting uint config options via env vars
 
+## v0.12.2 [2016-04-20]
+
+### Bugfixes
+
+- [#6271](https://github.com/influxdata/influxdb/issues/6271): Fixed deadlock in tsm1 file store.
+- [#6413](https://github.com/influxdata/influxdb/pull/6413): Prevent goroutine leak from persistent http connections. Thanks @aaronknister.
+- [#6414](https://github.com/influxdata/influxdb/pull/6414): Send "Connection: close" header for queries.
+- [#6419](https://github.com/influxdata/influxdb/issues/6419): Fix panic in transform iterator on division. @thbourlove
+- [#6379](https://github.com/influxdata/influxdb/issues/6379): Validate the first argument to percentile() is a variable.
+- [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
+
 ## v0.12.1 [2016-04-08]
 
 ### Bugfixes
