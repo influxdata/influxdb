@@ -305,10 +305,9 @@ func newFloatAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyCu
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]FloatValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -380,7 +379,7 @@ func (c *floatAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -415,10 +414,9 @@ func newFloatDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 		c.cache.pos--
 	}
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]FloatValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -493,7 +491,7 @@ func (c *floatDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -717,10 +715,9 @@ func newIntegerAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]IntegerValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -792,7 +789,7 @@ func (c *integerAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -827,10 +824,9 @@ func newIntegerDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 		c.cache.pos--
 	}
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]IntegerValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -905,7 +901,7 @@ func (c *integerDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1129,10 +1125,9 @@ func newStringAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *KeyC
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]StringValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1204,7 +1199,7 @@ func (c *stringAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1239,10 +1234,9 @@ func newStringDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 		c.cache.pos--
 	}
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]StringValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1317,7 +1311,7 @@ func (c *stringDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1541,10 +1535,9 @@ func newBooleanAscendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Key
 		return c.cache.values[i].UnixNano() >= seek
 	})
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]BooleanValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1616,7 +1609,7 @@ func (c *booleanAscendingCursor) nextTSM() {
 	c.tsm.pos++
 	if c.tsm.pos >= len(c.tsm.values) {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}
@@ -1651,10 +1644,9 @@ func newBooleanDescendingCursor(seek int64, cacheValues Values, tsmKeyCursor *Ke
 		c.cache.pos--
 	}
 
-	c.tsm.tdec = NewTimeDecoder()
 	c.tsm.keyCursor = tsmKeyCursor
 	c.tsm.buf = make([]BooleanValue, 10)
-	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
 		return c.tsm.values[i].UnixNano() >= seek
 	})
@@ -1729,7 +1721,7 @@ func (c *booleanDescendingCursor) nextTSM() {
 	c.tsm.pos--
 	if c.tsm.pos < 0 {
 		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
 			return
 		}

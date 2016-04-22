@@ -95,10 +95,10 @@ type blockAccessor interface {
 	read(key string, timestamp int64) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
-	readFloatBlock(entry *IndexEntry, tdec TimeDecoder, fdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
-	readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
-	readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
-	readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
+	readFloatBlock(entry *IndexEntry, tdec *TimeDecoder, fdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
+	readIntegerBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
+	readStringBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
+	readBooleanBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
 	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
 	path() string
 	close() error
@@ -208,25 +208,25 @@ func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	return t.accessor.readBlock(entry, vals)
 }
 
-func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, vals *[]FloatValue) ([]FloatValue, error) {
+func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, vals *[]FloatValue) ([]FloatValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.accessor.readFloatBlock(entry, tdec, vdec, vals)
 }
 
-func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, vals *[]IntegerValue) ([]IntegerValue, error) {
+func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, vals *[]IntegerValue) ([]IntegerValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.accessor.readIntegerBlock(entry, tdec, vdec, vals)
 }
 
-func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, vals *[]StringValue) ([]StringValue, error) {
+func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, vals *[]StringValue) ([]StringValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.accessor.readStringBlock(entry, tdec, vdec, vals)
 }
 
-func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, vals *[]BooleanValue) ([]BooleanValue, error) {
+func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, vals *[]BooleanValue) ([]BooleanValue, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.accessor.readBooleanBlock(entry, tdec, vdec, vals)
@@ -802,7 +802,7 @@ func (f *fileAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	return values, nil
 }
 
-func (f *fileAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
+func (f *fileAccessor) readFloatBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
 	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
@@ -817,7 +817,7 @@ func (f *fileAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec 
 	return a, nil
 }
 
-func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
+func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
 	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
@@ -832,7 +832,7 @@ func (f *fileAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vde
 	return a, nil
 }
 
-func (f *fileAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
+func (f *fileAccessor) readStringBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
 	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
 		return nil, err
@@ -847,7 +847,7 @@ func (f *fileAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec
 	return a, nil
 }
 
-func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
+func (f *fileAccessor) readBooleanBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
 
 	_, b, err := f.readBytes(entry, nil)
 	if err != nil {
@@ -1011,7 +1011,7 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 	return values, nil
 }
 
-func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
+func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1027,7 +1027,7 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec TimeDecoder, vdec 
 	return a, nil
 }
 
-func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
+func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1043,7 +1043,7 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, tdec TimeDecoder, vde
 	return a, nil
 }
 
-func (m *mmapAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
+func (m *mmapAccessor) readStringBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -1059,7 +1059,7 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, tdec TimeDecoder, vdec
 	return a, nil
 }
 
-func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
+func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

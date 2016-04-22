@@ -55,14 +55,6 @@ type TimeEncoder interface {
 	Bytes() ([]byte, error)
 }
 
-// TimeDecoder decodes byte slices to time.Time values.
-type TimeDecoder interface {
-	Init(b []byte)
-	Next() bool
-	Read() int64
-	Error() error
-}
-
 type encoder struct {
 	ts []uint64
 }
@@ -191,7 +183,7 @@ func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
 	return b[:i], nil
 }
 
-type decoder struct {
+type TimeDecoder struct {
 	v   int64
 	i   int
 	ts  []uint64
@@ -199,13 +191,7 @@ type decoder struct {
 	err error
 }
 
-func NewTimeDecoder() TimeDecoder {
-	return &decoder{
-		dec: simple8b.NewDecoder(nil),
-	}
-}
-
-func (d *decoder) Init(b []byte) {
+func (d *TimeDecoder) Init(b []byte) {
 	d.v = 0
 	d.i = 0
 	d.ts = d.ts[:0]
@@ -213,7 +199,7 @@ func (d *decoder) Init(b []byte) {
 	d.decode(b)
 }
 
-func (d *decoder) Next() bool {
+func (d *TimeDecoder) Next() bool {
 	if d.i >= len(d.ts) {
 		return false
 	}
@@ -222,15 +208,15 @@ func (d *decoder) Next() bool {
 	return true
 }
 
-func (d *decoder) Read() int64 {
+func (d *TimeDecoder) Read() int64 {
 	return d.v
 }
 
-func (d *decoder) Error() error {
+func (d *TimeDecoder) Error() error {
 	return d.err
 }
 
-func (d *decoder) decode(b []byte) {
+func (d *TimeDecoder) decode(b []byte) {
 	if len(b) == 0 {
 		return
 	}
@@ -249,7 +235,7 @@ func (d *decoder) decode(b []byte) {
 	}
 }
 
-func (d *decoder) decodePacked(b []byte) {
+func (d *TimeDecoder) decodePacked(b []byte) {
 	div := uint64(math.Pow10(int(b[0] & 0xF)))
 	first := uint64(binary.BigEndian.Uint64(b[1:9]))
 
@@ -272,7 +258,7 @@ func (d *decoder) decodePacked(b []byte) {
 	d.ts = deltas
 }
 
-func (d *decoder) decodeRLE(b []byte) {
+func (d *TimeDecoder) decodeRLE(b []byte) {
 	var i, n int
 
 	// Lower 4 bits hold the 10 based exponent so we can scale the values back up
@@ -309,7 +295,7 @@ func (d *decoder) decodeRLE(b []byte) {
 	d.ts = deltas
 }
 
-func (d *decoder) decodeRaw(b []byte) {
+func (d *TimeDecoder) decodeRaw(b []byte) {
 	d.i = 0
 	d.ts = make([]uint64, len(b)/8)
 	for i := range d.ts {

@@ -163,7 +163,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	switch blockType {
 	case BlockFloat64:
 		var buf []FloatValue
-		decoded, err := DecodeFloatBlock(block, NewTimeDecoder(), &FloatDecoder{}, &buf)
+		decoded, err := DecodeFloatBlock(block, &TimeDecoder{}, &FloatDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -173,7 +173,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		return vals[:len(decoded)], err
 	case BlockInteger:
 		var buf []IntegerValue
-		decoded, err := DecodeIntegerBlock(block, NewTimeDecoder(), &IntegerDecoder{}, &buf)
+		decoded, err := DecodeIntegerBlock(block, &TimeDecoder{}, &IntegerDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -184,7 +184,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 
 	case BlockBoolean:
 		var buf []BooleanValue
-		decoded, err := DecodeBooleanBlock(block, NewTimeDecoder(), &BooleanDecoder{}, &buf)
+		decoded, err := DecodeBooleanBlock(block, &TimeDecoder{}, &BooleanDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -195,7 +195,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 
 	case BlockString:
 		var buf []StringValue
-		decoded, err := DecodeStringBlock(block, NewTimeDecoder(), &StringDecoder{}, &buf)
+		decoded, err := DecodeStringBlock(block, &TimeDecoder{}, &StringDecoder{}, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -291,7 +291,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func DecodeFloatBlock(block []byte, tdec TimeDecoder, vdec *FloatDecoder, a *[]FloatValue) ([]FloatValue, error) {
+func DecodeFloatBlock(block []byte, tdec *TimeDecoder, vdec *FloatDecoder, a *[]FloatValue) ([]FloatValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockFloat64 {
@@ -417,7 +417,7 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	return block, nil
 }
 
-func DecodeBooleanBlock(block []byte, tdec TimeDecoder, vdec *BooleanDecoder, a *[]BooleanValue) ([]BooleanValue, error) {
+func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a *[]BooleanValue) ([]BooleanValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockBoolean {
@@ -528,7 +528,7 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeIntegerBlock(block []byte, tdec TimeDecoder, vdec *IntegerDecoder, a *[]IntegerValue) ([]IntegerValue, error) {
+func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a *[]IntegerValue) ([]IntegerValue, error) {
 	blockType := block[0]
 	if blockType != BlockInteger {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInteger, blockType)
@@ -640,7 +640,7 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	return append(block, packBlock(tb, vb)...), nil
 }
 
-func DecodeStringBlock(block []byte, tdec TimeDecoder, vdec *StringDecoder, a *[]StringValue) ([]StringValue, error) {
+func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *[]StringValue) ([]StringValue, error) {
 	blockType := block[0]
 	if blockType != BlockString {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
