@@ -16,6 +16,7 @@
 - [#5502](https://github.com/influxdata/influxdb/issues/5502): Add checksum verification to TSM inspect tool
 - [#6444](https://github.com/influxdata/influxdb/pull/6444): Allow setting the config path through an environment variable and default config path.
 - [#3558](https://github.com/influxdata/influxdb/issues/3558): Support field math inside a WHERE clause.
+- [#6429](https://github.com/influxdata/influxdb/issues/6429): Log slow queries if they pass a configurable threshold.
 
 ### Bugfixes
 

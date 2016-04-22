@@ -105,6 +105,10 @@ type QueryExecutor struct {
 	// Query execution timeout.
 	QueryTimeout time.Duration
 
+	// Log queries if they are slower than this time.
+	// If zero, slow queries will never be logged.
+	LogQueriesAfter time.Duration
+
 	// Maximum number of concurrent queries.
 	MaxConcurrentQueries int
 
@@ -355,6 +359,20 @@ func (e *QueryExecutor) attachQuery(q *Query, database string, interrupt <-chan 
 	e.queries[qid] = query
 
 	go e.waitForQuery(qid, query.closing, interrupt, query.monitorCh)
+	if e.LogQueriesAfter != 0 {
+		go query.monitor(func(closing <-chan struct{}) error {
+			t := time.NewTimer(e.LogQueriesAfter)
+			defer t.Stop()
+
+			select {
+			case <-t.C:
+				e.Logger.Printf("Detected slow query: %s (qid: %d, database: %s, threshold: %s)",
+					query.query, qid, query.database, e.LogQueriesAfter)
+			case <-closing:
+			}
+			return nil
+		})
+	}
 	e.nextID++
 	return qid, query, nil
 }

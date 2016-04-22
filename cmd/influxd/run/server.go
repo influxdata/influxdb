@@ -184,6 +184,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		MaxSelectBucketsN: c.Cluster.MaxSelectBucketsN,
 	}
 	s.QueryExecutor.QueryTimeout = time.Duration(c.Cluster.QueryTimeout)
+	s.QueryExecutor.LogQueriesAfter = time.Duration(c.Cluster.LogQueriesAfter)
 	s.QueryExecutor.MaxConcurrentQueries = c.Cluster.MaxConcurrentQueries
 	if c.Data.QueryLogEnabled {
 		s.QueryExecutor.Logger = log.New(os.Stderr, "[query] ", log.LstdFlags)
