@@ -1344,10 +1344,6 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
-	if err := s.validateDerivative(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -1713,47 +1709,6 @@ func (s *SelectStatement) validateCountDistinct() error {
 	for _, f := range s.Fields {
 		if !valid(f.Expr) {
 			return fmt.Errorf("count(distinct <field>) can only have one argument")
-		}
-	}
-
-	return nil
-}
-
-func (s *SelectStatement) validateDerivative() error {
-	if !s.HasDerivative() {
-		return nil
-	}
-
-	// If a derivative is requested, it must be the only field in the query. We don't support
-	// multiple fields in combination w/ derivaties yet.
-	if len(s.Fields) != 1 {
-		return fmt.Errorf("derivative cannot be used with other fields")
-	}
-
-	aggr := s.FunctionCalls()
-	if len(aggr) != 1 {
-		return fmt.Errorf("derivative cannot be used with other fields")
-	}
-
-	// Derivative requires two arguments
-	derivativeCall := aggr[0]
-	if len(derivativeCall.Args) == 0 {
-		return fmt.Errorf("derivative requires a field argument")
-	}
-
-	// First arg must be a field or aggr over a field e.g. (mean(field))
-	_, callOk := derivativeCall.Args[0].(*Call)
-	_, varOk := derivativeCall.Args[0].(*VarRef)
-
-	if !(callOk || varOk) {
-		return fmt.Errorf("derivative requires a field argument")
-	}
-
-	// If a duration arg is passed, make sure it's a duration
-	if len(derivativeCall.Args) == 2 {
-		// Second must be a duration .e.g (1h)
-		if _, ok := derivativeCall.Args[1].(*DurationLiteral); !ok {
-			return fmt.Errorf("derivative requires a duration argument")
 		}
 	}
 
