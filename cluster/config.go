@@ -43,6 +43,7 @@ type Config struct {
 	ShardMapperTimeout        toml.Duration `toml:"shard-mapper-timeout"`
 	MaxConcurrentQueries      int           `toml:"max-concurrent-queries"`
 	QueryTimeout              toml.Duration `toml:"query-timeout"`
+	LogQueriesAfter           toml.Duration `toml:"log-queries-after"`
 	MaxSelectPointN           int           `toml:"max-select-point"`
 	MaxSelectSeriesN          int           `toml:"max-select-series"`
 	MaxSelectBucketsN         int           `toml:"max-select-buckets"`
