@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/influxql"
 )
 
 type loggingResponseWriter interface {
@@ -156,6 +158,10 @@ func parseUsername(r *http.Request) string {
 }
 
 // Sanitize passwords from query string for logging.
-func sanitize(r *http.Request, s string) {
-	r.URL.RawQuery = strings.Replace(r.URL.RawQuery, s, "[REDACTED]", -1)
+func sanitize(r *http.Request) {
+	values := r.URL.Query()
+	for i, q := range values["q"] {
+		values["q"][i] = influxql.Sanitize(q)
+	}
+	r.URL.RawQuery = values.Encode()
 }
