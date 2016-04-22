@@ -28,7 +28,7 @@ func Test_TimeEncoder(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	for i, v := range x {
 		if !dec.Next() {
@@ -48,7 +48,7 @@ func Test_TimeEncoder_NoValues(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	if dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -69,7 +69,7 @@ func Test_TimeEncoder_One(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -96,7 +96,7 @@ func Test_TimeEncoder_Two(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -134,7 +134,7 @@ func Test_TimeEncoder_Three(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -176,7 +176,7 @@ func Test_TimeEncoder_Large_Range(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -220,7 +220,7 @@ func Test_TimeEncoder_Uncompressed(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	if !dec.Next() {
 		t.Fatalf("unexpected next value: got true, exp false")
@@ -271,7 +271,7 @@ func Test_TimeEncoder_RLE(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	for i, v := range ts {
 		if !dec.Next() {
@@ -309,7 +309,7 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	i := 0
 	for dec.Next() {
@@ -346,7 +346,7 @@ func Test_TimeEncoder_220SecondDelta(t *testing.T) {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	i := 0
 	for dec.Next() {
@@ -383,7 +383,7 @@ func Test_TimeEncoder_Quick(t *testing.T) {
 
 		// Read values out of decoder.
 		got := make([]int64, 0, len(values))
-		dec := NewTimeDecoder()
+		var dec TimeDecoder
 		dec.Init(buf)
 		for dec.Next() {
 			if err := dec.Error(); err != nil {
@@ -425,7 +425,7 @@ func Test_TimeEncoder_RLESeconds(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	dec.Init(b)
 	for i, v := range ts {
 		if !dec.Next() {
@@ -551,7 +551,7 @@ func BenchmarkTimeDecoder_Packed(b *testing.B) {
 	b.ResetTimer()
 
 	b.StopTimer()
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -573,7 +573,7 @@ func BenchmarkTimeDecoder_RLE(b *testing.B) {
 	b.ResetTimer()
 
 	b.StopTimer()
-	dec := NewTimeDecoder()
+	var dec TimeDecoder
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {

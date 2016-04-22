@@ -12,7 +12,7 @@ github.com/hashicorp/go-msgpack fa3f63826f7c23912c15263591e65d54d080b458
 github.com/hashicorp/raft 8fd9a2fdfd154f4b393aa24cff91e3c317efe839
 github.com/hashicorp/raft-boltdb d1e82c1ec3f15ee991f7cc7ffd5b67ff6f5bbaee
 github.com/influxdata/usage-client 475977e68d79883d9c8d67131c84e4241523f452
-github.com/jwilder/encoding 07d88d4f35eec497617bee0c7bfe651a796dae13
+github.com/jwilder/encoding b421ab402545ef5a119f4f827784c6551d9bfc37
 github.com/kimor79/gollectd 61d0deeb4ffcc167b2a1baa8efd72365692811bc
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner ad1edfd30321d8f006ccf05f1e0524adeb943060

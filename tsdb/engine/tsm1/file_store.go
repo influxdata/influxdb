@@ -27,10 +27,10 @@ type TSMFile interface {
 
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
-	ReadFloatBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
-	ReadIntegerBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
-	ReadStringBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
-	ReadBooleanBlockAt(entry *IndexEntry, tdec TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
+	ReadFloatBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
+	ReadIntegerBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
+	ReadStringBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
+	ReadBooleanBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key string) []IndexEntry
@@ -796,7 +796,7 @@ func (c *KeyCursor) nextDescending() {
 }
 
 // ReadFloatBlock reads the next block as a set of float values.
-func (c *KeyCursor) ReadFloatBlock(tdec TimeDecoder, fdec *FloatDecoder, buf *[]FloatValue) ([]FloatValue, error) {
+func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, fdec *FloatDecoder, buf *[]FloatValue) ([]FloatValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -844,7 +844,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec TimeDecoder, fdec *FloatDecoder, buf *[]
 }
 
 // ReadIntegerBlock reads the next block as a set of integer values.
-func (c *KeyCursor) ReadIntegerBlock(tdec TimeDecoder, vdec *IntegerDecoder, buf *[]IntegerValue) ([]IntegerValue, error) {
+func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, buf *[]IntegerValue) ([]IntegerValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -892,7 +892,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec TimeDecoder, vdec *IntegerDecoder, buf
 }
 
 // ReadStringBlock reads the next block as a set of string values.
-func (c *KeyCursor) ReadStringBlock(tdec TimeDecoder, vdec *StringDecoder, buf *[]StringValue) ([]StringValue, error) {
+func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf *[]StringValue) ([]StringValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -939,7 +939,7 @@ func (c *KeyCursor) ReadStringBlock(tdec TimeDecoder, vdec *StringDecoder, buf *
 }
 
 // ReadBooleanBlock reads the next block as a set of boolean values.
-func (c *KeyCursor) ReadBooleanBlock(tdec TimeDecoder, vdec *BooleanDecoder, buf *[]BooleanValue) ([]BooleanValue, error) {
+func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, buf *[]BooleanValue) ([]BooleanValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
