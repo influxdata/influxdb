@@ -57,6 +57,7 @@
 - [#6419](https://github.com/influxdata/influxdb/issues/6419): Fix panic in transform iterator on division. @thbourlove
 - [#6379](https://github.com/influxdata/influxdb/issues/6379): Validate the first argument to percentile() is a variable.
 - [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
+- [#4630](https://github.com/influxdata/influxdb/issues/4630): Prioritize querying tags over fields when they conflict.
 
 ## v0.12.1 [2016-04-08]
 

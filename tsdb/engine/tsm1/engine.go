@@ -870,17 +870,19 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	if len(opt.Aux) > 0 {
 		aux = make([]cursorAt, len(opt.Aux))
 		for i := range aux {
-			// Create cursor from field.
-			cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
-			if cur != nil {
-				aux[i] = newBufCursor(cur, opt.Ascending)
-				continue
-			}
-
-			// If field doesn't exist, use the tag value.
-			// However, if the tag value is blank then return a null.
+			// If the tag exists, always use the tag value.
+			// If the tag value doesn't exist, try to make a cursor for the field value.
+			// There cannot be a field and a tag with the same name in the same series,
+			// but a measurement may have a field and a tag that have a name conflict.
+			// If neither the field or the tag exist, assume it was supposed to be a tag
+			// and make it a blank tag.
 			if v := tags.Value(opt.Aux[i]); v == "" {
-				aux[i] = &stringNilLiteralCursor{}
+				cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
+				if cur != nil {
+					aux[i] = newBufCursor(cur, opt.Ascending)
+				} else {
+					aux[i] = &stringNilLiteralCursor{}
+				}
 			} else {
 				aux[i] = &stringLiteralCursor{value: v}
 			}
@@ -893,16 +895,13 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	if len(conditionFields) > 0 {
 		conds = make([]cursorAt, len(conditionFields))
 		for i := range conds {
-			cur := e.buildCursor(mm.Name, seriesKey, conditionFields[i], opt)
-			if cur != nil {
-				conds[i] = newBufCursor(cur, opt.Ascending)
-				continue
-			}
-
-			// If field doesn't exist, use the tag value.
-			// However, if the tag value is blank then return a null.
 			if v := tags.Value(conditionFields[i]); v == "" {
-				conds[i] = &stringNilLiteralCursor{}
+				cur := e.buildCursor(mm.Name, seriesKey, conditionFields[i], opt)
+				if cur != nil {
+					conds[i] = newBufCursor(cur, opt.Ascending)
+				} else {
+					conds[i] = &stringNilLiteralCursor{}
+				}
 			} else {
 				conds[i] = &stringLiteralCursor{value: v}
 			}

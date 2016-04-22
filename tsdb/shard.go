@@ -321,6 +321,15 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 
 	// get the shard mutex for locally defined fields
 	for _, p := range points {
+		tags := p.Tags()
+		if len(tags) > 0 {
+			for k := range p.Fields() {
+				if _, ok := tags[k]; ok {
+					return nil, fmt.Errorf("duplicate key for both tag and field: %s", k)
+				}
+			}
+		}
+
 		// see if the series should be added to the index
 		key := string(p.Key())
 		ss := s.index.Series(key)
