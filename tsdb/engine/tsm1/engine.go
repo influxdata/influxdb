@@ -157,16 +157,16 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	if err := e.reloadCache(); err != nil {
-		return err
-	}
-
 	e.wg.Add(5)
 	go e.compactCache()
 	go e.compactTSMFull()
 	go e.compactTSMLevel(true, 1)
 	go e.compactTSMLevel(true, 2)
 	go e.compactTSMLevel(false, 3)
+
+	if err := e.reloadCache(); err != nil {
+		return err
+	}
 
 	return nil
 }
