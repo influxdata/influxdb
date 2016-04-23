@@ -841,7 +841,7 @@ func (c *CommandLine) gopher() {
 
 // Version prints CLI version
 func (c *CommandLine) Version() {
-	fmt.Println("InfluxDB shell " + c.ClientVersion)
+	fmt.Println("InfluxDB shell version:", c.ClientVersion)
 }
 
 func (c *CommandLine) exit() {

@@ -11,7 +11,7 @@ import (
 
 // These variables are populated via the Go linker.
 var (
-	version = "0.9"
+	version string
 )
 
 const (
@@ -25,6 +25,13 @@ const (
 	// by default it's 0, which means it will not throttle
 	defaultPPS = 0
 )
+
+func init() {
+	// If version is not set, make that clear.
+	if version == "" {
+		version = "unknown"
+	}
+}
 
 func main() {
 	c := cli.New(version)
