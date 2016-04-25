@@ -133,69 +133,6 @@ type TSMWriter interface {
 	Size() uint32
 }
 
-// TSMIndex represent the index section of a TSM file.  The index records all
-// blocks, their locations, sizes, min and max times.
-type TSMIndex interface {
-
-	// Add records a new block entry for a key in the index.
-	Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32)
-
-	// Delete removes the given keys from the index.
-	Delete(keys []string)
-
-	// Contains return true if the given key exists in the index.
-	Contains(key string) bool
-
-	// ContainsValue returns true if key and time might exists in this file.  This function could
-	// return true even though the actual point does not exists.  For example, the key may
-	// exists in this file, but not have point exactly at time t.
-	ContainsValue(key string, timestamp int64) bool
-
-	// Entries returns all index entries for a key.
-	Entries(key string) []IndexEntry
-	ReadEntries(key string, entries *[]IndexEntry)
-
-	// Entry returns the index entry for the specified key and timestamp.  If no entry
-	// matches the key and timestamp, nil is returned.
-	Entry(key string, timestamp int64) *IndexEntry
-
-	// Keys returns the unique set of keys in the index.
-	Keys() []string
-
-	// Key returns the key in the index at the given postion.
-	Key(index int) (string, []IndexEntry)
-
-	// KeyAt returns the key in the index at the given postion.
-	KeyAt(index int) (string, byte)
-
-	// KeyCount returns the count of unique keys in the index.
-	KeyCount() int
-
-	// Size returns the size of a the current index in bytes
-	Size() uint32
-
-	// TimeRange returns the min and max time across all keys in the file.
-	TimeRange() (int64, int64)
-
-	// KeyRange returns the min and max keys in the file.
-	KeyRange() (string, string)
-
-	// Type returns the block type of the values stored for the key.  Returns one of
-	// BlockFloat64, BlockInt64, BlockBool, BlockString.  If key does not exist,
-	// an error is returned.
-	Type(key string) (byte, error)
-
-	// MarshalBinary returns a byte slice encoded version of the index.
-	MarshalBinary() ([]byte, error)
-
-	// UnmarshalBinary populates an index from an encoded byte slice
-	// representation of an index.
-	UnmarshalBinary(b []byte) error
-
-	// Write writes the index contents to a writer
-	Write(w io.Writer) error
-}
-
 // IndexEntry is the index information for a given block in a TSM file.
 type IndexEntry struct {
 
