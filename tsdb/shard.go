@@ -572,6 +572,7 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	m.mu.RUnlock()
 
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	if f := m.fields[name]; f != nil {
 		return nil
 	}
@@ -584,7 +585,6 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	}
 	m.fields[name] = f
 	m.Codec = NewFieldCodec(m.fields)
-	m.mu.Unlock()
 
 	return nil
 }
