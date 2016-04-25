@@ -1,7 +1,7 @@
 package ponyExpress
 
 import (
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -30,7 +30,7 @@ func (c *commune) point(precision string) models.Point {
 	p, err := models.ParsePointsWithPrecision(pt, time.Now().UTC(), precision)
 
 	if err != nil {
-		panic(fmt.Errorf("Error parsing point for commune\n  point: %v\n  error: %v\n", pt, err))
+		log.Fatalf("Error parsing point for commune\n  point: %v\n  error: %v\n", pt, err)
 	}
 
 	if len(p) != 0 {
@@ -58,7 +58,7 @@ func (sf *StoreFront) GetPoint(name, precision string) models.Point {
 
 	// Function needs to return a point. Panic if it doesn't
 	if p == nil {
-		panic(fmt.Errorf("Commune not returning point\n  returned %v\n", p))
+		log.Fatal("Commune not returning point")
 	}
 
 	return p

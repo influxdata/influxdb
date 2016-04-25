@@ -1,7 +1,7 @@
 package ponyExpress
 
 import (
-	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -49,7 +49,7 @@ func (pe *ponyExpress) writePoint(retries int, statementID string, statusCode in
 	point, err := influx.NewPoint("write", tags, fields, time.Now())
 
 	if err != nil {
-		panic(fmt.Errorf("Error creating write results point\n  error: %v\n", err))
+		log.Fatalf("Error creating write results point\n  error: %v\n", err)
 	}
 
 	return point
@@ -69,7 +69,7 @@ func (pe *ponyExpress) queryPoint(statementID string, body []byte, statusCode in
 	point, err := influx.NewPoint("query", tags, fields, time.Now())
 
 	if err != nil {
-		panic(fmt.Errorf("Error creating query results point\n  error: %v\n", err))
+		log.Fatalf("Error creating query results point\n  error: %v\n", err)
 	}
 
 	return point

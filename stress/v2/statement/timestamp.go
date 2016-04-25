@@ -1,7 +1,7 @@
 package statement
 
 import (
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -24,7 +24,7 @@ func (t *Timestamp) Time(startDate string, series int, precision string) func() 
 	}
 
 	if err != nil {
-		panic(fmt.Errorf("Error parsing start time from StartDate\n  string: %v\n  error: %v\n", startDate, err))
+		log.Fatalf("Error parsing start time from StartDate\n  string: %v\n  error: %v\n", startDate, err)
 	}
 
 	return nextTime(start, t.Duration, series, precision)

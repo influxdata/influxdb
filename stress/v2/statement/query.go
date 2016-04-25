@@ -2,6 +2,7 @@ package statement
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -104,8 +105,8 @@ func (i *QueryStatement) Report(s *ponyExpress.StoreFront) string {
 	// Pull data via StoreFront client
 	allData := s.GetStatementResults(i.StatementID, "query")
 
-	if allData == nil || allData[0].Series == nil {
-		panic(fmt.Errorf("No data returned for query report\n  Statement Name: %v\n  Statement ID: %v\n", i.Name, i.StatementID))
+	if len(allData) == 0 || allData[0].Series == nil {
+		log.Fatalf("No data returned for query report\n  Statement Name: %v\n  Statement ID: %v\n", i.Name, i.StatementID)
 	}
 
 	qr := &queryReport{

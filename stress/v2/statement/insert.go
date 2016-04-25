@@ -3,6 +3,7 @@ package statement
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -181,7 +182,7 @@ func (i *InsertStatement) Report(s *ponyExpress.StoreFront) string {
 	allData := s.GetStatementResults(i.StatementID, "write")
 
 	if allData == nil || allData[0].Series == nil {
-		panic(fmt.Errorf("No data returned for write report\n  Statement Name: %v\n  Statement ID: %v\n", i.Name, i.StatementID))
+		log.Fatalf("No data returned for write report\n  Statement Name: %v\n  Statement ID: %v\n", i.Name, i.StatementID)
 	}
 
 	ir := &insertReport{

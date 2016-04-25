@@ -2,6 +2,7 @@ package stress
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	influx "github.com/influxdata/influxdb/client/v2"
@@ -20,7 +21,7 @@ func RunStress(file string) {
 
 	// Log parse errors and quit if found
 	if err != nil {
-		panic(fmt.Errorf("Parsing Error\n  error: %v\n", err))
+		log.Fatalf("Parsing Error\n  error: %v\n", err)
 	}
 
 	// Run all statements
@@ -47,7 +48,7 @@ func blankResponse() ponyExpress.Response {
 	p, err := influx.NewPoint("done", make(map[string]string), fields, time.Now())
 	// Panic on error
 	if err != nil {
-		panic(fmt.Errorf("Error creating blank response point\n  error: %v\n", err))
+		log.Fatalf("Error creating blank response point\n  error: %v\n", err)
 	}
 	// Add a tracer to prevent program from returning too early
 	tracer := ponyExpress.NewTracer(make(map[string]string))

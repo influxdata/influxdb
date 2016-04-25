@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -340,7 +341,7 @@ func (p *Parser) ParseQueryStatement() (*statement.QueryStatement, error) {
 			// Parse out the integer
 			i, err := strconv.ParseInt(lit, 10, 64)
 			if err != nil {
-				panic(fmt.Errorf("Error parsing integer in Query Statement:\n  string: %v\n  error: %v\n", lit, err))
+				log.Fatalf("Error parsing integer in Query Statement:\n  string: %v\n  error: %v\n", lit, err)
 			}
 			stmt.Count = int(i)
 			break
@@ -625,7 +626,7 @@ func (p *Parser) ParseFunction() (*statement.Function, error) {
 	i, err := strconv.ParseInt(lit, 10, 64)
 
 	if err != nil {
-		panic(fmt.Errorf("Error parsing integer in Insert template function:\n  string: %v\n  error: %v\n", lit, err))
+		log.Fatalf("Error parsing integer in Insert template function:\n  string: %v\n  error: %v\n", lit, err)
 	}
 
 	fn.Argument = int(i)
@@ -644,7 +645,7 @@ func (p *Parser) ParseFunction() (*statement.Function, error) {
 	i, err = strconv.ParseInt(lit, 10, 64)
 
 	if err != nil {
-		panic(fmt.Errorf("Error parsing integer in Insert template function:\n  string: %v\n  error: %v\n", lit, err))
+		log.Fatalf("Error parsing integer in Insert template function:\n  string: %v\n  error: %v\n", lit, err)
 	}
 
 	fn.Count = int(i)
@@ -666,7 +667,7 @@ func (p *Parser) ParseTimestamp() (*statement.Timestamp, error) {
 	i, err := strconv.ParseInt(lit, 10, 64)
 
 	if err != nil {
-		panic(fmt.Errorf("Error parsing integer in Insert timestamp:\n  string: %v\n  error: %v\n", lit, err))
+		log.Fatalf("Error parsing integer in Insert timestamp:\n  string: %v\n  error: %v\n", lit, err)
 	}
 
 	ts.Count = int(i)
@@ -680,7 +681,7 @@ func (p *Parser) ParseTimestamp() (*statement.Timestamp, error) {
 	dur, err := time.ParseDuration(lit)
 
 	if err != nil {
-		panic(fmt.Errorf("Error parsing duration in Insert timestamp:\n  string: %v\n  error: %v\n", lit, err))
+		log.Fatalf("Error parsing duration in Insert timestamp:\n  string: %v\n  error: %v\n", lit, err)
 	}
 
 	ts.Duration = dur

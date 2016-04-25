@@ -3,6 +3,7 @@ package ponyExpress
 import (
 	"crypto/rand"
 	"fmt"
+	"log"
 	"strconv"
 	"sync"
 )
@@ -75,7 +76,7 @@ func (c *ConcurrencyLimiter) handleLimits() {
 func parseInt(s string) int {
 	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		fmt.Errorf("Error parsing integer:\n  String: %v\n  Error: %v\n", s, err)
+		log.Fatalf("Error parsing integer:\n  String: %v\n  Error: %v\n", s, err)
 	}
 	return int(i)
 }

@@ -2,6 +2,7 @@ package ponyExpress
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
 	influx "github.com/influxdata/influxdb/client/v2"
@@ -150,7 +151,7 @@ func (sf *StoreFront) batcher(pt *influx.Point, bp influx.BatchPoints, bpconf in
 
 		// Check error
 		if err != nil {
-			panic(fmt.Errorf("Error writing performance stats\n  error: %v\n", err))
+			log.Fatalf("Error writing performance stats\n  error: %v\n", err)
 		}
 
 		// Reset the batch of points
@@ -163,7 +164,7 @@ func (sf *StoreFront) batcher(pt *influx.Point, bp influx.BatchPoints, bpconf in
 func (sf *StoreFront) SetResultsClient(conf influx.HTTPConfig) {
 	clnt, err := influx.NewHTTPClient(conf)
 	if err != nil {
-		panic(fmt.Errorf("Error resetting results clien\n  error: %v\n", err))
+		log.Fatalf("Error resetting results clien\n  error: %v\n", err)
 	}
 	sf.ResultsClient = clnt
 }
@@ -193,7 +194,7 @@ func (sf *StoreFront) queryTestResults(qry string) (res []influx.Result) {
 
 	if err == nil {
 		if response.Error() != nil {
-			panic(fmt.Errorf("Error sending results query\n  error: %v\n", response.Error()))
+			log.Fatalf("Error sending results query\n  error: %v\n", response.Error())
 		}
 	}
 

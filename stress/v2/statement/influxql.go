@@ -1,6 +1,7 @@
 package statement
 
 import (
+	"log"
 	"time"
 
 	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
@@ -61,7 +62,7 @@ func (i *InfluxqlStatement) Report(s *ponyExpress.StoreFront) (out string) {
 	case 1:
 		iqlr.success = true
 	default:
-		panic("Error fetching response for InfluxQL statement")
+		log.Fatal("Error fetching response for InfluxQL statement")
 	}
 
 	return iqlr.String()

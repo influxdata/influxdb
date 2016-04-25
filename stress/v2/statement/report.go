@@ -3,6 +3,7 @@ package statement
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"time"
@@ -62,7 +63,7 @@ func (ir *insertReport) Point() *influx.Point {
 	fields := map[string]interface{}{"field": "blank"}
 	point, err := influx.NewPoint(measurement, tags, fields, time.Now())
 	if err != nil {
-		panic(fmt.Errorf("Error creating insertReport point\n  measurement: %v\n  tags: %v\n  fields: %v\n  error: %v\n", measurement, tags, fields, err))
+		log.Fatalf("Error creating insertReport point\n  measurement: %v\n  tags: %v\n  fields: %v\n  error: %v\n", measurement, tags, fields, err)
 	}
 	return point
 }
@@ -106,7 +107,7 @@ func (qr *queryReport) Point() *influx.Point {
 	fields := map[string]interface{}{"field": "blank"}
 	point, err := influx.NewPoint(measurement, tags, fields, time.Now())
 	if err != nil {
-		panic(fmt.Errorf("Error creating queryReport point\n  measurement: %v\n  tags: %v\n  fields: %v\n  error: %v\n", measurement, tags, fields, err))
+		log.Fatalf("Error creating queryReport point\n  measurement: %v\n  tags: %v\n  fields: %v\n  error: %v\n", measurement, tags, fields, err)
 	}
 	return point
 }
@@ -141,7 +142,7 @@ func (iqlr *influxQlReport) Point() *influx.Point {
 	fields := map[string]interface{}{"field": "blank"}
 	point, err := influx.NewPoint(measurement, tags, fields, time.Now())
 	if err != nil {
-		panic(fmt.Errorf("Error creating influxQL point\n  measurement: %v\n  tags: %v\n  fields: %v\n  error: %v\n", measurement, tags, fields, err))
+		log.Fatalf("Error creating influxQL point\n  measurement: %v\n  tags: %v\n  fields: %v\n  error: %v\n", measurement, tags, fields, err)
 	}
 	return point
 }
@@ -164,7 +165,7 @@ func numberBytes(columns []string, values [][]interface{}) int {
 	for _, val := range values {
 		reqBytes, err := val[index].(json.Number).Int64()
 		if err != nil {
-			panic(fmt.Errorf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err))
+			log.Fatalf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err)
 		}
 		out += int(reqBytes)
 	}
@@ -177,7 +178,7 @@ func countSuccesses(columns []string, values [][]interface{}) (out int) {
 	for _, val := range values {
 		status, err := val[index].(json.Number).Int64()
 		if err != nil {
-			panic(fmt.Errorf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err))
+			log.Fatalf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err)
 		}
 		if status == 204 || status == 200 {
 			out++
@@ -192,7 +193,7 @@ func countRetries(columns []string, values [][]interface{}) (out int) {
 	for _, val := range values {
 		status, err := val[index].(json.Number).Int64()
 		if err != nil {
-			panic(fmt.Errorf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err))
+			log.Fatalf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err)
 		}
 		if status == 500 {
 			out++
@@ -208,7 +209,7 @@ func responseTimes(columns []string, values [][]interface{}) (rs ResponseTimes) 
 	for _, val := range values {
 		respTime, err := val[index].(json.Number).Int64()
 		if err != nil {
-			panic(fmt.Errorf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err))
+			log.Fatalf("Error coercing json.Number to Int64\n  json.Number:%v\n  error: %v\n", val[index], err)
 		}
 		rs = append(rs, NewResponseTime(int(respTime)))
 	}

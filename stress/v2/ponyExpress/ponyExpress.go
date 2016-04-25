@@ -3,8 +3,6 @@ package ponyExpress
 import (
 	"strings"
 	"sync"
-
-	// influx "github.com/influxdata/influxdb/client/v2"
 )
 
 // Type refers to the different Package types

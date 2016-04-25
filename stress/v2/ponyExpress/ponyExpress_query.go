@@ -3,6 +3,7 @@ package ponyExpress
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -42,7 +43,7 @@ func (pe *ponyExpress) makeGet(addr, statementID string, tr *Tracer) {
 	elapsed := time.Since(t)
 
 	if err != nil {
-		panic(fmt.Errorf("Error making Query HTTP request\n  error: %v\n", err))
+		log.Printf("Error making Query HTTP request\n  error: %v\n", err)
 	}
 
 	defer resp.Body.Close()
@@ -51,11 +52,11 @@ func (pe *ponyExpress) makeGet(addr, statementID string, tr *Tracer) {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		panic(fmt.Errorf("Error reading Query response body\n  error: %v\n", err))
+		log.Fatalf("Error reading Query response body\n  error: %v\n", err)
 	}
 
 	if resp.StatusCode != 200 {
-		fmt.Printf("Query returned non 200 status\n  status: %v\n  error: %v\n", resp.StatusCode, string(body))
+		log.Printf("Query returned non 200 status\n  status: %v\n  error: %v\n", resp.StatusCode, string(body))
 	}
 
 	// Send the response

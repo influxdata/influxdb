@@ -32,7 +32,11 @@ func main() {
 	}
 
 	if *useV2 {
-		v2.RunStress(*config)
+		if *config != "" {
+			v2.RunStress(*config)
+		} else {
+			v2.RunStress("stress/v2/file.iql")
+		}
 	} else {
 
 		c, err := stress.NewConfig(*config)

@@ -21,9 +21,7 @@ func (i *GoStatement) SetID(s string) {
 // Run statisfies the Statement Interface
 func (i *GoStatement) Run(s *ponyExpress.StoreFront) {
 	s.Add(1)
-	s.Lock()
 	go func() {
-		s.Unlock()
 		i.Statement.Run(s)
 		s.Done()
 	}()

@@ -1,7 +1,7 @@
 package statement
 
 import (
-	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
@@ -18,7 +18,7 @@ type Statement interface {
 func parseInt(s string) int {
 	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		panic(fmt.Errorf("Error parsing integer:\n  String: %v\n  Error: %v\n", s, err))
+		log.Fatalf("Error parsing integer:\n  String: %v\n  Error: %v\n", s, err)
 	}
 	return int(i)
 }
@@ -26,7 +26,7 @@ func parseInt(s string) int {
 func parseFloat(s string) int {
 	i, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		panic(fmt.Errorf("Error parsing integer:\n  String: %v\n  Error: %v\n", s, err))
+		log.Fatalf("Error parsing integer:\n  String: %v\n  Error: %v\n", s, err)
 	}
 	return int(i)
 }

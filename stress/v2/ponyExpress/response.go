@@ -1,7 +1,7 @@
 package ponyExpress
 
 import (
-	"fmt"
+	"log"
 
 	influx "github.com/influxdata/influxdb/client/v2"
 )
@@ -38,7 +38,7 @@ func (resp Response) AddTags(newTags map[string]string) *influx.Point {
 
 	// panic on error
 	if err != nil {
-		panic(fmt.Errorf("Error adding tags to response point\n  point: %v\n  tags:%v\n  error: %v\n", resp.Point, newTags, err))
+		log.Fatalf("Error adding tags to response point\n  point: %v\n  tags:%v\n  error: %v\n", resp.Point, newTags, err)
 	}
 
 	return pt
