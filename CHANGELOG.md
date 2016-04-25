@@ -43,6 +43,7 @@
 - [#6427](https://github.com/influxdata/influxdb/pull/6427): Fix setting uint config options via env vars
 - [#6458](https://github.com/influxdata/influxdb/pull/6458): Make it clear when the CLI version is unknown.
 - [#3883](https://github.com/influxdata/influxdb/issues/3883): Improve query sanitization to prevent a password leak in the logs.
+- [#6462](https://github.com/influxdata/influxdb/pull/6462): Add safer locking to CreateFieldIfNotExists
 
 ## v0.12.1 [2016-04-08]
 
