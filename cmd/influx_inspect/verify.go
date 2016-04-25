@@ -46,10 +46,7 @@ func cmdVerify(path string) {
 			os.Exit(1)
 		}
 
-		reader, err := tsm1.NewTSMReaderWithOptions(tsm1.TSMReaderOptions{
-			MMAPFile: file,
-		})
-
+		reader, err := tsm1.NewTSMReader(file)
 		if err != nil {
 			fmt.Printf("%v", err)
 			os.Exit(1)
@@ -73,6 +70,7 @@ func cmdVerify(path string) {
 		if brokenFileBlocks == 0 {
 			fmt.Fprintf(tw, "%s: healthy\n", f)
 		}
+		reader.Close()
 	}
 
 	fmt.Fprintf(tw, "Broken Blocks: %d / %d, in %vs\n", brokenBlocks, totalBlocks, time.Since(start).Seconds())

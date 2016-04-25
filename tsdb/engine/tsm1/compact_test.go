@@ -1153,10 +1153,7 @@ func MustOpenTSMReader(name string) *tsm1.TSMReader {
 		panic(fmt.Sprintf("open file: %v", err))
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		panic(fmt.Sprintf("new reader: %v", err))
 	}

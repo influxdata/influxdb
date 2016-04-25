@@ -1,7 +1,6 @@
 package tsm1_test
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"testing"
@@ -10,8 +9,11 @@ import (
 )
 
 func TestTSMReader_Type(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -29,7 +31,11 @@ func TestTSMReader_Type(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error opening: %v", err)
+	}
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -92,10 +98,7 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -172,10 +175,7 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -253,10 +253,7 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -319,10 +316,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -331,10 +325,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 		t.Fatalf("unexpected error deleting: %v", err)
 	}
 
-	r, err = tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err = tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -379,10 +370,7 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -420,10 +408,7 @@ func TestTSMReader_VerifiesFileType(t *testing.T) {
 	// write some garbage
 	f.Write([]byte{0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77, 0x23, 0xac, 0x99, 0x22, 0x77})
 
-	_, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	_, err := tsm1.NewTSMReader(f)
 	if err == nil {
 		t.Fatal("expected error trying to open non-tsm file")
 	}
@@ -554,8 +539,11 @@ func TestIndirectIndex_Keys(t *testing.T) {
 }
 
 func TestBlockIterator_Single(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -573,7 +561,12 @@ func TestBlockIterator_Single(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error opening: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -612,8 +605,11 @@ func TestBlockIterator_Single(t *testing.T) {
 }
 
 func TestBlockIterator_MultipleBlocks(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -636,7 +632,12 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error opening: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -677,8 +678,11 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	}
 }
 func TestBlockIterator_Sorted(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -705,7 +709,12 @@ func TestBlockIterator_Sorted(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error opening: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -766,10 +775,7 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			MMAPFile: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -777,8 +783,11 @@ func TestIndirectIndex_UnmarshalBinary_BlockCountOverflow(t *testing.T) {
 }
 
 func TestCompacted_NotFull(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -796,7 +805,12 @@ func TestCompacted_NotFull(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -864,10 +878,7 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			Reader: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
@@ -944,10 +955,7 @@ func TestTSMReader_File_Read(t *testing.T) {
 		t.Fatalf("unexpected error open file: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReaderWithOptions(
-		tsm1.TSMReaderOptions{
-			Reader: f,
-		})
+	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}

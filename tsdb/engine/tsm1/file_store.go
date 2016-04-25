@@ -320,9 +320,7 @@ func (f *FileStore) Open() error {
 
 		go func(idx int, file *os.File) {
 			start := time.Now()
-			df, err := NewTSMReaderWithOptions(TSMReaderOptions{
-				MMAPFile: file,
-			})
+			df, err := NewTSMReader(file)
 			if f.traceLogging {
 				f.Logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
 			}
@@ -432,9 +430,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 			return err
 		}
 
-		tsm, err := NewTSMReaderWithOptions(TSMReaderOptions{
-			MMAPFile: fd,
-		})
+		tsm, err := NewTSMReader(fd)
 		if err != nil {
 			return err
 		}

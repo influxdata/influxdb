@@ -453,10 +453,7 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 			return nil, err
 		}
 
-		tr, err := NewTSMReaderWithOptions(
-			TSMReaderOptions{
-				MMAPFile: f,
-			})
+		tr, err := NewTSMReader(f)
 		if err != nil {
 			return nil, err
 		}

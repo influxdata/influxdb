@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"bytes"
 	"encoding/binary"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -46,8 +47,11 @@ func TestTSMWriter_Write_NoValues(t *testing.T) {
 }
 
 func TestTSMWriter_Write_Single(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -65,17 +69,32 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	if got, exp := len(b.Bytes()), 5; got < exp {
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	b, err := ioutil.ReadAll(fd)
+	if err != nil {
+		t.Fatalf("unexpected error reading: %v", err)
+	}
+
+	if got, exp := len(b), 5; got < exp {
 		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
 	}
-	if got := binary.BigEndian.Uint32(b.Bytes()[0:4]); got != tsm1.MagicNumber {
+	if got := binary.BigEndian.Uint32(b[0:4]); got != tsm1.MagicNumber {
 		t.Fatalf("magic number mismatch: got %v, exp %v", got, tsm1.MagicNumber)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	if _, err := fd.Seek(0, os.SEEK_SET); err != nil {
+		t.Fatalf("unexpected error seeking: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	readValues, err := r.ReadAll("cpu")
 	if err != nil {
@@ -94,8 +113,11 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 }
 
 func TestTSMWriter_Write_Multiple(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -122,10 +144,16 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	for _, d := range data {
 		readValues, err := r.ReadAll(d.key)
@@ -146,8 +174,11 @@ func TestTSMWriter_Write_Multiple(t *testing.T) {
 }
 
 func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -180,10 +211,16 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	for _, d := range data {
 		readValues, err := r.ReadAll(d.key)
@@ -205,8 +242,11 @@ func TestTSMWriter_Write_MultipleKeyValues(t *testing.T) {
 
 // Tests that writing keys in reverse is able to read them back.
 func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -239,10 +279,16 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	for _, d := range data {
 		readValues, err := r.ReadAll(d.key)
@@ -264,8 +310,11 @@ func TestTSMWriter_Write_ReverseKeys(t *testing.T) {
 
 // Tests that writing keys in reverse is able to read them back.
 func TestTSMWriter_Write_SameKey(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -298,10 +347,16 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	values := append(data[0].values, data[1].values...)
 
@@ -324,8 +379,11 @@ func TestTSMWriter_Write_SameKey(t *testing.T) {
 // Tests that calling Read returns all the values for block matching the key
 // and timestamp
 func TestTSMWriter_Read_Multiple(t *testing.T) {
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -358,10 +416,16 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	for _, values := range data {
 		// Try the first timestamp
@@ -399,9 +463,11 @@ func TestTSMWriter_Read_Multiple(t *testing.T) {
 }
 
 func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
-	// Write a new TSM file
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -414,15 +480,28 @@ func TestTSMWriter_WriteBlock_Empty(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	if got, exp := len(b.Bytes()), 0; got < exp {
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+	defer fd.Close()
+
+	b, err := ioutil.ReadAll(fd)
+	if err != nil {
+		t.Fatalf("unexpected error read all: %v", err)
+	}
+
+	if got, exp := len(b), 0; got < exp {
 		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
 	}
 }
 
 func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
-	// Write a new TSM file
-	var b bytes.Buffer
-	w, err := tsm1.NewTSMWriter(&b)
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+
+	w, err := tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -449,22 +528,36 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
-	if got, exp := len(b.Bytes()), 5; got < exp {
+	fd, err := os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+	defer fd.Close()
+
+	b, err := ioutil.ReadAll(fd)
+	if err != nil {
+		t.Fatalf("unexpected error read all: %v", err)
+	}
+
+	if got, exp := len(b), 5; got < exp {
 		t.Fatalf("file size mismatch: got %v, exp %v", got, exp)
 	}
-	if got := binary.BigEndian.Uint32(b.Bytes()[0:4]); got != tsm1.MagicNumber {
+	if got := binary.BigEndian.Uint32(b[0:4]); got != tsm1.MagicNumber {
 		t.Fatalf("magic number mismatch: got %v, exp %v", got, tsm1.MagicNumber)
 	}
 
+	if _, err := fd.Seek(0, os.SEEK_SET); err != nil {
+		t.Fatalf("error seeking: %v", err)
+	}
+
 	// Create reader for that file
-	r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	r, err := tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
 
-	// Using the reader, write a new file using WriteBlocks
-	b.Reset()
-	w, err = tsm1.NewTSMWriter(&b)
+	f = MustTempFile(dir)
+	w, err = tsm1.NewTSMWriter(f)
 	if err != nil {
 		t.Fatalf("unexpected error creating writer: %v", err)
 	}
@@ -487,12 +580,18 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 		t.Fatalf("unexpected error closing: %v", err)
 	}
 
+	fd, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
 	// Now create a reader to verify the written blocks matches the originally
 	// written file using Write
-	r, err = tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+	r, err = tsm1.NewTSMReader(fd)
 	if err != nil {
 		t.Fatalf("unexpected error created reader: %v", err)
 	}
+	defer r.Close()
 
 	for _, d := range data {
 		readValues, err := r.ReadAll(d.key)

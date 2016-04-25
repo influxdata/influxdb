@@ -112,46 +112,17 @@ type TSMReaderOptions struct {
 	MMAPFile *os.File
 }
 
-func NewTSMReader(r io.ReadSeeker) (*TSMReader, error) {
-	return NewTSMReaderWithOptions(
-		TSMReaderOptions{
-			Reader: r,
-		})
-}
-
-func NewTSMReaderWithOptions(opt TSMReaderOptions) (*TSMReader, error) {
+func NewTSMReader(f *os.File) (*TSMReader, error) {
 	t := &TSMReader{}
-	if opt.Reader != nil {
-		// Seek to the end of the file to determine the size
-		size, err := opt.Reader.Seek(0, os.SEEK_END)
-		if err != nil {
-			return nil, err
-		}
-		t.size = size
-		if f, ok := opt.Reader.(*os.File); ok {
-			stat, err := f.Stat()
-			if err != nil {
-				return nil, err
-			}
 
-			t.lastModified = stat.ModTime().UnixNano()
-		}
-		t.accessor = &fileAccessor{
-			r: opt.Reader,
-		}
-
-	} else if opt.MMAPFile != nil {
-		stat, err := opt.MMAPFile.Stat()
-		if err != nil {
-			return nil, err
-		}
-		t.size = stat.Size()
-		t.lastModified = stat.ModTime().UnixNano()
-		t.accessor = &mmapAccessor{
-			f: opt.MMAPFile,
-		}
-	} else {
-		panic("invalid options: need Reader or MMAPFile")
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	t.size = stat.Size()
+	t.lastModified = stat.ModTime().UnixNano()
+	t.accessor = &mmapAccessor{
+		f: f,
 	}
 
 	index, err := t.accessor.init()
