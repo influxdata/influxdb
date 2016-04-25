@@ -415,7 +415,7 @@ func TestTSMReader_VerifiesFileType(t *testing.T) {
 }
 
 func TestIndirectIndex_Entries(t *testing.T) {
-	index := tsm1.NewDirectIndex()
+	index := tsm1.NewIndexWriter()
 	index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 100)
 	index.Add("cpu", tsm1.BlockFloat64, 2, 3, 20, 200)
 	index.Add("mem", tsm1.BlockFloat64, 0, 1, 10, 100)
@@ -457,7 +457,7 @@ func TestIndirectIndex_Entries(t *testing.T) {
 }
 
 func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
-	index := tsm1.NewDirectIndex()
+	index := tsm1.NewIndexWriter()
 	index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 100)
 	index.Add("cpu", tsm1.BlockFloat64, 2, 3, 20, 200)
 
@@ -482,7 +482,7 @@ func TestIndirectIndex_Entries_NonExistent(t *testing.T) {
 }
 
 func TestIndirectIndex_MaxBlocks(t *testing.T) {
-	index := tsm1.NewDirectIndex()
+	index := tsm1.NewIndexWriter()
 	for i := 0; i < 1<<16; i++ {
 		index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 20)
 	}
@@ -495,7 +495,7 @@ func TestIndirectIndex_MaxBlocks(t *testing.T) {
 }
 
 func TestIndirectIndex_Type(t *testing.T) {
-	index := tsm1.NewDirectIndex()
+	index := tsm1.NewIndexWriter()
 	index.Add("cpu", tsm1.BlockInteger, 0, 1, 10, 20)
 
 	b, err := index.MarshalBinary()
@@ -516,7 +516,7 @@ func TestIndirectIndex_Type(t *testing.T) {
 }
 
 func TestIndirectIndex_Keys(t *testing.T) {
-	index := tsm1.NewDirectIndex()
+	index := tsm1.NewIndexWriter()
 	index.Add("cpu", tsm1.BlockFloat64, 0, 1, 10, 20)
 	index.Add("mem", tsm1.BlockFloat64, 0, 1, 10, 20)
 	index.Add("cpu", tsm1.BlockFloat64, 1, 2, 20, 30)
@@ -986,7 +986,7 @@ func TestTSMReader_File_Read(t *testing.T) {
 }
 
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
-	index := tsm1.NewDirectIndex()
+	index := tsm1.NewIndexWriter()
 	for i := 0; i < 100000; i++ {
 		index.Add(fmt.Sprintf("cpu-%d", i), tsm1.BlockFloat64, int64(i*2), int64(i*2+1), 10, 100)
 	}

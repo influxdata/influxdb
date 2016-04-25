@@ -34,9 +34,6 @@ type TSMReader struct {
 // blocks, their locations, sizes, min and max times.
 type TSMIndex interface {
 
-	// Add records a new block entry for a key in the index.
-	Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32)
-
 	// Delete removes the given keys from the index.
 	Delete(keys []string)
 
@@ -50,6 +47,8 @@ type TSMIndex interface {
 
 	// Entries returns all index entries for a key.
 	Entries(key string) []IndexEntry
+
+	// ReadEntries reads the index entries for key into entries.
 	ReadEntries(key string, entries *[]IndexEntry)
 
 	// Entry returns the index entry for the specified key and timestamp.  If no entry
@@ -82,15 +81,9 @@ type TSMIndex interface {
 	// an error is returned.
 	Type(key string) (byte, error)
 
-	// MarshalBinary returns a byte slice encoded version of the index.
-	MarshalBinary() ([]byte, error)
-
 	// UnmarshalBinary populates an index from an encoded byte slice
 	// representation of an index.
 	UnmarshalBinary(b []byte) error
-
-	// Write writes the index contents to a writer
-	Write(w io.Writer) error
 }
 
 // BlockIterator allows iterating over each block in a TSM file in order.  It provides

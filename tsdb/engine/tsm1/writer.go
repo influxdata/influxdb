@@ -69,7 +69,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"math"
 	"os"
 	"sort"
 	"sync"
@@ -133,6 +132,30 @@ type TSMWriter interface {
 	Size() uint32
 }
 
+// IndexWriter writes a TSMIndex
+type IndexWriter interface {
+	// Add records a new block entry for a key in the index.
+	Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32)
+
+	// Entries returns all index entries for a key.
+	Entries(key string) []IndexEntry
+
+	// Keys returns the unique set of keys in the index.
+	Keys() []string
+
+	// KeyCount returns the count of unique keys in the index.
+	KeyCount() int
+
+	// Size returns the size of a the current index in bytes
+	Size() uint32
+
+	// MarshalBinary returns a byte slice encoded version of the index.
+	MarshalBinary() ([]byte, error)
+
+	// WriteTo writes the index contents to a writer
+	WriteTo(w io.Writer) error
+}
+
 // IndexEntry is the index information for a given block in a TSM file.
 type IndexEntry struct {
 
@@ -192,7 +215,7 @@ func (e *IndexEntry) String() string {
 		time.Unix(0, e.MinTime).UTC(), time.Unix(0, e.MaxTime).UTC(), e.Offset, e.Size)
 }
 
-func NewDirectIndex() TSMIndex {
+func NewIndexWriter() IndexWriter {
 	return &directIndex{
 		blocks: map[string]*indexEntries{},
 	}
@@ -244,10 +267,6 @@ func (d *directIndex) Entries(key string) []IndexEntry {
 	return d.blocks[key].entries
 }
 
-func (d *directIndex) ReadEntries(key string, entries *[]IndexEntry) {
-	*entries = d.Entries(key)
-}
-
 func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -259,33 +278,6 @@ func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 		}
 	}
 	return nil
-}
-
-func (d *directIndex) Type(key string) (byte, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	entries := d.blocks[key]
-	if entries != nil {
-		return entries.Type, nil
-	}
-	return 0, fmt.Errorf("key does not exist: %v", key)
-}
-
-func (d *directIndex) Contains(key string) bool {
-	return len(d.Entries(key)) > 0
-}
-
-func (d *directIndex) ContainsValue(key string, t int64) bool {
-	return d.Entry(key, t) != nil
-}
-
-func (d *directIndex) Delete(keys []string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for _, k := range keys {
-		delete(d.blocks, k)
-	}
 }
 
 func (d *directIndex) Keys() []string {
@@ -300,55 +292,8 @@ func (d *directIndex) Keys() []string {
 	return keys
 }
 
-func (d *directIndex) Key(idx int) (string, []IndexEntry) {
-	if idx < 0 || idx >= len(d.blocks) {
-		return "", nil
-	}
-	k := d.Keys()[idx]
-	return k, d.blocks[k].entries
-}
-
-func (d *directIndex) KeyAt(idx int) (string, byte) {
-	if idx < 0 || idx >= len(d.blocks) {
-		return "", 0
-	}
-	key := d.Keys()[idx]
-	entries := d.blocks[key]
-	return key, entries.Type
-
-}
-
 func (d *directIndex) KeyCount() int {
 	return len(d.blocks)
-}
-
-func (d *directIndex) KeyRange() (string, string) {
-	var min, max string
-	for k := range d.blocks {
-		if min == "" || k < min {
-			min = k
-		}
-		if max == "" || k > max {
-			max = k
-		}
-
-	}
-	return min, max
-}
-
-func (d *directIndex) TimeRange() (int64, int64) {
-	min, max := int64(math.MaxInt64), int64(math.MinInt64)
-	for _, entries := range d.blocks {
-		for _, e := range entries.entries {
-			if e.MinTime < min {
-				min = e.MinTime
-			}
-			if e.MaxTime > max {
-				max = e.MaxTime
-			}
-		}
-	}
-	return min, max
 }
 
 func (d *directIndex) addEntries(key string, entries *indexEntries) {
@@ -360,7 +305,7 @@ func (d *directIndex) addEntries(key string, entries *indexEntries) {
 	existing.entries = append(existing.entries, entries.entries...)
 }
 
-func (d *directIndex) Write(w io.Writer) error {
+func (d *directIndex) WriteTo(w io.Writer) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -412,7 +357,7 @@ func (d *directIndex) Write(w io.Writer) error {
 
 func (d *directIndex) MarshalBinary() ([]byte, error) {
 	var b bytes.Buffer
-	if err := d.Write(&b); err != nil {
+	if err := d.WriteTo(&b); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
@@ -452,7 +397,7 @@ func (d *directIndex) Size() uint32 {
 type tsmWriter struct {
 	wrapped io.Writer
 	w       *bufio.Writer
-	index   TSMIndex
+	index   IndexWriter
 	n       int64
 }
 
@@ -577,7 +522,7 @@ func (t *tsmWriter) WriteIndex() error {
 	}
 
 	// Write the index
-	if err := t.index.Write(t.w); err != nil {
+	if err := t.index.WriteTo(t.w); err != nil {
 		return err
 	}
 
