@@ -85,8 +85,8 @@ func (itr *buf{{$k.Name}}Iterator) peekTime() (int64, error) {
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
 func (itr *buf{{$k.Name}}Iterator) Next() (*{{$k.Name}}Point, error) {
-	if itr.buf != nil {
-		buf := itr.buf
+	buf := itr.buf
+	if buf != nil {
 		itr.buf = nil
 		return buf, nil
 	}
@@ -99,7 +99,7 @@ func (itr *buf{{$k.Name}}Iterator) NextInWindow(startTime, endTime int64) (*{{$k
 	v, err := itr.Next()
 	if v == nil || err != nil {
 		return nil, err
-	} else if v.Time < startTime || v.Time >= endTime {
+	} else if t := v.Time; t >= endTime || t < startTime {
 		itr.unread(v)
 		return nil, nil
 	}
@@ -218,13 +218,13 @@ func (itr *{{$k.name}}MergeIterator) Next() (*{{$k.Name}}Point, error) {
 
 		// Check if the point is inside of our current window.
 		inWindow := true
-		if itr.window.name != p.Name {
+		if window := itr.window; window.name != p.Name {
 			inWindow = false
-		} else if itr.window.tags != p.Tags.ID() {
+		} else if window.tags != p.Tags.ID() {
 			inWindow = false
-		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
 			inWindow = false
-		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+		} else if !opt.Ascending && p.Time < window.startTime {
 			inWindow = false
 		}
 
@@ -668,11 +668,11 @@ func (itr *{{$k.name}}InterruptIterator) Stats() IteratorStats { return itr.inpu
 func (itr *{{$k.name}}InterruptIterator) Close() error { return itr.input.Close() }
 
 func (itr *{{$k.name}}InterruptIterator) Next() (*{{$k.Name}}Point, error) {
-	// Only check if the channel is closed every 256 points. This
-	// intentionally checks on both 0 and 256 so that if the iterator
+	// Only check if the channel is closed every N points. This
+	// intentionally checks on both 0 and N so that if the iterator
 	// has been interrupted before the first point is emitted it will
 	// not emit any points.
-	if itr.count&0x100 == 0 {
+	if itr.count & 0xFF == 0xFF {
 		select {
 		case <-itr.closing:
 			return nil, nil
