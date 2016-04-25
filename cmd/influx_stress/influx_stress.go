@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"runtime/pprof"
 
@@ -41,7 +42,7 @@ func main() {
 
 		c, err := stress.NewConfig(*config)
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 			return
 		}
 
@@ -66,5 +67,4 @@ func main() {
 		s.Start(bw.Handle, br.Handle)
 
 	}
-	return
 }
