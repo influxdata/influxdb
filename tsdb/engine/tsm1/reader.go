@@ -687,7 +687,20 @@ func (d *indirectIndex) Contains(key string) bool {
 }
 
 func (d *indirectIndex) ContainsValue(key string, timestamp int64) bool {
-	return d.Entry(key, timestamp) != nil
+	entry := d.Entry(key, timestamp)
+	if entry != nil {
+		d.mu.RLock()
+		tombstones := d.tombstones[key]
+		d.mu.RUnlock()
+
+		for _, t := range tombstones {
+			if t.Min <= timestamp && t.Max >= timestamp {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (d *indirectIndex) Type(key string) (byte, error) {

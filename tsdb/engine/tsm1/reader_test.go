@@ -380,6 +380,14 @@ func TestTSMReader_MMAP_TombstoneRange(t *testing.T) {
 	}
 	defer r.Close()
 
+	if got, exp := r.ContainsValue("cpu", 1), true; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := r.ContainsValue("cpu", 3), false; got != exp {
+		t.Fatalf("ContainsValue mismatch: got %v, exp %v", got, exp)
+	}
+
 	values, err := r.ReadAll("cpu")
 	if err != nil {
 		t.Fatalf("unexpected error reading all: %v", err)
