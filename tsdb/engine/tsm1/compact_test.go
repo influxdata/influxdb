@@ -48,8 +48,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 	r := MustOpenTSMReader(files[0])
 
-	keys := r.Keys()
-	if got, exp := len(keys), 2; got != exp {
+	if got, exp := r.KeyCount(), 2; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -140,8 +139,7 @@ func TestCompactor_CompactFull(t *testing.T) {
 
 	r := MustOpenTSMReader(files[0])
 
-	keys := r.Keys()
-	if got, exp := len(keys), 3; got != exp {
+	if got, exp := r.KeyCount(), 3; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
 	}
 
@@ -231,8 +229,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 
 	r := MustOpenTSMReader(files[0])
 
-	keys := r.Keys()
-	if got, exp := len(keys), 1; got != exp {
+	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("keys length mismatch: got %v, exp %v", got, exp)
 	}
 

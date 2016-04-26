@@ -478,7 +478,7 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 	defer r.Close()
 
 	minTime, maxTime := r.TimeRange()
-	keys := r.Keys()
+	keyCount := r.KeyCount()
 
 	blockStats := &blockStats{}
 
@@ -489,14 +489,15 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 		time.Unix(0, maxTime).UTC().Format(time.RFC3339Nano),
 	)
 	fmt.Printf("  Duration: %s ", time.Unix(0, maxTime).Sub(time.Unix(0, minTime)))
-	fmt.Printf("  Series: %d ", len(keys))
+	fmt.Printf("  Series: %d ", keyCount)
 	fmt.Printf("  File Size: %d\n", stat.Size())
 	println()
 
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "Min Time", "Max Time", "Ofs", "Size", "Key", "Field"}, "\t"))
 	var pos int
-	for _, key := range keys {
+	for i := 0; i < keyCount; i++ {
+		key, _ := r.KeyAt(i)
 		for _, e := range r.Entries(key) {
 			pos++
 			split := strings.Split(key, "#!~#")
@@ -538,7 +539,8 @@ func cmdDumpTsm1dev(opts *tsdmDumpOpts) {
 	indexSize := r.IndexSize()
 
 	// Start at the beginning and read every block
-	for _, key := range keys {
+	for j := 0; j < keyCount; j++ {
+		key, _ := r.KeyAt(j)
 		for _, e := range r.Entries(key) {
 
 			f.Seek(int64(e.Offset), 0)

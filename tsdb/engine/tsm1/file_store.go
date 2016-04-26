@@ -54,9 +54,6 @@ type TSMFile interface {
 	// KeyRange returns the min and max keys in the file.
 	KeyRange() (string, string)
 
-	// Keys returns all keys contained in the file.
-	Keys() []string
-
 	// KeyCount returns the number of distict keys in the file.
 	KeyCount() int
 

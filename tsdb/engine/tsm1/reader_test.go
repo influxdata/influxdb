@@ -332,7 +332,7 @@ func TestTSMReader_MMAP_Tombstone(t *testing.T) {
 	}
 	defer r.Close()
 
-	if got, exp := len(r.Keys()), 1; got != exp {
+	if got, exp := r.KeyCount(), 1; got != exp {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -571,7 +571,7 @@ func TestTSMReader_MMAP_Stats(t *testing.T) {
 		t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.Keys()), 2; got != exp {
+	if got, exp := r.KeyCount(), 2; got != exp {
 		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
 	}
 }

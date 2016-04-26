@@ -58,9 +58,6 @@ type TSMIndex interface {
 	// matches the key and timestamp, nil is returned.
 	Entry(key string, timestamp int64) *IndexEntry
 
-	// Keys returns the unique set of keys in the index.
-	Keys() []string
-
 	// Key returns the key in the index at the given postion.
 	Key(index int) (string, []IndexEntry)
 
@@ -221,10 +218,6 @@ func (t *TSMReader) Path() string {
 	defer t.mu.Unlock()
 
 	return t.accessor.path()
-}
-
-func (t *TSMReader) Keys() []string {
-	return t.index.Keys()
 }
 
 func (t *TSMReader) Key(index int) (string, []IndexEntry) {
@@ -583,18 +576,6 @@ func (d *indirectIndex) Entry(key string, timestamp int64) *IndexEntry {
 		}
 	}
 	return nil
-}
-
-func (d *indirectIndex) Keys() []string {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	var keys []string
-	for _, offset := range d.offsets {
-		_, key, _ := readKey(d.b[offset:])
-		keys = append(keys, string(key))
-	}
-	return keys
 }
 
 func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
