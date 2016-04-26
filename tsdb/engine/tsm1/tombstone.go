@@ -29,7 +29,13 @@ type Tombstone struct {
 	Min, Max int64
 }
 
+// Add add the all keys to the tombstone
 func (t *Tombstoner) Add(keys []string) error {
+	return t.AddRange(keys, math.MinInt64, math.MaxInt64)
+}
+
+// AddRange adds all keys to the tombstone specifying only the data between min and max to be removed.
+func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -47,8 +53,8 @@ func (t *Tombstoner) Add(keys []string) error {
 	for _, k := range keys {
 		tombstones = append(tombstones, Tombstone{
 			Key: k,
-			Min: math.MinInt64,
-			Max: math.MaxInt64,
+			Min: min,
+			Max: max,
 		})
 	}
 

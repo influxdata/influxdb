@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,6 +48,9 @@ type TSMFile interface {
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (int64, int64)
 
+	// TombstoneRange returns ranges of time that are deleted for the given key.
+	TombstoneRange(key string) []TimeRange
+
 	// KeyRange returns the min and max keys in the file.
 	KeyRange() (string, string)
 
@@ -66,6 +70,9 @@ type TSMFile interface {
 
 	// Delete removes the keys from the set of keys available in this file.
 	Delete(keys []string) error
+
+	// DeleteRange removes the values for keys between min and max.
+	DeleteRange(keys []string, min, max int64) error
 
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
@@ -263,13 +270,18 @@ func (f *FileStore) Type(key string) (byte, error) {
 }
 
 func (f *FileStore) Delete(keys []string) error {
+	return f.DeleteRange(keys, math.MinInt64, math.MaxInt64)
+}
+
+// DeleteRange removes the values for keys between min and max.
+func (f *FileStore) DeleteRange(keys []string, min, max int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.lastModified = time.Now()
 
 	for _, file := range f.files {
-		if err := file.Delete(keys); err != nil {
+		if err := file.DeleteRange(keys, min, max); err != nil {
 			return err
 		}
 	}
@@ -530,6 +542,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []location {
 	for _, fd := range filesSnapshot {
 		minTime, maxTime := fd.TimeRange()
 
+		tombstones := fd.TombstoneRange(key)
 		// If we ascending and the max time of the file is before where we want to start
 		// skip it.
 		if ascending && maxTime < t {
@@ -544,6 +557,19 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []location {
 		// the given key.
 		fd.ReadEntries(key, &entries)
 		for _, ie := range entries {
+
+			// Skip any blocks only contain values that are tombstoned.
+			var skip bool
+			for _, t := range tombstones {
+				if t.Min <= ie.MinTime && t.Max >= ie.MaxTime {
+					skip = true
+					break
+				}
+			}
+
+			if skip {
+				continue
+			}
 			// If we ascending and the max time of a block is before where we are looking, skip
 			// it since the data is out of our range
 			if ascending && ie.MaxTime < t {
@@ -804,15 +830,19 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, fdec *FloatDecoder, buf *[
 	values, err := first.r.ReadFloatBlockAt(&first.entry, tdec, fdec, buf)
 	first.read = true
 
+	tombstones := first.r.TombstoneRange(c.key)
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return values, err
+		return c.filterFloatValues(tombstones, values), err
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
+		tombstones := cur.r.TombstoneRange(c.key)
+
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
@@ -822,7 +852,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, fdec *FloatDecoder, buf *[
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, v...)
+			values = append(values, c.filterFloatValues(tombstones, v)...)
 		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
@@ -832,7 +862,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, fdec *FloatDecoder, buf *[
 			if err != nil {
 				return nil, err
 			}
-			values = append(v, values...)
+			values = append(c.filterFloatValues(tombstones, v), values...)
 		}
 	}
 
@@ -852,15 +882,19 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 	values, err := first.r.ReadIntegerBlockAt(&first.entry, tdec, vdec, buf)
 	first.read = true
 
+	tombstones := first.r.TombstoneRange(c.key)
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return values, err
+		return c.filterIntegerValues(tombstones, values), err
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
+		tombstones = cur.r.TombstoneRange(c.key)
+
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
@@ -870,7 +904,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, v...)
+			values = append(values, c.filterIntegerValues(tombstones, v)...)
 		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
@@ -880,7 +914,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			if err != nil {
 				return nil, err
 			}
-			values = append(v, values...)
+			values = append(c.filterIntegerValues(tombstones, v), values...)
 		}
 	}
 
@@ -900,15 +934,18 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 	values, err := first.r.ReadStringBlockAt(&first.entry, tdec, vdec, buf)
 	first.read = true
 
+	tombstones := first.r.TombstoneRange(c.key)
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return values, err
+		return c.filterStringValues(tombstones, values), err
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
+		tombstones = cur.r.TombstoneRange(c.key)
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
@@ -917,7 +954,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, v...)
+			values = append(values, c.filterStringValues(tombstones, v)...)
 		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
@@ -927,7 +964,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			if err != nil {
 				return nil, err
 			}
-			values = append(v, values...)
+			values = append(c.filterStringValues(tombstones, v), values...)
 		}
 	}
 
@@ -947,15 +984,18 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 	values, err := first.r.ReadBooleanBlockAt(&first.entry, tdec, vdec, buf)
 	first.read = true
 
+	tombstones := first.r.TombstoneRange(c.key)
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return values, err
+		return c.filterBooleanValues(tombstones, values), err
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
+		tombstones = cur.r.TombstoneRange(c.key)
 		if c.ascending && !cur.read {
 			cur.read = true
 			c.pos++
@@ -965,7 +1005,7 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, v...)
+			values = append(values, c.filterBooleanValues(tombstones, v)...)
 		} else if !c.ascending && !cur.read {
 			cur.read = true
 			c.pos--
@@ -975,11 +1015,39 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			if err != nil {
 				return nil, err
 			}
-			values = append(v, values...)
+			values = append(c.filterBooleanValues(tombstones, v), values...)
 		}
 	}
 
 	return BooleanValues(values).Deduplicate(), err
+}
+
+func (c *KeyCursor) filterFloatValues(tombstones []TimeRange, values FloatValues) FloatValues {
+	for _, t := range tombstones {
+		values = values.Filter(t.Min, t.Max)
+	}
+	return values
+}
+
+func (c *KeyCursor) filterIntegerValues(tombstones []TimeRange, values IntegerValues) IntegerValues {
+	for _, t := range tombstones {
+		values = values.Filter(t.Min, t.Max)
+	}
+	return values
+}
+
+func (c *KeyCursor) filterStringValues(tombstones []TimeRange, values StringValues) StringValues {
+	for _, t := range tombstones {
+		values = values.Filter(t.Min, t.Max)
+	}
+	return values
+}
+
+func (c *KeyCursor) filterBooleanValues(tombstones []TimeRange, values BooleanValues) BooleanValues {
+	for _, t := range tombstones {
+		values = values.Filter(t.Min, t.Max)
+	}
+	return values
 }
 
 type tsmReaders []TSMFile

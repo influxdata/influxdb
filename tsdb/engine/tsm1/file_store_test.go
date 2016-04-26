@@ -832,6 +832,226 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 	}
 }
 
+func TestKeyCursor_TombstoneRange(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	expValues := []int{0, 2}
+	for _, v := range expValues {
+		values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+		if err != nil {
+			t.Fatalf("unexpected error reading values: %v", err)
+		}
+
+		exp := data[v]
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[0].String(), exp.values[0].String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+		c.Next()
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialFloat(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, 1.0),
+			tsm1.NewValue(1, 2.0),
+			tsm1.NewValue(2, 3.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialInteger(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, int64(1)),
+			tsm1.NewValue(1, int64(2)),
+			tsm1.NewValue(2, int64(3))}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.IntegerValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialString(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, "1"),
+			tsm1.NewValue(1, "2"),
+			tsm1.NewValue(2, "3")}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.StringValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialBoolean(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, true),
+			tsm1.NewValue(1, false),
+			tsm1.NewValue(2, true)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.BooleanValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
 func TestFileStore_Open(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)

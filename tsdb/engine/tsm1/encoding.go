@@ -86,6 +86,19 @@ func (a Values) Size() int {
 	return sz
 }
 
+func (a Values) Filter(min, max int64) Values {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
 // Encode converts the values to a byte slice.  If there are no values,
 // this function panics.
 func (a Values) Encode(buf []byte) ([]byte, error) {
@@ -354,6 +367,19 @@ func (a FloatValues) Deduplicate() FloatValues {
 	return other
 }
 
+func (a FloatValues) Filter(min, max int64) FloatValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
 // Sort methods
 func (a FloatValues) Len() int           { return len(a) }
 func (a FloatValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -478,6 +504,19 @@ func (a BooleanValues) Deduplicate() BooleanValues {
 	return other
 }
 
+func (a BooleanValues) Filter(min, max int64) BooleanValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
 // Sort methods
 func (a BooleanValues) Len() int           { return len(a) }
 func (a BooleanValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -588,6 +627,19 @@ func (a IntegerValues) Deduplicate() IntegerValues {
 
 	sort.Sort(other)
 	return other
+}
+
+func (a IntegerValues) Filter(min, max int64) IntegerValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
 }
 
 // Sort methods
@@ -702,6 +754,19 @@ func (a StringValues) Deduplicate() StringValues {
 
 	sort.Sort(other)
 	return other
+}
+
+func (a StringValues) Filter(min, max int64) StringValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
 }
 
 // Sort methods

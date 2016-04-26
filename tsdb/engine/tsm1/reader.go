@@ -37,6 +37,9 @@ type TSMIndex interface {
 	// Delete removes the given keys from the index.
 	Delete(keys []string)
 
+	// DeleteRange removes the given keys with data between minTime and maxTime from the index.
+	DeleteRange(keys []string, minTime, maxTime int64)
+
 	// Contains return true if the given key exists in the index.
 	Contains(key string) bool
 
@@ -72,6 +75,9 @@ type TSMIndex interface {
 
 	// TimeRange returns the min and max time across all keys in the file.
 	TimeRange() (int64, int64)
+
+	// TombstoneRange returns ranges of time that are deleted for the given key.
+	TombstoneRange(key string) []TimeRange
 
 	// KeyRange returns the min and max keys in the file.
 	KeyRange() (string, string)
@@ -147,7 +153,7 @@ func (b *BlockIterator) Read() (string, int64, int64, uint32, []byte, error) {
 // blockAccessor abstracts a method of accessing blocks from a
 // TSM file.
 type blockAccessor interface {
-	init() (TSMIndex, error)
+	init() (*indirectIndex, error)
 	read(key string, timestamp int64) ([]Value, error)
 	readAll(key string) ([]Value, error)
 	readBlock(entry *IndexEntry, values []Value) ([]Value, error)
@@ -320,6 +326,16 @@ func (t *TSMReader) ContainsValue(key string, ts int64) bool {
 	return t.index.ContainsValue(key, ts)
 }
 
+// DeleteRange removes the given points for keys between minTime and maxTime
+func (t *TSMReader) DeleteRange(keys []string, minTime, maxTime int64) error {
+	if err := t.tombstoner.AddRange(keys, minTime, maxTime); err != nil {
+		return err
+	}
+
+	t.index.DeleteRange(keys, minTime, maxTime)
+	return nil
+}
+
 func (t *TSMReader) Delete(keys []string) error {
 	if err := t.tombstoner.Add(keys); err != nil {
 		return err
@@ -379,6 +395,13 @@ func (t *TSMReader) TombstoneFiles() []FileStat {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.tombstoner.TombstoneFiles()
+}
+
+// TombstoneRange returns ranges of time that are deleted for the given key.
+func (t *TSMReader) TombstoneRange(key string) []TimeRange {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.index.TombstoneRange(key)
 }
 
 func (t *TSMReader) Stats() FileStat {
@@ -455,19 +478,21 @@ type indirectIndex struct {
 	// minTime, maxTime are the minimum and maximum times contained in the file across all
 	// series.
 	minTime, maxTime int64
+
+	// tombstones contains only the tombstoned keys with subset of time values deleted.  An
+	// entry would exist here if a subset of the points for a key were deleted and the file
+	// had not be re-compacted to remove the points on disk.
+	tombstones map[string][]TimeRange
 }
 
-func NewIndirectIndex() TSMIndex {
-	return &indirectIndex{}
+type TimeRange struct {
+	Min, Max int64
 }
 
-// Add records a new block entry for a key in the index.
-func (d *indirectIndex) Add(key string, blockType byte, minTime, maxTime int64, offset int64, size uint32) {
-	panic("unsupported operation")
-}
-
-func (d *indirectIndex) Write(w io.Writer) error {
-	panic("unsupported operation")
+func NewIndirectIndex() *indirectIndex {
+	return &indirectIndex{
+		tombstones: make(map[string][]TimeRange),
+	}
 }
 
 // search returns the index of i in offsets for where key is located.  If key is not
@@ -629,6 +654,34 @@ func (d *indirectIndex) Delete(keys []string) {
 	d.offsets = offsets
 }
 
+func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
+	// No keys, nothing to do
+	if len(keys) == 0 {
+		return
+	}
+
+	// If we're deleting the max time range, just use tombstoning to remove the
+	// key from the offsets slice
+	if minTime == math.MinInt64 && maxTime == math.MaxInt64 {
+		d.Delete(keys)
+		return
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for _, k := range keys {
+		d.tombstones[k] = append(d.tombstones[k], TimeRange{minTime, maxTime})
+	}
+}
+
+func (d *indirectIndex) TombstoneRange(key string) []TimeRange {
+	d.mu.RLock()
+	r := d.tombstones[key]
+	d.mu.RUnlock()
+	return r
+}
+
 func (d *indirectIndex) Contains(key string) bool {
 	return len(d.Entries(key)) > 0
 }
@@ -751,10 +804,10 @@ type mmapAccessor struct {
 
 	f     *os.File
 	b     []byte
-	index TSMIndex
+	index *indirectIndex
 }
 
-func (m *mmapAccessor) init() (TSMIndex, error) {
+func (m *mmapAccessor) init() (*indirectIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -822,6 +875,7 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec *TimeDecoder, vdec
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
 		return nil, ErrTSMClosed
 	}
+
 	//TODO: Validate checksum
 	a, err := DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
 	if err != nil {
@@ -898,6 +952,8 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 		return nil, nil
 	}
 
+	tombstones := m.index.TombstoneRange(key)
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -905,6 +961,18 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 	var err error
 	var values []Value
 	for _, block := range blocks {
+		var skip bool
+		for _, t := range tombstones {
+			// Should we skip this block because it contains points that have been deleted
+			if t.Min <= block.MinTime && t.Max >= block.MaxTime {
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			continue
+		}
 		//TODO: Validate checksum
 		temp = temp[:0]
 		// The +4 is the 4 byte checksum length
@@ -912,6 +980,12 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// Filter out any values that were deleted
+		for _, t := range tombstones {
+			temp = Values(temp).Filter(t.Min, t.Max)
+		}
+
 		values = append(values, temp...)
 	}
 
