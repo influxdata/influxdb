@@ -4575,7 +4575,7 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 			name:    "where on tag that should be double quoted but isn't",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `show series where data-center = 'foo'`,
-			exp:     `{"error":"error parsing query: found DATA, expected identifier, string, number, bool at line 1, char 19"}`,
+			exp:     `{"results":[{"error":"invalid tag comparison operator"}]}`,
 		},
 		&Query{
 			name:    "where comparing tag and field",

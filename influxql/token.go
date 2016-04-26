@@ -67,7 +67,6 @@ const (
 	BY
 	CREATE
 	CONTINUOUS
-	DATA
 	DATABASE
 	DATABASES
 	DEFAULT
@@ -100,7 +99,6 @@ const (
 	KEYS
 	KILL
 	LIMIT
-	META
 	MEASUREMENT
 	MEASUREMENTS
 	NAME
@@ -121,8 +119,6 @@ const (
 	REVOKE
 	SELECT
 	SERIES
-	SERVER
-	SERVERS
 	SET
 	SHOW
 	SHARD
@@ -191,7 +187,6 @@ var tokens = [...]string{
 	BY:            "BY",
 	CREATE:        "CREATE",
 	CONTINUOUS:    "CONTINUOUS",
-	DATA:          "DATA",
 	DATABASE:      "DATABASE",
 	DATABASES:     "DATABASES",
 	DEFAULT:       "DEFAULT",
@@ -226,7 +221,6 @@ var tokens = [...]string{
 	LIMIT:         "LIMIT",
 	MEASUREMENT:   "MEASUREMENT",
 	MEASUREMENTS:  "MEASUREMENTS",
-	META:          "META",
 	NAME:          "NAME",
 	NOT:           "NOT",
 	OFFSET:        "OFFSET",
@@ -245,8 +239,6 @@ var tokens = [...]string{
 	REVOKE:        "REVOKE",
 	SELECT:        "SELECT",
 	SERIES:        "SERIES",
-	SERVER:        "SERVER",
-	SERVERS:       "SERVERS",
 	SET:           "SET",
 	SHOW:          "SHOW",
 	SHARD:         "SHARD",
