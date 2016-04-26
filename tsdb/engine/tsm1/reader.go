@@ -163,14 +163,6 @@ type blockAccessor interface {
 	close() error
 }
 
-type TSMReaderOptions struct {
-	// Reader is used to create file IO based reader.
-	Reader io.ReadSeeker
-
-	// MMAPFile is used to create an MMAP based reader.
-	MMAPFile *os.File
-}
-
 func NewTSMReader(f *os.File) (*TSMReader, error) {
 	t := &TSMReader{}
 
