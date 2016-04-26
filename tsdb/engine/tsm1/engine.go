@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -368,7 +369,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeries deletes the series from the engine.
-func (e *Engine) DeleteSeries(seriesKeys []string) error {
+func (e *Engine) DeleteSeries(seriesKeys []string, min, max int64) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -387,7 +388,7 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 			deleteKeys = append(deleteKeys, k)
 		}
 	}
-	if err := e.FileStore.Delete(deleteKeys); err != nil {
+	if err := e.FileStore.DeleteRange(deleteKeys, min, max); err != nil {
 		return err
 	}
 
@@ -403,7 +404,7 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 	}
 	e.Cache.RUnlock()
 
-	e.Cache.Delete(walKeys)
+	e.Cache.DeleteRange(walKeys, min, max)
 
 	// delete from the WAL
 	_, err := e.WAL.Delete(walKeys)
@@ -416,7 +417,7 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 	delete(e.measurementFields, name)
 	e.mu.Unlock()
 
-	return e.DeleteSeries(seriesKeys)
+	return e.DeleteSeries(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // SeriesCount returns the number of series buckets on the shard.

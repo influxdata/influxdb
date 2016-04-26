@@ -265,11 +265,11 @@ func (s *Shard) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(seriesKeys []string) error {
+func (s *Shard) DeleteSeries(seriesKeys []string, min, max int64) error {
 	if s.closed() {
 		return ErrEngineClosed
 	}
-	return s.engine.DeleteSeries(seriesKeys)
+	return s.engine.DeleteSeries(seriesKeys, min, max)
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
