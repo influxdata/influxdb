@@ -204,6 +204,50 @@ func init() {
 		},
 	}
 
+	tests["delete_series"] = Test{
+		db: "db0",
+		rp: "rp0",
+		writes: Writes{
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-02T00:00:00Z").UnixNano())},
+			&Write{data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=200 %d`, mustParseTime(time.RFC3339Nano, "2000-01-03T00:00:00Z").UnixNano())},
+			&Write{db: "db1", data: fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+		},
+		queries: []*Query{
+			&Query{
+				name:    "Show series is present",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Delete series",
+				command: `DELETE FROM cpu WHERE time < '2000-01-03T00:00:00Z'`,
+				exp:     `{"results":[{}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+				once:    true,
+			},
+			&Query{
+				name:    "Show series still exists",
+				command: `SHOW SERIES`,
+				exp:     `{"results":[{"series":[{"columns":["key"],"values":[["cpu,host=serverA,region=uswest"]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Make sure last point still exists",
+				command: `SELECT * FROM cpu`,
+				exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-03T00:00:00Z","serverA","uswest",200]]}]}]}`,
+				params:  url.Values{"db": []string{"db0"}},
+			},
+			&Query{
+				name:    "Make sure data wasn't deleted from other database.",
+				command: `SELECT * FROM cpu`,
+				exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+				params:  url.Values{"db": []string{"db1"}},
+			},
+		},
+	}
+
 	tests["drop_and_recreate_series"] = Test{
 		db: "db0",
 		rp: "rp0",
@@ -302,7 +346,7 @@ func init() {
 			&Query{
 				name:    "Drop series with WHERE field should error",
 				command: `DROP SERIES FROM c WHERE val > 50.0`,
-				exp:     `{"results":[{"error":"DROP SERIES doesn't support fields in WHERE clause"}]}`,
+				exp:     `{"results":[{"error":"fields not supported in WHERE clause during deletion"}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{

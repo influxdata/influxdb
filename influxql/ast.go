@@ -96,6 +96,7 @@ func (*CreateRetentionPolicyStatement) node() {}
 func (*CreateSubscriptionStatement) node()    {}
 func (*CreateUserStatement) node()            {}
 func (*Distinct) node()                       {}
+func (*DeleteSeriesStatement) node()          {}
 func (*DeleteStatement) node()                {}
 func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
@@ -209,6 +210,7 @@ func (*CreateDatabaseStatement) stmt()        {}
 func (*CreateRetentionPolicyStatement) stmt() {}
 func (*CreateSubscriptionStatement) stmt()    {}
 func (*CreateUserStatement) stmt()            {}
+func (*DeleteSeriesStatement) stmt()          {}
 func (*DeleteStatement) stmt()                {}
 func (*DropContinuousQueryStatement) stmt()   {}
 func (*DropDatabaseStatement) stmt()          {}
@@ -2164,6 +2166,37 @@ func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
 }
 
+// DeleteSeriesStatement represents a command for deleting all or part of a series from a database.
+type DeleteSeriesStatement struct {
+	// Data source that fields are extracted from (optional)
+	Sources Sources
+
+	// An expression evaluated on data point (optional)
+	Condition Expr
+}
+
+// String returns a string representation of the delete series statement.
+func (s *DeleteSeriesStatement) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("DELETE")
+
+	if s.Sources != nil {
+		buf.WriteString(" FROM ")
+		buf.WriteString(s.Sources.String())
+	}
+	if s.Condition != nil {
+		buf.WriteString(" WHERE ")
+		buf.WriteString(s.Condition.String())
+	}
+
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a DeleteSeriesStatement.
+func (s DeleteSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
+}
+
 // DropShardStatement represents a command for removing a shard from
 // the node.
 type DropShardStatement struct {
@@ -3467,6 +3500,10 @@ func Walk(v Visitor, node Node) {
 		for _, c := range n {
 			Walk(v, c)
 		}
+
+	case *DeleteSeriesStatement:
+		Walk(v, n.Sources)
+		Walk(v, n.Condition)
 
 	case *DropSeriesStatement:
 		Walk(v, n.Sources)

@@ -18,7 +18,9 @@
 - [#3558](https://github.com/influxdata/influxdb/issues/3558): Support field math inside a WHERE clause.
 - [#6429](https://github.com/influxdata/influxdb/issues/6429): Log slow queries if they pass a configurable threshold.
 - [#4675](https://github.com/influxdata/influxdb/issues/4675): Allow derivative() function to be used with ORDER BY desc.
--  [#6483](https://github.com/influxdata/influxdb/pull/6483): Delete series support for TSM
+- [#6483](https://github.com/influxdata/influxdb/pull/6483): Delete series support for TSM
+- [#6484](https://github.com/influxdata/influxdb/pull/6484): Query language support for DELETE
+
 
 ### Bugfixes
 

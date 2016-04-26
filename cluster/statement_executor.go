@@ -66,6 +66,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 		err = e.executeCreateSubscriptionStatement(stmt)
 	case *influxql.CreateUserStatement:
 		err = e.executeCreateUserStatement(stmt)
+	case *influxql.DeleteSeriesStatement:
+		err = e.executeDeleteSeriesStatement(stmt, ctx.Database)
 	case *influxql.DropContinuousQueryStatement:
 		err = e.executeDropContinuousQueryStatement(stmt)
 	case *influxql.DropDatabaseStatement:
@@ -197,6 +199,20 @@ func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserSta
 	return err
 }
 
+func (e *StatementExecutor) executeDeleteSeriesStatement(stmt *influxql.DeleteSeriesStatement, database string) error {
+	if dbi, err := e.MetaClient.Database(database); err != nil {
+		return err
+	} else if dbi == nil {
+		return influxql.ErrDatabaseNotFound(database)
+	}
+
+	// Convert "now()" to current time.
+	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
+
+	// Locally delete the series.
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition, false)
+}
+
 func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement) error {
 	return e.MetaClient.DropContinuousQuery(q.Database, q.Name)
 }
@@ -238,7 +254,7 @@ func (e *StatementExecutor) executeDropSeriesStatement(stmt *influxql.DropSeries
 	}
 
 	// Locally drop the series.
-	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition, true)
 }
 
 func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardStatement) error {
@@ -819,7 +835,7 @@ type TSDBStore interface {
 	DeleteDatabase(name string) error
 	DeleteMeasurement(database, name string) error
 	DeleteRetentionPolicy(database, name string) error
-	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, dropMeta bool) error
 	DeleteShard(id uint64) error
 	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
 }
