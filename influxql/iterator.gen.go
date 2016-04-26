@@ -88,8 +88,8 @@ func (itr *bufFloatIterator) peekTime() (int64, error) {
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
 func (itr *bufFloatIterator) Next() (*FloatPoint, error) {
-	if itr.buf != nil {
-		buf := itr.buf
+	buf := itr.buf
+	if buf != nil {
 		itr.buf = nil
 		return buf, nil
 	}
@@ -102,7 +102,7 @@ func (itr *bufFloatIterator) NextInWindow(startTime, endTime int64) (*FloatPoint
 	v, err := itr.Next()
 	if v == nil || err != nil {
 		return nil, err
-	} else if v.Time < startTime || v.Time >= endTime {
+	} else if t := v.Time; t >= endTime || t < startTime {
 		itr.unread(v)
 		return nil, nil
 	}
@@ -221,13 +221,13 @@ func (itr *floatMergeIterator) Next() (*FloatPoint, error) {
 
 		// Check if the point is inside of our current window.
 		inWindow := true
-		if itr.window.name != p.Name {
+		if window := itr.window; window.name != p.Name {
 			inWindow = false
-		} else if itr.window.tags != p.Tags.ID() {
+		} else if window.tags != p.Tags.ID() {
 			inWindow = false
-		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
 			inWindow = false
-		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+		} else if !opt.Ascending && p.Time < window.startTime {
 			inWindow = false
 		}
 
@@ -669,11 +669,11 @@ func (itr *floatInterruptIterator) Stats() IteratorStats { return itr.input.Stat
 func (itr *floatInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *floatInterruptIterator) Next() (*FloatPoint, error) {
-	// Only check if the channel is closed every 256 points. This
-	// intentionally checks on both 0 and 256 so that if the iterator
+	// Only check if the channel is closed every N points. This
+	// intentionally checks on both 0 and N so that if the iterator
 	// has been interrupted before the first point is emitted it will
 	// not emit any points.
-	if itr.count&0x100 == 0 {
+	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
 			return nil, nil
@@ -2034,8 +2034,8 @@ func (itr *bufIntegerIterator) peekTime() (int64, error) {
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
 func (itr *bufIntegerIterator) Next() (*IntegerPoint, error) {
-	if itr.buf != nil {
-		buf := itr.buf
+	buf := itr.buf
+	if buf != nil {
 		itr.buf = nil
 		return buf, nil
 	}
@@ -2048,7 +2048,7 @@ func (itr *bufIntegerIterator) NextInWindow(startTime, endTime int64) (*IntegerP
 	v, err := itr.Next()
 	if v == nil || err != nil {
 		return nil, err
-	} else if v.Time < startTime || v.Time >= endTime {
+	} else if t := v.Time; t >= endTime || t < startTime {
 		itr.unread(v)
 		return nil, nil
 	}
@@ -2167,13 +2167,13 @@ func (itr *integerMergeIterator) Next() (*IntegerPoint, error) {
 
 		// Check if the point is inside of our current window.
 		inWindow := true
-		if itr.window.name != p.Name {
+		if window := itr.window; window.name != p.Name {
 			inWindow = false
-		} else if itr.window.tags != p.Tags.ID() {
+		} else if window.tags != p.Tags.ID() {
 			inWindow = false
-		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
 			inWindow = false
-		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+		} else if !opt.Ascending && p.Time < window.startTime {
 			inWindow = false
 		}
 
@@ -2615,11 +2615,11 @@ func (itr *integerInterruptIterator) Stats() IteratorStats { return itr.input.St
 func (itr *integerInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *integerInterruptIterator) Next() (*IntegerPoint, error) {
-	// Only check if the channel is closed every 256 points. This
-	// intentionally checks on both 0 and 256 so that if the iterator
+	// Only check if the channel is closed every N points. This
+	// intentionally checks on both 0 and N so that if the iterator
 	// has been interrupted before the first point is emitted it will
 	// not emit any points.
-	if itr.count&0x100 == 0 {
+	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
 			return nil, nil
@@ -3977,8 +3977,8 @@ func (itr *bufStringIterator) peekTime() (int64, error) {
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
 func (itr *bufStringIterator) Next() (*StringPoint, error) {
-	if itr.buf != nil {
-		buf := itr.buf
+	buf := itr.buf
+	if buf != nil {
 		itr.buf = nil
 		return buf, nil
 	}
@@ -3991,7 +3991,7 @@ func (itr *bufStringIterator) NextInWindow(startTime, endTime int64) (*StringPoi
 	v, err := itr.Next()
 	if v == nil || err != nil {
 		return nil, err
-	} else if v.Time < startTime || v.Time >= endTime {
+	} else if t := v.Time; t >= endTime || t < startTime {
 		itr.unread(v)
 		return nil, nil
 	}
@@ -4110,13 +4110,13 @@ func (itr *stringMergeIterator) Next() (*StringPoint, error) {
 
 		// Check if the point is inside of our current window.
 		inWindow := true
-		if itr.window.name != p.Name {
+		if window := itr.window; window.name != p.Name {
 			inWindow = false
-		} else if itr.window.tags != p.Tags.ID() {
+		} else if window.tags != p.Tags.ID() {
 			inWindow = false
-		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
 			inWindow = false
-		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+		} else if !opt.Ascending && p.Time < window.startTime {
 			inWindow = false
 		}
 
@@ -4558,11 +4558,11 @@ func (itr *stringInterruptIterator) Stats() IteratorStats { return itr.input.Sta
 func (itr *stringInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *stringInterruptIterator) Next() (*StringPoint, error) {
-	// Only check if the channel is closed every 256 points. This
-	// intentionally checks on both 0 and 256 so that if the iterator
+	// Only check if the channel is closed every N points. This
+	// intentionally checks on both 0 and N so that if the iterator
 	// has been interrupted before the first point is emitted it will
 	// not emit any points.
-	if itr.count&0x100 == 0 {
+	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
 			return nil, nil
@@ -5920,8 +5920,8 @@ func (itr *bufBooleanIterator) peekTime() (int64, error) {
 
 // Next returns the current buffer, if exists, or calls the underlying iterator.
 func (itr *bufBooleanIterator) Next() (*BooleanPoint, error) {
-	if itr.buf != nil {
-		buf := itr.buf
+	buf := itr.buf
+	if buf != nil {
 		itr.buf = nil
 		return buf, nil
 	}
@@ -5934,7 +5934,7 @@ func (itr *bufBooleanIterator) NextInWindow(startTime, endTime int64) (*BooleanP
 	v, err := itr.Next()
 	if v == nil || err != nil {
 		return nil, err
-	} else if v.Time < startTime || v.Time >= endTime {
+	} else if t := v.Time; t >= endTime || t < startTime {
 		itr.unread(v)
 		return nil, nil
 	}
@@ -6053,13 +6053,13 @@ func (itr *booleanMergeIterator) Next() (*BooleanPoint, error) {
 
 		// Check if the point is inside of our current window.
 		inWindow := true
-		if itr.window.name != p.Name {
+		if window := itr.window; window.name != p.Name {
 			inWindow = false
-		} else if itr.window.tags != p.Tags.ID() {
+		} else if window.tags != p.Tags.ID() {
 			inWindow = false
-		} else if itr.heap.opt.Ascending && p.Time >= itr.window.endTime {
+		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
 			inWindow = false
-		} else if !itr.heap.opt.Ascending && p.Time < itr.window.startTime {
+		} else if !opt.Ascending && p.Time < window.startTime {
 			inWindow = false
 		}
 
@@ -6501,11 +6501,11 @@ func (itr *booleanInterruptIterator) Stats() IteratorStats { return itr.input.St
 func (itr *booleanInterruptIterator) Close() error         { return itr.input.Close() }
 
 func (itr *booleanInterruptIterator) Next() (*BooleanPoint, error) {
-	// Only check if the channel is closed every 256 points. This
-	// intentionally checks on both 0 and 256 so that if the iterator
+	// Only check if the channel is closed every N points. This
+	// intentionally checks on both 0 and N so that if the iterator
 	// has been interrupted before the first point is emitted it will
 	// not emit any points.
-	if itr.count&0x100 == 0 {
+	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
 			return nil, nil
