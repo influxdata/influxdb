@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 
 	"github.com/golang/snappy"
@@ -563,6 +564,87 @@ func TestWALWriter_Corrupt(t *testing.T) {
 	expCount := MustReadFileSize(f) - int64(len(corruption))
 	if n := r.Count(); n != expCount {
 		t.Fatalf("wrong count of bytes read, got %d, exp %d", n, expCount)
+	}
+}
+
+func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
+	p1 := tsm1.NewValue(1, 1.1)
+	p2 := tsm1.NewValue(1, int64(1))
+	p3 := tsm1.NewValue(1, true)
+	p4 := tsm1.NewValue(1, "string")
+
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#float":  []tsm1.Value{p1, p1},
+		"cpu,host=A#!~#int":    []tsm1.Value{p2, p2},
+		"cpu,host=A#!~#bool":   []tsm1.Value{p3, p3},
+		"cpu,host=A#!~#string": []tsm1.Value{p4, p4},
+	}
+
+	w := &tsm1.WriteWALEntry{
+		Values: values,
+	}
+
+	b, err := w.MarshalBinary()
+	if err != nil {
+		t.Fatalf("unexpected error, got %v", err)
+	}
+
+	// Test every possible truncation of a write WAL entry
+	for i := 0; i < len(b); i++ {
+		// re-allocated to ensure capacity would be exceed if slicing
+		truncated := make([]byte, i)
+		copy(truncated, b[:i])
+		err := w.UnmarshalBinary(truncated)
+		if err != nil && err != tsm1.ErrWALCorrupt {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+}
+
+func TestWriteWALSegment_UnmarshalBinary_DeleteWALCorrupt(t *testing.T) {
+	w := &tsm1.DeleteWALEntry{
+		Keys: []string{"foo", "bar"},
+	}
+
+	b, err := w.MarshalBinary()
+	if err != nil {
+		t.Fatalf("unexpected error, got %v", err)
+	}
+
+	// Test every possible truncation of a write WAL entry
+	for i := 0; i < len(b); i++ {
+		// re-allocated to ensure capacity would be exceed if slicing
+		truncated := make([]byte, i)
+		copy(truncated, b[:i])
+		err := w.UnmarshalBinary(truncated)
+		if err != nil && err != tsm1.ErrWALCorrupt {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+}
+
+func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
+	w := &tsm1.DeleteRangeWALEntry{
+		Keys: []string{"foo", "bar"},
+		Min:  1,
+		Max:  2,
+	}
+
+	b, err := w.MarshalBinary()
+	if err != nil {
+		t.Fatalf("unexpected error, got %v", err)
+	}
+
+	// Test every possible truncation of a write WAL entry
+	for i := 0; i < len(b); i++ {
+		// re-allocated to ensure capacity would be exceed if slicing
+		truncated := make([]byte, i)
+		copy(truncated, b[:i])
+		spew.Dump(truncated)
+		err := w.UnmarshalBinary(truncated)
+		if err != nil && err != tsm1.ErrWALCorrupt {
+			t.Fatalf("unexpected error: %v", err)
+		}
 	}
 }
 

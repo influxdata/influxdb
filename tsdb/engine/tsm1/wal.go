@@ -56,7 +56,10 @@ const (
 	DeleteRangeWALEntryType WalEntryType = 0x03
 )
 
-var ErrWALClosed = fmt.Errorf("WAL closed")
+var (
+	ErrWALClosed  = fmt.Errorf("WAL closed")
+	ErrWALCorrupt = fmt.Errorf("corrupted WAL entry")
+)
 
 // Statistics gathered by the WAL.
 const (
@@ -578,10 +581,23 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		typ := b[i]
 		i++
 
+		if i+2 > len(b) {
+			return ErrWALCorrupt
+		}
+
 		length := int(binary.BigEndian.Uint16(b[i : i+2]))
 		i += 2
+
+		if i+length > len(b) {
+			return ErrWALCorrupt
+		}
+
 		k := string(b[i : i+length])
 		i += length
+
+		if i+4 > len(b) {
+			return ErrWALCorrupt
+		}
 
 		nvals := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
@@ -610,11 +626,19 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		}
 
 		for j := 0; j < nvals; j++ {
+			if i+8 > len(b) {
+				return ErrWALCorrupt
+			}
+
 			un := int64(binary.BigEndian.Uint64(b[i : i+8]))
 			i += 8
 
 			switch typ {
 			case float64EntryType:
+				if i+8 > len(b) {
+					return ErrWALCorrupt
+				}
+
 				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
 				if fv, ok := values[j].(*FloatValue); ok {
@@ -622,6 +646,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 					fv.value = v
 				}
 			case integerEntryType:
+				if i+8 > len(b) {
+					return ErrWALCorrupt
+				}
+
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
 				if fv, ok := values[j].(*IntegerValue); ok {
@@ -629,6 +657,10 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 					fv.value = v
 				}
 			case booleanEntryType:
+				if i >= len(b) {
+					return ErrWALCorrupt
+				}
+
 				v := b[i]
 				i += 1
 				if fv, ok := values[j].(*BooleanValue); ok {
@@ -640,12 +672,21 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 					}
 				}
 			case stringEntryType:
+				if i+4 > len(b) {
+					return ErrWALCorrupt
+				}
+
 				length := int(binary.BigEndian.Uint32(b[i : i+4]))
 				if i+length > int(uint32(len(b))) {
-					return fmt.Errorf("corrupted write wall entry")
+					return ErrWALCorrupt
 				}
 
 				i += 4
+
+				if i+length > len(b) {
+					return ErrWALCorrupt
+				}
+
 				v := string(b[i : i+length])
 				i += length
 				if fv, ok := values[j].(*StringValue); ok {
@@ -713,13 +754,24 @@ func (w *DeleteRangeWALEntry) MarshalBinary() ([]byte, error) {
 }
 
 func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
+	if len(b) < 16 {
+		return ErrWALCorrupt
+	}
+
 	w.Min = int64(binary.BigEndian.Uint64(b[:8]))
 	w.Max = int64(binary.BigEndian.Uint64(b[8:16]))
 
 	i := 16
 	for i < len(b) {
+		if i+4 > len(b) {
+			return ErrWALCorrupt
+		}
 		sz := int(binary.BigEndian.Uint32(b[i : i+4]))
 		i += 4
+
+		if i+sz > len(b) {
+			return ErrWALCorrupt
+		}
 		w.Keys = append(w.Keys, string(b[i:i+sz]))
 		i += sz
 	}
