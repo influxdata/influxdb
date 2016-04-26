@@ -485,6 +485,65 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	}
 }
 
+// Ensure the CacheLoader can load deleted series
+func TestCacheLoader_LoadDeleted(t *testing.T) {
+	// Create a WAL segment.
+	dir := mustTempDir()
+	defer os.RemoveAll(dir)
+	f := mustTempFile(dir)
+	w := NewWALSegmentWriter(f)
+
+	p1 := NewValue(1, 1.0)
+	p2 := NewValue(2, 2.0)
+	p3 := NewValue(3, 3.0)
+
+	values := map[string][]Value{
+		"foo": []Value{p1, p2, p3},
+	}
+
+	entry := &WriteWALEntry{
+		Values: values,
+	}
+
+	if err := w.Write(mustMarshalEntry(entry)); err != nil {
+		t.Fatal("write points", err)
+	}
+
+	dentry := &DeleteRangeWALEntry{
+		Keys: []string{"foo"},
+		Min:  2,
+		Max:  3,
+	}
+
+	if err := w.Write(mustMarshalEntry(dentry)); err != nil {
+		t.Fatal("write points", err)
+	}
+
+	// Load the cache using the segment.
+	cache := NewCache(1024, "")
+	loader := NewCacheLoader([]string{f.Name()})
+	if err := loader.Load(cache); err != nil {
+		t.Fatalf("failed to load cache: %s", err.Error())
+	}
+
+	// Check the cache.
+	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
+	}
+
+	// Reload the cache using the segment.
+	cache = NewCache(1024, "")
+	loader = NewCacheLoader([]string{f.Name()})
+	if err := loader.Load(cache); err != nil {
+		t.Fatalf("failed to load cache: %s", err.Error())
+	}
+
+	// Check the cache.
+	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
+	}
+}
+
 func mustTempDir() string {
 	dir, err := ioutil.TempDir("", "tsm1-test")
 	if err != nil {

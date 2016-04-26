@@ -513,6 +513,8 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 					if err := cache.WriteMulti(t.Values); err != nil {
 						return err
 					}
+				case *DeleteRangeWALEntry:
+					cache.DeleteRange(t.Keys, t.Min, t.Max)
 				case *DeleteWALEntry:
 					cache.Delete(t.Keys)
 				}

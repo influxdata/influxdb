@@ -51,8 +51,9 @@ type SegmentInfo struct {
 type WalEntryType byte
 
 const (
-	WriteWALEntryType  WalEntryType = 0x01
-	DeleteWALEntryType WalEntryType = 0x02
+	WriteWALEntryType       WalEntryType = 0x01
+	DeleteWALEntryType      WalEntryType = 0x02
+	DeleteRangeWALEntryType WalEntryType = 0x03
 )
 
 var ErrWALClosed = fmt.Errorf("WAL closed")
@@ -345,6 +346,24 @@ func (l *WAL) Delete(keys []string) (int, error) {
 	}
 	entry := &DeleteWALEntry{
 		Keys: keys,
+	}
+
+	id, err := l.writeToLog(entry)
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
+}
+
+// Delete deletes the given keys, returning the segment ID for the operation.
+func (l *WAL) DeleteRange(keys []string, min, max int64) (int, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	entry := &DeleteRangeWALEntry{
+		Keys: keys,
+		Min:  min,
+		Max:  max,
 	}
 
 	id, err := l.writeToLog(entry)
@@ -682,6 +701,59 @@ func (w *DeleteWALEntry) Type() WalEntryType {
 	return DeleteWALEntryType
 }
 
+// DeleteRangeWALEntry represents the deletion of multiple series.
+type DeleteRangeWALEntry struct {
+	Keys     []string
+	Min, Max int64
+}
+
+func (w *DeleteRangeWALEntry) MarshalBinary() ([]byte, error) {
+	b := make([]byte, defaultBufLen)
+	return w.Encode(b)
+}
+
+func (w *DeleteRangeWALEntry) UnmarshalBinary(b []byte) error {
+	w.Min = int64(binary.BigEndian.Uint64(b[:8]))
+	w.Max = int64(binary.BigEndian.Uint64(b[8:16]))
+
+	i := 16
+	for i < len(b) {
+		sz := int(binary.BigEndian.Uint32(b[i : i+4]))
+		i += 4
+		w.Keys = append(w.Keys, string(b[i:i+sz]))
+		i += sz
+	}
+	return nil
+}
+
+func (w *DeleteRangeWALEntry) Encode(b []byte) ([]byte, error) {
+	sz := 16
+	for _, k := range w.Keys {
+		sz += len(k)
+		sz += 4
+	}
+
+	if len(b) < sz {
+		b = make([]byte, sz)
+	}
+
+	binary.BigEndian.PutUint64(b[:8], uint64(w.Min))
+	binary.BigEndian.PutUint64(b[8:16], uint64(w.Max))
+
+	i := 16
+	for _, k := range w.Keys {
+		binary.BigEndian.PutUint32(b[i:i+4], uint32(len(k)))
+		i += 4
+		i += copy(b[i:], k)
+	}
+
+	return b[:i], nil
+}
+
+func (w *DeleteRangeWALEntry) Type() WalEntryType {
+	return DeleteRangeWALEntryType
+}
+
 // WALSegmentWriter writes WAL segments.
 type WALSegmentWriter struct {
 	w    io.WriteCloser
@@ -803,6 +875,8 @@ func (r *WALSegmentReader) Next() bool {
 		}
 	case DeleteWALEntryType:
 		r.entry = &DeleteWALEntry{}
+	case DeleteRangeWALEntryType:
+		r.entry = &DeleteRangeWALEntry{}
 	default:
 		r.err = fmt.Errorf("unknown wal entry type: %v", entryType)
 		return true

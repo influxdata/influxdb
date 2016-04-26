@@ -325,6 +325,106 @@ func TestWALWriter_WritePointsDelete_Multiple(t *testing.T) {
 	}
 }
 
+func TestWALWriter_WritePointsDeleteRange_Multiple(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	w := tsm1.NewWALSegmentWriter(f)
+
+	p1 := tsm1.NewValue(1, 1.0)
+	p2 := tsm1.NewValue(2, 2.0)
+	p3 := tsm1.NewValue(3, 3.0)
+
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{p1, p2, p3},
+	}
+
+	writeEntry := &tsm1.WriteWALEntry{
+		Values: values,
+	}
+
+	if err := w.Write(mustMarshalEntry(writeEntry)); err != nil {
+		fatal(t, "write points", err)
+	}
+
+	// Write the delete entry
+	deleteEntry := &tsm1.DeleteRangeWALEntry{
+		Keys: []string{"cpu,host=A#!~value"},
+		Min:  2,
+		Max:  3,
+	}
+
+	if err := w.Write(mustMarshalEntry(deleteEntry)); err != nil {
+		fatal(t, "write points", err)
+	}
+
+	// Seek back to the beinning of the file for reading
+	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
+		fatal(t, "seek", err)
+	}
+
+	r := tsm1.NewWALSegmentReader(f)
+
+	// Read the write points first
+	if !r.Next() {
+		t.Fatalf("expected next, got false")
+	}
+
+	we, err := r.Read()
+	if err != nil {
+		fatal(t, "read entry", err)
+	}
+
+	e, ok := we.(*tsm1.WriteWALEntry)
+	if !ok {
+		t.Fatalf("expected WriteWALEntry: got %#v", e)
+	}
+
+	for k, v := range e.Values {
+		if got, exp := len(v), len(values[k]); got != exp {
+			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+		}
+
+		for i, vv := range v {
+			if got, exp := vv.String(), values[k][i].String(); got != exp {
+				t.Fatalf("points mismatch: got %v, exp %v", got, exp)
+			}
+		}
+	}
+
+	// Read the delete second
+	if !r.Next() {
+		t.Fatalf("expected next, got false")
+	}
+
+	we, err = r.Read()
+	if err != nil {
+		fatal(t, "read entry", err)
+	}
+
+	de, ok := we.(*tsm1.DeleteRangeWALEntry)
+	if !ok {
+		t.Fatalf("expected DeleteWALEntry: got %#v", e)
+	}
+
+	if got, exp := len(de.Keys), len(deleteEntry.Keys); got != exp {
+		t.Fatalf("key length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := de.Keys[0], deleteEntry.Keys[0]; got != exp {
+		t.Fatalf("key mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := de.Min, int64(2); got != exp {
+		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := de.Max, int64(3); got != exp {
+		t.Fatalf("min time mismatch: got %v, exp %v", got, exp)
+	}
+
+}
+
 func TestWAL_ClosedSegments(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)

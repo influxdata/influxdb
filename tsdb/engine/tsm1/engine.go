@@ -407,7 +407,7 @@ func (e *Engine) DeleteSeries(seriesKeys []string, min, max int64) error {
 	e.Cache.DeleteRange(walKeys, min, max)
 
 	// delete from the WAL
-	_, err := e.WAL.Delete(walKeys)
+	_, err := e.WAL.DeleteRange(walKeys, min, max)
 	return err
 }
 
