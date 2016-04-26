@@ -3,6 +3,7 @@ package tsm1
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"reflect"
 	"testing"
@@ -69,6 +70,84 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 
 	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+}
+
+func TestCache_Cache_DeleteRange(t *testing.T) {
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, 3.0)
+	values := Values{v0, v1, v2}
+	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
+
+	c := NewCache(3*valuesSize, "")
+
+	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+	if n := c.Size(); n != 2*valuesSize {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
+	}
+
+	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+
+	c.DeleteRange([]string{"bar"}, 2, math.MaxInt64)
+
+	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+
+	if got, exp := c.Size(), valuesSize+uint64(v0.Size()); exp != got {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
+	}
+
+	if got, exp := len(c.Values("bar")), 1; got != exp {
+		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(c.Values("foo")), 3; got != exp {
+		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestCache_Cache_Delete(t *testing.T) {
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, 3.0)
+	values := Values{v0, v1, v2}
+	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
+
+	c := NewCache(3*valuesSize, "")
+
+	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+	if n := c.Size(); n != 2*valuesSize {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
+	}
+
+	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+
+	c.Delete([]string{"bar"})
+
+	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+
+	if got, exp := c.Size(), valuesSize; exp != got {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
+	}
+
+	if got, exp := len(c.Values("bar")), 0; got != exp {
+		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(c.Values("foo")), 3; got != exp {
+		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 }
 

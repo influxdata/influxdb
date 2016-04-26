@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"sync"
@@ -80,10 +81,27 @@ func (e *entry) deduplicate() {
 	e.needSort = false
 }
 
+// count returns number of values for this entry
 func (e *entry) count() int {
 	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return len(e.values)
+	n := len(e.values)
+	e.mu.RUnlock()
+	return n
+}
+
+// filter removes all values between min and max inclusive
+func (e *entry) filter(min, max int64) {
+	e.mu.Lock()
+	e.values = e.values.Filter(min, max)
+	e.mu.Unlock()
+}
+
+// size returns the size of this entry in bytes
+func (e *entry) size() int {
+	e.mu.RLock()
+	sz := e.values.Size()
+	e.mu.RUnlock()
+	return sz
 }
 
 // Statistics gathered by the Cache.
@@ -306,11 +324,24 @@ func (c *Cache) Values(key string) Values {
 
 // Delete will remove the keys from the cache
 func (c *Cache) Delete(keys []string) {
+	c.DeleteRange(keys, math.MinInt64, math.MaxInt64)
+}
+
+// DeleteRange will remove the keys containing points between min and max from the cache
+func (c *Cache) DeleteRange(keys []string, min, max int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, k := range keys {
-		delete(c.store, k)
+		origSize := c.store[k].size()
+		if min == math.MinInt64 && max == math.MaxInt64 {
+			c.size -= uint64(origSize)
+			delete(c.store, k)
+			continue
+		}
+
+		c.store[k].filter(min, max)
+		c.size -= uint64(origSize - c.store[k].size())
 	}
 }
 
