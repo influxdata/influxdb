@@ -105,9 +105,9 @@ INTO          KEY           KEYS          LIMIT         SHOW          MEASUREMEN
 MEASUREMENTS  NOT           OFFSET        ON            ORDER         PASSWORD
 POLICY        POLICIES      PRIVILEGES    QUERIES       QUERY         READ
 REPLICATION   RESAMPLE      RETENTION     REVOKE        SELECT        SERIES
-SERVER        SERVERS       SET           SHARD         SHARDS        SLIMIT
-SOFFSET       STATS         SUBSCRIPTION  SUBSCRIPTIONS TAG           TO
-USER          USERS         VALUES        WHERE         WITH          WRITE
+SET           SHARD         SHARDS        SLIMIT        SOFFSET       STATS
+SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER          USERS
+VALUES        WHERE         WITH          WRITE
 ```
 
 ## Literals

@@ -102,7 +102,6 @@ func (*DropDatabaseStatement) node()          {}
 func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
-func (*DropServerStatement) node()            {}
 func (*DropShardStatement) node()             {}
 func (*DropSubscriptionStatement) node()      {}
 func (*DropUserStatement) node()              {}
@@ -115,7 +114,6 @@ func (*SelectStatement) node()                {}
 func (*SetPasswordUserStatement) node()       {}
 func (*ShowContinuousQueriesStatement) node() {}
 func (*ShowGrantsForUserStatement) node()     {}
-func (*ShowServersStatement) node()           {}
 func (*ShowDatabasesStatement) node()         {}
 func (*ShowFieldKeysStatement) node()         {}
 func (*ShowRetentionPoliciesStatement) node() {}
@@ -217,7 +215,6 @@ func (*DropDatabaseStatement) stmt()          {}
 func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
-func (*DropServerStatement) stmt()            {}
 func (*DropSubscriptionStatement) stmt()      {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
@@ -225,7 +222,6 @@ func (*GrantAdminStatement) stmt()            {}
 func (*KillQueryStatement) stmt()             {}
 func (*ShowContinuousQueriesStatement) stmt() {}
 func (*ShowGrantsForUserStatement) stmt()     {}
-func (*ShowServersStatement) stmt()           {}
 func (*ShowDatabasesStatement) stmt()         {}
 func (*ShowFieldKeysStatement) stmt()         {}
 func (*ShowMeasurementsStatement) stmt()      {}
@@ -2168,33 +2164,6 @@ func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
 }
 
-// DropServerStatement represents a command for removing a server from the cluster.
-type DropServerStatement struct {
-	// ID of the node to be dropped.
-	NodeID uint64
-
-	// Meta indicates if the server being dropped is a meta or data node
-	Meta bool
-}
-
-// String returns a string representation of the drop series statement.
-func (s *DropServerStatement) String() string {
-	var buf bytes.Buffer
-	_, _ = buf.WriteString("DROP ")
-	if s.Meta {
-		_, _ = buf.WriteString(" META SERVER ")
-	} else {
-		_, _ = buf.WriteString(" DATA SERVER ")
-	}
-	_, _ = buf.WriteString(strconv.FormatUint(s.NodeID, 10))
-	return buf.String()
-}
-
-// RequiredPrivileges returns the privilege required to execute a DropServerStatement.
-func (s *DropServerStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
-}
-
 // DropShardStatement represents a command for removing a shard from
 // the node.
 type DropShardStatement struct {
@@ -2244,17 +2213,6 @@ func (s *ShowGrantsForUserStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowGrantsForUserStatement
 func (s *ShowGrantsForUserStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
-}
-
-// ShowServersStatement represents a command for listing all servers.
-type ShowServersStatement struct{}
-
-// String returns a string representation of the show servers command.
-func (s *ShowServersStatement) String() string { return "SHOW SERVERS" }
-
-// RequiredPrivileges returns the privilege required to execute a ShowServersStatement
-func (s *ShowServersStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 

@@ -126,8 +126,6 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseGrantsForUserStatement()
 	case DATABASES:
 		return p.parseShowDatabasesStatement()
-	case SERVERS:
-		return p.parseShowServersStatement()
 	case FIELD:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
@@ -181,7 +179,6 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		"QUERIES",
 		"RETENTION",
 		"SERIES",
-		"SERVERS",
 		"TAG",
 		"USERS",
 		"STATS",
@@ -225,8 +222,6 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	switch tok {
 	case CONTINUOUS:
 		return p.parseDropContinuousQueryStatement()
-	case DATA, META:
-		return p.parseDropServerStatement(tok)
 	case DATABASE:
 		return p.parseDropDatabaseStatement()
 	case MEASUREMENT:
@@ -245,7 +240,7 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	case USER:
 		return p.parseDropUserStatement()
 	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATA", "MEASUREMENT", "META", "RETENTION", "SERIES", "SHARD", "SUBSCRIPTION", "USER"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "MEASUREMENT", "RETENTION", "SERIES", "SHARD", "SUBSCRIPTION", "USER"}, pos)
 	}
 }
 
@@ -1380,29 +1375,6 @@ func (p *Parser) parseDropShardStatement() (*DropShardStatement, error) {
 	return stmt, nil
 }
 
-// parseDropServerStatement parses a string and returns a DropServerStatement.
-// This function assumes the "DROP <META|DATA>" tokens have already been consumed.
-func (p *Parser) parseDropServerStatement(tok Token) (*DropServerStatement, error) {
-	// Parse the SERVER token
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SERVER {
-		return nil, newParseError(tokstr(tok, lit), []string{"SERVER"}, pos)
-	}
-
-	s := &DropServerStatement{}
-	var err error
-
-	if tok == META {
-		s.Meta = true
-	}
-
-	// Parse the server's ID.
-	if s.NodeID, err = p.parseUInt64(); err != nil {
-		return nil, err
-	}
-
-	return s, nil
-}
-
 // parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.
 // This function assumes the "SHOW CONTINUOUS" tokens have already been consumed.
 func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesStatement, error) {
@@ -1413,13 +1385,6 @@ func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesSt
 		return nil, newParseError(tokstr(tok, lit), []string{"QUERIES"}, pos)
 	}
 
-	return stmt, nil
-}
-
-// parseShowServersStatement parses a string and returns a ShowServersStatement.
-// This function assumes the "SHOW SERVERS" tokens have already been consumed.
-func (p *Parser) parseShowServersStatement() (*ShowServersStatement, error) {
-	stmt := &ShowServersStatement{}
 	return stmt, nil
 }
 

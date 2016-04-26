@@ -39,6 +39,7 @@
 - [#3883](https://github.com/influxdata/influxdb/issues/3883): Improve query sanitization to prevent a password leak in the logs.
 - [#6462](https://github.com/influxdata/influxdb/pull/6462): Add safer locking to CreateFieldIfNotExists
 - [#6361](https://github.com/influxdata/influxdb/pull/6361): Fix cluster/pool release of connection
+- [#6470](https://github.com/influxdata/influxdb/pull/6470): Remove SHOW SERVERS & DROP SERVER support
 
 ## v0.12.2 [2016-04-20]
 
