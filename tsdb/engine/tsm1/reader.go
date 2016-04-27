@@ -640,12 +640,35 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 		return
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for _, k := range keys {
-		d.tombstones[k] = append(d.tombstones[k], TimeRange{minTime, maxTime})
+	// Is the range passed in outside of the time range for the file?
+	min, max := d.TimeRange()
+	if minTime > max || maxTime < min {
+		return
 	}
+
+	tombstones := map[string][]TimeRange{}
+	for _, k := range keys {
+
+		// Is the range passed in outside the time range for this key?
+		entries := d.Entries(k)
+		min, max := entries[0].MinTime, entries[len(entries)-1].MaxTime
+		if minTime > max || maxTime < min {
+			continue
+		}
+
+		tombstones[k] = append(tombstones[k], TimeRange{minTime, maxTime})
+	}
+
+	if len(tombstones) == 0 {
+		return
+	}
+
+	d.mu.Lock()
+	for k, v := range tombstones {
+		d.tombstones[k] = append(d.tombstones[k], v...)
+	}
+	d.mu.Unlock()
+
 }
 
 func (d *indirectIndex) TombstoneRange(key string) []TimeRange {

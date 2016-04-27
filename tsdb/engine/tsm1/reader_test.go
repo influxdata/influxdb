@@ -514,6 +514,90 @@ func TestTSMReader_MMAP_TombstoneMultipleRanges(t *testing.T) {
 	}
 }
 
+func TestTSMReader_MMAP_TombstoneOutsideRange(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	cpuValues := []tsm1.Value{
+		tsm1.NewValue(1, 1.0),
+		tsm1.NewValue(2, 2.0),
+		tsm1.NewValue(3, 3.0),
+	}
+	if err := w.Write("cpu", cpuValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	memValues := []tsm1.Value{
+		tsm1.NewValue(1, 1.0),
+		tsm1.NewValue(2, 2.0),
+		tsm1.NewValue(30, 3.0),
+	}
+	if err := w.Write("mem", memValues); err != nil {
+		t.Fatalf("unexpected error writing: %v", err)
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+
+	if err := r.DeleteRange([]string{"cpu", "mem"}, 5, math.MaxInt64); err != nil {
+		t.Fatalf("unexpected error deleting: %v", err)
+	}
+	defer r.Close()
+
+	if got, exp := r.KeyCount(), 2; got != exp {
+		t.Fatalf("key count mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(r.TombstoneRange("cpu")), 0; got != exp {
+		t.Fatalf("tombstone range mismatch: got %v, exp %v", got, exp)
+	}
+
+	values, err := r.ReadAll("cpu")
+	if err != nil {
+		t.Fatalf("unexpected error reading all: %v", err)
+	}
+
+	if got, exp := len(values), len(cpuValues); got != exp {
+		t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if got, exp := len(r.TombstoneRange("mem")), 1; got != exp {
+		t.Fatalf("tombstone range mismatch: got %v, exp %v", got, exp)
+	}
+
+	values, err = r.ReadAll("mem")
+	if err != nil {
+		t.Fatalf("unexpected error reading all: %v", err)
+	}
+
+	if got, exp := len(values), len(memValues[:2]); got != exp {
+		t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
+	}
+
+}
+
 func TestTSMReader_MMAP_Stats(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
