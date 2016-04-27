@@ -272,6 +272,14 @@ func (s *Shard) DeleteSeries(seriesKeys []string) error {
 	return s.engine.DeleteSeries(seriesKeys)
 }
 
+// DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
+func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
+	if s.closed() {
+		return ErrEngineClosed
+	}
+	return s.engine.DeleteSeriesRange(seriesKeys, min, max)
+}
+
 // DeleteMeasurement deletes a measurement and all underlying series.
 func (s *Shard) DeleteMeasurement(name string, seriesKeys []string) error {
 	if s.closed() {

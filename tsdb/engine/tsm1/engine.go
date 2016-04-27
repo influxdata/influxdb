@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -367,8 +368,13 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// DeleteSeries deletes the series from the engine.
+// DeleteSeries removes all series keys from the engine.
 func (e *Engine) DeleteSeries(seriesKeys []string) error {
+	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
+}
+
+// DeleteSeriesRange removes the values between min and max (inclusive) from all series.
+func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -387,7 +393,7 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 			deleteKeys = append(deleteKeys, k)
 		}
 	}
-	if err := e.FileStore.Delete(deleteKeys); err != nil {
+	if err := e.FileStore.DeleteRange(deleteKeys, min, max); err != nil {
 		return err
 	}
 
@@ -403,10 +409,10 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 	}
 	e.Cache.RUnlock()
 
-	e.Cache.Delete(walKeys)
+	e.Cache.DeleteRange(walKeys, min, max)
 
 	// delete from the WAL
-	_, err := e.WAL.Delete(walKeys)
+	_, err := e.WAL.DeleteRange(walKeys, min, max)
 	return err
 }
 

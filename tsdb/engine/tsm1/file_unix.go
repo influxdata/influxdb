@@ -13,3 +13,8 @@ func syncDir(dirName string) error {
 	defer dir.Close()
 	return dir.Sync()
 }
+
+// renameFile will rename the source to target using os function.
+func renameFile(oldpath, newpath string) error {
+	return os.Rename(oldpath, newpath)
+}

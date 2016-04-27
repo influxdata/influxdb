@@ -1,7 +1,6 @@
 package tsm1_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,7 +11,9 @@ import (
 )
 
 func TestFileStore_Read(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -21,7 +22,7 @@ func TestFileStore_Read(t *testing.T) {
 		keyValues{"mem", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -47,7 +48,9 @@ func TestFileStore_Read(t *testing.T) {
 }
 
 func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -56,7 +59,7 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -84,7 +87,9 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 }
 
 func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -94,7 +99,7 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 4.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -137,7 +142,9 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 }
 
 func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -146,7 +153,7 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -176,7 +183,9 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 // Tests that seeking and reading all blocks that contain overlapping points does
 // not skip any blocks.
 func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -186,7 +195,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 4.0), tsm1.NewValue(7, 7.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -222,7 +231,9 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 // Tests that seeking and reading all blocks that contain overlapping points does
 // not skip any blocks.
 func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -232,7 +243,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, int64(4)), tsm1.NewValue(7, int64(7))}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -268,7 +279,9 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 // Tests that seeking and reading all blocks that contain overlapping points does
 // not skip any blocks.
 func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -278,7 +291,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, false), tsm1.NewValue(7, true)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -314,7 +327,9 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 // Tests that seeking and reading all blocks that contain overlapping points does
 // not skip any blocks.
 func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -324,7 +339,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, "four"), tsm1.NewValue(7, "seven")}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -358,7 +373,9 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 }
 
 func TestFileStore_SeekToAsc_Middle(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -368,7 +385,7 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(4, 4.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -396,7 +413,9 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 }
 
 func TestFileStore_SeekToAsc_End(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -405,7 +424,7 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -432,7 +451,9 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -441,7 +462,7 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -468,7 +489,9 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -478,7 +501,7 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -508,7 +531,9 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -517,7 +542,7 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -544,7 +569,9 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -554,7 +581,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, 4.0), tsm1.NewValue(7, 7.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -588,7 +615,9 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -598,7 +627,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, int64(4)), tsm1.NewValue(7, int64(7))}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -632,7 +661,9 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -642,7 +673,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, true), tsm1.NewValue(7, false)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -676,7 +707,9 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -686,7 +719,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, "four"), tsm1.NewValue(7, "seven")}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -720,7 +753,9 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_Middle(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -732,7 +767,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 		},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -760,7 +795,9 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 }
 
 func TestFileStore_SeekToDesc_End(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -769,7 +806,7 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -791,6 +828,226 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
 			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	expValues := []int{0, 2}
+	for _, v := range expValues {
+		values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+		if err != nil {
+			t.Fatalf("unexpected error reading values: %v", err)
+		}
+
+		exp := data[v]
+		if got, exp := len(values), 1; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[0].String(), exp.values[0].String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+		c.Next()
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialFloat(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, 1.0),
+			tsm1.NewValue(1, 2.0),
+			tsm1.NewValue(2, 3.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialInteger(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, int64(1)),
+			tsm1.NewValue(1, int64(2)),
+			tsm1.NewValue(2, int64(3))}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.IntegerValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialString(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, "1"),
+			tsm1.NewValue(1, "2"),
+			tsm1.NewValue(2, "3")}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.StringValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+		}
+	}
+}
+
+func TestKeyCursor_TombstoneRange_PartialBoolean(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{
+			tsm1.NewValue(0, true),
+			tsm1.NewValue(1, false),
+			tsm1.NewValue(2, true)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	buf := make([]tsm1.BooleanValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	expValues := []tsm1.Value{data[0].values[0], data[0].values[2]}
+	for i, v := range expValues {
+		exp := v
+		if got, exp := len(values), 2; got != exp {
+			t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := values[i].String(), exp.String(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
 		}
 	}
 }
@@ -909,7 +1166,9 @@ func TestFileStore_Open_Deleted(t *testing.T) {
 }
 
 func TestFileStore_Delete(t *testing.T) {
-	fs := tsm1.NewFileStore("")
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
 
 	// Setup 3 files
 	data := []keyValues{
@@ -918,7 +1177,7 @@ func TestFileStore_Delete(t *testing.T) {
 		keyValues{"mem,host=server1!~#!value", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
 	}
 
-	files, err := newFiles(data...)
+	files, err := newFiles(dir, data...)
 	if err != nil {
 		t.Fatalf("unexpected error creating files: %v", err)
 	}
@@ -1003,12 +1262,13 @@ func newFileDir(dir string, values ...keyValues) ([]string, error) {
 
 }
 
-func newFiles(values ...keyValues) ([]tsm1.TSMFile, error) {
+func newFiles(dir string, values ...keyValues) ([]tsm1.TSMFile, error) {
 	var files []tsm1.TSMFile
 
+	id := 1
 	for _, v := range values {
-		var b bytes.Buffer
-		w, err := tsm1.NewTSMWriter(&b)
+		f := MustTempFile(dir)
+		w, err := tsm1.NewTSMWriter(f)
 		if err != nil {
 			return nil, err
 		}
@@ -1025,7 +1285,17 @@ func newFiles(values ...keyValues) ([]tsm1.TSMFile, error) {
 			return nil, err
 		}
 
-		r, err := tsm1.NewTSMReader(bytes.NewReader(b.Bytes()))
+		newName := filepath.Join(filepath.Dir(f.Name()), tsmFileName(id))
+		if err := os.Rename(f.Name(), newName); err != nil {
+			return nil, err
+		}
+		id++
+
+		fd, err := os.Open(newName)
+		if err != nil {
+			return nil, err
+		}
+		r, err := tsm1.NewTSMReader(fd)
 		if err != nil {
 			return nil, err
 		}
