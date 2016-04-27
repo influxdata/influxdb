@@ -761,16 +761,22 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 	}
 
-	// Only one block, just return early everything after is wasted work
-	if len(k.blocks) == 1 {
+	// No blocks left, we're done
+	if len(k.blocks) == 0 {
+		return false
+	}
+
+	// Only one block and no tombstoned values, just return early everything after is wasted work
+	if len(k.blocks) == 1 && len(k.blocks[0].tombstones) == 0 {
 		return true
 	}
 
 	// If we have more than one block or any partially tombstoned blocks, we many need to dedup
-	var dedup bool
+	dedup := len(k.blocks[0].tombstones) > 0
 
 	if len(k.blocks) > 1 {
 		dedup = len(k.blocks[0].tombstones) > 0
+
 		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
 		// we need to dedup as there may be duplicate points now
 		for i := 1; !dedup && i < len(k.blocks); i++ {
