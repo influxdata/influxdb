@@ -74,9 +74,9 @@ func New(version string) *CommandLine {
 
 // Run executes the CLI
 func (c *CommandLine) Run() error {
-	// register OS signals for graceful termination
 	if !c.IgnoreSignals {
-		signal.Notify(c.osSignals, os.Kill, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+		// register OS signals for graceful termination
+		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
 	}
 
 	var promptForPassword bool
@@ -182,7 +182,8 @@ func (c *CommandLine) Run() error {
 	for {
 		select {
 		case <-c.osSignals:
-			close(c.Quit)
+			c.exit()
+			return nil
 		case <-c.Quit:
 			c.exit()
 			return nil
@@ -210,7 +211,6 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 	if len(tokens) > 0 {
 		switch tokens[0] {
 		case "exit", "quit":
-			// signal the program to exit
 			close(c.Quit)
 		case "gopher":
 			c.gopher()
