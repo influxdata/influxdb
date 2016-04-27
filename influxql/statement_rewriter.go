@@ -25,9 +25,7 @@ func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, err
 		Fields: Fields([]*Field{
 			{Expr: &VarRef{Val: "fieldKey"}},
 		}),
-		Sources: Sources([]Source{
-			&Measurement{Name: "_fieldKeys"},
-		}),
+		Sources:    rewriteSources(stmt.Sources, "_fieldKeys"),
 		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -74,9 +72,7 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 		Fields: []*Field{
 			{Expr: &VarRef{Val: "key"}},
 		},
-		Sources: []Source{
-			&Measurement{Name: "_series"},
-		},
+		Sources:    rewriteSources(stmt.Sources, "_series"),
 		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -131,9 +127,7 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 			{Expr: &VarRef{Val: "_tagKey"}, Alias: "key"},
 			{Expr: &VarRef{Val: "value"}},
 		},
-		Sources: []Source{
-			&Measurement{Name: "_tags"},
-		},
+		Sources:    rewriteSources(stmt.Sources, "_tags"),
 		Condition:  condition,
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -153,9 +147,7 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		Fields: []*Field{
 			{Expr: &VarRef{Val: "tagKey"}},
 		},
-		Sources: []Source{
-			&Measurement{Name: "_tagKeys"},
-		},
+		Sources:    rewriteSources(stmt.Sources, "_tagKeys"),
 		Condition:  rewriteSourcesCondition(stmt.Sources, stmt.Condition),
 		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
@@ -163,6 +155,28 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		OmitTime:   true,
 		Dedupe:     true,
 	}, nil
+
+}
+
+// rewriteSources rewrites sources with previous database and retention policy
+func rewriteSources(sources Sources, measurementName string) Sources {
+	newSources := Sources{}
+	for _, src := range sources {
+		if src == nil {
+			continue
+		}
+		mm := src.(*Measurement)
+		newSources = append(newSources,
+			&Measurement{
+				Database:        mm.Database,
+				RetentionPolicy: mm.RetentionPolicy,
+				Name:            measurementName,
+			})
+	}
+	if len(newSources) <= 0 {
+		return append(newSources, &Measurement{Name: measurementName})
+	}
+	return newSources
 }
 
 // rewriteSourcesCondition rewrites sources into `name` expressions.

@@ -47,6 +47,9 @@
 - [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
 - [#6491](https://github.com/influxdata/influxdb/pull/6491): Fix the CLI not to enter an infinite loop when the liner has an error.
 - [#6457](https://github.com/influxdata/influxdb/issues/6457): Retention policy cleanup does not remove series
+- [#6477] (https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
+-  [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
+- [#6480](https://github.com/influxdata/influxdb/issues/6480): Fix SHOW statements' rewriting bug
 
 ## v0.12.2 [2016-04-20]
 
