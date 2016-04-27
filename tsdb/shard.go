@@ -185,6 +185,9 @@ func (s *Shard) close() error {
 		return nil
 	}
 
+	// Don't leak our shard ID and series keys in the index
+	s.index.RemoveShard(s.id)
+
 	err := s.engine.Close()
 	if err == nil {
 		s.engine = nil
