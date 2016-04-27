@@ -531,7 +531,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 }
 
 // DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
-func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
+func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, dropMeta bool) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
 	if err != nil {
@@ -540,6 +540,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		return nil
 	}
 	sources = a
+
+	// Determine deletion time range.
+	min, max, err := influxql.TimeRangeAsEpochNano(condition)
+	if err != nil {
+		return err
+	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -573,7 +579,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 			// Check for unsupported field filters.
 			// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
 			if filters.Len() > 0 {
-				return errors.New("DROP SERIES doesn't support fields in WHERE clause")
+				return errors.New("fields not supported in WHERE clause during deletion")
 			}
 		} else {
 			// No WHERE clause so get all series IDs for this measurement.
@@ -586,17 +592,19 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	}
 
 	// delete the raw series data
-	if err := s.deleteSeries(database, seriesKeys); err != nil {
+	if err := s.deleteSeries(database, seriesKeys, min, max); err != nil {
 		return err
 	}
 
 	// remove them from the index
-	db.DropSeries(seriesKeys)
+	if dropMeta {
+		db.DropSeries(seriesKeys)
+	}
 
 	return nil
 }
 
-func (s *Store) deleteSeries(database string, seriesKeys []string) error {
+func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int64) error {
 	if _, ok := s.databaseIndexes[database]; !ok {
 		return influxql.ErrDatabaseNotFound(database)
 	}
@@ -605,7 +613,7 @@ func (s *Store) deleteSeries(database string, seriesKeys []string) error {
 		if sh.database != database {
 			continue
 		}
-		if err := sh.DeleteSeries(seriesKeys); err != nil {
+		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
 			return err
 		}
 	}

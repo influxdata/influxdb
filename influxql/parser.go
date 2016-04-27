@@ -993,33 +993,34 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 	return t, nil
 }
 
-// parseDeleteStatement parses a delete string and returns a DeleteStatement.
+// parseDeleteStatement parses a string and returns a delete statement.
 // This function assumes the DELETE token has already been consumed.
-func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
-	// TODO remove and do not skip test once we wire up DELETE FROM.
-	// See issues https://github.com/influxdata/influxdb/issues/1647
-	// and https://github.com/influxdata/influxdb/issues/4404
-	return nil, errors.New("DELETE FROM is currently not supported. Use DROP SERIES or DROP MEASUREMENT instead")
-	//stmt := &DeleteStatement{}
+func (p *Parser) parseDeleteStatement() (Statement, error) {
+	stmt := &DeleteSeriesStatement{}
+	var err error
 
-	//// Parse source
-	//if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-	//	return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
-	//}
-	//source, err := p.parseSource()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//stmt.Source = source
+	tok, pos, lit := p.scanIgnoreWhitespace()
 
-	//// Parse condition: "WHERE EXPR".
-	//condition, err := p.parseCondition()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//stmt.Condition = condition
+	if tok == FROM {
+		// Parse source.
+		if stmt.Sources, err = p.parseSources(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
 
-	//return stmt, nil
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// If they didn't provide a FROM or a WHERE, this query is invalid
+	if stmt.Condition == nil && stmt.Sources == nil {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM", "WHERE"}, pos)
+	}
+
+	return stmt, nil
 }
 
 // parseShowSeriesStatement parses a string and returns a ShowSeriesStatement.

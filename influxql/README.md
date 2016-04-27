@@ -358,6 +358,20 @@ CREATE USER jdoe WITH PASSWORD '1337password';
 CREATE USER jdoe WITH PASSWORD '1337password' WITH ALL PRIVILEGES;
 ```
 
+### DELETE SERIES
+
+```
+delete_series_stmt = "DELETE SERIES" ( from_clause | where_clause | from_clause where_clause ) .
+```
+
+#### Example:
+
+```sql
+DELETE FROM cpu
+DELETE FROM cpu WHERE time < '2000-01-01T00:00:00Z'
+DELETE WHERE time < '2000-01-01T00:00:00Z'
+```
+
 ### DROP CONTINUOUS QUERY
 
 ```
