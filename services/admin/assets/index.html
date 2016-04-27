@@ -119,6 +119,7 @@
             <div class="row">
                 <div class="col-sm-12" id="content">
                     <div class="dropdown text-right" id="template-container">
+                        <button class="btn btn-default disabled" id="generate-query-url" data-toggle="modal" data-target="#queryURLModal">Generate Query URL</button>
                         <button class="btn btn-default dropdown-toggle" id="dropdown-templates" data-toggle="dropdown">Query Templates <span class="caret"></span> </button>
                         <ul class="dropdown-menu pull-right" id="action-template">
                           <li><label data-query="SHOW DATABASES">Show Databases</label></li>
@@ -192,6 +193,24 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="queryURLModal" tabindex="-1" role="dialog" aria-labelledby="queryURLModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="queryURLModalLabel">URL for the Query</h4>
+                </div>
+                <div class="modal-body">
+                    <textarea class="form-control" id="query-url"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="js/vendor/react-0.13.3.min.js"></script>

@@ -228,6 +228,13 @@ var handleRequestError = function(e) {
 var handleKeypress = function(e) {
     var queryElement = document.getElementById('query');
 
+    // Enable/Disable the generate permalink button
+    if(queryElement.value == "" && !$("#generate-query-url").hasClass("disabled")) {
+        $("#generate-query-url").addClass("disabled");
+    } else {
+        $("#generate-query-url").removeClass("disabled");
+    }
+
     // key press == enter
     if (e.keyCode == 13) {
         e.preventDefault();
@@ -424,6 +431,17 @@ var updateDatabaseList = function() {
     }
 }
 
+var generateQueryURL = function() {
+    var q = document.getElementById('query').value;
+
+    var query = connectionString() + "/query?";
+    var queryParams = {q: q, db: currentlySelectedDatabase};
+    query += $.param(queryParams);
+
+    var textarea = $("#query-url");
+    textarea.val(query);
+}
+
 // when the page is ready, start everything up
 $(document).ready(function () {
     loadSettings();
@@ -474,6 +492,18 @@ $(document).ready(function () {
             showModalSuccess("Write succeeded. (" + elapsed + "ms)");
         });
 
+    });
+
+    // Enable auto select of the text in modal
+    $('#queryURLModal').on('shown.bs.modal', function () {
+        var textarea = $("#query-url");
+        textarea.focus();
+        textarea.select();
+    });
+
+    //bind to the generate permalink button
+    $("#generate-query-url").click(function (e) {
+        generateQueryURL();
     });
 
     // handle submit actions on the query bar
