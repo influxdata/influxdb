@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 
 	"github.com/golang/snappy"
@@ -640,7 +639,6 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
 		// re-allocated to ensure capacity would be exceed if slicing
 		truncated := make([]byte, i)
 		copy(truncated, b[:i])
-		spew.Dump(truncated)
 		err := w.UnmarshalBinary(truncated)
 		if err != nil && err != tsm1.ErrWALCorrupt {
 			t.Fatalf("unexpected error: %v", err)
