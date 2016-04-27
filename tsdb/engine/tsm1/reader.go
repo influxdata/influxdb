@@ -200,7 +200,7 @@ func (t *TSMReader) applyTombstones() error {
 
 	// Update our index
 	for _, ts := range tombstones {
-		t.index.Delete([]string{ts.Key})
+		t.index.DeleteRange([]string{ts.Key}, ts.Min, ts.Max)
 	}
 	return nil
 }

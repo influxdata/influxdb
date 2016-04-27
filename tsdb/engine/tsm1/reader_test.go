@@ -855,6 +855,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 		t.Fatalf("value count mismatch: got %v, exp %v", got, exp)
 	}
 }
+
 func TestBlockIterator_Sorted(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
