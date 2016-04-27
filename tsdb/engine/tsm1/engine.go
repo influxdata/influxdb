@@ -368,8 +368,13 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// DeleteSeries deletes the series from the engine.
-func (e *Engine) DeleteSeries(seriesKeys []string, min, max int64) error {
+// DeleteSeries removes all series keys from the engine.
+func (e *Engine) DeleteSeries(seriesKeys []string) error {
+	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
+}
+
+// DeleteSeriesRange removes the values between min and max (inclusive) from all series.
+func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -417,7 +422,7 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 	delete(e.measurementFields, name)
 	e.mu.Unlock()
 
-	return e.DeleteSeries(seriesKeys, math.MinInt64, math.MaxInt64)
+	return e.DeleteSeries(seriesKeys)
 }
 
 // SeriesCount returns the number of series buckets on the shard.

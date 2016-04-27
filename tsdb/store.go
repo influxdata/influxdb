@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -606,7 +605,7 @@ func (s *Store) deleteSeries(database string, seriesKeys []string) error {
 		if sh.database != database {
 			continue
 		}
-		if err := sh.DeleteSeries(seriesKeys, math.MinInt64, math.MaxInt64); err != nil {
+		if err := sh.DeleteSeries(seriesKeys); err != nil {
 			return err
 		}
 	}

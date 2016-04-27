@@ -327,7 +327,8 @@ func (c *Cache) Delete(keys []string) {
 	c.DeleteRange(keys, math.MinInt64, math.MaxInt64)
 }
 
-// DeleteRange will remove the keys containing points between min and max from the cache
+// DeleteRange will remove the values for all keys containing points
+// between min and max from the cache.
 func (c *Cache) DeleteRange(keys []string, min, max int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -341,6 +342,10 @@ func (c *Cache) DeleteRange(keys []string, min, max int64) {
 		}
 
 		c.store[k].filter(min, max)
+		if c.store[k].count() == 0 {
+			delete(c.store, k)
+		}
+
 		c.size -= uint64(origSize - c.store[k].size())
 	}
 }

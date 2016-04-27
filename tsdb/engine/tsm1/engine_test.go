@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -113,7 +112,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	}
 
 	// Remove series.
-	if err := e.DeleteSeries([]string{"cpu,host=A"}, math.MinInt64, math.MaxInt64); err != nil {
+	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
 		t.Fatalf("failed to delete series: %s", err.Error())
 	}
 
