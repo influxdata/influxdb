@@ -43,8 +43,9 @@
 - [#6462](https://github.com/influxdata/influxdb/pull/6462): Add safer locking to CreateFieldIfNotExists
 - [#6361](https://github.com/influxdata/influxdb/pull/6361): Fix cluster/pool release of connection
 - [#6470](https://github.com/influxdata/influxdb/pull/6470): Remove SHOW SERVERS & DROP SERVER support
-- [#6477] (https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
--  [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
+- [#6477](https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
+- [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
+- [#6491](https://github.com/influxdata/influxdb/pull/6491): Fix the CLI not to enter an infinite loop when the liner has an error.
 
 ## v0.12.2 [2016-04-20]
 
