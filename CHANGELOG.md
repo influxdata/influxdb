@@ -18,6 +18,7 @@
 - [#3558](https://github.com/influxdata/influxdb/issues/3558): Support field math inside a WHERE clause.
 - [#6429](https://github.com/influxdata/influxdb/issues/6429): Log slow queries if they pass a configurable threshold.
 - [#4675](https://github.com/influxdata/influxdb/issues/4675): Allow derivative() function to be used with ORDER BY desc.
+-  [#6483](https://github.com/influxdata/influxdb/pull/6483): Delete series support for TSM
 
 ### Bugfixes
 
@@ -41,6 +42,7 @@
 - [#6361](https://github.com/influxdata/influxdb/pull/6361): Fix cluster/pool release of connection
 - [#6470](https://github.com/influxdata/influxdb/pull/6470): Remove SHOW SERVERS & DROP SERVER support
 - [#6477] (https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
+-  [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
 
 ## v0.12.2 [2016-04-20]
 
