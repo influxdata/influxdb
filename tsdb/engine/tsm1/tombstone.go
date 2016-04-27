@@ -142,7 +142,7 @@ func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
 	tmpFilename := tmp.Name()
 	tmp.Close()
 
-	if err := os.Rename(tmpFilename, t.tombstonePath()); err != nil {
+	if err := renameFile(tmpFilename, t.tombstonePath()); err != nil {
 		return err
 	}
 

@@ -102,8 +102,11 @@ func TestTombstoner_ReadV1(t *testing.T) {
 	if err := ioutil.WriteFile(f.Name(), []byte("foo\n"), 0x0600); err != nil {
 		t.Fatalf("write v1 file: %v", err)
 	}
+	f.Close()
 
-	os.Rename(f.Name(), f.Name()+".tombstone")
+	if err := os.Rename(f.Name(), f.Name()+".tombstone"); err != nil {
+		t.Fatalf("rename tombstone failed: %v", err)
+	}
 
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
