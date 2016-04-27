@@ -774,11 +774,7 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 		}
 		switch node := node.(type) {
 		case *influxql.Measurement:
-			e := e.normalizeMeasurement(node, defaultDatabase)
-			if e != nil {
-				err = e
-				return
-			}
+			err = e.normalizeMeasurement(node, defaultDatabase)
 		}
 	})
 	return
