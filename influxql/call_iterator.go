@@ -1030,3 +1030,23 @@ func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Itera
 		return nil, fmt.Errorf("unsupported moving average iterator type: %T", input)
 	}
 }
+
+// newDerivativeIterator returns an iterator for operating on a derivative() call.
+func newIntegralIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatIntegralReducer(uint32(20))
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerIntegralReducer(uint32(20))
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported derivative iterator type: %T", input)
+	}
+}

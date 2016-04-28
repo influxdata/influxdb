@@ -230,7 +230,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 				return nil, err
 			}
 			return NewIntervalIterator(input, opt), nil
-		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
+		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed", "integral":
 			if !opt.Interval.IsZero() {
 				if opt.Ascending {
 					opt.StartTime -= int64(opt.Interval.Duration)
@@ -264,6 +264,8 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions) (Iter
 					}
 				}
 				return newMovingAverageIterator(input, int(n.Val), opt)
+			case "integral":
+				return newIntegralIterator(input, opt)
 			}
 			panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
 		default:

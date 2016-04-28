@@ -309,3 +309,63 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 		},
 	}
 }
+
+// FloatIntegralReducer calculates the integral of the aggregated points.
+type FloatIntegralReducer struct {
+	minValue      uint32
+	prev          FloatPoint
+	curr          FloatPoint
+}
+
+// NewFloatIntegralReducer creates a new FloatIntegralReducer.
+func NewFloatIntegralReducer(minValue uint32) *FloatIntegralReducer {
+	return &FloatIntegralReducer{
+		minValue:      minValue,
+		prev:          FloatPoint{Nil: true},
+		curr:          FloatPoint{Nil: true},
+	}
+}
+
+// AggregateFloat aggregates a point into the reducer and updates the current window.
+func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the derivative of the reducer at the current point.
+func (r *FloatIntegralReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		return []FloatPoint{{Time: r.curr.Time, Value: r.curr.Value - float64(r.minValue)}}
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: float64(0)}}
+}
+
+// IntegerIntegralReducer calculates the integral of the aggregated points.
+type IntegerIntegralReducer struct {
+	minValue      uint32
+	prev          IntegerPoint
+	curr          IntegerPoint
+}
+
+// NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
+func NewIntegerIntegralReducer(minValue uint32) *IntegerIntegralReducer {
+	return &IntegerIntegralReducer{
+		minValue:      minValue,
+		prev:          IntegerPoint{Nil: true},
+		curr:          IntegerPoint{Nil: true},
+	}
+}
+
+// AggregateInteger aggregates a point into the reducer and updates the current window.
+func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the derivative of the reducer at the current point.
+func (r *IntegerIntegralReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		return []FloatPoint{{Time: r.curr.Time, Value: float64(r.curr.Value) - float64(r.minValue)}}
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: float64(0)}}
+}
