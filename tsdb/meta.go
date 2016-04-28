@@ -387,11 +387,15 @@ func (d *DatabaseIndex) Measurements() Measurements {
 	return measurements
 }
 
-// DropMeasurement removes the measurement and all of its underlying series from the database index
+// DropMeasurement removes the measurement and all of its underlying
+// series from the database index
 func (d *DatabaseIndex) DropMeasurement(name string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.dropMeasurement(name)
+}
 
+func (d *DatabaseIndex) dropMeasurement(name string) {
 	m := d.measurements[name]
 	if m == nil {
 		return
@@ -411,7 +415,11 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	var nDeleted int64
+	var (
+		mToDelete = map[string]struct{}{}
+		nDeleted  int64
+	)
+
 	for _, k := range keys {
 		series := d.series[k]
 		if series == nil {
@@ -420,8 +428,17 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 		series.measurement.DropSeries(series.id)
 		delete(d.series, k)
 		nDeleted++
+
+		// If there are no more series in the measurement then we'll
+		// remove it.
+		if len(series.measurement.seriesByID) == 0 {
+			mToDelete[series.measurement.Name] = struct{}{}
+		}
 	}
 
+	for mname := range mToDelete {
+		d.dropMeasurement(mname)
+	}
 	d.statMap.Add(statDatabaseSeries, -nDeleted)
 }
 
