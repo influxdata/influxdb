@@ -163,6 +163,29 @@ func (d *DatabaseIndex) AssignShard(k string, shardID uint64) {
 	}
 }
 
+// RemoveShard removes all references to shardID from any series or measurements
+// in the index.  If the shard was the only owner of data for the series, the series
+// is removed from the index.
+func (d *DatabaseIndex) RemoveShard(shardID uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for k, series := range d.series {
+		if series.Assigned(shardID) {
+			// Remove the shard from any series
+			series.UnassignShard(shardID)
+
+			// If this series only had one shard assign, remove the series
+			if series.ShardN() == 0 {
+				for _, measurement := range d.measurements {
+					measurement.DropSeries(series.id)
+				}
+			}
+			delete(d.series, k)
+		}
+	}
+}
+
 // TagsForSeries returns the tag map for the passed in series
 func (d *DatabaseIndex) TagsForSeries(key string) map[string]string {
 	d.mu.RLock()
@@ -1386,11 +1409,24 @@ func (s *Series) AssignShard(shardID uint64) {
 	s.mu.Unlock()
 }
 
+func (s *Series) UnassignShard(shardID uint64) {
+	s.mu.Lock()
+	delete(s.shardIDs, shardID)
+	s.mu.Unlock()
+}
+
 func (s *Series) Assigned(shardID uint64) bool {
 	s.mu.RLock()
 	b := s.shardIDs[shardID]
 	s.mu.RUnlock()
 	return b
+}
+
+func (s *Series) ShardN() int {
+	s.mu.RLock()
+	n := len(s.shardIDs)
+	s.mu.RUnlock()
+	return n
 }
 
 // MarshalBinary encodes the object to a binary format.
