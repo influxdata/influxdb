@@ -6162,3 +6162,176 @@ func TestServer_WhereTimeInclusive(t *testing.T) {
 		}
 	}
 }
+
+// Ensure the server can handle various simple integral queries.
+func TestServer_Query_SelectRawIntegral(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=15 1278010021000000000
+cpu value=20 1278010022000000000
+cpu value=25 1278010023000000000
+cpu value=30 1278010024000000000
+cpu value=35 1278010025000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "calculate integral",
+			command: `SELECT integral(value) from db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:01Z",5],["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:03Z",15],["2010-07-01T18:47:04Z",20],["2010-07-01T18:47:05Z",25]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server can handle various simple integral queries with group by.
+func TestServer_Query_SelectGroupByTimeIntegral(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=10 1278010020000000000
+cpu value=15 1278010021000000000
+cpu value=20 1278010022000000000
+cpu value=25 1278010023000000000
+cpu value=30 1278010024000000000
+cpu value=35 1278010025000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		/*&Query{
+			name:    "calculate integral of count group by time 2s",
+			command: `SELECT integral(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",2]]}]}]}`,
+		},*/
+		/*&Query{
+			name:    "calculate integral of count group by time 4s",
+			command: `SELECT integral(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",4],["2010-07-01T18:47:02Z",0]]}]}]}`,
+		},*/
+		&Query{
+			name:    "calculate integral of mean group by time 2s",
+			command: `SELECT integral(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:04Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of mean group by time 4s",
+			command: `SELECT integral(mean(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:04Z",15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of median group by time 2s",
+			command: `SELECT integral(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:04Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of median group by time 4s",
+			command: `SELECT integral(median(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:04Z",15]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of sum group by time 2s",
+			command: `SELECT integral(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",20],["2010-07-01T18:47:04Z",40]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of sum group by time 4s",
+			command: `SELECT integral(sum(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:04Z",-5]]}]}]}`,
+		},
+		/*&Query{
+			name:    "calculate integral of first with unit default (2s) group by time",
+			command: `SELECT integral(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of first group by time 4s",
+			command: `SELECT integral(first(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of last with unit default (2s) group by time",
+			command: `SELECT integral(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of last group by time 4s",
+			command: `SELECT integral(last(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of min group by time 2s",
+			command: `SELECT integral(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of min group by time 4s",
+			command: `SELECT integral(min(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of max group by time 2s",
+			command: `SELECT integral(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of max group by time 4s",
+			command: `SELECT integral(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of percentile group by time 2s",
+			command: `SELECT integral(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate integral of percentile group by time 4s",
+			command: `SELECT integral(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},*/
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+
