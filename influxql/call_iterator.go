@@ -1036,13 +1036,13 @@ func newIntegralIterator(input Iterator, opt IteratorOptions) (Iterator, error) 
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatIntegralReducer(uint32(20))
+			fn := NewFloatIntegralReducer()
 			return fn, fn
 		}
 		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
-			fn := NewIntegerIntegralReducer(uint32(20))
+			fn := NewIntegerIntegralReducer()
 			return fn, fn
 		}
 		return newIntegerStreamFloatIterator(input, createFn, opt), nil

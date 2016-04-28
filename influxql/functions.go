@@ -312,15 +312,15 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 
 // FloatIntegralReducer calculates the integral of the aggregated points.
 type FloatIntegralReducer struct {
-	minValue      uint32
+	minValue      float64
 	prev          FloatPoint
 	curr          FloatPoint
 }
 
 // NewFloatIntegralReducer creates a new FloatIntegralReducer.
-func NewFloatIntegralReducer(minValue uint32) *FloatIntegralReducer {
+func NewFloatIntegralReducer() *FloatIntegralReducer {
 	return &FloatIntegralReducer{
-		minValue:      minValue,
+		minValue:      float64(0),
 		prev:          FloatPoint{Nil: true},
 		curr:          FloatPoint{Nil: true},
 	}
@@ -335,22 +335,23 @@ func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
 // Emit emits the derivative of the reducer at the current point.
 func (r *FloatIntegralReducer) Emit() []FloatPoint {
 	if !r.prev.Nil {
-		return []FloatPoint{{Time: r.curr.Time, Value: r.curr.Value - float64(r.minValue)}}
+		return []FloatPoint{{Time: r.curr.Time, Value: r.curr.Value - r.minValue}}
 	}
+	r.minValue = r.curr.Value
 	return []FloatPoint{{Time: r.curr.Time, Value: float64(0)}}
 }
 
 // IntegerIntegralReducer calculates the integral of the aggregated points.
 type IntegerIntegralReducer struct {
-	minValue      uint32
+	minValue      int64
 	prev          IntegerPoint
 	curr          IntegerPoint
 }
 
 // NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
-func NewIntegerIntegralReducer(minValue uint32) *IntegerIntegralReducer {
+func NewIntegerIntegralReducer() *IntegerIntegralReducer {
 	return &IntegerIntegralReducer{
-		minValue:      minValue,
+		minValue:      int64(0),
 		prev:          IntegerPoint{Nil: true},
 		curr:          IntegerPoint{Nil: true},
 	}
@@ -367,5 +368,6 @@ func (r *IntegerIntegralReducer) Emit() []FloatPoint {
 	if !r.prev.Nil {
 		return []FloatPoint{{Time: r.curr.Time, Value: float64(r.curr.Value) - float64(r.minValue)}}
 	}
+	r.minValue = r.curr.Value
 	return []FloatPoint{{Time: r.curr.Time, Value: float64(0)}}
 }
