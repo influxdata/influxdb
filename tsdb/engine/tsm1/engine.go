@@ -332,10 +332,9 @@ func (e *Engine) addToIndexFromKey(key string, fieldType influxql.DataType, inde
 		return err
 	}
 
-	_, tags, err := models.ParseKey(seriesKey)
-	if err == nil {
-		return err
-	}
+	// ignore error because ParseKey returns "missing fields" and we don't have
+	// fields (in line protocol format) in the series key
+	_, tags, _ := models.ParseKey(seriesKey)
 
 	s := tsdb.NewSeries(seriesKey, tags)
 	s.InitializeShards()

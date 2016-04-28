@@ -139,9 +139,17 @@ func ParsePointsString(buf string) ([]Point, error) {
 
 // ParseKey returns the measurement name and tags from a point.
 func ParseKey(buf string) (string, Tags, error) {
-	_, keyBuf, err := scanKey([]byte(buf), 0)
-	tags := parseTags([]byte(buf))
-	return string(keyBuf), tags, err
+	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
+	// when just parsing a key
+	state, i, _ := scanMeasurement([]byte(buf), 0)
+
+	var tags Tags
+	if state == tagKeyState {
+		tags = parseTags([]byte(buf))
+		// scanMeasurement returns the location of the comma if there are tags, strip that off
+		return string(buf[:i-1]), tags, nil
+	}
+	return string(buf[:i]), tags, nil
 }
 
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
