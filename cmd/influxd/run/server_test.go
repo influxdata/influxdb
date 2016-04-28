@@ -6227,7 +6227,7 @@ cpu value=35 1278010025000000000
 		/*&Query{
 			name:    "calculate integral of count group by time 2s",
 			command: `SELECT integral(count(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:04Z",4]]}]}]}`,
 		},*/
 		/*&Query{
 			name:    "calculate integral of count group by time 4s",
@@ -6303,17 +6303,17 @@ cpu value=35 1278010025000000000
 			name:    "calculate integral of max group by time 4s",
 			command: `SELECT integral(max(value)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
-		},
+		},*/
 		&Query{
 			name:    "calculate integral of percentile group by time 2s",
-			command: `SELECT integral(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",10]]}]}]}`,
+			command: `SELECT integral(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(2s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:02Z",10],["2010-07-01T18:47:04Z",20]]}]}]}`,
 		},
 		&Query{
 			name:    "calculate integral of percentile group by time 4s",
-			command: `SELECT integral(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(4s)`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
-		},*/
+			command: `SELECT integral(percentile(value, 50)) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:05' group by time(4s)`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","integral"],"values":[["2010-07-01T18:47:00Z",0],["2010-07-01T18:47:04Z",15]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
