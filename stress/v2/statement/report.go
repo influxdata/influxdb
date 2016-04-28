@@ -14,11 +14,6 @@ import (
 // TODO: Refactor this file to utilize a common interface
 // This will make adding new reports easier in the future
 
-// type report interface {
-// 	String() string
-// 	Point() *influx.Point
-// }
-
 // Runs performance numbers for insert statements
 type insertReport struct {
 	name               string

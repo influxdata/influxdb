@@ -33,7 +33,6 @@ func RunStress(file string) {
 	resp := blankResponse()
 	s.ResultsChan <- resp
 	resp.Tracer.Wait()
-	// close s.ResultsChan
 
 	// Compile all Reports
 	for _, stmt := range stmts {

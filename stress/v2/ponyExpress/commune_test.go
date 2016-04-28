@@ -5,9 +5,9 @@ import (
 )
 
 func TestCommunePoint(t *testing.T) {
-	comm, ch := newCommune(5)
+	comm := newCommune(5)
 	pt := "write,tag=tagVal fooField=5 1460912595"
-	ch <- pt
+	comm.ch <- pt
 	point := comm.point("s")
 	if point.Name() != "write" {
 		t.Errorf("expected: write\ngot: %v", point.Name())
@@ -19,7 +19,7 @@ func TestCommunePoint(t *testing.T) {
 		t.Errorf("expected: 5\ngot: %v\n", point.Fields()["fooField"])
 	}
 	// Make sure commune returns the prev point
-	ch <- ""
+	comm.ch <- ""
 	point = comm.point("s")
 	if point.Name() != "write" {
 		t.Errorf("expected: write\ngot: %v", point.Name())

@@ -47,30 +47,30 @@ func (i *SetStatement) Run(s *ponyExpress.StoreFront) {
 	// Set the date for the first point entered into the database
 	case "startdate":
 		s.Lock()
-		defer s.Unlock()
 		s.StartDate = d.Value
+		s.Unlock()
 
 	// Lives on StoreFront
 	// Set the BatchSize for writes
 	case "batchsize":
 		s.Lock()
-		defer s.Unlock()
 		s.BatchSize = parseInt(d.Value)
+		s.Unlock()
 
 	// Lives on StoreFront
 	// Reset the ResultsClient to have a new address
 	case "resultsaddress":
 		s.Lock()
-		defer s.Unlock()
 		s.SetResultsClient(influx.HTTPConfig{Addr: fmt.Sprintf("http://%v/", d.Value)})
+		s.Unlock()
 
 	// TODO: Make TestName actually change the reporting DB
 	// Lives on StoreFront
 	// Set the TestName that controls reporting DB
 	case "testname":
 		s.Lock()
-		defer s.Unlock()
 		s.TestName = d.Value
+		s.Unlock()
 
 	// All other variables live on ponyExpress
 	default:

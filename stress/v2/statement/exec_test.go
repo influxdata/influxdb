@@ -19,12 +19,18 @@ func TestExecRun(t *testing.T) {
 	e := newTestExec()
 	s, _, _ := ponyExpress.NewTestStoreFront()
 	e.Run(s)
+	if e == nil {
+		t.Fail()
+	}
 }
 
 func TestExecReport(t *testing.T) {
 	e := newTestExec()
 	s, _, _ := ponyExpress.NewTestStoreFront()
-	e.Report(s)
+	rep := e.Report(s)
+	if rep != "" {
+		t.Fail()
+	}
 }
 
 func newTestExec() *ExecStatement {

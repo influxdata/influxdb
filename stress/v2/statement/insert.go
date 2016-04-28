@@ -139,16 +139,15 @@ func (i *InsertStatement) Run(s *ponyExpress.StoreFront) {
 			buf = temp
 		}
 
+		// TODO: Racy
 		// Has to do with InsertStatement and QueryStatement communication
 		if len(comCh) < cap(comCh) {
-			go func(point string) {
-				select {
-				case comCh <- point:
-					break
-				default:
-					break
-				}
-			}(point)
+			select {
+			case comCh <- point:
+				break
+			default:
+				break
+			}
 		}
 
 	}

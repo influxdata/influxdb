@@ -19,12 +19,18 @@ func TestGoRun(t *testing.T) {
 	e := newTestGo()
 	s, _, _ := ponyExpress.NewTestStoreFront()
 	e.Run(s)
+	if e == nil {
+		t.Fail()
+	}
 }
 
 func TestGoReport(t *testing.T) {
 	e := newTestGo()
 	s, _, _ := ponyExpress.NewTestStoreFront()
-	e.Report(s)
+	report := e.Report(s)
+	if report != "Go " {
+		t.Errorf("Expected: %v\nGot: %v\n", "Go ", report)
+	}
 }
 
 func newTestGo() *GoStatement {

@@ -10,17 +10,13 @@ import (
 // Communes are a method for passing points between InsertStatements and QueryStatements.
 
 type commune struct {
-	ch          <-chan string
+	ch          chan string
 	storedPoint models.Point
 }
 
 // NewCommune creates a new commune with a buffered chan of length n
-func newCommune(n int) (*commune, chan<- string) {
-	ch := make(chan string, n)
-	c := &commune{
-		ch: ch,
-	}
-	return c, ch
+func newCommune(n int) *commune {
+	return &commune{ch: make(chan string, n)}
 }
 
 func (c *commune) point(precision string) models.Point {
@@ -33,23 +29,20 @@ func (c *commune) point(precision string) models.Point {
 		log.Fatalf("Error parsing point for commune\n  point: %v\n  error: %v\n", pt, err)
 	}
 
-	if len(p) != 0 {
-		c.storedPoint = p[0]
-	}
-
 	if len(p) == 0 {
 		return c.storedPoint
 	}
 
+	c.storedPoint = p[0]
 	return p[0]
 }
 
 // SetCommune creates a new commune on the StoreFront
 func (sf *StoreFront) SetCommune(name string) chan<- string {
-	com, comCh := newCommune(10)
+	com := newCommune(10)
 	sf.communes[name] = com
 
-	return comCh
+	return com.ch
 }
 
 // GetPoint is called by a QueryStatement and retrieves a point sent by the associated InsertStatement
