@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
-	"github.com/influxdata/influxdb/services/copier"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/services/subscriber"
@@ -67,7 +66,6 @@ type Server struct {
 	// These references are required for the tcp muxer.
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
-	CopierService      *copier.Service
 
 	Monitor *monitor.Monitor
 
@@ -215,13 +213,6 @@ func (s *Server) appendSnapshotterService() {
 	s.SnapshotterService = srv
 }
 
-func (s *Server) appendCopierService() {
-	srv := copier.NewService()
-	srv.TSDBStore = s.TSDBStore
-	s.Services = append(s.Services, srv)
-	s.CopierService = srv
-}
-
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
@@ -253,7 +244,6 @@ func (s *Server) Open() error {
 	s.appendClusterService(s.config.Cluster)
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
-	s.appendCopierService()
 	s.appendAdminService(s.config.Admin)
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
@@ -282,7 +272,6 @@ func (s *Server) Open() error {
 
 	s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
-	s.CopierService.Listener = mux.Listen(copier.MuxHeader)
 
 	// Configure logging for all services and clients.
 	w := s.logOutput
@@ -296,7 +285,6 @@ func (s *Server) Open() error {
 	}
 	s.ClusterService.SetLogOutput(w)
 	s.SnapshotterService.SetLogOutput(w)
-	s.CopierService.SetLogOutput(w)
 	s.Monitor.SetLogOutput(w)
 
 	// Open TSDB store.
