@@ -102,12 +102,12 @@ DURATION      END           EVERY         EXISTS        EXPLAIN       FIELD
 FOR           FORCE         FROM          GRANT         GRANTS        GROUP
 GROUPS        IF            IN            INF           INNER         INSERT
 INTO          KEY           KEYS          LIMIT         SHOW          MEASUREMENT
-MEASUREMENTS  NOT           OFFSET        ON            ORDER         PASSWORD
-POLICY        POLICIES      PRIVILEGES    QUERIES       QUERY         READ
-REPLICATION   RESAMPLE      RETENTION     REVOKE        SELECT        SERIES
-SET           SHARD         SHARDS        SLIMIT        SOFFSET       STATS
-SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER          USERS
-VALUES        WHERE         WITH          WRITE
+MEASUREMENTS  NAME          NOT           OFFSET        ON            ORDER
+PASSWORD      POLICY        POLICIES      PRIVILEGES    QUERIES       QUERY
+READ          REPLICATION   RESAMPLE      RETENTION     REVOKE        SELECT
+SERIES        SET           SHARD         SHARDS        SLIMIT        SOFFSET
+STATS         SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER
+USERS         VALUES        WHERE         WITH          WRITE
 ```
 
 ## Literals
