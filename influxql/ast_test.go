@@ -1390,41 +1390,41 @@ func mustParseTime(s string) time.Time {
 
 func TestSelectStatement_HasIntegral(t *testing.T) {
 	var tests = []struct {
-		stmt       string
+		stmt     string
 		integral bool
 	}{
 		// No integral
 		{
-			stmt:       `SELECT value FROM cpu`,
+			stmt:     `SELECT value FROM cpu`,
 			integral: false,
 		},
 
 		// Query integral
 		{
-			stmt:       `SELECT integral(value) FROM cpu`,
+			stmt:     `SELECT integral(value) FROM cpu`,
 			integral: true,
 		},
 
 		// No GROUP BY time only
 		{
-			stmt:       `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			stmt:     `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
 			integral: false,
 		},
 
 		// No GROUP BY integral, time only
 		{
-			stmt:       `SELECT integral(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			stmt:     `SELECT integral(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
 			integral: true,
 		},
 
 		{
-			stmt:       `SELECT value FROM cpu`,
+			stmt:     `SELECT value FROM cpu`,
 			integral: false,
 		},
 
 		// Invalid integral function name
 		{
-			stmt:       `SELECT typoIntegral(value) FROM cpu where time < now()`,
+			stmt:     `SELECT typoIntegral(value) FROM cpu where time < now()`,
 			integral: false,
 		},
 	}

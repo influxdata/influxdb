@@ -2382,4 +2382,3 @@ func TestSelect_Intgral_Integer(t *testing.T) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
 }
-

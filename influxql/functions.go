@@ -312,17 +312,17 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 
 // FloatIntegralReducer calculates the integral of the aggregated points.
 type FloatIntegralReducer struct {
-	current       float64
-	prev          FloatPoint
-	curr          FloatPoint
+	current float64
+	prev    FloatPoint
+	curr    FloatPoint
 }
 
 // NewFloatIntegralReducer creates a new FloatIntegralReducer.
 func NewFloatIntegralReducer() *FloatIntegralReducer {
 	return &FloatIntegralReducer{
-		current:       float64(0),
-		prev:          FloatPoint{Nil: true},
-		curr:          FloatPoint{Nil: true},
+		current: float64(0),
+		prev:    FloatPoint{Nil: true},
+		curr:    FloatPoint{Nil: true},
 	}
 }
 
@@ -343,17 +343,17 @@ func (r *FloatIntegralReducer) Emit() []FloatPoint {
 
 // IntegerIntegralReducer calculates the integral of the aggregated points.
 type IntegerIntegralReducer struct {
-	current       float64
-	prev          IntegerPoint
-	curr          IntegerPoint
+	current float64
+	prev    IntegerPoint
+	curr    IntegerPoint
 }
 
 // NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
 func NewIntegerIntegralReducer() *IntegerIntegralReducer {
 	return &IntegerIntegralReducer{
-		current:       float64(0),
-		prev:          IntegerPoint{Nil: true},
-		curr:          IntegerPoint{Nil: true},
+		current: float64(0),
+		prev:    IntegerPoint{Nil: true},
+		curr:    IntegerPoint{Nil: true},
 	}
 }
 
