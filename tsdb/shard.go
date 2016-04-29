@@ -539,6 +539,32 @@ func (s *Shard) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 	return expanded, nil
 }
 
+// Restore restores data to the underlying engine for the shard.
+// The shard is reopened after restore.
+func (s *Shard) Restore(r io.Reader, basePath string) error {
+	s.mu.Lock()
+
+	// Restore to engine.
+	if err := s.engine.Restore(r, basePath); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+
+	s.mu.Unlock()
+
+	// Close shard.
+	if err := s.Close(); err != nil {
+		return err
+	}
+
+	// Reopen engine.
+	if err := s.Open(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 

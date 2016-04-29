@@ -31,6 +31,9 @@ type Engine interface {
 	SetLogOutput(io.Writer)
 	LoadMetadataIndex(shardID uint64, index *DatabaseIndex) error
 
+	Backup(w io.Writer, basePath string, since time.Time) error
+	Restore(r io.Reader, basePath string) error
+
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error)
 	WritePoints(points []models.Point) error
@@ -45,8 +48,6 @@ type Engine interface {
 	Format() EngineFormat
 
 	io.WriterTo
-
-	Backup(w io.Writer, basePath string, since time.Time) error
 }
 
 // EngineFormat represents the format for an engine.
