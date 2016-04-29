@@ -759,18 +759,23 @@ func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, 
 			for _, seriesKey := range t.SeriesKeys {
 				tags := influxql.NewTags(e.index.TagsForSeries(seriesKey))
 				for i, field := range opt.Aux {
-					typ := func() influxql.DataType {
-						mf := e.measurementFields[mm.Name]
-						if mf == nil {
-							return influxql.Unknown
-						}
+					typ := influxql.Unknown
+					if !strings.HasPrefix(field, influxql.TagSigil) {
+						typ = func() influxql.DataType {
+							mf := e.measurementFields[mm.Name]
+							if mf == nil {
+								return influxql.Unknown
+							}
 
-						f := mf.Field(field)
-						if f == nil {
-							return influxql.Unknown
-						}
-						return f.Type
-					}()
+							f := mf.Field(field)
+							if f == nil {
+								return influxql.Unknown
+							}
+							return f.Type
+						}()
+					} else {
+						field = field[1:]
+					}
 
 					if typ == influxql.Unknown {
 						if v := tags.Value(field); v != "" {
@@ -870,16 +875,21 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	if len(opt.Aux) > 0 {
 		aux = make([]cursorAt, len(opt.Aux))
 		for i := range aux {
-			// Create cursor from field.
-			cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
-			if cur != nil {
-				aux[i] = newBufCursor(cur, opt.Ascending)
-				continue
+			ref := opt.Aux[i]
+			if !strings.HasPrefix(ref, influxql.TagSigil) {
+				// Create cursor from field.
+				cur := e.buildCursor(mm.Name, seriesKey, ref, opt)
+				if cur != nil {
+					aux[i] = newBufCursor(cur, opt.Ascending)
+					continue
+				}
+			} else {
+				ref = ref[1:]
 			}
 
 			// If field doesn't exist, use the tag value.
 			// However, if the tag value is blank then return a null.
-			if v := tags.Value(opt.Aux[i]); v == "" {
+			if v := tags.Value(ref); v == "" {
 				aux[i] = &stringNilLiteralCursor{}
 			} else {
 				aux[i] = &stringLiteralCursor{value: v}
@@ -893,15 +903,20 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	if len(conditionFields) > 0 {
 		conds = make([]cursorAt, len(conditionFields))
 		for i := range conds {
-			cur := e.buildCursor(mm.Name, seriesKey, conditionFields[i], opt)
-			if cur != nil {
-				conds[i] = newBufCursor(cur, opt.Ascending)
-				continue
+			ref := conditionFields[i]
+			if !strings.HasPrefix(ref, influxql.TagSigil) {
+				cur := e.buildCursor(mm.Name, seriesKey, ref, opt)
+				if cur != nil {
+					conds[i] = newBufCursor(cur, opt.Ascending)
+					continue
+				}
+			} else {
+				ref = ref[1:]
 			}
 
 			// If field doesn't exist, use the tag value.
 			// However, if the tag value is blank then return a null.
-			if v := tags.Value(conditionFields[i]); v == "" {
+			if v := tags.Value(ref); v == "" {
 				conds[i] = &stringNilLiteralCursor{}
 			} else {
 				conds[i] = &stringLiteralCursor{value: v}

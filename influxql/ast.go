@@ -1068,11 +1068,15 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 				if _, ok := dimensionSet[expr.Val]; ok {
 					delete(dimensionSet, expr.Val)
 				}
+			case *TagRef:
+				if _, ok := dimensionSet[expr.Val]; ok {
+					delete(dimensionSet, expr.Value())
+				}
 			}
 		}
 
 		for k := range dimensionSet {
-			fieldSet[k] = struct{}{}
+			fieldSet[TagSigil+k] = struct{}{}
 		}
 		dimensionSet = nil
 	}
@@ -1089,7 +1093,11 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 			switch f.Expr.(type) {
 			case *Wildcard:
 				for _, name := range fields {
-					rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+					if !strings.HasPrefix(name, TagSigil) {
+						rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+					} else {
+						rwFields = append(rwFields, &Field{Expr: &TagRef{Val: name[1:]}})
+					}
 				}
 			default:
 				rwFields = append(rwFields, f)
@@ -1905,6 +1913,8 @@ func walkNames(exp Expr) []string {
 	switch expr := exp.(type) {
 	case *VarRef:
 		return []string{expr.Val}
+	case *TagRef:
+		return []string{expr.Value()}
 	case *Call:
 		if len(expr.Args) == 0 {
 			return nil
@@ -2999,14 +3009,21 @@ func (r *VarRef) String() string {
 	return QuoteIdent(r.Val)
 }
 
+const TagSigil = "@"
+
 // TagRef represents a reference to a tag.
 type TagRef struct {
 	Val string
 }
 
+// Value returns the tag reference value with the sigil.
+func (r *TagRef) Value() string {
+	return TagSigil + r.Val
+}
+
 // String returns a string representation of the tag reference.
 func (r *TagRef) String() string {
-	return "@" + QuoteIdent(r.Val)
+	return TagSigil + QuoteIdent(r.Val)
 }
 
 // Call represents a function call.

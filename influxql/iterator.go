@@ -929,14 +929,14 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 // selectInfo represents an object that stores info about select fields.
 type selectInfo struct {
 	calls map[*Call]struct{}
-	refs  map[*VarRef]struct{}
+	refs  map[interface{}]struct{}
 }
 
 // newSelectInfo creates a object with call and var ref info from stmt.
 func newSelectInfo(stmt *SelectStatement) *selectInfo {
 	info := &selectInfo{
 		calls: make(map[*Call]struct{}),
-		refs:  make(map[*VarRef]struct{}),
+		refs:  make(map[interface{}]struct{}),
 	}
 	Walk(info, stmt.Fields)
 	return info
@@ -948,6 +948,9 @@ func (v *selectInfo) Visit(n Node) Visitor {
 		v.calls[n] = struct{}{}
 		return nil
 	case *VarRef:
+		v.refs[n] = struct{}{}
+		return nil
+	case *TagRef:
 		v.refs[n] = struct{}{}
 		return nil
 	}
