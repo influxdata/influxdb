@@ -20,7 +20,7 @@
 - [#4675](https://github.com/influxdata/influxdb/issues/4675): Allow derivative() function to be used with ORDER BY desc.
 - [#6483](https://github.com/influxdata/influxdb/pull/6483): Delete series support for TSM
 - [#6484](https://github.com/influxdata/influxdb/pull/6484): Query language support for DELETE
-
+- [#6290](https://github.com/influxdata/influxdb/issues/6290): Add POST /query endpoint and warning messages for using GET with write operations.
 
 ### Bugfixes
 
@@ -43,8 +43,14 @@
 - [#6462](https://github.com/influxdata/influxdb/pull/6462): Add safer locking to CreateFieldIfNotExists
 - [#6361](https://github.com/influxdata/influxdb/pull/6361): Fix cluster/pool release of connection
 - [#6470](https://github.com/influxdata/influxdb/pull/6470): Remove SHOW SERVERS & DROP SERVER support
-- [#6477] (https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
--  [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
+- [#6477](https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
+- [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
+- [#6491](https://github.com/influxdata/influxdb/pull/6491): Fix the CLI not to enter an infinite loop when the liner has an error.
+- [#6457](https://github.com/influxdata/influxdb/issues/6457): Retention policy cleanup does not remove series
+- [#6477](https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
+- [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
+- [#6480](https://github.com/influxdata/influxdb/issues/6480): Fix SHOW statements' rewriting bug
+- [#6505](https://github.com/influxdata/influxdb/issues/6505): Add regex literal to InfluxQL spec for FROM clause.
 
 ## v0.12.2 [2016-04-20]
 
@@ -164,6 +170,7 @@ There were some important breaking changes in this release. Here's a list of the
 - [#2715](https://github.com/influxdata/influxdb/issues/2715): Support using field regex comparisons in the WHERE clause
 - [#5994](https://github.com/influxdata/influxdb/issues/5994): Single server
 - [#5737](https://github.com/influxdata/influxdb/pull/5737): Admin UI: Display results of multiple queries, not just the first query. Thanks @Vidhuran!
+- [#5720](https://github.com/influxdata/influxdb/pull/5720): Admin UI: New button to generate permalink to queries
 
 ### Bugfixes
 

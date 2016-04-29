@@ -102,12 +102,12 @@ DURATION      END           EVERY         EXISTS        EXPLAIN       FIELD
 FOR           FORCE         FROM          GRANT         GRANTS        GROUP
 GROUPS        IF            IN            INF           INNER         INSERT
 INTO          KEY           KEYS          LIMIT         SHOW          MEASUREMENT
-MEASUREMENTS  NOT           OFFSET        ON            ORDER         PASSWORD
-POLICY        POLICIES      PRIVILEGES    QUERIES       QUERY         READ
-REPLICATION   RESAMPLE      RETENTION     REVOKE        SELECT        SERIES
-SET           SHARD         SHARDS        SLIMIT        SOFFSET       STATS
-SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER          USERS
-VALUES        WHERE         WITH          WRITE
+MEASUREMENTS  NAME          NOT           OFFSET        ON            ORDER
+PASSWORD      POLICY        POLICIES      PRIVILEGES    QUERIES       QUERY
+READ          REPLICATION   RESAMPLE      RETENTION     REVOKE        SELECT
+SERIES        SET           SHARD         SHARDS        SLIMIT        SOFFSET
+STATS         SUBSCRIPTION  SUBSCRIPTIONS TAG           TO            USER
+USERS         VALUES        WHERE         WITH          WRITE
 ```
 
 ## Literals
@@ -358,10 +358,10 @@ CREATE USER jdoe WITH PASSWORD '1337password';
 CREATE USER jdoe WITH PASSWORD '1337password' WITH ALL PRIVILEGES;
 ```
 
-### DELETE SERIES
+### DELETE
 
 ```
-delete_series_stmt = "DELETE SERIES" ( from_clause | where_clause | from_clause where_clause ) .
+delete_stmt = "DELETE" ( from_clause | where_clause | from_clause where_clause ) .
 ```
 
 #### Example:
@@ -770,7 +770,7 @@ measurement      = measurement_name |
 
 measurements     = measurement { "," measurement } .
 
-measurement_name = identifier .
+measurement_name = identifier | regex_lit .
 
 password         = string_lit .
 

@@ -152,6 +152,48 @@ func TestShardWriteAddNewField(t *testing.T) {
 	}
 }
 
+// Ensures that when a shard is closed, it removes any series meta-data
+// from the index.
+func TestShard_Close_RemoveIndex(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+	tmpWal := path.Join(tmpDir, "wal")
+
+	index := tsdb.NewDatabaseIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	pt := models.MustNewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if got, exp := index.SeriesN(), 1; got != exp {
+		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
+	}
+
+	// ensure the index gets loaded after closing and opening the shard
+	sh.Close()
+
+	if got, exp := index.SeriesN(), 0; got != exp {
+		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 // Ensure a shard can create iterators for its underlying data.
 func TestShard_CreateIterator_Ascending(t *testing.T) {
 	sh := NewShard()

@@ -15,7 +15,7 @@ github.com/influxdata/usage-client 475977e68d79883d9c8d67131c84e4241523f452
 github.com/jwilder/encoding b421ab402545ef5a119f4f827784c6551d9bfc37
 github.com/kimor79/gollectd 61d0deeb4ffcc167b2a1baa8efd72365692811bc
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
-github.com/peterh/liner ad1edfd30321d8f006ccf05f1e0524adeb943060
+github.com/peterh/liner 82a939e738b0ee23e84ec7a12d8e216f4d95c53f
 github.com/rakyll/statik 274df120e9065bdd08eb1120e0375e3dc1ae8465
 golang.org/x/crypto 1f22c0103821b9390939b6776727195525381532
 golang.org/x/tools 8b178a93c1f5b5c8f4e36cd6bd64e0d5bf0ee180

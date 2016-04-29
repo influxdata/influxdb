@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -168,10 +167,10 @@ func (c *CommandLine) Run() error {
 
 	c.Version()
 
-	usr, err := user.Current()
-	// Only load/write history if we can get the user
-	if err == nil {
-		c.historyFilePath = filepath.Join(usr.HomeDir, ".influx_history")
+	// Only load/write history if HOME environment variable is set.
+	if homeDir := os.Getenv("HOME"); homeDir != "" {
+		// Attempt to load the history file.
+		c.historyFilePath = filepath.Join(homeDir, ".influx_history")
 		if historyFile, err := os.Open(c.historyFilePath); err == nil {
 			c.Line.ReadHistory(historyFile)
 			historyFile.Close()
@@ -179,6 +178,11 @@ func (c *CommandLine) Run() error {
 	}
 
 	// read from prompt until exit is run
+	return c.mainLoop()
+}
+
+// mainLoop runs the main prompt loop for the CLI.
+func (c *CommandLine) mainLoop() error {
 	for {
 		select {
 		case <-c.osSignals:
@@ -193,7 +197,8 @@ func (c *CommandLine) Run() error {
 				// Instead of die, register that someone exited the program gracefully
 				l = "exit"
 			} else if e != nil {
-				break
+				c.exit()
+				return e
 			}
 			if err := c.ParseCommand(l); err != ErrBlankCommand {
 				c.Line.AppendHistory(l)
