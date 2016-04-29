@@ -936,34 +936,6 @@ func (s *SelectStatement) IsSimpleDerivative() bool {
 	return false
 }
 
-// HasSimpleCount return true if one of the function calls is a count function with a
-// variable ref as the first arg
-func (s *SelectStatement) HasSimpleCount() bool {
-	// recursively check for a simple count(varref) function
-	var hasCount func(f *Call) bool
-	hasCount = func(f *Call) bool {
-		if f.Name == "count" {
-			// it's nested if the first argument is an aggregate function
-			if _, ok := f.Args[0].(*VarRef); ok {
-				return true
-			}
-		} else {
-			for _, arg := range f.Args {
-				if child, ok := arg.(*Call); ok {
-					return hasCount(child)
-				}
-			}
-		}
-		return false
-	}
-	for _, f := range s.FunctionCalls() {
-		if hasCount(f) {
-			return true
-		}
-	}
-	return false
-}
-
 // TimeAscending returns true if the time field is sorted in chronological order.
 func (s *SelectStatement) TimeAscending() bool {
 	return len(s.SortFields) == 0 || s.SortFields[0].Ascending
@@ -1334,10 +1306,6 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
-	if err := s.validateCountDistinct(); err != nil {
-		return err
-	}
-
 	if err := s.validateAggregates(tr); err != nil {
 		return err
 	}
@@ -1555,8 +1523,12 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 						case *VarRef:
 							// do nothing
 						case *Call:
-							if fc.Name != "distinct" {
+							if fc.Name != "distinct" || expr.Name != "count" {
 								return fmt.Errorf("expected field argument in %s()", c.Name)
+							} else if exp, got := 1, len(fc.Args); got != exp {
+								return fmt.Errorf("count(distinct <field>) can only have one argument", fc.Name, exp, got)
+							} else if _, ok := fc.Args[0].(*VarRef); !ok {
+								return fmt.Errorf("expected field argument in distinct()")
 							}
 						case *Distinct:
 							if expr.Name != "count" {
@@ -1580,14 +1552,24 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return err
 				}
 				if exp, got := 1, len(expr.Args); got != exp {
+					// Special error message if distinct was used as the argument.
+					if expr.Name == "count" && got >= 1 {
+						if _, ok := expr.Args[0].(*Distinct); ok {
+							return fmt.Errorf("count(distinct <field>) can only have one argument")
+						}
+					}
 					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
 				}
 				switch fc := expr.Args[0].(type) {
 				case *VarRef:
 					// do nothing
 				case *Call:
-					if fc.Name != "distinct" {
+					if fc.Name != "distinct" || expr.Name != "count" {
 						return fmt.Errorf("expected field argument in %s()", expr.Name)
+					} else if exp, got := 1, len(fc.Args); got != exp {
+						return fmt.Errorf("count(distinct <field>) can only have one argument")
+					} else if _, ok := fc.Args[0].(*VarRef); !ok {
+						return fmt.Errorf("expected field argument in distinct()")
 					}
 				case *Distinct:
 					if expr.Name != "count" {
@@ -1654,62 +1636,6 @@ func (s *SelectStatement) validateDistinct() error {
 			return fmt.Errorf("distinct function can only have one argument")
 		}
 	}
-	return nil
-}
-
-// HasCountDistinct checks if a select statement contains COUNT and DISTINCT
-func (s *SelectStatement) HasCountDistinct() bool {
-	for _, f := range s.Fields {
-		if c, ok := f.Expr.(*Call); ok {
-			if c.Name == "count" {
-				for _, a := range c.Args {
-					if _, ok := a.(*Distinct); ok {
-						return true
-					}
-					if c, ok := a.(*Call); ok {
-						if c.Name == "distinct" {
-							return true
-						}
-					}
-				}
-			}
-		}
-	}
-	return false
-}
-
-func (s *SelectStatement) validateCountDistinct() error {
-	if !s.HasCountDistinct() {
-		return nil
-	}
-
-	valid := func(e Expr) bool {
-		c, ok := e.(*Call)
-		if !ok {
-			return true
-		}
-		if c.Name != "count" {
-			return true
-		}
-		for _, a := range c.Args {
-			if _, ok := a.(*Distinct); ok {
-				return len(c.Args) == 1
-			}
-			if d, ok := a.(*Call); ok {
-				if d.Name == "distinct" {
-					return len(d.Args) == 1
-				}
-			}
-		}
-		return true
-	}
-
-	for _, f := range s.Fields {
-		if !valid(f.Expr) {
-			return fmt.Errorf("count(distinct <field>) can only have one argument")
-		}
-	}
-
 	return nil
 }
 
