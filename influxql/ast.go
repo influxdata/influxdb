@@ -149,6 +149,7 @@ func (*SortField) node()       {}
 func (SortFields) node()       {}
 func (Sources) node()          {}
 func (*StringLiteral) node()   {}
+func (*TagRef) node()          {}
 func (*Target) node()          {}
 func (*TimeLiteral) node()     {}
 func (*VarRef) node()          {}
@@ -261,6 +262,7 @@ func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
 func (*RegexLiteral) expr()    {}
 func (*StringLiteral) expr()   {}
+func (*TagRef) expr()          {}
 func (*TimeLiteral) expr()     {}
 func (*VarRef) expr()          {}
 func (*Wildcard) expr()        {}
@@ -2993,6 +2995,16 @@ type VarRef struct {
 // String returns a string representation of the variable reference.
 func (r *VarRef) String() string {
 	return QuoteIdent(r.Val)
+}
+
+// TagRef represents a reference to a tag.
+type TagRef struct {
+	Val string
+}
+
+// String returns a string representation of the tag reference.
+func (r *TagRef) String() string {
+	return "@" + QuoteIdent(r.Val)
 }
 
 // Call represents a function call.

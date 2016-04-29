@@ -41,6 +41,9 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	switch ch0 {
 	case eof:
 		return EOF, pos, ""
+	case '@':
+		_, pos, lit := s.scanIdent()
+		return TAGREF, pos, lit
 	case '"':
 		s.r.unread()
 		return s.scanIdent()
