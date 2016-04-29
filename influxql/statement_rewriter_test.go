@@ -24,6 +24,14 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT fieldKey FROM _fieldKeys WHERE _name =~ /c.*/`,
 		},
 		{
+			stmt: `SHOW FIELD KEYS FROM mydb.myrp2.cpu`,
+			s:    `SELECT fieldKey FROM mydb.myrp2._fieldKeys WHERE _name = 'cpu'`,
+		},
+		{
+			stmt: `SHOW FIELD KEYS FROM mydb.myrp2./c.*/`,
+			s:    `SELECT fieldKey FROM mydb.myrp2._fieldKeys WHERE _name =~ /c.*/`,
+		},
+		{
 			stmt: `SHOW MEASUREMENTS`,
 			s:    `SELECT _name AS "name" FROM _measurements`,
 		},
@@ -44,6 +52,22 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT _name AS "name" FROM _measurements WHERE (_name = 'cpu') AND (region = 'uswest')`,
 		},
 		{
+			stmt: `SHOW SERIES`,
+			s:    `SELECT "key" FROM _series`,
+		},
+		{
+			stmt: `SHOW SERIES FROM cpu`,
+			s:    `SELECT "key" FROM _series WHERE _name = 'cpu'`,
+		},
+		{
+			stmt: `SHOW SERIES FROM mydb.myrp1.cpu`,
+			s:    `SELECT "key" FROM mydb.myrp1._series WHERE _name = 'cpu'`,
+		},
+		{
+			stmt: `SHOW SERIES FROM mydb.myrp1./c.*/`,
+			s:    `SELECT "key" FROM mydb.myrp1._series WHERE _name =~ /c.*/`,
+		},
+		{
 			stmt: `SHOW TAG KEYS`,
 			s:    `SELECT tagKey FROM _tagKeys`,
 		},
@@ -60,6 +84,18 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT tagKey FROM _tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
 		},
 		{
+			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu`,
+			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name = 'cpu'`,
+		},
+		{
+			stmt: `SHOW TAG KEYS FROM mydb.myrp1./c.*/`,
+			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE _name =~ /c.*/`,
+		},
+		{
+			stmt: `SHOW TAG KEYS FROM mydb.myrp1.cpu WHERE region = 'uswest'`,
+			s:    `SELECT tagKey FROM mydb.myrp1._tagKeys WHERE (_name = 'cpu') AND (region = 'uswest')`,
+		},
+		{
 			stmt: `SHOW TAG VALUES WITH KEY = region`,
 			s:    `SELECT _tagKey AS "key", value FROM _tags WHERE _tagKey = 'region'`,
 		},
@@ -70,6 +106,10 @@ func TestRewriteStatement(t *testing.T) {
 		{
 			stmt: `SHOW TAG VALUES FROM cpu WITH KEY IN (region, host)`,
 			s:    `SELECT _tagKey AS "key", value FROM _tags WHERE (_name = 'cpu') AND (_tagKey = 'region' OR _tagKey = 'host')`,
+		},
+		{
+			stmt: `SHOW TAG VALUES FROM mydb.myrp1.cpu WITH KEY IN (region, host)`,
+			s:    `SELECT _tagKey AS "key", value FROM mydb.myrp1._tags WHERE (_name = 'cpu') AND (_tagKey = 'region' OR _tagKey = 'host')`,
 		},
 		{
 			stmt: `SELECT value FROM cpu`,
