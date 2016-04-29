@@ -235,13 +235,13 @@ func (s *Service) processExecuteStatementRequest(buf []byte) error {
 func (s *Service) executeStatement(stmt influxql.Statement, database string) error {
 	switch t := stmt.(type) {
 	case *influxql.DeleteSeriesStatement:
-		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition, false)
+		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
 	case *influxql.DropDatabaseStatement:
 		return s.TSDBStore.DeleteDatabase(t.Name)
 	case *influxql.DropMeasurementStatement:
 		return s.TSDBStore.DeleteMeasurement(database, t.Name)
 	case *influxql.DropSeriesStatement:
-		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition, true)
+		return s.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
 	case *influxql.DropRetentionPolicyStatement:
 		return s.TSDBStore.DeleteRetentionPolicy(database, t.Name)
 	case *influxql.DropShardStatement:

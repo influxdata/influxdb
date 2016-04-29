@@ -368,6 +368,33 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
+// ContainsSeries returns a map of keys indicating whether the key exists and
+// has values or not.
+func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
+	// keyMap is used to see if a given key exists.  keys
+	// are the measurement + tagset (minus separate & field)
+	keyMap := map[string]bool{}
+	for _, k := range keys {
+		keyMap[k] = false
+	}
+
+	for _, k := range e.Cache.Keys() {
+		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		keyMap[seriesKey] = true
+	}
+
+	if err := e.FileStore.WalkKeys(func(k string, _ byte) error {
+		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		if _, ok := keyMap[seriesKey]; ok {
+			keyMap[seriesKey] = true
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return keyMap, nil
+}
+
 // DeleteSeries removes all series keys from the engine.
 func (e *Engine) DeleteSeries(seriesKeys []string) error {
 	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
@@ -387,12 +414,16 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 	var deleteKeys []string
 	// go through the keys in the file store
-	for k := range e.FileStore.Keys() {
+	if err := e.FileStore.WalkKeys(func(k string, _ byte) error {
 		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
 			deleteKeys = append(deleteKeys, k)
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
+
 	if err := e.FileStore.DeleteRange(deleteKeys, min, max); err != nil {
 		return err
 	}
@@ -413,6 +444,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 	// delete from the WAL
 	_, err := e.WAL.DeleteRange(walKeys, min, max)
+
 	return err
 }
 

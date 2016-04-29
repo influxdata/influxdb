@@ -58,6 +58,16 @@ func (d *DatabaseIndex) Series(key string) *Series {
 	return s
 }
 
+func (d *DatabaseIndex) SeriesKeys() []string {
+	d.mu.RLock()
+	s := make([]string, len(d.series))
+	for k := range d.series {
+		s = append(s, k)
+	}
+	d.mu.RUnlock()
+	return s
+}
+
 // SeriesN returns the number of series.
 func (d *DatabaseIndex) SeriesN() int {
 	d.mu.RLock()
@@ -163,26 +173,45 @@ func (d *DatabaseIndex) AssignShard(k string, shardID uint64) {
 	}
 }
 
+// UnassignShard update the index to indicate that series k does not exist in
+// the given shardID
+func (d *DatabaseIndex) UnassignShard(k string, shardID uint64) {
+	ss := d.Series(k)
+	if ss != nil {
+		if ss.Assigned(shardID) {
+			// Remove the shard from any series
+			ss.UnassignShard(shardID)
+
+			d.mu.Lock()
+
+			// If this series not long has hards assigned, remove the series
+			if ss.ShardN() == 0 {
+
+				// Remove the series form all measurements
+				for name, measurement := range d.measurements {
+					measurement.DropSeries(ss.id)
+
+					// If the measurement no longer has any series, remove it as well
+					if !measurement.HasSeries() {
+						d.dropMeasurement(name)
+					}
+				}
+				// Remove the series key from the series index
+				delete(d.series, k)
+				d.statMap.Add(statDatabaseSeries, int64(-1))
+			}
+
+			d.mu.Unlock()
+		}
+	}
+}
+
 // RemoveShard removes all references to shardID from any series or measurements
 // in the index.  If the shard was the only owner of data for the series, the series
 // is removed from the index.
 func (d *DatabaseIndex) RemoveShard(shardID uint64) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	for k, series := range d.series {
-		if series.Assigned(shardID) {
-			// Remove the shard from any series
-			series.UnassignShard(shardID)
-
-			// If this series only had one shard assign, remove the series
-			if series.ShardN() == 0 {
-				for _, measurement := range d.measurements {
-					measurement.DropSeries(series.id)
-				}
-			}
-			delete(d.series, k)
-		}
+	for _, k := range d.SeriesKeys() {
+		d.UnassignShard(k, shardID)
 	}
 }
 
@@ -387,11 +416,15 @@ func (d *DatabaseIndex) Measurements() Measurements {
 	return measurements
 }
 
-// DropMeasurement removes the measurement and all of its underlying series from the database index
+// DropMeasurement removes the measurement and all of its underlying
+// series from the database index
 func (d *DatabaseIndex) DropMeasurement(name string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.dropMeasurement(name)
+}
 
+func (d *DatabaseIndex) dropMeasurement(name string) {
 	m := d.measurements[name]
 	if m == nil {
 		return
@@ -411,7 +444,11 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	var nDeleted int64
+	var (
+		mToDelete = map[string]struct{}{}
+		nDeleted  int64
+	)
+
 	for _, k := range keys {
 		series := d.series[k]
 		if series == nil {
@@ -420,8 +457,17 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 		series.measurement.DropSeries(series.id)
 		delete(d.series, k)
 		nDeleted++
+
+		// If there are no more series in the measurement then we'll
+		// remove it.
+		if len(series.measurement.seriesByID) == 0 {
+			mToDelete[series.measurement.Name] = struct{}{}
+		}
 	}
 
+	for mname := range mToDelete {
+		d.dropMeasurement(mname)
+	}
 	d.statMap.Add(statDatabaseSeries, -nDeleted)
 }
 

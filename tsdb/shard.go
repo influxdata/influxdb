@@ -267,12 +267,23 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return nil
 }
 
+func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
+	if s.closed() {
+		return nil, ErrEngineClosed
+	}
+
+	return s.engine.ContainsSeries(seriesKeys)
+}
+
 // DeleteSeries deletes a list of series.
 func (s *Shard) DeleteSeries(seriesKeys []string) error {
 	if s.closed() {
 		return ErrEngineClosed
 	}
-	return s.engine.DeleteSeries(seriesKeys)
+	if err := s.engine.DeleteSeries(seriesKeys); err != nil {
+		return err
+	}
+	return nil
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
@@ -280,7 +291,11 @@ func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	if s.closed() {
 		return ErrEngineClosed
 	}
-	return s.engine.DeleteSeriesRange(seriesKeys, min, max)
+	if err := s.engine.DeleteSeriesRange(seriesKeys, min, max); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
@@ -333,7 +348,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		}
 
 		ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), ss)
-		s.index.AssignShard(ss.Key, ss.id)
+		s.index.AssignShard(ss.Key, s.id)
 
 		// see if the field definitions need to be saved to the shard
 		mf := s.engine.MeasurementFields(p.Name())
